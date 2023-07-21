@@ -29,7 +29,7 @@ unique ability Channels where
 Channels.send : a -> ()
 Channels.send a = ()
 
-thing : '()
+thing : '{Channels} ()
 thing _ = send 1
 ```
 
@@ -49,7 +49,7 @@ unique ability Channels where
 Channels.send : a -> ()
 Channels.send a = sends [a]
 
-thing : '()
+thing : '{Channels} ()
 thing _ = send 1
 ```
 

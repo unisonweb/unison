@@ -607,7 +607,7 @@ unique[ae4e05d8bede04825145db1a6a2222fdf2d890b3044d86fd4368f53b265de7f9] type Do
   = Svg Text
 
 -- ex: Doc2.term 'List.map
-Doc2.term : 'a -> Doc2.Term
+Doc2.term : '{g} a -> Doc2.Term
 Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm

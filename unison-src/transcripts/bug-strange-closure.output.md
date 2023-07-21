@@ -881,20 +881,21 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                         [ Lit
                             ()
                             (Right
-                              (ConsoleText.Bold (Plain "Unison"))),
-                          Lit
+                              (ConsoleText.Bold (Plain "Unison")))
+                        , Lit
                             ()
                             (Right
                               (ConsoleText.Bold
-                                (Plain "computable"))),
-                          Lit
+                                (Plain "computable")))
+                        , Lit
                             ()
                             (Right
                               (ConsoleText.Bold
-                                (Plain "documentation"))) ]))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                (Plain "documentation")))
+                        ])))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -920,15 +921,16 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "Basic"))),
-                                      Lit
+                                            (Plain "Basic")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "formatting"))) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            (Plain "formatting")))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -941,64 +943,65 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     [ Lit
                                         ()
                                         (Right
-                                          (Plain "Paragraphs")),
-                                      Lit
-                                        () (Right (Plain "are")),
-                                      Lit
+                                          (Plain "Paragraphs"))
+                                    , Lit
+                                        () (Right (Plain "are"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "separated")),
-                                      Lit
-                                        () (Right (Plain "by")),
-                                      Lit
-                                        () (Right (Plain "one")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                          (Plain "separated"))
+                                    , Lit
+                                        () (Right (Plain "by"))
+                                    , Lit
+                                        () (Right (Plain "one"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "more")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "blanklines.")),
-                                      Lit
+                                        (Right (Plain "more"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "Sections")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "have")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "title")),
-                                      Lit
-                                        () (Right (Plain "and")),
-                                      Lit () (Right (Plain "0")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "more")),
-                                      Lit
+                                          (Plain "blanklines."))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "paragraphs")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                          (Plain "Sections"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "other")),
-                                      Lit
+                                        (Right (Plain "have"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "section")),
-                                      Lit
+                                        (Right (Plain "title"))
+                                    , Lit
+                                        () (Right (Plain "and"))
+                                    , Lit () (Right (Plain "0"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "more"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "elements.")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "paragraphs"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "other"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "section"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "elements."))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1010,12 +1013,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "Text")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "be")),
-                                      Annotated.Group
+                                        (Right (Plain "Text"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "be"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -1026,11 +1029,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 (Right
                                                   (ConsoleText.Bold
                                                     (Plain
-                                                      "bold")))),
-                                            Lit
+                                                      "bold"))))
+                                          , Lit
                                               ()
-                                              (Right (Plain ",")) ]),
-                                      Annotated.Group
+                                              (Right (Plain ","))
+                                          ])
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -1041,22 +1045,24 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 [ Lit
                                                     ()
                                                     (Right
-                                                      (Plain "*")),
-                                                  Wrap
+                                                      (Plain "*"))
+                                                , Wrap
                                                     ()
                                                     (Lit
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "italicized"))),
-                                                  Lit
+                                                          "italicized")))
+                                                , Lit
                                                     ()
                                                     (Right
-                                                      (Plain "*")) ]),
-                                            Lit
+                                                      (Plain "*"))
+                                                ])
+                                          , Lit
                                               ()
-                                              (Right (Plain ",")) ]),
-                                      Annotated.Group
+                                              (Right (Plain ","))
+                                          ])
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -1068,42 +1074,45 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "~~")),
-                                                  Wrap
+                                                        "~~"))
+                                                , Wrap
                                                     ()
                                                     (Lit
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "strikethrough"))),
-                                                  Lit
+                                                          "strikethrough")))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "~~")) ]),
-                                            Lit
+                                                        "~~"))
+                                                ])
+                                          , Lit
                                               ()
-                                              (Right (Plain ",")) ]),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Annotated.Group
+                                              (Right (Plain ","))
+                                          ])
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
                                           [ Lit
                                               ()
-                                              (Right (Plain "`")),
-                                            Lit
+                                              (Right (Plain "`"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "monospaced")),
-                                            Lit
+                                                  "monospaced"))
+                                          , Lit
                                               ()
-                                              (Right (Plain "`")) ]),
-                                      Lit
-                                        () (Right (Plain "(or")),
-                                      Annotated.Group
+                                              (Right (Plain "`"))
+                                          ])
+                                    , Lit
+                                        () (Right (Plain "(or"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -1114,23 +1123,26 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 [ Lit
                                                     ()
                                                     (Right
-                                                      (Plain "`")),
-                                                  Lit
+                                                      (Plain "`"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "monospaced")),
-                                                  Lit
+                                                        "monospaced"))
+                                                , Lit
                                                     ()
                                                     (Right
-                                                      (Plain "`")) ]),
-                                            Lit
+                                                      (Plain "`"))
+                                                ])
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain ").")) ]) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                                (Plain ")."))
+                                          ])
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1141,35 +1153,36 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "You")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
+                                        () (Right (Plain "You"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "link")),
-                                      Lit
-                                        () (Right (Plain "to")),
-                                      Lit
+                                        (Right (Plain "link"))
+                                    , Lit
+                                        () (Right (Plain "to"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "Unison")),
-                                      Lit
+                                        (Right (Plain "Unison"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "terms,")),
-                                      Lit
+                                        (Right (Plain "terms,"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "types,")),
-                                      Lit
-                                        () (Right (Plain "and")),
-                                      Lit
+                                        (Right (Plain "types,"))
+                                    , Lit
+                                        () (Right (Plain "and"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "external")),
-                                      Lit
+                                          (Plain "external"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "URLs:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        (Right (Plain "URLs:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1198,22 +1211,23 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   (Right
                                                     (Underline
                                                       (Plain
-                                                        "An"))),
-                                                Lit
+                                                        "An")))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Underline
                                                       (Plain
-                                                        "external"))),
-                                                Lit
+                                                        "external")))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Underline
                                                       (Plain
-                                                        "url"))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                        "url")))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -1232,48 +1246,50 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     (Right
                                                       (Term.Term
                                                         (Any
-                                                          'Some))))),
-                                              Lit
+                                                          (_ ->
+                                                            Some))))))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "is")),
-                                              Lit
+                                                  (Plain "is"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "a")),
-                                              Lit
+                                                  (Plain "a"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "term")),
-                                              Lit
+                                                  (Plain "term"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "link;")),
-                                              Lit
+                                                  (Plain "link;"))
+                                            , Lit
                                                 ()
                                                 (Left
                                                   (SpecialForm.Link
                                                     (Left
-                                                      (typeLink Optional)))),
-                                              Lit
+                                                      (typeLink Optional))))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "is")),
-                                              Lit
+                                                  (Plain "is"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "a")),
-                                              Lit
+                                                  (Plain "a"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "type")),
-                                              Lit
+                                                  (Plain "type"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "link")) ])),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                  (Plain "link"))
+                                            ]))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -1294,30 +1310,31 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       (Right
                                                         (Underline
                                                           (Plain
-                                                            "A"))),
-                                                    Lit
+                                                            "A")))
+                                                  , Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
-                                                            "named"))),
-                                                    Lit
+                                                            "named")))
+                                                  , Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
-                                                            "type"))),
-                                                    Lit
+                                                            "type")))
+                                                  , Lit
                                                       ()
                                                       (Right
                                                         (Underline
                                                           (Plain
-                                                            "link"))) ]),
-                                              Lit
+                                                            "link")))
+                                                  ])
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "and")),
-                                              Annotated.Group
+                                                  (Plain "and"))
+                                            , Annotated.Group
                                                 ()
                                                 (Annotated.Append
                                                   ()
@@ -1330,71 +1347,75 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                             (Right
                                                               (Underline
                                                                 (Plain
-                                                                  "a"))),
-                                                          Lit
+                                                                  "a")))
+                                                        , Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
-                                                                  "named"))),
-                                                          Lit
+                                                                  "named")))
+                                                        , Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
-                                                                  "term"))),
-                                                          Lit
+                                                                  "term")))
+                                                        , Lit
                                                             ()
                                                             (Right
                                                               (Underline
                                                                 (Plain
-                                                                  "link"))) ]),
-                                                    Lit
+                                                                  "link")))
+                                                        ])
+                                                  , Lit
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          ".")) ]),
-                                              Lit
+                                                          "."))
+                                                  ])
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "Term")),
-                                              Lit
+                                                  (Plain "Term"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "links")),
-                                              Lit
+                                                  (Plain "links"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "are")),
-                                              Lit
+                                                  (Plain "are"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "handy")),
-                                              Lit
+                                                  (Plain "handy"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "for")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain
-                                                    "linking")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "to")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "other")),
-                                              Lit
+                                                  (Plain "for"))
+                                            , Lit
                                                 ()
                                                 (Right
                                                   (Plain
-                                                    "documents!")) ])) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                                    "linking"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "to"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "other"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain
+                                                    "documents!"))
+                                            ]))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1405,51 +1426,52 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "You")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "use")),
-                                      Annotated.Group
+                                        () (Right (Plain "You"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "use"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
                                           [ Lit
                                               ()
-                                              (Right (Plain "`")),
-                                            Lit
+                                              (Right (Plain "`"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "{{ .. }}")),
-                                            Lit
+                                                  "{{ .. }}"))
+                                          , Lit
                                               ()
-                                              (Right (Plain "`")) ]),
-                                      Lit
-                                        () (Right (Plain "to")),
-                                      Lit
+                                              (Right (Plain "`"))
+                                          ])
+                                    , Lit
+                                        () (Right (Plain "to"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "escape")),
-                                      Lit
-                                        () (Right (Plain "out")),
-                                      Lit
-                                        () (Right (Plain "to")),
-                                      Lit
+                                        (Right (Plain "escape"))
+                                    , Lit
+                                        () (Right (Plain "out"))
+                                    , Lit
+                                        () (Right (Plain "to"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "regular")),
-                                      Lit
+                                        (Right (Plain "regular"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "Unison")),
-                                      Lit
+                                        (Right (Plain "Unison"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "syntax,")),
-                                      Lit
-                                        () (Right (Plain "for")),
-                                      Lit
+                                        (Right (Plain "syntax,"))
+                                    , Lit
+                                        () (Right (Plain "for"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "instance")),
-                                      Annotated.Group
+                                          (Plain "instance"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -1457,52 +1479,54 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               ()
                                               (Right
                                                 (Plain
-                                                  "__not bold__")),
-                                            Lit
+                                                  "__not bold__"))
+                                          , Lit
                                               ()
-                                              (Right (Plain ".")) ]),
-                                      Lit
+                                              (Right (Plain "."))
+                                          ])
+                                    , Lit
                                         ()
-                                        (Right (Plain "This")),
-                                      Lit
-                                        () (Right (Plain "is")),
-                                      Lit
+                                        (Right (Plain "This"))
+                                    , Lit
+                                        () (Right (Plain "is"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "useful")),
-                                      Lit
-                                        () (Right (Plain "for")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "creating")),
-                                      Lit
+                                        (Right (Plain "useful"))
+                                    , Lit
+                                        () (Right (Plain "for"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "documents")),
-                                      Lit
+                                          (Plain "creating"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "documents"))
+                                    , Lit
                                         ()
                                         (Right
                                           (Plain
-                                            "programmatically")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                            "programmatically"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "just")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "including")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "other")),
-                                      Lit
+                                        (Right (Plain "just"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "documents.")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "including"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "other"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "documents."))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1518,32 +1542,37 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           ()
                                           [ Lit
                                               ()
-                                              (Right (Plain "*")),
-                                            Lit
+                                              (Right (Plain "*"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "Next")) ]),
-                                      Annotated.Group
+                                                (Plain "Next"))
+                                          ])
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
                                           [ Lit
                                               ()
                                               (Right
-                                                (Plain "up:")),
-                                            Lit
+                                                (Plain "up:"))
+                                          , Lit
                                               ()
-                                              (Right (Plain "*")) ]),
-                                      Lit
+                                              (Right (Plain "*"))
+                                          ])
+                                    , Lit
                                         ()
                                         (Left
                                           (SpecialForm.Link
                                             (Right
                                               (Term.Term
-                                                (Any 'lists))))) ]))) ])))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                                (Any
+                                                  (_ -> lists))))))
+                                    ])))
+                          ]))))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -1567,10 +1596,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Right
                                       (ConsoleText.Bold
-                                        (Plain "Lists")))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        (Plain "Lists"))))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1599,18 +1628,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "Bulleted"))),
-                                                Lit
+                                                        "Bulleted")))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "lists"))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                        "lists")))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -1628,21 +1658,21 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "Bulleted")),
-                                                Lit
+                                                      "Bulleted"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "lists")),
-                                                Lit
+                                                      "lists"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "can")),
-                                                Lit
+                                                    (Plain "can"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "use")),
-                                                Annotated.Group
+                                                    (Plain "use"))
+                                              , Annotated.Group
                                                   ()
                                                   (Annotated.Append
                                                     ()
@@ -1654,23 +1684,25 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "`")),
-                                                            Lit
+                                                                  "`"))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "+")),
-                                                            Lit
+                                                                  "+"))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "`")) ]),
-                                                      Lit
+                                                                  "`"))
+                                                          ])
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            ",")) ]),
-                                                Annotated.Group
+                                                            ","))
+                                                    ])
+                                              , Annotated.Group
                                                   ()
                                                   (Annotated.Append
                                                     ()
@@ -1682,27 +1714,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "`")),
-                                                            Lit
+                                                                  "`"))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "-")),
-                                                            Lit
+                                                                  "-"))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "`")) ]),
-                                                      Lit
+                                                                  "`"))
+                                                          ])
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            ",")) ]),
-                                                Lit
+                                                            ","))
+                                                    ])
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "or")),
-                                                Annotated.Group
+                                                    (Plain "or"))
+                                              , Annotated.Group
                                                   ()
                                                   (Annotated.Append
                                                     ()
@@ -1710,112 +1744,114 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            "`")),
-                                                      Lit
+                                                            "`"))
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            "*")),
-                                                      Lit
+                                                            "*"))
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            "`")) ]),
-                                                Lit
+                                                            "`"))
+                                                    ])
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "for")),
-                                                Lit
+                                                    (Plain "for"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "the")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain
-                                                      "bullets")),
-                                                Lit
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "(though")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "the")),
-                                                Lit
+                                                      "bullets"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "choice")),
-                                                Lit
+                                                      "(though"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "will")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "be")),
-                                                Lit
+                                                      "choice"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "normalized")),
-                                                Lit
+                                                      "will"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "be"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "away")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "by")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "the")),
-                                                Lit
+                                                      "normalized"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "pretty-printer).")),
-                                                Lit
+                                                      "away"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "by"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "They")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "can")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "be")),
-                                                Lit
+                                                      "pretty-printer)."))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "nested,")),
-                                                Lit
+                                                      "They"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "to")),
-                                                Lit
+                                                    (Plain "can"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "any")),
-                                                Lit
+                                                    (Plain "be"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "depth:")) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                      "nested,"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "to"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "any"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain
+                                                      "depth:"))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -1847,12 +1883,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "A")))),
-                                                Lit
+                                                          "A"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -1870,12 +1906,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "B")))),
-                                                Lit
+                                                          "B"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -1895,62 +1931,74 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "C"))),
-                                                      Lit
+                                                              "C")))
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            "\n")),
-                                                      Annotated.Group
+                                                            "\n"))
+                                                    , Annotated.Group
                                                         ()
                                                         (Annotated.Append
                                                           ()
                                                           [ Indent
                                                               ()
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "  ")))
                                                               (Wrap
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Lit
-                                                                  ()
+                                                                  ( 
+                                                                  )
                                                                   (Right
                                                                     (Plain
-                                                                      "C1")))),
-                                                            Lit
+                                                                      "C1"))))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "\n")),
-                                                            Indent
+                                                                  "\n"))
+                                                          , Indent
                                                               ()
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "  ")))
                                                               (Wrap
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Lit
-                                                                  ()
+                                                                  ( 
+                                                                  )
                                                                   (Right
                                                                     (Plain
-                                                                      "C2")))) ]) ]) ]))) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                                                      "C2"))))
+                                                          ])
+                                                    ])
+                                              ])))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -1979,18 +2027,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "Numbered"))),
-                                                Lit
+                                                        "Numbered")))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "lists"))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                        "lists")))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -2022,12 +2071,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "A")))),
-                                                Lit
+                                                          "A"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2045,12 +2094,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "B")))),
-                                                Lit
+                                                          "B"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2068,12 +2117,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "C")))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                          "C"))))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -2090,95 +2140,96 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               [ Lit
                                                   ()
                                                   (Right
-                                                    (Plain "The")),
-                                                Lit
+                                                    (Plain "The"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "first")),
-                                                Lit
+                                                      "first"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "number")),
-                                                Lit
+                                                      "number"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "of")),
-                                                Lit
+                                                    (Plain "of"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "the")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain
-                                                      "list")),
-                                                Lit
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "determines")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "the")),
-                                                Lit
+                                                      "list"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "starting")),
-                                                Lit
+                                                      "determines"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "number")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "in")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "the")),
-                                                Lit
+                                                      "starting"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "rendered")),
-                                                Lit
+                                                      "number"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "in"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "the"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "output.")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "The")),
-                                                Lit
+                                                      "rendered"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "other")),
-                                                Lit
+                                                      "output."))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "The"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "numbers")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "are")),
-                                                Lit
+                                                      "other"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "ignored:")) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                      "numbers"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "are"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain
+                                                      "ignored:"))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -2210,12 +2261,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "A")))),
-                                                Lit
+                                                          "A"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2233,12 +2284,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "B")))),
-                                                Lit
+                                                          "B"))))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2256,12 +2307,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                       ()
                                                       (Right
                                                         (Plain
-                                                          "C")))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                          "C"))))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -2279,63 +2331,64 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "Numbered")),
-                                                Lit
+                                                      "Numbered"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "lists")),
-                                                Lit
+                                                      "lists"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "can")),
-                                                Lit
+                                                    (Plain "can"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "be")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain
-                                                      "nested")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "as")),
-                                                Lit
+                                                    (Plain "be"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "well,")),
-                                                Lit
+                                                      "nested"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "and")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain
-                                                      "combined")),
-                                                Lit
+                                                    (Plain "as"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "with")),
-                                                Lit
+                                                      "well,"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "and"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "bulleted")),
-                                                Lit
+                                                      "combined"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "lists:")) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                      "with"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain
+                                                      "bulleted"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain
+                                                      "lists:"))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -2371,108 +2424,130 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "Wake")),
-                                                            Lit
+                                                                  "Wake"))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "up.")) ]),
-                                                      Lit
+                                                                  "up."))
+                                                          ])
+                                                    , Lit
                                                         ()
                                                         (Right
                                                           (Plain
-                                                            "\n")),
-                                                      Annotated.Group
+                                                            "\n"))
+                                                    , Annotated.Group
                                                         ()
                                                         (Annotated.Append
                                                           ()
                                                           [ Indent
                                                               ()
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "  ")))
                                                               (Wrap
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Annotated.Append
-                                                                  ()
+                                                                  ( 
+                                                                  )
                                                                   [ Lit
-                                                                      ()
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "What")),
-                                                                    Lit
-                                                                      ()
+                                                                          "What"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "am")),
-                                                                    Lit
-                                                                      ()
+                                                                          "am"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "I")),
-                                                                    Lit
-                                                                      ()
+                                                                          "I"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "doing")),
-                                                                    Lit
-                                                                      ()
+                                                                          "doing"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "here?")) ])),
-                                                            Lit
+                                                                          "here?"))
+                                                                  ]))
+                                                          , Lit
                                                               ()
                                                               (Right
                                                                 (Plain
-                                                                  "\n")),
-                                                            Indent
+                                                                  "\n"))
+                                                          , Indent
                                                               ()
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "* ")))
                                                               (Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
                                                                     "  ")))
                                                               (Wrap
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Annotated.Append
-                                                                  ()
+                                                                  ( 
+                                                                  )
                                                                   [ Lit
-                                                                      ()
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "In")),
-                                                                    Lit
-                                                                      ()
+                                                                          "In"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "this")),
-                                                                    Lit
-                                                                      ()
+                                                                          "this"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "nested")),
-                                                                    Lit
-                                                                      ()
+                                                                          "nested"))
+                                                                  , Lit
+                                                                      ( 
+                                                                      )
                                                                       (Right
                                                                         (Plain
-                                                                          "list.")) ])) ]) ]),
-                                                Lit
+                                                                          "list."))
+                                                                  ]))
+                                                          ])
+                                                    ])
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2492,17 +2567,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "Take")),
-                                                        Lit
+                                                              "Take"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "shower.")) ])),
-                                                Lit
+                                                              "shower."))
+                                                      ]))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -2522,15 +2598,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "Get")),
-                                                        Lit
+                                                              "Get"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "dressed.")) ])) ]))) ]))) ])))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                                              "dressed."))
+                                                      ]))
+                                              ])))
+                                    ])))
+                          ]))))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -2554,10 +2634,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Right
                                       (ConsoleText.Bold
-                                        (Plain "Evaluation")))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        (Plain "Evaluation"))))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2570,25 +2650,25 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     [ Lit
                                         ()
                                         (Right
-                                          (Plain "Expressions")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "be")),
-                                      Lit
+                                          (Plain "Expressions"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "be"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "evaluated")),
-                                      Lit
+                                          (Plain "evaluated"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "inline,")),
-                                      Lit
-                                        () (Right (Plain "for")),
-                                      Lit
+                                        (Right (Plain "inline,"))
+                                    , Lit
+                                        () (Right (Plain "for"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "instance")),
-                                      Annotated.Group
+                                          (Plain "instance"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -2598,14 +2678,17 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 (EvalInline
                                                   (Term.Term
                                                     (Any
-                                                      '(1
-                                                          Nat.+ 1))))),
-                                            Lit
+                                                      (_ ->
+                                                        1
+                                                          Nat.+ 1)))))
+                                          , Lit
                                               ()
-                                              (Right (Plain ".")) ]) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                              (Right (Plain "."))
+                                          ])
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2617,34 +2700,35 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "Blocks")),
-                                      Lit
-                                        () (Right (Plain "of")),
-                                      Lit
+                                        (Right (Plain "Blocks"))
+                                    , Lit
+                                        () (Right (Plain "of"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "code")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "be")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "evaluated")),
-                                      Lit
-                                        () (Right (Plain "as")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "well,")),
-                                      Lit
-                                        () (Right (Plain "for")),
-                                      Lit
+                                        (Right (Plain "code"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "be"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "instance:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "evaluated"))
+                                    , Lit
+                                        () (Right (Plain "as"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "well,"))
+                                    , Lit
+                                        () (Right (Plain "for"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "instance:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2654,12 +2738,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Eval
                                       (Term.Term
                                         (Any
-                                          (do
+                                          (_ -> let
                                             id x = x
-                                            id (sqr 10)))))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            id (sqr 10))))))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2668,28 +2752,26 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                 (Wrap
                                   ()
                                   (Lit
-                                    () (Right (Plain "also:"))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                    () (Right (Plain "also:")))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
                               (Annotated.Group
                                 ()
                                 (Lit
-                                  ()
-                                  (Left
+                                  () (Left
                                     (Eval
                                       (Term.Term
                                         (Any
-                                          (do
-                                            match 1 with
-                                              1 -> "hi"
-                                              _ -> "goodbye"))))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (_ -> (match 1 with
+                                            1 -> "hi"
+                                            _ -> "goodbye"))))))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2700,41 +2782,42 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "To")),
-                                      Lit
+                                        () (Right (Plain "To"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "include")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "typechecked")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "snippet")),
-                                      Lit
-                                        () (Right (Plain "of")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "code")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "without")),
-                                      Lit
+                                        (Right (Plain "include"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "evaluating")),
-                                      Lit
-                                        () (Right (Plain "it,")),
-                                      Lit
-                                        () (Right (Plain "you")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "do:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "typechecked"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "snippet"))
+                                    , Lit
+                                        () (Right (Plain "of"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "code"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "without"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "evaluating"))
+                                    , Lit
+                                        () (Right (Plain "it,"))
+                                    , Lit
+                                        () (Right (Plain "you"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "do:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2744,14 +2827,15 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (ExampleBlock
                                       0 (Term.Term
                                         (Any
-                                          (do
+                                          (_ -> let
                                             use Nat *
                                             cube : Nat -> Nat
                                             cube x = x * x * x
-                                            ()))))))) ])))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                            ())))))))
+                          ]))))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -2777,25 +2861,26 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "Including"))),
-                                      Lit
+                                            (Plain "Including")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "Unison"))),
-                                      Lit
+                                            (Plain "Unison")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "source"))),
-                                      Lit
+                                            (Plain "source")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "code"))) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            (Plain "code")))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2807,33 +2892,34 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "Unison")),
-                                      Lit
+                                        (Right (Plain "Unison"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "definitions")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "be")),
-                                      Lit
+                                          (Plain "definitions"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "be"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "included")),
-                                      Lit
-                                        () (Right (Plain "in")),
-                                      Lit
+                                          (Plain "included"))
+                                    , Lit
+                                        () (Right (Plain "in"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "docs.")),
-                                      Lit
-                                        () (Right (Plain "For")),
-                                      Lit
+                                        (Right (Plain "docs."))
+                                    , Lit
+                                        () (Right (Plain "For"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "instance:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "instance:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2845,16 +2931,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (SpecialForm.Source
-                                        [ (Left
-                                            (typeLink Optional),
-                                          []),
-                                          (Right
-                                            (Term.Term
-                                              (Any 'sqr)),
-                                          []) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        [ ( Left
+                                              (typeLink Optional)
+                                          , []
+                                          )
+                                        , ( Right
+                                              (Term.Term
+                                                (Any (_ -> sqr)))
+                                          , []
+                                          )
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2866,29 +2955,30 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "Some")),
-                                      Lit
+                                        (Right (Plain "Some"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "rendering")),
-                                      Lit
+                                          (Plain "rendering"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "targets")),
-                                      Lit
+                                        (Right (Plain "targets"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "also")),
-                                      Lit
+                                        (Right (Plain "also"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "support")),
-                                      Lit
+                                        (Right (Plain "support"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "folded")),
-                                      Lit
+                                        (Right (Plain "folded"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "source:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        (Right (Plain "source:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2900,16 +2990,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (FoldedSource
-                                        [ (Left
-                                            (typeLink Optional),
-                                          []),
-                                          (Right
-                                            (Term.Term
-                                              (Any 'sqr)),
-                                          []) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                        [ ( Left
+                                              (typeLink Optional)
+                                          , []
+                                          )
+                                        , ( Right
+                                              (Term.Term
+                                                (Any (_ -> sqr)))
+                                          , []
+                                          )
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -2920,30 +3013,30 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "You")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
+                                        () (Right (Plain "You"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "also")),
-                                      Lit
+                                        (Right (Plain "also"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "include")),
-                                      Lit
+                                        (Right (Plain "include"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "just")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
+                                        (Right (Plain "just"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "signature,")),
-                                      Lit
+                                          (Plain "signature,"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "inline,")),
-                                      Lit
+                                        (Right (Plain "inline,"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "with")),
-                                      Annotated.Group
+                                        (Right (Plain "with"))
+                                    , Annotated.Group
                                         ()
                                         (Annotated.Append
                                           ()
@@ -2952,74 +3045,42 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               (Left
                                                 (SignatureInline
                                                   (Term.Term
-                                                    (Any 'sqr)))),
-                                            Lit
+                                                    (Any
+                                                      (_ -> sqr)))))
+                                          , Lit
                                               ()
-                                              (Right (Plain ",")) ]),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
-                                        () (Right (Plain "you")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
+                                              (Right (Plain ","))
+                                          ])
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
+                                        () (Right (Plain "you"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "include")),
-                                      Lit
-                                        () (Right (Plain "one")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                        (Right (Plain "include"))
+                                    , Lit
+                                        () (Right (Plain "one"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "more")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "signatures")),
-                                      Lit
-                                        () (Right (Plain "as")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "block:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
-                              ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
-                              (Annotated.Group
-                                ()
-                                (Wrap
-                                  ()
-                                  (Lit
-                                    ()
-                                    (Left
-                                      (SpecialForm.Signature
-                                        [ Term.Term (Any 'sqr),
-                                          Term.Term
-                                            (Any '(Nat.+)) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
-                              ()
-                              (Lit () (Right (Plain "  ")))
-                              (Lit () (Right (Plain "  ")))
-                              (Annotated.Group
-                                ()
-                                (Wrap
-                                  ()
-                                  (Annotated.Append
-                                    ()
-                                    [ Lit
-                                        () (Right (Plain "Or")),
-                                      Lit
+                                        (Right (Plain "more"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "alternately:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "signatures"))
+                                    , Lit
+                                        () (Right (Plain "as"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "block:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3032,10 +3093,49 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Left
                                       (SpecialForm.Signature
                                         [ Term.Term
-                                            (Any 'List.map) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            (Any (_ -> sqr))
+                                        , Term.Term
+                                            (Any (_ -> (Nat.+)))
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
+                              ()
+                              (Lit () (Right (Plain "  ")))
+                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Group
+                                ()
+                                (Wrap
+                                  ()
+                                  (Annotated.Append
+                                    ()
+                                    [ Lit
+                                        () (Right (Plain "Or"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "alternately:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
+                              ()
+                              (Lit () (Right (Plain "  ")))
+                              (Lit () (Right (Plain "  ")))
+                              (Annotated.Group
+                                ()
+                                (Wrap
+                                  ()
+                                  (Lit
+                                    ()
+                                    (Left
+                                      (SpecialForm.Signature
+                                        [ Term.Term
+                                            (Any (_ -> List.map))
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3064,18 +3164,19 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "Inline"))),
-                                                Lit
+                                                        "Inline")))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (ConsoleText.Bold
                                                       (Plain
-                                                        "snippets"))) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                        "snippets")))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -3092,50 +3193,51 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               [ Lit
                                                   ()
                                                   (Right
-                                                    (Plain "You")),
-                                                Lit
+                                                    (Plain "You"))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "can")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain
-                                                      "include")),
-                                                Lit
+                                                    (Plain "can"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "typechecked")),
-                                                Lit
+                                                      "include"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "code")),
-                                                Lit
+                                                      "typechecked"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "snippets")),
-                                                Lit
+                                                      "code"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "inline,")),
-                                                Lit
-                                                  ()
-                                                  (Right
-                                                    (Plain "for")),
-                                                Lit
+                                                      "snippets"))
+                                              , Lit
                                                   ()
                                                   (Right
                                                     (Plain
-                                                      "instance:")) ]))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Indent
+                                                      "inline,"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain "for"))
+                                              , Lit
+                                                  ()
+                                                  (Right
+                                                    (Plain
+                                                      "instance:"))
+                                              ])))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Indent
                                         ()
                                         (Lit
                                           ()
@@ -3177,145 +3279,154 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                       f
                                                                         x
                                                                         Nat.+ sqr
-                                                                                1))))),
-                                                        Lit
+                                                                                1)))))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "-")),
-                                                        Lit
+                                                              "-"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "the")),
-                                                        Annotated.Group
+                                                              "the"))
+                                                      , Annotated.Group
                                                           ()
                                                           (Annotated.Append
                                                             ()
                                                             [ Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "`")),
-                                                              Lit
-                                                                ()
+                                                                    "`"))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "2")),
-                                                              Lit
-                                                                ()
+                                                                    "2"))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "`")) ]),
-                                                        Lit
+                                                                    "`"))
+                                                            ])
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "says")),
-                                                        Lit
+                                                              "says"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "to")),
-                                                        Lit
+                                                              "to"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "ignore")),
-                                                        Lit
+                                                              "ignore"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "the")),
-                                                        Lit
+                                                              "the"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "first")),
-                                                        Lit
+                                                              "first"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "two")),
-                                                        Lit
+                                                              "two"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "arguments")),
-                                                        Lit
+                                                              "arguments"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "when")),
-                                                        Lit
+                                                              "when"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "rendering.")),
-                                                        Lit
+                                                              "rendering."))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "In")),
-                                                        Lit
+                                                              "In"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "richer")),
-                                                        Lit
+                                                              "richer"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "renderers,")),
-                                                        Lit
+                                                              "renderers,"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "the")),
-                                                        Annotated.Group
+                                                              "the"))
+                                                      , Annotated.Group
                                                           ()
                                                           (Annotated.Append
                                                             ()
                                                             [ Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "`")),
-                                                              Lit
-                                                                ()
+                                                                    "`"))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "sqr")),
-                                                              Lit
-                                                                ()
+                                                                    "sqr"))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    "`")) ]),
-                                                        Lit
+                                                                    "`"))
+                                                            ])
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "link")),
-                                                        Lit
+                                                              "link"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "will")),
-                                                        Lit
+                                                              "will"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "be")),
-                                                        Lit
+                                                              "be"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "clickable.")) ])),
-                                                Lit
+                                                              "clickable."))
+                                                      ]))
+                                              , Lit
                                                   ()
                                                   (Right
-                                                    (Plain "\n")),
-                                                Indent
+                                                    (Plain "\n"))
+                                              , Indent
                                                   ()
                                                   (Lit
                                                     ()
@@ -3335,158 +3446,170 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "If")),
-                                                        Lit
+                                                              "If"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "your")),
-                                                        Lit
+                                                              "your"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "snippet")),
-                                                        Lit
+                                                              "snippet"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "expression")),
-                                                        Lit
+                                                              "expression"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "is")),
-                                                        Lit
+                                                              "is"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "just")),
-                                                        Lit
+                                                              "just"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "a")),
-                                                        Lit
+                                                              "a"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "single")),
-                                                        Lit
+                                                              "single"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "function")),
-                                                        Lit
+                                                              "function"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "application,")),
-                                                        Lit
+                                                              "application,"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "you")),
-                                                        Lit
+                                                              "you"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "can")),
-                                                        Lit
+                                                              "can"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "put")),
-                                                        Lit
+                                                              "put"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "it")),
-                                                        Lit
+                                                              "it"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "in")),
-                                                        Lit
+                                                              "in"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "double")),
-                                                        Lit
+                                                              "double"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "backticks,")),
-                                                        Lit
+                                                              "backticks,"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "like")),
-                                                        Lit
+                                                              "like"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "so:")),
-                                                        Annotated.Group
+                                                              "so:"))
+                                                      , Annotated.Group
                                                           ()
                                                           (Annotated.Append
                                                             ()
                                                             [ Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Left
                                                                   (Example
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        '(x ->
-                                                                            sqr
-                                                                              x))))),
-                                                              Lit
-                                                                ()
+                                                                        (_
+                                                                        x ->
+                                                                          sqr
+                                                                            x)))))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    ".")) ]),
-                                                        Lit
+                                                                    "."))
+                                                            ])
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "This")),
-                                                        Lit
+                                                              "This"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "is")),
-                                                        Lit
+                                                              "is"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "equivalent")),
-                                                        Lit
+                                                              "equivalent"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "to")),
-                                                        Annotated.Group
+                                                              "to"))
+                                                      , Annotated.Group
                                                           ()
                                                           (Annotated.Append
                                                             ()
                                                             [ Lit
-                                                                ()
+                                                                ( 
+                                                                )
                                                                 (Left
                                                                   (Example
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        '(x ->
-                                                                            sqr
-                                                                              x))))),
-                                                              Lit
-                                                                ()
+                                                                        (_
+                                                                        x ->
+                                                                          sqr
+                                                                            x)))))
+                                                            , Lit
+                                                                ( 
+                                                                )
                                                                 (Right
                                                                   (Plain
-                                                                    ".")) ]) ])) ]))) ]))) ])))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                                                    "."))
+                                                            ])
+                                                      ]))
+                                              ])))
+                                    ])))
+                          ]))))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -3512,20 +3635,21 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "Non-Unison"))),
-                                      Lit
+                                            (Plain "Non-Unison")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "code"))),
-                                      Lit
+                                            (Plain "code")))
+                                    , Lit
                                         ()
                                         (Right
                                           (ConsoleText.Bold
-                                            (Plain "blocks"))) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            (Plain "blocks")))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3536,45 +3660,46 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "Use")),
-                                      Lit
+                                        () (Right (Plain "Use"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "three")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                        (Right (Plain "three"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "more")),
-                                      Lit
+                                        (Right (Plain "more"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "single")),
-                                      Lit
+                                        (Right (Plain "single"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "quotes")),
-                                      Lit
-                                        () (Right (Plain "to")),
-                                      Lit
+                                        (Right (Plain "quotes"))
+                                    , Lit
+                                        () (Right (Plain "to"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "start")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
+                                        (Right (Plain "start"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "block")),
-                                      Lit
+                                        (Right (Plain "block"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "with")),
-                                      Lit
-                                        () (Right (Plain "no")),
-                                      Lit
+                                        (Right (Plain "with"))
+                                    , Lit
+                                        () (Right (Plain "no"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "syntax")),
-                                      Lit
+                                        (Right (Plain "syntax"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "highlighting:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "highlighting:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3588,29 +3713,30 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                       ()
                                       [ Lit
                                           ()
-                                          (Right (Plain "``` ")),
-                                        Annotated.Group
+                                          (Right (Plain "``` "))
+                                      , Annotated.Group
                                           ()
                                           (Lit
                                             ()
-                                            (Right (Plain "raw"))),
-                                        Lit
+                                            (Right (Plain "raw")))
+                                      , Lit
                                           ()
-                                          (Right (Plain "\n")),
-                                        Lit
+                                          (Right (Plain "\n"))
+                                      , Lit
                                           ()
                                           (Right
                                             (Plain
-                                              "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|\n  ")),
-                                        Lit
+                                              "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|\n  "))
+                                      , Lit
                                           ()
-                                          (Right (Plain "\n")),
-                                        Lit
+                                          (Right (Plain "\n"))
+                                      , Lit
                                           ()
-                                          (Right (Plain "```")) ])))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Right (Plain "```"))
+                                      ]))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3621,52 +3747,53 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Annotated.Append
                                     ()
                                     [ Lit
-                                        () (Right (Plain "You")),
-                                      Lit
-                                        () (Right (Plain "can")),
-                                      Lit
-                                        () (Right (Plain "use")),
-                                      Lit
+                                        () (Right (Plain "You"))
+                                    , Lit
+                                        () (Right (Plain "can"))
+                                    , Lit
+                                        () (Right (Plain "use"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "three")),
-                                      Lit
-                                        () (Right (Plain "or")),
-                                      Lit
+                                        (Right (Plain "three"))
+                                    , Lit
+                                        () (Right (Plain "or"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "more")),
-                                      Lit
-                                        ()
-                                        (Right
-                                          (Plain "backticks")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "plus")),
-                                      Lit () (Right (Plain "a")),
-                                      Lit
+                                        (Right (Plain "more"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "language")),
-                                      Lit
+                                          (Plain "backticks"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "name")),
-                                      Lit
-                                        () (Right (Plain "for")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "blocks")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "with")),
-                                      Lit
-                                        ()
-                                        (Right (Plain "syntax")),
-                                      Lit
+                                        (Right (Plain "plus"))
+                                    , Lit () (Right (Plain "a"))
+                                    , Lit
                                         ()
                                         (Right
-                                          (Plain "highlighting:")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                          (Plain "language"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "name"))
+                                    , Lit
+                                        () (Right (Plain "for"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "blocks"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "with"))
+                                    , Lit
+                                        ()
+                                        (Right (Plain "syntax"))
+                                    , Lit
+                                        ()
+                                        (Right
+                                          (Plain "highlighting:"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3678,27 +3805,28 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "``` ")),
-                                      Annotated.Group
+                                        (Right (Plain "``` "))
+                                    , Annotated.Group
                                         ()
                                         (Lit
                                           ()
                                           (Right
-                                            (Plain "Haskell"))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
+                                            (Plain "Haskell")))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
                                         ()
                                         (Right
                                           (Plain
-                                            "-- A fenced code block which isn't parsed by Unison\nreverse = foldl (flip (:)) []")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "```")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Indent
+                                            "-- A fenced code block which isn't parsed by Unison\nreverse = foldl (flip (:)) []"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "```"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Indent
                               ()
                               (Lit () (Right (Plain "  ")))
                               (Lit () (Right (Plain "  ")))
@@ -3710,26 +3838,28 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "``` ")),
-                                      Annotated.Group
+                                        (Right (Plain "``` "))
+                                    , Annotated.Group
                                         ()
                                         (Lit
                                           ()
-                                          (Right (Plain "Scala"))),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
+                                          (Right (Plain "Scala")))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
                                         ()
                                         (Right
                                           (Plain
-                                            "// A fenced code block which isn't parsed by Unison\ndef reverse[A](xs: List[A]) = \n  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)")),
-                                      Lit
-                                        () (Right (Plain "\n")),
-                                      Lit
-                                        () (Right (Plain "```")) ]))) ])))),
-                Lit () (Right (Plain "\n")),
-                Lit () (Right (Plain "\n")),
-                Indent
+                                            "// A fenced code block which isn't parsed by Unison\ndef reverse[A](xs: List[A]) = \n  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)"))
+                                    , Lit
+                                        () (Right (Plain "\n"))
+                                    , Lit
+                                        () (Right (Plain "```"))
+                                    ])))
+                          ]))))
+              , Lit () (Right (Plain "\n"))
+              , Lit () (Right (Plain "\n"))
+              , Indent
                   ()
                   (Lit () (Right (Plain "  ")))
                   (Lit () (Right (Plain "  ")))
@@ -3748,75 +3878,77 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                 (Annotated.Append
                                   ()
                                   [ Lit
-                                      () (Right (Plain "There")),
-                                    Lit () (Right (Plain "are")),
-                                    Lit
-                                      () (Right (Plain "also")),
-                                    Lit
+                                      () (Right (Plain "There"))
+                                  , Lit () (Right (Plain "are"))
+                                  , Lit
+                                      () (Right (Plain "also"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "asides,")),
-                                    Lit
+                                      (Right (Plain "asides,"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "callouts,")),
-                                    Lit
+                                      (Right (Plain "callouts,"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "tables,")),
-                                    Lit
+                                      (Right (Plain "tables,"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "tooltips,")),
-                                    Lit () (Right (Plain "and")),
-                                    Lit
-                                      () (Right (Plain "more.")),
-                                    Lit
-                                      () (Right (Plain "These")),
-                                    Lit
-                                      () (Right (Plain "don't")),
-                                    Lit
+                                      (Right (Plain "tooltips,"))
+                                  , Lit () (Right (Plain "and"))
+                                  , Lit
+                                      () (Right (Plain "more."))
+                                  , Lit
+                                      () (Right (Plain "These"))
+                                  , Lit
+                                      () (Right (Plain "don't"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "currently")),
-                                    Lit
-                                      () (Right (Plain "have")),
-                                    Lit
+                                      (Right (Plain "currently"))
+                                  , Lit
+                                      () (Right (Plain "have"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "special")),
-                                    Lit
+                                      (Right (Plain "special"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "syntax;")),
-                                    Lit
-                                      () (Right (Plain "just")),
-                                    Lit () (Right (Plain "use")),
-                                    Lit () (Right (Plain "the")),
-                                    Annotated.Group
+                                      (Right (Plain "syntax;"))
+                                  , Lit
+                                      () (Right (Plain "just"))
+                                  , Lit () (Right (Plain "use"))
+                                  , Lit () (Right (Plain "the"))
+                                  , Annotated.Group
                                       ()
                                       (Annotated.Append
                                         ()
                                         [ Lit
                                             ()
-                                            (Right (Plain "`")),
-                                          Lit
+                                            (Right (Plain "`"))
+                                        , Lit
                                             ()
                                             (Right
-                                              (Plain "{{ }}")),
-                                          Lit
+                                              (Plain "{{ }}"))
+                                        , Lit
                                             ()
-                                            (Right (Plain "`")) ]),
-                                    Lit
+                                            (Right (Plain "`"))
+                                        ])
+                                  , Lit
                                       ()
-                                      (Right (Plain "syntax")),
-                                    Lit () (Right (Plain "to")),
-                                    Lit
-                                      () (Right (Plain "call")),
-                                    Lit
-                                      () (Right (Plain "these")),
-                                    Lit
+                                      (Right (Plain "syntax"))
+                                  , Lit () (Right (Plain "to"))
+                                  , Lit
+                                      () (Right (Plain "call"))
+                                  , Lit
+                                      () (Right (Plain "these"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "functions")),
-                                    Lit
+                                      (Right (Plain "functions"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "directly.")) ])),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                      (Right (Plain "directly."))
+                                  ]))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -3825,37 +3957,39 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Left
                                     (SpecialForm.Signature
                                       [ Term.Term
-                                          (Any 'docAside),
-                                        Term.Term
-                                          (Any 'docCallout),
-                                        Term.Term
-                                          (Any 'docBlockquote),
-                                        Term.Term
-                                          (Any 'docTooltip),
-                                        Term.Term
-                                          (Any 'docTable) ])))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                          (Any (_ -> docAside))
+                                      , Term.Term
+                                          (Any (_ -> docCallout))
+                                      , Term.Term
+                                          (Any
+                                            (_ -> docBlockquote))
+                                      , Term.Term
+                                          (Any (_ -> docTooltip))
+                                      , Term.Term
+                                          (Any (_ -> docTable))
+                                      ]))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
                                 (Annotated.Append
                                   ()
                                   [ Lit
-                                      () (Right (Plain "This")),
-                                    Lit () (Right (Plain "is")),
-                                    Lit () (Right (Plain "an")),
-                                    Lit
+                                      () (Right (Plain "This"))
+                                  , Lit () (Right (Plain "is"))
+                                  , Lit () (Right (Plain "an"))
+                                  , Lit
                                       ()
-                                      (Right (Plain "aside.")),
-                                    Lit
+                                      (Right (Plain "aside."))
+                                  , Lit
                                       ()
                                       (Right
                                         (Foreground
                                           BrightBlack
-                                          (Plain "("))),
-                                    Wrap
+                                          (Plain "(")))
+                                  , Wrap
                                       ()
                                       (Annotated.Append
                                         ()
@@ -3864,64 +3998,66 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "Some"))),
-                                          Lit
+                                                (Plain "Some")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "extra"))),
-                                          Lit
+                                                (Plain "extra")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "detail"))),
-                                          Lit
+                                                (Plain "detail")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "that"))),
-                                          Lit
+                                                (Plain "that")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "doesn't"))),
-                                          Lit
+                                                (Plain "doesn't")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "belong"))),
-                                          Lit
+                                                (Plain "belong")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "in"))),
-                                          Lit
+                                                (Plain "in")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "main"))),
-                                          Lit
+                                                (Plain "main")))
+                                        , Lit
                                             ()
                                             (Right
                                               (Foreground
                                                 BrightBlack
-                                                (Plain "text."))) ]),
-                                    Lit
+                                                (Plain "text.")))
+                                        ])
+                                  , Lit
                                       ()
                                       (Right
                                         (Foreground
                                           BrightBlack
-                                          (Plain ")"))) ])),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                          (Plain ")")))
+                                  ]))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -3940,35 +4076,36 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         [ Lit
                                             ()
                                             (Right
-                                              (Plain "This")),
-                                          Lit
+                                              (Plain "This"))
+                                        , Lit
                                             ()
-                                            (Right (Plain "is")),
-                                          Lit
+                                            (Right (Plain "is"))
+                                        , Lit
                                             ()
-                                            (Right (Plain "an")),
-                                          Lit
-                                            ()
-                                            (Right
-                                              (Plain "important")),
-                                          Lit
+                                            (Right (Plain "an"))
+                                        , Lit
                                             ()
                                             (Right
-                                              (Plain "callout,")),
-                                          Lit
+                                              (Plain "important"))
+                                        , Lit
                                             ()
                                             (Right
-                                              (Plain "with")),
-                                          Lit
-                                            ()
-                                            (Right (Plain "no")),
-                                          Lit
+                                              (Plain "callout,"))
+                                        , Lit
                                             ()
                                             (Right
-                                              (Plain "icon.")) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                              (Plain "with"))
+                                        , Lit
+                                            ()
+                                            (Right (Plain "no"))
+                                        , Lit
+                                            ()
+                                            (Right
+                                              (Plain "icon."))
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -3988,82 +4125,84 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                             ()
                                             (Right
                                               (ConsoleText.Bold
-                                                (Plain "🌻")))),
-                                        Lit
+                                                (Plain "🌻"))))
+                                      , Lit
                                           ()
-                                          (Right (Plain "\n")),
-                                        Lit
-                                          () (Right (Plain "")),
-                                        Lit
+                                          (Right (Plain "\n"))
+                                      , Lit
+                                          () (Right (Plain ""))
+                                      , Lit
                                           ()
-                                          (Right (Plain "\n")),
-                                        Wrap
+                                          (Right (Plain "\n"))
+                                      , Wrap
                                           ()
                                           (Annotated.Append
                                             ()
                                             [ Lit
                                                 ()
                                                 (Right
-                                                  (Plain "This")),
-                                              Lit
+                                                  (Plain "This"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "is")),
-                                              Lit
+                                                  (Plain "is"))
+                                            , Lit
                                                 ()
                                                 (Right
-                                                  (Plain "an")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain
-                                                    "important")),
-                                              Lit
+                                                  (Plain "an"))
+                                            , Lit
                                                 ()
                                                 (Right
                                                   (Plain
-                                                    "callout,")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "with")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "an")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "icon.")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "The")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "text")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "wraps")),
-                                              Lit
-                                                ()
-                                                (Right
-                                                  (Plain "onto")),
-                                              Lit
+                                                    "important"))
+                                            , Lit
                                                 ()
                                                 (Right
                                                   (Plain
-                                                    "multiple")),
-                                              Lit
+                                                    "callout,"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "with"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "an"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "icon."))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "The"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "text"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "wraps"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain "onto"))
+                                            , Lit
                                                 ()
                                                 (Right
                                                   (Plain
-                                                    "lines.")) ]) ])))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                                    "multiple"))
+                                            , Lit
+                                                ()
+                                                (Right
+                                                  (Plain
+                                                    "lines."))
+                                            ])
+                                      ]))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -4087,78 +4226,79 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "\"And")),
-                                                  Lit
+                                                        "\"And"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "what")),
-                                                  Lit
+                                                        "what"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "is")),
-                                                  Lit
+                                                        "is"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "the")),
-                                                  Lit
+                                                        "the"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "use")),
-                                                  Lit
+                                                        "use"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "of")),
-                                                  Lit
+                                                        "of"))
+                                                , Lit
                                                     ()
                                                     (Right
-                                                      (Plain "a")),
-                                                  Lit
-                                                    ()
-                                                    (Right
-                                                      (Plain
-                                                        "book,\"")),
-                                                  Lit
+                                                      (Plain "a"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "thought")),
-                                                  Lit
+                                                        "book,\""))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "Alice,")),
-                                                  Lit
+                                                        "thought"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "\"without")),
-                                                  Lit
+                                                        "Alice,"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "pictures")),
-                                                  Lit
+                                                        "\"without"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "or")),
-                                                  Lit
+                                                        "pictures"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "conversation?\"")) ])),
-                                          Lit
+                                                        "or"))
+                                                , Lit
+                                                    ()
+                                                    (Right
+                                                      (Plain
+                                                        "conversation?\""))
+                                                ]))
+                                        , Lit
                                             ()
-                                            (Right (Plain "\n")),
-                                          Lit
+                                            (Right (Plain "\n"))
+                                        , Lit
                                             ()
-                                            (Right (Plain "\n")),
-                                          Annotated.Group
+                                            (Right (Plain "\n"))
+                                        , Annotated.Group
                                             ()
                                             (Wrap
                                               ()
@@ -4172,33 +4312,34 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "*")),
-                                                        Lit
+                                                              "*"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "Lewis")) ]),
-                                                  Lit
+                                                              "Lewis"))
+                                                      ])
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "Carroll,")),
-                                                  Lit
+                                                        "Carroll,"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "Alice's")),
-                                                  Lit
+                                                        "Alice's"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "Adventures")),
-                                                  Lit
+                                                        "Adventures"))
+                                                , Lit
                                                     ()
                                                     (Right
                                                       (Plain
-                                                        "in")),
-                                                  Annotated.Group
+                                                        "in"))
+                                                , Annotated.Group
                                                     ()
                                                     (Annotated.Append
                                                       ()
@@ -4206,15 +4347,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "Wonderland")),
-                                                        Lit
+                                                              "Wonderland"))
+                                                      , Lit
                                                           ()
                                                           (Right
                                                             (Plain
-                                                              "*")) ]) ])) ]))))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                                              "*"))
+                                                      ])
+                                                ]))
+                                        ])))))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -4224,15 +4368,16 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     [ Lit
                                         ()
-                                        (Right (Plain "Hover")),
-                                      Lit
+                                        (Right (Plain "Hover"))
+                                    , Lit
                                         ()
-                                        (Right (Plain "over")),
-                                      Lit
-                                        () (Right (Plain "me")) ]))),
-                            Lit () (Right (Plain "\n")),
-                            Lit () (Right (Plain "\n")),
-                            Annotated.Group
+                                        (Right (Plain "over"))
+                                    , Lit
+                                        () (Right (Plain "me"))
+                                    ])))
+                          , Lit () (Right (Plain "\n"))
+                          , Lit () (Right (Plain "\n"))
+                          , Annotated.Group
                               ()
                               (Wrap
                                 ()
@@ -4241,128 +4386,136 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   [ [ Wrap
                                         ()
                                         (Lit
-                                          () (Right (Plain "a"))),
-                                      Wrap
+                                          () (Right (Plain "a")))
+                                    , Wrap
                                         ()
                                         (Lit
-                                          () (Right (Plain "b"))),
-                                      Wrap
+                                          () (Right (Plain "b")))
+                                    , Wrap
                                         ()
                                         (Annotated.Append
                                           ()
                                           [ Lit
                                               ()
-                                              (Right (Plain "A")),
-                                            Lit
+                                              (Right (Plain "A"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "longer")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain
-                                                  "paragraph")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "that")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "will")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "split")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "onto")),
-                                            Lit
+                                                (Plain "longer"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "multiple")),
-                                            Lit
+                                                  "paragraph"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "lines,")),
-                                            Lit
+                                                (Plain "that"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "such")),
-                                            Lit
+                                                (Plain "will"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "that")),
-                                            Lit
+                                                (Plain "split"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "this")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "row")),
-                                            Lit
+                                                (Plain "onto"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "occupies")),
-                                            Lit
+                                                  "multiple"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "lines,"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "such"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "that"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "this"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "row"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "multiple")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "lines")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "in")),
-                                            Lit
-                                              ()
-                                              (Right
-                                                (Plain "the")),
-                                            Lit
+                                                  "occupies"))
+                                          , Lit
                                               ()
                                               (Right
                                                 (Plain
-                                                  "rendered")),
-                                            Lit
+                                                  "multiple"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "table.")) ]) ],
-                                    [ Wrap
-                                        ()
-                                        (Annotated.Append
-                                          ()
-                                          [ Lit
+                                                (Plain "lines"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "Some")),
-                                            Lit
+                                                (Plain "in"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "text")) ]),
-                                      Wrap
+                                                (Plain "the"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain
+                                                  "rendered"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "table."))
+                                          ])
+                                    ]
+                                  , [ Wrap
                                         ()
                                         (Annotated.Append
                                           ()
                                           [ Lit
                                               ()
                                               (Right
-                                                (Plain "More")),
-                                            Lit
+                                                (Plain "Some"))
+                                          , Lit
                                               ()
                                               (Right
-                                                (Plain "text")) ]),
-                                      Wrap
+                                                (Plain "text"))
+                                          ])
+                                    , Wrap
+                                        ()
+                                        (Annotated.Append
+                                          ()
+                                          [ Lit
+                                              ()
+                                              (Right
+                                                (Plain "More"))
+                                          , Lit
+                                              ()
+                                              (Right
+                                                (Plain "text"))
+                                          ])
+                                    , Wrap
                                         ()
                                         (Lit
                                           ()
                                           (Right
-                                            (Plain "Zounds!"))) ] ])) ])))) ])
+                                            (Plain "Zounds!")))
+                                    ]
+                                  ]))
+                          ]))))
+              ])
 
 ```
