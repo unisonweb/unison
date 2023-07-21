@@ -387,6 +387,7 @@
           (unison core)
           (only (unison boot) define-unison)
           (unison data)
+          (unison data-info)
           (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
@@ -394,7 +395,6 @@
           (unison bytes-nat)
           (unison pattern)
           (unison crypto)
-          (unison data)
           (unison io)
           (unison io-handles)
           (unison tls)
@@ -501,8 +501,8 @@
 
   (define (->optional v)
     (if v
-        (data 'Optional 0 v)
-        (data 'Optional 1)))
+        (unison-optional-some v)
+        (unison-optional-none)))
 
   (define-unison (builtin-Text.indexOf n h)
     (->optional (chunked-string-index-of h n)))
