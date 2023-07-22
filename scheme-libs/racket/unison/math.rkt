@@ -6,7 +6,12 @@
 (provide
     builtin-Float.exp
     builtin-Float.log
+    builtin-Float.max
+    builtin-Float.min
     builtin-Float.logBase
+    builtin-Int.*
+    builtin-Int.pow
+    builtin-Float.pow
  (prefix-out unison-POp-
              (combine-out
               ABSF
@@ -27,6 +32,15 @@
               EXPF
               COSF
               COSH
+              MAXF
+              MINF
+              MULF
+              MULI
+              NEGI
+              NTOF
+              POWF
+              POWI
+              POWN
               DIVF
               DIVI
               EQLF
@@ -40,6 +54,11 @@
 (define (LOGB base num) (log num base))
 (define-unison (builtin-Float.exp n) (exp n))
 (define-unison (builtin-Float.log n) (log n))
+(define-unison (builtin-Float.max n m) (max n m))
+(define-unison (builtin-Float.min n m) (min n m))
+(define-unison (builtin-Int.* n m) (* n m))
+(define-unison (builtin-Int.pow n m) (expt n m))
+(define-unison (builtin-Float.pow n m) (expt n m))
 (define (EXPF n) (exp n))
 (define ABSF abs)
 (define ACOS acos)
@@ -47,6 +66,15 @@
 (define ADDF +)
 (define ADDI +)
 (define SUBF -)
+(define MAXF max)
+(define MINF min)
+(define MULF *)
+(define MULI *)
+(define NEGI -)
+(define NTOF exact->inexact)
+(define POWF expt)
+(define POWI expt)
+(define POWN expt)
 (define ASIN asin)
 (define ASNH asinh)
 (define ATAN atan)
