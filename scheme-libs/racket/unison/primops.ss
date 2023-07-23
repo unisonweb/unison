@@ -224,6 +224,8 @@
     unison-POp-EQLF
     unison-POp-EQLI
     unison-POp-SUBF
+    unison-POp-SUBI
+    unison-POp-SGNI
     unison-POp-LEQF
     unison-POp-SINF
     unison-POp-SINH

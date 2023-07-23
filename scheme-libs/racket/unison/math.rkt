@@ -46,6 +46,8 @@
               EQLF
               EQLI
               SUBF
+              SUBI
+              SGNI
               LEQF
               SINF
               ITOF)))
@@ -66,6 +68,8 @@
 (define ADDF +)
 (define ADDI +)
 (define SUBF -)
+(define SUBI -)
+(define (SGNI n) (if (< n 0) -1 (if (> n 0) +1 0)))
 (define MAXF max)
 (define MINF min)
 (define MULF *)
