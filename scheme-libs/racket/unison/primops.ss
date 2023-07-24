@@ -31,6 +31,8 @@
     builtin-Float.log
     builtin-Float.max
     builtin-Float.min
+    builtin-Float.tan
+    builtin-Float.tanh
     builtin-Float.logBase
     builtin-Float.pow
     builtin-Int.pow
@@ -42,6 +44,7 @@
     builtin-Int.fromRepresentation
     builtin-Int.toRepresentation
     builtin-Int.signum
+    builtin-Int.trailingZeros
     builtin-Nat.increment
     builtin-Nat.toFloat
     builtin-Text.indexOf
@@ -230,6 +233,11 @@
     unison-POp-SINF
     unison-POp-SINH
     unison-POp-TRNF
+    unison-POp-RNDF
+    unison-POp-SQRT
+    unison-POp-TANH
+    unison-POp-TANF
+    unison-POp-TZRO
     unison-POp-ITOF
 
     unison-POp-ADDN

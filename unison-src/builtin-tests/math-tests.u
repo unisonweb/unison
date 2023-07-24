@@ -22,10 +22,13 @@ math.tests = do
     checkCloseEnough "atan 1.0" (atan 1.0) 0.7853981633974483
     checkCloseEnough "atan2 1.0 2.0" (atan2 1.0 2.0) 0.46364760900080615
     checkCloseEnough "atanh 0.5" (atanh 0.5) 0.5493061443340549
+    checkCloseEnough "tan 0.5" (tan 0.5) 0.5463024898437905
+    checkCloseEnough "tanh 0.5" (tanh 0.5) 0.46211715726000974
     checkCloseEnough "ceiling 0.1" (ceiling 0.1) 1.0
     checkCloseEnough "ceiling 0.9" (ceiling 0.9) 1.0
     checkCloseEnough "floor 0.9" (floor 0.9) 0.0
     checkCloseEnough "floor 1.9" (floor 1.9) 1.0
+    checkCloseEnough "rndf" (round 1.9) 2.0
     checkCloseEnough "divf" (1.2 / 3.4) 0.35294117647058826
     checkEqual "maxf" (Float.max 1.2 1.23) 1.23
     checkEqual "minf" (Float.min 1.2 1.23) 1.2
@@ -52,3 +55,8 @@ math.tests = do
     checkEqual "inci" (Int.increment +10) +11
     checkEqual "incn" (Nat.increment 10) 11
     checkCloseEnough "expf" (Float.exp 2.0) 7.3890560989306
+
+    checkEqual "TZRO +0" (Int.trailingZeros +0) 64
+    checkEqual "TZRO +1" (Int.trailingZeros +1) 0
+    checkEqual "TZRO +16777216" (Int.trailingZeros +16777216) 24
+    checkEqual "TZRO 2^59" (Int.trailingZeros (Int.pow +2 59)) 59

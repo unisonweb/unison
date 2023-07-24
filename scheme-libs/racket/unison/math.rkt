@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require math/base
+         rnrs/arithmetic/fixnums-6
          (only-in unison/boot data-case define-unison))
 
 (provide
@@ -8,9 +9,12 @@
     builtin-Float.log
     builtin-Float.max
     builtin-Float.min
+    builtin-Float.tan
+    builtin-Float.tanh
     builtin-Float.logBase
     builtin-Int.*
     builtin-Int.pow
+    builtin-Int.trailingZeros
     builtin-Float.pow
  (prefix-out unison-POp-
              (combine-out
@@ -23,6 +27,11 @@
               ASIN
               SINH
               TRNF
+              RNDF
+              SQRT
+              TANH
+              TANF
+              TZRO
               ASNH
               ATAN
               ATN2
@@ -58,8 +67,11 @@
 (define-unison (builtin-Float.log n) (log n))
 (define-unison (builtin-Float.max n m) (max n m))
 (define-unison (builtin-Float.min n m) (min n m))
+(define-unison (builtin-Float.tan n) (tan n))
+(define-unison (builtin-Float.tanh n) (tanh n))
 (define-unison (builtin-Int.* n m) (* n m))
 (define-unison (builtin-Int.pow n m) (expt n m))
+(define-unison (builtin-Int.trailingZeros n) (TZRO n))
 (define-unison (builtin-Float.pow n m) (expt n m))
 (define (EXPF n) (exp n))
 (define ABSF abs)
@@ -88,6 +100,10 @@
 (define FLOR floor)
 (define COSF cos)
 (define TRNF truncate)
+(define RNDF round)
+(define SQRT sqrt)
+(define TANF tan)
+(define TANH tanh)
 (define SINF sin)
 (define SINH sinh)
 (define COSH cosh)
@@ -97,3 +113,19 @@
 (define (EQLF a b) (if (= a b) 1 0))
 (define (LEQF a b) (if (<= a b) 1 0))
 (define (EQLI a b) (if (= a b) 1 0))
+
+(define (TZRO n)
+    (let ([bit (fxfirst-bit-set n)])
+        (if (eq? -1 bit)
+            64
+            bit)))
+
+; (do ((result 0 (+ result 1))
+;      (bits (if (fxnegative? fx)
+;                (fxnot fx)
+;                fx)
+;            (fxarithmetic-shift-right bits 1)))
+;     ((fxzero? bits)
+;      result))
+
+; fxfirst-bit-set
