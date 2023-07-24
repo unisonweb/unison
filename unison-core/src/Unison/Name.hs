@@ -15,6 +15,7 @@ module Unison.Name
     isAbsolute,
     isPrefixOf,
     beginsWithSegment,
+    endsWith,
     endsWithReverseSegments,
     endsWithSegments,
     stripReversedPrefix,
@@ -160,6 +161,11 @@ endsWithSegments name ss =
 endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
+
+-- >>> endsWith "a.b.c" "b.c"
+-- True
+endsWith :: Name -> Name -> Bool
+endsWith overall suffix = endsWithReverseSegments overall (toList $ reverseSegments suffix)
 
 -- >>> stripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
 -- Just (Name Relative (NameSegment {toText = "c"} :| []))

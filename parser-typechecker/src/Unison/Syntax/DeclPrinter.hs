@@ -17,6 +17,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference (DerivedId))
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
@@ -45,12 +46,12 @@ prettyDecl ::
   DD.Decl v a ->
   Pretty SyntaxText
 prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl (suffixifiedPPE ppe) r hq e
+  Left e -> prettyEffectDecl ppe r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl ::
   (Var v) =>
-  PrettyPrintEnv ->
+  PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
@@ -59,7 +60,7 @@ prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
   (Var v) =>
-  PrettyPrintEnv ->
+  PrettyPrintEnvDecl ->
   CT.ConstructorType ->
   Reference ->
   HQ.HashQualified Name ->
@@ -73,9 +74,9 @@ prettyGADT env ctorType r name dd =
         (DD.constructors' dd)
   where
     constructor (n, (_, _, t)) =
-      prettyPattern env ctorType name (ConstructorReference r n)
+      prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-        `P.hang` TypePrinter.prettySyntax env t
+        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -113,7 +114,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
-      Nothing -> prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)
+      Nothing -> prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
       Just ts -> case fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
           P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $

@@ -793,12 +793,16 @@ lexemes' eof =
       _ <- optional (char '\n') -- initial newline is skipped
       s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
       col0 <- column <$> pos
-      let col = col0 - (length n) - 3
+      let col = col0 - (length n) - 3 -- this gets us first col of closing quotes
       let leading = replicate (max 0 (col - 1)) ' '
-      -- lines "foo\n" will produce ["foo"]     (ignoring last newline),
-      -- lines' "foo\n" will produce ["foo",""] (preserving trailing newline)
-      let lines' s = lines s <> (if take 1 (reverse s) == "\n" then [""] else [])
-      pure $ case lines' s of
+      -- a last line that's equal to `leading` is ignored, since leading
+      -- spaces up to `col` are not considered part of the string
+      let tweak l = case reverse l of
+            last : rest
+              | col > 1 && last == leading -> reverse rest
+              | otherwise -> l
+            [] -> []
+      pure $ case tweak (lines s) of
         [] -> s
         ls
           | all (\l -> isPrefixOf leading l || all isSpace l) ls -> intercalate "\n" (drop (length leading) <$> ls)

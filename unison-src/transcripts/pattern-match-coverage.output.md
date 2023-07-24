@@ -858,7 +858,7 @@ result f = handle !f with cases
   Patterns not matched:
   
     * { _ }
-    * {abortWithMessage _ -> _}
+    * { abortWithMessage _ -> _ }
 
 ```
 ```unison
@@ -906,7 +906,7 @@ result f = handle !f with cases
     
   
   Patterns not matched:
-   * {give B -> _}
+   * { give B -> _ }
 
 ```
 ```unison
@@ -934,7 +934,7 @@ handleMulti c =
     
   
   Patterns not matched:
-   * {abort -> _}
+   * { abort -> _ }
 
 ```
 ## Redundant handler cases are rejected
@@ -1035,7 +1035,7 @@ result f = handle !f with cases
     
   
   Patterns not matched:
-   * {abort -> _}
+   * { abort -> _ }
 
 ```
 ## Hacky workaround for uninhabited abilities
@@ -1073,8 +1073,8 @@ result f =
   
   Patterns not matched:
   
-    * {give _ -> _}
-    * {give2 _ -> _}
+    * { give _ -> _ }
+    * { give2 _ -> _ }
 
 ```
 ```unison

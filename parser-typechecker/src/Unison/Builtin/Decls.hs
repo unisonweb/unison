@@ -721,9 +721,12 @@ unitType,
   seekModeType,
   stdHandleType,
   failureType,
+  thunkArgType,
   exceptionType ::
     (Ord v) => a -> Type v a
 unitType a = Type.ref a unitRef
+-- used for the type of the argument to force a thunk
+thunkArgType = unitType
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
@@ -760,7 +763,7 @@ forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
 delayTerm :: (Var v) => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.named "()"
+delayTerm a = Term.lam a $ Var.typed Var.Delay
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->
