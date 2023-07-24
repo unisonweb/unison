@@ -60,3 +60,10 @@ math.tests = do
     checkEqual "TZRO +1" (Int.trailingZeros +1) 0
     checkEqual "TZRO +16777216" (Int.trailingZeros +16777216) 24
     checkEqual "TZRO 2^59" (Int.trailingZeros (Int.pow +2 59)) 59
+    checkEqual "POPC +16777215" (Int.popCount +16777215) 24
+    checkEqual "POPC +5" (Int.popCount +5) 2
+    checkEqual "POPC -5" (Int.popCount -5) 63
+    checkEqual "POPC -1" (Int.popCount -1) 64
+    checkEqual "POPC -1234567891" (Int.popCount -1234567891) 52
+    checkEqual "POPC -1111111111" (Int.popCount -1111111111) 50
+

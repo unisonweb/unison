@@ -45,6 +45,7 @@
     builtin-Int.toRepresentation
     builtin-Int.signum
     builtin-Int.trailingZeros
+    builtin-Int.popCount
     builtin-Nat.increment
     builtin-Nat.toFloat
     builtin-Text.indexOf
@@ -238,6 +239,7 @@
     unison-POp-TANH
     unison-POp-TANF
     unison-POp-TZRO
+    unison-POp-POPC
     unison-POp-ITOF
 
     unison-POp-ADDN
