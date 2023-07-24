@@ -127,13 +127,3 @@
         (if (eq? -1 bit)
             64
             bit)))
-
-; (do ((result 0 (+ result 1))
-;      (bits (if (fxnegative? fx)
-;                (fxnot fx)
-;                fx)
-;            (fxarithmetic-shift-right bits 1)))
-;     ((fxzero? bits)
-;      result))
-
-; fxfirst-bit-set
