@@ -1155,15 +1155,19 @@ unLamsOpt' t = case unLams' t of
   r@(Just _) -> r
   Nothing -> Just ([], t)
 
--- Same as unLams', but stops at any variable named `()`, which indicates a
--- delay (`'`) annotation which we want to preserve.
+-- Same as unLams', but stops at any lambda which is considered a delay
 unLamsUntilDelay' ::
   (Var v) =>
   Term2 vt at ap v a ->
   Maybe ([v], Term2 vt at ap v a)
-unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
+unLamsUntilDelay' t = case unLamsPred' (t, ok) of
   r@(Just _) -> r
   Nothing -> Just ([], t)
+  where
+    ok v = case Var.typeOf v of
+      Var.User "()" -> False
+      Var.Delay -> False
+      _ -> True
 
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' ::

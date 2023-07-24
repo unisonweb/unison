@@ -222,12 +222,15 @@ jobs:
         run: stack --no-terminal build --fast --test unison-util-cache
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
-      - name: prettyprint-round-trip
+      - name: round-trip-tests
         if: runner.os == 'Linux'
         run: |
-          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
           touch /private/tmp/roundtrip.u
+          touch /private/tmp/rewrite-tmp.u
+          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+          stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
           git add unison-src/transcripts-round-trip/main.output.md 
+          git add unison-src/transcripts-manual/rewrites.output.md 
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: transcripts
@@ -237,8 +240,6 @@ jobs:
           git add --all
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
-      - name: structured-find-replace
-        run: stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
       - name: Cache Racket dependencies

@@ -9,7 +9,7 @@
 
 Here's a scratch file with some rewrite rules: 
 
-```unison:hide rewrites-tmp.u
+```unison:hide /private/tmp/rewrites-tmp.u
 ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7] 
 
 eitherToOptional e a =
@@ -34,7 +34,7 @@ unique type Optional2 a = Some2 a | None2
 rule2 x = @rewrite signature Optional ==> Optional2
 
 cleanup = do 
-  _ = IO.removeFile.impl "rewrites-tmp.u"
+  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
   ()
 ```
 
@@ -46,7 +46,7 @@ Let's rewrite these:
 ```
 
 ```ucm:hide
-.> load rewrites-tmp.u
+.> load /private/tmp/rewrites-tmp.u
 .> add
 ```
 
@@ -58,7 +58,7 @@ After adding to the codebase, here's the rewritten source:
 
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
-```unison:hide rewrites-tmp.u
+```unison:hide /private/tmp/rewrites-tmp.u
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
@@ -83,7 +83,7 @@ Let's apply the rewrite `woot1to2`:
 ```
 
 ```ucm:hide
-.> load rewrites-tmp.u
+.> load /private/tmp/rewrites-tmp.u
 .> add
 ```
 
@@ -95,7 +95,7 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
-```unison:hide rewrites-tmp.u
+```unison:hide /private/tmp/rewrites-tmp.u
 foo1 = 
   b = "b"
   123
@@ -116,7 +116,7 @@ sameFileEx =
 
 ```ucm:hide
 .> rewrite rule
-.> load rewrites-tmp.u
+.> load /private/tmp/rewrites-tmp.u
 .> add
 ```
 
@@ -128,7 +128,7 @@ After adding the rewritten form to the codebase, here's the rewritten definition
 
 ## Capture avoidance
 
-```unison:hide rewrites-tmp.u
+```unison:hide /private/tmp/rewrites-tmp.u
 bar1 = 
   b = "bar"
   123
@@ -155,12 +155,12 @@ In the above example, `bar2` is locally bound by the rule, so when applied, it s
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ```ucm:error
-.> load rewrites-tmp.u
+.> load /private/tmp/rewrites-tmp.u
 ```
 
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
-```unison:hide rewrites-tmp.u
+```unison:hide /private/tmp/rewrites-tmp.u
 bar2 = 
   a = 39494 
   233
@@ -177,7 +177,7 @@ rule a = @rewrite
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ```ucm:error
-.> load rewrites-tmp.u
+.> load /private/tmp/rewrites-tmp.u
 ```
 
 ```ucm:hide
