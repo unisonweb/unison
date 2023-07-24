@@ -29,7 +29,12 @@
     builtin-Float.toRepresentation
     builtin-Float.exp
     builtin-Float.log
+    builtin-Float.max
+    builtin-Float.min
     builtin-Float.logBase
+    builtin-Float.pow
+    builtin-Int.pow
+    builtin-Int.*
     builtin-Int.+
     builtin-Int.-
     builtin-Int.increment
@@ -219,6 +224,8 @@
     unison-POp-EQLF
     unison-POp-EQLI
     unison-POp-SUBF
+    unison-POp-SUBI
+    unison-POp-SGNI
     unison-POp-LEQF
     unison-POp-SINF
     unison-POp-SINH
@@ -286,6 +293,15 @@
     unison-POp-UCNS
     unison-POp-USNC
     unison-POp-FLTB
+    unison-POp-MAXF
+    unison-POp-MINF
+    unison-POp-MULF
+    unison-POp-MULI
+    unison-POp-NEGI
+    unison-POp-NTOF
+    unison-POp-POWF
+    unison-POp-POWI
+    unison-POp-POWN
 
     unison-POp-UPKB
     unison-POp-PAKB
