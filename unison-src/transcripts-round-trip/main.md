@@ -11,7 +11,7 @@ This transcript verifies that the pretty-printer produces code that can be succe
 .a1> add
 ```
 
-```unison /tmp/roundtrip.u 
+```unison /private/tmp/roundtrip.u 
 x = ()
 ```
 
@@ -30,7 +30,7 @@ So we can see the pretty-printed output:
 ```
 
 ```ucm:hide
-.a2> load /tmp/roundtrip.u
+.a2> load /private/tmp/roundtrip.u
 ```
 
 ```ucm:hide
@@ -59,7 +59,7 @@ Now check that definitions in 'reparses.u' at least parse on round trip:
 
 This just makes 'roundtrip.u' the latest scratch file.
 
-```unison:hide /tmp/roundtrip.u 
+```unison:hide /private/tmp/roundtrip.u 
 x = ()
 ```
 
@@ -74,7 +74,7 @@ x = ()
 ```ucm:hide
 .> delete.namespace.force a3
 .a3> copy.namespace .builtin lib.builtin
-.a3> load /tmp/roundtrip.u
+.a3> load /private/tmp/roundtrip.u
 .a3> add
 .a3> delete.namespace.force lib.builtin
 ```
@@ -94,6 +94,6 @@ Regression test for https://github.com/unisonweb/unison/pull/3548
 ```ucm:hide
 .> alias.term ##Nat.+ plus
 .> edit plus
-.> load /tmp/roundtrip.u
+.> load /private/tmp/roundtrip.u
 .> undo
 ```

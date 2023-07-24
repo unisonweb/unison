@@ -2,7 +2,7 @@ This transcript verifies that the pretty-printer produces code that can be succe
 
 ```unison
 ---
-title: /tmp/roundtrip.u
+title: /private/tmp/roundtrip.u
 ---
 x = ()
 
@@ -11,9 +11,9 @@ x = ()
 
 ```ucm
 
-  I found and typechecked these definitions in /tmp/roundtrip.u.
-  If you do an `add` or `update`, here's how your codebase would
-  change:
+  I found and typechecked these definitions in
+  /private/tmp/roundtrip.u. If you do an `add` or `update`,
+  here's how your codebase would change:
   
     ⍟ These new definitions are ok to `add`:
     
@@ -308,7 +308,7 @@ This just makes 'roundtrip.u' the latest scratch file.
 
 ```unison
 ---
-title: /tmp/roundtrip.u
+title: /private/tmp/roundtrip.u
 ---
 x = ()
 
