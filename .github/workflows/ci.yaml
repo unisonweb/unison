@@ -225,6 +225,7 @@ jobs:
       - name: round-trip-tests
         if: runner.os == 'Linux'
         run: |
+          mkdir -p /private/tmp
           touch /private/tmp/roundtrip.u
           touch /private/tmp/rewrite-tmp.u
           stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
