@@ -222,6 +222,9 @@ jobs:
         run: stack --no-terminal build --fast --test unison-util-cache
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
+      - name: prettyprint-round-trip
+        if: runner.os == 'Linux'
+        run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: transcripts
         run: |
           stack --no-terminal exec transcripts
@@ -229,8 +232,6 @@ jobs:
           git add --all
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
-      - name: prettyprint-round-trip
-        run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: structured-find-replace
         run: stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: cli-integration-tests
