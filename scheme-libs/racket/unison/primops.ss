@@ -48,6 +48,11 @@
     builtin-Bytes.indexOf
     builtin-IO.randomBytes
 
+    builtin-Value.toBuiltin
+    builtin-Value.fromBuiltin
+    builtin-Code.fromGroup
+    builtin-Code.toGroup
+
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
@@ -398,6 +403,7 @@
           (unison core)
           (only (unison boot) define-unison)
           (unison data)
+          (unison data-info)
           (unison math)
           (unison chunked-seq)
           (unison chunked-bytes)
@@ -405,7 +411,6 @@
           (unison bytes-nat)
           (unison pattern)
           (unison crypto)
-          (unison data)
           (unison io)
           (unison io-handles)
           (unison tls)
@@ -414,6 +419,13 @@
           (unison zlib)
           (unison concurrent)
           (racket random))
+
+  (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
+  (define-unison (builtin-Value.fromBuiltin v)
+    (unison-quote-val v))
+  (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
+  (define-unison (builtin-Code.toGroup co)
+    (unison-code-rep co))
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
@@ -505,8 +517,8 @@
 
   (define (->optional v)
     (if v
-        (data 'Optional 0 v)
-        (data 'Optional 1)))
+        (unison-optional-some v)
+        (unison-optional-none)))
 
   (define-unison (builtin-Text.indexOf n h)
     (->optional (chunked-string-index-of h n)))
@@ -621,7 +633,7 @@
       (lambda ()
         (sum 1 (bytevector-u64-ref bs n 'big)))))
 
-  (define unison-FOp-internal.dataTag data-tag)
+  (define unison-FOp-internal.dataTag unison-data-tag)
 
   (define (unison-FOp-IO.getBytes.impl.v3 p n)
     (reify-exn
