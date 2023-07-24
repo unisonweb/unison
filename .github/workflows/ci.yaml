@@ -223,7 +223,7 @@ jobs:
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: round-trip-tests
-        if: runner.os == 'Mac'
+        if: runner.os == 'MacOS'
         run: |
           mkdir -p /private/tmp
           touch /private/tmp/roundtrip.u
