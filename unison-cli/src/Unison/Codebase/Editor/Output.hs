@@ -624,6 +624,6 @@ isNumberedFailure = \case
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
-  ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd 
+  ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
