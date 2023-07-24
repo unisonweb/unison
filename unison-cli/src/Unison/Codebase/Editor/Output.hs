@@ -32,6 +32,7 @@ import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.BranchDiff qualified as BD
 import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
@@ -623,6 +624,6 @@ isNumberedFailure = \case
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
-  ShowDiffNamespace {} -> False
+  ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd 
   ListNamespaceDependencies {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)

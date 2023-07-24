@@ -1,534 +1,64 @@
-This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added here as regression tests. Add tests at the bottom of this
-
-## How to use this transcript: checking round-trip for inline definitions
+This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
 ```unison
 ---
-title: roundtrip.u
+title: /tmp/roundtrip.u
 ---
-x = 1 + 1
+x = ()
 
 ```
 
 
 ```ucm
-.> add
 
-  ⍟ I've added these definitions:
-  
-    x : Nat
-
-.> edit x
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    x : Nat
-    x =
-      use Nat +
-      1 + 1
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. x : Nat
-
-```
-Resetting the namespace after each example ensures they don't interact at all, which is probably what you want.
-
-The `load` command which does parsing and typechecking of the `edit`'d definitions needs to be in a separate stanza from the `edit` command.
-
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
+  I found and typechecked these definitions in /tmp/roundtrip.u.
+  If you do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      x : Nat
+      x : ()
 
 ```
-## How to use this transcript: checking round-trip for definitions from a file
-
-Examples can also be loaded from `.u` files:
+So we can see the pretty-printed output:
 
 ```ucm
-.> load unison-src/transcripts-round-trip/ex2.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/ex2.u. If you do an `add` or
-  `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      b : Nat
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    b : Nat
-
-```
-When loading definitions from a file, an empty stanza like this will ensure that this empty file is where the definitions being `edit`'d will get dumped.
-
-```unison
----
-title: roundtrip.u
----
--- empty scratch file, `edit` will target this
-
-```
-
-
-Without the above stanza, the `edit` will send the definition to the most recently loaded file, which would be `ex2.u`, making the transcript not idempotent.
-
-```ucm
-.> edit b
+.a1> edit 1-1000 
 
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
+  /private/tmp/roundtrip.u
   
-    b : Nat
-    b = 92384
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. b : Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural ability Abort where abort : {Abort} a
     
-      b : Nat
-
-```
-No reason you can't load a bunch of definitions from a single `.u` file in one go, the only thing that's annoying is you'll have to `find` and then `edit 1-11` in the transcript to load all the definitions into the file.
-
-## Destructuring binds
-
-Regression test for https://github.com/unisonweb/unison/issues/2337
-
-```unison
----
-title: roundtrip.u
----
-unique type Blah = Blah Boolean Boolean
-
-f : Blah -> Boolean
-f x = let
-  (Blah.Blah a b) = x
-  a
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    unique type Blah
-    f : Blah -> Boolean
-
-.> edit Blah f
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    unique type Blah
-      = Blah Boolean Boolean
+    structural type Fix_2337
+      = Fix_2337 Boolean Boolean
     
-    f : Blah -> Boolean
-    f = cases Blah a b -> a
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. unique type Blah
-    2. Blah.Blah : Boolean -> Boolean -> #c9ct8a6u1t
-    3. f         : #c9ct8a6u1t -> Boolean
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural ability Fix_2392 where zonk : {Fix_2392} Nat
     
-      unique type Blah
-      f : Blah -> Boolean
-
-```
-## Parens around infix patterns
-
-Regression test for https://github.com/unisonweb/unison/issues/2224
-
-```unison
----
-title: roundtrip.u
----
-f : [()] -> ()
-f xs = match xs with
-  x +: (x' +: rest) -> x
-  _ -> ()
-
-g : [()] -> ()
-g xs = match xs with
-  (rest :+ x') :+ x -> ()
-  _ -> ()
-
-h : [[()]] -> ()
-h xs = match xs with
-  (rest :+ (rest' :+ x)) -> x
-  _ -> ()
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    f : [()] -> ()
-    g : [()] -> ()
-    h : [[()]] -> ()
-
-.> edit f g
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    f : [()] -> ()
-    f = cases
-      x +: (x' +: rest) -> x
-      _                 -> ()
+    structural type Fix_2392a x y
+      = Oog Nat Nat (Nat, Nat)
     
-    g : [()] -> ()
-    g = cases
-      rest :+ x' :+ x -> ()
-      _               -> ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. f : [()] -> ()
-    2. g : [()] -> ()
-    3. h : [[()]] -> ()
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural type Fully.qualifiedName
+      = Dontcare () Nat
     
-      f : [()] -> ()
-      g : [()] -> ()
-
-```
-## Type application inserts necessary parens
-
-Regression test for https://github.com/unisonweb/unison/issues/2392
-
-```unison
----
-title: roundtrip.u
----
-unique ability Zonk where zonk : Nat
-unique type Foo x y =
-
-foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-foo n _ = n
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    unique type Foo x y
-    unique ability Zonk
-    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-
-.> edit foo Zonk Foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    unique type Foo x y
-      = 
+    structural type Id a
+      = Id a
     
-    unique ability Zonk where zonk : {Zonk} Nat
+    structural type SomethingUnusuallyLong
+      = SomethingUnusuallyLong Text Text Text
     
-    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-    foo n _ = n
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. unique type Foo x y
-    2. unique ability Zonk
-    3. Zonk.zonk : {#54l2535tfc} Nat
-    4. foo       : Nat
-                 -> #udgqg0p7ql
-                   ('{#54l2535tfc} a) ('{#54l2535tfc} b)
-                 -> Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural type UUID
+      = UUID Nat (Nat, Nat)
     
-      unique type Foo x y
-      unique ability Zonk
-      foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-
-```
-## Long lines with repeated operators
-
-Regression test for https://github.com/unisonweb/unison/issues/1035
-
-```unison
----
-title: roundtrip.u
----
-foo : Text
-foo =
-  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-.> edit foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    foo : Text
-    foo =
-      use Text ++
-      "aaaaaaaaaaaaaaaaaaaaaa"
-        ++ "bbbbbbbbbbbbbbbbbbbbbb"
-        ++ "cccccccccccccccccccccc"
-        ++ "dddddddddddddddddddddd"
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. foo : Text
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-## Emphasis in docs inserts the right number of underscores
-
-Regression test for https://github.com/unisonweb/unison/issues/2408
-
-```unison
----
-title: roundtrip.u
----
-myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    myDoc : Doc2
-
-.> edit myDoc
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    myDoc : Doc2
-    myDoc =
-      {{
-      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
-      ~~MY~TEXT~~ **MY*TEXT**
-      }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. myDoc : Doc2
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      myDoc : Doc2
-
-```
-## Parenthesized let-block with operator
-
-Regression test for https://github.com/unisonweb/unison/issues/1778
-
-```unison
----
-title: roundtrip.u
----
-structural ability base.Abort where
-  abort : a
-
-(|>) : a -> (a ->{e} b) -> {e} b
-a |> f = f a
-
-handler : a -> Request {Abort} a -> a
-handler default = cases
-  { a }        -> a
-  {abort -> _} -> default
-
-Abort.toOptional : '{g, Abort} a -> '{g} Optional a
-Abort.toOptional thunk = '(toOptional! thunk)
-
-Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
-Abort.toOptional! thunk = toDefault! None '(Some !thunk)
-
-Abort.toDefault! : a -> '{g, Abort} a ->{g} a
-Abort.toDefault! default thunk =
-  h x = Abort.toDefault! (handler default x) thunk
-  handle (thunk ()) with h
-
-x = '(let
-  abort
-  0) |> Abort.toOptional
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    structural ability base.Abort
-    Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
-    Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
-    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-    handler           : a -> Request {Abort} a -> a
-    x                 : 'Optional Nat
-    |>                : a -> (a ->{e} b) ->{e} b
-
-.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    structural ability base.Abort where abort : {base.Abort} a
+    structural ability Zoink where
+      nay : Text -> (Nat, Nat) ->{Zoink} Nat
+      yay.there : Text ->{Zoink} Nat
     
     Abort.toDefault! : a -> '{g, Abort} a ->{g} a
     Abort.toDefault! default thunk =
-      h x = Abort.toDefault! (handler default x) thunk
+      h x = Abort.toDefault! (handler_1778 default x) thunk
       handle !thunk with h
     
     Abort.toOptional : '{g, Abort} a -> '{g} Optional a
@@ -537,1381 +67,6 @@ x = '(let
     Abort.toOptional! : '{g, Abort} a ->{g} Optional a
     Abort.toOptional! thunk = toDefault! None '(Some !thunk)
     
-    handler : a -> Request {Abort} a -> a
-    handler default = cases
-      { a }          -> a
-      { abort -> _ } -> default
-    
-    x : 'Optional Nat
-    x =
-      (do
-        abort
-        0) |> toOptional
-    
-    (|>) : a -> (a ->{e} b) ->{e} b
-    a |> f = f a
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. structural ability base.Abort
-    2. base.Abort.abort  : {#b589mbg492} a
-    3. handler           : a -> Request {#b589mbg492} a -> a
-    4. Abort.toDefault!  : a -> '{g, #b589mbg492} a ->{g} a
-    5. Abort.toOptional  : '{g, #b589mbg492} a
-                         -> '{g} Optional a
-    6. Abort.toOptional! : '{g, #b589mbg492} a ->{g} Optional a
-    7. x                 : 'Optional Nat
-    8. |>                : a -> (a ->{e} b) ->{e} b
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural ability base.Abort
-      Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
-      Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
-      Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-      handler           : a -> Request {Abort} a -> a
-      x                 : 'Optional Nat
-      |>                : a -> (a ->{e} b) ->{e} b
-
-```
-## Line breaks before 'let
-
-Regression test for https://github.com/unisonweb/unison/issues/1536
-
-```unison
----
-title: roundtrip.u
----
-r = 'let
- y = 0
- y
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    r : 'Nat
-
-.> edit r
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    r : 'Nat
-    r = do
-      y = 0
-      y
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. r : 'Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      r : 'Nat
-
-```
-## Raw codeblocks add indentation
-
-Regression test for https://github.com/unisonweb/unison/issues/2271
-
-```ucm
-.> load unison-src/transcripts-round-trip/docTest2.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/docTest2.u. If you do an
-  `add` or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      docTest2 : Doc2
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    docTest2 : Doc2
-
-```
-```unison
----
-title: roundtrip.u
----
-x = 2
-
-```
-
-
-```ucm
-.> edit docTest2
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    docTest2 : Doc2
-    docTest2 =
-      {{ # Full doc body indented
-      
-        ``` raw
-        myVal1 = 42 
-        myVal2 = 43
-        myVal4 = 44
-        ```
-        
-        ``` raw
-        indented1= "hi"
-        indented2="this is two indents"
-        ```
-        
-        I am two spaces over }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
-
-.> add
-
-  ⊡ Ignored previously added definitions: docTest2
-
-```
-## Unison Cloud roundtrip issues
-
-Regression tests for  https://github.com/unisonweb/unison/issues/2650
-
-```unison
----
-title: roundtrip.u
----
-broken =
-    addNumbers: 'Nat
-    addNumbers = 'let
-      use Nat +
-      y = 12
-      13 + y
-    !addNumbers
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken : Nat
-
-.> edit broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    broken : Nat
-    broken =
-      addNumbers : 'Nat
-      addNumbers = do
-        use Nat +
-        y = 12
-        13 + y
-      !addNumbers
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken : Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      broken : Nat
-
-```
-```unison
----
-title: roundtrip.u
----
-tvarmodify tvar fun = ()
-
-broken tvar =
-  '(tvarmodify tvar (cases
-     Some _ -> "oh boy isn't this a very very very very very very very long string?"
-     None -> ""))
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken     : tvar -> '()
-    tvarmodify : tvar -> fun -> ()
-
-.> edit tvarmodify broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    broken : tvar -> '()
-    broken tvar =
-      do
-        tvarmodify tvar cases
-          Some _ ->
-            "oh boy isn't this a very very very very very very very long string?"
-          None -> ""
-    
-    tvarmodify : tvar -> fun -> ()
-    tvarmodify tvar fun = ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken     : tvar -> '()
-    2. tvarmodify : tvar -> fun -> ()
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      broken     : tvar -> '()
-      tvarmodify : tvar -> fun -> ()
-
-```
-```unison
----
-title: roundtrip.u
----
-broken = cases
-  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
-  _ -> ()
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken : Optional Nat -> ()
-
-.> edit broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    broken : Optional Nat -> ()
-    broken = cases
-      Some
-        loooooooooooooooooooooooooooooooooooooooooooooooooooooooong| loooooooooooooooooooooooooooooooooooooooooooooooooooooooong
-        == 1  ->
-        ()
-      _ -> ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken : Optional Nat -> ()
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      broken : Optional Nat -> ()
-
-```
-## Guard patterns on long lines
-
-```unison
----
-title: roundtrip.u
----
-structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
-
-foo = let
-  go x =
-    'match (a -> a) x with
-      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
-        lijaefliejalfijelfj == aefilaeifhlei -> 0
-      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
-        lijaefliejalfijelfj == liaehjffeafijij -> 1
-      _ -> 2
-  go (SomethingUnusuallyLong "one" "two" "three")
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    structural type SomethingUnusuallyLong
-    foo : 'Nat
-
-.> edit SomethingUnusuallyLong foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    structural type SomethingUnusuallyLong
-      = SomethingUnusuallyLong Text Text Text
-    
-    foo : 'Nat
-    foo =
-      go x =
-        do
-          match (a -> a) x with
-            SomethingUnusuallyLong
-              lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
-              | lijaefliejalfijelfj == aefilaeifhlei    -> 0
-              | lijaefliejalfijelfj == liaehjffeafijij  -> 1
-            _ -> 2
-      go (SomethingUnusuallyLong "one" "two" "three")
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. structural type SomethingUnusuallyLong
-    2. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
-                                                     -> Text
-                                                     -> Text
-                                                     -> #p9dp5r8ff6
-    3. foo                                           : 'Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type SomethingUnusuallyLong
-      foo : 'Nat
-
-```
-## Nested fences
-
-```ucm
-.> load unison-src/transcripts-round-trip/nested.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/nested.u. If you do an `add`
-  or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      nested : Doc2
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    nested : Doc2
-
-```
-```ucm
-.> edit nested
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/unison-src/transcripts-round-trip/nested.u
-  
-    nested : Doc2
-    nested =
-      {{ ```` raw
-      ```unison
-      r = "boopydoo"
-      ```
-      ```` }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. nested : Doc2
-
-```
-```ucm
-.> load unison-src/transcripts-round-trip/nested.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/nested.u. If you do an `add`
-  or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      nested : Doc2
-
-```
-## Multiline expressions in multiliine lists
-
-```unison
----
-title: roundtrip.u
----
-foo a b c d e f g h i j = 42
-
-use Nat +
-x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
-    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ]
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
-    x   : [Nat]
-
-.> edit foo x
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
-    foo a b c d e f g h i j = 42
-    
-    x : [Nat]
-    x =
-      use Nat +
-      [ 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-          + 1
-      , foo
-          12939233
-          2102020
-          329292
-          429292
-          522020
-          62929292
-          72020202
-          820202
-          920202
-          1020202
-      ]
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. foo : a
-           -> b
-           -> c
-           -> d
-           -> e
-           -> f
-           -> g
-           -> h
-           -> i
-           -> j
-           -> Nat
-    2. x   : [Nat]
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : a
-            -> b
-            -> c
-            -> d
-            -> e
-            -> f
-            -> g
-            -> h
-            -> i
-            -> j
-            -> Nat
-      x   : [Nat]
-
-```
-## Delayed computations passed to a function as the last argument
-
-When a delayed computation block is passed to a function as the last argument
-in a context where the ambient precedence is low enough, we can elide parentheses
-around it and use a "soft hang" to put the `'let` on the same line as the function call.
-This looks nice.
-
-    forkAt usEast do
-      x = thing1
-      y = thing2
-      ...
-
-vs the not as pretty but still correct:
-
-    forkAt
-      usEast
-      (do
-          x = thing1
-          y = thing2
-          ...)
-
-Okay, here's the test, showing that we use the prettier version when possible:
-
-```unison
----
-title: roundtrip.u
----
-(+) a b = ##Nat.+ a b
-
-foo a b = 42
-
-bar0 x = do
-  a = 1
-  b = 2
-  foo a 'let
-    c = 3
-    a + b
-
-bar1 x = do
-  a = 1
-  b = 2
-  foo (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200 + 1300 + 1400 + 1500) 'let
-    c = 3
-    a + b
-
-bar2 x = do
-  a = 1
-  b = 2
-  1 + foo a do
-    c = 3
-    a + b
-
-bar3 x = do
-  a = 1
-  b = 2
-  c = foo do
-    c = 3
-    a + b
-  c
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +    : Nat -> Nat -> Nat
-    bar0 : x -> 'Nat
-    bar1 : x -> 'Nat
-    bar2 : x -> 'Nat
-    bar3 : x -> '(b -> Nat)
-    foo  : a -> b -> Nat
-
-.> edit foo bar0 bar1 bar2 bar3
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    bar0 : x -> 'Nat
-    bar0 x = do
-      a = 1
-      b = 2
-      foo a do
-        c = 3
-        a + b
-    
-    bar1 : x -> 'Nat
-    bar1 x =
-      do
-        a = 1
-        b = 2
-        foo
-          (100
-          + 200
-          + 300
-          + 400
-          + 500
-          + 600
-          + 700
-          + 800
-          + 900
-          + 1000
-          + 1100
-          + 1200
-          + 1300
-          + 1400
-          + 1500)
-          do
-          c = 3
-          a + b
-    
-    bar2 : x -> 'Nat
-    bar2 x = do
-      a = 1
-      b = 2
-      1 + (foo a do
-        c = 3
-        a + b)
-    
-    bar3 : x -> '(b -> Nat)
-    bar3 x = do
-      a = 1
-      b = 2
-      c = foo do
-        c = 3
-        a + b
-      c
-    
-    foo : a -> b -> Nat
-    foo a b = 42
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +    : Nat -> Nat -> Nat
-    2. bar0 : x -> 'Nat
-    3. bar1 : x -> 'Nat
-    4. bar2 : x -> 'Nat
-    5. bar3 : x -> '(b -> Nat)
-    6. foo  : a -> b -> Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar0 : x -> 'Nat
-      bar1 : x -> 'Nat
-      bar2 : x -> 'Nat
-      bar3 : x -> '(b -> Nat)
-      foo  : a -> b -> Nat
-
-```
-# Lambda as the last argument where the bound var is not free in the body
-
-If a lambda's argument is not free in the body, the term printer counts this as
-a "delay" instead of a lambda. This test makes sure that detecting this
-condition lines up with the printing, so we don't detect a delay but then
-go ahead and print it as a normal lambda.
-
-```unison
----
-title: roundtrip.u
----
-(+) a b = ##Nat.+ a b
-
-afun x f = f x
-
-roundtripLastLam =
-  afun "foo" (n -> let
-    _ = 1 + 1
-    3
-  )
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +                : Nat -> Nat -> Nat
-    afun             : x -> (x ->{g} t) ->{g} t
-    roundtripLastLam : Nat
-
-.> edit roundtripLastLam afun
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    afun : x -> (x ->{g} t) ->{g} t
-    afun x f = f x
-    
-    roundtripLastLam : Nat
-    roundtripLastLam =
-      afun
-        "foo" (n -> let
-          _ = 1 + 1
-          3)
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +                : Nat -> Nat -> Nat
-    2. afun             : x -> (x ->{g} t) ->{g} t
-    3. roundtripLastLam : Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      afun             : x -> (x ->{g} t) ->{g} t
-      roundtripLastLam : Nat
-
-```
-# Comment out builtins in the edit command
-
-Regression test for https://github.com/unisonweb/unison/pull/3548
-
-```ucm
-.> alias.term ##Nat.+ plus
-
-  Done.
-
-.> edit plus
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    -- builtin plus : builtin.Nat -> builtin.Nat -> builtin.Nat
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Name changes:
-  
-    Original            Changes
-    1. builtin.Nat.+    2. plus (added)
-
-```
-```ucm
-.> load roundtrip.u
-
-  I loaded roundtrip.u and didn't find anything.
-
-```
-# Indent long pattern lists to avoid virtual semicolon
-
-Regression test for https://github.com/unisonweb/unison/issues/3627
-
-```unison
----
-title: roundtrip.u
----
-(+) a b = ##Nat.+ a b
-
-foo = cases
-  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
-   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +   : Nat -> Nat -> Nat
-    foo : Nat -> Nat -> Nat
-
-.> edit foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    foo : Nat -> Nat -> Nat
-    foo = cases
-      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
-        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
-        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +   : Nat -> Nat -> Nat
-    2. foo : Nat -> Nat -> Nat
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Nat -> Nat -> Nat
-
-```
-# Multi-line lambda let
-
-Regression test for #3110 and #3801
-
-```unison
----
-title: roundtrip.u
----
-foreach x f =
-  _ = List.map f x
-  ()
-
-ignore x = ()
-
-test1 : ()
-test1 =
-  foreach [1, 2, 3] let x -> let
-      y = Nat.increment x
-      ()
-
-test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x)
-
-test3 = foreach [1, 2, 3] do x -> do
-  y = Nat.increment x
-  ()
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foreach : [a] -> (a ->{e} t) ->{e} ()
-    ignore  : x -> ()
-    test1   : ()
-    test2   : ()
-    test3   : ()
-
-.> edit test1 test2 test3 foreach ignore
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    foreach : [a] -> (a ->{e} t) ->{e} ()
-    foreach x f =
-      _ = List.map f x
-      ()
-    
-    ignore : x -> ()
-    ignore x = ()
-    
-    test1 : ()
-    test1 =
-      foreach
-        [1, 2, 3] (x -> let
-          y = Nat.increment x
-          ())
-    
-    test2 : ()
-    test2 = foreach [1, 2, 3] (x -> ignore (Nat.increment x))
-    
-    test3 : ()
-    test3 = foreach [1, 2, 3] '(x -> do
-        y = Nat.increment x
-        ())
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. foreach : [a] -> (a ->{e} t) ->{e} ()
-    2. ignore  : x -> ()
-    3. test1   : ()
-    4. test2   : ()
-    5. test3   : ()
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foreach : [a] -> (a ->{e} t) ->{e} ()
-      ignore  : x -> ()
-      test1   : ()
-      test2   : ()
-      test3   : ()
-
-```
-# Destructuring bind in delay or lambda
-
-Regression test for https://github.com/unisonweb/unison/issues/3710
-
-```unison
----
-title: roundtrip.u
----
-d1 = do
-  (a,b) = (1,2)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d2 = let
-  (a,b) = (1,2)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d3 x = let
-  (a,b) = (1,x)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d4 x = do
-  (a,b) = (1,x)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d5 x = match x with
-  Some x -> x
-  None -> bug "oops"
-
-```
-
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-    d5 : Optional a -> a
-
-.> edit d1 d2 d3 d4 d5
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    d1 = do
-      (a, b) = (1, 2)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    d2 =
-      (a, b) = (1, 2)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    d3 x =
-      (a, b) = (1, x)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-    d4 x = do
-      (a, b) = (1, x)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d5 : Optional a -> a
-    d5 = cases
-      Some x -> x
-      None   -> bug "oops"
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    2. d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    3. d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    4. d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-    5. d5 : Optional a -> a
-
-```
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-      d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-      d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-      d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-      d5 : Optional a -> a
-
-```
-# Avoid capture of local variables when selecting names for references
-
-Regression test for https://github.com/unisonweb/unison/issues/525
-
-```unison
----
-title: roundtrip.u
----
--- Ex 1: 'quaffle' is a unique term suffix, but 'exampleTerm' binds 'quaffle'
--- as a local name, so the pretty-printer should use the longer name
-Foo.bar.quaffle = 32
-
--- Notice this won't typecheck if we write 'quaffle' instead of 'Foo.bar.quaffle'
--- because 'quaffle' (the local variable) has type `Text`
-exampleTerm : Text -> Nat
-exampleTerm quaffle = Foo.bar.quaffle + 1
-
--- This demonstrates the same thing for types.
--- exampleType's signature locally binds the 'qualifiedName' type parameter,
--- so the pretty-printer should use the longer name 'Fully.qualifiedName' 
-structural type Fully.qualifiedName = Dontcare () Nat
-
-structural type Id a = Id a
-
-exampleType : forall qualifiedName . Id qualifiedName -> Id Fully.qualifiedName
-exampleType z = Id (Dontcare () 19)
-
-```
-
-
-We'd get a type error here if `exampleTerm` or `exampleType` didn't round-trip, but it typechecks okay! 🎉 
-
-```ucm
-.> edit exampleTerm exampleType
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    exampleTerm : Text -> Nat
-    exampleTerm quaffle =
-      use Nat +
-      Foo.bar.quaffle + 1
-    
-    exampleType : Id qualifiedName -> Id Fully.qualifiedName
-    exampleType z = Id (Dontcare () 19)
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
-
-```
-# Use clauses can't introduce shadowing 
-
-```unison
----
-title: roundtrip.u
----
-example : Int -> Text -> Nat
-example oo quaffle = 
-  Foo.bar.quaffle + Foo.bar.quaffle + 1
-
-Foo.bar.quaffle = 32
-
-example2 : Int -> Nat
-example2 oo =
-  quaffle = "hi"
-  Foo.bar.quaffle + Foo.bar.quaffle + Foo.bar.quaffle + 1
-
-```
-
-
-Notice there's a local name 'quaffle' of type `Text``, but the function refers to 'Foo.bar.quaffle' of type `Nat`.
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    Foo.bar.quaffle : Nat
-    example         : Int -> Text -> Nat
-    example2        : Int -> Nat
-
-.> edit example example2
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    example : Int -> Text -> Nat
-    example oo quaffle =
-      use Nat +
-      Foo.bar.quaffle + Foo.bar.quaffle + 1
-    
-    example2 : Int -> Nat
-    example2 oo =
-      use Nat +
-      quaffle = "hi"
-      Foo.bar.quaffle + Foo.bar.quaffle + Foo.bar.quaffle + 1
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-```
-This just shows that we don't insert a `use Foo.bar quaffle`, even though it's referenced multiple times, since this would case shadowing.
-
-```ucm
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. example         : Int -> Text -> Nat
-    2. example2        : Int -> Nat
-    3. Foo.bar.quaffle : Nat
-
-```
-# Use clauses aren't pushed down too far
-
-We push `use` clauses down to the nearest enclosing let or let rec block so they're close to where they're used:
-
-```unison
----
-title: roundtrip.u
----
-Foo.bar.qux1 = 42
-Foo'.bar.qux1 = "43" -- ensures qux1 is not a unique suffix
-
-Foo.bar.qux2 = 44
-Foo'.bar.qux2 = "45"
-
-Foo.bar.qux3 = 46
-Foo'.bar.qux3 = "47"
-
-ex1 = 
-  a = Foo.bar.qux3 + Foo.bar.qux3
-  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
-
-ex2 = 
-  a = 
-    -- use Foo.bar qux3 will get pushed in here since it's already a multiline block
-    z = 203993
-    Foo.bar.qux3 + Foo.bar.qux3
-  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
-
-ex3 = 
-  a = do
-    -- use clause gets pushed in here
-    x = Foo.bar.qux3 + Foo.bar.qux3
-    x + x
-  ()
-
-ex3a = 
-  a = do Foo.bar.qux3 + Foo.bar.qux3 -- use clause will get pulled up to top level
-  ()
-
-```
-
-
-```ucm
-.> edit ex1 ex2 ex3 ex3a
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
     ex1 : Nat
     ex1 =
       use Foo.bar qux1 qux3
@@ -1944,97 +99,394 @@ ex3a =
       use Nat +
       a = do qux3 + qux3
       ()
+    
+    fix_1035 : Text
+    fix_1035 =
+      use Text ++
+      "aaaaaaaaaaaaaaaaaaaaaa"
+        ++ "bbbbbbbbbbbbbbbbbbbbbb"
+        ++ "cccccccccccccccccccccc"
+        ++ "dddddddddddddddddddddd"
+    
+    fix_1536 : 'Nat
+    fix_1536 = do
+      y = 0
+      y
+    
+    fix_1778 : 'Optional Nat
+    fix_1778 =
+      (do
+        abort
+        0) |> toOptional
+    
+    fix_2048 : Doc2
+    fix_2048 =
+      {{
+      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
+      ~~MY~TEXT~~ **MY*TEXT**
+      }}
+    
+    fix_2224 : [()] -> ()
+    fix_2224 = cases
+      x +: (x' +: rest) -> x
+      _                 -> ()
+    
+    fix_2224a : [()] -> ()
+    fix_2224a = cases
+      rest :+ x' :+ x -> ()
+      _               -> ()
+    
+    fix_2224b : [[()]] -> ()
+    fix_2224b = cases
+      rest :+ (rest' :+ x) -> x
+      _                    -> ()
+    
+    fix_2271 : Doc2
+    fix_2271 =
+      {{ # Full doc body indented
+      
+        ``` raw
+        myVal1 = 42 
+        myVal2 = 43
+        myVal4 = 44
+        ```
+        
+        ``` raw
+        indented1= "hi"
+        indented2="this is two indents"
+        ```
+        
+        I am two spaces over }}
+    
+    Fix_2337.f : Fix_2337 -> Boolean
+    Fix_2337.f = cases Fix_2337 a b -> a
+    
+    Fix_2392.f :
+      Nat -> Fix_2392a ('{Fix_2392} a) ('{Fix_2392} b) -> Nat
+    Fix_2392.f n _ = n
+    
+    fix_3627 : Nat -> Nat -> Nat
+    fix_3627 = cases
+      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          Nat.+ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    
+    Fix_525.bar.quaffle : Nat
+    Fix_525.bar.quaffle = 32
+    
+    fix_525_exampleTerm : Text -> Nat
+    fix_525_exampleTerm quaffle =
+      use Nat +
+      Fix_525.bar.quaffle + 1
+    
+    fix_525_exampleType :
+      Id qualifiedName -> Id Fully.qualifiedName
+    fix_525_exampleType z = Id (Dontcare () 19)
+    
+    Foo.bar.qux1 : Nat
+    Foo.bar.qux1 = 42
+    
+    Foo.bar.qux2 : Nat
+    Foo.bar.qux2 = 44
+    
+    Foo.bar.qux3 : Nat
+    Foo.bar.qux3 = 46
+    
+    Foo'.bar.qux1 : Text
+    Foo'.bar.qux1 = "43"
+    
+    Foo'.bar.qux2 : Text
+    Foo'.bar.qux2 = "45"
+    
+    Foo'.bar.qux3 : Text
+    Foo'.bar.qux3 = "47"
+    
+    handler_1778 : a -> Request {Abort} a -> a
+    handler_1778 default = cases
+      { a }          -> a
+      { abort -> _ } -> default
+    
+    nested_fences : Doc2
+    nested_fences =
+      {{ ```` raw
+      ```unison
+      r = "boopydoo"
+      ```
+      ```` }}
+    
+    raw_a : Text
+    raw_a =
+      """
+      a
+      b
+      """
+    
+    raw_b : Text
+    raw_b =
+      """
+      a
+      b
+      c -- note blank line
+      
+      """
+    
+    raw_c : Text
+    raw_c =
+      """
+      ignored (wonky case)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+    
+    raw_d : Text
+    raw_d =
+      """
+      ignored (works great)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+    
+    simplestPossibleExample : Nat
+    simplestPossibleExample =
+      use Nat +
+      1 + 1
+    
+    somethingVeryLong : 'Nat
+    somethingVeryLong =
+      go x =
+        do
+          match (a -> a) x with
+            SomethingUnusuallyLong
+              lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
+              | lijaefliejalfijelfj == aefilaeifhlei    -> 0
+              | lijaefliejalfijelfj == liaehjffeafijij  -> 1
+            _ -> 2
+      go (SomethingUnusuallyLong "one" "two" "three")
+    
+    use_clauses_example : Int -> Text -> Nat
+    use_clauses_example oo quaffle =
+      use Nat +
+      Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+    
+    use_clauses_example2 : Int -> Nat
+    use_clauses_example2 oo =
+      use Nat +
+      quaffle = "hi"
+      Fix_525.bar.quaffle
+        + Fix_525.bar.quaffle
+        + Fix_525.bar.quaffle
+        + 1
+    
+    UUID.random : 'UUID
+    UUID.random = do UUID 0 (0, 0)
+    
+    UUID.randomUUIDBytes : 'Bytes
+    UUID.randomUUIDBytes = do
+      use Bytes ++
+      (UUID a (b, _)) = !random
+      encodeNat64be a ++ encodeNat64be b
+    
+    (|>) : a -> (a ->{e} b) ->{e} b
+    a |> f = f a
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> load roundtrip.u
+```
+This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
+```ucm
+.> diff.namespace a1 a2
+
+  The namespaces are identical.
 
 ```
-# Use soft hangs after `with` and `=` and in last argument of function application
+Now check that definitions in 'reparses.u' at least parse on round trip:
+
+This just makes 'roundtrip.u' the latest scratch file.
 
 ```unison
 ---
-title: roundtrip.u
+title: /tmp/roundtrip.u
 ---
-structural ability Abort where
-  abort : x
-
-ex1 = handle
-  x = 1
-  y = abort
-  x + y
-  with cases
-    { a } -> a
-    { Abort.abort -> _ } -> 0
-
-ex1a = handle
-  x = 1
-  y = abort
-  x + y
-  with cases
-    { a } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
-    { Abort.abort -> _ } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
-
-List.foreach x f = 0 
-
-ex2 = List.foreach [0,1,2,3,4,5] cases
-  0 -> 0
-  1 -> 1
-  n -> n + 100
-
-catchAll x = 
-  99
-
-ex3 = do
-  catchAll do
-    x = 1
-    y = 2
-    x + y
-
-ex4 = do match 0 with
-  0 -> 0
-  1 -> 1
-  n -> n
-
-ex5 = match Nat.increment 1 with
-  2 -> "yay"
-  n -> "oh no"
-
-ex6 = List.foreach [1,2,3,4] cases
-  0 -> 1
-  n -> n + 1
-
-forkAt loc c = 
-  x = 99
-  390439034 
-
-ex7 somewhere = forkAt somewhere do
-  x = 1
-  y = 2 
-  x + y
-
-ex8 = List.foreach [0,1,2,3,4,5] cases
-  0 -> 0
-  1 -> 1
-  n -> forkAt 0 (n + n + n + n + n + n + n + n + n + n + n)
+x = ()
 
 ```
 
 
 ```ucm
-.> edit ex1 ex1a ex2 ex3 ex4 ex5 ex6 ex7 ex8
+.a3> edit 1-5000
 
   ☝️
   
   I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
+  /private/tmp/roundtrip.u
   
-    ex1 : Nat
-    ex1 =
+    structural ability Abort where abort : {Abort} a
+    
+    catchAll : x -> Nat
+    catchAll x = 99
+    
+    fix_2650 : Nat
+    fix_2650 =
+      addNumbers : 'Nat
+      addNumbers = do
+        use Nat +
+        y = 12
+        13 + y
+      !addNumbers
+    
+    fix_2650a : tvar -> fun -> ()
+    fix_2650a tvar fun = ()
+    
+    fix_2650b : tvar -> '()
+    fix_2650b tvar =
+      do
+        fix_2650a tvar cases
+          Some _ ->
+            "oh boy isn't this a very very very very very very very long string?"
+          None -> ""
+    
+    fix_2650c : Optional Nat -> ()
+    fix_2650c = cases
+      Some
+        loooooooooooooooooooooooooooooooooooooooooooooooooooooooong| loooooooooooooooooooooooooooooooooooooooooooooooooooooooong
+        == 1  ->
+        ()
+      _ -> ()
+    
+    fix_3110a : x -> f -> ()
+    fix_3110a x f =
+      _ = 99
+      ()
+    
+    fix_3110b : ()
+    fix_3110b =
+      fix_3110a
+        [1, 2, 3] (x -> let
+          y = Nat.increment x
+          ())
+    
+    fix_3110c : ()
+    fix_3110c =
+      fix_3110a [1, 2, 3] (x -> ignore (Nat.increment x))
+    
+    fix_3110d : ()
+    fix_3110d = fix_3110a [1, 2, 3] '(x -> do
+        y = Nat.increment x
+        ())
+    
+    fix_3710 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710 = do
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710a : (Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710a =
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710b : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710b x =
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710c : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710c x = do
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710d : Optional a -> a
+    fix_3710d = cases
+      Some x -> x
+      None   -> bug "oops"
+    
+    forkAt : loc -> c -> Nat
+    forkAt loc c =
+      x = 99
+      390439034
+    
+    ignore : x -> ()
+    ignore x = ()
+    
+    longlines : x -> x
+    longlines x =
+      u = 92393
+      x
+    
+    longlines1 : 'Text
+    longlines1 =
+      do
+        longlines
+          !(longlines_helper
+             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+    
+    longlines2 : (Text, '{g} Bytes)
+    longlines2 =
+      ( "adsf"
+      , '(toUtf8
+            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
+      )
+    
+    longlines_helper : x -> 'x
+    longlines_helper x = do x
+    
+    multiline_fn :
+      a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
+    multiline_fn a b c d e f g h i j = 42
+    
+    multiline_list : [Nat]
+    multiline_list =
+      use Nat +
+      [ 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+      , multiline_fn
+          12939233
+          2102020
+          329292
+          429292
+          522020
+          62929292
+          72020202
+          820202
+          920202
+          1020202
+      ]
+    
+    softhang : a -> b -> Nat
+    softhang a b = 42
+    
+    softhang2 : x -> f -> Nat
+    softhang2 x f = 0
+    
+    softhang21 : Nat
+    softhang21 =
       use Nat +
       handle
         x = 1
@@ -2044,8 +496,8 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
         { a }          -> a
         { abort -> _ } -> 0
     
-    ex1a : Text
-    ex1a =
+    softhang21a : Text
+    softhang21a =
       use Nat +
       handle
         x = 1
@@ -2057,46 +509,46 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
         { abort -> _ } ->
           "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
     
-    ex2 : Nat
-    ex2 = foreach [0, 1, 2, 3, 4, 5] cases
+    softhang22 : Nat
+    softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
       0 -> 0
       1 -> 1
       n -> n Nat.+ 100
     
-    ex3 : 'Nat
-    ex3 = do
+    softhang23 : 'Nat
+    softhang23 = do
       use Nat +
       catchAll do
         x = 1
         y = 2
         x + y
     
-    ex4 : 'Nat
-    ex4 = do match 0 with
+    softhang24 : 'Nat
+    softhang24 = do match 0 with
       0 -> 0
       1 -> 1
       n -> n
     
-    ex5 : Text
-    ex5 = match Nat.increment 1 with
+    softhang25 : Text
+    softhang25 = match Nat.increment 1 with
       2 -> "yay"
       n -> "oh no"
     
-    ex6 : Nat
-    ex6 = foreach [1, 2, 3, 4] cases
+    softhang26 : Nat
+    softhang26 = softhang2 [1, 2, 3, 4] cases
       0 -> 1
       n -> n Nat.+ 1
     
-    ex7 : somewhere -> Nat
-    ex7 somewhere = forkAt somewhere do
+    softhang27 : somewhere -> Nat
+    softhang27 somewhere = forkAt somewhere do
       use Nat +
       x = 1
       y = 2
       x + y
     
-    ex8 : Nat
-    ex8 = 
-      foreach [0, 1, 2, 3, 4, 5] cases
+    softhang28 : Nat
+    softhang28 = 
+      softhang2 [0, 1, 2, 3, 4, 5] cases
         0 -> 0
         1 -> 1
         n ->
@@ -2113,122 +565,60 @@ ex8 = List.foreach [0,1,2,3,4,5] cases
               Nat.+ n
               Nat.+ n
               Nat.+ n)
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⊡ Previously added definitions will be ignored: ex1 ex1a ex2
-      ex3 ex4 ex5 ex6 ... 1 more. Try moving these below the
-      `---` "fold" in your file.
     
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    softhang_a : x -> 'Nat
+    softhang_a x = do
+      use Nat +
+      a = 1
+      b = 2
+      softhang a do
+        c = 3
+        a + b
     
-      ex7 : somewhere -> Nat
-
-```
-# Make sure use clauses don't show up before a soft hang 
-
-Regression test for https://github.com/unisonweb/unison/issues/3883
-
-```unison
----
-title: roundtrip.u
----
-unique type UUID = UUID Nat Nat
-
-UUID.random : 'UUID
-UUID.random = do UUID 0 0 
-
-UUID.randomUUIDBytes : 'Bytes
-UUID.randomUUIDBytes = do
-  (UUID a b) = !UUID.random
-  (encodeNat64be a) ++ (encodeNat64be b)
-
-```
-
-
-```ucm
-.> edit UUID.randomUUIDBytes 
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    UUID.randomUUIDBytes : 'Bytes
-    UUID.randomUUIDBytes = do
-      use Bytes ++
-      (UUID a b) = !random
-      encodeNat64be a ++ encodeNat64be b
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
-
-```
-# Weirdness reported by Stew with super long lines
-
-```unison
----
-title: roundtrip.u
----
-blah x = 
-  u = 92393
-  x
-
-thunk x = do x
-
-test1 = do 
-  blah !(thunk "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
-
-test2 =
-  ("adsf",
-    '(Text.toUtf8
-       "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
-
-test3 = do
-  run : forall a . Nat -> a
-  run x = bug x
-  runrun = 42
-  a = "asldkfj"
-  b = "asdflkjasdf"
-  do do run runrun do do runrun
-
-```
-
-
-```ucm
-.> edit test1 test2 test3
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    test1 : 'Text
-    test1 =
+    softhang_b : x -> 'Nat
+    softhang_b x =
       do
-        blah
-          !(thunk
-             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+        use Nat +
+        a = 1
+        b = 2
+        softhang
+          (100
+          + 200
+          + 300
+          + 400
+          + 500
+          + 600
+          + 700
+          + 800
+          + 900
+          + 1000
+          + 1100
+          + 1200
+          + 1300
+          + 1400
+          + 1500)
+          do
+          c = 3
+          a + b
     
-    test2 : (Text, '{g} Bytes)
-    test2 =
-      ( "adsf"
-      , '(toUtf8
-            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
-      )
+    softhang_c : x -> 'Nat
+    softhang_c x = do
+      use Nat +
+      a = 1
+      b = 2
+      1 + (softhang a do
+        c = 3
+        a + b)
+    
+    softhang_d : x -> '(b -> Nat)
+    softhang_d x = do
+      use Nat +
+      a = 1
+      b = 2
+      c = softhang do
+        c = 3
+        a + b
+      c
     
     test3 : '('('r))
     test3 = do
@@ -2242,139 +632,180 @@ test3 = do
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
-
 ```
-# Raw string round trip
-
-Regression test for https://github.com/unisonweb/unison/issues/3973
-
-```unison
----
-title: roundtrip.u
----
-a = "a\nb"
-b = """
-  a
-  b
-  c -- note blank line
-
-  """
-c = """
-ignored (wonky case)
-Use an extra blank line if you'd like a trailing newline. Like so:
-
-"""
-d = """
-  ignored (works great)
-  Use an extra blank line if you'd like a trailing newline. Like so:
-
-  """
-
-```
-
+These are currently all expected to have different hashes on round trip, though we'd prefer if they round tripped with the same hash.
 
 ```ucm
-.> edit a b c d
+.> diff.namespace a1 a3
 
-  ☝️
+  Added definitions:
   
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
+    1.  catchAll         : x -> Nat
+    2.  fix_2650         : Nat
+    3.  fix_2650a        : tvar -> fun -> ()
+    4.  fix_2650b        : tvar -> '()
+    5.  fix_2650c        : Optional Nat -> ()
+    6.  fix_3110a        : x -> f -> ()
+    7.  fix_3110b        : ()
+    8.  fix_3110c        : ()
+    9.  fix_3110d        : ()
+    10. fix_3710         : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    11. fix_3710a        : (Nat, Nat, Nat, Nat, Nat, Nat)
+    12. fix_3710b        : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    13. fix_3710c        : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+    14. fix_3710d        : Optional a -> a
+    15. forkAt           : loc -> c -> Nat
+    16. ignore           : x -> ()
+    17. longlines        : x -> x
+    18. longlines1       : 'Text
+    19. longlines2       : (Text, '{g} Bytes)
+    20. longlines_helper : x -> 'x
+    21. multiline_fn     : a
+                         -> b
+                         -> c
+                         -> d
+                         -> e
+                         -> f
+                         -> g
+                         -> h
+                         -> i
+                         -> j
+                         -> Nat
+    22. multiline_list   : [Nat]
+    23. softhang         : a -> b -> Nat
+    24. softhang2        : x -> f -> Nat
+    25. softhang21       : Nat
+    26. softhang21a      : Text
+    27. softhang22       : Nat
+    28. softhang23       : 'Nat
+    29. softhang24       : 'Nat
+    30. softhang25       : Text
+    31. softhang26       : Nat
+    32. softhang27       : somewhere -> Nat
+    33. softhang28       : Nat
+    34. softhang_a       : x -> 'Nat
+    35. softhang_b       : x -> 'Nat
+    36. softhang_c       : x -> 'Nat
+    37. softhang_d       : x -> '(b -> Nat)
+    38. test3            : '('('r))
   
-    a : Text
-    a =
-      """
-      a
-      b
-      """
-    
-    b : Text
-    b =
-      """
-      a
-      b
-      c -- note blank line
-      
-      """
-    
-    c : Text
-    c =
-      """
-      ignored (wonky case)
-      Use an extra blank line if you'd like a trailing newline. Like so:
-      
-      """
-    
-    d : Text
-    d =
-      """
-      ignored (works great)
-      Use an extra blank line if you'd like a trailing newline. Like so:
-      
-      """
+  Removed definitions:
   
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> load roundtrip.u
-
-  I found and typechecked the definitions in roundtrip.u. This
-  file has been previously added to the codebase.
+    39. structural type Fix_2337
+    40. structural ability Fix_2392
+    41. structural type Fix_2392a x y
+    42. structural type Id a
+    43. structural type SomethingUnusuallyLong
+    44. structural type UUID
+    45. structural ability Zoink
+    46. structural type Fully.qualifiedName
+    47. Fully.qualifiedName.Dontcare                  : '(Nat
+                                                      -> qualifiedName)
+    48. Fix_2337.Fix_2337                             : Boolean
+                                                      -> Boolean
+                                                      -> Fix_2337
+    49. Id.Id                                         : a
+                                                      -> Id a
+    50. Fix_2392a.Oog                                 : Nat
+                                                      -> Nat
+                                                      -> ( Nat,
+                                                        Nat)
+                                                      -> Fix_2392a
+                                                        x y
+    51. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
+                                                      -> Text
+                                                      -> Text
+                                                      -> SomethingUnusuallyLong
+    52. UUID.UUID                                     : Nat
+                                                      -> ( Nat,
+                                                        Nat)
+                                                      -> UUID
+    53. Zoink.nay                                     : Text
+                                                      -> ( Nat,
+                                                        Nat)
+                                                      ->{Zoink} Nat
+    54. Zoink.yay.there                               : Text
+                                                      ->{Zoink} Nat
+    55. Fix_2392.zonk                                 : {Fix_2392} Nat
+    56. ex1                                           : Nat
+    57. ex2                                           : Nat
+    58. ex3                                           : ()
+    59. ex3a                                          : ()
+    60. Fix_2337.f                                    : Fix_2337
+                                                      -> Boolean
+    61. Fix_2392.f                                    : Nat
+                                                      -> Fix_2392a
+                                                        ('{Fix_2392} a)
+                                                        ('{Fix_2392} b)
+                                                      -> Nat
+    62. fix_1035                                      : Text
+    63. fix_1536                                      : 'Nat
+    64. fix_1778                                      : 'Optional
+                                                        Nat
+    65. fix_2048                                      : Doc2
+    66. fix_2224                                      : [()]
+                                                      -> ()
+    67. fix_2224a                                     : [()]
+                                                      -> ()
+    68. fix_2224b                                     : [[()]]
+                                                      -> ()
+    69. fix_2271                                      : Doc2
+    70. fix_3627                                      : Nat
+                                                      -> Nat
+                                                      -> Nat
+    71. fix_525_exampleTerm                           : Text
+                                                      -> Nat
+    72. fix_525_exampleType                           : Id
+                                                        qualifiedName
+                                                      -> Id
+                                                        qualifiedName
+    73. handler_1778                                  : a
+                                                      -> Request
+                                                        {Abort}
+                                                        a
+                                                      -> a
+    74. nested_fences                                 : Doc2
+    75. Fix_525.bar.quaffle                           : Nat
+    76. Foo.bar.qux1                                  : Nat
+    77. Foo'.bar.qux1                                 : Text
+    78. Foo.bar.qux2                                  : Nat
+    79. Foo'.bar.qux2                                 : Text
+    80. Foo.bar.qux3                                  : Nat
+    81. Foo'.bar.qux3                                 : Text
+    82. UUID.random                                   : 'UUID
+    83. UUID.randomUUIDBytes                          : 'Bytes
+    84. raw_a                                         : Text
+    85. raw_b                                         : Text
+    86. raw_c                                         : Text
+    87. raw_d                                         : Text
+    88. simplestPossibleExample                       : Nat
+    89. somethingVeryLong                             : 'Nat
+    90. Abort.toDefault!                              : a
+                                                      -> '{g,
+                                                      Abort} a
+                                                      ->{g} a
+    91. Abort.toOptional                              : '{g,
+                                                      Abort} a
+                                                      -> '{g} Optional
+                                                        a
+    92. Abort.toOptional!                             : '{g,
+                                                      Abort} a
+                                                      ->{g} Optional
+                                                        a
+    93. use_clauses_example                           : Int
+                                                      -> Text
+                                                      -> Nat
+    94. use_clauses_example2                          : Int
+                                                      -> Nat
+    95. |>                                            : a
+                                                      -> (a
+                                                      ->{e} b)
+                                                      ->{e} b
 
 ```
-# Fix for wonky treatment of abilities with multi-segment constructor names 
+## Other regression tests not covered by above
 
-Regression test for https://github.com/unisonweb/unison/issues/3239
+### Comment out builtins in the edit command
 
-```unison
----
-title: roundtrip.u
----
-structural ability Zoink where
-  yay.there : Nat -> Nat
-  nay : Nat -> Nat
+Regression test for https://github.com/unisonweb/unison/pull/3548
 
-```
-
-
-```ucm
-.z> edit Zoink
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/pchiusano/unison/roundtrip.u
-  
-    structural ability Zoink where
-      yay.there : Nat ->{Zoink} Nat
-      nay : Nat ->{Zoink} Nat
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.z2> load roundtrip.u
-
-  I found and typechecked these definitions in roundtrip.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural ability Zoink
-
-.z2> add
-
-  ⍟ I've added these definitions:
-  
-    structural ability Zoink
-
-.z2> find Zoink.yay.there
-
-  1. Zoink.yay.there : Nat ->{Zoink} Nat
-  
-
-```
