@@ -20,6 +20,7 @@ module Unison.Runtime.Foreign
 where
 
 import Control.Concurrent (MVar, ThreadId)
+import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
 import Data.IORef (IORef)
 import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
@@ -71,6 +72,10 @@ bytesCmp l r = compare l r
 mvarEq :: MVar () -> MVar () -> Bool
 mvarEq l r = l == r
 {-# NOINLINE mvarEq #-}
+
+tvarEq :: TVar () -> TVar () -> Bool
+tvarEq l r = l == r
+{-# NOINLINE tvarEq #-}
 
 socketEq :: Socket -> Socket -> Bool
 socketEq l r = l == r
@@ -150,6 +155,7 @@ ref2eq r
   -- matter what type the MVar holds.
   | r == Ty.mvarRef = Just $ promote mvarEq
   -- Ditto
+  | r == Ty.tvarRef = Just $ promote tvarEq
   | r == Ty.socketRef = Just $ promote socketEq
   | r == Ty.refRef = Just $ promote refEq
   | r == Ty.threadIdRef = Just $ promote tidEq
