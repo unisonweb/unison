@@ -504,7 +504,7 @@ dependenciesSpecial = \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl ref -> Set.singleton (LD.TypeReference ref)
           BuiltinDecl ref -> Set.singleton (LD.TypeReference ref)
-          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependencies decl
+          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependenciesIncludingSelf ref decl
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingTerm ref -> Set.singleton (LD.TermReference ref)
           BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)
