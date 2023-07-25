@@ -286,8 +286,8 @@ termSignatureExternalLabeledDependencies
 -- load information about these dependencies before starting typechecking.
 dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
 dependencies (UnisonFile ds es ts ws) =
-  foldMap (DD.dependencies . snd) ds
-    <> foldMap (DD.dependencies . DD.toDataDecl . snd) es
+  foldMap (DD.typeDependencies . snd) ds
+    <> foldMap (DD.typeDependencies . DD.toDataDecl . snd) es
     <> foldMap (Term.dependencies . view _3) ts
     <> foldMap (foldMap (Term.dependencies . view _3)) ws
 

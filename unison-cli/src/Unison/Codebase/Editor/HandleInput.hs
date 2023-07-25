@@ -1904,7 +1904,7 @@ handleDependencies hq = do
               Codebase.getTypeDeclaration codebase i <&> \case
                 Nothing -> error $ "What happened to " ++ show i ++ "?"
                 Just decl ->
-                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.dependencies $
+                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.typeDependencies $
                     DD.asDataDecl decl
             tp _ = pure mempty
             tm r@(Referent.Ref (Reference.DerivedId i)) =

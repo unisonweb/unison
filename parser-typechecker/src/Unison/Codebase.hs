@@ -374,10 +374,10 @@ typeLookupForDependencies codebase s = do
           getTypeDeclaration codebase id >>= \case
             Just (Left ed) ->
               let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-               in depthFirstAccum z (DD.dependencies $ DD.toDataDecl ed)
+               in depthFirstAccum z (DD.typeDependencies $ DD.toDataDecl ed)
             Just (Right dd) ->
               let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-               in depthFirstAccum z (DD.dependencies dd)
+               in depthFirstAccum z (DD.typeDependencies dd)
             Nothing -> pure tl
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool

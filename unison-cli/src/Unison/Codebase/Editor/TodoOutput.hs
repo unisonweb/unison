@@ -50,9 +50,9 @@ labeledDependencies TodoOutput {..} =
            ]
         <>
         -- and decls of type refs
-        [ LD.typeRef r | (_, UserObject d) <- snd todoFrontier, r <- toList (DD.declDependencies d)
+        [ labeledDep | (declRef, UserObject d) <- snd todoFrontier, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
         ]
-        <> [ LD.typeRef r | (_, _, UserObject d) <- snd todoFrontierDependents, r <- toList (DD.declDependencies d)
+        <> [ labeledDep | (_, declRef, UserObject d) <- snd todoFrontierDependents, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
            ]
     )
     <>

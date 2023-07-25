@@ -74,4 +74,4 @@ labeledDependencies = \case
   Tm' (TermResult' _ t r _) ->
     Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
   Tp' (TypeResult' _ d r _) ->
-    Set.map LD.typeRef . Set.insert r $ maybe mempty DD.declDependencies (DT.toMaybe d)
+    maybe mempty (DD.labeledDeclDependenciesIncludingSelf r) (DT.toMaybe d)

@@ -47,7 +47,7 @@ import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
-import Unison.DataDeclaration (Decl, declDependencies, declFields)
+import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
@@ -161,7 +161,7 @@ recursiveDeclDeps seen0 cl d = do
     _ -> pure mempty
   pure $ (deps, mempty) <> fold rec
   where
-    deps = declDependencies d
+    deps = declTypeDependencies d
     newDeps = Set.filter (\r -> notMember (RF.typeRef r) seen0) deps
     seen = seen0 <> Set.map RF.typeRef deps
 
