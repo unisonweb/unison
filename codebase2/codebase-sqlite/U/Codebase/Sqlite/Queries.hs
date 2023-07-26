@@ -295,13 +295,13 @@ import Data.Map.NonEmpty qualified as NEMap
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import Data.String.Here.Uninterpolated (hereFile)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
+import Paths_unison_codebase_sqlite (getDataFileName)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
@@ -382,6 +382,7 @@ import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.Prelude
 import Unison.Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
@@ -393,9 +394,16 @@ type TextPathSegments = [Text]
 currentSchemaVersion :: SchemaVersion
 currentSchemaVersion = 15
 
+-- | Execute statements from a sql file
+executeFileStatements :: FilePath -> Transaction ()
+executeFileStatements fp = do
+  sqlText <- Sqlite.unsafeIO $ do
+    getDataFileName fp >>= readUtf8
+  executeStatements sqlText
+
 createSchema :: Transaction ()
 createSchema = do
-  executeStatements [hereFile|unison/sql/create.sql|]
+  executeFileStatements "sql/create.sql"
   addTempEntityTables
   addNamespaceStatsTables
   addReflogTable
@@ -415,45 +423,45 @@ createSchema = do
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
-  executeStatements [hereFile|unison/sql/001-temp-entity-tables.sql|]
+  executeFileStatements "sql/001-temp-entity-tables.sql"
 
 addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
-  executeStatements [hereFile|unison/sql/003-namespace-statistics.sql|]
+  executeFileStatements "sql/003-namespace-statistics.sql"
 
 addReflogTable :: Transaction ()
 addReflogTable =
-  executeStatements [hereFile|unison/sql/002-reflog-table.sql|]
+  executeFileStatements "sql/002-reflog-table.sql"
 
 fixScopedNameLookupTables :: Transaction ()
 fixScopedNameLookupTables =
-  executeStatements [hereFile|unison/sql/004-fix-scoped-name-lookup-tables.sql|]
+  executeFileStatements "sql/004-fix-scoped-name-lookup-tables.sql"
 
 addProjectTables :: Transaction ()
 addProjectTables =
-  executeStatements [hereFile|unison/sql/005-project-tables.sql|]
+  executeFileStatements "sql/005-project-tables.sql"
 
 addMostRecentBranchTable :: Transaction ()
 addMostRecentBranchTable =
-  executeStatements [hereFile|unison/sql/006-most-recent-branch-table.sql|]
+  executeFileStatements "sql/006-most-recent-branch-table.sql"
 
 addNameLookupMountTables :: Transaction ()
 addNameLookupMountTables =
-  executeStatements [hereFile|unison/sql/007-add-name-lookup-mounts.sql|]
+  executeFileStatements "sql/007-add-name-lookup-mounts.sql"
 
 addMostRecentNamespaceTable :: Transaction ()
 addMostRecentNamespaceTable =
-  executeStatements [hereFile|unison/sql/008-add-most-recent-namespace-table.sql|]
+  executeFileStatements "sql/008-add-most-recent-namespace-table.sql"
 
 addSquashResultTable :: Transaction ()
 addSquashResultTable =
-  executeStatements [hereFile|unison/sql/009-add-squash-cache-table.sql|]
+  executeFileStatements "sql/009-add-squash-cache-table.sql"
 
 -- | Added as a fix because 'addSquashResultTable' was missed in the createSchema action
 -- for a portion of time.
 addSquashResultTableIfNotExists :: Transaction ()
 addSquashResultTableIfNotExists =
-  executeStatements [hereFile|unison/sql/010-ensure-squash-cache-table.sql|]
+  executeFileStatements "sql/010-ensure-squash-cache-table.sql"
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =

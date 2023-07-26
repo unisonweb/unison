@@ -9,7 +9,7 @@ version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
-extra-source-files:
+data-files:
     sql/001-temp-entity-tables.sql
     sql/002-reflog-table.sql
     sql/003-namespace-statistics.sql
@@ -64,6 +64,8 @@ library
       U.Codebase.Sqlite.TempEntity
       U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
+  other-modules:
+      Paths_unison_codebase_sqlite
   hs-source-dirs:
       ./
   default-extensions:
