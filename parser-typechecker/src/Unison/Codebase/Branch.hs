@@ -747,18 +747,18 @@ consBranchSnapshot headBranch baseBranch =
           (head headBranch & children .~ combinedChildren)
           (_history baseBranch)
   where
-    combineChildren :: These (Branch m) (Branch m) -> Branch m
+    combineChildren :: These (Branch m) (Branch m) -> Maybe (Branch m)
     combineChildren = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> head `consBranchSnapshot` base
-      -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> empty `consBranchSnapshot` base
+      (These base head) -> Just (head `consBranchSnapshot` base)
+      -- This child has been deleted, let it be
+      (This _) -> Nothing
       -- This child didn't exist in the base, we add any changes as a single commit
-      (That head) -> discardHistory head
+      (That head) -> Just (discardHistory head)
     combinedChildren :: Map NameSegment (Branch m)
     combinedChildren =
-      Align.alignWith
-        combineChildren
-        (head baseBranch ^. children)
-        (head headBranch ^. children)
+      Map.mapMaybe combineChildren $
+        Align.align
+          (head baseBranch ^. children)
+          (head headBranch ^. children)
