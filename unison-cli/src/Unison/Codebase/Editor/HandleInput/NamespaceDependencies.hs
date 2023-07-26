@@ -44,7 +44,7 @@ namespaceDependencies codebase branch = do
     for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
       refId <- MaybeT . pure $ Reference.toId typeRef
       decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
-      let typeDeps = Set.map LD.typeRef $ DD.dependencies (DD.asDataDecl decl)
+      let typeDeps = Set.map LD.typeRef $ DD.typeDependencies (DD.asDataDecl decl)
       pure $ foldMap (`Map.singleton` names) typeDeps
 
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
