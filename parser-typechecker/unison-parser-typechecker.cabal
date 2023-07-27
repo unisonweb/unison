@@ -246,7 +246,6 @@ library
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -436,7 +435,6 @@ test-suite parser-typechecker-tests
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types

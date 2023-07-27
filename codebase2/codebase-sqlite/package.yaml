@@ -19,7 +19,6 @@ dependencies:
   - containers
   - extra
   - generic-lens
-  - here
   - lens
   - monad-validate
   - mtl
@@ -39,6 +38,7 @@ dependencies:
   - unison-sqlite
   - unison-util-base32hex
   - unison-util-cache
+  - unison-util-file-embed
   - unison-util-serialization
   - unison-util-term
   - unliftio
