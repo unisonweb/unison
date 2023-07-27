@@ -92,6 +92,7 @@ module U.Codebase.Sqlite.Operations
     deleteNameLookupsExceptFor,
     fuzzySearchDefinitions,
     namesPerspectiveForRootAndPath,
+    namesPerspectiveForRootIdAndPath,
 
     -- * reflog
     getReflog,
@@ -1203,6 +1204,10 @@ data NamesPerspective = NamesPerspective
 namesPerspectiveForRootAndPath :: BranchHash -> PathSegments -> Transaction NamesPerspective
 namesPerspectiveForRootAndPath rootBh namespace = do
   rootBhId <- Q.expectBranchHashId rootBh
+  namesPerspectiveForRootIdAndPath rootBhId namespace
+
+namesPerspectiveForRootIdAndPath :: Db.BranchHashId -> PathSegments -> Transaction NamesPerspective
+namesPerspectiveForRootIdAndPath rootBhId namespace = do
   namesPerspectiveForRootAndPathHelper rootBhId namespace
   where
     namesPerspectiveForRootAndPathHelper :: Db.BranchHashId -> PathSegments -> Transaction NamesPerspective
