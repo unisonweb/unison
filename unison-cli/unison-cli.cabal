@@ -176,7 +176,6 @@ library
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -311,7 +310,6 @@ executable cli-integration-tests
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -440,7 +438,6 @@ executable transcripts
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -575,7 +572,6 @@ executable unison
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
