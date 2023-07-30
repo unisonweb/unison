@@ -162,8 +162,7 @@ instance (Var v) => Hashable1 (TermF v a p) where
                         [tag 1, Hashable.Text (Text.pack s)]
                       B.Recorded (B.Resolve _ s) ->
                         [tag 2, Hashable.Text (Text.pack s)]
-                      B.Recorded (B.MissingResultPlaceholder _) ->
-                        [tag 3, Hashable.Text (Text.pack "_")]
+                      B.Recorded (B.MissingResultPlaceholder _) -> [tag 247]
                   TermRef (ReferenceBuiltin name) -> [tag 2, accumulateToken name]
                   TermApp a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
                   TermAnn a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
