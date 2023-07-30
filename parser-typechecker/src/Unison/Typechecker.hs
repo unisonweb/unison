@@ -253,7 +253,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
     suggest =
       traverse_
-        ( \(Resolution name inferredType loc v suggestions) ->
+        ( \(Resolution _ inferredType loc v suggestions) ->
             typeError $
               Context.ErrorNote
                 (Context.UnknownTerm loc v (dedupe suggestions) inferredType)

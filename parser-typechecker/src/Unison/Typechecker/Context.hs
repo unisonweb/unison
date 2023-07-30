@@ -1222,7 +1222,10 @@ synthesizeWanted e
   | Term.TermLink' _ <- e = pure (Type.termLink l, [])
   | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
   | Term.Blank' blank <- e = do
-      v <- freshenVar Var.blank
+      let freshType = case blank of
+            B.Recorded (B.MissingResultPlaceholder _) -> Var.missingResult
+            _ -> Var.blank
+      v <- freshenVar freshType
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.List' v <- e = do
