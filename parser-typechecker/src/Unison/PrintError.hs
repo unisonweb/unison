@@ -611,19 +611,16 @@ renderTypeError e env src curPath = case e of
       (annotatedAsErrorSite src loc)
   UnknownTerm {..}
     | Var.typeOf unknownTermV == Var.MissingResult ->
-        mconcat
-          [ "The last statement of a block must be an expression, ",
-            "but this is a definition:\n\n",
-            annotatedAsErrorSite src termSite,
-            "\nI don't know what the result of this block should be.\n",
-            "Did you forget to add an expression at the end of the block?\n",
-            case expectedType of
-              Type.Var' (TypeVar.Existential {}) -> "I don't know what type it should be either."
-              _ ->
-                "It should be of type "
-                  <> style Type1 (renderType' env expectedType)
-                  <> "."
-          ]
+    Pr.lines [ 
+      Pr.wrap "The last element of a block must be an expression, but this is a definition:", 
+      "",
+      annotatedAsErrorSite src termSite,
+      Pr.wrap $ "Try adding an expression at the end of the block." <> msg
+      ]
+      where
+        msg = case expectedType of
+          Type.Var' (TypeVar.Existential {}) -> mempty
+          _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
