@@ -5,8 +5,12 @@ When an error is encountered in a `unison:hide:all` block
 then the transcript parser should print the stanza
 and surface a helpful message.
 
+```ucm:hide
+.> builtins.merge
+```
+
 ```unison:hide:all
-a : ##Nat
+a : Nat
 a = 
   b = 24
 ```
