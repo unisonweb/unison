@@ -17,11 +17,10 @@ x =
 The transcript failed due to an error in the stanza above. The error is:
 
 
-  The last statement of a block must be an expression, but this is a definition:
+  The last element of a block must be an expression, but this is
+  a definition:
   
       2 |   y = 24
   
-  I don't know what the result of this block should be.
-  Did you forget to add an expression at the end of the block?
-  I don't know what type it should be either.
+  Try adding an expression at the end of the block.
 
