@@ -18,19 +18,11 @@ a =
 The transcript failed due to an error in the stanza above. The error is:
 
 
-  I couldn't find any definitions matching the name _150003 inside the namespace .
+  The last element of a block must be an expression, but this is
+  a definition:
   
       3 |   b = 24
   
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
-  
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
-  
-  Whatever it is, its type should conform to Nat.
-  
-  
+  Try adding an expression at the end of the block.
+  It should be of type Nat.
 
