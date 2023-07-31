@@ -65,7 +65,9 @@ module Unison.Runtime.ANF
     valueTermLinks,
     valueLinks,
     groupTermLinks,
-    groupLinks,
+    foldGroupLinks,
+    overGroupLinks,
+    traverseGroupLinks,
     normalLinks,
     prettyGroup,
     prettySuperNormal,
@@ -78,6 +80,7 @@ import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..))
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
@@ -1873,61 +1876,99 @@ litLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
 litLinks f (List s) = foldMap (valueLinks f) s
 litLinks _ _ = mempty
 
-groupTermLinks :: SuperGroup v -> [Reference]
-groupTermLinks = Set.toList . groupLinks f
+groupTermLinks :: Var v => SuperGroup v -> [Reference]
+groupTermLinks = Set.toList . foldGroupLinks f
   where
     f False r = Set.singleton r
     f _ _ = Set.empty
 
-groupLinks :: (Monoid a) => (Bool -> Reference -> a) -> SuperGroup v -> a
-groupLinks f (Rec bs e) =
-  foldMap (foldMap (normalLinks f)) bs <> normalLinks f e
+overGroupLinks ::
+  (Var v) =>
+  (Bool -> Reference -> Reference) ->
+  SuperGroup v ->
+  SuperGroup v
+overGroupLinks f =
+  runIdentity . traverseGroupLinks (\b -> Identity . f b)
+
+traverseGroupLinks ::
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  SuperGroup v ->
+  f (SuperGroup v)
+traverseGroupLinks f (Rec bs e) =
+  Rec <$> (traverse.traverse) (normalLinks f) bs <*> normalLinks f e
+
+foldGroupLinks ::
+  (Monoid r, Var v) =>
+  (Bool -> Reference -> r) ->
+  SuperGroup v ->
+  r
+foldGroupLinks f = getConst . traverseGroupLinks (\b -> Const . f b)
 
 normalLinks ::
-  (Monoid a) => (Bool -> Reference -> a) -> SuperNormal v -> a
-normalLinks f (Lambda _ e) = anfLinks f e
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  SuperNormal v ->
+  f (SuperNormal v)
+normalLinks f (Lambda ccs e) = Lambda ccs <$> anfLinks f e
 
-anfLinks :: (Monoid a) => (Bool -> Reference -> a) -> ANormal v -> a
-anfLinks f (ABTN.Term _ (ABTN.Abs _ e)) = anfLinks f e
-anfLinks f (ABTN.Term _ (ABTN.Tm e)) = anfFLinks f (anfLinks f) e
+anfLinks ::
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  ANormal v ->
+  f (ANormal v)
+anfLinks f (ABTN.Term _ (ABTN.Abs v e)) =
+  ABTN.TAbs v <$> anfLinks f e
+anfLinks f (ABTN.Term _ (ABTN.Tm e)) =
+  ABTN.TTm <$> anfFLinks f (anfLinks f) e
 
 anfFLinks ::
-  (Monoid a) =>
-  (Bool -> Reference -> a) ->
-  (e -> a) ->
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  (e -> f e) ->
   ANormalF v e ->
-  a
-anfFLinks _ g (ALet _ _ b e) = g b <> g e
-anfFLinks f g (AName er _ e) =
-  bifoldMap (f False) (const mempty) er <> g e
-anfFLinks f g (AMatch _ bs) = branchLinks (f True) g bs
-anfFLinks f g (AShift r e) = f True r <> g e
-anfFLinks f g (AHnd rs _ e) = foldMap (f True) rs <> g e
-anfFLinks f _ (AApp fu _) = funcLinks f fu
-anfFLinks _ _ _ = mempty
+  f (ANormalF v e)
+anfFLinks _ g (ALet d ccs b e) = ALet d ccs <$> g b <*> g e
+anfFLinks f g (AName er vs e) =
+  flip AName vs <$> bitraverse (f False) pure er <*> g e
+anfFLinks f g (AMatch v bs) =
+  AMatch v <$> branchLinks (f True) g bs
+anfFLinks f g (AShift r e) =
+  AShift <$> f True r <*> g e
+anfFLinks f g (AHnd rs v e) =
+  flip AHnd v <$> traverse (f True) rs <*> g e
+anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
+anfFLinks _ _ v = pure v
 
 branchLinks ::
-  (Monoid a) =>
-  (Reference -> a) ->
-  (e -> a) ->
+  (Applicative f) =>
+  (Reference -> f Reference) ->
+  (e -> f e) ->
   Branched e ->
-  a
-branchLinks f g bs = tyRefs f bs <> foldMap g bs
-
-tyRefs :: (Monoid a) => (Reference -> a) -> Branched e -> a
-tyRefs f (MatchRequest m _) = foldMap f (Map.keys m)
-tyRefs f (MatchData r _ _) = f r
-tyRefs _ _ = mempty
+  f (Branched e)
+branchLinks f g (MatchRequest m e) =
+  MatchRequest . Map.fromList
+    <$> traverse (bitraverse f $ (traverse.traverse) g) (Map.toList m)
+    <*> g e
+branchLinks f g (MatchData r m e) =
+  MatchData <$> f r <*> (traverse.traverse) g m <*> traverse g e
+branchLinks _ g (MatchText m e) =
+  MatchText <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchIntegral m e) =
+  MatchIntegral <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchSum m) =
+  MatchSum <$> (traverse.traverse) g m
+branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::
-  (Monoid a) =>
-  (Bool -> Reference -> a) ->
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
   Func v ->
-  a
-funcLinks f (FComb r) = f False r
-funcLinks f (FCon r _) = f True r
-funcLinks f (FReq r _) = f True r
-funcLinks _ _ = mempty
+  f (Func v)
+funcLinks f (FComb r) = FComb <$> f False r
+funcLinks f (FCon r t) = flip FCon t <$> f True r
+funcLinks f (FReq r t) = flip FReq t <$> f True r
+funcLinks _ ff = pure ff
 
 expandBindings' ::
   (Var v) =>
