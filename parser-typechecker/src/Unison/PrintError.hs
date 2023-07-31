@@ -609,6 +609,18 @@ renderTypeError e env src curPath = case e of
     Pr.hang
       "This case would be ignored because it's already covered by the preceding case(s):"
       (annotatedAsErrorSite src loc)
+  UnknownTerm {..}
+    | Var.typeOf unknownTermV == Var.MissingResult ->
+        Pr.lines
+          [ Pr.wrap "The last element of a block must be an expression, but this is a definition:",
+            "",
+            annotatedAsErrorSite src termSite,
+            Pr.wrap $ "Try adding an expression at the end of the block." <> msg
+          ]
+    where
+      msg = case expectedType of
+        Type.Var' (TypeVar.Existential {}) -> mempty
+        _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])

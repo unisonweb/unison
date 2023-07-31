@@ -218,7 +218,9 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where
     f (ABT.Term _ (a, bound) (ABT.Var v))
       | Set.notMember v bound =
-          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+          if Var.typeOf v == Var.MissingResult
+            then Just $ missingResult (a, bound) a
+            else Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
     f _ = Nothing
 
 amap :: (Ord v) => (a -> a2) -> Term v a -> Term v a2
@@ -801,6 +803,9 @@ placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
 resolve :: (Ord v) => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
+
+missingResult :: (Ord v) => at -> ab -> Term2 vt ab ap v at
+missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholder ab)
 
 constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
@@ -1589,6 +1594,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         B.Blank -> s "_"
         B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
+        B.Recorded (B.MissingResultPlaceholder _) -> s "_"
       go _ (Ref r) = s "Ref(" <> shows r <> s ")"
       go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
       go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"
