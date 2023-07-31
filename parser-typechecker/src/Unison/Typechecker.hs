@@ -253,13 +253,19 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
     suggest =
       traverse_
-        ( \(Resolution _ inferredType loc v suggestions) ->
+        ( \(Resolution name inferredType loc v suggestions) ->
             typeError $
               Context.ErrorNote
-                (Context.UnknownTerm loc v (dedupe suggestions) inferredType)
+                (Context.UnknownTerm loc (suggestedVar v name) (dedupe suggestions) inferredType)
                 []
         )
     guard x a = if x then Just a else Nothing
+
+    suggestedVar :: Var v => v -> Text -> v
+    suggestedVar v name =
+      case Var.typeOf v of
+        Var.MissingResult -> v
+        _ -> Var.named name
 
     substSuggestion :: Resolution v loc -> TDNR f v loc ()
     substSuggestion
@@ -274,7 +280,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
         ) =
         do
           modify (substBlank (Text.unpack name) loc solved)
-          lift . btw $ Context.Decision v loc solved
+          lift . btw $ Context.Decision (suggestedVar v name) loc solved
         where
           solved = either (Term.var loc) (Term.fromReferent loc) replacement
     substSuggestion _ = pure ()
@@ -301,6 +307,8 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
         . maybeToList
         . Map.lookup (Text.pack n)
         $ view termsByShortname env
+    -- Solve the case where we have a placeholder for a missing result
+    -- at the end of a block. This is always an error.
     resolveNote _ (Context.SolvedBlank (B.MissingResultPlaceholder loc) v it) =
       pure . Just $ Resolution "_" it loc v []
     resolveNote _ n = btw n >> pure Nothing

@@ -19,7 +19,7 @@ data Recorded loc
     Resolve
       loc
       String
-  | -- A missing result placeholder
+  | -- A placeholder for a missing result at the end of a block
     MissingResultPlaceholder
       loc
   deriving (Show, Eq, Ord, Functor, Generic)
