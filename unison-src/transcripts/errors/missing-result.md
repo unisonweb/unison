@@ -10,3 +10,9 @@ x =
   y = 24
 ```
 
+```unison:hide:all
+a : ##Nat
+a = 
+  b = 24
+```
+
