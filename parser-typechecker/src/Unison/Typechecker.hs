@@ -164,7 +164,6 @@ data Resolution v loc = Resolution
   { resolvedName :: Text,
     inferredType :: Context.Type v loc,
     resolvedLoc :: loc,
-    v :: v,
     suggestions :: [Context.Suggestion v loc]
   }
 
@@ -253,19 +252,13 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
     suggest =
       traverse_
-        ( \(Resolution name inferredType loc v suggestions) ->
+        ( \(Resolution name inferredType loc suggestions) ->
             typeError $
               Context.ErrorNote
-                (Context.UnknownTerm loc (suggestedVar v name) (dedupe suggestions) inferredType)
+                (Context.UnknownTerm loc (Var.named name) (dedupe suggestions) inferredType)
                 []
         )
     guard x a = if x then Just a else Nothing
-
-    suggestedVar :: Var v => v -> Text -> v
-    suggestedVar v name =
-      case Var.typeOf v of
-        Var.MissingResult -> v
-        _ -> Var.named name
 
     substSuggestion :: Resolution v loc -> TDNR f v loc ()
     substSuggestion
@@ -273,14 +266,13 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
           name
           _
           loc
-          v
           ( filter Context.isExact ->
               [Context.Suggestion _ _ replacement Context.Exact]
             )
         ) =
         do
           modify (substBlank (Text.unpack name) loc solved)
-          lift . btw $ Context.Decision (suggestedVar v name) loc solved
+          lift . btw $ Context.Decision (Var.named name) loc solved
         where
           solved = either (Term.var loc) (Term.fromReferent loc) replacement
     substSuggestion _ = pure ()
@@ -292,7 +284,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
         go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
         resolve (Term.Blank' (B.Recorded (B.Resolve loc name)))
           | name == s =
-              Just (loc <$ r)
+              Just (const loc <$> r)
         resolve _ = Nothing
 
     --  Returns Nothing for irrelevant notes
@@ -300,17 +292,13 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
       Env v loc ->
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
-    resolveNote env (Context.SolvedBlank (B.Resolve loc n) v it) =
-      fmap (Just . Resolution (Text.pack n) it loc v . dedupe . join)
+    resolveNote env (Context.SolvedBlank (B.Resolve loc n) _ it) =
+      fmap (Just . Resolution (Text.pack n) it loc . dedupe . join)
         . traverse (resolve it)
         . join
         . maybeToList
         . Map.lookup (Text.pack n)
         $ view termsByShortname env
-    -- Solve the case where we have a placeholder for a missing result
-    -- at the end of a block. This is always an error.
-    resolveNote _ (Context.SolvedBlank (B.MissingResultPlaceholder loc) v it) =
-      pure . Just $ Resolution "_" it loc v []
     resolveNote _ n = btw n >> pure Nothing
     dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
     dedupe = uniqueBy Context.suggestionReplacement
