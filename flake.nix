@@ -56,14 +56,18 @@
                       profilingDetail = "none";
                     }
                     # remove buggy build tool dependencies
-                    ({ lib, ... }: {
-                      # this component has the build tool
-                      # `unison-cli:unison` and somehow haskell.nix
-                      # decides to add some file sharing package
-                      # `unison` as a build-tool dependency.
-                      packages.unison-cli.components.exes.cli-integration-tests.build-tools =
-                        lib.mkForce [ ];
-                    })
+                    ({ lib, pkgs, ... }:
+                      let
+                        flake = pkgs.unison-project.flake { };
+                        # this component has the build tool
+                        # `unison-cli:unison` and somehow haskell.nix
+                        # decides to add some file sharing package
+                        # `unison` as a build-tool dependency.
+                      in
+                      {
+                        packages.unison-cli.components.exes.cli-integration-tests.build-tools =
+                          lib.mkForce [ ];
+                      })
                   ];
                   branchMap = {
                     "https://github.com/unisonweb/configurator.git"."e47e9e9fe1f576f8c835183b9def52d73c01327a" =
@@ -73,22 +77,34 @@
                   };
                 };
             })
-            (final: prev: {
-              unison-stack = prev.symlinkJoin {
-                name = "stack";
-                paths = [ final.stack ];
-                buildInputs = [ final.makeWrapper ];
-                postBuild =
-                  let
-                    flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
-                    add-flags =
-                      "--add-flags '${prev.lib.concatStringsSep " " flags}'";
-                  in
-                  ''
-                    wrapProgram "$out/bin/stack" ${add-flags}
-                  '';
-              };
-            })
+            (final: prev:
+              let flake = final.unison-project.flake { };
+              in {
+                unison-stack = prev.symlinkJoin {
+                  name = "stack";
+                  paths = [ final.stack ];
+                  buildInputs = [ final.makeWrapper ];
+                  postBuild =
+                    let
+                      flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
+                      add-flags =
+                        "--add-flags '${prev.lib.concatStringsSep " " flags}'";
+                    in
+                    ''
+                      wrapProgram "$out/bin/stack" ${add-flags}
+                    '';
+                };
+                unison-cli-integration-tests = pkgs.symlinkJoin {
+                  name = "cli-integration-tests";
+                  paths = [ flake.packages."unison-cli:exe:cli-integration-tests" ];
+                  buildInputs = [ final.makeWrapper ];
+                  postBuild =
+                    ''
+                      wrapProgram "$out/bin/cli-integration-tests" --prefix PATH : ${final.lib.makeBinPath [ flake.packages."unison-cli:exe:unison" ]}
+                    '';
+                };
+
+              })
           ];
           pkgs = import nixpkgs {
             inherit system overlays;
@@ -163,5 +179,11 @@
           defaultPackage = flake.packages."unison-cli:exe:unison";
           inherit (pkgs) unison-project;
           inherit devShells localPackageNames;
+          apps = flake.apps // {
+            "unison-cli:exe:cli-integration-tests" = {
+              type = "app";
+              program = "${pkgs.unison-cli-integration-tests}/bin/cli-integration-tests";
+            };
+          };
         });
 }
