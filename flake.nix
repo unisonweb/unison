@@ -4,7 +4,7 @@
     extra-substituters = [ "https://cache.iog.io" "https://unison.cachix.org" ];
     extra-trusted-public-keys = [
       "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
-      "unison.cachix.org-1:gFuvOrYJX5lXoSoYm6Na3xwUbb9q+S5JFL+UAsWbmzQ="
+      "unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="
     ];
   };
   inputs = {
