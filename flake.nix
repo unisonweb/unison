@@ -185,7 +185,7 @@
               paths =
                 let
                   all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" ]);
-                  devshell-inputs = builtins.concatMap (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs) (builtins.attrValues self.devShells."${system}");
+                  devshell-inputs = builtins.concatMap (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs) [ devShells.only-tools ];
                 in
                 all-other-packages ++ devshell-inputs;
             };
