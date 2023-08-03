@@ -179,6 +179,17 @@
           defaultPackage = flake.packages."unison-cli:exe:unison";
           inherit (pkgs) unison-project;
           inherit devShells localPackageNames;
+          packages = flake.packages // {
+            all = pkgs.symlinkJoin {
+              name = "all-packages";
+              paths =
+                let
+                  all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" ]);
+                  devshell-inputs = builtins.concatMap (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs) (builtins.attrValues self.devShells."${system}");
+                in
+                all-other-packages ++ devshell-inputs;
+            };
+          };
           apps = flake.apps // {
             "unison-cli:exe:cli-integration-tests" = {
               type = "app";
