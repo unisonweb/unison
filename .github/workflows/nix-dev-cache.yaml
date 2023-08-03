@@ -17,10 +17,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: cachix/install-nix-action@v22
+      with:
+        extra_nix_config: |
+          extra-substituters = https://cache.iog.io
+          extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
     - uses: cachix/cachix-action@v12
       with:
         name: unison
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: build all packages and development shells
-      run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
+      run: nix -L build --no-link --keep-going '.#all'
 
