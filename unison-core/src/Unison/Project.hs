@@ -380,6 +380,13 @@ instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) w
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe projectWithOptionalBranchParser)
 
+-- | Attempt to parse a project and branch name from a string where both are required.
+instance TryFrom Text (ProjectAndBranch ProjectName ProjectBranchName) where
+  tryFrom =
+    maybeTryFrom $ \txt -> do
+      ProjectAndBranch projectName mayBranchName <- Megaparsec.parseMaybe projectWithOptionalBranchParser txt
+      ProjectAndBranch projectName <$> mayBranchName
+
 -- Valid things:
 --
 --   1. project

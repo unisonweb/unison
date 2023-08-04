@@ -69,6 +69,7 @@ module Unison.Server.Backend
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
+    causalHashForProjectBranchName,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -113,11 +114,14 @@ import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase qualified as UCodebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -154,6 +158,8 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project.Util qualified as ProjectUtils
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -235,6 +241,7 @@ data BackendError
     -- of the perspective. This shouldn't happen and indicates a bug.
     -- (perspective, project root)
     DisjointProjectAndPerspective Path Path
+  | ProjectBranchNameNotFound ProjectName ProjectBranchName
   deriving stock (Show)
 
 newtype BackendEnv = BackendEnv
@@ -1378,3 +1385,15 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
+
+-- | Get the causal hash a given project branch points to
+causalHashForProjectBranchName :: MonadIO m => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
+causalHashForProjectBranchName (ProjectAndBranch projectName branchName) = do
+  Q.loadProjectBranchByNames projectName branchName >>= \case
+    Nothing -> pure Nothing
+    Just ProjectBranch {projectId, branchId} -> do
+      let path = ProjectUtils.projectBranchPath (ProjectAndBranch projectId branchId)
+      -- Use the default codebase root
+      let codebaseRoot = Nothing
+      mayCausal <- UCodebase.getShallowCausalFromRoot codebaseRoot (Path.unabsolute path)
+      pure . Just $ V2Causal.causalHash mayCausal

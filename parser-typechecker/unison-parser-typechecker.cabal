@@ -121,6 +121,7 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
+      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Serialize
@@ -317,6 +318,7 @@ library
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp
@@ -508,6 +510,7 @@ test-suite parser-typechecker-tests
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp

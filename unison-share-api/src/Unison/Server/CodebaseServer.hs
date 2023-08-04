@@ -83,15 +83,20 @@ import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.HashQualified
 import Unison.Name as Name (Name, segments)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..))
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Errors (backendError)
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
@@ -102,7 +107,7 @@ import Unison.Server.Local.Endpoints.GetDefinitions
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects qualified as Projects
-import Unison.Server.Types (mungeString, setCacheControl)
+import Unison.Server.Types (ProjectBranchNameParam (..), mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 
@@ -119,9 +124,13 @@ instance MimeRender HTML RawHtml where
 
 type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
-type UnisonAndDocsAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type UnisonAPI =
+type LooseCodeAPI = CodebaseServerAPI
+
+type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
+
+type CodebaseServerAPI =
   NamespaceListing.NamespaceListingAPI
     :<|> NamespaceDetails.NamespaceDetailsAPI
     :<|> Projects.ProjectsAPI
@@ -129,6 +138,9 @@ type UnisonAPI =
     :<|> FuzzyFindAPI
     :<|> TermSummaryAPI
     :<|> TypeSummaryAPI
+
+type ProjectsAPI =
+  "projects" :> Capture "project-and-branch" ProjectBranchNameParam :> LooseCodeAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -269,7 +281,7 @@ docsBS = mungeString . markdown $ docsWithIntros [intro] api
 unisonAndDocsAPI :: Proxy UnisonAndDocsAPI
 unisonAndDocsAPI = Proxy
 
-api :: Proxy UnisonAPI
+api :: Proxy UnisonLocalAPI
 api = Proxy
 
 serverAPI :: Proxy ServerAPI
@@ -430,7 +442,7 @@ server backendEnv rt codebase uiPath expectedToken =
         :<|> serveUnisonAndDocs backendEnv rt codebase
 
 serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
-serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+serveUnisonAndDocs env rt codebase = serveUnisonLocal env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
 
 serveDocs :: Application
 serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
@@ -444,13 +456,13 @@ serveOpenAPI = pure openAPI
 hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
-serveUnison ::
+serveLooseCode ::
   BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
-  Server UnisonAPI
-serveUnison env codebase rt =
-  hoistServer (Proxy @UnisonAPI) (backendHandler env) $
+  Server LooseCodeAPI
+serveLooseCode env codebase rt =
+  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $
     (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
       :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase (Left <$> mayRoot) mayOwner)
@@ -458,6 +470,62 @@ serveUnison env codebase rt =
       :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
       :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
       :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+
+serveProjectsAPI ::
+  BackendEnv ->
+  Codebase IO Symbol Ann ->
+  Rt.Runtime Symbol ->
+  ProjectBranchNameParam ->
+  Server LooseCodeAPI
+serveProjectsAPI env codebase rt (ProjectBranchNameParam projectAndBranchName@(ProjectAndBranch projectName branchName)) =
+  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $ do
+    namespaceListingEndpoint
+      :<|> namespaceDetailsEndpoint
+      :<|> projectListingEndpoint
+      :<|> serveDefinitionsEndpoint
+      :<|> serveFuzzyFindEndpoint
+      :<|> serveTermSummaryEndpoint
+      :<|> serveTypeSummaryEndpoint
+  where
+    namespaceListingEndpoint _rootParam rel name = do
+      root <- resolveProjectRoot
+      setCacheControl <$> NamespaceListing.serve codebase (Just root) rel name
+    namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just root) renderWidth
+    projectListingEndpoint _rootParam mayOwner = do
+      root <- resolveProjectRoot
+      setCacheControl <$> Projects.serve codebase (Just root) mayOwner
+
+    serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveDefinitions rt codebase (Just root) relativePath rawHqns renderWidth suff
+
+    serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveFuzzyFind codebase (Just root) relativePath limit renderWidth query
+
+    serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+
+    serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+
+    resolveProjectRoot :: Backend IO (Either ShortCausalHash CausalHash)
+    resolveProjectRoot = do
+      mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
+      case mayCH of
+        Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
+        Just ch -> pure (Right ch)
+
+serveUnisonLocal ::
+  BackendEnv ->
+  Codebase IO Symbol Ann ->
+  Rt.Runtime Symbol ->
+  Server UnisonLocalAPI
+serveUnisonLocal env codebase rt = serveProjectsAPI env codebase rt :<|> serveLooseCode env codebase rt
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =
