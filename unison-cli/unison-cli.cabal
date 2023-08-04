@@ -43,6 +43,7 @@ library
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
       Unison.Cli.UnisonConfigUtils
+      Unison.Cloud.Codeserver
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AuthLogin

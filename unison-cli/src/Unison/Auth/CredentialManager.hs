@@ -13,8 +13,9 @@ import Control.Monad.Trans.Except
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Unison.Auth.CredentialFile
 import Unison.Auth.Types
+import Unison.Cloud.Codeserver (defaultCloudAPI)
 import Unison.Prelude
-import Unison.Share.Types (CodeserverId)
+import Unison.Share.Types (CodeserverId, codeserverIdFromCodeserverURI)
 import UnliftIO qualified
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
@@ -26,8 +27,15 @@ newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
 
 -- | Saves credentials to the active profile.
 saveCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()
-saveCredentials credManager aud creds = do
-  void . modifyCredentials credManager $ setCodeserverCredentials aud creds
+saveCredentials credManager shareCodeserverId creds = do
+  let cloudCodeserverID = codeserverIdFromCodeserverURI defaultCloudAPI
+  void . modifyCredentials credManager $
+    setCodeserverCredentials shareCodeserverId creds
+      -- For now we just always save share credentials for unison cloud as well.
+      -- This allows us to avoid making the user authenticate twice.
+      -- We may wish to change this to something more fine-grained in the future,
+      -- but for now this is fine.
+      >>> setCodeserverCredentials cloudCodeserverID creds
 
 -- | Atomically update the credential storage file, and update the in-memory cache.
 modifyCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> (Credentials -> Credentials) -> m Credentials
