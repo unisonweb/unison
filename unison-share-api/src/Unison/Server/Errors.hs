@@ -7,8 +7,8 @@ module Unison.Server.Errors where
 
 import Data.ByteString.Lazy.Char8 qualified as BSC
 import Data.Set qualified as Set
-import Data.Text.Lazy qualified as Text
-import Data.Text.Lazy.Encoding qualified as Text
+import Data.Text.Lazy qualified as LazyText
+import Data.Text.Lazy.Encoding qualified as LazyText
 import Servant (ServerError (..), err400, err404, err409, err500)
 import U.Codebase.HashTags (BranchHash, CausalHash)
 import Unison.Codebase.Path qualified as Path
@@ -16,6 +16,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference qualified as Reference
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
@@ -31,7 +32,7 @@ badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
   err400
     { errBody =
-        Text.encodeUtf8 (Text.fromStrict hqn)
+        LazyText.encodeUtf8 (LazyText.fromStrict hqn)
           <> " is not a well-formed name, hash, or hash-qualified name. "
           <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
     }
@@ -42,11 +43,11 @@ backendError = \case
     noSuchNamespace . Path.toText $ Path.unabsolute n
   Backend.BadNamespace err namespace -> badNamespace err namespace
   Backend.NoBranchForHash h ->
-    noSuchNamespace . Text.toStrict . Text.pack $ show h
+    noSuchNamespace . LazyText.toStrict . LazyText.pack $ show h
   Backend.CouldntLoadBranch h ->
     couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
-    noSuchNamespace . Text.toStrict . Text.pack $ show h
+    noSuchNamespace . LazyText.toStrict . LazyText.pack $ show h
   Backend.AmbiguousBranchHash sch hashes ->
     ambiguousNamespace (SCH.toText sch) (Set.map SCH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
@@ -54,6 +55,7 @@ backendError = \case
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
   Backend.ExpectedNameLookup branchHash -> expectedNameLookup branchHash
   Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
+  Backend.ProjectBranchNameNotFound projectName branchName -> projectBranchNameNotFound projectName branchName
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -74,7 +76,7 @@ couldntLoadBranch h =
   err404
     { errBody =
         "The namespace "
-          <> munge (Text.toStrict . Text.pack $ show h)
+          <> munge (LazyText.toStrict . LazyText.pack $ show h)
           <> " exists but couldn't be loaded."
     }
 
@@ -130,4 +132,15 @@ disjointProjectAndPerspective perspective projectRoot =
           <> " is disjoint with the perspective "
           <> munge (Path.toText perspective)
           <> ". This is a bug, please report it."
+    }
+
+projectBranchNameNotFound :: ProjectName -> ProjectBranchName -> ServerError
+projectBranchNameNotFound projectName branchName =
+  err404
+    { errBody =
+        "The project branch "
+          <> (LazyText.encodeUtf8 . LazyText.fromStrict $ into @Text projectName)
+          <> "/"
+          <> (LazyText.encodeUtf8 . LazyText.fromStrict $ into @Text branchName)
+          <> " does not exist."
     }
