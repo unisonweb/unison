@@ -33,10 +33,7 @@ module Unison.Cli.ProjectUtils
 where
 
 import Control.Lens
-import Data.Text qualified as Text
 import Data.These (These (..))
-import Data.UUID (UUID)
-import Data.UUID qualified as UUID
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -50,9 +47,9 @@ import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project.Util
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
