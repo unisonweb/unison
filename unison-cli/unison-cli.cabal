@@ -64,6 +64,7 @@ library
       Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.TermResolution
+      Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output

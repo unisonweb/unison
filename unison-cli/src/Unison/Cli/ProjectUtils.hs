@@ -5,6 +5,7 @@ module Unison.Cli.ProjectUtils
     expectCurrentProject,
     getCurrentProjectIds,
     getCurrentProjectBranch,
+    getProjectBranchForPath,
     expectCurrentProjectBranch,
     projectPath,
     projectBranchesPath,
@@ -78,6 +79,10 @@ getCurrentProjectIds =
 getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
+  getProjectBranchForPath path
+
+getProjectBranchForPath :: Path.Absolute -> Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
+getProjectBranchForPath path = do
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
     Just (ProjectAndBranch projectId branchId, restPath) ->

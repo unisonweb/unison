@@ -10,6 +10,8 @@ module Unison.Core.Project
   )
 where
 
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..))
 import Unison.Prelude
 
 -- | The name of a project.
@@ -28,3 +30,12 @@ data ProjectAndBranch a b = ProjectAndBranch
     branch :: b
   }
   deriving stock (Eq, Generic, Show)
+
+instance Bifunctor ProjectAndBranch where
+  bimap f g (ProjectAndBranch a b) = ProjectAndBranch (f a) (g b)
+
+instance Bifoldable ProjectAndBranch where
+  bifoldMap f g (ProjectAndBranch a b) = f a <> g b
+
+instance Bitraversable ProjectAndBranch where
+  bitraverse f g (ProjectAndBranch a b) = ProjectAndBranch <$> f a <*> g b
