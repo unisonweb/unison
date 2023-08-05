@@ -198,7 +198,8 @@ instance Show BaseUrl where
 --
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> let service = ProjectBranchUI (ProjectAndBranch (ProjectName "base") (ProjectBranchName "main")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
--- >>> urlFor
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of

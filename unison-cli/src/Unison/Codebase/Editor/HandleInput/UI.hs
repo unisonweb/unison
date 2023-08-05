@@ -4,6 +4,7 @@ import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Reference qualified as V2 (Reference)
 import U.Codebase.Referent qualified as V2 (Referent)
@@ -16,7 +17,6 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Project
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
@@ -25,7 +25,6 @@ import Unison.ConstructorType qualified as ConstructorType
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch)
@@ -49,16 +48,14 @@ openUIForProject :: Server.BaseUrl -> ProjectAndBranch Sqlite.Project Sqlite.Pro
 openUIForProject url projectAndBranch pathFromProjectRoot = do
   Cli.Env {codebase} <- ask
   mayDefinitionRef <- getDefinitionRef codebase
-  let projectBranchNames = bimap Project.projectName ProjectBranch.branchName projectAndBranch
-  _success <- liftIO (openBrowser (Server.urlFor (Server.ProjectBranchUI projectBranchNames mayDefinitionRef) url))
+  let projectBranchNames = bimap Project.name ProjectBranch.name projectAndBranch
+  _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames mayDefinitionRef) url
   pure ()
   where
-    projectRootPath :: Path.Absolute
-    projectRootPath = ProjectUtils.projectBranchPath (bimap Project.projectId ProjectBranch.branchId projectAndBranch)
     -- If the provided ui path matches a definition, find it.
     getDefinitionRef :: Codebase m Symbol Ann -> Cli (Maybe (Server.DefinitionReference))
     getDefinitionRef codebase = runMaybeT $ do
-      (pathToDefinitionNamespace, nameSeg) <- hoistMaybe $ Lens.unsnoc pathFromProjectRoot
+      (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc pathFromProjectRoot
       namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
       let fqn = Path.unsafeToName pathFromProjectRoot
       getTermOrTypeRef codebase namespaceBranch fqn
@@ -81,7 +78,7 @@ openUIForLooseCode url path' = do
   Cli.Env {codebase} <- ask
   (perspective, definitionRef) <- getUIUrlParts codebase
 
-  _success <- liftIO (openBrowser (Server.urlFor (Server.LooseCodeUI perspective definitionRef) url))
+  _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.LooseCodeUI perspective definitionRef) url
   pure ()
   where
     getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
