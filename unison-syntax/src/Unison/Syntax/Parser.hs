@@ -297,6 +297,19 @@ prefixDefinitionName :: (Var v) => P v m (L.Token v)
 prefixDefinitionName =
   wordyDefinitionName <|> parenthesize symbolyDefinitionName
 
+-- Parse a prefix identifier e.g. Foo or (+), rejecting any hash
+-- This is useful for term declarations, where type signatures and term names should not have hashes.
+prefixTermName :: (Var v) => P v (L.Token v)
+prefixTermName = wordyTermName <|> parenthesize symbolyTermName
+  where
+    wordyTermName = queryToken $ \case
+      L.WordyId s Nothing -> Just $ Var.nameds s
+      L.Blank s -> Just $ Var.nameds ("_" <> s)
+      _ -> Nothing
+    symbolyTermName = queryToken $ \case
+      L.SymbolyId s Nothing -> Just $ Var.nameds s
+      _ -> Nothing
+
 -- Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken $ \case
