@@ -177,6 +177,10 @@ data Service
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
 
+data URISegment
+  = EscapeMe Text
+  | DontEscape Text
+
 -- | Create a Service URL, either for the UI or the API
 --
 -- Examples:
@@ -185,74 +189,86 @@ instance Show BaseUrl where
 -- "https://localhost:1234/asdf/api"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
--- >>> let service = UI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
+-- >>> let service = LooseCodeUI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
 -- "https://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
--- >>> let service = UI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let service = LooseCodeUI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
 -- "https://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
--- >>> let service = ProjectBranchUI (ProjectAndBranch (ProjectName "base") (ProjectBranchName "main")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "base") (UnsafeProjectBranchName "main")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/project/base/branch/main/latest/;/terms/List/map"
+--
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "https://localhost:1234/asdf/ui/project/%40unison%2Fbase/branch/%40runarorama%2Fcontribution/latest/;/terms/List/map"
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
     LooseCodeUI ns def ->
-      toUrlPath ([tShow baseUrl, "ui"] <> path ns def)
+      toUrlPath ([DontEscape "ui"] <> path ns def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) def ->
-      toUrlPath $ [tShow baseUrl, "ui", "project", into @Text projectName, "branch", into @Text branchName] <> path Path.absoluteEmpty def
-    Api -> tShow baseUrl <> "/api"
+      toUrlPath $ [DontEscape "ui", DontEscape "project", EscapeMe $ into @Text projectName, DontEscape "branch", EscapeMe $ into @Text branchName] <> path Path.absoluteEmpty def
+    Api -> toUrlPath [DontEscape "api"]
   where
-    path :: Path.Absolute -> Maybe DefinitionReference -> [Text]
+    path :: Path.Absolute -> Maybe DefinitionReference -> [URISegment]
     path ns def =
       let nsPath = namespacePath ns
        in case definitionPath def of
-            Just defPath -> ["latest"] <> nsPath <> [";"] <> defPath
-            Nothing -> ["latest"] <> nsPath
+            Just defPath -> [DontEscape "latest"] <> nsPath <> [DontEscape ";"] <> defPath
+            Nothing -> [DontEscape "latest"] <> nsPath
 
-    namespacePath :: Path.Absolute -> [Text]
+    namespacePath :: Path.Absolute -> [URISegment]
     namespacePath path =
       if path == Path.absoluteEmpty
         then []
-        else ["namespaces"] <> (NameSegment.toText <$> Path.toList (Path.unabsolute path))
+        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toText <$> Path.toList (Path.unabsolute path))
 
-    definitionPath :: Maybe DefinitionReference -> Maybe [Text]
+    definitionPath :: Maybe DefinitionReference -> Maybe [URISegment]
     definitionPath def =
       toDefinitionPath <$> def
 
-    toUrlPath :: [Text] -> Text
-    toUrlPath parts =
-      parts
-        & fmap UriEncode.encodeText
+    toUrlPath :: [URISegment] -> Text
+    toUrlPath path =
+      path
+        & fmap \case
+          EscapeMe txt -> UriEncode.encodeText txt
+          DontEscape txt -> txt
+        & (tShow baseUrl :)
         & Text.intercalate "/"
 
-    refToUrlText :: HashQualified Name -> [Text]
+    refToUrlText :: HashQualified Name -> [URISegment]
     refToUrlText r =
       case r of
         NameOnly n ->
-          n & Name.segments & fmap NameSegment.toText & toList
+          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
         HashOnly h ->
-          [ShortHash.toText h]
+          [EscapeMe $ ShortHash.toText h]
         HashQualified n _ ->
-          n & Name.segments & fmap NameSegment.toText & toList
+          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
 
-    toDefinitionPath :: DefinitionReference -> [Text]
+    toDefinitionPath :: DefinitionReference -> [URISegment]
     toDefinitionPath d =
       case d of
         TermReference r ->
-          ["terms"] <> refToUrlText r
+          [DontEscape "terms"] <> refToUrlText r
         TypeReference r ->
-          ["types"] <> refToUrlText r
+          [DontEscape "types"] <> refToUrlText r
         AbilityConstructorReference r ->
-          ["ability-constructors"] <> refToUrlText r
+          [DontEscape "ability-constructors"] <> refToUrlText r
         DataConstructorReference r ->
-          ["data-constructors"] <> refToUrlText r
+          [DontEscape "data-constructors"] <> refToUrlText r
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
