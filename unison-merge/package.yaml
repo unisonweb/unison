@@ -6,6 +6,10 @@ ghc-options: -Wall
 
 dependencies:
   - base
+  - containers
+  - unison-core1
+  - unison-prelude
+  - unison-util-relation
 
 library:
   source-dirs: src
