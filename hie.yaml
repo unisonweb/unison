@@ -129,6 +129,9 @@ cradle:
     - path: "unison-hashing-v2/src"
       component: "unison-hashing-v2:lib"
 
+    - path: "unison-merge/src"
+      component: "unison-merge:lib"
+
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
 

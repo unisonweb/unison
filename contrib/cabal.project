@@ -28,6 +28,7 @@ packages:
   unison-core
   unison-cli
   unison-hashing-v2
+  unison-merge
   unison-share-api
   unison-share-projects-api
   unison-syntax
