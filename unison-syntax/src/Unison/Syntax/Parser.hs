@@ -31,6 +31,7 @@ module Unison.Syntax.Parser
     peekAny,
     positionalVar,
     prefixDefinitionName,
+    prefixTermName,
     queryToken,
     reserved,
     root,
@@ -299,7 +300,7 @@ prefixDefinitionName =
 
 -- Parse a prefix identifier e.g. Foo or (+), rejecting any hash
 -- This is useful for term declarations, where type signatures and term names should not have hashes.
-prefixTermName :: (Var v) => P v (L.Token v)
+prefixTermName :: (Var v) => P v m (L.Token v)
 prefixTermName = wordyTermName <|> parenthesize symbolyTermName
   where
     wordyTermName = queryToken $ \case
