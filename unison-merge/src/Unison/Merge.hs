@@ -1,11 +1,13 @@
 module Unison.Merge () where
 
+import Unison.Hashing.V2.Convert2 qualified as Convert2
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Referent (Referent)
 import U.Codebase.Type ()
+import U.Codebase.Type as Type
 import Unison.ABT qualified as ABT
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
@@ -52,16 +54,23 @@ computeEquivClassLookupFunc rel =
    in \k -> Map.lookup k canonMap
 
 computeTypeUserUpdates ::
-  forall a m reference v.
-  (Monad m, Ord reference, Ord v) =>
-  (reference -> m (Decl v)) ->
-  (reference -> reference -> ConstructorMapping) ->
-  Relation reference reference ->
-  m (Relation reference reference)
+  forall a m v.
+  (Monad m, Ord v) =>
+  (Decl.TypeRef -> m (Decl v)) ->
+  (Decl.TypeRef -> Decl.TypeRef -> ConstructorMapping) ->
+  Relation Decl.TypeRef Decl.TypeRef ->
+  m (Relation Decl.TypeRef Decl.TypeRef)
 computeTypeUserUpdates loadDecl constructorMapping allUpdates =
   Relation.fromList <$> filterM isUserUpdate0 (Relation.toList allUpdates)
   where
-    isUserUpdate0 :: (reference, reference) -> m Bool
+    lookupCanon :: Decl.TypeRef -> Decl.TypeRef
+    lookupCanon =
+      let lu = computeEquivClassLookupFunc allUpdates
+      in \ref -> case lu ref of
+        Just x -> x
+        Nothing -> error ("[impossible] lookupCanon failed to find: " <> show ref)
+
+    isUserUpdate0 :: (Decl.TypeRef, Decl.TypeRef) -> m Bool
     isUserUpdate0 (oldRef, newRef) = do
       oldDecl <- loadDecl oldRef
       newDecl <- loadDecl newRef
@@ -72,9 +81,9 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
 
     isUserUpdate2 ::
       reference ->
-      Decl v ->
+      DeclR reference v ->
       reference ->
-      Decl v ->
+      DeclR reference v ->
       Bool
     isUserUpdate2 oldRef oldDecl newRef newDecl =
       let oldBounds = boundsIndices oldDecl
@@ -92,7 +101,7 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
                 )
             ]
       where
-        boundsIndices :: Decl v -> Map v Int
+        boundsIndices :: DeclR reference v -> Map v Int
         boundsIndices =
           fst . foldl' step (Map.empty, 0) . Decl.bound
           where
@@ -101,5 +110,8 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
                   !i' = i + 1
                in (acc', i')
 
-isUserUpdate3 :: (Decl.Type v, Decl.Type v) -> Bool
-isUserUpdate3 = undefined
+    isUserUpdate3 :: (TypeR reference v, TypeR reference v) -> Bool
+    isUserUpdate3 (lhs0, rhs0) =
+      let lhs = Type.rmap lookupCanon lhs0
+          rhs = Type.rmap lookupCanon rhs0
+      in False

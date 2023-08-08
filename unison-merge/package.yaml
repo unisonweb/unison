@@ -11,6 +11,7 @@ dependencies:
   - unison-prelude
   - unison-util-relation
   - unison-codebase
+  - unison-codebase-sqlite-hashing-v2
   - unison-parser-typechecker
 
 library:
