@@ -13,6 +13,7 @@ import U.Codebase.Reference qualified as V2.Reference
 import U.Codebase.Referent qualified as V2
 import U.Codebase.Referent qualified as V2.Referent
 import U.Codebase.ShortHash qualified as V2
+import U.Codebase.ShortHash qualified as V2ShortHash
 import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
@@ -562,3 +563,8 @@ reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ 
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing
     showComponentPos n = Just (tShow n)
+
+shorthash2To1 :: V2.ShortHash -> V1.ShortHash.ShortHash
+shorthash2To1 = \case
+  V2ShortHash.Builtin b -> V1.ShortHash.Builtin b
+  V2ShortHash.ShortHash h p _ -> V1.ShortHash.ShortHash h (fmap tShow p) Nothing

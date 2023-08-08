@@ -82,7 +82,7 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 13 Q.addMostRecentNamespaceTable,
       sqlMigration 14 Q.addSquashResultTable,
       sqlMigration 15 Q.addSquashResultTableIfNotExists,
-      (16, metadataCheck)
+      (16, metadataCheck rootCodebasePath)
     ]
   where
     sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Transaction ())
@@ -130,7 +130,7 @@ ensureCodebaseIsUpToDate ::
   VacuumStrategy ->
   Sqlite.Connection ->
   m (Either Codebase.OpenCodebaseError ())
-ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn =
+ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer _shouldPrompt backupStrategy vacuumStrategy conn =
   (liftIO . UnliftIO.try) do
     regionVar <- newEmptyMVar
     let finalizeRegion :: IO ()
@@ -147,9 +147,6 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion
         when (currentSchemaVersion > highestKnownSchemaVersion) $ UnliftIO.throwIO $ OpenCodebaseUnknownSchemaVersion (fromIntegral currentSchemaVersion)
         backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion highestKnownSchemaVersion root
-        when shouldPrompt do
-          putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
-          void $ liftIO getLine
         ranMigrations <-
           Sqlite.runWriteTransaction conn \run -> do
             -- Get the schema version again now that we're in a transaction.
