@@ -1,6 +1,8 @@
 module Unison.Merge () where
 
+import Data.Graph qualified as Graph
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
@@ -21,8 +23,40 @@ type ConstructorMapping = forall a. [a] -> [a]
 computeTypeECs :: Map reference reference -> Map reference reference -> [Set reference]
 computeTypeECs = undefined
 
-candidateUpdatesToReachabilityGraph :: Relation reference reference -> reference -> reference -> Bool
-candidateUpdatesToReachabilityGraph = undefined
+candidateUpdatesToReachabilityGraph ::
+  forall reference.
+  Ord reference =>
+  Relation reference reference ->
+  reference ->
+  reference ->
+  Bool
+candidateUpdatesToReachabilityGraph inputRelation =
+  let adjList :: [(reference, reference, [reference])]
+      adjList = (\(i, sos) -> (i, i, Set.toList sos)) <$> Map.toList (Relation.domain inputRelation)
+      (graph, lookupNode, lookupVertex) = Graph.graphFromEdges adjList
+      transitiveClosure :: Map reference (Set reference)
+      transitiveClosure =
+        let vertices :: [reference]
+            vertices = Map.keys (Relation.domain inputRelation)
+
+            makeSingletonMap :: reference -> Map reference (Set reference)
+            makeSingletonMap ref =
+              let vertex :: Graph.Vertex
+                  vertex = case lookupVertex ref of
+                    Just v -> v
+                    Nothing -> undefined
+
+                  lookupNode' :: Graph.Vertex -> reference
+                  lookupNode' v = case lookupNode v of
+                    (ref, _, _) -> ref
+                    
+                  reachable :: [reference]
+                  reachable = lookupNode' <$> Graph.reachable graph vertex
+              in Map.singleton ref (Set.fromList reachable)
+        in foldMap makeSingletonMap vertices
+   in \a b -> case Map.lookup a transitiveClosure of
+             Nothing -> False
+             Just refs -> Set.member b refs
 
 computeTypeUserUpdates ::
   forall a m reference v.
