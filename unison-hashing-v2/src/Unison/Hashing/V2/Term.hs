@@ -13,10 +13,10 @@ import Data.Text qualified as Text
 import Data.Zip qualified as Zip
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.ABT qualified as ABT
+import Unison.Hashing.V2.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Pattern (Pattern)
 import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..), pattern ReferenceDerived)
 import Unison.Hashing.V2.Reference.Util qualified as ReferenceUtil

@@ -60,8 +60,8 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qua
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Unison
 import Unison.Hashing.V2 qualified as Hashing

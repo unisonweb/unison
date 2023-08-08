@@ -4,9 +4,12 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
+import U.Codebase.Referent (Referent)
 import U.Codebase.Type ()
 import Unison.ABT qualified as ABT
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
+import Unison.Prelude
+import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation

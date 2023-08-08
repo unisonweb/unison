@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Referent
   ( Referent,
     pattern Ref,
@@ -33,7 +30,7 @@ import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R

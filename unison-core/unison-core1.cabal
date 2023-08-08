@@ -29,7 +29,6 @@ library
       Unison.ConstructorReference
       Unison.ConstructorType
       Unison.DataDeclaration
-      Unison.DataDeclaration.ConstructorId
       Unison.DataDeclaration.Names
       Unison.Hashable
       Unison.HashQualified

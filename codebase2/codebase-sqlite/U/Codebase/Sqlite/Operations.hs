@@ -135,7 +135,6 @@ import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Branch.Type qualified as C.Branch
 import U.Codebase.Causal qualified as C
 import U.Codebase.Causal qualified as C.Causal
-import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -157,10 +156,7 @@ import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
-import U.Codebase.Sqlite.LocalIds
-  ( LocalIds,
-    WatchLocalIds,
-  )
+import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
@@ -192,6 +188,7 @@ import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -1051,7 +1048,7 @@ declReferentsByPrefix ::
   Text ->
   Maybe C.Reference.Pos ->
   Maybe ConstructorId ->
-  Transaction [(H.Hash, C.Reference.Pos, C.DeclType, [C.Decl.ConstructorId])]
+  Transaction [(H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])]
 declReferentsByPrefix b32prefix pos cid = do
   componentReferencesByPrefix ObjectType.DeclComponent b32prefix pos
     >>= traverse (loadConstructors cid)

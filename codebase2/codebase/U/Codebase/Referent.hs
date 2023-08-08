@@ -6,11 +6,11 @@ import Control.Lens (Prism, Traversal)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
-import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.ShortHash qualified as SH
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
 

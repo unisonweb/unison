@@ -9,7 +9,7 @@ module Unison.ConstructorReference
 where
 
 import Control.Lens
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference

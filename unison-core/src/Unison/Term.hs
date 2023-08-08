@@ -18,7 +18,7 @@ import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name

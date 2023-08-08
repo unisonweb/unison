@@ -42,7 +42,7 @@ import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names

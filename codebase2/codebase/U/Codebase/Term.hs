@@ -8,10 +8,9 @@ import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
-
-type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()
 

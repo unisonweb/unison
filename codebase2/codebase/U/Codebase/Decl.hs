@@ -6,8 +6,6 @@ import U.Codebase.Type qualified as Type
 import Unison.Hash (Hash)
 import Unison.Prelude
 
-type ConstructorId = Word64
-
 data DeclType = Data | Effect
   deriving (Eq, Ord, Show, Enum)
 

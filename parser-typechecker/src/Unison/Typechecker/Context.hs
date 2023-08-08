@@ -70,17 +70,10 @@ import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as DDB
-import Unison.ConstructorReference
-  ( ConstructorReference,
-    GConstructorReference (..),
-    reference_,
-  )
-import Unison.DataDeclaration
-  ( DataDeclaration,
-    EffectDeclaration,
-  )
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..), reference_)
+import Unison.Core.ConstructorId (ConstructorId)
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
