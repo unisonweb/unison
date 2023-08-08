@@ -57,6 +57,7 @@ library
       base
     , containers
     , unison-codebase
+    , unison-codebase-sqlite-hashing-v2
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude

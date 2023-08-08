@@ -4,6 +4,7 @@ module Unison.Hashing.V2.DataDeclaration
     Decl,
     Modifier (..),
     hashDecls,
+    alphaEquivalent,
   )
 where
 
@@ -22,6 +23,7 @@ import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
@@ -60,6 +62,25 @@ hashDecls0 decls =
       ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
       cs = Reference.Util.hashComponents ref abts
    in [(v, r) | (v, (r, _)) <- Map.toList cs]
+
+-- precondition: "DataDeclaration"s must have no free variables
+--
+-- Determine if two "DataDeclaration"s are alpha-equivalent by
+-- comparing their hashes
+alphaEquivalent :: forall v a. Var v => DataDeclaration v a -> DataDeclaration v a -> Bool
+alphaEquivalent lhs rhs = hash lhs == hash rhs
+  where
+    hash :: DataDeclaration v a -> ReferenceId
+    hash decl =
+      let abt = toABT (void decl)
+          theKey = ABT.freshIn (ABT.freeVars abt) (Var.typed (Var.User "foo"))
+          abts = Map.singleton theKey abt
+          ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
+          cs = Reference.Util.hashComponents ref abts
+      in case Map.toList cs of
+            [(_,(r,_))] -> r
+            _ -> error "[impossible] equivHash hash returned a multi-element map"
+          
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
