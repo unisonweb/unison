@@ -3268,8 +3268,6 @@ loadAllProjects =
 loadAllProjectsBeginningWith :: Maybe Text -> Transaction [Project]
 loadAllProjectsBeginningWith mayPrefix = do
   let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
-  -- since we are not likely to many projects, we just get them all and filter in Haskell. This seems much simpler than
-  -- running a LIKE query, and dealing with escaping, case sensitivity, etc
   queryListRow
     [sql|
         SELECT id, name
@@ -3381,9 +3379,7 @@ loadProjectBranchByNames projectName branchName =
 loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
 loadAllProjectBranchesBeginningWith projectId mayPrefix =
   let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
-   in -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
-      -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
-      queryListRow
+   in queryListRow
         [sql|
         SELECT project_branch.branch_id, project_branch.name
         FROM project_branch
