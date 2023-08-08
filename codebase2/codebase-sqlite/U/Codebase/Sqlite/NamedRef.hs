@@ -4,23 +4,21 @@ import Data.List.NonEmpty qualified as NEL
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import U.Codebase.Sqlite.NameLookups (ReversedName)
+import Unison.ConstructorType (ConstructorType)
+import Unison.ConstructorType qualified as ConstructorType
 import Unison.Prelude
 import Unison.Sqlite
 
-data ConstructorType
-  = DataConstructor
-  | EffectConstructor
-
-instance ToField (ConstructorType) where
-  toField ct = case ct of
-    DataConstructor -> (SQLInteger 0)
-    EffectConstructor -> (SQLInteger 1)
+instance ToField ConstructorType where
+  toField = \case
+    ConstructorType.Data -> SQLInteger 0
+    ConstructorType.Effect -> SQLInteger 1
 
 instance FromField (ConstructorType) where
   fromField f =
     fromField @Int f >>= \case
-      0 -> pure DataConstructor
-      1 -> pure EffectConstructor
+      0 -> pure ConstructorType.Data
+      1 -> pure ConstructorType.Effect
       _ -> fail "Invalid ConstructorType"
 
 data NamedRef ref = NamedRef {reversedSegments :: ReversedName, ref :: ref}

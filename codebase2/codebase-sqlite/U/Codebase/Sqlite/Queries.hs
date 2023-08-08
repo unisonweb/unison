@@ -374,6 +374,7 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
 import U.Util.Term qualified as TermUtil
+import Unison.ConstructorType (ConstructorType)
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
@@ -1908,7 +1909,7 @@ deleteNameLookupsExceptFor hashIds = do
         |]
 
 -- | Insert the given set of term names into the name lookup table
-insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
+insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe ConstructorType)] -> Transaction ()
 insertScopedTermNames bhId = do
   traverse_ \name0 -> do
     let name = NamedRef.ScopedRow (refToRow <$> name0)
@@ -1928,7 +1929,7 @@ insertScopedTermNames bhId = do
         VALUES (:bhId, @name, @, @, @, @, @, @, @)
       |]
   where
-    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow :: (Referent.TextReferent, Maybe ConstructorType) -> (Referent.TextReferent :. Only (Maybe ConstructorType))
     refToRow (ref, ct) = ref :. Only ct
 
 -- | Insert the given set of type names into the name lookup table
@@ -2025,9 +2026,9 @@ likeEscape escapeChar pat =
 --
 -- Get the list of a term names in the provided name lookup and relative namespace.
 -- Includes dependencies, but not transitive dependencies.
-termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termNamesWithinNamespace bhId namespace = do
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     queryListRow
       [sql|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
@@ -2087,13 +2088,13 @@ typeNamesWithinNamespace bhId namespace =
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
     -- GLOB, but this helps improve query performance.
     -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
@@ -2165,10 +2166,10 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
 -- id. It's the caller's job to select the correct name lookup for your exact name.
 --
 -- See termRefsForExactName in U.Codebase.Sqlite.Operations
-termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     queryListRow
       [sql|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
@@ -2411,13 +2412,13 @@ recursiveTypeNameSearch bhId ref = do
 -- the longest matching suffix.
 --
 -- Considers one level of dependencies, but not transitive dependencies.
-longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe ConstructorType)))
 longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
   let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
-  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
+  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe ConstructorType))
       loop [] = empty
       loop (suffGlob : rest) = do
-        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
+        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))) <-
           lift $
             queryMaybeRow
               -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
@@ -3922,7 +3923,7 @@ loadMostRecentBranch projectId =
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.
 -- Search is case insensitive.
-fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe ConstructorType))]
 fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
   -- Union in the dependencies if required.
   let dependenciesSql =
@@ -3957,7 +3958,7 @@ fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
   where
     namespaceGlob = toNamespaceGlob namespace
     preparedQuery = prepareFuzzyQuery '\\' querySegments
-    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)
+    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe ConstructorType)
     unRow = fmap \(a :. Only b) -> (a, b)
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments

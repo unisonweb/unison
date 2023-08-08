@@ -1,11 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Share.FuzzyFind where
@@ -221,12 +216,12 @@ serveFuzzyFind inScratch searchDependencies codebase rootCausal perspective mayL
               ( a,
                 FoundTermResult
                   . FoundTerm
-                    (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
+                    (Backend.bestNameForTerm ppe (mayDefaultWidth typeWidth) r)
                   $ Backend.termEntryToNamedTerm ppe typeWidth termEntry
               )
           Right (r, typeEntry) -> do
             let namedType = Backend.typeEntryToNamedType typeEntry
-            let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
+            let typeName = Backend.bestNameForType ppe (mayDefaultWidth typeWidth) r
             typeHeader <- Backend.typeDeclHeader codebase ppe r
             let ft = FoundType typeName typeHeader namedType
             pure (a, FoundTypeResult ft)

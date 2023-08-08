@@ -1,12 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend
   ( -- * Types
@@ -133,6 +125,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
@@ -365,10 +358,10 @@ termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEn
   foldMap Type.labeledDependencies termEntryType
     <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
   where
-    ct :: V2Referent.ConstructorType
+    ct :: ConstructorType
     ct = case termEntryTag of
-      ServerTypes.Constructor ServerTypes.Ability -> V2Referent.EffectConstructor
-      ServerTypes.Constructor ServerTypes.Data -> V2Referent.DataConstructor
+      ServerTypes.Constructor ServerTypes.Ability -> CT.Effect
+      ServerTypes.Constructor ServerTypes.Data -> CT.Data
       _ -> error "termEntryLabeledDependencies: not a constructor, but one was required"
 
 termEntryDisplayName :: TermEntry v a -> Text
@@ -882,7 +875,7 @@ mkTypeDefinition ::
     (AnnotatedText (UST.Element Reference)) ->
   Backend IO TypeDefinition
 mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
-  let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
+  let bn = bestNameForType (PPED.suffixifiedPPE pped) width r
   tag <-
     liftIO $ Codebase.runTransaction codebase do
       causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
@@ -917,7 +910,7 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
     causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
     branchAtPath <- V2Causal.value causalAtPath
     pure (ts, branchAtPath)
-  let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
+  let bn = bestNameForTerm (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
   tag <-
     lift
       ( termEntryTag
@@ -1015,7 +1008,7 @@ renderDocRefs ::
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   for eDocs \(ref, eDoc) -> do
-    let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
+    let name = bestNameForTerm (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
     let hash = Reference.toText ref
     let renderedDoc = Doc.renderDoc pped eDoc
     pure (name, hash, renderedDoc)
@@ -1104,23 +1097,21 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
             _ <- createDirectoryIfMissing True directoryPath
             writeFile fullPath (Text.unpack fileContents)
 
-bestNameForTerm ::
-  forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Referent -> Text
+bestNameForTerm :: PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
     . fmap UST.toPlain
     . TermPrinter.runPretty ppe
-    . TermPrinter.pretty0 @v TermPrinter.emptyAc
+    . TermPrinter.pretty0 @Symbol TermPrinter.emptyAc
     . Term.fromReferent mempty
 
-bestNameForType ::
-  forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Reference -> Text
+bestNameForType :: PPE.PrettyPrintEnv -> Width -> Reference -> Text
 bestNameForType ppe width =
   Text.pack
     . Pretty.render width
     . fmap UST.toPlain
-    . TypePrinter.prettySyntax @v ppe
+    . TypePrinter.prettySyntax @Symbol ppe
     . Type.ref ()
 
 -- | Returns (parse, pretty, local, ppe) where:

@@ -3,11 +3,9 @@ module U.Codebase.Decl where
 import U.Codebase.Reference (Reference')
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
+import Unison.ConstructorType (ConstructorType)
 import Unison.Hash (Hash)
 import Unison.Prelude
-
-data DeclType = Data | Effect
-  deriving (Eq, Ord, Show, Enum)
 
 type Decl v = DeclR TypeRef v
 
@@ -15,11 +13,11 @@ type TypeRef = Reference' Text (Maybe Hash)
 
 type Type v = TypeR TypeRef v
 
-data Modifier = Structural | Unique Text
+data Modifier = Structural | Unique !Text
   deriving (Eq, Ord, Show)
 
 data DeclR r v = DataDeclaration
-  { declType :: DeclType,
+  { declType :: ConstructorType,
     modifier :: Modifier,
     bound :: [v],
     constructorTypes :: [TypeR r v]
@@ -37,5 +35,5 @@ data F a
   = Type (Type.FD a)
   | LetRec [a] a
   | Constructors [a]
-  | Modified DeclType Modifier a
+  | Modified ConstructorType Modifier a
   deriving (Functor, Foldable, Show)

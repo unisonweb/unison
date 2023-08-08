@@ -198,6 +198,7 @@ import Unison.Sqlite
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
 import Unison.Util.Set qualified as Set
+import Unison.ConstructorType (ConstructorType)
 
 -- * Error handling
 
@@ -327,16 +328,6 @@ s2cReferent = bitraverse s2cReference s2cReference
 s2cTextReferent :: S.TextReferent -> C.Referent
 s2cTextReferent = bimap s2cTextReference s2cTextReference
 
-s2cConstructorType :: S.ConstructorType -> C.ConstructorType
-s2cConstructorType = \case
-  S.DataConstructor -> C.DataConstructor
-  S.EffectConstructor -> C.EffectConstructor
-
-c2sConstructorType :: C.ConstructorType -> S.ConstructorType
-c2sConstructorType = \case
-  C.DataConstructor -> S.DataConstructor
-  C.EffectConstructor -> S.EffectConstructor
-
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
@@ -428,8 +419,8 @@ getCycleLen h = do
     -- the strongly-connected component. :grimace:
     lift (Q.expectObject oid decodeComponentLengthOnly)
 
--- | Get the 'C.DeclType.DeclType' of a 'C.Reference.Id'.
-expectDeclTypeById :: C.Reference.Id -> Transaction C.Decl.DeclType
+-- | Get the constructor type of a 'C.Reference.Id'.
+expectDeclTypeById :: C.Reference.Id -> Transaction ConstructorType
 expectDeclTypeById =
   fmap C.Decl.declType . expectDeclByReference
 
@@ -1048,7 +1039,7 @@ declReferentsByPrefix ::
   Text ->
   Maybe C.Reference.Pos ->
   Maybe ConstructorId ->
-  Transaction [(H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])]
+  Transaction [(H.Hash, C.Reference.Pos, ConstructorType, [ConstructorId])]
 declReferentsByPrefix b32prefix pos cid = do
   componentReferencesByPrefix ObjectType.DeclComponent b32prefix pos
     >>= traverse (loadConstructors cid)
@@ -1056,7 +1047,7 @@ declReferentsByPrefix b32prefix pos cid = do
     loadConstructors ::
       Maybe Word64 ->
       S.Reference.Id ->
-      Transaction (H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])
+      Transaction (H.Hash, C.Reference.Pos, ConstructorType, [ConstructorId])
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
       (dt, ctorCount) <- getDeclCtorCount rid
       h <- Q.expectPrimaryHashByObjectId oId
@@ -1065,7 +1056,7 @@ declReferentsByPrefix b32prefix pos cid = do
               Nothing -> take ctorCount [0 :: ConstructorId ..]
               Just cid -> if fromIntegral cid < ctorCount then [cid] else []
       pure (h, pos, dt, cids)
-    getDeclCtorCount :: S.Reference.Id -> Transaction (C.Decl.DeclType, Int)
+    getDeclCtorCount :: S.Reference.Id -> Transaction (ConstructorType, Int)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
@@ -1123,7 +1114,7 @@ buildNameLookupForBranchHash ::
   Maybe BranchHash ->
   BranchHash ->
   ( ( -- (add terms, remove terms)
-      ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
+      ([S.NamedRef (C.Referent, Maybe ConstructorType)], [S.NamedRef C.Referent]) ->
       --  (add types, remove types)
       ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
       Transaction ()
@@ -1143,7 +1134,7 @@ buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
   callback \(newTermNames, removedTermNames) (newTypeNames, removedTypeNames) -> do
     Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
     Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
-    Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
+    Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** id) <$> newTermNames)
     Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
 
 -- | Save a list of (mount-path, branch hash) mounts for the provided name lookup index branch
@@ -1238,7 +1229,7 @@ checkBranchHashNameLookupExists bh = do
   Q.checkBranchHashNameLookupExists bhId
 
 data NamesInPerspective = NamesInPerspective
-  { termNamesInPerspective :: [S.NamedRef (C.Referent, Maybe C.ConstructorType)],
+  { termNamesInPerspective :: [S.NamedRef (C.Referent, Maybe ConstructorType)],
     typeNamesInPerspective :: [S.NamedRef C.Reference]
   }
 
@@ -1251,7 +1242,7 @@ allNamesInPerspective ::
 allNamesInPerspective NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} = do
   termNamesInPerspective <- Q.termNamesWithinNamespace nameLookupBranchHashId mempty
   typeNamesInPerspective <- Q.typeNamesWithinNamespace nameLookupBranchHashId mempty
-  let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent (fmap s2cConstructorType))
+  let convertTerms = prefixNamedRef pathToMountedNameLookup . fmap (bimap s2cTextReferent id)
   let convertTypes = prefixNamedRef pathToMountedNameLookup . fmap s2cTextReference
   pure $
     NamesInPerspective
@@ -1277,10 +1268,10 @@ typeNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToM
   Q.typeNamesForRefWithinNamespace nameLookupBranchHashId mempty (c2sTextReference ref) maySuffix
     <&> fmap (prefixReversedName pathToMountedNameLookup)
 
-termNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe ConstructorType)]
 termNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
   Q.termNamesBySuffix nameLookupBranchHashId mempty suffix
-    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent id))
 
 typeNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
@@ -1309,10 +1300,10 @@ prefixReversedName :: PathSegments -> S.ReversedName -> S.ReversedName
 prefixReversedName (S.PathSegments prefix) (S.ReversedName reversedSegments) =
   S.ReversedName $ NonEmpty.appendl reversedSegments (reverse prefix)
 
-termRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
+termRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe ConstructorType)]
 termRefsForExactName namesPerspective reversedName = do
   refsForExactName Q.termRefsForExactName namesPerspective reversedName
-    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+    <&> fmap (fmap (bimap s2cTextReferent id))
 
 typeRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
 typeRefsForExactName namesPerspective reversedName = do
@@ -1323,10 +1314,10 @@ typeRefsForExactName namesPerspective reversedName = do
 -- This is a bit of a hack but allows us to shortcut suffixification.
 -- We can clean this up if we make a custom PPE type just for sqlite pretty printing, but
 -- for now this works fine.
-longestMatchingTermNameForSuffixification :: NamesPerspective -> S.NamedRef C.Referent -> Transaction (Maybe (S.NamedRef (C.Referent, Maybe C.ConstructorType)))
+longestMatchingTermNameForSuffixification :: NamesPerspective -> S.NamedRef C.Referent -> Transaction (Maybe (S.NamedRef (C.Referent, Maybe ConstructorType)))
 longestMatchingTermNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} namedRef = do
   Q.longestMatchingTermNameForSuffixification nameLookupBranchHashId mempty (c2sTextReferent <$> namedRef)
-    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent id))
 
 -- | Get the name within the provided namespace that has the longest matching suffix
 -- with the provided name, but a different ref.
@@ -1451,13 +1442,13 @@ fuzzySearchDefinitions ::
   -- | Will return at most n terms and n types; i.e. max number of results is 2n
   Int ->
   [Text] ->
-  Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
+  Transaction ([S.NamedRef (C.Referent, Maybe ConstructorType)], [S.NamedRef C.Reference])
 fuzzySearchDefinitions includeDependencies NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
   termNames <-
     Q.fuzzySearchTerms includeDependencies nameLookupBranchHashId limit relativePerspective querySegments
       <&> fmap \termName ->
         termName
-          & (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
+          & (fmap (bimap s2cTextReferent id))
           & stripPrefixFromNamedRef relativePerspective
   typeNames <-
     Q.fuzzySearchTypes includeDependencies nameLookupBranchHashId limit relativePerspective querySegments

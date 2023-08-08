@@ -14,11 +14,6 @@ import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
 
-data ConstructorType
-  = DataConstructor
-  | EffectConstructor
-  deriving (Show, Eq, Ord)
-
 type Referent = Referent' Reference Reference
 
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)

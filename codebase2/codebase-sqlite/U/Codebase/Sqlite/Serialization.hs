@@ -39,6 +39,7 @@ import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization hiding (debug)
+import Unison.ConstructorType qualified as ConstructorType
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
@@ -396,8 +397,8 @@ putDeclFormat = \case
           putModifier modifier
           putFoldable putSymbol bound
           putFoldable putDType constructorTypes
-        putDeclType Decl.Data = putWord8 0
-        putDeclType Decl.Effect = putWord8 1
+        putDeclType ConstructorType.Data = putWord8 0
+        putDeclType ConstructorType.Effect = putWord8 1
         putModifier Decl.Structural = putWord8 0
         putModifier (Decl.Unique t) = putWord8 1 *> putText t
 
@@ -422,9 +423,9 @@ getDeclElement =
   where
     getDeclType =
       getWord8 >>= \case
-        0 -> pure Decl.Data
-        1 -> pure Decl.Effect
-        other -> unknownTag "DeclType" other
+        0 -> pure ConstructorType.Data
+        1 -> pure ConstructorType.Effect
+        other -> unknownTag "ConstructorType" other
     getModifier =
       getWord8 >>= \case
         0 -> pure Decl.Structural

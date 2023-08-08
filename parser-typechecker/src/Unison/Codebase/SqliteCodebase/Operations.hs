@@ -41,6 +41,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
@@ -198,10 +199,7 @@ getDeclType = \case
               ++ ", but I've been asked for it's ConstructorType."
      in pure . fromMaybe err $
           Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
-  C.Reference.ReferenceDerived i -> expectDeclTypeById i
-
-expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType
-expectDeclTypeById = fmap Cv.decltype2to1 . Ops.expectDeclTypeById
+  C.Reference.ReferenceDerived i -> Ops.expectDeclTypeById i
 
 getTypeOfTermImpl :: Reference.Id -> Transaction (Maybe (Type Symbol Ann))
 getTypeOfTermImpl (Reference.Id h i) =
@@ -547,7 +545,7 @@ referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to
         Just cInt -> pure $ Just cInt
   declReferents' <- Ops.declReferentsByPrefix prefix cycle cid'
   let declReferents =
-        [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
+        [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) ct
           | (h, pos, ct, cids) <- declReferents',
             cid <- cids
         ]
@@ -680,12 +678,12 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       foldl' (\acc path -> alterTreeDiffAtPath path (const mempty) acc) treeDiff depMounts
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
-    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
+    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe ConstructorType)
     addReferentCT referent = case referent of
       C.Referent.Ref {} -> pure (referent, Nothing)
       C.Referent.Con ref _conId -> do
         ct <- getDeclType ref
-        pure (referent, Just $ Cv.constructorType1to2 ct)
+        pure (referent, Just ct)
 
 -- | Regenerate the name lookup index for the given branch hash from scratch.
 -- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if

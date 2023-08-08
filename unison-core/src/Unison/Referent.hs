@@ -80,7 +80,7 @@ toText = \case
   Ref r -> R.toText r
   Con (ConstructorReference r cid) ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
 
-ctorTypeText :: CT.ConstructorType -> Text
+ctorTypeText :: ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
 ctorTypeText CT.Data = DataCtor
 

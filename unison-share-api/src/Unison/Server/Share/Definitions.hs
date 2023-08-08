@@ -162,7 +162,7 @@ renderDocRefs ppedBuilder width codebase rt docRefs = do
   let docDeps = foldMap (Doc.dependencies . snd) eDocs <> Set.fromList (LD.TermReference <$> docRefs)
   docsPPED <- ppedBuilder docDeps
   for eDocs \(ref, eDoc) -> do
-    let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
+    let name = bestNameForTerm (PPED.suffixifiedPPE docsPPED) width (Referent.Ref ref)
     let hash = Reference.toText ref
     let renderedDoc = Doc.renderDoc docsPPED eDoc
     pure (name, hash, renderedDoc)

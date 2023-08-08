@@ -27,7 +27,6 @@ library
       Unison.ABT.Normalized
       Unison.Blank
       Unison.ConstructorReference
-      Unison.ConstructorType
       Unison.DataDeclaration
       Unison.DataDeclaration.Names
       Unison.Hashable

@@ -19,6 +19,7 @@ library
       U.Codebase.HashTags
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.ConstructorType
       Unison.Core.ConstructorId
       Unison.Core.Project
       Unison.NameSegment
