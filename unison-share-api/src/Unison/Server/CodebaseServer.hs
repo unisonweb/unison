@@ -107,7 +107,7 @@ import Unison.Server.Local.Endpoints.GetDefinitions
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects qualified as Projects
-import Unison.Server.Types (ProjectBranchNameParam (..), mungeString, setCacheControl)
+import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 
@@ -140,7 +140,7 @@ type CodebaseServerAPI =
     :<|> TypeSummaryAPI
 
 type ProjectsAPI =
-  "projects" :> Capture "project-and-branch" ProjectBranchNameParam :> LooseCodeAPI
+  "projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> LooseCodeAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -499,9 +499,10 @@ serveProjectsAPI ::
   BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
-  ProjectBranchNameParam ->
+  ProjectName ->
+  ProjectBranchName ->
   Server LooseCodeAPI
-serveProjectsAPI env codebase rt (ProjectBranchNameParam projectAndBranchName@(ProjectAndBranch projectName branchName)) =
+serveProjectsAPI env codebase rt projectName branchName =
   hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $ do
     namespaceListingEndpoint
       :<|> namespaceDetailsEndpoint
@@ -511,6 +512,7 @@ serveProjectsAPI env codebase rt (ProjectBranchNameParam projectAndBranchName@(P
       :<|> serveTermSummaryEndpoint
       :<|> serveTypeSummaryEndpoint
   where
+    projectAndBranchName = ProjectAndBranch projectName branchName
     namespaceListingEndpoint _rootParam rel name = do
       root <- resolveProjectRoot
       setCacheControl <$> NamespaceListing.serve codebase (Just root) rel name
