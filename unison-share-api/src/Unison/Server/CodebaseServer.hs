@@ -168,11 +168,13 @@ data DefinitionReference
   | TypeReference (HashQualified Name) -- /types/...
   | AbilityConstructorReference (HashQualified Name) -- /ability-constructors/...
   | DataConstructorReference (HashQualified Name) -- /data-constructors/...
+  deriving stock (Show)
 
 data Service
   = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
   | ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) (Maybe DefinitionReference)
   | Api
+  deriving stock (Show)
 
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
@@ -180,6 +182,7 @@ instance Show BaseUrl where
 data URISegment
   = EscapeMe Text
   | DontEscape Text
+  deriving stock (Show)
 
 -- | Create a Service URL, either for the UI or the API
 --
@@ -217,7 +220,7 @@ urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
     LooseCodeUI ns def ->
-      toUrlPath ([DontEscape "ui"] <> path ns def)
+      toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path ns def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) def ->
       toUrlPath $ [DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path Path.absoluteEmpty def
     Api -> toUrlPath [DontEscape "api"]
