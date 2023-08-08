@@ -28,6 +28,7 @@ import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch)
+import Unison.Project.Util (projectBranchPath)
 import Unison.Referent qualified as Referent
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
@@ -46,22 +47,26 @@ openUI path' = do
 
 openUIForProject :: Server.BaseUrl -> ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Path.Path -> Cli ()
 openUIForProject url projectAndBranch pathFromProjectRoot = do
-  Cli.Env {codebase} <- ask
-  mayDefinitionRef <- getDefinitionRef codebase
+  mayDefinitionRef <- getDefinitionRef
   let projectBranchNames = bimap Project.name ProjectBranch.name projectAndBranch
   _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames mayDefinitionRef) url
   pure ()
   where
+    pathToBranchFromCodebaseRoot :: Path.Absolute
+    pathToBranchFromCodebaseRoot = projectBranchPath (bimap Project.projectId ProjectBranch.branchId projectAndBranch)
     -- If the provided ui path matches a definition, find it.
-    getDefinitionRef :: Codebase m Symbol Ann -> Cli (Maybe (Server.DefinitionReference))
-    getDefinitionRef codebase = runMaybeT $ do
-      (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc pathFromProjectRoot
+    getDefinitionRef :: Cli (Maybe (Server.DefinitionReference))
+    getDefinitionRef = runMaybeT $ do
+      Cli.Env {codebase} <- lift ask
+      let absPathToDefinition = Path.unabsolute $ Path.resolve pathToBranchFromCodebaseRoot (Path.Relative pathFromProjectRoot)
+      (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc absPathToDefinition
       namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
       let fqn = Path.unsafeToName pathFromProjectRoot
-      MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
+      def <- MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
+      pure def
 
 getTermOrTypeRef :: Codebase m Symbol Ann -> V2Branch.Branch n -> Name -> Cli (Maybe Server.DefinitionReference)
-getTermOrTypeRef codebase namespaceBranch fqn = runMaybeT do
+getTermOrTypeRef codebase namespaceBranch fqn = runMaybeT $ do
   let nameSeg = Name.lastSegment fqn
   let terms = do
         matchingTerms <- hoistMaybe $ Map.lookup nameSeg (V2Branch.terms namespaceBranch)
