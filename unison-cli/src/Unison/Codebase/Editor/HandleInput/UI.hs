@@ -58,10 +58,10 @@ openUIForProject url projectAndBranch pathFromProjectRoot = do
       (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc pathFromProjectRoot
       namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
       let fqn = Path.unsafeToName pathFromProjectRoot
-      getTermOrTypeRef codebase namespaceBranch fqn
+      MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
 
-getTermOrTypeRef :: Codebase m Symbol Ann -> V2Branch.Branch n -> Name -> MaybeT Cli Server.DefinitionReference
-getTermOrTypeRef codebase namespaceBranch fqn = do
+getTermOrTypeRef :: Codebase m Symbol Ann -> V2Branch.Branch n -> Name -> Cli (Maybe Server.DefinitionReference)
+getTermOrTypeRef codebase namespaceBranch fqn = runMaybeT do
   let nameSeg = Name.lastSegment fqn
   let terms = do
         matchingTerms <- hoistMaybe $ Map.lookup nameSeg (V2Branch.terms namespaceBranch)
@@ -85,35 +85,20 @@ openUIForLooseCode url path' = do
     getUIUrlParts codebase = do
       currentPath <- Cli.getCurrentPath
       let absPath = Path.resolve currentPath path'
-
+      let name = Path.unsafeToName $ Path.fromPath' path'
+      let perspective =
+            if Path.isAbsolute path'
+              then Path.absoluteEmpty
+              else currentPath
       case Lens.unsnoc absPath of
-        Just (abs, nameSeg) -> do
+        Just (abs, _nameSeg) -> do
           namespaceBranch <-
             Cli.runTransaction
               (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
-
-          let terms = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.terms namespaceBranch))
-          let types = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.types namespaceBranch))
-
-          -- Only safe to force in toTypeReference and toTermReference
-          case (Set.lookupMin terms, Set.lookupMin types) of
-            (Just te, _) -> do
-              let name = Path.unsafeToName $ Path.fromPath' path'
-              defRef <- Cli.runTransaction (toTermReference codebase name te)
-
-              if Path.isAbsolute path'
-                then pure (Path.absoluteEmpty, Just defRef)
-                else pure (currentPath, Just defRef)
-            (Nothing, Just ty) ->
-              let name = Path.unsafeToName $ Path.fromPath' path'
-                  defRef = toTypeReference name ty
-               in if Path.isAbsolute path'
-                    then pure (Path.absoluteEmpty, Just defRef)
-                    else pure (currentPath, Just defRef)
-            -- Catch all that uses the absPath to build the perspective.
-            -- Also catches the case where a namespace arg was given.
-            (Nothing, Nothing) ->
-              pure (absPath, Nothing)
+          mayDefRef <- getTermOrTypeRef codebase namespaceBranch name
+          case mayDefRef of
+            Nothing -> pure (absPath, Nothing)
+            Just defRef -> pure (perspective, Just defRef)
         Nothing ->
           pure (absPath, Nothing)
 
