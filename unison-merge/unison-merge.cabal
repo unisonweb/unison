@@ -56,7 +56,9 @@ library
   build-depends:
       base
     , containers
+    , unison-codebase
     , unison-core1
+    , unison-parser-typechecker
     , unison-prelude
     , unison-util-relation
   default-language: Haskell2010

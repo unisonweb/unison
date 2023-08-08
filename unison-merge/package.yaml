@@ -10,6 +10,8 @@ dependencies:
   - unison-core1
   - unison-prelude
   - unison-util-relation
+  - unison-codebase
+  - unison-parser-typechecker
 
 library:
   source-dirs: src
