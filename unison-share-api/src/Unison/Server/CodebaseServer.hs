@@ -185,41 +185,41 @@ data URISegment
 --
 -- Examples:
 --
--- >>> urlFor Api (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
--- "https://localhost:1234/asdf/api"
+-- >>> urlFor Api (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- "http://localhost:1234/asdf/api"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> let service = LooseCodeUI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
+-- "http://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> let service = LooseCodeUI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
 -- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "base") (UnsafeProjectBranchName "main")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/project/base/branch/main/latest/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/projects/base/main/latest/;/terms/List/map"
 --
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
 -- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/project/%40unison%2Fbase/branch/%40runarorama%2Fcontribution/latest/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/;/terms/List/map"
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
     LooseCodeUI ns def ->
       toUrlPath ([DontEscape "ui"] <> path ns def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) def ->
-      toUrlPath $ [DontEscape "ui", DontEscape "project", EscapeMe $ into @Text projectName, DontEscape "branch", EscapeMe $ into @Text branchName] <> path Path.absoluteEmpty def
+      toUrlPath $ [DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path Path.absoluteEmpty def
     Api -> toUrlPath [DontEscape "api"]
   where
     path :: Path.Absolute -> Maybe DefinitionReference -> [URISegment]
