@@ -106,7 +106,7 @@ import Unison.Server.Local.Endpoints.GetDefinitions
   )
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
-import Unison.Server.Local.Endpoints.Projects qualified as Projects
+import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
 import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
@@ -133,14 +133,15 @@ type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
 type CodebaseServerAPI =
   NamespaceListing.NamespaceListingAPI
     :<|> NamespaceDetails.NamespaceDetailsAPI
-    :<|> Projects.ProjectsAPI
     :<|> DefinitionsAPI
     :<|> FuzzyFindAPI
     :<|> TermSummaryAPI
     :<|> TypeSummaryAPI
 
 type ProjectsAPI =
-  "projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> LooseCodeAPI
+  ("projects" :> ListProjectsEndpoint)
+    :<|> ("projects" :> Capture "project-name" ProjectName :> "branches" :> ListProjectBranchesEndpoint)
+    :<|> ("projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> LooseCodeAPI)
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -484,36 +485,30 @@ hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> S
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
 serveLooseCode ::
-  BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
-  Server LooseCodeAPI
-serveLooseCode env codebase rt =
-  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $
-    (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
-      :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
-      :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase (Left <$> mayRoot) mayOwner)
-      :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left <$> mayRoot) relativePath rawHqns renderWidth suff)
-      :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
-      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
-      :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+  ServerT LooseCodeAPI (Backend IO)
+serveLooseCode codebase rt =
+  (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
+    :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
+    :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left <$> mayRoot) relativePath rawHqns renderWidth suff)
+    :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
+    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
 
-serveProjectsAPI ::
-  BackendEnv ->
+serveProjectsCodebaseServerAPI ::
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   ProjectName ->
   ProjectBranchName ->
-  Server LooseCodeAPI
-serveProjectsAPI env codebase rt projectName branchName =
-  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $ do
-    namespaceListingEndpoint
-      :<|> namespaceDetailsEndpoint
-      :<|> projectListingEndpoint
-      :<|> serveDefinitionsEndpoint
-      :<|> serveFuzzyFindEndpoint
-      :<|> serveTermSummaryEndpoint
-      :<|> serveTypeSummaryEndpoint
+  ServerT CodebaseServerAPI (Backend IO)
+serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
+  namespaceListingEndpoint
+    :<|> namespaceDetailsEndpoint
+    :<|> serveDefinitionsEndpoint
+    :<|> serveFuzzyFindEndpoint
+    :<|> serveTermSummaryEndpoint
+    :<|> serveTypeSummaryEndpoint
   where
     projectAndBranchName = ProjectAndBranch projectName branchName
     namespaceListingEndpoint _rootParam rel name = do
@@ -522,9 +517,6 @@ serveProjectsAPI env codebase rt projectName branchName =
     namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
       root <- resolveProjectRoot
       setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just root) renderWidth
-    projectListingEndpoint _rootParam mayOwner = do
-      root <- resolveProjectRoot
-      setCacheControl <$> Projects.serve codebase (Just root) mayOwner
 
     serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
       root <- resolveProjectRoot
@@ -549,12 +541,20 @@ serveProjectsAPI env codebase rt projectName branchName =
         Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
         Just ch -> pure (Right ch)
 
+serveProjectsAPI :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ServerT ProjectsAPI (Backend IO)
+serveProjectsAPI codebase rt =
+  projectListingEndpoint codebase
+    :<|> projectBranchListingEndpoint codebase
+    :<|> serveProjectsCodebaseServerAPI codebase rt
+
 serveUnisonLocal ::
   BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   Server UnisonLocalAPI
-serveUnisonLocal env codebase rt = serveProjectsAPI env codebase rt :<|> serveLooseCode env codebase rt
+serveUnisonLocal env codebase rt =
+  hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $
+    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

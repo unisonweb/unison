@@ -3265,21 +3265,18 @@ loadAllProjects =
     |]
 
 -- | Load all projects whose name matches a prefix.
-loadAllProjectsBeginningWith :: Text -> Transaction [Project]
-loadAllProjectsBeginningWith prefix =
+loadAllProjectsBeginningWith :: Maybe Text -> Transaction [Project]
+loadAllProjectsBeginningWith mayPrefix = do
+  let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
   -- since we are not likely to many projects, we just get them all and filter in Haskell. This seems much simpler than
   -- running a LIKE query, and dealing with escaping, case sensitivity, etc
-  fmap (filter matches) $
-    queryListRow
-      [sql|
+  queryListRow
+    [sql|
         SELECT id, name
         FROM project
+        WHERE name GLOB :prefixGlob
         ORDER BY name ASC
       |]
-  where
-    matches :: Project -> Bool
-    matches Project {name = UnsafeProjectName name} =
-      prefix `Text.isPrefixOf` name
 
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
@@ -3380,23 +3377,20 @@ loadProjectBranchByNames projectName branchName =
         AND project_branch.name = :branchName
     |]
 
--- | Load all branch id/name pairs in a project whose name matches a prefix.
-loadAllProjectBranchesBeginningWith :: ProjectId -> Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
-loadAllProjectBranchesBeginningWith projectId prefix =
-  -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
-  -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
-  fmap (filter matches) $
-    queryListRow
-      [sql|
+-- | Load all branch id/name pairs in a project whose name matches an optional prefix.
+loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
+loadAllProjectBranchesBeginningWith projectId mayPrefix =
+  let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
+   in -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
+      -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
+      queryListRow
+        [sql|
         SELECT project_branch.branch_id, project_branch.name
         FROM project_branch
         WHERE project_branch.project_id = :projectId
+          AND project_branch.name GLOB :prefixGlob
         ORDER BY project_branch.name ASC
       |]
-  where
-    matches :: (ProjectBranchId, ProjectBranchName) -> Bool
-    matches (_, UnsafeProjectBranchName name) =
-      prefix `Text.isPrefixOf` name
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --

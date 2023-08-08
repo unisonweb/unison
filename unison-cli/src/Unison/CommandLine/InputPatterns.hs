@@ -3052,7 +3052,7 @@ projectAndBranchNamesArg includeCurrentBranch =
                       Just project -> do
                         let projectId = project ^. #projectId
                         fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId Text.empty
+                          Queries.loadAllProjectBranchesBeginningWith projectId Nothing
                 pure (map (projectBranchToCompletion projectName) branches)
               -- This branch is probably dead due to intercepting inputs that begin with "/" above
               Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
@@ -3065,7 +3065,7 @@ projectAndBranchNamesArg includeCurrentBranch =
                       Just project -> do
                         let projectId = project ^. #projectId
                         fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId (into @Text branchName)
+                          Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
                 pure (map (projectBranchToCompletion projectName) branches),
       globTargets = Set.empty
     }
@@ -3084,8 +3084,8 @@ projectAndBranchNamesArg includeCurrentBranch =
               Nothing -> pure []
               Just (ProjectAndBranch currentProjectId _, _) ->
                 fmap (filterOutCurrentBranch path currentProjectId) do
-                  Queries.loadAllProjectBranchesBeginningWith currentProjectId input
-          projects <- Queries.loadAllProjectsBeginningWith input
+                  Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
+          projects <- Queries.loadAllProjectsBeginningWith (Just input)
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
       let projectCompletions = map projectToCompletion projects
@@ -3166,7 +3166,7 @@ projectAndBranchNamesArg includeCurrentBranch =
           Just (ProjectAndBranch currentProjectId _, _) ->
             Codebase.runTransaction codebase do
               fmap (filterOutCurrentBranch path currentProjectId) do
-                Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
+                Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
 
     filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
@@ -3228,7 +3228,7 @@ projectNameArg =
       suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient _path -> do
         projects <-
           Codebase.runTransaction codebase do
-            Queries.loadAllProjectsBeginningWith input
+            Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
       globTargets = Set.empty
     }
