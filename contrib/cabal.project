@@ -23,6 +23,7 @@ packages:
   lib/unison-util-cache
   lib/unison-util-relation
   lib/unison-util-rope
+  lib/file-embed
 
   parser-typechecker
   unison-core

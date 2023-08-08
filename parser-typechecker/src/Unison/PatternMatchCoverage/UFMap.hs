@@ -10,6 +10,7 @@ module Unison.PatternMatchCoverage.UFMap
     alterF,
     alter,
     keys,
+    freeze,
     toClasses,
   )
 where
@@ -213,6 +214,22 @@ union k0 k1 mapinit mergeValues = toMaybe do
           KeyNotFound _k -> Nothing
           MergeFailed _v0 _v1 -> Nothing
 
+freeze ::
+  forall k v.
+  Ord k =>
+  UFMap k v ->
+  Map k v
+freeze ufmap0 =
+  let keys = case ufmap0 of
+        UFMap m -> Map.keys m
+      frozenMap = snd (foldl' step (ufmap0, Map.empty) keys)
+        where
+          step (ufmap, frozen) k =
+            let (_, _, canonv, ufmap') = fromJust (lookupCanon k ufmap)
+                frozen' = Map.insert k canonv frozen
+            in (ufmap', frozen')
+  in frozenMap
+
 -- | Dump the @UFmap@ to a list grouped by equivalence class
 toClasses ::
   forall k v.
@@ -234,7 +251,7 @@ toClasses m0 =
               Map.insertWith
                 (\(k0, s0, v0) (_k1, s1, _v1) -> (k0, s0 <> s1, v0))
                 kcanon
-                (k, Set.singleton k, v)
+                (kcanon, Set.singleton k, v)
                 cm
          in (m', cm')
    in Map.elems cmFinal
