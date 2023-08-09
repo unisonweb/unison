@@ -58,6 +58,7 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
 import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.ANF
+import Unison.Runtime.ANF.Rehash (rehashGroups)
 import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
@@ -104,8 +105,21 @@ import UnliftIO.Concurrent qualified as UnliftIO
 
 type Term v = Tm.Term v ()
 
+data Remapping = Remap
+  { remap :: Map.Map Reference Reference,
+    backmap :: Map.Map Reference Reference
+  }
+
+instance Semigroup Remapping where
+  Remap r1 b1 <> Remap r2 b2 = Remap (r1 <> r2) (b1 <> b2)
+
+instance Monoid Remapping where
+  mempty = Remap mempty mempty
+
 data EvalCtx = ECtx
   { dspec :: DataSpec,
+    floatRemap :: Remapping,
+    intermedRemap :: Remapping,
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
     ccache :: CCache
   }
@@ -117,7 +131,7 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
 
 cacheContext :: CCache -> EvalCtx
 cacheContext =
-  ECtx builtinDataSpec
+  ECtx builtinDataSpec mempty mempty
     . Map.fromList
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
@@ -234,6 +248,63 @@ backrefAdd ::
 backrefAdd m ctx@ECtx {decompTm} =
   ctx {decompTm = m <> decompTm}
 
+remapAdd :: Map.Map Reference Reference -> Remapping -> Remapping
+remapAdd m Remap {remap, backmap} =
+  Remap { remap = m <> remap, backmap = tm <> backmap }
+  where tm = Map.fromList . fmap (\(x, y) -> (y, x)) $ Map.toList m
+
+floatRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
+floatRemapAdd m ctx@ECtx {floatRemap} =
+  ctx { floatRemap = remapAdd m floatRemap}
+
+intermedRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
+intermedRemapAdd m ctx@ECtx {intermedRemap} =
+  ctx { intermedRemap = remapAdd m intermedRemap }
+
+baseToIntermed :: EvalCtx -> Reference -> Maybe Reference
+baseToIntermed ctx r = do
+  r <- Map.lookup r . remap $ floatRemap ctx
+  Map.lookup r . remap $ intermedRemap ctx
+
+floatToIntermed :: EvalCtx -> Reference -> Maybe Reference
+floatToIntermed ctx r =
+  Map.lookup r . remap $ intermedRemap ctx
+
+intermedToBase :: EvalCtx -> Reference -> Maybe Reference
+intermedToBase ctx r = do
+  r <- Map.lookup r . backmap $ intermedRemap ctx
+  Map.lookup r . backmap $ floatRemap ctx
+
+performRehash ::
+  Map.Map Reference (SuperGroup Symbol) ->
+  EvalCtx ->
+  (EvalCtx, Map Reference Reference, [(Reference, SuperGroup Symbol)])
+performRehash rgrp0 ctx =
+  (intermedRemapAdd rrefs ctx, rrefs, Map.toList rrgrp)
+  where
+    frs = remap $ floatRemap ctx
+    irs = remap $ intermedRemap ctx
+    f b r | not b,
+            r <- Map.findWithDefault r r frs,
+            Just r <- Map.lookup r irs = r
+          | otherwise = r
+
+    (rrefs, rrgrp) = rehashGroups $ fmap (overGroupLinks f) rgrp0
+
+-- augmentPPE ::
+--   Map Symbol Reference ->
+--   Map Symbol Reference ->
+--   PrettyPrintEnv ->
+--   PrettyPrintEnv
+-- augmentPPE original new0 ppe = addFallback median ppe
+--   where
+--     new = traceShowId . fmap fixup $ Map.toList new0
+--     ns = fromCurrentNames $ fromTermsAndTypes new []
+--     fixup (v, r) =
+--       (unsafeFromVar v, RF.Ref $ Map.findWithDefault r v original)
+--
+--     median = PPE.suffixifiedPPE $ PPE.fromNamesDecl 10 ns
+--
 loadDeps ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
@@ -252,16 +323,24 @@ loadDeps cl ppe ctx tyrs tmrs = do
       _ -> False
   q <-
     refNumsTm (ccache ctx) <&> \m r -> case r of
-      RF.DerivedId {} -> r `Map.notMember` m
+      RF.DerivedId {}
+        | Just r <- baseToIntermed ctx r -> r `Map.notMember` m
+        | Just r <- floatToIntermed ctx r -> r `Map.notMember` m
+        | otherwise -> True
       _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
-  rtms <-
-    traverse (\r -> (,) r <$> resolveTermRef cl r) $
+  itms <-
+    traverse (\r -> (RF.unsafeId r,) <$> resolveTermRef cl r) $
       Prelude.filter q tmrs
-  let (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
-      rgrp = Map.toList rgrp0
+  let im = Tm.unhashComponent (Map.fromList itms)
+      (subvs, rgrp0, rbkr) = intermediateTerms ppe ctx im
+      lubvs r = case Map.lookup r subvs of
+        Just r -> r
+        Nothing -> error "loadDeps: variable missing for float refs"
+      vm = Map.mapKeys RF.DerivedId . Map.map (lubvs . fst) $ im
+      (ctx', _, rgrp) = performRehash rgrp0 (floatRemapAdd vm ctx)
       tyAdd = Set.fromList $ fst <$> tyrs
-  backrefAdd rbkr ctx
+  backrefAdd rbkr ctx'
     <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted ::
@@ -277,39 +356,78 @@ intermediateTerms ::
   (HasCallStack) =>
   PrettyPrintEnv ->
   EvalCtx ->
-  [(Reference, Term Symbol)] ->
-  ( Map.Map Reference (SuperGroup Symbol),
+  Map RF.Id (Symbol, Term Symbol) ->
+  ( Map.Map Symbol Reference,
+    Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
-  foldMap (\(ref, tm) -> intermediateTerm ppe ref ctx tm) rtms
+  case normalizeGroup ctx orig (Map.elems rtms) of
+    (subvs, cmbs, dcmp) ->
+      (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
+      where
+        f ref = superNormalize
+                  . splitPatterns (dspec ctx)
+                  . addDefaultCases tmName
+          where tmName = HQ.toString . termName ppe $ RF.Ref ref
+  where
+  orig = Map.fromList
+           . fmap (\(x,y) -> (y, RF.DerivedId x))
+           . Map.toList
+           $ Map.map fst rtms
 
-intermediateTerm ::
-  (HasCallStack) =>
-  PrettyPrintEnv ->
-  Reference ->
+normalizeTerm ::
   EvalCtx ->
   Term Symbol ->
-  ( Map.Map Reference (SuperGroup Symbol),
-    Map.Map Reference (Map.Map Word64 (Term Symbol))
+  ( Reference,
+    Map Reference (Term Symbol),
+    Map Reference (Map.Map Word64 (Term Symbol))
   )
-intermediateTerm ppe ref ctx tm =
-  (first . fmap)
-    ( superNormalize
-        . splitPatterns (dspec ctx)
-        . addDefaultCases tmName
-    )
-    . memorize
+normalizeTerm ctx tm =
+  absorb
     . lamLift
     . saturate (uncurryDspec $ dspec ctx)
     . inlineAlias
     $ tm
   where
-    memorize (ll, ctx, dcmp) =
-      ( Map.fromList $ (ref, ll) : ctx,
-        backrefLifted ref tm dcmp
-      )
-    tmName = HQ.toString . termName ppe $ RF.Ref ref
+  absorb (ll, bs, dcmp) =
+    let ref = RF.DerivedId $ Hashing.hashClosedTerm ll in
+    (ref, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
+
+normalizeGroup ::
+  EvalCtx ->
+  Map Symbol Reference ->
+  [(Symbol, Term Symbol)] ->
+  ( Map Symbol Reference,
+    Map Reference (Term Symbol),
+    Map Reference (Term Symbol)
+  )
+normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
+  (subvs, cmbs, dcmp) ->
+    ( Map.map RF.DerivedId (Map.fromList subvs),
+      Map.fromList cmbs,
+      Map.fromList dcmp
+    )
+  where
+  gr = fmap (saturate (uncurryDspec $ dspec ctx) . inlineAlias) <$> gr0
+
+intermediateTerm ::
+  (HasCallStack) =>
+  PrettyPrintEnv ->
+  EvalCtx ->
+  Term Symbol ->
+  ( Reference,
+    Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (Map.Map Word64 (Term Symbol))
+  )
+intermediateTerm ppe ctx tm =
+  case normalizeTerm ctx tm of
+    (ref, cmbs, dcmp) -> (ref, fmap f cmbs, dcmp)
+      where
+        tmName = HQ.toString . termName ppe $ RF.Ref ref
+        f = superNormalize
+              . splitPatterns (dspec ctx)
+              . addDefaultCases tmName
 
 prepareEvaluation ::
   (HasCallStack) =>
@@ -318,39 +436,37 @@ prepareEvaluation ::
   EvalCtx ->
   IO (EvalCtx, Word64)
 prepareEvaluation ppe tm ctx = do
-  missing <- cacheAdd rgrp (ccache ctx)
+  missing <- cacheAdd rgrp (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
       "Error in prepareEvaluation, cache is missing: " <> show missing
-  (,) (backrefAdd rbkr ctx) <$> refNumTm (ccache ctx) rmn
+  (,) (backrefAdd rbkr ctx') <$> refNumTm (ccache ctx') rmn
   where
-    (rmn, rtms)
-      | Tm.LetRecNamed' bs mn0 <- tm,
-        hcs <-
-          fmap (first RF.DerivedId)
-            . Hashing.hashTermComponentsWithoutTypes
-            $ Map.fromList bs,
-        mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0,
-        rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn =
-          (rmn, (rmn, mn) : Map.elems hcs)
-      | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm =
-          (rmn, [(rmn, tm)])
-
-    (rgrp0, rbkr) = intermediateTerms ppe ctx rtms
-    rgrp = Map.toList rgrp0
+    (rmn0, rgrp0, rbkr) = intermediateTerm ppe ctx tm
+    (ctx', rrefs, rgrp) = performRehash rgrp0 ctx
+    rmn = case Map.lookup rmn0 rrefs of
+      Just r -> r
+      Nothing -> error "prepareEvaluation: could not remap main ref"
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
+  Remapping ->
+  Remapping ->
   Map.Map Reference (Map.Map Word64 (Term Symbol)) ->
   Word64 ->
   Word64 ->
   Maybe (Term Symbol)
-backReferenceTm ws rs c i = do
+backReferenceTm ws frs irs dcm c i = do
   r <- EC.lookup c ws
-  bs <- Map.lookup r rs
+  -- backmap intermediate ref to floated ref
+  r <- Map.lookup r (backmap irs)
+  -- backmap floated ref to original ref
+  r <- pure $ Map.findWithDefault r r (backmap frs)
+  -- look up original ref in decompile info
+  bs <- Map.lookup r dcm
   Map.lookup i bs
 
 evalInContext ::
@@ -363,7 +479,12 @@ evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
-      decom = decompile (backReferenceTm crs (decompTm ctx))
+      decom = decompile
+                (intermedToBase ctx)
+                (backReferenceTm crs
+                  (floatRemap ctx)
+                  (intermedRemap ctx)
+                  (decompTm ctx))
 
       prettyError (PE _ p) = p
       prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
@@ -396,7 +517,13 @@ executeMainComb init cc = do
     formatErr (PE _ msg) = pure msg
     formatErr (BU tr nm c) = do
       crs <- readTVarIO (combRefs cc)
-      let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
+      let ctx = cacheContext cc
+          decom = decompile
+                    (intermedToBase ctx)
+                    (backReferenceTm crs
+                      (floatRemap ctx)
+                      (intermedRemap ctx)
+                      (decompTm ctx))
       pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
 bugMsg ::
@@ -625,7 +752,9 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     <*> newTVarIO (rty <> builtinTypeNumbering)
     <*> newTVarIO (sbs <> baseSandboxInfo)
   where
-    decom = decompile (backReferenceTm crs Map.empty)
+    decom = decompile
+              (const Nothing)
+              (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
       Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty PPE.empty dv
       Left _ -> MsgTrace ("Couldn't decompile value") (show c)
