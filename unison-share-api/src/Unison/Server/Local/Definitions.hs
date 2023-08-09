@@ -9,7 +9,6 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NamesWithHistory qualified as NamesWithHistory
@@ -52,7 +51,6 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
     Local.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
       Right (namesRoot, locatedQuery) -> do
-        Debug.debugM Debug.Temp "prettyDefinitionsForHQName: " (namesRoot, locatedQuery)
         pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
   -- Bias towards both relative and absolute path to queries,
@@ -66,14 +64,9 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
-  -- Debug.debugM Debug.Temp "names: " (localNamesOnly)
   let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
     definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
-
-  Debug.debugM Debug.Temp "terms: " terms
-  Debug.debugM Debug.Temp "types: " types
-  Debug.debugM Debug.Temp "misses: " misses
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
