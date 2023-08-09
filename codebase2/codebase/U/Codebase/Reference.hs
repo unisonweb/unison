@@ -11,6 +11,7 @@ module U.Codebase.Reference
     Id' (..),
     Pos,
     _ReferenceDerived,
+    _RReferenceReference,
     t_,
     h_,
     idH,
@@ -19,7 +20,7 @@ module U.Codebase.Reference
   )
 where
 
-import Control.Lens (Lens, Prism, Traversal, lens, prism)
+import Control.Lens (Lens, Prism, Prism', Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import U.Codebase.ShortHash (ShortHash)
@@ -52,6 +53,19 @@ data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
   deriving (Eq, Ord, Show)
+
+_RReferenceReference :: Prism' (Reference' t (Maybe h)) (Reference' t h)
+_RReferenceReference = prism embed project
+  where
+    embed = \case
+      ReferenceBuiltin x -> ReferenceBuiltin x
+      ReferenceDerived (Id h p) -> ReferenceDerived (Id (Just h) p)
+
+    project = \case
+      ReferenceBuiltin x -> Right (ReferenceBuiltin x)
+      ReferenceDerived (Id mh p) -> case mh of
+        Nothing -> Left (ReferenceDerived (Id mh p))
+        Just h -> Right (ReferenceDerived (Id h p))
 
 _ReferenceDerived :: Prism (Reference' t h) (Reference' t h') (Id' h) (Id' h')
 _ReferenceDerived = prism embed project

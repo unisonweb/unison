@@ -1,10 +1,16 @@
 module Unison.Merge () where
 
+import U.Codebase.Sqlite.Symbol (Symbol)
+import Control.Lens ((%~))
+import Unison.Hash (Hash)
+import qualified U.Codebase.Reference as Reference
+import U.Codebase.Sqlite.HashHandle (HashHandle)
+import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (TypeRReference)
+import U.Codebase.Reference (TypeReference)
 import U.Codebase.Type as Type
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
@@ -49,52 +55,58 @@ computeEquivClassLookupFunc rel =
    in \k -> Map.lookup k canonMap
 
 computeTypeUserUpdates ::
-  forall a m v.
-  (Monad m, Ord v) =>
-  (TypeRReference -> m (Decl v)) ->
-  (TypeRReference -> TypeRReference -> ConstructorMapping) ->
-  Relation TypeRReference TypeRReference ->
-  m (Relation TypeRReference TypeRReference)
-computeTypeUserUpdates loadDecl constructorMapping allUpdates =
+  forall a m.
+  (Monad m) =>
+  HashHandle -> 
+  (TypeReference -> m (Decl Symbol)) ->
+  (TypeReference -> TypeReference -> ConstructorMapping) ->
+  Relation TypeReference TypeReference ->
+  m (Relation TypeReference TypeReference)
+computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
   Relation.fromList <$> filterM isUserUpdate0 (Relation.toList allUpdates)
   where
-    lookupCanon :: TypeRReference -> TypeRReference
+    lookupCanon :: TypeReference -> TypeReference
     lookupCanon =
       let lu = computeEquivClassLookupFunc allUpdates
        in \ref -> case lu ref of
             Just x -> x
             Nothing -> error ("[impossible] lookupCanon failed to find: " <> show ref)
 
-    isUserUpdate0 :: (TypeRReference, TypeRReference) -> m Bool
+    isUserUpdate0 :: (TypeReference, TypeReference) -> m Bool
     isUserUpdate0 (oldRef, newRef) = do
       oldDecl <- loadDecl oldRef
       newDecl <- loadDecl newRef
       pure
         case Decl.declType oldDecl == Decl.declType newDecl of
-          True -> isUserUpdate2 oldRef oldDecl newRef newDecl
+          True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
           False -> True
 
-    isUserUpdate2 ::
-      TypeRReference ->
-      Decl v ->
-      TypeRReference ->
-      Decl v ->
+    isUserUpdateDecl ::
+      TypeReference ->
+      Decl Symbol ->
+      TypeReference ->
+      Decl Symbol ->
       Bool
-    isUserUpdate2 oldRef oldDecl newRef newDecl =
+    isUserUpdateDecl oldRef oldDecl newRef newDecl =
       or
         [ Decl.modifier oldDecl /= Decl.modifier newDecl,
           length (Decl.bound oldDecl) /= length (Decl.bound newDecl),
           length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
-          any
-            isUserUpdate3
-            ( zip
-                (Decl.constructorTypes oldDecl)
-                (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
-            )
+          case (oldRef, newRef) of
+            (Reference.ReferenceDerived (Reference.Id h0 _) , Reference.ReferenceDerived (Reference.Id h1 _)) ->
+              any
+                (\(a, b) -> not (alphaEquivalentTypesModCandidateRefs h0 h1 a b))
+                ( zip
+                    (Decl.constructorTypes oldDecl)
+                    (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
+                )
+            (Reference.ReferenceBuiltin txt0, Reference.ReferenceBuiltin txt1) -> txt0 /= txt1
+            (Reference.ReferenceBuiltin _, Reference.ReferenceDerived _) -> True
+            (Reference.ReferenceDerived _, Reference.ReferenceBuiltin _) -> True
         ]
 
-    isUserUpdate3 :: (TypeD v, TypeD v) -> Bool
-    isUserUpdate3 (lhs0, rhs0) =
-      let lhs = Type.rmap lookupCanon lhs0
-          rhs = Type.rmap lookupCanon rhs0
-       in False
+    alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
+    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs0 rhs0 =
+      let lhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) lhs0
+          rhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) rhs0
+       in HashHandle.toReferenceDecl hashHandle hlhs lhs == HashHandle.toReferenceDecl hashHandle hrhs rhs

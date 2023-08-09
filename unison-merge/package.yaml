@@ -12,7 +12,10 @@ dependencies:
   - unison-util-relation
   - unison-codebase
   - unison-codebase-sqlite-hashing-v2
+  - unison-codebase-sqlite
   - unison-parser-typechecker
+  - unison-hash
+  - lens
 
 library:
   source-dirs: src
