@@ -61,7 +61,7 @@ openUIForProject url projectAndBranch pathFromProjectRoot = do
       let absPathToDefinition = Path.unabsolute $ Path.resolve pathToBranchFromCodebaseRoot (Path.Relative pathFromProjectRoot)
       (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc absPathToDefinition
       namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
-      let fqn = Path.unsafeToName pathFromProjectRoot
+      fqn <- hoistMaybe $ Path.toName pathFromProjectRoot
       def <- MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
       pure def
 
