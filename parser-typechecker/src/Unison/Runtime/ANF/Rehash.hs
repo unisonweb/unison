@@ -4,6 +4,7 @@ module Unison.Runtime.ANF.Rehash where
 import Crypto.Hash
 import Data.Bifunctor (bimap, second)
 import Data.ByteArray (convert)
+import Data.ByteString (cons)
 import Data.ByteString.Lazy (toChunks)
 import Data.Graph as Gr
 import Data.List (foldl')
@@ -49,7 +50,7 @@ rehashSCC scc
            $ foldl' (\cx -> hashUpdates cx . toChunks)
                     (hashInitWith Blake2b_256)
                     bss
-    newHash = fromByteString $ convert digest
+    newHash = fromByteString . cons 0 $ convert digest
     replace (Derived h i)
       | h == sample = Derived newHash i
     replace r = r
