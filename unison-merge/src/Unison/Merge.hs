@@ -1,17 +1,14 @@
 module Unison.Merge () where
 
-import Unison.Hashing.V2.Convert2 qualified as Convert2
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Decl (Decl)
+import U.Codebase.Decl (Decl, DeclR)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Referent (Referent)
 import U.Codebase.Type ()
 import U.Codebase.Type as Type
 import Unison.ABT qualified as ABT
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
-import Unison.Prelude
-import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -66,9 +63,9 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
     lookupCanon :: Decl.TypeRef -> Decl.TypeRef
     lookupCanon =
       let lu = computeEquivClassLookupFunc allUpdates
-      in \ref -> case lu ref of
-        Just x -> x
-        Nothing -> error ("[impossible] lookupCanon failed to find: " <> show ref)
+       in \ref -> case lu ref of
+            Just x -> x
+            Nothing -> error ("[impossible] lookupCanon failed to find: " <> show ref)
 
     isUserUpdate0 :: (Decl.TypeRef, Decl.TypeRef) -> m Bool
     isUserUpdate0 (oldRef, newRef) = do
@@ -80,10 +77,10 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
           False -> True
 
     isUserUpdate2 ::
-      reference ->
-      DeclR reference v ->
-      reference ->
-      DeclR reference v ->
+      Decl.TypeRef ->
+      DeclR Decl.TypeRef v ->
+      Decl.TypeRef ->
+      DeclR Decl.TypeRef v ->
       Bool
     isUserUpdate2 oldRef oldDecl newRef newDecl =
       let oldBounds = boundsIndices oldDecl
@@ -110,8 +107,8 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
                   !i' = i + 1
                in (acc', i')
 
-    isUserUpdate3 :: (TypeR reference v, TypeR reference v) -> Bool
+    isUserUpdate3 :: (TypeR Decl.TypeRef v, TypeR Decl.TypeRef v) -> Bool
     isUserUpdate3 (lhs0, rhs0) =
       let lhs = Type.rmap lookupCanon lhs0
           rhs = Type.rmap lookupCanon rhs0
-      in False
+       in False
