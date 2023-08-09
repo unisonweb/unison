@@ -1,17 +1,25 @@
-module U.Codebase.Decl where
+module U.Codebase.Decl
+  ( Decl,
+    Type,
+    Modifier (..),
+    DeclR (..),
 
-import U.Codebase.Reference (Reference')
+    -- * Hashing stuff
+    V (..),
+    F (..),
+    dependencies,
+  )
+where
+
+import U.Codebase.Reference (TypeRReference)
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import Unison.ConstructorType (ConstructorType)
-import Unison.Hash (Hash)
 import Unison.Prelude
 
-type Decl v = DeclR TypeRef v
+type Decl v = DeclR TypeRReference v
 
-type TypeRef = Reference' Text (Maybe Hash)
-
-type Type v = TypeR TypeRef v
+type Type v = TypeR TypeRReference v
 
 data Modifier = Structural | Unique !Text
   deriving (Eq, Ord, Show)

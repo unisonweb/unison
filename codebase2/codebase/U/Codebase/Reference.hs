@@ -1,4 +1,23 @@
-module U.Codebase.Reference where
+module U.Codebase.Reference
+  ( Reference,
+    RReference,
+    TermReference,
+    TermRReference,
+    TypeReference,
+    TypeRReference,
+    Reference' (..),
+    pattern Derived,
+    Id,
+    Id' (..),
+    Pos,
+    _ReferenceDerived,
+    t_,
+    h_,
+    idH,
+    isBuiltin,
+    toShortHash,
+  )
+where
 
 import Control.Lens (Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
@@ -11,6 +30,21 @@ import Unison.Prelude
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
+
+-- | A possibly-self (R = "recursive") reference.
+type RReference = Reference' Text (Maybe Hash)
+
+-- | A term reference.
+type TermReference = Reference
+
+-- | A possibly-self term reference.
+type TermRReference = RReference
+
+-- | A type reference.
+type TypeReference = Reference
+
+-- | A possibly-self type reference.
+type TypeRReference = RReference
 
 type Id = Id' Hash
 
@@ -50,8 +84,9 @@ idH :: Lens (Id' h) (Id' h') h h'
 idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)
 
 isBuiltin :: Reference -> Bool
-isBuiltin (ReferenceBuiltin _) = True
-isBuiltin _ = False
+isBuiltin = \case
+  ReferenceBuiltin {} -> True
+  ReferenceDerived {} -> False
 
 toShortHash :: Reference -> ShortHash
 toShortHash (ReferenceBuiltin b) = SH.Builtin b

@@ -1,20 +1,28 @@
-module U.Codebase.Type where
+module U.Codebase.Type
+  ( TypeR,
+    TypeT,
+    TypeD,
+    FD,
+    FT,
+    F' (..),
+    rmap,
+    dependencies,
+  )
+where
 
 import Control.Monad.Writer.Strict qualified as Writer
-import Data.Maybe qualified as Maybe
 import Data.Set qualified as Set
 import U.Codebase.Kind (Kind)
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (TypeRReference, TypeReference)
 import U.Core.ABT qualified as ABT
-import Unison.Hash (Hash)
 import Unison.Prelude
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | For standalone types, like those in Term.Ann
-type FT = F' Reference
+type FT = F' TypeReference
 
 -- | For potentially recursive types, like those in DataDeclaration
-type FD = F' (Reference' Text (Maybe Hash))
+type FD = F' TypeRReference
 
 data F' r a
   = Ref r
@@ -30,10 +38,10 @@ data F' r a
   deriving (Foldable, Functor, Eq, Ord, Show, Traversable)
 
 -- | Non-recursive type
-type TypeT v = ABT.Term FT v ()
+type TypeT v = TypeR TypeReference v
 
 -- | Potentially-recursive type
-type TypeD v = ABT.Term FD v ()
+type TypeD v = TypeR TypeRReference v
 
 type TypeR r v = ABT.Term (F' r) v ()
 
@@ -41,9 +49,6 @@ rmap :: (Ord v) => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
 rmap f = ABT.transform \case
   Ref r -> Ref (f r)
   x -> unsafeCoerce x
-
-typeD2T :: (Ord v) => Hash -> TypeD v -> TypeT v
-typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 
 dependencies :: (Ord v, Ord r) => ABT.Term (F' r) v a -> Set r
 dependencies = Writer.execWriter . ABT.visit' f

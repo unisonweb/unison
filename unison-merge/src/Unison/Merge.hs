@@ -2,12 +2,10 @@ module Unison.Merge () where
 
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Decl (Decl, DeclR)
+import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Referent (Referent)
-import U.Codebase.Type ()
+import U.Codebase.Reference (TypeRReference)
 import U.Codebase.Type as Type
-import Unison.ABT qualified as ABT
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
@@ -53,21 +51,21 @@ computeEquivClassLookupFunc rel =
 computeTypeUserUpdates ::
   forall a m v.
   (Monad m, Ord v) =>
-  (Decl.TypeRef -> m (Decl v)) ->
-  (Decl.TypeRef -> Decl.TypeRef -> ConstructorMapping) ->
-  Relation Decl.TypeRef Decl.TypeRef ->
-  m (Relation Decl.TypeRef Decl.TypeRef)
+  (TypeRReference -> m (Decl v)) ->
+  (TypeRReference -> TypeRReference -> ConstructorMapping) ->
+  Relation TypeRReference TypeRReference ->
+  m (Relation TypeRReference TypeRReference)
 computeTypeUserUpdates loadDecl constructorMapping allUpdates =
   Relation.fromList <$> filterM isUserUpdate0 (Relation.toList allUpdates)
   where
-    lookupCanon :: Decl.TypeRef -> Decl.TypeRef
+    lookupCanon :: TypeRReference -> TypeRReference
     lookupCanon =
       let lu = computeEquivClassLookupFunc allUpdates
        in \ref -> case lu ref of
             Just x -> x
             Nothing -> error ("[impossible] lookupCanon failed to find: " <> show ref)
 
-    isUserUpdate0 :: (Decl.TypeRef, Decl.TypeRef) -> m Bool
+    isUserUpdate0 :: (TypeRReference, TypeRReference) -> m Bool
     isUserUpdate0 (oldRef, newRef) = do
       oldDecl <- loadDecl oldRef
       newDecl <- loadDecl newRef
@@ -77,10 +75,10 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
           False -> True
 
     isUserUpdate2 ::
-      Decl.TypeRef ->
-      DeclR Decl.TypeRef v ->
-      Decl.TypeRef ->
-      DeclR Decl.TypeRef v ->
+      TypeRReference ->
+      Decl v ->
+      TypeRReference ->
+      Decl v ->
       Bool
     isUserUpdate2 oldRef oldDecl newRef newDecl =
       or
@@ -95,7 +93,7 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
             )
         ]
 
-    isUserUpdate3 :: (TypeR Decl.TypeRef v, TypeR Decl.TypeRef v) -> Bool
+    isUserUpdate3 :: (TypeD v, TypeD v) -> Bool
     isUserUpdate3 (lhs0, rhs0) =
       let lhs = Type.rmap lookupCanon lhs0
           rhs = Type.rmap lookupCanon rhs0

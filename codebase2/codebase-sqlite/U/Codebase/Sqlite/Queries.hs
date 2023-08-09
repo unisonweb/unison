@@ -2960,7 +2960,7 @@ addTypeMentionsToIndexForTerm :: S.Referent.Id -> Set C.Reference -> Transaction
 addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
   traverse_ (flip addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
 
-localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.Decl.TypeRef)
+localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.TypeRReference)
 localIdsToTypeRefLookup localIds = do
   (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId localIds
   pure $ bimap substText (fmap substHash)
@@ -3068,7 +3068,7 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.MatchCase Text C.Term.TypeRef a ->
+      C.Term.MatchCase Text C.TypeReference a ->
       m (C.Term.MatchCase LocalTextId S.Term.TypeRef a)
     goCase = \case
       C.Term.MatchCase pat guard body ->
@@ -3082,7 +3082,7 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.Pattern Text C.Term.TypeRef ->
+      C.Term.Pattern Text C.TypeReference ->
       m (C.Term.Pattern LocalTextId S.Term.TypeRef)
     goPat = \case
       C.Term.PUnbound -> pure $ C.Term.PUnbound

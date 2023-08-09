@@ -17,7 +17,6 @@ import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2Reference
 import U.Codebase.Referent qualified as V2Referent
-import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Type qualified as V2.Type
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
@@ -38,7 +37,7 @@ convertReference' idConv = \case
   V2.ReferenceBuiltin x -> H2.ReferenceBuiltin x
   V2.ReferenceDerived x -> H2.ReferenceDerivedId (idConv x)
 
-v2ToH2Type :: forall v. (Ord v) => V2.Type.TypeR V2.TypeRef v -> H2.Type v ()
+v2ToH2Type :: forall v. (Ord v) => V2.Type.TypeT v -> H2.Type v ()
 v2ToH2Type = v2ToH2Type' v2ToH2Reference
 
 v2ToH2TypeD :: forall v. (Ord v) => Hash -> V2.Type.TypeD v -> H2.Type v ()

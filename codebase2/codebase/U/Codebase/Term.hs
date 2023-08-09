@@ -1,9 +1,21 @@
-module U.Codebase.Term where
+module U.Codebase.Term
+  ( Term,
+    Type,
+    TermLink,
+    TypeLink,
+    F,
+    F' (..),
+    MatchCase (..),
+    Pattern (..),
+    SeqOp (..),
+    extraMap,
+  )
+where
 
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
 import Data.Set qualified as Set
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (TermRReference, TypeReference, Reference, Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
@@ -14,11 +26,9 @@ import Unison.Prelude
 
 type Term v = ABT.Term (F v) v ()
 
-type Type v = TypeR TypeRef v
+type Type v = TypeR TypeReference v
 
-type TermRef = Reference' Text (Maybe Hash)
-
-type TypeRef = Reference
+-- type TypeRef = Reference
 
 type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
@@ -28,8 +38,8 @@ type TypeLink = Reference
 type F vt =
   F'
     Text
-    TermRef
-    TypeRef
+    TermRReference
+    TypeReference
     TermLink
     TypeLink
     vt
@@ -178,11 +188,11 @@ rmapPattern ft fr = go
       PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
       PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
 
-dependencies ::
+_dependencies ::
   (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>
   ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
   (Set termRef, Set typeRef, Set termLink, Set typeLink)
-dependencies =
+_dependencies =
   Writer.execWriter . ABT.visit_ \case
     Ref r -> termRef r
     Constructor r _ -> typeRef r
