@@ -325,6 +325,9 @@ x = ()
   
     structural ability Abort where abort : {Abort} a
     
+    (>>>>) : Nat -> Nat -> ()
+    (>>>>) n = cases _ -> bug ""
+    
     catchAll : x -> Nat
     catchAll x = 99
     
@@ -640,27 +643,28 @@ These are currently all expected to have different hashes on round trip, though 
 
   Added definitions:
   
-    1.  catchAll         : x -> Nat
-    2.  fix_2650         : Nat
-    3.  fix_2650a        : tvar -> fun -> ()
-    4.  fix_2650b        : tvar -> '()
-    5.  fix_2650c        : Optional Nat -> ()
-    6.  fix_3110a        : x -> f -> ()
-    7.  fix_3110b        : ()
-    8.  fix_3110c        : ()
-    9.  fix_3110d        : ()
-    10. fix_3710         : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    11. fix_3710a        : (Nat, Nat, Nat, Nat, Nat, Nat)
-    12. fix_3710b        : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    13. fix_3710c        : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-    14. fix_3710d        : Optional a -> a
-    15. forkAt           : loc -> c -> Nat
-    16. ignore           : x -> ()
-    17. longlines        : x -> x
-    18. longlines1       : 'Text
-    19. longlines2       : (Text, '{g} Bytes)
-    20. longlines_helper : x -> 'x
-    21. multiline_fn     : a
+    1.  >>>>             : Nat -> Nat -> ()
+    2.  catchAll         : x -> Nat
+    3.  fix_2650         : Nat
+    4.  fix_2650a        : tvar -> fun -> ()
+    5.  fix_2650b        : tvar -> '()
+    6.  fix_2650c        : Optional Nat -> ()
+    7.  fix_3110a        : x -> f -> ()
+    8.  fix_3110b        : ()
+    9.  fix_3110c        : ()
+    10. fix_3110d        : ()
+    11. fix_3710         : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    12. fix_3710a        : (Nat, Nat, Nat, Nat, Nat, Nat)
+    13. fix_3710b        : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    14. fix_3710c        : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+    15. fix_3710d        : Optional a -> a
+    16. forkAt           : loc -> c -> Nat
+    17. ignore           : x -> ()
+    18. longlines        : x -> x
+    19. longlines1       : 'Text
+    20. longlines2       : (Text, '{g} Bytes)
+    21. longlines_helper : x -> 'x
+    22. multiline_fn     : a
                          -> b
                          -> c
                          -> d
@@ -671,133 +675,133 @@ These are currently all expected to have different hashes on round trip, though 
                          -> i
                          -> j
                          -> Nat
-    22. multiline_list   : [Nat]
-    23. softhang         : a -> b -> Nat
-    24. softhang2        : x -> f -> Nat
-    25. softhang21       : Nat
-    26. softhang21a      : Text
-    27. softhang22       : Nat
-    28. softhang23       : 'Nat
-    29. softhang24       : 'Nat
-    30. softhang25       : Text
-    31. softhang26       : Nat
-    32. softhang27       : somewhere -> Nat
-    33. softhang28       : Nat
-    34. softhang_a       : x -> 'Nat
-    35. softhang_b       : x -> 'Nat
-    36. softhang_c       : x -> 'Nat
-    37. softhang_d       : x -> '(b -> Nat)
-    38. test3            : '('('r))
+    23. multiline_list   : [Nat]
+    24. softhang         : a -> b -> Nat
+    25. softhang2        : x -> f -> Nat
+    26. softhang21       : Nat
+    27. softhang21a      : Text
+    28. softhang22       : Nat
+    29. softhang23       : 'Nat
+    30. softhang24       : 'Nat
+    31. softhang25       : Text
+    32. softhang26       : Nat
+    33. softhang27       : somewhere -> Nat
+    34. softhang28       : Nat
+    35. softhang_a       : x -> 'Nat
+    36. softhang_b       : x -> 'Nat
+    37. softhang_c       : x -> 'Nat
+    38. softhang_d       : x -> '(b -> Nat)
+    39. test3            : '('('r))
   
   Removed definitions:
   
-    39. structural type Fix_2337
-    40. structural ability Fix_2392
-    41. structural type Fix_2392a x y
-    42. structural type Id a
-    43. structural type SomethingUnusuallyLong
-    44. structural type UUID
-    45. structural ability Zoink
-    46. structural type Fully.qualifiedName
-    47. Fully.qualifiedName.Dontcare                  : '(Nat
+    40. structural type Fix_2337
+    41. structural ability Fix_2392
+    42. structural type Fix_2392a x y
+    43. structural type Id a
+    44. structural type SomethingUnusuallyLong
+    45. structural type UUID
+    46. structural ability Zoink
+    47. structural type Fully.qualifiedName
+    48. Fully.qualifiedName.Dontcare                  : '(Nat
                                                       -> qualifiedName)
-    48. Fix_2337.Fix_2337                             : Boolean
+    49. Fix_2337.Fix_2337                             : Boolean
                                                       -> Boolean
                                                       -> Fix_2337
-    49. Id.Id                                         : a
+    50. Id.Id                                         : a
                                                       -> Id a
-    50. Fix_2392a.Oog                                 : Nat
+    51. Fix_2392a.Oog                                 : Nat
                                                       -> Nat
                                                       -> ( Nat,
                                                         Nat)
                                                       -> Fix_2392a
                                                         x y
-    51. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
+    52. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
                                                       -> Text
                                                       -> Text
                                                       -> SomethingUnusuallyLong
-    52. UUID.UUID                                     : Nat
+    53. UUID.UUID                                     : Nat
                                                       -> ( Nat,
                                                         Nat)
                                                       -> UUID
-    53. Zoink.nay                                     : Text
+    54. Zoink.nay                                     : Text
                                                       -> ( Nat,
                                                         Nat)
                                                       ->{Zoink} Nat
-    54. Zoink.yay.there                               : Text
+    55. Zoink.yay.there                               : Text
                                                       ->{Zoink} Nat
-    55. Fix_2392.zonk                                 : {Fix_2392} Nat
-    56. ex1                                           : Nat
-    57. ex2                                           : Nat
-    58. ex3                                           : ()
-    59. ex3a                                          : ()
-    60. Fix_2337.f                                    : Fix_2337
+    56. Fix_2392.zonk                                 : {Fix_2392} Nat
+    57. ex1                                           : Nat
+    58. ex2                                           : Nat
+    59. ex3                                           : ()
+    60. ex3a                                          : ()
+    61. Fix_2337.f                                    : Fix_2337
                                                       -> Boolean
-    61. Fix_2392.f                                    : Nat
+    62. Fix_2392.f                                    : Nat
                                                       -> Fix_2392a
                                                         ('{Fix_2392} a)
                                                         ('{Fix_2392} b)
                                                       -> Nat
-    62. fix_1035                                      : Text
-    63. fix_1536                                      : 'Nat
-    64. fix_1778                                      : 'Optional
+    63. fix_1035                                      : Text
+    64. fix_1536                                      : 'Nat
+    65. fix_1778                                      : 'Optional
                                                         Nat
-    65. fix_2048                                      : Doc2
-    66. fix_2224                                      : [()]
+    66. fix_2048                                      : Doc2
+    67. fix_2224                                      : [()]
                                                       -> ()
-    67. fix_2224a                                     : [()]
+    68. fix_2224a                                     : [()]
                                                       -> ()
-    68. fix_2224b                                     : [[()]]
+    69. fix_2224b                                     : [[()]]
                                                       -> ()
-    69. fix_2271                                      : Doc2
-    70. fix_3627                                      : Nat
+    70. fix_2271                                      : Doc2
+    71. fix_3627                                      : Nat
                                                       -> Nat
                                                       -> Nat
-    71. fix_525_exampleTerm                           : Text
+    72. fix_525_exampleTerm                           : Text
                                                       -> Nat
-    72. fix_525_exampleType                           : Id
+    73. fix_525_exampleType                           : Id
                                                         qualifiedName
                                                       -> Id
                                                         qualifiedName
-    73. handler_1778                                  : a
+    74. handler_1778                                  : a
                                                       -> Request
                                                         {Abort}
                                                         a
                                                       -> a
-    74. nested_fences                                 : Doc2
-    75. Fix_525.bar.quaffle                           : Nat
-    76. Foo.bar.qux1                                  : Nat
-    77. Foo'.bar.qux1                                 : Text
-    78. Foo.bar.qux2                                  : Nat
-    79. Foo'.bar.qux2                                 : Text
-    80. Foo.bar.qux3                                  : Nat
-    81. Foo'.bar.qux3                                 : Text
-    82. UUID.random                                   : 'UUID
-    83. UUID.randomUUIDBytes                          : 'Bytes
-    84. raw_a                                         : Text
-    85. raw_b                                         : Text
-    86. raw_c                                         : Text
-    87. raw_d                                         : Text
-    88. simplestPossibleExample                       : Nat
-    89. somethingVeryLong                             : 'Nat
-    90. Abort.toDefault!                              : a
+    75. nested_fences                                 : Doc2
+    76. Fix_525.bar.quaffle                           : Nat
+    77. Foo.bar.qux1                                  : Nat
+    78. Foo'.bar.qux1                                 : Text
+    79. Foo.bar.qux2                                  : Nat
+    80. Foo'.bar.qux2                                 : Text
+    81. Foo.bar.qux3                                  : Nat
+    82. Foo'.bar.qux3                                 : Text
+    83. UUID.random                                   : 'UUID
+    84. UUID.randomUUIDBytes                          : 'Bytes
+    85. raw_a                                         : Text
+    86. raw_b                                         : Text
+    87. raw_c                                         : Text
+    88. raw_d                                         : Text
+    89. simplestPossibleExample                       : Nat
+    90. somethingVeryLong                             : 'Nat
+    91. Abort.toDefault!                              : a
                                                       -> '{g,
                                                       Abort} a
                                                       ->{g} a
-    91. Abort.toOptional                              : '{g,
+    92. Abort.toOptional                              : '{g,
                                                       Abort} a
                                                       -> '{g} Optional
                                                         a
-    92. Abort.toOptional!                             : '{g,
+    93. Abort.toOptional!                             : '{g,
                                                       Abort} a
                                                       ->{g} Optional
                                                         a
-    93. use_clauses_example                           : Int
+    94. use_clauses_example                           : Int
                                                       -> Text
                                                       -> Nat
-    94. use_clauses_example2                          : Int
+    95. use_clauses_example2                          : Int
                                                       -> Nat
-    95. |>                                            : a
+    96. |>                                            : a
                                                       -> (a
                                                       ->{e} b)
                                                       ->{e} b
