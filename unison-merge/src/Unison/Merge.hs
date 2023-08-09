@@ -83,29 +83,17 @@ computeTypeUserUpdates loadDecl constructorMapping allUpdates =
       DeclR Decl.TypeRef v ->
       Bool
     isUserUpdate2 oldRef oldDecl newRef newDecl =
-      let oldBounds = boundsIndices oldDecl
-          newBounds = boundsIndices newDecl
-       in -- FIXME rename
-          or
-            [ Decl.modifier oldDecl /= Decl.modifier newDecl,
-              Map.size oldBounds /= Map.size newBounds,
-              length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
-              any
-                isUserUpdate3
-                ( zip
-                    (Decl.constructorTypes oldDecl)
-                    (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
-                )
-            ]
-      where
-        boundsIndices :: DeclR reference v -> Map v Int
-        boundsIndices =
-          fst . foldl' step (Map.empty, 0) . Decl.bound
-          where
-            step (acc, i) v =
-              let !acc' = Map.insert v i acc
-                  !i' = i + 1
-               in (acc', i')
+      or
+        [ Decl.modifier oldDecl /= Decl.modifier newDecl,
+          length (Decl.bound oldDecl) /= length (Decl.bound newDecl),
+          length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
+          any
+            isUserUpdate3
+            ( zip
+                (Decl.constructorTypes oldDecl)
+                (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
+            )
+        ]
 
     isUserUpdate3 :: (TypeR Decl.TypeRef v, TypeR Decl.TypeRef v) -> Bool
     isUserUpdate3 (lhs0, rhs0) =
