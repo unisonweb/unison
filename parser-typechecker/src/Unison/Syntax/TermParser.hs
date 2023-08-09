@@ -985,7 +985,7 @@ infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
 typedecl :: (Monad m, Var v) => P v m (L.Token v, Type v Ann)
 typedecl =
   (,)
-    <$> P.try (prefixDefinitionName <* reserved ":")
+    <$> P.try (prefixTermName <* reserved ":")
     <*> TypeParser.valueType
     <* semi
 
@@ -1053,8 +1053,8 @@ binding = label "binding" do
         arg2 <- prefixDefinitionName
         pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
-        v <- prefixDefinitionName
-        vs <- many prefixDefinitionName
+        v <- prefixTermName
+        vs <- many prefixTermName
         pure (ann v, v, vs)
   let lhs :: P v m (Ann, L.Token v, [L.Token v])
       lhs = infixLhs <|> prefixLhs
