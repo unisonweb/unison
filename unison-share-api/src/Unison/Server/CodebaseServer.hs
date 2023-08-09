@@ -126,7 +126,7 @@ type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type LooseCodeAPI = CodebaseServerAPI
+type LooseCodeAPI = "non-project-code" :> CodebaseServerAPI
 
 type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
 
@@ -140,7 +140,7 @@ type CodebaseServerAPI =
     :<|> TypeSummaryAPI
 
 type ProjectsAPI =
-  "projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> LooseCodeAPI
+  "projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -172,7 +172,8 @@ data DefinitionReference
 
 data Service
   = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
-  | ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) (Maybe DefinitionReference)
+  | -- (Project branch names, perspective within project, definition reference)
+    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Path (Maybe DefinitionReference)
   | Api
   deriving stock (Show)
 
@@ -191,52 +192,66 @@ data URISegment
 -- >>> urlFor Api (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- "http://localhost:1234/asdf/api"
 --
+-- Loose code with definition but no perspective
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> let service = LooseCodeUI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "http://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
+-- "http://localhost:1234/asdf/ui/non-project-code/latest/terms/base/data/List/map"
 --
+-- Loose code with definition and perspective
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> let service = LooseCodeUI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "http://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/non-project-code/latest/namespaces/base/data/;/terms/List/map"
 --
+-- Project with definition but no perspective
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
--- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "base") (UnsafeProjectBranchName "main")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "base") (UnsafeProjectBranchName "main")) (Path.empty) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "http://localhost:1234/asdf/ui/projects/base/main/latest/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/projects/base/main/latest/terms/List/map"
 --
+-- Project with definition but no perspective, contributor branch
 -- >>> import qualified Unison.Syntax.Name as Name
 -- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
--- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Path.empty) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
 -- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/;/terms/List/map"
+-- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/terms/List/map"
+--
+-- Project with definition and perspective
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Path.fromList ["data"]) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/namespaces/data/;/terms/List/map"
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
-    LooseCodeUI ns def ->
-      toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path ns def)
-    ProjectBranchUI (ProjectAndBranch projectName branchName) def ->
-      toUrlPath $ [DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path Path.absoluteEmpty def
-    Api -> toUrlPath [DontEscape "api"]
+    LooseCodeUI perspective def ->
+      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path (Path.unabsolute perspective) def)
+    ProjectBranchUI (ProjectAndBranch projectName branchName) perspective def ->
+      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path perspective def)
+    Api -> tShow baseUrl <> "/" <> toUrlPath [DontEscape "api"]
   where
-    path :: Path.Absolute -> Maybe DefinitionReference -> [URISegment]
+    path :: Path.Path -> Maybe DefinitionReference -> [URISegment]
     path ns def =
       let nsPath = namespacePath ns
        in case definitionPath def of
-            Just defPath -> [DontEscape "latest"] <> nsPath <> [DontEscape ";"] <> defPath
+            Just defPath -> case nsPath of
+              [] -> [DontEscape "latest"] <> defPath
+              _ -> [DontEscape "latest"] <> nsPath <> [DontEscape ";"] <> defPath
             Nothing -> [DontEscape "latest"] <> nsPath
 
-    namespacePath :: Path.Absolute -> [URISegment]
+    namespacePath :: Path.Path -> [URISegment]
     namespacePath path =
-      if path == Path.absoluteEmpty
+      if path == Path.empty
         then []
-        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toText <$> Path.toList (Path.unabsolute path))
+        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toText <$> Path.toList path)
 
     definitionPath :: Maybe DefinitionReference -> Maybe [URISegment]
     definitionPath def =
@@ -248,7 +263,6 @@ urlFor service baseUrl =
         & fmap \case
           EscapeMe txt -> UriEncode.encodeText txt
           DontEscape txt -> txt
-        & (tShow baseUrl :)
         & Text.intercalate "/"
 
     refToUrlText :: HashQualified Name -> [URISegment]

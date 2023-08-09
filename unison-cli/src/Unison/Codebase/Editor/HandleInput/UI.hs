@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.HandleInput.UI (openUI) where
 
 import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -47,21 +48,31 @@ openUI path' = do
 
 openUIForProject :: Server.BaseUrl -> ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Path.Path -> Cli ()
 openUIForProject url projectAndBranch pathFromProjectRoot = do
-  mayDefinitionRef <- getDefinitionRef
+  currentPath <- Cli.getCurrentPath
+  perspective <-
+    Project.getProjectBranchForPath currentPath <&> \case
+      Nothing ->
+        -- The current path is outside the project the argument was in. Use the project root
+        -- as the perspective.
+        Path.empty
+      Just (_projectBranch, pathWithinBranch) -> pathWithinBranch
+  mayDefinitionRef <- getDefinitionRef perspective
   let projectBranchNames = bimap Project.name ProjectBranch.name projectAndBranch
-  _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames mayDefinitionRef) url
+  _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames perspective mayDefinitionRef) url
   pure ()
   where
     pathToBranchFromCodebaseRoot :: Path.Absolute
     pathToBranchFromCodebaseRoot = projectBranchPath (bimap Project.projectId ProjectBranch.branchId projectAndBranch)
     -- If the provided ui path matches a definition, find it.
-    getDefinitionRef :: Cli (Maybe (Server.DefinitionReference))
-    getDefinitionRef = runMaybeT $ do
+    getDefinitionRef :: Path.Path -> Cli (Maybe (Server.DefinitionReference))
+    getDefinitionRef perspective = runMaybeT $ do
       Cli.Env {codebase} <- lift ask
       let absPathToDefinition = Path.unabsolute $ Path.resolve pathToBranchFromCodebaseRoot (Path.Relative pathFromProjectRoot)
       (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc absPathToDefinition
       namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
-      fqn <- hoistMaybe $ Path.toName pathFromProjectRoot
+      fqn <- hoistMaybe $ do
+        pathFromPerspective <- List.stripPrefix (Path.toList perspective) (Path.toList pathFromProjectRoot)
+        Path.toName . Path.fromList $ pathFromPerspective
       def <- MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
       pure def
 
@@ -81,31 +92,31 @@ getTermOrTypeRef codebase namespaceBranch fqn = runMaybeT $ do
 openUIForLooseCode :: Server.BaseUrl -> Path.Path' -> Cli ()
 openUIForLooseCode url path' = do
   Cli.Env {codebase} <- ask
-  (perspective, definitionRef) <- getUIUrlParts codebase
-
+  currentPath <- Cli.getCurrentPath
+  (perspective, definitionRef) <- getUIUrlParts currentPath path' codebase
   _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.LooseCodeUI perspective definitionRef) url
   pure ()
-  where
-    getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
-    getUIUrlParts codebase = do
-      currentPath <- Cli.getCurrentPath
-      let absPath = Path.resolve currentPath path'
-      let name = Path.unsafeToName $ Path.fromPath' path'
-      let perspective =
-            if Path.isAbsolute path'
-              then Path.absoluteEmpty
-              else currentPath
-      case Lens.unsnoc absPath of
-        Just (abs, _nameSeg) -> do
-          namespaceBranch <-
-            Cli.runTransaction
-              (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
-          mayDefRef <- getTermOrTypeRef codebase namespaceBranch name
-          case mayDefRef of
-            Nothing -> pure (absPath, Nothing)
-            Just defRef -> pure (perspective, Just defRef)
-        Nothing ->
-          pure (absPath, Nothing)
+
+getUIUrlParts :: Path.Absolute -> Path.Path' -> Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
+getUIUrlParts startPath definitionPath' codebase = do
+  let absPath = Path.resolve startPath definitionPath'
+  let perspective =
+        if Path.isAbsolute definitionPath'
+          then Path.absoluteEmpty
+          else startPath
+  case Lens.unsnoc absPath of
+    Just (abs, _nameSeg) -> do
+      namespaceBranch <-
+        Cli.runTransaction
+          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
+      mayDefRef <- runMaybeT do
+        name <- hoistMaybe $ Path.toName $ Path.fromPath' definitionPath'
+        MaybeT $ getTermOrTypeRef codebase namespaceBranch name
+      case mayDefRef of
+        Nothing -> pure (absPath, Nothing)
+        Just defRef -> pure (perspective, Just defRef)
+    Nothing ->
+      pure (absPath, Nothing)
 
 toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
 toTypeReference name reference =
