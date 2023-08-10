@@ -40,7 +40,6 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
-import Unison.ABT qualified as Tm (substs)
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)

@@ -395,7 +395,8 @@ groupFloater rec vbs = do
       shvs = Set.fromList $ map (rn . fst) vbs
   modify $ \(cvs, ctx, dcmp) -> (cvs <> shvs, ctx, dcmp)
   fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.renames shadowMap b)) vbs
-  modify $ \(vs, ctx, dcmp) -> (vs, ctx ++ fvbs, dcmp <> fvbs)
+  let dvbs = fmap (\(v, b) -> (rn v, deannotate b)) vbs
+  modify $ \(vs, ctx, dcmp) -> (vs, ctx ++ fvbs, dcmp <> dvbs)
   pure shadowMap
   where
     rec' b
@@ -518,7 +519,7 @@ float tm = case runState go0 (Set.empty, [], []) of
     (subs, _, tops, dcmp) ->
       ( letRec' True [] . ABT.substs subs . deannotate $ bd,
         tops,
-        fmap deannotate <$> dcmp
+        dcmp
       )
   where
     go0 = fromMaybe (go tm) (floater True go tm)
