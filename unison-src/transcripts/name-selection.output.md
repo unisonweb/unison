@@ -1430,7 +1430,9 @@ d = c + 10
                                                          Failure
     513. builtin.Code.validateLinks                    : [( Term,
                                                          Code)]
-                                                       ->{Exception} [Term]
+                                                       ->{Exception} Either
+                                                         [Term]
+                                                         [Term]
     514. builtin.io2.validateSandboxed                 : [Term]
                                                        -> a
                                                        -> Boolean

@@ -342,7 +342,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        
   108. -- ##Code.validateLinks
        builtin.Code.validateLinks : [(Link.Term, Code)]
-       ->{Exception} [Link.Term]
+       ->{Exception} Either [Link.Term] [Link.Term]
        
   109. -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0
        unique type builtin.ConsoleText

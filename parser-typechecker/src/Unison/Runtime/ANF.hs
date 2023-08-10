@@ -100,8 +100,8 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Reference (..), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con)
+import Unison.Reference (Id, Reference (..))
+import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
 import Unison.Type qualified as Ty
@@ -496,11 +496,14 @@ postFloat orig (_, bs, dcmp) =
     fmap (first DerivedId) tops,
     dcmp >>= \(v, tm) ->
       let stm = open $ ABT.substs dsubs tm
-      in (subm Map.! v, stm):[(r,stm) | Just r <- [Map.lookup v orig]]
+       in (subm Map.! v, stm) : [(r, stm) | Just r <- [Map.lookup v orig]]
   )
   where
-    m = fmap (fmap deannotate) . hashTermComponentsWithoutTypes .
-          Map.fromList $ bs
+    m =
+      fmap (fmap deannotate)
+        . hashTermComponentsWithoutTypes
+        . Map.fromList
+        $ bs
     trips = Map.toList m
     f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
       where
@@ -575,7 +578,7 @@ lamLiftGroup ::
   Map v Reference ->
   [(v, Term v a)] ->
   ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
-lamLiftGroup orig gr = floatGroup orig . (fmap.fmap) (close keep) $ gr
+lamLiftGroup orig gr = floatGroup orig . (fmap . fmap) (close keep) $ gr
   where
     keep = Set.fromList $ map fst gr
 
@@ -1954,7 +1957,7 @@ traverseGroupLinks ::
   SuperGroup v ->
   f (SuperGroup v)
 traverseGroupLinks f (Rec bs e) =
-  Rec <$> (traverse.traverse) (normalLinks f) bs <*> normalLinks f e
+  Rec <$> (traverse . traverse) (normalLinks f) bs <*> normalLinks f e
 
 foldGroupLinks ::
   (Monoid r, Var v) =>
@@ -2002,7 +2005,8 @@ anfFLinks _ _ v = pure v
 litLinks ::
   (Applicative f) =>
   (Bool -> Reference -> f Reference) ->
-  Lit -> f Lit
+  Lit ->
+  f Lit
 litLinks f (LY r) = LY <$> f True r
 litLinks f (LM (Con (ConstructorReference r i) t)) =
   LM . flip Con t . flip ConstructorReference i <$> f True r
@@ -2017,16 +2021,16 @@ branchLinks ::
   f (Branched e)
 branchLinks f g (MatchRequest m e) =
   MatchRequest . Map.fromList
-    <$> traverse (bitraverse f $ (traverse.traverse) g) (Map.toList m)
+    <$> traverse (bitraverse f $ (traverse . traverse) g) (Map.toList m)
     <*> g e
 branchLinks f g (MatchData r m e) =
-  MatchData <$> f r <*> (traverse.traverse) g m <*> traverse g e
+  MatchData <$> f r <*> (traverse . traverse) g m <*> traverse g e
 branchLinks _ g (MatchText m e) =
   MatchText <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchIntegral m e) =
   MatchIntegral <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
-  MatchSum <$> (traverse.traverse) g m
+  MatchSum <$> (traverse . traverse) g m
 branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::

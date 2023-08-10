@@ -142,8 +142,8 @@ import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF as ANF
-import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.ANF.Rehash (checkGroupHashes)
+import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
@@ -1436,6 +1436,7 @@ outIoExnNat stack1 stack2 stack3 any fail result =
             $ TCon Ty.natRef 0 [stack1]
         )
       ]
+
 outIoExnUnit ::
   forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnUnit stack1 stack2 stack3 any fail result =
@@ -1463,14 +1464,14 @@ outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 res =
         ( 1,
           ([UN],)
             . TAbs t1
-            . TMatch t1 . MatchSum $
-              mapFromList
-                [ (0, ([BX], TAbs res $ left res)),
-                  (1, ([BX], TAbs res $ right res))
-                ]
+            . TMatch t1
+            . MatchSum
+            $ mapFromList
+              [ (0, ([BX], TAbs res $ left res)),
+                (1, ([BX], TAbs res $ right res))
+              ]
         )
       ]
-
 
 outIoFailBox :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailBox stack1 stack2 stack3 any fail result =
@@ -2691,9 +2692,9 @@ declareForeigns = do
   declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
     . mkForeign
     $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
-        let f (msg, rs) =
-              Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-        pure . first f $ checkGroupHashes lsgs0
+      let f (msg, rs) =
+            Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
+      pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->

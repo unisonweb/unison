@@ -13,15 +13,15 @@ import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Maybe (mapMaybe)
 import Data.Map as Map (Map, fromList, lookup)
+import Data.Maybe (mapMaybe)
 import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
-import Unison.Reference (Reference(Builtin), pattern Derived)
+import Unison.Reference (Reference (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
@@ -277,7 +277,7 @@ getCCs =
 -- that the process is reversible. The purpose of this is merely to
 -- strip out (mutual/)self-references when producing a byte sequence
 -- to recompute a hash of a connected component of intermediate
--- definitons, since it is infeasible to 
+-- definitons, since it is infeasible to
 --
 -- The EnumMap associates 'foreign' operations with a textual name
 -- that is used as the serialized representation. Since they are
@@ -359,8 +359,9 @@ putNormal refrep fops ctx tm = case tm of
       *> putArgs ctx as
       *> putNormal refrep fops (v : ctx) e
     where
-      pr | Just w <- Map.lookup r refrep = putWord64be w
-         | otherwise = putReference r
+      pr
+        | Just w <- Map.lookup r refrep = putWord64be w
+        | otherwise = putReference r
   TName v (Right u) as e ->
     putTag NameVarT
       *> putVar ctx u

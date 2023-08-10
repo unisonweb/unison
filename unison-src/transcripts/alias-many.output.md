@@ -92,7 +92,8 @@ Let's try it!
   72.  Code.lookup : Term ->{IO} Optional Code
   73.  Code.serialize : Code -> Bytes
   74.  Code.validate : [(Term, Code)] ->{IO} Optional Failure
-  75.  Code.validateLinks : [(Term, Code)] ->{Exception} [Term]
+  75.  Code.validateLinks : [(Term, Code)]
+                            ->{Exception} Either [Term] [Term]
   76.  crypto.hash : HashAlgorithm -> a -> Bytes
   77.  builtin type crypto.HashAlgorithm
   78.  crypto.HashAlgorithm.Blake2b_256 : HashAlgorithm

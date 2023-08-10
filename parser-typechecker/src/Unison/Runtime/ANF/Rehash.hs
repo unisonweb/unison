@@ -1,4 +1,3 @@
-
 module Unison.Runtime.ANF.Rehash where
 
 import Crypto.Hash
@@ -26,7 +25,7 @@ checkGroupHashes rgs = case checkMissing rgs of
   Left err -> Left err
   Right []
     | (rrs, _) <- rehashGroups . Map.fromList $ first toReference <$> rgs ->
-      Right . Right . fmap (Ref . fst) . filter (uncurry (/=)) $ Map.toList rrs
+        Right . Right . fmap (Ref . fst) . filter (uncurry (/=)) $ Map.toList rrs
   Right ms -> Right (Left $ Ref <$> ms)
 
 rehashGroups ::
@@ -42,10 +41,11 @@ rehashGroups m = foldl step (Map.empty, Map.empty) sccs
     step (remap, newSGs) scc0 =
       (Map.union remap rm, Map.union newSGs sgs)
       where
-      rp b r | not b, Just r <- Map.lookup r remap = r
-             | otherwise = r
-      scc = second (overGroupLinks rp) <$> scc0
-      (rm, sgs) = rehashSCC scc
+        rp b r
+          | not b, Just r <- Map.lookup r remap = r
+          | otherwise = r
+        scc = second (overGroupLinks rp) <$> scc0
+        (rm, sgs) = rehashSCC scc
 
 checkMissing ::
   Var v =>
@@ -56,7 +56,7 @@ checkMissing (unzip -> (rs, gs)) = do
   pure . nub . foldMap (filter (p is) . groupTermLinks) $ gs
   where
     f (Ref (DerivedId i)) = pure i
-    f r@Ref{} =
+    f r@Ref {} =
       Left ("loaded code cannot be associated to a builtin link", [r])
     f r =
       Left ("loaded code cannot be associated to a constructor", [r])
@@ -65,10 +65,10 @@ checkMissing (unzip -> (rs, gs)) = do
       any (\j -> idToHash i == idToHash j) s && not (Set.member i s)
     p _ _ = False
 
-rehashSCC
-  :: Var v
-  => SCC (Reference, SuperGroup v)
-  -> (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
+rehashSCC ::
+  Var v =>
+  SCC (Reference, SuperGroup v) ->
+  (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
 rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where
@@ -77,10 +77,12 @@ rehashSCC scc
       Derived h _ -> h
       _ -> error "rehashSCC: impossible"
     bss = fmap (uncurry $ serializeGroupForRehash mempty) ps
-    digest = hashFinalize
-           $ foldl' (\cx -> hashUpdates cx . toChunks)
-                    (hashInitWith Blake2b_256)
-                    bss
+    digest =
+      hashFinalize $
+        foldl'
+          (\cx -> hashUpdates cx . toChunks)
+          (hashInitWith Blake2b_256)
+          bss
     newHash = fromByteString . cons 0 $ convert digest
     replace (Derived h i)
       | h == sample = Derived newHash i
@@ -91,13 +93,12 @@ rehashSCC scc
     newSGs = Map.fromList $ fmap (bimap replace replace') ps
 
     refreps = Map.fromList $ fmap (\(r, _) -> (r, replace r)) ps
-
 rehashSCC scc = error $ "unexpected SCC:\n" ++ show scc
 
 checkSCC :: SCC (Reference, SuperGroup v) -> Bool
-checkSCC AcyclicSCC{} = True
+checkSCC AcyclicSCC {} = True
 checkSCC (CyclicSCC []) = True
-checkSCC (CyclicSCC (p:ps)) = all (same p) ps
+checkSCC (CyclicSCC (p : ps)) = all (same p) ps
   where
     same (Derived h _, _) (Derived h' _, _) = h == h'
     same _ _ = False

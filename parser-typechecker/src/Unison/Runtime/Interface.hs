@@ -249,16 +249,17 @@ backrefAdd m ctx@ECtx {decompTm} =
 
 remapAdd :: Map.Map Reference Reference -> Remapping -> Remapping
 remapAdd m Remap {remap, backmap} =
-  Remap { remap = m <> remap, backmap = tm <> backmap }
-  where tm = Map.fromList . fmap (\(x, y) -> (y, x)) $ Map.toList m
+  Remap {remap = m <> remap, backmap = tm <> backmap}
+  where
+    tm = Map.fromList . fmap (\(x, y) -> (y, x)) $ Map.toList m
 
 floatRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 floatRemapAdd m ctx@ECtx {floatRemap} =
-  ctx { floatRemap = remapAdd m floatRemap}
+  ctx {floatRemap = remapAdd m floatRemap}
 
 intermedRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 intermedRemapAdd m ctx@ECtx {intermedRemap} =
-  ctx { intermedRemap = remapAdd m intermedRemap }
+  ctx {intermedRemap = remapAdd m intermedRemap}
 
 baseToIntermed :: EvalCtx -> Reference -> Maybe Reference
 baseToIntermed ctx r = do
@@ -290,10 +291,12 @@ performRehash rgrp0 ctx =
   where
     frs = remap $ floatRemap ctx
     irs = remap $ intermedRemap ctx
-    f b r | not b,
-            r <- Map.findWithDefault r r frs,
-            Just r <- Map.lookup r irs = r
-          | otherwise = r
+    f b r
+      | not b,
+        r <- Map.findWithDefault r r frs,
+        Just r <- Map.lookup r irs =
+          r
+      | otherwise = r
 
     (rrefs, rrgrp) = rehashGroups $ fmap (overGroupLinks f) rgrp0
 
@@ -372,15 +375,18 @@ intermediateTerms ppe ctx rtms =
     (subvs, cmbs, dcmp) ->
       (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
-        f ref = superNormalize
-                  . splitPatterns (dspec ctx)
-                  . addDefaultCases tmName
-          where tmName = HQ.toString . termName ppe $ RF.Ref ref
+        f ref =
+          superNormalize
+            . splitPatterns (dspec ctx)
+            . addDefaultCases tmName
+          where
+            tmName = HQ.toString . termName ppe $ RF.Ref ref
   where
-  orig = Map.fromList
-           . fmap (\(x,y) -> (y, RF.DerivedId x))
-           . Map.toList
-           $ Map.map fst rtms
+    orig =
+      Map.fromList
+        . fmap (\(x, y) -> (y, RF.DerivedId x))
+        . Map.toList
+        $ Map.map fst rtms
 
 normalizeTerm ::
   EvalCtx ->
@@ -396,9 +402,9 @@ normalizeTerm ctx tm =
     . inlineAlias
     $ tm
   where
-  absorb (ll, bs, dcmp) =
-    let ref = RF.DerivedId $ Hashing.hashClosedTerm ll in
-    (ref, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
+    absorb (ll, bs, dcmp) =
+      let ref = RF.DerivedId $ Hashing.hashClosedTerm ll
+       in (ref, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
 
 normalizeGroup ::
   EvalCtx ->
@@ -415,7 +421,7 @@ normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
       Map.fromList dcmp
     )
   where
-  gr = fmap (saturate (uncurryDspec $ dspec ctx) . inlineAlias) <$> gr0
+    gr = fmap (saturate (uncurryDspec $ dspec ctx) . inlineAlias) <$> gr0
 
 intermediateTerm ::
   (HasCallStack) =>
@@ -431,9 +437,10 @@ intermediateTerm ppe ctx tm =
     (ref, cmbs, dcmp) -> (ref, fmap f cmbs, dcmp)
       where
         tmName = HQ.toString . termName ppe $ RF.Ref ref
-        f = superNormalize
-              . splitPatterns (dspec ctx)
-              . addDefaultCases tmName
+        f =
+          superNormalize
+            . splitPatterns (dspec ctx)
+            . addDefaultCases tmName
 
 prepareEvaluation ::
   (HasCallStack) =>
@@ -485,12 +492,15 @@ evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
-      decom = decompile
-                (intermedToBase ctx)
-                (backReferenceTm crs
-                  (floatRemap ctx)
-                  (intermedRemap ctx)
-                  (decompTm ctx))
+      decom =
+        decompile
+          (intermedToBase ctx)
+          ( backReferenceTm
+              crs
+              (floatRemap ctx)
+              (intermedRemap ctx)
+              (decompTm ctx)
+          )
 
       prettyError (PE _ p) = p
       prettyError (BU tr0 nm c) =
@@ -527,12 +537,15 @@ executeMainComb init cc = do
     formatErr (BU tr nm c) = do
       crs <- readTVarIO (combRefs cc)
       let ctx = cacheContext cc
-          decom = decompile
-                    (intermedToBase ctx)
-                    (backReferenceTm crs
-                      (floatRemap ctx)
-                      (intermedRemap ctx)
-                      (decompTm ctx))
+          decom =
+            decompile
+              (intermedToBase ctx)
+              ( backReferenceTm
+                  crs
+                  (floatRemap ctx)
+                  (intermedRemap ctx)
+                  (decompTm ctx)
+              )
       pure . either id (bugMsg PPE.empty tr nm) $ decom c
 
 bugMsg ::
@@ -761,9 +774,10 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     <*> newTVarIO (rty <> builtinTypeNumbering)
     <*> newTVarIO (sbs <> baseSandboxInfo)
   where
-    decom = decompile
-              (const Nothing)
-              (backReferenceTm crs mempty mempty mempty)
+    decom =
+      decompile
+        (const Nothing)
+        (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
       Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty PPE.empty dv
       Left _ -> MsgTrace ("Couldn't decompile value") (show c)
