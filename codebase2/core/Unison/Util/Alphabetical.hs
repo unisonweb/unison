@@ -4,8 +4,9 @@
 
 module Unison.Util.Alphabetical where
 
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.RFC5051 as RFC5051
+import Data.List qualified as List
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.RFC5051 qualified as RFC5051
 import Data.Text (Text)
 
 -- Alphabetical ordering used for sorting things to display to humans.
@@ -16,6 +17,12 @@ import Data.Text (Text)
 -- stashing the values in maps and sets.
 class (Eq n) => Alphabetical n where
   compareAlphabetical :: n -> n -> Ordering
+
+sortAlphabetically :: Alphabetical a => [a] -> [a]
+sortAlphabetically as = (\(OrderAlphabetically a) -> a) <$> List.sort (map OrderAlphabetically as)
+
+sortAlphabeticallyOn :: Alphabetical a => (b -> a) -> [b] -> [b]
+sortAlphabeticallyOn f = List.sortOn (OrderAlphabetically . f)
 
 instance Alphabetical Text where
   compareAlphabetical = RFC5051.compareUnicode

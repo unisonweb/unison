@@ -1,8 +1,8 @@
 module Unison.Server.QueryResult where
 
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Server.SearchResult as SR
+import Unison.Server.SearchResult qualified as SR
 
 data QueryResult = QueryResult
   { misses :: [HQ.HashQualified Name],

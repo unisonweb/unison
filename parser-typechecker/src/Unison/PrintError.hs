@@ -6,61 +6,62 @@ import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
 import Data.List (find, intersperse)
 import Data.List.Extra (nubOrd)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.Sequence (Seq (..))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NES
-import qualified Data.Text as Text
-import Data.Void (Void)
-import qualified Text.Megaparsec as P
-import qualified Unison.ABT as ABT
+import Data.Set.NonEmpty qualified as NES
+import Data.Text qualified as Text
+import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
-import qualified Unison.Kind as Kind
+import Unison.Kind qualified as Kind
 import Unison.Name (Name)
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern (Pattern)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.Reference as R
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.Reference qualified as R
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
-import qualified Unison.Result as Result
-import qualified Unison.Settings as Settings
-import qualified Unison.Syntax.HashQualified as HQ (toString)
-import qualified Unison.Syntax.Lexer as L
-import qualified Unison.Syntax.Name as Name (toText)
+import Unison.Result qualified as Result
+import Unison.Settings qualified as Settings
+import Unison.Symbol (Symbol)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
+import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermPrinter as TermPrinter
-import qualified Unison.Term as Term
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermPrinter qualified as TermPrinter
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.TypeError
-import qualified Unison.Typechecker.TypeVar as TypeVar
-import qualified Unison.UnisonFile.Error as UF
+import Unison.Typechecker.TypeVar qualified as TypeVar
+import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.AnnotatedText (AnnotatedText)
-import qualified Unison.Util.AnnotatedText as AT
+import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText (Color)
-import qualified Unison.Util.ColorText as Color
+import Unison.Util.ColorText qualified as Color
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty)
-import qualified Unison.Util.Pretty as Pr
+import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type Env = PPE.PrettyPrintEnv
 
@@ -592,6 +593,34 @@ renderTypeError e env src curPath = case e of
                   <> annotatedAsErrorSite src typeSite,
         "Make sure it's imported and spelled correctly."
       ]
+  UncoveredPatterns loc tms ->
+    mconcat
+      [ Pr.hang
+          "Pattern match doesn't cover all possible cases:"
+          (annotatedAsErrorSite src loc),
+        "\n\n"
+      ]
+      <> Pr.hang
+        "Patterns not matched:\n"
+        ( Pr.bulleted
+            (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+        )
+  RedundantPattern loc ->
+    Pr.hang
+      "This case would be ignored because it's already covered by the preceding case(s):"
+      (annotatedAsErrorSite src loc)
+  UnknownTerm {..}
+    | Var.typeOf unknownTermV == Var.MissingResult ->
+        Pr.lines
+          [ Pr.wrap "The last element of a block must be an expression, but this is a definition:",
+            "",
+            annotatedAsErrorSite src termSite,
+            Pr.wrap $ "Try adding an expression at the end of the block." <> msg
+          ]
+    where
+      msg = case expectedType of
+        Type.Var' (TypeVar.Existential {}) -> mempty
+        _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
@@ -810,6 +839,26 @@ renderTypeError e env src curPath = case e of
     --     C.InMatchBody     -> "InMatchBody"
     simpleCause :: C.Cause v loc -> Pretty ColorText
     simpleCause = \case
+      C.UncoveredPatterns loc tms ->
+        mconcat
+          [ "Incomplete pattern matches:\n",
+            annotatedAsErrorSite src loc,
+            "\n\n",
+            "Uncovered cases:\n"
+          ]
+          <> Pr.sep "\n" (map (\x -> Pr.lit (renderPattern env x)) (Nel.toList tms))
+      C.RedundantPattern loc ->
+        mconcat
+          [ "Redundant pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
+      C.InaccessiblePattern loc ->
+        mconcat
+          [ "Inaccessible pattern match: ",
+            "\n",
+            annotatedAsErrorSite src loc
+          ]
       C.TypeMismatch c ->
         mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
       C.HandlerOfUnexpectedType loc typ ->
@@ -936,7 +985,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Data -> "  data type"
         C.Effect -> "  ability",
       "\n",
-      "  reerence = ",
+      "  reference = ",
       showTypeRef env rf
     ]
   C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
@@ -1020,12 +1069,15 @@ renderContext env ctx@(C.Context es) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
-renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
+renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
    in if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
+        then fromString ("..." <> drop (length s - Settings.renderTermMaxLength) s)
         else fromString s
+
+renderPattern :: Env -> Pattern ann -> ColorText
+renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc 0 ([] :: [Symbol]) e
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s

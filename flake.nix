@@ -1,105 +1,177 @@
 {
-  description = "A common environment for unison development";
-
-  inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+  description = "Unison";
+  nixConfig = {
+    extra-substituters = [ "https://unison.cachix.org" ];
+    extra-trusted-public-keys = [
+      "unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="
+    ];
   };
-
-  outputs = { self, flake-utils, nixpkgs }:
-    let
-      systemAttrs = flake-utils.lib.eachDefaultSystem (system:
+  inputs = {
+    haskellNix.url = "github:input-output-hk/haskell.nix";
+    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
+  };
+  outputs = { self, nixpkgs, flake-utils, haskellNix, flake-compat }:
+    flake-utils.lib.eachSystem [
+      "x86_64-linux"
+      "x86_64-darwin"
+      "aarch64-darwin"
+    ]
+      (system:
         let
-          pkgs = nixpkgs.legacyPackages."${system}".extend self.overlay;
-
-          mystack = pkgs.symlinkJoin {
-            name = "stack";
-            paths = [ pkgs.stack ];
-            buildInputs = [ pkgs.makeWrapper ];
-            postBuild = let
-              flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
-              add-flags =
-                "--add-flags '${pkgs.lib.concatStringsSep " " flags}'";
-            in ''
-              wrapProgram "$out/bin/stack" ${add-flags}
-            '';
-          };
-          ghc-version = "8107";
-          ghc = pkgs.haskell.packages."ghc${ghc-version}";
-          make-ormolu = p:
-            p.callHackageDirect {
-              pkg = "ormolu";
-              ver = "0.4.0.0";
-              sha256 = "0r8jb8lpaxx7wxnvxiynx2dkrfibfl8nxnjl5n4vwy0az166bbnd";
-            } {
-              ghc-lib-parser =
-                pkgs.haskellPackages.ghc-lib-parser_9_2_5_20221107;
-              Cabal = pkgs.haskellPackages.Cabal_3_6_3_0;
-            };
-          myhls = let
-            hp = pkgs.haskellPackages.extend hp-override;
-            hp-override = final: prev: {
-              hls-floskell-plugin =
-                pkgs.haskell.lib.dontCheck prev.hls-floskell-plugin;
-              hls-rename-plugin =
-                pkgs.haskell.lib.dontCheck prev.hls-rename-plugin;
-              haskell-language-server =
-                pkgs.haskell.lib.overrideCabal prev.haskell-language-server
-                (drv: {
-                  configureFlags = drv.configureFlags ++ [
-                    "-f-brittany"
-                    "-f-fourmolu"
-                    "-f-floskell"
-                    "-f-stylishhaskell"
-                    "-f-hlint"
+          overlays = [
+            haskellNix.overlay
+            (final: prev: {
+              unison-project = with prev.lib.strings;
+                let
+                  cleanSource = pth:
+                    let
+                      src' = prev.lib.cleanSourceWith {
+                        filter = filt;
+                        src = pth;
+                      };
+                      filt = path: type:
+                        let
+                          bn = baseNameOf path;
+                          isHiddenFile = hasPrefix "." bn;
+                          isFlakeLock = bn == "flake.lock";
+                          isNix = hasSuffix ".nix" bn;
+                        in
+                        !isHiddenFile && !isFlakeLock && !isNix;
+                    in
+                    src';
+                in
+                final.haskell-nix.project' {
+                  src = cleanSource ./.;
+                  projectFileName = "stack.yaml";
+                  modules = [
+                    # enable profiling
+                    {
+                      enableLibraryProfiling = true;
+                      profilingDetail = "none";
+                    }
+                    # remove buggy build tool dependencies
+                    ({ lib, ... }: {
+                      # this component has the build tool
+                      # `unison-cli:unison` and somehow haskell.nix
+                      # decides to add some file sharing package
+                      # `unison` as a build-tool dependency.
+                      packages.unison-cli.components.exes.cli-integration-tests.build-tools =
+                        lib.mkForce [ ];
+                    })
                   ];
-                });
-              ormolu = make-ormolu final;
-            };
-          in pkgs.haskell-language-server.override {
-            haskellPackages = hp;
-            dynamic = true;
-            supportedGhcVersions = [ ghc-version ];
+                  branchMap = {
+                    "https://github.com/unisonweb/configurator.git"."e47e9e9fe1f576f8c835183b9def52d73c01327a" =
+                      "unison";
+                    "https://github.com/unisonweb/shellmet.git"."2fd348592c8f51bb4c0ca6ba4bc8e38668913746" =
+                      "topic/avoid-callCommand";
+                  };
+                };
+            })
+            (final: prev: {
+              unison-stack = prev.symlinkJoin {
+                name = "stack";
+                paths = [ final.stack ];
+                buildInputs = [ final.makeWrapper ];
+                postBuild =
+                  let
+                    flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
+                    add-flags =
+                      "--add-flags '${prev.lib.concatStringsSep " " flags}'";
+                  in
+                  ''
+                    wrapProgram "$out/bin/stack" ${add-flags}
+                  '';
+              };
+            })
+          ];
+          pkgs = import nixpkgs {
+            inherit system overlays;
+            inherit (haskellNix) config;
           };
-          myormolu = make-ormolu pkgs.haskellPackages;
-          nativePackages = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
+          flake = pkgs.unison-project.flake { };
 
-          unison-env = pkgs.mkShell {
-            packages = with pkgs; [
-              mystack
-              (haskell.compiler."ghc${ghc-version}".override {
-                useLLVM = pkgs.stdenv.isAarch64;
-              })
-              myormolu
-              myhls
-              pkg-config
-              zlib
-            ] ++ nativePackages;
-            # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
-            shellHook = ''
-              export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-            '';
-          };
-        in {
-
-          apps.repl = flake-utils.lib.mkApp {
-            drv =
-              nixpkgs.legacyPackages."${system}".writeShellScriptBin "repl" ''
-                confnix=$(mktemp)
-                echo "builtins.getFlake (toString $(git rev-parse --show-toplevel))" >$confnix
-                trap "rm $confnix" EXIT
-                nix repl $confnix
+          commonShellArgs = args:
+            args // {
+              # workaround:
+              # https://github.com/input-output-hk/haskell.nix/issues/1793
+              # https://github.com/input-output-hk/haskell.nix/issues/1885
+              allToolDeps = false;
+              additional = hpkgs: with hpkgs; [ Cabal stm exceptions ghc ghc-heap ];
+              buildInputs =
+                let
+                  native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
+                    (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
+                in
+                (args.buildInputs or [ ]) ++ (with pkgs; [ unison-stack pkg-config zlib glibcLocales ]) ++ native-packages;
+              # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
+              shellHook = ''
+                export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
               '';
+              tools =
+                let ormolu-ver = "0.5.2.0";
+                in (args.tools or { }) // {
+                  cabal = { };
+                  ormolu = { version = ormolu-ver; };
+                  haskell-language-server = {
+                    version = "latest";
+                    # specify flags via project file rather than a module override
+                    # https://github.com/input-output-hk/haskell.nix/issues/1509
+                    cabalProject = ''
+                      packages: .
+                      package haskell-language-server
+                        flags: -brittany -fourmolu -stylishhaskell -hlint
+                      constraints: ormolu == ${ormolu-ver}
+                    '';
+                  };
+                };
+            };
+
+          shellFor = args: pkgs.unison-project.shellFor (commonShellArgs args);
+
+          localPackages = with pkgs.lib;
+            filterAttrs (k: v: v.isLocal or false) pkgs.unison-project.hsPkgs;
+          localPackageNames = builtins.attrNames localPackages;
+          devShells =
+            let
+              mkDevShell = pkgName:
+                shellFor {
+                  packages = hpkgs: [ hpkgs."${pkgName}" ];
+                  withHoogle = true;
+                };
+              localPackageDevShells =
+                pkgs.lib.genAttrs localPackageNames mkDevShell;
+            in
+            {
+              default = devShells.only-tools;
+              only-tools = shellFor {
+                packages = _: [ ];
+                withHoogle = false;
+              };
+              local = shellFor {
+                packages = hpkgs: (map (p: hpkgs."${p}") localPackageNames);
+                withHoogle = true;
+              };
+            } // localPackageDevShells;
+        in
+        flake // {
+          defaultPackage = flake.packages."unison-cli:exe:unison";
+          inherit (pkgs) unison-project;
+          inherit devShells localPackageNames;
+          packages = flake.packages // {
+            all = pkgs.symlinkJoin {
+              name = "all-packages";
+              paths =
+                let
+                  all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" ]);
+                  devshell-inputs = builtins.concatMap (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs) [ devShells.only-tools ];
+                in
+                all-other-packages ++ devshell-inputs;
+            };
           };
-
-          pkgs = pkgs;
-
-          devShell = unison-env;
-
-          packages = { };
-
-          defaultPackage = self.packages."${system}".unison-env;
         });
-      topLevelAttrs = { overlay = final: prev: { }; };
-    in systemAttrs // topLevelAttrs;
 }

@@ -5,7 +5,7 @@ import Control.Concurrent.STM
 import Control.Monad
 import EasyTest
 import System.IO.CodePage (withCP65001)
-import qualified Unison.Util.Cache as Cache
+import Unison.Util.Cache qualified as Cache
 
 main :: IO ()
 main =

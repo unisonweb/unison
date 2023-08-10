@@ -20,6 +20,7 @@ module Unison.Typechecker.Context
     Type,
     TypeVar,
     Result (..),
+    PatternMatchCoverageCheckSwitch (..),
     errorTerms,
     innermostErrorTerm,
     lookupAnn,
@@ -41,33 +42,34 @@ module Unison.Typechecker.Context
 where
 
 import Control.Lens (over, view, _2)
-import qualified Control.Monad.Fail as MonadFail
+import Control.Monad.Fail qualified as MonadFail
+import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State
   ( MonadState,
     StateT,
     evalState,
+    evalStateT,
     get,
     gets,
     put,
     runStateT,
   )
-import Data.Bifunctor
-  ( first,
-    second,
-  )
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.Function (on)
+import Data.Functor.Compose
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
+import Data.Monoid (Ap (..))
+import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty (NESeq)
-import qualified Data.Sequence.NonEmpty as NESeq
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import qualified Unison.Builtin.Decls as DDB
+import Data.Sequence.NonEmpty qualified as NESeq
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as B
+import Unison.Builtin.Decls qualified as DDB
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -77,22 +79,28 @@ import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
   )
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
+import Unison.PatternMatchCoverage (checkMatch)
+import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
+import Unison.PatternMatchCoverage.Class qualified as Pmc
+import Unison.PatternMatchCoverage.ListPat qualified as ListPat
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Syntax.TypePrinter as TP
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
+import Unison.Syntax.TypePrinter qualified as TP
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.Typechecker.Components (minimize')
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Typechecker.TypeVar as TypeVar
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -173,6 +181,14 @@ instance Monad (Result v loc) where
   CompilerBug bug es is >>= _ = CompilerBug bug es is
   {-# INLINE (>>=) #-}
 
+instance MonadFix (Result v loc) where
+  mfix f =
+    let res = f theA
+        theA = case res of
+          Success _ a -> a
+          _ -> error "mfix Result: forced an unsuccessful value"
+     in res
+
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
 
@@ -200,8 +216,15 @@ mapErrors f r = case r of
   CompilerBug bug es is -> CompilerBug bug (f <$> es) is
   s@(Success _ _) -> s
 
+data PatternMatchCoverageCheckSwitch
+  = PatternMatchCoverageCheckSwitch'Enabled
+  | PatternMatchCoverageCheckSwitch'Disabled
+
 newtype MT v loc f a = MT
   { runM ::
+      -- for debug output
+      PrettyPrintEnv ->
+      PatternMatchCoverageCheckSwitch ->
       -- Data declarations in scope
       DataDeclarations v loc ->
       -- Effect declarations in scope
@@ -219,10 +242,10 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \datas effects env -> case m datas effects env of
+liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects env -> case m ppe pmcSwitch datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a -> Success mempty a
 
@@ -236,7 +259,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -374,6 +397,9 @@ data Cause v loc
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
   | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
+  | UncoveredPatterns loc (NonEmpty (Pattern ()))
+  | RedundantPattern loc
+  | InaccessiblePattern loc
   deriving (Show)
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -396,7 +422,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \datas effects env -> mapErrors (scope' p) (m datas effects env)
+scope p (MT m) = MT \ppe pmcSwitch datas effects env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -707,7 +733,7 @@ extendN ctx es = foldM (flip extend) ctx es
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go datas effects env = runM m1 datas effects env <|> runM m2 datas effects env
+    go ppe pmcSwitch datas effects env = runM m1 ppe pmcSwitch datas effects env <|> runM m2 ppe pmcSwitch datas effects env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -720,11 +746,17 @@ orElse m1 m2 = MT go
 -- hoistMaybe :: (Maybe a -> Maybe b) -> Result v loc a -> Result v loc b
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
+getPrettyPrintEnv :: M v loc PrettyPrintEnv
+getPrettyPrintEnv = MT \ppe _ _ _ env -> pure (ppe, env)
+
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \datas _ env -> pure (datas, env)
+getDataDeclarations = MT \_ _ datas _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ effects env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ _ effects env -> pure (effects, env)
+
+getPatternMatchCoverageCheckSwitch :: M v loc PatternMatchCoverageCheckSwitch
+getPatternMatchCoverageCheckSwitch = MT \_ pmcSwitch _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -764,6 +796,34 @@ getEffectDeclaration r = do
 
 getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
+
+getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructors typ
+  | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
+  | Type.Request' effects resultType <- typ =
+      let phi effect =
+            case theRef effect of
+              Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
+              Nothing -> pure Map.empty
+          crefs = getAp (foldMap (Ap . phi) effects)
+       in AbilityType resultType <$> crefs
+  | Type.App' (Type.Ref' r) arg <- typ,
+    r == Type.listRef =
+      let xs =
+            [ (ListPat.Cons, [arg]),
+              (ListPat.Nil, [])
+            ]
+       in pure (SequenceType xs)
+  | Just r <- theRef typ = ConstructorType . crFromDecl r <$> getDataDeclaration r
+  | otherwise = pure OtherType
+  where
+    crFromDecl :: Reference -> DataDeclaration v loc -> [(v, ConstructorReference, Type v loc)]
+    crFromDecl r decl =
+      [(v, ConstructorReference r i, ABT.vmap TypeVar.Universal t) | (i, (v, t)) <- zip [0 ..] (DD.constructors decl)]
+    theRef t = case t of
+      Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just r
+      Type.Ref' r@Reference.DerivedId {} -> Just r
+      _ -> Nothing
 
 getEffectConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go
@@ -1162,7 +1222,10 @@ synthesizeWanted e
   | Term.TermLink' _ <- e = pure (Type.termLink l, [])
   | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
   | Term.Blank' blank <- e = do
-      v <- freshenVar Var.blank
+      let freshType = case blank of
+            B.Recorded (B.MissingResultPlaceholder _) -> Var.missingResult
+            _ -> Var.blank
+      v <- freshenVar freshType
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.List' v <- e = do
@@ -1189,6 +1252,10 @@ synthesizeWanted e
           et = existential' l B.Blank e
       appendContext $
         [existential i, existential e, existential o, Ann arg it]
+      when (Var.typeOf i == Var.Delay) $ do
+        -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
+        -- here's where the typechecker assumes this must be of type 'thunkArgType'
+        subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
       if Term.isLam body'
         then checkWithAbilities [] body' ot
@@ -1214,10 +1281,110 @@ synthesizeWanted e
       cwant <- checkCases scrutineeType outputType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
-      pure $ (apply ctx outputType, want)
+      let matchType = apply ctx outputType
+      getPatternMatchCoverageCheckSwitch >>= \case
+        PatternMatchCoverageCheckSwitch'Enabled -> ensurePatternCoverage e matchType scrutinee scrutineeType cases
+        PatternMatchCoverageCheckSwitch'Disabled -> pure ()
+      pure $ (matchType, want)
   where
     l = loc e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
+
+getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
+getDataConstructorsAtType t0 = do
+  dataConstructors <- getDataConstructors t0
+  case t0 of
+    Type.Request' ets _res ->
+      let effectMap :: Map Reference (Type v loc)
+          effectMap =
+            Map.fromList
+              . mapMaybe
+                ( \e -> case e of
+                    Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just (r, e)
+                    Type.Ref' r@Reference.DerivedId {} -> Just (r, e)
+                    _ -> Nothing
+                )
+              $ ets
+       in flip traverseConstructorTypes dataConstructors \_ cr t -> do
+            case Map.lookup (view reference_ cr) effectMap of
+              Nothing -> pure t
+              Just t0 -> do
+                t <- ungeneralize t
+                case t of
+                  Type.EffectfulArrows' _ xs
+                    | (Just [e], _) <- last xs -> do
+                        equate t0 e
+                        applyM t
+                  _ -> pure t
+    _ -> traverseConstructorTypes (\_ _ t -> fixType t) dataConstructors
+  where
+    fixType t = do
+      t <- ungeneralize t
+      let lastT = case t of
+            Type.Arrows' xs -> last xs
+            _ -> t
+      equate t0 lastT
+      applyM t
+
+data PmcState vt v loc = PmcState
+  { variables :: !(Set v),
+    constructorCache :: !(Map (Type v loc) (EnumeratedConstructors vt v loc))
+  }
+
+instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVar v loc) v loc) (M v loc)) where
+  getPrettyPrintEnv = lift getPrettyPrintEnv
+  getConstructors typ = do
+    st@PmcState {constructorCache} <- get
+    let f = \case
+          Nothing -> Compose $ (\t -> (t, Just t)) <$> lift (getDataConstructorsAtType typ)
+          Just t -> Compose $ pure (t, Just t)
+    (result, newCache) <- getCompose (Map.alterF f typ constructorCache)
+    put st {constructorCache = newCache}
+    pure result
+  getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
+    Pmc.getConstructors t >>= \case
+      AbilityType _ m -> case Map.lookup cref m of
+        Nothing -> error $ show cref <> " not found in constructor map: " <> show m
+        Just (_, conArgs) -> pure (extractArgs conArgs)
+      ConstructorType cs -> case drop (fromIntegral cid) cs of
+        [] -> error $ show cref <> " not found in constructor list: " <> show cs
+        (_, _, conArgs) : _ -> pure (extractArgs conArgs)
+      BooleanType -> pure []
+      OtherType -> pure []
+      SequenceType {} -> pure []
+    where
+      extractArgs (Type.Arrows' xs) = init xs
+      extractArgs _ = []
+  fresh = do
+    st@PmcState {variables} <- get
+    let v = Var.freshIn variables (Var.typed Var.Pattern)
+    put (st {variables = Set.insert v variables})
+    pure v
+
+ensurePatternCoverage ::
+  forall v loc.
+  (Ord loc, Var v) =>
+  Term v loc ->
+  Type v loc ->
+  Term v loc ->
+  Type v loc ->
+  [Term.MatchCase loc (Term v loc)] ->
+  MT v loc (Result v loc) ()
+ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
+  let matchLoc = ABT.annotation theMatch
+  scrutineeType <- applyM scrutineeType
+  let pmcState :: PmcState (TypeVar v loc) v loc =
+        PmcState
+          { variables = ABT.freeVars theMatch,
+            constructorCache = mempty
+          }
+  (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
+    checkMatch matchLoc scrutineeType cases
+  let checkUncovered = case Nel.nonEmpty uncovered of
+        Nothing -> pure ()
+        Just xs -> failWith (UncoveredPatterns matchLoc xs)
+      checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+  checkUncovered *> checkRedundant
 
 checkCases ::
   (Var v) =>
@@ -1597,7 +1764,7 @@ ensureGuardedCycle bindings =
         then pure ()
         else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
-existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
   v <- extendExistential v
   e <- extendExistential Var.inferAbility
@@ -2870,18 +3037,20 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 -- | public interface to the typechecker
 synthesizeClosed ::
   (Var v, Ord loc) =>
+  PrettyPrintEnv ->
+  PatternMatchCoverageCheckSwitch ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed abilities lookupType term0 =
+synthesizeClosed ppe pmcSwitch abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run datas effects $ do
+        Right term -> run ppe pmcSwitch datas effects $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -2920,13 +3089,15 @@ annotateRefs synth = ABT.visit f
 
 run ::
   (Var v, Ord loc, Functor f) =>
+  PrettyPrintEnv ->
+  PatternMatchCoverageCheckSwitch ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
   MT v loc f a ->
   f a
-run datas effects m =
+run ppe pmcSwitch datas effects m =
   fmap fst
-    . runM m datas effects
+    . runM m ppe pmcSwitch datas effects
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -2950,8 +3121,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \datas effects env ->
-    case runM m datas effects env of
+  MT \ppe pmccSwitch datas effects env ->
+    case runM m ppe pmccSwitch datas effects env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -2966,7 +3137,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckSwitch'Enabled Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3007,7 +3178,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -3037,17 +3208,22 @@ instance (Ord loc, Var v) => Show (Context v loc) where
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \datas effects env0 -> do
-    (a, env1) <- runM m datas effects env0
-    runM (f a) datas effects $! env1
+  m >>= f = MT \ppe pmccSwitch datas effects env0 -> do
+    (a, env1) <- runM m ppe pmccSwitch datas effects env0
+    runM (f a) ppe pmccSwitch datas effects $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ env -> pure (env, env)
-  put env = MT \_ _ _ -> pure ((), env)
+  get = MT \_ _ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ _ -> pure ((), env)
+
+instance (MonadFix f) => MonadFix (MT v loc f) where
+  mfix f = MT \ppe pmccSwitch a b c ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch a b c)
+     in res

@@ -16,11 +16,12 @@ module Unison.DataDeclaration
     constructorVars,
     constructorIds,
     declConstructorReferents,
-    declDependencies,
-    labeledDeclDependencies,
+    declTypeDependencies,
+    labeledDeclTypeDependencies,
+    labeledDeclDependenciesIncludingSelf,
     declFields,
-    dependencies,
-    labeledDependencies,
+    typeDependencies,
+    labeledTypeDependencies,
     generateRecordAccessors,
     unhashComponent,
     mkDataDecl',
@@ -34,30 +35,29 @@ module Unison.DataDeclaration
   )
 where
 
-import Control.Lens (Iso', Lens', iso, lens, over, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
-import Data.Bifunctor (bimap, first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.LabeledDependency as LD
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Pattern as Pattern
+import Unison.LabeledDependency qualified as LD
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent'
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
@@ -65,16 +65,31 @@ type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 data DeclOrBuiltin v a
   = Builtin CT.ConstructorType
   | Decl (Decl v a)
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
-declDependencies :: (Ord v) => Decl v a -> Set Reference
-declDependencies = either (dependencies . toDataDecl) dependencies
+declTypeDependencies :: (Ord v) => Decl v a -> Set Reference
+declTypeDependencies = either (typeDependencies . toDataDecl) typeDependencies
 
-labeledDeclDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
-labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
+labeledDeclTypeDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
+labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
+
+-- | Compute the dependencies of a data declaration,
+-- including the type itself and references for each of its constructors.
+labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelf selfRef decl =
+  labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
+  where
+    labeledConstructorRefs :: Set LD.LabeledDependency
+    labeledConstructorRefs =
+      case selfRef of
+        Reference.Builtin {} -> mempty
+        Reference.DerivedId selfRefId ->
+          declConstructorReferents selfRefId decl
+            & fmap (LD.TermReferent . fmap Reference.DerivedId)
+            & Set.fromList
 
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case
@@ -119,15 +134,15 @@ generateRecordAccessors ::
   [(v, a)] ->
   v ->
   Reference ->
-  [(v, Term v a)]
+  [(v, a, Term v a)]
 generateRecordAccessors fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
     tm (fname, ann) i =
-      [ (Var.namespaced [typename, fname], get),
-        (Var.namespaced [typename, fname, Var.named "set"], set),
-        (Var.namespaced [typename, fname, Var.named "modify"], modify)
+      [ (Var.namespaced [typename, fname], ann, get),
+        (Var.namespaced [typename, fname, Var.named "set"], ann, set),
+        (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
         -- example: `point -> case point of Point x _ -> x`
@@ -229,8 +244,10 @@ declConstructorReferents rid decl =
   where
     ct = constructorType decl
 
+-- | The constructor ids for the given data declaration.
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
+constructorIds dd =
+  imap (\i _ -> fromIntegral i) (constructorTypes dd)
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
@@ -256,12 +273,15 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
     (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: (Ord v) => DataDeclaration v a -> Set Reference
-dependencies dd =
+-- | All references to types mentioned in the given data declaration's fields/constructors
+-- Note: does not include references to the constructors or the decl itself
+-- (unless the decl is self-referential)
+typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
+typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-labeledDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
-labeledDependencies = Set.map LD.TypeReference . dependencies
+labeledTypeDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
+labeledTypeDependencies = Set.map LD.TypeReference . typeDependencies
 
 mkEffectDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a

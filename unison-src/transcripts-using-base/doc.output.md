@@ -114,7 +114,7 @@ and the rendered output using `display`:
       section elements.
       
       Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced''.
+      or ''monospaced'' (or ''monospaced'').
       
       You can link to Unison terms, types, and external URLs:
       
@@ -141,7 +141,7 @@ and the rendered output using `display`:
     elements.
   
     Text can be bold, *italicized*, ~~strikethrough~~, or
-    `monospaced`.
+    `monospaced` (or `monospaced`).
   
     You can link to Unison terms, types, and external URLs:
   
@@ -243,7 +243,7 @@ and the rendered output using `display`:
 
   evaluation : Doc2
   evaluation =
-    use Nat +
+    use Nat * +
     {{
     # Evaluation
     
@@ -270,9 +270,7 @@ and the rendered output using `display`:
       
       @typecheck ```
       cube : Nat -> Nat
-      cube x =
-        use Nat *
-        x * x * x
+      cube x = x * x * x
       ```
     }}
 
@@ -300,10 +298,9 @@ and the rendered output using `display`:
     To include a typechecked snippet of code without evaluating
     it, you can do:
   
+        use Nat *
         cube : Nat -> Nat
-        cube x =
-          use Nat *
-          x * x * x
+        cube x = x * x * x
 
 .> view includingSource
 
@@ -497,16 +494,18 @@ and the rendered output using `display`:
     docTable
       [ [ {{
           a
-          }},
-          {{
+          }}
+        , {{
           b
-          }},
-          {{
+          }}
+        , {{
           A longer paragraph that will split onto multiple
           lines, such that this row occupies multiple lines in
           the rendered table.
-          }} ],
-        [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
+          }}
+        ]
+      , [{{ Some text }}, {{ More text }}, {{ Zounds! }}]
+      ] }}
     }}
 
 .> display otherElements
@@ -581,7 +580,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -656,10 +655,9 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          use Nat *
           cube : Nat -> Nat
-          cube x =
-            use Nat *
-            x * x * x
+          cube x = x * x * x
   
     # Including Unison source code
     

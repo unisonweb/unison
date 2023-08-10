@@ -5,32 +5,32 @@ module Unison.Codebase.Editor.Slurp
 where
 
 import Control.Lens
-import qualified Data.Foldable as Foldable
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.ConstructorReference as CR
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase.Editor.SlurpComponent qualified as SC
+import Unison.Codebase.Editor.SlurpResult qualified as SR
+import Unison.ConstructorReference qualified as CR
+import Unison.DataDeclaration qualified as DD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent
+import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Util.Set as Set
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Map qualified as Map
+import Unison.Util.Relation qualified as Rel
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import Unison.WatchKind (pattern TestWatch)
 
 -- | The operation which is being performed or checked.
@@ -280,13 +280,13 @@ buildVarReferences uf =
         -- Filter out non-test watch expressions
         & Map.filter
           ( \case
-              (_, w, _, _)
+              (_, _, w, _, _)
                 | w == Just TestWatch || w == Nothing -> True
                 | otherwise -> False
           )
         & Map.bimap
           TermVar
-          (\(refId, _, _, _) -> LD.derivedTerm refId)
+          (\(_, refId, _, _, _) -> LD.derivedTerm refId)
     decls :: Map TaggedVar LD.LabeledDependency
     decls =
       UF.dataDeclarationsId' uf

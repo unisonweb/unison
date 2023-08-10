@@ -7,66 +7,71 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
+import Control.Comonad.Cofree qualified as Cofree
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
-import qualified Data.List as List
+import Data.Functor.Compose (Compose (..))
+import Data.List qualified as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Branch.Diff as BranchDiff
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
+import U.Codebase.Branch.Diff qualified as BranchDiff
 import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
-import qualified U.Codebase.Reference as C.Reference
-import qualified U.Codebase.Referent as C.Referent
+import U.Codebase.Projects qualified as Projects
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
-import qualified U.Codebase.Sqlite.NamedRef as S
-import qualified U.Codebase.Sqlite.ObjectType as OT
-import U.Codebase.Sqlite.Operations (NamesByPath (..))
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import U.Codebase.Sqlite.NamedRef qualified as S
+import U.Codebase.Sqlite.ObjectType qualified as OT
+import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import qualified Unison.Builtin as Builtins
+import Unison.Builtin qualified as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as Decl
+import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (Names))
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as SH
+import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sqlite.Transaction as Sqlite
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sqlite.Transaction qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Util.Cache as Cache
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Util.Set as Set
-import qualified Unison.WatchKind as UF
+import Unison.Type qualified as Type
+import Unison.Util.Cache qualified as Cache
+import Unison.Util.Relation qualified as Rel
+import Unison.Util.Set qualified as Set
+import Unison.WatchKind qualified as UF
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -334,7 +339,7 @@ putTypeDeclaration_ ::
   Transaction ()
 putTypeDeclaration_ declBuffer (Reference.Id h i) decl = do
   BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
-  let declDependencies = Set.toList $ Decl.declDependencies decl
+  let declDependencies = Set.toList $ Decl.declTypeDependencies decl
   let size' = max size (Just $ biggestSelfReference + 1)
         where
           biggestSelfReference =
@@ -569,24 +574,24 @@ before h1 h2 =
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
 --
--- NOTE: this method requires an up-to-date name lookup index, which is
--- currently not kept up-to-date automatically (because it's slow to do so).
+-- NOTE: this method requires an up-to-date name lookup index
 namesAtPath ::
-  -- Include ALL names within this path
-  Path ->
-  -- Make names within this path relative to this path, other names will be absolute.
+  BranchHash ->
+  -- Include names from the project which contains this path.
   Path ->
   Transaction ScopedNames
-namesAtPath namesRootPath relativeToPath = do
-  let namesRoot = if namesRootPath == Path.empty then Nothing else Just $ tShow namesRootPath
-  NamesByPath {termNamesInPath, typeNamesInPath} <- Ops.rootNamesByPath namesRoot
-  let termsInPath = convertTerms termNamesInPath
-  let typesInPath = convertTypes typeNamesInPath
+namesAtPath bh path = do
+  let namesRoot = PathSegments . coerce . Path.toList $ path
+  namesPerspective@Ops.NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath bh namesRoot
+  let relativePath = Path.fromList $ coerce relativePerspective
+  NamesInPerspective {termNamesInPerspective, typeNamesInPerspective} <- Ops.allNamesInPerspective namesPerspective
+  let termsInPath = convertTerms termNamesInPerspective
+  let typesInPath = convertTypes typeNamesInPerspective
   let rootTerms = Rel.fromList termsInPath
   let rootTypes = Rel.fromList typesInPath
   let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
   let relativeScopedNames =
-        case relativeToPath of
+        case relativePath of
           Path.Empty -> (Names.makeRelative $ absoluteRootNames)
           p ->
             let reversedPathSegments = reverse . Path.toList $ p
@@ -604,7 +609,7 @@ namesAtPath namesRootPath relativeToPath = do
         (Name.fromReverseSegments (coerce reversedSegments), Cv.reference2to1 ref)
     convertTerms names =
       names <&> \(S.NamedRef {reversedSegments, ref = (ref, ct)}) ->
-        let v1ref = runIdentity $ Cv.referent2to1 (const . pure . Cv.constructorType2to1 . fromMaybe (error "Required constructor type for constructor but it was null") $ ct) ref
+        let v1ref = Cv.referent2to1UsingCT (fromMaybe (error "Required constructor type for constructor but it was null") ct) ref
          in (Name.fromReverseSegments (coerce reversedSegments), v1ref)
 
     -- If the given prefix matches the given name, the prefix is stripped and it's collected
@@ -641,15 +646,38 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
               -- history looking for a Branch Hash we already have an index for.
               pure (V2Branch.empty, Nothing)
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      treeDiff <- BranchDiff.diffBranches fromBranch toBranch
+      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
+      let depMountPaths = (Path.fromList . coerce) . fst <$> depMounts
+      let treeDiff = ignoreDepMounts depMountPaths $ BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
-      let BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} = BranchDiff.nameChanges namePrefix treeDiff
-      termNameAddsWithCT <- do
-        for termNameAdds \(name, ref) -> do
-          refWithCT <- addReferentCT ref
-          pure $ toNamedRef (name, refWithCT)
-      Ops.buildNameLookupForBranchHash mayExistingLookupBH toBranchHash (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+      Ops.buildNameLookupForBranchHash
+        mayExistingLookupBH
+        toBranchHash
+        ( \save -> do
+            BranchDiff.streamNameChanges namePrefix treeDiff \_prefix (BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}) -> do
+              termNameAddsWithCT <- do
+                for termNameAdds \(name, ref) -> do
+                  refWithCT <- addReferentCT ref
+                  pure $ toNamedRef (name, refWithCT)
+              save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
+        )
+      -- Ensure all of our dependencies have name lookups too.
+      for_ depMounts \(_path, depBranchHash) -> do
+        -- TODO: see if we can find a way to infer a good fromHash for dependencies
+        ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
+      Ops.associateNameLookupMounts toBranchHash depMounts
   where
+    alterTreeDiffAtPath :: (Functor m) => Path -> (TreeDiff m -> TreeDiff m) -> TreeDiff m -> TreeDiff m
+    alterTreeDiffAtPath path f (TreeDiff cfr) =
+      case path of
+        Path.Empty -> f (TreeDiff cfr)
+        (segment Path.:< rest) ->
+          let (a Cofree.:< (Compose rest')) = cfr
+           in TreeDiff (a Cofree.:< Compose (Map.adjust (fmap (coerce $ alterTreeDiffAtPath rest f)) segment rest'))
+    -- Delete portions of the diff which are covered by dependency mounts.
+    ignoreDepMounts :: (Applicative m) => [Path] -> TreeDiff m -> TreeDiff m
+    ignoreDepMounts depMounts treeDiff =
+      foldl' (\acc path -> alterTreeDiffAtPath path (const mempty) acc) treeDiff depMounts
     toNamedRef :: (Name, ref) -> S.NamedRef ref
     toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
     addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
@@ -658,6 +686,21 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       C.Referent.Con ref _conId -> do
         ct <- getDeclType ref
         pure (referent, Just $ Cv.constructorType1to2 ct)
+
+-- | Regenerate the name lookup index for the given branch hash from scratch.
+-- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if
+-- they somehow get corrupt, or during local testing and debugging.
+regenerateNameLookup ::
+  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  BranchHash ->
+  Sqlite.Transaction ()
+regenerateNameLookup getDeclType bh = do
+  Ops.checkBranchHashNameLookupExists bh >>= \case
+    True -> do
+      bhId <- Q.expectBranchHashId bh
+      Q.deleteNameLookup bhId
+      ensureNameLookupForBranchHash getDeclType Nothing bh
+    False -> ensureNameLookupForBranchHash getDeclType Nothing bh
 
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
 --

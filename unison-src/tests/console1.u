@@ -15,6 +15,7 @@ snd = cases Tuple.Cons _ (Tuple.Cons b _) -> b
 
 simulate : Request Console a -> {State ([Text], [Text])} a
 simulate = cases
+  { pure } -> pure
   {Console.read -> k} -> handle
       io = State.get
       ins = fst io

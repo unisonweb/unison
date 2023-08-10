@@ -19,9 +19,9 @@ module U.Codebase.Branch.Type
   )
 where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import U.Codebase.Causal (Causal)
-import qualified U.Codebase.Causal as Causal
+import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)

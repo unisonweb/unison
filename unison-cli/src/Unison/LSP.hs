@@ -6,44 +6,47 @@
 module Unison.LSP where
 
 import Colog.Core (LogAction (LogAction))
-import qualified Colog.Core as Colog
+import Colog.Core qualified as Colog
 import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
 import GHC.IO.Exception (ioe_errno)
-import qualified Ki
-import qualified Language.LSP.Logging as LSP
+import Ki qualified
+import Language.LSP.Logging qualified as LSP
 import Language.LSP.Server
 import Language.LSP.Types
 import Language.LSP.Types.SMethodMap
-import qualified Language.LSP.Types.SMethodMap as SMM
+import Language.LSP.Types.SMethodMap qualified as SMM
 import Language.LSP.VFS
-import qualified Network.Simple.TCP as TCP
+import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn)
 import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.CodeLens (codeLensHandler)
+import Unison.LSP.Commands (executeCommandHandler, supportedCommands)
 import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
-import qualified Unison.LSP.Configuration as Config
-import qualified Unison.LSP.FileAnalysis as Analysis
+import Unison.LSP.Configuration qualified as Config
+import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
-import qualified Unison.LSP.HandlerUtils as Handlers
+import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
-import qualified Unison.LSP.NotificationHandlers as Notifications
+import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.SelectionRange (selectionRangeHandler)
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
@@ -137,10 +140,11 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newTVarIO mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, ..}
+  nameSearchCacheVar <- newTVarIO $ NameSearch.makeNameSearch 0 mempty
+  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestBranch latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
@@ -157,6 +161,8 @@ lspRequestHandlers =
   mempty
     & SMM.insert STextDocumentHover (mkHandler hoverHandler)
     & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
+    & SMM.insert STextDocumentCodeLens (mkHandler codeLensHandler)
+    & SMM.insert SWorkspaceExecuteCommand (mkHandler executeCommandHandler)
     & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
@@ -199,7 +205,11 @@ lspInterpretHandler env@(Env {lspContext}) =
     fromIO m = liftIO m
 
 lspOptions :: Options
-lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
+lspOptions =
+  defaultOptions
+    { textDocumentSync = Just $ textDocSyncOptions,
+      executeCommandCommands = Just supportedCommands
+    }
   where
     textDocSyncOptions =
       TextDocumentSyncOptions

@@ -1,14 +1,14 @@
 module Unison.Codebase.CodeLookup where
 
 import Control.Monad.Morph (MFunctor (..))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.Prelude
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Term (Term)
-import qualified Unison.Term as Term
-import qualified Unison.Util.Set as Set
+import Unison.Term qualified as Term
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 
 data CodeLookup v m a = CodeLookup
@@ -64,9 +64,9 @@ transitiveDependencies code seen0 rid =
                   foldM
                     (transitiveDependencies code)
                     seen
-                    (getIds $ DD.dependencies (DD.toDataDecl ed))
+                    (getIds $ DD.typeDependencies (DD.toDataDecl ed))
                 Just (Right dd) ->
                   foldM
                     (transitiveDependencies code)
                     seen
-                    (getIds $ DD.dependencies dd)
+                    (getIds $ DD.typeDependencies dd)

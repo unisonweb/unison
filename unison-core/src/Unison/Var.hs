@@ -2,6 +2,7 @@ module Unison.Var
   ( Var (..),
     Type (..),
     InferenceType (..),
+    bakeId,
     blank,
     freshIn,
     inferAbility,
@@ -33,11 +34,11 @@ where
 
 import Data.Char (isLower, toLower)
 import Data.Text (pack)
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.NameSegment as Name
+import Data.Text qualified as Text
+import Unison.ABT qualified as ABT
+import Unison.NameSegment qualified as Name
 import Unison.Prelude
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Util.Monoid (intercalateMap)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
@@ -58,6 +59,11 @@ freshIn = ABT.freshIn
 
 named :: (Var v) => Text -> v
 named n = typed (User n)
+
+-- This bakes the fresh id into the name portion of the variable
+-- and resets the id to 0.
+bakeId :: Var v => v -> v
+bakeId v = named (name v)
 
 rawName :: Type -> Text
 rawName typ = case typ of
@@ -81,6 +87,7 @@ rawName typ = case typ of
   Irrelevant -> "_irrelevant"
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
+  Delay -> "()"
 
 name :: (Var v) => v -> Text
 name v = rawName (typeOf v) <> showid v
@@ -168,6 +175,8 @@ data Type
   | -- A variable for situations where we need to make up one that
     -- definitely won't be used.
     Irrelevant
+  | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1)
+    Delay
   deriving (Eq, Ord, Show)
 
 data InferenceType

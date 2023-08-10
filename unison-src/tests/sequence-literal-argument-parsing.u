@@ -3,3 +3,4 @@ structural type X a = X [a]
 f : X a -> a
 f = cases
   X.X [b] -> b
+  X.X _ -> bug "unexpected"

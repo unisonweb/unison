@@ -59,7 +59,7 @@ Here's what we've done so far:
 .> diff.namespace nothing ns1
 ```
 
-```ucm
+```ucm:error
 .> diff.namespace ns1 ns2
 ```
 

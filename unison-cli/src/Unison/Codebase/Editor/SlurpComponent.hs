@@ -20,16 +20,16 @@ module Unison.Codebase.Editor.SlurpComponent
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Tuple (swap)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 
 data SlurpComponent = SlurpComponent
   { types :: Set Symbol,
@@ -113,7 +113,7 @@ closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
       dd <-
         fmap snd (Map.lookup v (UF.dataDeclarations' uf))
           <|> fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-      pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
+      pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.typeDependencies dd)
 
     resolveTypes :: Set Reference -> [Symbol]
     resolveTypes rs = [v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]

@@ -38,25 +38,25 @@ module Unison.Syntax.Lexer
 where
 
 import Control.Lens.TH (makePrisms)
-import qualified Control.Monad.State as S
+import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.List.NonEmpty qualified as Nel
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import GHC.Exts (sortWith)
-import qualified Text.Megaparsec as P
+import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char (char)
-import qualified Text.Megaparsec.Char as CP
-import qualified Text.Megaparsec.Char.Lexer as LP
-import qualified Text.Megaparsec.Error as EP
-import qualified Text.Megaparsec.Internal as PI
+import Text.Megaparsec.Char qualified as CP
+import Text.Megaparsec.Char.Lexer qualified as LP
+import Text.Megaparsec.Error qualified as EP
+import Text.Megaparsec.Internal qualified as PI
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Util.Bytes as Bytes
+import Unison.ShortHash qualified as SH
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
 type BlockName = String
@@ -499,9 +499,12 @@ lexemes' eof =
                 stop' = maybe stop end (lastMay after)
 
         verbatim =
-          P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              -- a single backtick followed by a non-backtick is treated as monospaced
+              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+              -- also two or more ' followed by that number of closing '
+              quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
@@ -783,7 +786,28 @@ lexemes' eof =
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
-    quoted = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
+    quoted = quotedRaw <|> quotedSingleLine
+    quotedRaw = do
+      _ <- lit "\"\"\""
+      n <- many (char '"')
+      _ <- optional (char '\n') -- initial newline is skipped
+      s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
+      col0 <- column <$> pos
+      let col = col0 - (length n) - 3 -- this gets us first col of closing quotes
+      let leading = replicate (max 0 (col - 1)) ' '
+      -- a last line that's equal to `leading` is ignored, since leading
+      -- spaces up to `col` are not considered part of the string
+      let tweak l = case reverse l of
+            last : rest
+              | col > 1 && last == leading -> reverse rest
+              | otherwise -> l
+            [] -> []
+      pure $ case tweak (lines s) of
+        [] -> s
+        ls
+          | all (\l -> isPrefixOf leading l || all isSpace l) ls -> intercalate "\n" (drop (length leading) <$> ls)
+          | otherwise -> s
+    quotedSingleLine = char '"' *> P.manyTill (LP.charLiteral <|> sp) (char '"')
       where
         sp = lit "\\s" $> ' '
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
@@ -915,6 +939,7 @@ lexemes' eof =
       where
         keywords =
           symbolyKw ":"
+            <|> openKw "@rewrite"
             <|> symbolyKw "@"
             <|> symbolyKw "||"
             <|> symbolyKw "|"
@@ -941,6 +966,7 @@ lexemes' eof =
             <|> openKw "handle"
             <|> typ
             <|> arr
+            <|> rewriteArr
             <|> eq
             <|> openKw "cases"
             <|> openKw "where"
@@ -994,6 +1020,11 @@ lexemes' eof =
                 Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
+
+            rewriteArr = do
+              [Token _ start end] <- symbolyKw "==>"
+              env <- S.get
+              S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
 
             arr = do
               [Token _ start end] <- symbolyKw "->"
@@ -1304,7 +1335,8 @@ keywords =
       "let",
       "namespace",
       "match",
-      "cases"
+      "cases",
+      "@rewrite"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -1330,7 +1362,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'", "==>"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

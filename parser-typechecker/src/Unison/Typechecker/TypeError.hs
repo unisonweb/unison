@@ -2,14 +2,14 @@
 
 module Unison.Typechecker.TypeError where
 
-import Data.Bifunctor (second)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
-import qualified Unison.Typechecker.Extractor as Ex
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
+import Unison.Typechecker.Extractor qualified as Ex
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
 import Prelude hiding (all, and, or)
@@ -103,6 +103,8 @@ data TypeError v loc
       { defns :: NonEmpty (v, [loc]),
         note :: C.ErrorNote v loc
       }
+  | UncoveredPatterns loc (NonEmpty (Pattern ()))
+  | RedundantPattern loc
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -145,13 +147,25 @@ allErrors =
       unguardedCycle,
       unknownType,
       unknownTerm,
-      duplicateDefinitions
+      duplicateDefinitions,
+      redundantPattern,
+      uncoveredPatterns
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
 topLevelComponent = do
   defs <- Ex.topLevelComponent
   pure $ TopLevelComponent defs
+
+redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
+redundantPattern = do
+  ploc <- Ex.redundantPattern
+  pure (RedundantPattern ploc)
+
+uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
+uncoveredPatterns = do
+  (mloc, uncoveredCases) <- Ex.uncoveredPatterns
+  pure (UncoveredPatterns mloc uncoveredCases)
 
 abilityCheckFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityCheckFailure = do

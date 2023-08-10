@@ -7,9 +7,9 @@ import Data.Foldable (for_)
 import Data.List.Extra (enumerate)
 import Data.String.Here (i)
 import EasyTest
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Test.Ucm as Ucm
-import qualified Unison.WatchKind as WatchKind
+import Unison.Codebase qualified as Codebase
+import Unison.Test.Ucm qualified as Ucm
+import Unison.WatchKind qualified as WatchKind
 
 test :: Test ()
 test = scope "clearWatchCache" $

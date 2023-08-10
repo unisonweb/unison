@@ -14,27 +14,27 @@ module Unison.Codebase.Type
 where
 
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Reference as V2
+import U.Codebase.Reference qualified as V2
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -60,7 +60,7 @@ data Codebase m v a = Codebase
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
-    getDeclType :: V2.Reference -> m CT.ConstructorType,
+    getDeclType :: V2.Reference -> Sqlite.Transaction CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.

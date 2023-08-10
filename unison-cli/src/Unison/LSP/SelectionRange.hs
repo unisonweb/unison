@@ -3,20 +3,20 @@
 module Unison.LSP.SelectionRange where
 
 import Control.Lens hiding (List)
-import qualified Data.Foldable as Foldable
-import qualified Data.IntervalMap.Lazy as IM
+import Data.Foldable qualified as Foldable
+import Data.IntervalMap.Lazy qualified as IM
 import Data.List (sortBy)
 import Language.LSP.Types hiding (Range (..))
-import qualified Language.LSP.Types as LSP
+import Language.LSP.Types qualified as LSP
 import Language.LSP.Types.Lens
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions (annToURange, rangeToInterval, uToLspRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Util.Range (Range (..))
-import qualified Unison.Util.Range as URange
+import Unison.Util.Range qualified as URange
 
 selectionRangeHandler :: RequestMessage 'TextDocumentSelectionRange -> (Either ResponseError (ResponseResult 'TextDocumentSelectionRange) -> Lsp ()) -> Lsp ()
 selectionRangeHandler m respond =
@@ -55,7 +55,7 @@ selectionRangeHandler m respond =
 
 allRangesForFile :: Uri -> MaybeT Lsp (IM.IntervalMap Position URange.Range)
 allRangesForFile uri = do
-  FileAnalysis {parsedFile} <- MaybeT (getFileAnalysis uri)
+  FileAnalysis {parsedFile} <- getFileAnalysis uri
   pf <- MaybeT $ pure parsedFile
   let anns = Foldable.toList pf
   Debug.debugM Debug.LSP "anns" anns

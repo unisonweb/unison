@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -75,11 +75,10 @@ library
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
@@ -91,12 +90,28 @@ library
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.UniqueTypeGuidLookup
       Unison.Codebase.Verbosity
-      Unison.Codebase.Watch
       Unison.CodebasePath
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.EffectHandler
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty
@@ -104,6 +119,7 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
@@ -126,6 +142,7 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
+      Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
@@ -176,6 +193,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -222,14 +240,12 @@ library
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -272,7 +288,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -304,6 +320,7 @@ library
     , vector
     , wai
     , warp
+    , witherable
     , x509
     , x509-store
     , x509-system
@@ -332,7 +349,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
-      Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
       Unison.Test.Type
@@ -363,6 +379,7 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -412,14 +429,12 @@ test-suite parser-typechecker-tests
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -463,7 +478,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -496,6 +511,7 @@ test-suite parser-typechecker-tests
     , vector
     , wai
     , warp
+    , witherable
     , x509
     , x509-store
     , x509-system

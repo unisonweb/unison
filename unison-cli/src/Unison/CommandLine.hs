@@ -29,25 +29,26 @@ import Control.Concurrent (forkIO, killThread)
 import Control.Lens (ifor)
 import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
-import qualified Data.Configurator as Config
+import Data.Configurator qualified as Config
 import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
 import Data.ListLike (ListLike)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Watch as Watch
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
-import qualified Unison.CommandLine.InputPattern as InputPattern
+import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.Prelude
-import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
+import Unison.Util.ColorText qualified as CT
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
@@ -123,7 +124,8 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
         let expandedNumbers :: [String]
-            expandedNumbers = foldMap (expandNumber numberedArgs) args
+            expandedNumbers =
+              foldMap (expandNumber numberedArgs) args
         expandedGlobs <- ifor expandedNumbers $ \i arg -> do
           if Globbing.containsGlob arg
             then do
@@ -148,12 +150,12 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
-expandNumber numberedArgs s =
-  maybe
-    [s]
-    (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
-    expandedNumber
+expandNumber numberedArgs s = case expandedNumber of
+  Nothing -> [s]
+  Just nums ->
+    [s | i <- nums, Just s <- [vargs Vector.!? (i - 1)]]
   where
+    vargs = Vector.fromList numberedArgs
     rangeRegex = "([0-9]+)-([0-9]+)" :: String
     (junk, _, moreJunk, ns) =
       s =~ rangeRegex :: (String, String, String, [String])

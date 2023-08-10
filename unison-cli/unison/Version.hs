@@ -5,7 +5,7 @@ module Version where
 
 import Data.Bifunctor
 import Data.Text
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Language.Haskell.TH (Exp (TupE), runIO)
 import Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL))
 import Shellmet

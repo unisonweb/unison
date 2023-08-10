@@ -1,60 +1,59 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
-import Data.Bifunctor (Bifunctor (bimap))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text (pack)
-import qualified U.Codebase.Branch as V2.Branch
-import qualified U.Codebase.Causal as V2
-import qualified U.Codebase.Decl as V2.Decl
+import U.Codebase.Branch qualified as V2.Branch
+import U.Codebase.Causal qualified as V2
+import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.HashTags
-import qualified U.Codebase.Kind as V2.Kind
-import qualified U.Codebase.Reference as V2
-import qualified U.Codebase.Reference as V2.Reference
-import qualified U.Codebase.Referent as V2
-import qualified U.Codebase.Referent as V2.Referent
-import qualified U.Codebase.ShortHash as V2
-import qualified U.Codebase.Sqlite.Symbol as V2
-import qualified U.Codebase.Term as V2.Term
-import qualified U.Codebase.TermEdit as V2.TermEdit
-import qualified U.Codebase.Type as V2.Type
-import qualified U.Codebase.TypeEdit as V2.TypeEdit
-import qualified U.Codebase.WatchKind as V2
-import qualified U.Codebase.WatchKind as V2.WatchKind
-import qualified U.Core.ABT as ABT
-import qualified Unison.Codebase.Branch as V1.Branch
-import qualified Unison.Codebase.Causal.Type as V1.Causal
-import qualified Unison.Codebase.Metadata as V1.Metadata
-import qualified Unison.Codebase.Patch as V1
-import qualified Unison.Codebase.ShortCausalHash as V1
+import U.Codebase.Kind qualified as V2.Kind
+import U.Codebase.Reference qualified as V2
+import U.Codebase.Reference qualified as V2.Reference
+import U.Codebase.Referent qualified as V2
+import U.Codebase.Referent qualified as V2.Referent
+import U.Codebase.ShortHash qualified as V2
+import U.Codebase.Sqlite.Symbol qualified as V2
+import U.Codebase.Term qualified as V2.Term
+import U.Codebase.TermEdit qualified as V2.TermEdit
+import U.Codebase.Type qualified as V2.Type
+import U.Codebase.TypeEdit qualified as V2.TypeEdit
+import U.Codebase.WatchKind qualified as V2
+import U.Codebase.WatchKind qualified as V2.WatchKind
+import U.Core.ABT qualified as ABT
+import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Causal.Type qualified as V1.Causal
+import Unison.Codebase.Metadata qualified as V1.Metadata
+import Unison.Codebase.Patch qualified as V1
+import Unison.Codebase.ShortCausalHash qualified as V1
 import Unison.Codebase.SqliteCodebase.Branch.Cache
-import qualified Unison.Codebase.TermEdit as V1.TermEdit
-import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
-import qualified Unison.ConstructorReference as V1 (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as V1.Decl
+import Unison.Codebase.TermEdit qualified as V1.TermEdit
+import Unison.Codebase.TypeEdit qualified as V1.TypeEdit
+import Unison.ConstructorReference qualified as V1 (GConstructorReference (..))
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
-import qualified Unison.Hash as V1
-import qualified Unison.Kind as V1.Kind
+import Unison.Hash qualified as Hash
+import Unison.Hash qualified as V1
+import Unison.Kind qualified as V1.Kind
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Pattern as V1.Pattern
+import Unison.Parser.Ann qualified as Ann
+import Unison.Pattern qualified as V1.Pattern
 import Unison.Prelude
-import qualified Unison.Reference as V1
-import qualified Unison.Reference as V1.Reference
-import qualified Unison.Referent as V1
-import qualified Unison.Referent as V1.Referent
-import qualified Unison.ShortHash as V1.ShortHash
-import qualified Unison.Symbol as V1
-import qualified Unison.Term as V1.Term
-import qualified Unison.Type as V1.Type
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Star3 as V1.Star3
-import qualified Unison.Var as Var
-import qualified Unison.WatchKind as V1.WK
+import Unison.Reference qualified as V1
+import Unison.Reference qualified as V1.Reference
+import Unison.Referent qualified as V1
+import Unison.Referent qualified as V1.Referent
+import Unison.ShortHash qualified as V1.ShortHash
+import Unison.Symbol qualified as V1
+import Unison.Term qualified as V1.Term
+import Unison.Type qualified as V1.Type
+import Unison.Util.Map qualified as Map
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as V1.Star3
+import Unison.Var qualified as Var
+import Unison.WatchKind qualified as V1.WK
 
 sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
 sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
@@ -308,6 +307,12 @@ referent2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.
 referent2to1 lookupCT = \case
   V2.Ref r -> pure $ V1.Ref (reference2to1 r)
   V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
+
+-- | Like referent2to1, but uses the provided constructor type directly
+referent2to1UsingCT :: V2.ConstructorType -> V2.Referent -> V1.Referent
+referent2to1UsingCT ct = \case
+  V2.Ref r -> V1.Ref (reference2to1 r)
+  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) (constructorType2to1 ct)
 
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case

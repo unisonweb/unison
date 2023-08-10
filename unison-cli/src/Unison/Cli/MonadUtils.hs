@@ -68,7 +68,11 @@ module Unison.Cli.MonadUtils
 
     -- * Latest touched Unison file
     getLatestFile,
+    getLatestParsedFile,
+    getNamesFromLatestParsedFile,
+    getTermFromLatestParsedFile,
     expectLatestFile,
+    expectLatestParsedFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
   )
@@ -77,37 +81,45 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
-import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2 (Branch)
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Configurator qualified as Configurator
+import Data.Configurator.Types qualified as Configurator
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2 (Branch)
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase as Codebase
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.Util.Set as Set
+import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Term qualified as Term
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UFN
+import Unison.Util.Set qualified as Set
+import Unison.Var qualified as Var
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -210,12 +222,15 @@ getRootBranch0 =
   Branch.head <$> getRootBranch
 
 -- | Set a new root branch.
+--
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
 setRootBranch :: Branch IO -> Cli ()
 setRootBranch b = do
   void $ modifyRootBranch (const b)
 
--- | Get the root branch.
+-- | Modify the root branch.
+--
+-- Note: This does _not_ update the codebase, the caller is responsible for that.
 modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
 modifyRootBranch f = do
   rootVar <- use #root
@@ -479,7 +494,44 @@ expectLatestFile = do
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
-  use #latestTypecheckedFile
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Right tf) -> Just tf
+    _ -> Nothing
+
+-- | Get the latest parsed unison file.
+getLatestParsedFile :: Cli (Maybe (UnisonFile Symbol Ann))
+getLatestParsedFile = do
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Left uf) -> Just uf
+    Just (Right tf) -> Just $ UF.discardTypes tf
+    _ -> Nothing
+
+expectLatestParsedFile :: Cli (UnisonFile Symbol Ann)
+expectLatestParsedFile =
+  getLatestParsedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- | Returns a parsed term (potentially with free variables) from the latest file.
+-- This term will refer to other terms in the file by vars, not by hash.
+-- Used to implement rewriting and other refactorings on the current file.
+getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
+getTermFromLatestParsedFile (HQ.NameOnly n) = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> Nothing
+    Just uf ->
+      case UF.typecheckingTerm uf of
+        Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
+        _ -> Nothing
+getTermFromLatestParsedFile _ = pure Nothing
+
+getNamesFromLatestParsedFile :: Cli Names
+getNamesFromLatestParsedFile = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> mempty
+    Just uf -> UFN.toNames uf
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

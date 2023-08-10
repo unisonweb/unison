@@ -7,16 +7,16 @@
 module U.Codebase.Sqlite.Branch.Diff where
 
 import Data.Bifunctor (Bifunctor (bimap))
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
-import qualified Unison.Util.Map as Map
+import Unison.Util.Map qualified as Map
 
 type LocalDiff = Diff' LocalTextId LocalDefnId LocalPatchObjectId LocalBranchChildId
 

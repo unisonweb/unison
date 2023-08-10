@@ -2,7 +2,8 @@
 
 -- | Rewrites of some codebase queries, but which check the scratch file for info first.
 module Unison.LSP.Queries
-  ( getTypeOfReferent,
+  ( markdownDocsForFQN,
+    getTypeOfReferent,
     getTypeDeclaration,
     refAtPosition,
     nodeAtPosition,
@@ -16,38 +17,44 @@ module Unison.LSP.Queries
 where
 
 import Control.Lens
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Reader
 import Data.Generics.Product (field)
 import Language.LSP.Types
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as Builtins
-import qualified Unison.Codebase as Codebase
+import Unison.ABT qualified as ABT
+import Unison.Builtin.Decls qualified as Builtins
+import Unison.Codebase qualified as Codebase
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
+import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (lspToUPos)
-import Unison.LSP.FileAnalysis (getFileSummary)
+import Unison.LSP.FileAnalysis (getFileSummary, ppedForFile)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LabeledDependency
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Lexer.Pos (Pos (..))
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Ann
-import qualified Unison.Pattern as Pattern
+import Unison.Parser.Ann qualified as Ann
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (TypeReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.Doc.Markdown.Render qualified as Md
+import Unison.Server.Doc.Markdown.Types qualified as Md
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser (ann)
 import Unison.Term (MatchCase (MatchCase), Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
+import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
 refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
@@ -81,7 +88,7 @@ getTypeOfReferent fileUri ref = do
       case ref of
         Referent.Ref (Reference.Builtin {}) -> empty
         Referent.Ref (Reference.DerivedId termRefId) -> do
-          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _2 . _Just)
+          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _3 . _Just)
         Referent.Con (ConstructorReference r0 cid) _type -> do
           case r0 of
             Reference.DerivedId r -> do
@@ -337,10 +344,10 @@ nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
-  let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
+  let (trms, typs) = termsBySymbol & foldMap \(_ann, _ref, trm, mayTyp) -> ([trm], toList mayTyp)
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _4)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _4)
       <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
@@ -369,3 +376,17 @@ removeInferredTypeAnnotations =
       -- If the type's annotation is identical to the term's annotation, then this must be an inferred type
       | ABT.annotation typ == ABT.annotation trm -> trm
     t -> t
+
+-- | Renders all docs for a given FQN to markdown.
+markdownDocsForFQN :: Uri -> HQ.HashQualified Name -> Lsp [Text]
+markdownDocsForFQN fileUri fqn =
+  fromMaybe [] <$> runMaybeT do
+    pped <- lift $ ppedForFile fileUri
+    name <- MaybeT . pure $ HQ.toName fqn
+    nameSearch <- lift $ getNameSearch
+    Env {codebase, runtime} <- ask
+    liftIO $ do
+      docRefs <- Backend.docsForDefinitionName codebase nameSearch name
+      for docRefs $ \docRef -> do
+        Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+        pure . Md.toText $ Md.toMarkdown doc

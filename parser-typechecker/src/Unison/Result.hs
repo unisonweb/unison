@@ -2,19 +2,15 @@ module Unison.Result where
 
 import Control.Error.Util (note)
 import Control.Monad.Except (ExceptT (..))
-import qualified Control.Monad.Fail as Fail
-import qualified Control.Monad.Morph as Morph
-import Control.Monad.Writer
-  ( MonadWriter (..),
-    WriterT (..),
-    runWriterT,
-  )
+import Control.Monad.Fail qualified as Fail
+import Control.Monad.Morph qualified as Morph
+import Control.Monad.Writer (MonadWriter (..), WriterT (..), runWriterT)
 import Unison.Name (Name)
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
-import qualified Unison.Typechecker.Context as Context
+import Unison.Typechecker.Context qualified as Context
 
 type Result notes = ResultT notes Identity
 
@@ -43,6 +39,10 @@ pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}
 
+makeResult :: Applicative m => notes -> Maybe a -> ResultT notes m a
+makeResult notes value =
+  MaybeT (WriterT (pure (value, notes)))
+
 isSuccess :: (Functor f) => ResultT note f a -> f Bool
 isSuccess = (isJust . fst <$>) . runResultT
 
@@ -67,8 +67,7 @@ toEither r = ExceptT (go <$> runResultT r)
 tell1 :: (Monad f) => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
 
-fromParsing ::
-  (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+fromParsing :: (Monad f) => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
 fromParsing (Left e) = do
   tell1 $ Parsing e
   Fail.fail ""

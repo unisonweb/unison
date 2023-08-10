@@ -86,6 +86,8 @@ y = "hello"
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .master> view y
 
   y : Text
@@ -113,13 +115,13 @@ it's still in the `history` of the parent namespace and can be resurrected at an
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #9k2k834edc
+  ⊙ 1. #sa3li5nog5
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #d9u1nnu62h
+  ⊙ 2. #q6lspv9f8d
   
     + Adds / updates:
     
@@ -130,26 +132,26 @@ it's still in the `history` of the parent namespace and can be resurrected at an
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #8ir51a10kg
+  ⊙ 3. #ptk4oilj4q
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #v03np1853n
+  ⊙ 4. #9gg715gost
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #1fnkqqd2ae
+  ⊙ 5. #pvpo0hnijj
   
     + Adds / updates:
     
       x
   
-  □ 6. #b3jsb4pjcl (start of history)
+  □ 6. #0vd5v3o8ft (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -267,6 +269,8 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

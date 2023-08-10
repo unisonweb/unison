@@ -1,27 +1,27 @@
 module Unison.UnisonFile.Names where
 
-import Data.Bifunctor (second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Control.Lens
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.Names as DD.Names
-import qualified Unison.Hashing.V2.Convert as Hashing
-import Unison.Names (Names (Names))
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Names qualified as DD.Names
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.Names (Names (..))
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Term as Term
-import qualified Unison.UnisonFile as UF
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Term qualified as Term
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects
@@ -35,7 +35,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
     terms =
       Relation.fromList
         [ (Name.unsafeFromVar v, Referent.Ref r)
-          | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
+          | (v, (_a, r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
             wk == Nothing || wk == Just WK.TestWatch
         ]
     types =
@@ -73,11 +73,11 @@ bindNames names (UnisonFileId d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
-  let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
+  let termVars = (view _1 <$> ts) ++ (Map.elems ws >>= map (view _1))
       termVarsSet = Set.fromList termVars
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
-  ws' <- traverse (traverse (\(v, t) -> (v,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
+  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
+  ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
 -- This function computes hashes for data and effect declarations, and
