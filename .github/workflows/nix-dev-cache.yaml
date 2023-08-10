@@ -30,4 +30,6 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: build all packages and development shells
       run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
 
