@@ -274,6 +274,13 @@ intermedToBase ctx r = do
   r <- Map.lookup r . backmap $ intermedRemap ctx
   Map.lookup r . backmap $ floatRemap ctx
 
+-- Runs references through the backmaps with defaults at all steps.
+backmapRef :: EvalCtx -> Reference -> Reference
+backmapRef ctx r0 = r2
+  where
+    r1 = Map.findWithDefault r0 r0 . backmap $ intermedRemap ctx
+    r2 = Map.findWithDefault r1 r1 . backmap $ floatRemap ctx
+
 performRehash ::
   Map.Map Reference (SuperGroup Symbol) ->
   EvalCtx ->
@@ -486,7 +493,10 @@ evalInContext ppe ctx activeThreads w = do
                   (decompTm ctx))
 
       prettyError (PE _ p) = p
-      prettyError (BU tr nm c) = either id (bugMsg ppe tr nm) $ decom c
+      prettyError (BU tr0 nm c) =
+        either id (bugMsg ppe tr nm) $ decom c
+        where
+          tr = first (backmapRef ctx) <$> tr0
 
       debugText fancy c = case decom c of
         Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty ppe dv
