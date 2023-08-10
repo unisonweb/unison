@@ -72,12 +72,14 @@ watchKind1to2 :: V1.WK.WatchKind -> V2.WatchKind
 watchKind1to2 = \case
   V1.WK.RegularWatch -> V2.WatchKind.RegularWatch
   V1.WK.TestWatch -> V2.WatchKind.TestWatch
+  V1.WK.IOWatch -> V2.WatchKind.IOWatch
   other -> error $ "What kind of watchkind is " ++ other ++ "?"
 
 watchKind2to1 :: V2.WatchKind -> V1.WK.WatchKind
 watchKind2to1 = \case
   V2.WatchKind.RegularWatch -> V1.WK.RegularWatch
   V2.WatchKind.TestWatch -> V1.WK.TestWatch
+  V2.WatchKind.IOWatch -> V1.WK.IOWatch
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =

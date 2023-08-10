@@ -1,3 +1,7 @@
 module U.Codebase.WatchKind where
 
-data WatchKind = RegularWatch | TestWatch deriving (Eq, Ord, Show)
+data WatchKind
+  = RegularWatch
+  | TestWatch
+  | IOWatch
+  deriving (Eq, Ord, Show)

@@ -60,12 +60,14 @@ instance ToField WatchKind where
   toField = \case
     WatchKind.RegularWatch -> SQLInteger 0
     WatchKind.TestWatch -> SQLInteger 1
+    WatchKind.IOWatch -> SQLInteger 2
 
 instance FromField WatchKind where
   fromField =
     fromField @Int8 <&> fmap \case
       0 -> WatchKind.RegularWatch
       1 -> WatchKind.TestWatch
+      2 -> WatchKind.IOWatch
       tag -> error $ "Unknown WatchKind id " ++ show tag
 
 instance ToRow NamespaceStats where

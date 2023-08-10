@@ -6,6 +6,7 @@ module Unison.Codebase.Runtime where
 import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
+import Unison.Builtin.Decls qualified as DD
 import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.CodeLookup.Util qualified as CL
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -79,8 +80,12 @@ evaluateWatches ::
   IO (WatchResults v a)
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
-  let m :: Map v (Reference.Id, Term.Term v a)
-      m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
+  let m :: Map v (Reference.Id, Maybe WatchKind, Term.Term v a)
+      m =
+        UF.hashTermsId tuf
+          <&> \case
+            (a, id, wk@(Just WK.IOWatch), tm, _tp) -> (id, wk, DD.forceTerm a a tm)
+            (_a, id, wk, tm, _tp) -> (id, wk, tm)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
       watchKinds =
@@ -88,14 +93,16 @@ evaluateWatches code ppe evaluationCache rt tuf = do
           [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _a, _tm, _tp) <- ws]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
-  m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
-    o <- evaluationCache r
+  m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, mayWK, t)) -> do
+    o <- case mayWK of
+      Just WK.IOWatch -> pure Nothing
+      _ -> evaluationCache r
     case o of
       Nothing -> pure (v, (r, ABT.annotation t, unann t, False))
       Just t' -> pure (v, (r, ABT.annotation t, t', True))
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
   let rv :: Map Reference.Id v
-      rv = Map.fromList [(r, v) | (v, (r, _)) <- Map.toList m]
+      rv = Map.fromList [(r, v) | (v, (r, _mayWK, _)) <- Map.toList m]
       bindings :: [(v, (), Term v)]
       bindings = [(v, (), unref rv b) | (v, (_, _, b, _)) <- Map.toList m']
       watchVars = [Term.var () v | v <- toList watches]
