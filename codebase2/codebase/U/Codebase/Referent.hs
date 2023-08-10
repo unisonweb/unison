@@ -2,7 +2,7 @@
 
 module U.Codebase.Referent where
 
-import Control.Lens (Prism, Traversal)
+import Control.Lens (Prism, Prism', Traversal, review, prism, preview)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
@@ -26,17 +26,30 @@ data Referent' termRef typeRef
 refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
 refs_ f r = bitraverse f f r
 
-typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
-typeRef_ f = bitraverse f pure
+termRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef' typeRef) termRef termRef'
+termRef_ f = bitraverse f pure
 
-termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
-termRef_ f = bitraverse pure f
+typeRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef typeRef') typeRef typeRef'
+typeRef_ f = bitraverse pure f
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"
 
 _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
 _Con = _Ctor @"Con"
+
+_ReferentHReferent :: Prism' ReferentH Referent
+_ReferentHReferent = prism embed project
+  where
+    embed = \case
+      Ref termRef -> Ref (review Reference._RReferenceReference termRef)
+      Con r cid -> Con r cid
+
+    project = \case
+      Con r cid -> Right (Con r cid)
+      Ref r -> case preview Reference._RReferenceReference r of
+        Nothing -> Left (Ref r)
+        Just r -> Right (Ref r)
 
 toReference :: Referent -> Reference
 toReference = \case
