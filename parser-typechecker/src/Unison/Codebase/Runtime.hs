@@ -17,6 +17,7 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
@@ -70,21 +71,24 @@ type WatchResults v a =
 -- `evaluationCache`. If that returns a result, evaluation of that definition
 -- can be skipped.
 evaluateWatches ::
-  forall v a.
+  forall v.
   (Var v) =>
-  CL.CodeLookup v IO a ->
+  CL.CodeLookup v IO Ann ->
   PPE.PrettyPrintEnv ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   Runtime v ->
-  TypecheckedUnisonFile v a ->
-  IO (WatchResults v a)
+  TypecheckedUnisonFile v Ann ->
+  IO (WatchResults v Ann)
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
-  let m :: Map v (Reference.Id, Maybe WatchKind, Term.Term v a)
+  let m :: Map v (Reference.Id, Maybe WatchKind, Term.Term v Ann)
       m =
         UF.hashTermsId tuf
           <&> \case
-            (a, id, wk@(Just WK.IOWatch), tm, _tp) -> (id, wk, DD.forceTerm a a tm)
+            -- Add a force to IOWatch'es which match the 'mainType'
+            (a, id, wk@(Just WK.IOWatch), tm, typ)
+              | Typechecker.fitsScheme typ (mainType rt) ->
+                  (id, wk, DD.forceTerm a a tm)
             (_a, id, wk, tm, _tp) -> (id, wk, tm)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
@@ -143,12 +147,12 @@ evaluateWatches code ppe evaluationCache rt tuf = do
         go _ = Nothing
 
 evaluateTerm' ::
-  (Var v, Monoid a) =>
-  CL.CodeLookup v IO a ->
+  (Var v) =>
+  CL.CodeLookup v IO Ann ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
   Runtime v ->
-  Term.Term v a ->
+  Term.Term v Ann ->
   IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
@@ -161,7 +165,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               mempty
               mempty
               [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
-      r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
+      r <- evaluateWatches (codeLookup) ppe cache rt (tuf)
       pure $
         r <&> \(_, map) ->
           case Map.elems map of
@@ -169,10 +173,10 @@ evaluateTerm' codeLookup cache ppe rt tm = do
             _ -> error "evaluateTerm': Pattern mismatch on watch results"
 
 evaluateTerm ::
-  (Var v, Monoid a) =>
-  CL.CodeLookup v IO a ->
+  (Var v) =>
+  CL.CodeLookup v IO Ann ->
   PPE.PrettyPrintEnv ->
   Runtime v ->
-  Term.Term v a ->
+  Term.Term v Ann ->
   IO (Either Error (Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache
