@@ -226,6 +226,8 @@ instance BuiltinForeign Handle where foreignRef = Tagged Ty.fileHandleRef
 
 instance BuiltinForeign ProcessHandle where foreignRef = Tagged Ty.processHandleRef
 
+instance BuiltinForeign Referent where foreignRef = Tagged Ty.termLinkRef
+
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
 
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef

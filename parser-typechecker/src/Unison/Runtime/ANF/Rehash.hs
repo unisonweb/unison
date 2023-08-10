@@ -2,18 +2,32 @@
 module Unison.Runtime.ANF.Rehash where
 
 import Crypto.Hash
-import Data.Bifunctor (bimap, second)
+import Data.Bifunctor (bimap, first, second)
 import Data.ByteArray (convert)
 import Data.ByteString (cons)
 import Data.ByteString.Lazy (toChunks)
 import Data.Graph as Gr
-import Data.List (foldl')
+import Data.List (foldl', nub)
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text (Text)
 import Unison.Hash (fromByteString)
 import Unison.Reference as Reference
+import Unison.Referent as Referent
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Var (Var)
+
+checkGroupHashes ::
+  Var v =>
+  [(Referent, SuperGroup v)] ->
+  Either (Text, [Referent]) (Either [Referent] [Referent])
+checkGroupHashes rgs = case checkMissing rgs of
+  Left err -> Left err
+  Right []
+    | (rrs, _) <- rehashGroups . Map.fromList $ first toReference <$> rgs ->
+      Right . Right . fmap (Ref . fst) . filter (uncurry (/=)) $ Map.toList rrs
+  Right ms -> Right (Left $ Ref <$> ms)
 
 rehashGroups ::
   Var v =>
@@ -33,6 +47,23 @@ rehashGroups m = foldl step (Map.empty, Map.empty) sccs
       scc = second (overGroupLinks rp) <$> scc0
       (rm, sgs) = rehashSCC scc
 
+checkMissing ::
+  Var v =>
+  [(Referent, SuperGroup v)] ->
+  Either (Text, [Referent]) [Reference]
+checkMissing (unzip -> (rs, gs)) = do
+  is <- fmap Set.fromList . traverse f $ rs
+  pure . nub . foldMap (filter (p is) . groupTermLinks) $ gs
+  where
+    f (Ref (DerivedId i)) = pure i
+    f r@Ref{} =
+      Left ("loaded code cannot be associated to a builtin link", [r])
+    f r =
+      Left ("loaded code cannot be associated to a constructor", [r])
+
+    p s (DerivedId i) =
+      any (\j -> idToHash i == idToHash j) s && not (Set.member i s)
+    p _ _ = False
 
 rehashSCC
   :: Var v

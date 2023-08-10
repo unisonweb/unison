@@ -140,9 +140,10 @@ import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
-import Unison.Referent (pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Serialize as ANF
+import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
@@ -1435,7 +1436,6 @@ outIoExnNat stack1 stack2 stack3 any fail result =
             $ TCon Ty.natRef 0 [stack1]
         )
       ]
-
 outIoExnUnit ::
   forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnUnit stack1 stack2 stack3 any fail result =
@@ -1453,6 +1453,24 @@ outIoExnBox stack1 stack2 stack3 any fail result =
       [ exnCase stack1 stack2 stack3 any fail,
         (1, ([BX], TAbs stack1 $ TVar stack1))
       ]
+
+outIoExnEBoxBox ::
+  (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 res =
+  TMatch t0 . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 any fail,
+        ( 1,
+          ([UN],)
+            . TAbs t1
+            . TMatch t1 . MatchSum $
+              mapFromList
+                [ (0, ([BX], TAbs res $ left res)),
+                  (1, ([BX], TAbs res $ right res))
+                ]
+        )
+      ]
+
 
 outIoFailBox :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailBox stack1 stack2 stack3 any fail result =
@@ -1907,6 +1925,16 @@ boxNatBoxNatNatToExnUnit instr =
     $ outIoExnUnit stack1 stack2 stack3 any fail result
   where
     (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, any, fail) = fresh
+
+-- a ->{Exception} Either b c
+boxToExnEBoxBox :: ForeignOp
+boxToExnEBoxBox instr =
+  ([BX],)
+    . TAbs a
+    . TLetD t0 UN (TFOp instr [a])
+    $ outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 result
+  where
+    (a, stack1, stack2, stack3, any, fail, t0, t1, result) = fresh
 
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
@@ -2660,6 +2688,12 @@ declareForeigns = do
   declareForeign Tracked "Tls.terminate.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
+  declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
+    . mkForeign
+    $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
+        let f (msg, rs) =
+              Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
+        pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->

@@ -906,6 +906,9 @@ codeBuiltins =
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
     ("Code.lookup", termLink --> io (optionalt code)),
     ("Code.display", text --> code --> text),
+    ( "Code.validateLinks",
+      list (tuple [termLink, code])
+        --> Type.effect () [DD.exceptionType ()] (list termLink)),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
