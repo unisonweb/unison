@@ -6,8 +6,9 @@ import Data.ByteArray (convert)
 import Data.ByteString (cons)
 import Data.ByteString.Lazy (toChunks)
 import Data.Graph as Gr
-import Data.List (foldl', nub)
+import Data.List (foldl', nub, sortBy)
 import Data.Map.Strict qualified as Map
+import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Unison.Hash (fromByteString)
@@ -72,7 +73,7 @@ rehashSCC ::
 rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where
-    ps = flattenSCC scc
+    ps = sortBy (comparing fst) $ flattenSCC scc
     sample = case fst $ head ps of
       Derived h _ -> h
       _ -> error "rehashSCC: impossible"
