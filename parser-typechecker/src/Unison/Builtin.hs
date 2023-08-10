@@ -908,7 +908,8 @@ codeBuiltins =
     ("Code.display", text --> code --> text),
     ( "Code.validateLinks",
       list (tuple [termLink, code])
-        --> Type.effect () [DD.exceptionType ()] (list termLink)),
+        --> Type.effect () [DD.exceptionType ()]
+              (eithert (list termLink) (list termLink))),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
