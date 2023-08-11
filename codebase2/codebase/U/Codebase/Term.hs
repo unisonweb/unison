@@ -20,13 +20,12 @@ import Control.Lens (Lens)
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
 import Data.Set qualified as Set
-import U.Codebase.Reference (Reference, Reference', TermRReference, TermReference, TypeReference)
-import U.Codebase.Referent (Referent, Referent', ReferentH)
+import U.Codebase.Reference (Reference, TermRReference, TermReference, TypeReference)
+import U.Codebase.Referent (Referent, ReferentH)
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
 import Unison.Core.ConstructorId (ConstructorId)
-import Unison.Hash (Hash)
 import Unison.Prelude
 
 type Term v = ABT.Term (F v) v ()
