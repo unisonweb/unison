@@ -1,6 +1,40 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module U.Codebase.Sqlite.Serialization where
+module U.Codebase.Sqlite.Serialization
+  ( decomposeBranchFormat,
+    decomposeDeclFormat,
+    decomposePatchFormat,
+    decomposeTermFormat,
+    decomposeWatchFormat,
+    getBranchFormat,
+    getDeclElement,
+    getDeclFormat,
+    getPatchFormat,
+    getTempCausalFormat,
+    getTempDeclFormat,
+    getTempNamespaceFormat,
+    getTempPatchFormat,
+    getTempTermFormat,
+    getTermAndType,
+    getTermFormat,
+    getWatchResultFormat,
+    lookupDeclElement,
+    lookupTermElement,
+    lookupTermElementDiscardingTerm,
+    lookupTermElementDiscardingType,
+    putBranchFormat,
+    putDeclFormat,
+    putPatchFormat,
+    putTempEntity,
+    putTermFormat,
+    putWatchResultFormat,
+    recomposeBranchFormat,
+    recomposeDeclFormat,
+    recomposePatchFormat,
+    recomposeTermFormat,
+    recomposeWatchFormat,
+  )
+where
 
 import Data.Bits (Bits)
 import Data.ByteString qualified as BS
