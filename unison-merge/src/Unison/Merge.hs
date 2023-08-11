@@ -1,9 +1,9 @@
 module Unison.Merge () where
 
 import Control.Lens (review, (%~), (^?))
-import Control.Lens ((%~))
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
+import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Decl (Decl)
@@ -17,18 +17,12 @@ import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term (Term)
 import U.Codebase.Term qualified as Term
-import U.Codebase.Reference (TypeReference)
-import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.HashHandle (HashHandle)
-import U.Codebase.Sqlite.HashHandle qualified as HashHandle
-import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Type as Type
 import U.Core.ABT (ABT)
 import U.Core.ABT qualified as ABT
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
-import Unison.Hash (Hash)
 import Unison.Hash (Hash)
 import Unison.PatternMatchCoverage.UFMap (UFMap)
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
@@ -247,39 +241,80 @@ boingoBeats refToDependencies allUpdates userUpdates =
       userUpdatesLhs = Relation.dom userUpdates
       userUpdatesRhs = Relation.ran userUpdates
 
-      -- blackEquivalenceClasses =
-      --   filter
-      --     (\cls -> Set.size (Set.intersection cls userUpdatesRhs) >= 2)
-      --     equivalenceClasses
-      --
-      nodes = undefined
-
-      -- These are LCA edges
-      --
       -- Arya question for tomorrow: what about self-loops? (#foo3 calls #foo)
       -- Arya thinks we just ignore self-edges
       -- Mitchell thinks: hmm they don't seem to harm anything
-      bazooka :: [(Int, Int, [Int])]
-      bazooka =
-        map
-          ( \(i, class_) ->
-              ( i,
-                i,
-                let dependencies = foldMap refToDependencies . Set.intersection class_
-                    -- The dependencies of *all* of the old stuff affected by the merge
-                    lcaDeps = dependencies allUpdatesLhs
-                    -- The dependencies of *the user-touched subset* of the old stuff
-                    userUpdateLhsDeps = dependencies userUpdatesLhs
-                    -- The dependencies of *the user-touched subset* of the new stuff
-                    userUpdateRhsDeps = dependencies userUpdatesRhs
-                 in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
-                      & Set.mapMaybe whichEquivalenceClass
-                      & Set.toList
-              )
-          )
-          (Bimap.toList equivalenceClasses)
+      coreClassDependencies :: Map Int [Int]
+      coreClassDependencies =
+        equivalenceClasses & Bimap.toMap & Map.map \class_ ->
+          let dependencies = foldMap refToDependencies . Set.intersection class_
+              -- The dependencies of *all* of the old stuff affected by the merge
+              lcaDeps = dependencies allUpdatesLhs
+              -- The dependencies of *the user-touched subset* of the old stuff
+              userUpdateLhsDeps = dependencies userUpdatesLhs
+              -- The dependencies of *the user-touched subset* of the new stuff
+              userUpdateRhsDeps = dependencies userUpdatesRhs
+           in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
+                & Set.mapMaybe whichEquivalenceClass
+                & Set.toList
 
+      -- 1. We have the mapping for the core nodes.
+      -- 2. Next we do these in any order:
+      --     * classify the core nodes into conflicted or not
+      --     * add (from the LCA + both branches) the transitive dependents of all the core nodes.
+      --         * Arya says use dynamic programming to search from <some set of named references>
+      --             to either the end or to a core node reference, to decide what's a transitive dependent.
+
+      -- \| Returns the set of all transitive dependents of the given set of references.
+      getTransitiveDependents ::
+        Set ref ->
+        -- \^ "scope" - any of these which are dependents of the query set must be included in the result.
+        -- e.g. some union of namespaces
+        Set ref ->
+        -- \^ "query" we're looking for dependents of these. e.g. core class references
+        Set ref
+      -- \^ the dependents, which we want to add to the graph
+      getTransitiveDependents scope query = search Set.empty query (Set.toList scope)
+        where
+          search :: Set ref -> Set ref -> [ref] -> Set ref
+          search dependents seen unseen =
+            case unseen of
+              [] -> dependents
+              ref : unseen ->
+                if Set.member ref seen
+                  then search dependents seen unseen
+                  else
+                    let (dependentDeps, uncategorizedDeps) = Set.partition isDependent (refToDependencies ref)
+                        unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
+                     in if null unseenDeps
+                          then -- we're ready to make a decision about ref
+
+                            let seen' = Set.insert ref seen
+                             in if null dependentDeps -- ref is not dependent on any of the query set
+                                  then search dependents seen' unseen
+                                  else search (Set.insert ref dependents) seen' unseen
+                          else search dependents seen (toList unseenDeps ++ ref : unseen)
+            where
+              -- \| split the dependencies into three groups: known dependents, known independents, and unseen
+              -- It would be nice to short circuit if (any (flip Set.member dependents) dependencies)
+              -- and simply declare ref a dependent, but we can't do that because we might have unnamed dependencies.
+              -- that we won't detect unless we keep going.
+              -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
+              isDependent = flip Set.member dependents
+              isSeen = flip Set.member seen
+   in -- go will look at each unseen and try to classify it as dependent or independent.
+      -- for a given reference we will do a DFS, saving results along the way.
+
+      -- 3. Next we move <the conflicted nodes + all of their dependents>
+      --     to a separate Map. The keys will be fully disjoint between the two maps.
+      --     (suggestion: with a `seen :: Set v`)
+      -- 4. Then we run Staryafish on the `Graph.flattenSCC <$> Graph.stronglyConnComp graph`
+      --     of the "unconflicted" Map, and write the results to a new namespace.
+      -- 5. Then we pretty-print the `Graph.flattenSCC <$> Graph.stronglyConnComp graph`
+      --     of the "conflicted" map and write the results to a scratch file.
+
+      -- - Somewhere fit in something about not deleting dependencies of newly added definitions.
+      -- This can probably be in Step 4.
+      -- - Does everything break if I rename anything?
       --
-      blahblah :: ()
-      blahblah = ()
-   in undefined
+      undefined
