@@ -294,23 +294,21 @@ boingoBeats refToDependencies allUpdates userUpdates =
       getTransitiveDependents scope query = search Set.empty query (Set.toList scope)
         where
           search :: Set ref -> Set ref -> [ref] -> Set ref
-          search dependents seen unseen =
-            case unseen of
-              [] -> dependents
-              ref : unseen ->
-                if Set.member ref seen
-                  then search dependents seen unseen
-                  else
-                    let (dependentDeps, uncategorizedDeps) = Set.partition isDependent (refToDependencies ref)
-                        unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
-                     in if null unseenDeps
-                          then -- we're ready to make a decision about ref
+          search dependents _ [] = dependents
+          search dependents seen (ref : unseen) =
+            if Set.member ref seen
+              then search dependents seen unseen
+              else
+                let (dependentDeps, uncategorizedDeps) = Set.partition isDependent (refToDependencies ref)
+                    unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
+                 in if null unseenDeps
+                      then -- we're ready to make a decision about ref
 
-                            let seen' = Set.insert ref seen
-                             in if null dependentDeps -- ref is not dependent on any of the query set
-                                  then search dependents seen' unseen
-                                  else search (Set.insert ref dependents) seen' unseen
-                          else search dependents seen (toList unseenDeps ++ ref : unseen)
+                        let seen' = Set.insert ref seen
+                         in if null dependentDeps -- ref is not dependent on any of the query set
+                              then search dependents seen' unseen
+                              else search (Set.insert ref dependents) seen' unseen
+                      else search dependents seen (toList unseenDeps ++ ref : unseen)
             where
               -- \| split the dependencies into three groups: known dependents, known independents, and unseen
               -- It would be nice to short circuit if (any (flip Set.member dependents) dependencies)
