@@ -392,19 +392,26 @@ normalizeTerm ::
   EvalCtx ->
   Term Symbol ->
   ( Reference,
+    Map Reference Reference,
     Map Reference (Term Symbol),
     Map Reference (Map.Map Word64 (Term Symbol))
   )
 normalizeTerm ctx tm =
   absorb
-    . lamLift
+    . lamLift orig
     . saturate (uncurryDspec $ dspec ctx)
     . inlineAlias
     $ tm
   where
-    absorb (ll, bs, dcmp) =
+    orig
+      | Tm.LetRecNamed' bs _ <- tm =
+        fmap (RF.DerivedId . fst)
+          . Hashing.hashTermComponentsWithoutTypes
+          $ Map.fromList bs
+      | otherwise = mempty
+    absorb (ll, frem, bs, dcmp) =
       let ref = RF.DerivedId $ Hashing.hashClosedTerm ll
-       in (ref, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
+       in (ref, frem, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
 
 normalizeGroup ::
   EvalCtx ->
@@ -429,12 +436,13 @@ intermediateTerm ::
   EvalCtx ->
   Term Symbol ->
   ( Reference,
+    Map.Map Reference Reference,
     Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ctx tm =
   case normalizeTerm ctx tm of
-    (ref, cmbs, dcmp) -> (ref, fmap f cmbs, dcmp)
+    (ref, frem, cmbs, dcmp) -> (ref, frem, fmap f cmbs, dcmp)
       where
         tmName = HQ.toString . termName ppe $ RF.Ref ref
         f =
@@ -455,8 +463,8 @@ prepareEvaluation ppe tm ctx = do
       "Error in prepareEvaluation, cache is missing: " <> show missing
   (,) (backrefAdd rbkr ctx') <$> refNumTm (ccache ctx') rmn
   where
-    (rmn0, rgrp0, rbkr) = intermediateTerm ppe ctx tm
-    (ctx', rrefs, rgrp) = performRehash rgrp0 ctx
+    (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
+    (ctx', rrefs, rgrp) = performRehash rgrp0 (floatRemapAdd frem ctx)
     rmn = case Map.lookup rmn0 rrefs of
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
@@ -692,7 +700,8 @@ startRuntime sandboxed runtimeHost version = do
           (tyrs, tmrs) <- collectRefDeps cl rf
           ctx <- loadDeps cl ppe ctx tyrs tmrs
           let cc = ccache ctx
-          Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
+              lk m = flip Map.lookup m =<< baseToIntermed ctx rf
+          Just w <- lk <$> readTVarIO (refTm cc)
           sto <- standalone cc w
           BL.writeFile path . runPutL $ do
             serialize $ version

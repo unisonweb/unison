@@ -515,16 +515,19 @@ postFloat orig (_, bs, dcmp) =
 float ::
   (Var v) =>
   (Monoid a) =>
+  Map v Reference ->
   Term v a ->
-  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
-float tm = case runState go0 (Set.empty, [], []) of
-  (bd, st) -> case postFloat mempty st of
-    (subs, _, tops, dcmp) ->
+  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
+float orig tm = case runState go0 (Set.empty, [], []) of
+  (bd, st) -> case postFloat orig st of
+    (subs, subvs, tops, dcmp) ->
       ( letRec' True [] . ABT.substs subs . deannotate $ bd,
+        Map.fromList . mapMaybe f $ subvs,
         tops,
         dcmp
       )
   where
+    f (v,i) = (, DerivedId i) <$> Map.lookup v orig
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
 
@@ -568,9 +571,10 @@ deannotate = ABT.visitPure $ \case
 lamLift ::
   (Var v) =>
   (Monoid a) =>
+  Map v Reference ->
   Term v a ->
-  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
-lamLift = float . close Set.empty
+  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
+lamLift orig = float orig . close Set.empty
 
 lamLiftGroup ::
   (Var v) =>
