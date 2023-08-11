@@ -16,6 +16,7 @@ where
 
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
+import U.Codebase.HashTags
 import U.Codebase.Sqlite.Branch.Diff (Diff, LocalDiff)
 import U.Codebase.Sqlite.Branch.Diff qualified as Branch.Diff
 import U.Codebase.Sqlite.Branch.Full (DbBranch, HashBranch, LocalBranch)
@@ -27,7 +28,6 @@ import U.Codebase.Sqlite.LocalIds
     LocalPatchObjectId (..),
     LocalTextId (..),
   )
-import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- | A 'BranchFormat' is a deserialized namespace object (@object.bytes@).
@@ -49,7 +49,7 @@ type BranchFormat = BranchFormat' TextId ObjectId PatchObjectId (BranchObjectId,
 
 -- | A BranchFormat which uses Hashes and Text for all its references, no
 -- Ids which are specific to a particular codebase.
-type HashBranchFormat = BranchFormat' Text Hash32 Hash32 (Hash32, Hash32) Hash32
+type HashBranchFormat = BranchFormat' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
 -- = Full BranchLocalIds LocalBranch
 -- \| Diff BranchObjectId BranchLocalIds LocalDiff
@@ -60,7 +60,7 @@ type HashBranchFormat = BranchFormat' Text Hash32 Hash32 (Hash32, Hash32) Hash32
 -- local id 1 corresponds to database text id 74".
 type BranchLocalIds = BranchLocalIds' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
-type HashBranchLocalIds = BranchLocalIds' Text Hash32 Hash32 (Hash32, Hash32)
+type HashBranchLocalIds = BranchLocalIds' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
 -- temp_entity
 --  branch #foo
