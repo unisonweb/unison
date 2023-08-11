@@ -153,10 +153,19 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
         ]
 
     alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
-    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs0 rhs0 =
-      let lhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) lhs0
-          rhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) rhs0
-       in HashHandle.toReferenceDecl hashHandle hlhs lhs == HashHandle.toReferenceDecl hashHandle hrhs rhs
+    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs rhs =
+      let hashCanon :: Hash -> TypeD Symbol -> Reference.Reference
+          hashCanon h x = HashHandle.toReference hashHandle (canonicalize h x)
+
+          canonicalize :: Hash -> TypeD Symbol -> TypeT Symbol
+          canonicalize selfHash x = Type.rmap (lookupCanon . subSelfReferences) x
+            where
+              subSelfReferences :: Reference.TypeRReference -> TypeReference
+              subSelfReferences =
+                Reference.h_ %~ \case
+                  Nothing -> selfHash
+                  Just r -> r
+       in hashCanon hlhs lhs == hashCanon hrhs rhs
 
 canonicalizeTerm ::
   forall m.
