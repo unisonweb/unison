@@ -78,6 +78,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import U.Codebase.Sqlite.Branch.Format (LocalBranchBytes (..))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
@@ -371,7 +372,7 @@ data Namespace text hash = Namespace
     defnLookup :: [hash],
     patchLookup :: [hash],
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
+    bytes :: LocalBranchBytes
   }
   deriving stock (Eq, Ord, Show)
 
@@ -391,7 +392,7 @@ instance Bitraversable Namespace where
       <*> pure b
 
 instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
-  toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
+  toJSON (Namespace textLookup defnLookup patchLookup childLookup (LocalBranchBytes bytes)) =
     object
       [ "text_lookup" .= textLookup,
         "defn_lookup" .= defnLookup,
@@ -407,7 +408,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
     patchLookup <- obj .: "patch_lookup"
     childLookup <- obj .: "child_lookup"
     Base64Bytes bytes <- obj .: "bytes"
-    pure Namespace {..}
+    pure Namespace {bytes = LocalBranchBytes bytes, ..}
 
 data NamespaceDiff text hash = NamespaceDiff
   { parent :: hash,
@@ -415,12 +416,12 @@ data NamespaceDiff text hash = NamespaceDiff
     defnLookup :: [hash],
     patchLookup :: [hash],
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
+    bytes :: LocalBranchBytes
   }
   deriving stock (Eq, Ord, Show)
 
 instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
-  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
+  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup (LocalBranchBytes bytes)) =
     object
       [ "parent" .= parent,
         "text_lookup" .= textLookup,
@@ -438,7 +439,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) wh
     patchLookup <- obj .: "patch_lookup"
     childLookup <- obj .: "child_lookup"
     Base64Bytes bytes <- obj .: "bytes"
-    pure NamespaceDiff {..}
+    pure NamespaceDiff {bytes = LocalBranchBytes bytes, ..}
 
 namespaceDiffHashes_ :: (Applicative m) => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
 namespaceDiffHashes_ f (NamespaceDiff {..}) = do
@@ -698,8 +699,10 @@ instance FromJSON HashMismatchForEntity where
   parseJSON =
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
-        <$> obj .: "supplied"
-        <*> obj .: "computed"
+        <$> obj
+        .: "supplied"
+        <*> obj
+        .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path

@@ -1,12 +1,15 @@
 module U.Codebase.Sqlite.Branch.Format
   ( BranchFormat' (..),
     BranchFormat,
+    HashBranchFormat,
     BranchLocalIds,
     BranchLocalIds' (..),
     SyncBranchFormat,
     SyncBranchFormat' (..),
+    LocalBranchBytes (..),
     localToDbBranch,
     localToDbDiff,
+    localToHashBranch,
     -- dbToLocalDiff,
   )
 where
@@ -15,7 +18,7 @@ import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import U.Codebase.Sqlite.Branch.Diff (Diff, LocalDiff)
 import U.Codebase.Sqlite.Branch.Diff qualified as Branch.Diff
-import U.Codebase.Sqlite.Branch.Full (DbBranch, LocalBranch)
+import U.Codebase.Sqlite.Branch.Full (DbBranch, HashBranch, LocalBranch)
 import U.Codebase.Sqlite.Branch.Full qualified as Branch.Full
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
@@ -24,6 +27,7 @@ import U.Codebase.Sqlite.LocalIds
     LocalPatchObjectId (..),
     LocalTextId (..),
   )
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- | A 'BranchFormat' is a deserialized namespace object (@object.bytes@).
@@ -36,26 +40,16 @@ data
     patchRef
     childRef
     branchRef
-    localText
-    localDefRef
-    localPatchRef
-    localChildRef
-  = Full (BranchLocalIds' text defRef patchRef childRef) (Branch.Full.Branch' localText localDefRef localPatchRef localChildRef)
-  | Diff branchRef (BranchLocalIds' text defRef patchRef childRef) (Branch.Diff.Diff' localText localDefRef localPatchRef localChildRef)
+  = Full (BranchLocalIds' text defRef patchRef childRef) LocalBranch
+  | Diff branchRef (BranchLocalIds' text defRef patchRef childRef) LocalDiff
   deriving (Show)
 
 -- | The 'BranchFormat'' used to store a branch in Sqlite
-type BranchFormat =
-  BranchFormat'
-    TextId
-    ObjectId
-    PatchObjectId
-    (BranchObjectId, CausalHashId)
-    BranchObjectId
-    LocalTextId
-    LocalDefnId
-    LocalPatchObjectId
-    LocalBranchChildId
+type BranchFormat = BranchFormat' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId) BranchObjectId
+
+-- | A BranchFormat which uses Hashes and Text for all its references, no
+-- Ids which are specific to a particular codebase.
+type HashBranchFormat = BranchFormat' Text Hash32 Hash32 (Hash32, Hash32) Hash32
 
 -- = Full BranchLocalIds LocalBranch
 -- \| Diff BranchObjectId BranchLocalIds LocalDiff
@@ -65,6 +59,8 @@ type BranchFormat =
 -- For example, a @branchTextLookup@ vector of @[50, 74]@ means "local id 0 corresponds to database text id 50, and
 -- local id 1 corresponds to database text id 74".
 type BranchLocalIds = BranchLocalIds' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+
+type HashBranchLocalIds = BranchLocalIds' Text Hash32 Hash32 (Hash32, Hash32)
 
 -- temp_entity
 --  branch #foo
@@ -105,28 +101,38 @@ data BranchLocalIds' t d p c = LocalIds
   }
   deriving (Show)
 
+-- | Bytes encoding a LocalBranch
+newtype LocalBranchBytes = LocalBranchBytes ByteString
+  deriving (Show, Eq, Ord)
+
 data SyncBranchFormat' parent text defn patch child
-  = SyncFull (BranchLocalIds' text defn patch child) ByteString
-  | SyncDiff parent (BranchLocalIds' text defn patch child) ByteString
+  = SyncFull (BranchLocalIds' text defn patch child) LocalBranchBytes
+  | SyncDiff parent (BranchLocalIds' text defn patch child) LocalBranchBytes
 
 type SyncBranchFormat = SyncBranchFormat' BranchObjectId TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
-localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
-localToDbBranch li =
+localToBranch :: (Ord t, Ord d) => BranchLocalIds' t d p c -> LocalBranch -> (Branch.Full.Branch' t d p c)
+localToBranch li =
   Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
+
+localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
+localToDbBranch = localToBranch
+
+localToHashBranch :: HashBranchLocalIds -> LocalBranch -> HashBranch
+localToHashBranch = localToBranch
 
 localToDbDiff :: BranchLocalIds -> LocalDiff -> Diff
 localToDbDiff li =
   Branch.Diff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
-lookupBranchLocalText :: BranchLocalIds -> LocalTextId -> TextId
+lookupBranchLocalText :: BranchLocalIds' t d p c -> LocalTextId -> t
 lookupBranchLocalText li (LocalTextId w) = branchTextLookup li Vector.! fromIntegral w
 
-lookupBranchLocalDefn :: BranchLocalIds -> LocalDefnId -> ObjectId
+lookupBranchLocalDefn :: BranchLocalIds' t d p c -> LocalDefnId -> d
 lookupBranchLocalDefn li (LocalDefnId w) = branchDefnLookup li Vector.! fromIntegral w
 
-lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> PatchObjectId
+lookupBranchLocalPatch :: BranchLocalIds' t d p c -> LocalPatchObjectId -> p
 lookupBranchLocalPatch li (LocalPatchObjectId w) = branchPatchLookup li Vector.! fromIntegral w
 
-lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (BranchObjectId, CausalHashId)
+lookupBranchLocalChild :: BranchLocalIds' t d p c -> LocalBranchChildId -> c
 lookupBranchLocalChild li (LocalBranchChildId w) = branchChildLookup li Vector.! fromIntegral w

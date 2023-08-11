@@ -7,6 +7,7 @@ module U.Codebase.Sqlite.Serialization
     decomposeTermFormat,
     decomposeWatchFormat,
     getBranchFormat,
+    getLocalBranch,
     getDeclElement,
     getDeclFormat,
     getPatchFormat,
@@ -612,54 +613,16 @@ putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 getBranchFormat :: (MonadGet m) => m BranchFormat.BranchFormat
 getBranchFormat = getBranchFormat' getBranchFull getBranchDiff
   where
-    getBranchFull = getBranchFull' getText getPatchRef getChildRef getReference getReferent getBranchLocalIds
-    getBranchDiff = getBranchDiff' getBranchRef getBranchLocalIds getLocalBranchDiff
+    getBranchFull = getBranchFull' getBranchLocalIds
+    getBranchDiff = getBranchDiff' getBranchRef getBranchLocalIds
     getBranchRef = getVarInt
-    getPatchRef = getVarInt
-    getChildRef = getVarInt
-    getText = getVarInt
 
 getBranchFormat' ::
-  forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
+  forall text defRef patchRef childRef branchRef m.
   (MonadGet m) =>
-  ( m
-      ( BranchFormat.BranchFormat'
-          text
-          defRef
-          patchRef
-          childRef
-          branchRef
-          localText
-          localDefRef
-          localPatchRef
-          localChildRef
-      )
-  ) ->
-  ( m
-      ( BranchFormat.BranchFormat'
-          text
-          defRef
-          patchRef
-          childRef
-          branchRef
-          localText
-          localDefRef
-          localPatchRef
-          localChildRef
-      )
-  ) ->
-  m
-    ( BranchFormat.BranchFormat'
-        text
-        defRef
-        patchRef
-        childRef
-        branchRef
-        localText
-        localDefRef
-        localPatchRef
-        localChildRef
-    )
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
 getBranchFormat' getBranchFull getBranchDiff =
   getWord8 >>= \case
     0 -> getBranchFull
@@ -667,44 +630,22 @@ getBranchFormat' getBranchFull getBranchDiff =
     x -> unknownTag "getBranchFormat" x
 
 getBranchFull' ::
-  forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
-  (MonadGet m, Ord localDefRef, Ord localText) =>
-  (m localText) ->
-  (m localPatchRef) ->
-  (m localChildRef) ->
-  (m (Reference' localText localDefRef)) ->
-  (m (BranchFull.Referent'' localText localDefRef)) ->
-  ( m
-      ( BranchFormat.BranchLocalIds'
-          text
-          defRef
-          patchRef
-          childRef
-      )
-  ) ->
-  m
-    ( BranchFormat.BranchFormat'
-        text
-        defRef
-        patchRef
-        childRef
-        branchRef
-        localText
-        localDefRef
-        localPatchRef
-        localChildRef
-    )
-getBranchFull' getLocalText getLocalPatchRef getLocalChildRef getReference getReferent getBranchLocalIds =
+  forall text defRef patchRef childRef branchRef m.
+  (MonadGet m) =>
+  m (BranchFormat.BranchLocalIds' text defRef patchRef childRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
+getBranchFull' getBranchLocalIds =
   BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
+
+getLocalBranch :: (MonadGet m) => m BranchFull.LocalBranch
+getLocalBranch =
+  BranchFull.Branch
+    <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
+    <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
+    <*> getMap getVarInt getVarInt
+    <*> getMap getVarInt getVarInt
   where
-    getLocalBranch :: (MonadGet m) => m (BranchFull.Branch' localText localDefRef localPatchRef localChildRef)
-    getLocalBranch =
-      BranchFull.Branch
-        <$> getMap getLocalText (getMap getReferent getMetadataSetFormat)
-        <*> getMap getLocalText (getMap getReference getMetadataSetFormat)
-        <*> getMap getLocalText getLocalPatchRef
-        <*> getMap getLocalText getLocalChildRef
-    getMetadataSetFormat :: (MonadGet m) => m (BranchFull.MetadataSetFormat' localText localDefRef)
+    getMetadataSetFormat :: (MonadGet m) => m BranchFull.LocalMetadataSet
     getMetadataSetFormat =
       getWord8 >>= \case
         0 -> BranchFull.Inline <$> getSet getReference
@@ -712,23 +653,10 @@ getBranchFull' getLocalText getLocalPatchRef getLocalChildRef getReference getRe
 
 getBranchDiff' ::
   MonadGet m =>
-  (m branchRef) ->
-  (m (BranchFormat.BranchLocalIds' text defRef patchRef childRef)) ->
-  m
-    (BranchDiff.Diff' localText localDefRef localPatchRef localChildRef) ->
-  m
-    ( BranchFormat.BranchFormat'
-        text
-        defRef
-        patchRef
-        childRef
-        branchRef
-        localText
-        localDefRef
-        localPatchRef
-        localChildRef
-    )
-getBranchDiff' getBranchRef getBranchLocalIds getLocalBranchDiff =
+  m branchRef ->
+  m (BranchFormat.BranchLocalIds' text defRef patchRef childRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
+getBranchDiff' getBranchRef getBranchLocalIds =
   BranchFormat.Diff
     <$> getBranchRef
     <*> getBranchLocalIds
@@ -844,15 +772,15 @@ recomposePatchFormat = \case
 decomposeBranchFormat :: (MonadGet m) => m BranchFormat.SyncBranchFormat
 decomposeBranchFormat =
   getWord8 >>= \case
-    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
-    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getRemainingByteString)
+    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getRemainingByteString)
     x -> unknownTag "decomposeBranchFormat" x
 
 recomposeBranchFormat :: (MonadPut m) => BranchFormat.SyncBranchFormat -> m ()
 recomposeBranchFormat = \case
-  BranchFormat.SyncFull li bs ->
+  BranchFormat.SyncFull li (BranchFormat.LocalBranchBytes bs) ->
     putWord8 0 *> putBranchLocalIds li *> putByteString bs
-  BranchFormat.SyncDiff id li bs ->
+  BranchFormat.SyncDiff id li (BranchFormat.LocalBranchBytes bs) ->
     putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
 
 putTempEntity :: (MonadPut m) => TempEntity -> m ()
@@ -869,9 +797,9 @@ putTempEntity = \case
     PatchFormat.SyncDiff parent lids bytes ->
       putWord8 1 *> putSyncDiffPatch parent lids bytes
   Entity.N n -> case n of
-    BranchFormat.SyncFull lids bytes ->
+    BranchFormat.SyncFull lids (BranchFormat.LocalBranchBytes bytes) ->
       putWord8 0 *> putSyncFullNamespace lids bytes
-    BranchFormat.SyncDiff parent lids bytes ->
+    BranchFormat.SyncDiff parent lids (BranchFormat.LocalBranchBytes bytes) ->
       putWord8 1 *> putSyncDiffNamespace parent lids bytes
   Entity.C gdc ->
     putSyncCausal gdc
@@ -958,8 +886,8 @@ getTempPatchFormat =
 getTempNamespaceFormat :: (MonadGet m) => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
   getWord8 >>= \case
-    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
-    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> getFramedByteString
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getFramedByteString)
+    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getFramedByteString)
     tag -> unknownTag "getTempNamespaceFormat" tag
   where
     getBranchLocalIds =

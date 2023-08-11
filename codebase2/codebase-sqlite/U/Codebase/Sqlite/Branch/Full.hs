@@ -15,6 +15,7 @@ import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
 import Unison.Util.Set qualified as Set
@@ -40,6 +41,8 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 --   }
 -- @
 type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+
+type HashBranch = Branch' Text Hash32 Hash32 (Hash32, Hash32)
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
 
