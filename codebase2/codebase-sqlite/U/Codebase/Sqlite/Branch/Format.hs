@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.Branch.Format
-  ( BranchFormat (..),
+  ( BranchFormat' (..),
+    BranchFormat,
     BranchLocalIds,
     BranchLocalIds' (..),
     SyncBranchFormat,
@@ -28,10 +29,36 @@ import Unison.Prelude
 -- | A 'BranchFormat' is a deserialized namespace object (@object.bytes@).
 --
 -- you can use the exact same `BranchLocalIds` when converting between `Full` and `Diff`
-data BranchFormat
-  = Full BranchLocalIds LocalBranch
-  | Diff BranchObjectId BranchLocalIds LocalDiff
+data
+  BranchFormat'
+    text
+    defRef
+    patchRef
+    childRef
+    branchRef
+    localText
+    localDefRef
+    localPatchRef
+    localChildRef
+  = Full (BranchLocalIds' text defRef patchRef childRef) (Branch.Full.Branch' localText localDefRef localPatchRef localChildRef)
+  | Diff branchRef (BranchLocalIds' text defRef patchRef childRef) (Branch.Diff.Diff' localText localDefRef localPatchRef localChildRef)
   deriving (Show)
+
+-- | The 'BranchFormat'' used to store a branch in Sqlite
+type BranchFormat =
+  BranchFormat'
+    TextId
+    ObjectId
+    PatchObjectId
+    (BranchObjectId, CausalHashId)
+    BranchObjectId
+    LocalTextId
+    LocalDefnId
+    LocalPatchObjectId
+    LocalBranchChildId
+
+-- = Full BranchLocalIds LocalBranch
+-- \| Diff BranchObjectId BranchLocalIds LocalDiff
 
 -- | A 'BranchLocalIds' is a mapping between local ids (local to this object) encoded as offsets, and actual database ids.
 --
