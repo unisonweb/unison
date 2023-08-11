@@ -527,7 +527,7 @@ float orig tm = case runState go0 (Set.empty, [], []) of
         dcmp
       )
   where
-    f (v,i) = (, DerivedId i) <$> Map.lookup v orig
+    f (v, i) = (,DerivedId i) <$> Map.lookup v orig
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
 

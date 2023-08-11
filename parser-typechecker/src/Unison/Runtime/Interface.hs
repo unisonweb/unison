@@ -391,9 +391,9 @@ normalizeTerm ctx tm =
   where
     orig
       | Tm.LetRecNamed' bs _ <- tm =
-        fmap (RF.DerivedId . fst)
-          . Hashing.hashTermComponentsWithoutTypes
-          $ Map.fromList bs
+          fmap (RF.DerivedId . fst)
+            . Hashing.hashTermComponentsWithoutTypes
+            $ Map.fromList bs
       | otherwise = mempty
     absorb (ll, frem, bs, dcmp) =
       let ref = RF.DerivedId $ Hashing.hashClosedTerm ll
