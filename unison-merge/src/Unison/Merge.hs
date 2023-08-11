@@ -1,6 +1,9 @@
 module Unison.Merge () where
 
 import Control.Lens (review, (%~), (^?))
+import Control.Lens ((%~))
+import Data.Bimap (Bimap)
+import Data.Bimap qualified as Bimap
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Decl (Decl)
@@ -14,6 +17,11 @@ import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term (Term)
 import U.Codebase.Term qualified as Term
+import U.Codebase.Reference (TypeReference)
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.HashHandle (HashHandle)
+import U.Codebase.Sqlite.HashHandle qualified as HashHandle
+import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Type as Type
 import U.Core.ABT (ABT)
 import U.Core.ABT qualified as ABT
@@ -21,10 +29,13 @@ import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
+import Unison.Hash (Hash)
+import Unison.PatternMatchCoverage.UFMap (UFMap)
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 
 data NamespaceDiff reference referent = NamespaceDiff
   { -- Mapping from old term to new term.
@@ -38,29 +49,34 @@ type ConstructorMapping = forall a. [a] -> [a]
 computeTypeECs :: Map reference reference -> Map reference reference -> [Set reference]
 computeTypeECs = undefined
 
-computeEquivClassLookupFunc :: forall x. Ord x => Relation x x -> x -> x
-computeEquivClassLookupFunc rel =
+-- | Compute equivalence classes from updates.
+computeEquivalenceClasses :: forall x. Ord x => Relation x x -> UFMap x x
+computeEquivalenceClasses updates =
   let nodes :: Set x
-      nodes = Map.keysSet (Relation.domain rel) `Set.union` Map.keysSet (Relation.range rel)
+      nodes = Relation.dom updates `Set.union` Relation.ran updates
 
       edges :: [(x, x)]
-      edges = Relation.toList rel
+      edges = Relation.toList updates
 
-      ufmap :: UFMap.UFMap x x
-      ufmap =
-        let nodesOnly = foldl' (\b a -> UFMap.insert a a b) UFMap.empty nodes
-            addEdge :: (x, x) -> UFMap.UFMap x x -> UFMap.UFMap x x
-            addEdge (a, b) m0 = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonk nonCanonV m -> do
-              let m' =
-                    UFMap.alter
-                      canonk
-                      (error "impossible")
-                      (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
-                      m
-              Identity (Just m')
-         in foldl' (\b a -> addEdge a b) nodesOnly edges
-      canonMap :: Map x x
-      canonMap = UFMap.freeze ufmap
+      nodesOnly :: UFMap x x
+      nodesOnly = foldl' (\b a -> UFMap.insert a a b) UFMap.empty nodes
+
+      addEdge :: (x, x) -> UFMap x x -> UFMap x x
+      addEdge (a, b) m0 = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonk nonCanonV m -> do
+        let m' =
+              UFMap.alter
+                canonk
+                (error "impossible")
+                (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
+                m
+        Identity (Just m')
+
+  in foldl' (\b a -> addEdge a b) nodesOnly edges
+
+computeEquivClassLookupFunc :: forall x. Ord x => Relation x x -> x -> x
+computeEquivClassLookupFunc rel =
+   let canonMap :: Map x x
+       canonMap = UFMap.freeze (computeEquivalenceClasses rel)
    in \k -> case Map.lookup k canonMap of
         Just x -> x
         Nothing -> k
@@ -199,3 +215,71 @@ canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType =
         lookupConstructorType typeRef >>= \case
           ConstructorType.Data -> pure (Term.Constructor (lookupCanonType typeRef) constructorId)
           ConstructorType.Effect -> pure (Term.Request (lookupCanonType typeRef) constructorId)
+
+boingoBeats ::
+  forall ref.
+  Ord ref =>
+  (ref -> Set ref) ->
+  Relation ref ref ->
+  Relation ref ref ->
+  ()
+boingoBeats refToDependencies allUpdates userUpdates =
+  let equivalenceClasses :: Bimap Int (Set ref)
+      equivalenceClasses =
+        allUpdates
+          & computeEquivalenceClasses
+          & UFMap.toClasses
+          & map (\(_, refs, _) -> refs)
+          & zip [0 ..]
+          & Bimap.fromList
+
+      whichEquivalenceClass :: ref -> Maybe Int
+      whichEquivalenceClass =
+        let m =
+              equivalenceClasses
+                & Bimap.toList
+                & foldl' (\acc (i, refs) -> foldl' (\acc2 ref -> Map.insert ref i acc2) acc refs) Map.empty
+         in \ref -> Map.lookup ref m
+
+      allUpdatesLhs = Relation.dom allUpdates
+      allUpdatesRhs = Relation.ran allUpdates
+
+      userUpdatesLhs = Relation.dom userUpdates
+      userUpdatesRhs = Relation.ran userUpdates
+
+      -- blackEquivalenceClasses =
+      --   filter
+      --     (\cls -> Set.size (Set.intersection cls userUpdatesRhs) >= 2)
+      --     equivalenceClasses
+      --
+      nodes = undefined
+
+      -- These are LCA edges
+      --
+      -- Arya question for tomorrow: what about self-loops? (#foo3 calls #foo)
+      -- Arya thinks we just ignore self-edges
+      -- Mitchell thinks: hmm they don't seem to harm anything
+      bazooka :: [(Int, Int, [Int])]
+      bazooka =
+        map
+          ( \(i, class_) ->
+              ( i,
+                i,
+                let dependencies = foldMap refToDependencies . Set.intersection class_
+                    -- The dependencies of *all* of the old stuff affected by the merge
+                    lcaDeps = dependencies allUpdatesLhs
+                    -- The dependencies of *the user-touched subset* of the old stuff
+                    userUpdateLhsDeps = dependencies userUpdatesLhs
+                    -- The dependencies of *the user-touched subset* of the new stuff
+                    userUpdateRhsDeps = dependencies userUpdatesRhs
+                 in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
+                      & Set.mapMaybe whichEquivalenceClass
+                      & Set.toList
+              )
+          )
+          (Bimap.toList equivalenceClasses)
+
+      --
+      blahblah :: ()
+      blahblah = ()
+   in undefined

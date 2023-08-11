@@ -29,7 +29,7 @@ type Term v = ABT.Term (F v) v ()
 
 type Type v = TypeR TypeReference v
 
-type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type TermLink = Referent' TermRReference TypeReference
 
 type TypeLink = Reference
 

@@ -6,6 +6,7 @@ ghc-options: -Wall
 
 dependencies:
   - base
+  - bimap
   - containers
   - unison-core
   - unison-core1

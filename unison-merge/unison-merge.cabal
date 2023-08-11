@@ -55,6 +55,7 @@ library
   ghc-options: -Wall
   build-depends:
       base
+    , bimap
     , containers
     , lens
     , unison-codebase
