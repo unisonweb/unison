@@ -300,20 +300,6 @@ performRehash rgrp0 ctx =
 
     (rrefs, rrgrp) = rehashGroups $ fmap (overGroupLinks f) rgrp0
 
--- augmentPPE ::
---   Map Symbol Reference ->
---   Map Symbol Reference ->
---   PrettyPrintEnv ->
---   PrettyPrintEnv
--- augmentPPE original new0 ppe = addFallback median ppe
---   where
---     new = traceShowId . fmap fixup $ Map.toList new0
---     ns = fromCurrentNames $ fromTermsAndTypes new []
---     fixup (v, r) =
---       (unsafeFromVar v, RF.Ref $ Map.findWithDefault r v original)
---
---     median = PPE.suffixifiedPPE $ PPE.fromNamesDecl 10 ns
---
 loadDeps ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
