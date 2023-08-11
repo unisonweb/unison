@@ -119,10 +119,10 @@ hashTermComponents terms =
 hashTermComponentsWithoutTypes :: (Var v) => Map v (Term v a) -> Map v (ReferenceId, Term v a)
 hashTermComponentsWithoutTypes = ReferenceUtil.hashComponents $ refId ()
 
-hashClosedTerm :: (Var v) => Term v a -> ReferenceId
+hashClosedTerm :: (Show v, Eq v) => Term v a -> ReferenceId
 hashClosedTerm tm = ReferenceId (ABT.hash tm) 0
 
-instance (Var v) => Hashable1 (TermF v a p) where
+instance (Show v, Eq v) => Hashable1 (TermF v a p) where
   hash1 :: forall x. ([x] -> ([Hash], x -> Hash)) -> (x -> Hash) -> (TermF v a p) x -> Hash
   hash1 hashCycle hash e =
     let varint :: (Integral i) => i -> Hashable.Token

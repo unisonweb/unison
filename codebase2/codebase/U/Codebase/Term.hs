@@ -1,23 +1,27 @@
 module U.Codebase.Term
   ( Term,
+    ResolvedTerm,
     Type,
     TermLink,
     TypeLink,
     F,
+    ResolvedF,
     F' (..),
     MatchCase (..),
     Pattern (..),
     SeqOp (..),
     extraMap,
     rmapPattern,
+    matchCasePattern,
   )
 where
 
+import Control.Lens (Lens)
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
 import Data.Set qualified as Set
-import U.Codebase.Reference (TermRReference, TypeReference, Reference, Reference')
-import U.Codebase.Referent (Referent')
+import U.Codebase.Reference (Reference, Reference', TermRReference, TermReference, TypeReference)
+import U.Codebase.Referent (Referent, Referent', ReferentH)
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
@@ -29,9 +33,11 @@ type Term v = ABT.Term (F v) v ()
 
 type Type v = TypeR TypeReference v
 
-type TermLink = Referent' TermRReference TypeReference
+type TermLink = ReferentH
 
 type TypeLink = Reference
+
+type ResolvedTerm v = ABT.Term (F' Text TermReference TypeReference Referent Reference v) v ()
 
 -- | Base functor for terms in the Unison codebase
 type F vt =
@@ -41,6 +47,15 @@ type F vt =
     TypeReference
     TermLink
     TypeLink
+    vt
+
+type ResolvedF vt =
+  F'
+    Text
+    TermReference
+    TypeReference
+    Referent
+    Reference
     vt
 
 -- | Generalized version.  We could generalize further to allow sharing within
@@ -88,6 +103,9 @@ data F' text termRef typeRef termLink typeLink vt a
 
 data MatchCase t r a = MatchCase (Pattern t r) (Maybe a) a
   deriving (Foldable, Functor, Generic, Generic1, Traversable, Show)
+
+matchCasePattern :: Lens (MatchCase t r a) (MatchCase t' r' a) (Pattern t r) (Pattern t' r')
+matchCasePattern f (MatchCase p a b) = (\p' -> MatchCase p' a b) <$> f p
 
 data Pattern t r
   = PUnbound
