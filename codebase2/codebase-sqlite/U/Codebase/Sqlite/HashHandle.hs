@@ -21,6 +21,7 @@ data HashHandle = HashHandle
     toReferenceDecl :: Hash -> C.Type.TypeD Symbol -> C.Reference,
     -- | Hash decl's mentions
     toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference,
+    hashTerm :: C.Term.ResolvedTerm Symbol -> C.Id,
     hashBranch :: forall m. Monad m => Branch m -> m BranchHash,
     hashCausal ::
       -- The causal's namespace hash

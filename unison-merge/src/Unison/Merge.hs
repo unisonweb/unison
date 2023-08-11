@@ -1,6 +1,6 @@
 module Unison.Merge () where
 
-import Control.Lens (review, (%~), (^?))
+import Control.Lens ((%~))
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.List qualified as List
@@ -15,10 +15,9 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Symbol (Symbol)
-import U.Codebase.Term (Term)
+import U.Codebase.Term (Term, ResolvedTerm)
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type as Type
-import U.Core.ABT (ABT)
 import U.Core.ABT qualified as ABT
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
@@ -92,12 +91,20 @@ computeTermUserUpdates hashHandle lookupCanonType lookupConstructorType loadTerm
 
     isUserUpdate :: (Referent, Referent) -> m Bool
     isUserUpdate (t0, t1) = do
-      t0 <- canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType =<< loadTerm t0
-      t1 <- canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType =<< loadTerm t1
-      undefined
-
-    isUserUpdateConstructor :: (TypeReference, ConstructorId) -> (TypeReference, ConstructorId) -> m Bool
-    isUserUpdateConstructor = undefined
+      let canonicalize = canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType
+      case (t0, t1) of
+        (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) -> undefined
+        (Referent.Ref termRef0, Referent.Ref termRef1) ->
+          case (termRef0, termRef1) of
+            (Reference.ReferenceDerived (Reference.Id h0 _), Reference.ReferenceDerived (Reference.Id h1 _)) -> do
+              c0 <- canonicalize h0 =<< loadTerm t0
+              c1 <- canonicalize h1 =<< loadTerm t1
+              pure (HashHandle.hashTerm hashHandle c0 == HashHandle.hashTerm hashHandle c1)
+            (Reference.ReferenceBuiltin txt0, Reference.ReferenceBuiltin txt1) -> pure (txt0 /= txt1)
+            (Reference.ReferenceBuiltin _, Reference.ReferenceDerived _) -> pure True
+            (Reference.ReferenceDerived _, Reference.ReferenceBuiltin _) -> pure True
+        (Referent.Ref {}, Referent.Con {}) -> pure True
+        (Referent.Con {}, Referent.Ref {}) -> pure True
 
 computeTypeUserUpdates ::
   forall m.
@@ -147,10 +154,19 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
         ]
 
     alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
-    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs0 rhs0 =
-      let lhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) lhs0
-          rhs = Type.rmap (Reference._RReferenceReference %~ lookupCanon) rhs0
-       in HashHandle.toReferenceDecl hashHandle hlhs lhs == HashHandle.toReferenceDecl hashHandle hrhs rhs
+    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs rhs =
+      let hashCanon :: Hash -> TypeD Symbol -> Reference.Reference
+          hashCanon h x = HashHandle.toReference hashHandle (canonicalize h x)
+
+          canonicalize :: Hash -> TypeD Symbol -> TypeT Symbol
+          canonicalize selfHash x = Type.rmap (lookupCanon . subSelfReferences) x
+            where
+              subSelfReferences :: Reference.TypeRReference -> TypeReference
+              subSelfReferences =
+                Reference.h_ %~ \case
+                  Nothing -> selfHash
+                  Just r -> r
+       in hashCanon hlhs lhs == hashCanon hrhs rhs
 
 canonicalizeTerm ::
   forall m.
@@ -158,12 +174,13 @@ canonicalizeTerm ::
   (Referent -> Referent) ->
   (TypeReference -> m ConstructorType) ->
   (TypeReference -> TypeReference) ->
+  Hash ->
   Term Symbol ->
-  m (Term Symbol)
-canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType =
+  m (ResolvedTerm Symbol)
+canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType selfHash =
   ABT.transformM go
   where
-    go :: forall a. Term.F Symbol a -> m (Term.F Symbol a)
+    go :: forall a. Term.F Symbol a -> m (Term.ResolvedF Symbol a)
     go = \case
       Term.Int i -> pure $ Term.Int i
       Term.Nat n -> pure $ Term.Nat n
@@ -191,17 +208,24 @@ canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType =
     goCase :: forall t a. Term.MatchCase t TypeReference a -> Term.MatchCase t TypeReference a
     goCase (Term.MatchCase pat g body) = Term.MatchCase (Term.rmapPattern id lookupCanonType pat) g body
 
-    lookupTermLink :: Term.TermLink -> Term.TermLink
-    lookupTermLink = Referent._ReferentHReferent %~ lookupCanonTerm
+    resolveReferent :: Referent.ReferentH -> Referent
+    resolveReferent = Referent._Ref %~ resolveTermReference
 
-    lookupCanonTermRReference :: forall a. TermRReference -> m (Term.F Symbol a)
-    lookupCanonTermRReference r = case r ^? Reference._RReferenceReference of
-      Nothing -> pure (Term.Ref r)
-      Just r -> lookupCanonReferent (Referent.Ref r)
+    resolveTermReference :: TermRReference -> TermReference
+    resolveTermReference = Reference.h_ %~ \case
+      Nothing -> selfHash
+      Just h -> h
 
-    lookupCanonReferent :: forall a. Referent -> m (Term.F Symbol a)
+    lookupTermLink :: Term.TermLink -> Referent
+    lookupTermLink = lookupCanonTerm . resolveReferent
+
+    lookupCanonTermRReference :: forall a. TermRReference -> m (Term.ResolvedF Symbol a)
+    lookupCanonTermRReference r =
+      lookupCanonReferent (Referent.Ref (resolveTermReference r))
+
+    lookupCanonReferent :: forall a. Referent -> m (Term.ResolvedF Symbol a)
     lookupCanonReferent r = case lookupCanonTerm r of
-      Referent.Ref x -> pure (Term.Ref (review Reference._RReferenceReference x))
+      Referent.Ref x -> pure (Term.Ref x)
       -- if the term reference now maps to a constructor we need
       -- to lookup if it is a data constructor or an ability
       -- handler
@@ -258,13 +282,6 @@ boingoBeats refToDependencies allUpdates userUpdates =
                 & Set.mapMaybe whichEquivalenceClass
                 & Set.toList
 
-      -- 1. We have the mapping for the core nodes.
-      -- 2. Next we do these in any order:
-      --     * classify the core nodes into conflicted or not
-      --     * add (from the LCA + both branches) the transitive dependents of all the core nodes.
-      --         * Arya says use dynamic programming to search from <some set of named references>
-      --             to either the end or to a core node reference, to decide what's a transitive dependent.
-
       -- \| Returns the set of all transitive dependents of the given set of references.
       getTransitiveDependents ::
         Set ref ->
@@ -302,9 +319,16 @@ boingoBeats refToDependencies allUpdates userUpdates =
               -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
               isDependent = flip Set.member dependents
               isSeen = flip Set.member seen
-   in -- go will look at each unseen and try to classify it as dependent or independent.
-      -- for a given reference we will do a DFS, saving results along the way.
 
+      identify
+   in
+
+      -- 1. [x] We have the mapping for the core nodes (coreClassDependencies).
+      -- 2. Next we do these in any order:
+      --     * classify the core nodes into conflicted or not
+      --     [x] * add (from the LCA + both branches) the transitive dependents of all the core nodes.
+      --             * Arya says use dynamic programming to search from <some set of named references>
+      --                 to either the end or to a core node reference, to decide what's a transitive dependent.
       -- 3. Next we move <the conflicted nodes + all of their dependents>
       --     to a separate Map. The keys will be fully disjoint between the two maps.
       --     (suggestion: with a `seen :: Set v`)
