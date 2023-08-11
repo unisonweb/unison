@@ -319,16 +319,12 @@ boingoBeats refToDependencies allUpdates userUpdates =
               -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
               isDependent = flip Set.member dependents
               isSeen = flip Set.member seen
-
-      identify
-   in
-
-      -- 1. [x] We have the mapping for the core nodes (coreClassDependencies).
+   in -- 1. We have the mapping for the core nodes (coreClassDependencies).
       -- 2. Next we do these in any order:
       --     * classify the core nodes into conflicted or not
-      --     [x] * add (from the LCA + both branches) the transitive dependents of all the core nodes.
-      --             * Arya says use dynamic programming to search from <some set of named references>
-      --                 to either the end or to a core node reference, to decide what's a transitive dependent.
+      --     * add (from the LCA + both branches) the transitive dependents of all the core nodes.
+      --         * Arya says use dynamic programming to search from <some set of named references>
+      --           to either the end or to a core node reference, to decide what's a transitive dependent.
       -- 3. Next we move <the conflicted nodes + all of their dependents>
       --     to a separate Map. The keys will be fully disjoint between the two maps.
       --     (suggestion: with a `seen :: Set v`)
