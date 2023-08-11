@@ -575,7 +575,17 @@ putTypeEdit :: (MonadPut m) => TypeEdit.LocalTypeEdit -> m ()
 putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
-getBranchFormat ::
+getBranchFormat :: (MonadGet m) => m BranchFormat.BranchFormat
+getBranchFormat = getBranchFormat' getBranchFull getBranchDiff
+  where
+    getBranchFull = getBranchFull' getText getPatchRef getChildRef getReference getReferent getBranchLocalIds
+    getBranchDiff = getBranchDiff' getBranchRef getBranchLocalIds getLocalBranchDiff
+    getBranchRef = getVarInt
+    getPatchRef = getVarInt
+    getChildRef = getVarInt
+    getText = getVarInt
+
+getBranchFormat' ::
   forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
   (MonadGet m) =>
   ( m
@@ -616,13 +626,13 @@ getBranchFormat ::
         localPatchRef
         localChildRef
     )
-getBranchFormat getBranchFull getBranchDiff =
+getBranchFormat' getBranchFull getBranchDiff =
   getWord8 >>= \case
     0 -> getBranchFull
     1 -> getBranchDiff
     x -> unknownTag "getBranchFormat" x
 
-getBranchFull ::
+getBranchFull' ::
   forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
   (MonadGet m, Ord localDefRef, Ord localText) =>
   (m localText) ->
@@ -650,7 +660,7 @@ getBranchFull ::
         localPatchRef
         localChildRef
     )
-getBranchFull getLocalText getLocalPatchRef getLocalChildRef getReference getReferent getBranchLocalIds =
+getBranchFull' getLocalText getLocalPatchRef getLocalChildRef getReference getReferent getBranchLocalIds =
   BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
   where
     getLocalBranch :: (MonadGet m) => m (BranchFull.Branch' localText localDefRef localPatchRef localChildRef)
@@ -666,7 +676,7 @@ getBranchFull getLocalText getLocalPatchRef getLocalChildRef getReference getRef
         0 -> BranchFull.Inline <$> getSet getReference
         x -> unknownTag "getMetadataSetFormat" x
 
-getBranchDiff ::
+getBranchDiff' ::
   MonadGet m =>
   (m branchRef) ->
   (m (BranchFormat.BranchLocalIds' text defRef patchRef childRef)) ->
@@ -684,7 +694,7 @@ getBranchDiff ::
         localPatchRef
         localChildRef
     )
-getBranchDiff getBranchRef getBranchLocalIds getLocalBranchDiff =
+getBranchDiff' getBranchRef getBranchLocalIds getLocalBranchDiff =
   BranchFormat.Diff
     <$> getBranchRef
     <*> getBranchLocalIds
