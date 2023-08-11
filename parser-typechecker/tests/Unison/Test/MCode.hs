@@ -71,8 +71,8 @@ multRec =
 testEval :: String -> Test ()
 testEval s = testEval0 (fmap superNormalize <$> ctx) (superNormalize ll)
   where
-    (ll, ctx, _) =
-      lamLift
+    (ll, _, ctx, _) =
+      lamLift mempty
         . splitPatterns builtinDataSpec
         . unannotate
         $ tm s
