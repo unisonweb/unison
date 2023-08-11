@@ -575,65 +575,152 @@ putTypeEdit :: (MonadPut m) => TypeEdit.LocalTypeEdit -> m ()
 putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
-getBranchFormat :: (MonadGet m) => m BranchFormat.BranchFormat
-getBranchFormat =
+getBranchFormat ::
+  forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
+  (MonadGet m) =>
+  ( m
+      ( BranchFormat.BranchFormat'
+          text
+          defRef
+          patchRef
+          childRef
+          branchRef
+          localText
+          localDefRef
+          localPatchRef
+          localChildRef
+      )
+  ) ->
+  ( m
+      ( BranchFormat.BranchFormat'
+          text
+          defRef
+          patchRef
+          childRef
+          branchRef
+          localText
+          localDefRef
+          localPatchRef
+          localChildRef
+      )
+  ) ->
+  m
+    ( BranchFormat.BranchFormat'
+        text
+        defRef
+        patchRef
+        childRef
+        branchRef
+        localText
+        localDefRef
+        localPatchRef
+        localChildRef
+    )
+getBranchFormat getBranchFull getBranchDiff =
   getWord8 >>= \case
     0 -> getBranchFull
     1 -> getBranchDiff
     x -> unknownTag "getBranchFormat" x
+
+getBranchFull ::
+  forall text defRef patchRef childRef branchRef localText localDefRef localPatchRef localChildRef m.
+  (MonadGet m, Ord localDefRef, Ord localText) =>
+  (m localText) ->
+  (m localPatchRef) ->
+  (m localChildRef) ->
+  (m (Reference' localText localDefRef)) ->
+  (m (BranchFull.Referent'' localText localDefRef)) ->
+  ( m
+      ( BranchFormat.BranchLocalIds'
+          text
+          defRef
+          patchRef
+          childRef
+      )
+  ) ->
+  m
+    ( BranchFormat.BranchFormat'
+        text
+        defRef
+        patchRef
+        childRef
+        branchRef
+        localText
+        localDefRef
+        localPatchRef
+        localChildRef
+    )
+getBranchFull getLocalText getLocalPatchRef getLocalChildRef getReference getReferent getBranchLocalIds =
+  BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
   where
-    getBranchFull :: (MonadGet m) => m BranchFormat.BranchFormat
-    getBranchFull =
-      BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
-      where
-        getLocalBranch :: (MonadGet m) => m BranchFull.LocalBranch
-        getLocalBranch =
-          BranchFull.Branch
-            <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
-            <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
-            <*> getMap getVarInt getVarInt
-            <*> getMap getVarInt getVarInt
-        getMetadataSetFormat :: (MonadGet m) => m BranchFull.LocalMetadataSet
-        getMetadataSetFormat =
-          getWord8 >>= \case
-            0 -> BranchFull.Inline <$> getSet getReference
-            x -> unknownTag "getMetadataSetFormat" x
-    getBranchDiff =
-      BranchFormat.Diff
-        <$> getVarInt
-        <*> getBranchLocalIds
-        <*> getLocalBranchDiff
-      where
-        getLocalBranchDiff :: (MonadGet m) => m BranchDiff.LocalDiff
-        getLocalBranchDiff =
-          BranchDiff.Diff
-            <$> getMap getVarInt (getMap getReferent getDiffOp)
-            <*> getMap getVarInt (getMap getReference getDiffOp)
-            <*> getMap getVarInt getPatchOp
-            <*> getMap getVarInt getChildOp
-        getDiffOp :: (MonadGet m) => m BranchDiff.LocalDefinitionOp
-        getDiffOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.RemoveDef
-            1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
-            2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
-            x -> unknownTag "getDiffOp" x
-        getAddRemove get = do
-          adds <- getMap get (pure True)
-          -- and removes:
-          addToExistingMap get (pure False) adds
-        getPatchOp :: (MonadGet m) => m BranchDiff.LocalPatchOp
-        getPatchOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.PatchRemove
-            1 -> BranchDiff.PatchAddReplace <$> getVarInt
-            x -> unknownTag "getPatchOp" x
-        getChildOp :: (MonadGet m) => m BranchDiff.LocalChildOp
-        getChildOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.ChildRemove
-            1 -> BranchDiff.ChildAddReplace <$> getVarInt
-            x -> unknownTag "getChildOp" x
+    getLocalBranch :: (MonadGet m) => m (BranchFull.Branch' localText localDefRef localPatchRef localChildRef)
+    getLocalBranch =
+      BranchFull.Branch
+        <$> getMap getLocalText (getMap getReferent getMetadataSetFormat)
+        <*> getMap getLocalText (getMap getReference getMetadataSetFormat)
+        <*> getMap getLocalText getLocalPatchRef
+        <*> getMap getLocalText getLocalChildRef
+    getMetadataSetFormat :: (MonadGet m) => m (BranchFull.MetadataSetFormat' localText localDefRef)
+    getMetadataSetFormat =
+      getWord8 >>= \case
+        0 -> BranchFull.Inline <$> getSet getReference
+        x -> unknownTag "getMetadataSetFormat" x
+
+getBranchDiff ::
+  MonadGet m =>
+  (m branchRef) ->
+  (m (BranchFormat.BranchLocalIds' text defRef patchRef childRef)) ->
+  m
+    (BranchDiff.Diff' localText localDefRef localPatchRef localChildRef) ->
+  m
+    ( BranchFormat.BranchFormat'
+        text
+        defRef
+        patchRef
+        childRef
+        branchRef
+        localText
+        localDefRef
+        localPatchRef
+        localChildRef
+    )
+getBranchDiff getBranchRef getBranchLocalIds getLocalBranchDiff =
+  BranchFormat.Diff
+    <$> getBranchRef
+    <*> getBranchLocalIds
+    <*> getLocalBranchDiff
+
+getLocalBranchDiff :: (MonadGet m) => m BranchDiff.LocalDiff
+getLocalBranchDiff =
+  BranchDiff.Diff
+    <$> getMap getVarInt (getMap getReferent getDiffOp)
+    <*> getMap getVarInt (getMap getReference getDiffOp)
+    <*> getMap getVarInt getPatchOp
+    <*> getMap getVarInt getChildOp
+  where
+    getDiffOp :: (MonadGet m) => m BranchDiff.LocalDefinitionOp
+    getDiffOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.RemoveDef
+        1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
+        2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
+        x -> unknownTag "getDiffOp" x
+    getAddRemove get = do
+      adds <- getMap get (pure True)
+      -- and removes:
+      addToExistingMap get (pure False) adds
+    getPatchOp :: (MonadGet m) => m BranchDiff.LocalPatchOp
+    getPatchOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.PatchRemove
+        1 -> BranchDiff.PatchAddReplace <$> getVarInt
+        x -> unknownTag "getPatchOp" x
+    getChildOp :: (MonadGet m) => m BranchDiff.LocalChildOp
+    getChildOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.ChildRemove
+        1 -> BranchDiff.ChildAddReplace <$> getVarInt
+        x -> unknownTag "getChildOp" x
 
 getBranchLocalIds :: (MonadGet m) => m BranchFormat.BranchLocalIds
 getBranchLocalIds =
