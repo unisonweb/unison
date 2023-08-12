@@ -266,6 +266,15 @@ baseToIntermed ctx r = do
   r <- Map.lookup r . remap $ floatRemap ctx
   Map.lookup r . remap $ intermedRemap ctx
 
+-- Runs references through the forward maps to get intermediate
+-- references. Works on both base and floated references.
+toIntermed :: EvalCtx -> Reference -> Reference
+toIntermed ctx r
+  | r <- Map.findWithDefault r r . remap $ floatRemap ctx,
+    Just r <- Map.lookup r . remap $ intermedRemap ctx =
+      r
+toIntermed _ r = r
+
 floatToIntermed :: EvalCtx -> Reference -> Maybe Reference
 floatToIntermed ctx r =
   Map.lookup r . remap $ intermedRemap ctx
@@ -333,7 +342,11 @@ loadDeps cl ppe ctx tyrs tmrs = do
         Just r -> r
         Nothing -> error "loadDeps: variable missing for float refs"
       vm = Map.mapKeys RF.DerivedId . Map.map (lubvs . fst) $ im
-      (ctx', _, rgrp) = performRehash rgrp0 (floatRemapAdd vm ctx)
+      int b r = if b then r else toIntermed ctx r
+      (ctx', _, rgrp) =
+        performRehash
+          (fmap (overGroupLinks int) rgrp0)
+          (floatRemapAdd vm ctx)
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx'
     <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
@@ -408,13 +421,17 @@ normalizeGroup ::
     Map Reference (Term Symbol)
   )
 normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
-  (subvs, cmbs, dcmp) ->
-    ( Map.map RF.DerivedId (Map.fromList subvs),
-      Map.fromList cmbs,
-      Map.fromList dcmp
-    )
+  (subvis, cmbs, dcmp) ->
+    let subvs = (fmap . fmap) RF.DerivedId subvis
+        subrs = Map.fromList $ mapMaybe f subvs
+     in ( Map.fromList subvs,
+          Map.fromList $
+            (fmap . fmap) (Tm.updateDependencies subrs mempty) cmbs,
+          Map.fromList dcmp
+        )
   where
     gr = fmap (saturate (uncurryDspec $ dspec ctx) . inlineAlias) <$> gr0
+    f (v, r) = (,RF.Ref r) . RF.Ref <$> Map.lookup v orig
 
 intermediateTerm ::
   (HasCallStack) =>
@@ -450,7 +467,11 @@ prepareEvaluation ppe tm ctx = do
   (,) (backrefAdd rbkr ctx') <$> refNumTm (ccache ctx') rmn
   where
     (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
-    (ctx', rrefs, rgrp) = performRehash rgrp0 (floatRemapAdd frem ctx)
+    int b r = if b then r else toIntermed ctx r
+    (ctx', rrefs, rgrp) =
+      performRehash
+        ((fmap . overGroupLinks) int rgrp0)
+        (floatRemapAdd frem ctx)
     rmn = case Map.lookup rmn0 rrefs of
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
