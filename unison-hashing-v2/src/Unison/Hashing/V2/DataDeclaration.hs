@@ -77,10 +77,9 @@ alphaEquivalent lhs rhs = hash lhs == hash rhs
           abts = Map.singleton theKey abt
           ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
           cs = Reference.Util.hashComponents ref abts
-      in case Map.toList cs of
-            [(_,(r,_))] -> r
+       in case Map.toList cs of
+            [(_, (r, _))] -> r
             _ -> error "[impossible] equivHash hash returned a multi-element map"
-          
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes

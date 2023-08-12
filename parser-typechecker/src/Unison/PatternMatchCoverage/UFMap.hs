@@ -227,8 +227,8 @@ freeze ufmap0 =
           step (ufmap, frozen) k =
             let (_, _, canonv, ufmap') = fromJust (lookupCanon k ufmap)
                 frozen' = Map.insert k canonv frozen
-            in (ufmap', frozen')
-  in frozenMap
+             in (ufmap', frozen')
+   in frozenMap
 
 -- | Dump the @UFmap@ to a list grouped by equivalence class
 toClasses ::

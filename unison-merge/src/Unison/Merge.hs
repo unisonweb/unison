@@ -15,7 +15,7 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Symbol (Symbol)
-import U.Codebase.Term (Term, ResolvedTerm)
+import U.Codebase.Term (ResolvedTerm, Term)
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type as Type
 import U.Core.ABT qualified as ABT
@@ -63,13 +63,12 @@ computeEquivalenceClasses updates =
                 (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
                 m
         Identity (Just m')
-
-  in foldl' (\b a -> addEdge a b) nodesOnly edges
+   in foldl' (\b a -> addEdge a b) nodesOnly edges
 
 computeEquivClassLookupFunc :: forall x. Ord x => Relation x x -> x -> x
 computeEquivClassLookupFunc rel =
-   let canonMap :: Map x x
-       canonMap = UFMap.freeze (computeEquivalenceClasses rel)
+  let canonMap :: Map x x
+      canonMap = UFMap.freeze (computeEquivalenceClasses rel)
    in \k -> case Map.lookup k canonMap of
         Just x -> x
         Nothing -> k
@@ -212,9 +211,10 @@ canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType selfHash 
     resolveReferent = Referent._Ref %~ resolveTermReference
 
     resolveTermReference :: TermRReference -> TermReference
-    resolveTermReference = Reference.h_ %~ \case
-      Nothing -> selfHash
-      Just h -> h
+    resolveTermReference =
+      Reference.h_ %~ \case
+        Nothing -> selfHash
+        Just h -> h
 
     lookupTermLink :: Term.TermLink -> Referent
     lookupTermLink = lookupCanonTerm . resolveReferent
