@@ -4,6 +4,7 @@ module U.Codebase.Sqlite.Branch.Format
     HashBranchFormat,
     BranchLocalIds,
     BranchLocalIds' (..),
+    HashBranchLocalIds,
     SyncBranchFormat,
     SyncBranchFormat' (..),
     LocalBranchBytes (..),
