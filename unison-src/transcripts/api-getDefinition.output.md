@@ -7,7 +7,7 @@ nested.names.x = 42
 
 ```api
 --  Should find names by suffix
-GET /api/getDefinition?names=x
+GET /api/non-project-code/getDefinition?names=x
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -102,7 +102,7 @@ GET /api/getDefinition?names=x
     "typeDefinitions": {}
 }
 --  Term names should strip relativeTo prefix.
-GET /api/getDefinition?names=x&relativeTo=nested
+GET /api/non-project-code/getDefinition?names=x&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -197,7 +197,7 @@ GET /api/getDefinition?names=x&relativeTo=nested
     "typeDefinitions": {}
 }
 --  Should find definitions by hash, names should be relative
-GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
+GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -292,7 +292,7 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
     "typeDefinitions": {}
 }
 --  Should filter out any definitions which aren't in the provided namespace even if the hash matches.
-GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
+GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -384,7 +384,7 @@ doctest.otherstuff.thing = "A different thing"
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
 ```api
-GET /api/getDefinition?names=thing&relativeTo=doctest
+GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -502,7 +502,7 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
 ```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
 ```api
-GET /api/getDefinition?names=thing.doc&relativeTo=doctest
+GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {
