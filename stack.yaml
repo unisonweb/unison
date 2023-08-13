@@ -59,6 +59,9 @@ extra-deps:
 - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
 - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
 - recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
+- lsp-types-2.0.1.1
+- lsp-2.0.0.0
+- row-types-1.0.1.2
 
 ghc-options:
  # All packages

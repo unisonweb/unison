@@ -61,6 +61,27 @@ packages:
       size: 2488
   original:
     hackage: recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
+- completed:
+    hackage: lsp-types-2.0.1.1@sha256:fdc9e7569d5b55352ab856510b9727dd859ab6b836f276cb20b288834bca66d6,29317
+    pantry-tree:
+      sha256: 6595878012dbb7d4520ed611d45a59d476d0de7504bbb5977b70e4fe19f3fd75
+      size: 45523
+  original:
+    hackage: lsp-types-2.0.1.1
+- completed:
+    hackage: lsp-2.0.0.0@sha256:80d7e84f79a2c8a8ee17d83ee157ed3c9b25c1716bad31dabd704bb793d32af0,3531
+    pantry-tree:
+      sha256: 242117f7c11289acb56dcb1779efcc335ef88c0e773dd7087dca1c3a13870bba
+      size: 1043
+  original:
+    hackage: lsp-2.0.0.0
+- completed:
+    hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+    pantry-tree:
+      sha256: 6a3617038d3970095100d14d026c396002a115700500cf3004ffb67ae5a75611
+      size: 1060
+  original:
+    hackage: row-types-1.0.1.2
 snapshots:
 - completed:
     sha256: 5a59b2a405b3aba3c00188453be172b85893cab8ebc352b1ef58b0eae5d248a2

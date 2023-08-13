@@ -110,6 +110,7 @@ library
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
+      Unison.LSP.WorkspaceSymbols
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
@@ -183,8 +184,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -317,8 +318,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -445,8 +446,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -579,8 +580,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -720,8 +721,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl

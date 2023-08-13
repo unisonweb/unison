@@ -42,8 +42,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp >= 1.5.0.0
-  - lsp-types >= 1.5.0.0
+  - lsp >= 2.0.0.0
+  - lsp-types >= 2.0.0.0
   - megaparsec
   - memory
   - mtl
