@@ -47,7 +47,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import UnliftIO qualified
 
-completionHandler :: RequestMessage 'TextDocumentCompletion -> (Either ResponseError (ResponseResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
+completionHandler :: TRequestMessage 'TextDocumentCompletion -> (Either ResponseError (Msg.MessageResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
@@ -255,7 +255,7 @@ matchCompletions (CompletionTree tree) txt =
       currentMatches <> childMatches
 
 -- | Called to resolve additional details for a completion item that the user is considering.
-completionItemResolveHandler :: RequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
+completionItemResolveHandler :: TRequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
 completionItemResolveHandler message respond = do
   let completion :: CompletionItem
       completion = message ^. params

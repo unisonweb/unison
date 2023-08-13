@@ -14,7 +14,7 @@ import Unison.LSP.Types
 import Unison.Prelude
 import Unison.UnisonFile (UnisonFile (..))
 
-foldingRangeRequest :: RequestMessage 'TextDocumentFoldingRange -> (Either ResponseError (ResponseResult 'TextDocumentFoldingRange) -> Lsp ()) -> Lsp ()
+foldingRangeRequest :: TRequestMessage 'TextDocumentFoldingRange -> (Either ResponseError (Msg.MessageResult 'TextDocumentFoldingRange) -> Lsp ()) -> Lsp ()
 foldingRangeRequest m respond = do
   foldRanges <- foldingRangesForFile (m ^. params . textDocument . uri)
   Debug.debugM Debug.LSP "Folding Ranges" foldRanges

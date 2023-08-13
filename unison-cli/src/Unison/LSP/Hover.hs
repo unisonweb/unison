@@ -35,7 +35,7 @@ import UnliftIO qualified
 -- TODO:
 --   * Add docs
 --   * Resolve fqn on hover
-hoverHandler :: RequestMessage 'TextDocumentHover -> (Either ResponseError (ResponseResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
+hoverHandler :: TRequestMessage 'TextDocumentHover -> (Either ResponseError (Msg.MessageResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond =
   respond . Right =<< runMaybeT do
     let pos = (m ^. params . position)

@@ -15,8 +15,8 @@ import GHC.IO.Exception (ioe_errno)
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Types
-import Language.LSP.Protocol.Types.SMethodMap
-import Language.LSP.Protocol.Types.SMethodMap qualified as SMM
+import Language.LSP.Protocol.Utils.SMethodMap
+import Language.LSP.Protocol.Utils.SMethodMap qualified as SMM
 import Language.LSP.Server
 import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
@@ -169,9 +169,9 @@ lspRequestHandlers =
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
       forall m.
-      (Show (RequestMessage m), Show (ResponseMessage m), Show (ResponseResult m)) =>
-      ( ( RequestMessage m ->
-          (Either ResponseError (ResponseResult m) -> Lsp ()) ->
+      (Show (TRequestMessage m), Show (ResponseMessage m), Show (Msg.MessageResult m)) =>
+      ( ( TRequestMessage m ->
+          (Either ResponseError (Msg.MessageResult m) -> Lsp ()) ->
           Lsp ()
         ) ->
         ClientMessageHandler Lsp 'Request m

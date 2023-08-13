@@ -45,7 +45,7 @@ instance Aeson.FromJSON TypeSigInsertion where
         Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
-codeLensHandler :: RequestMessage 'TextDocumentCodeLens -> (Either ResponseError (List CodeLens) -> Lsp ()) -> Lsp ()
+codeLensHandler :: TRequestMessage 'TextDocumentCodeLens -> (Either ResponseError (List CodeLens) -> Lsp ()) -> Lsp ()
 codeLensHandler m respond =
   respond . maybe (Right mempty) Right =<< runMaybeT do
     let fileUri = m ^. params . textDocument . uri
