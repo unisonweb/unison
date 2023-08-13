@@ -15,8 +15,8 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Language.LSP.Types
-import Language.LSP.Types.Lens
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Types
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ

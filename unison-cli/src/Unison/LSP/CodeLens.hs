@@ -9,8 +9,8 @@ import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Language.LSP.Types
-import Language.LSP.Types.Lens
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Types
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Commands (TextReplacement (TextReplacement), replaceText)
 import Unison.LSP.FileAnalysis

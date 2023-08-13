@@ -16,9 +16,9 @@ import Data.Text qualified as Text
 import Data.Text.Utf16.Rope qualified as Rope
 import Data.Tuple (swap)
 import Language.LSP.Logging qualified as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
-import Language.LSP.Types.Lens qualified as LSP
+import Language.LSP.Protocol.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
+import Language.LSP.Protocol.Lens qualified as LSP
+import Language.LSP.Protocol.Types
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types

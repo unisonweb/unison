@@ -8,7 +8,7 @@ module Unison.LSP.Diagnostics
   )
 where
 
-import Language.LSP.Types
+import Language.LSP.Protocol.Types
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann

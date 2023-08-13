@@ -24,10 +24,11 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message (MessageDirection (..), MessageKind (..), Method, NotificationMessage)
+import Language.LSP.Protocol.Types
 import Language.LSP.Server
 import Language.LSP.Server qualified as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Path qualified as Path
@@ -212,7 +213,7 @@ defaultLSPConfig = Config {..}
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
 
-sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~ NotificationMessage m) => NotificationMessage m -> Lsp ()
+sendNotification :: forall (m :: Method 'ServerToClient 'Notification). NotificationMessage m -> Lsp ()
 sendNotification notif = do
   sendServerMessage <- asks (resSendMessage . lspContext)
   liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)

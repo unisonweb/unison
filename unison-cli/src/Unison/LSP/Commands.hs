@@ -8,9 +8,9 @@ import Control.Lens hiding (List)
 import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.HashMap.Strict qualified as HM
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Types
 import Language.LSP.Server (sendRequest)
-import Language.LSP.Types
-import Language.LSP.Types.Lens
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude

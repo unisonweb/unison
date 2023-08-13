@@ -6,8 +6,8 @@ module Unison.LSP.Hover where
 import Control.Lens hiding (List)
 import Control.Monad.Reader
 import Data.Text qualified as Text
-import Language.LSP.Types
-import Language.LSP.Types.Lens
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)

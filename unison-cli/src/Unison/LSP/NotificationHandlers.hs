@@ -2,7 +2,7 @@
 
 module Unison.LSP.NotificationHandlers where
 
-import Language.LSP.Types
+import Language.LSP.Protocol.Types
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 

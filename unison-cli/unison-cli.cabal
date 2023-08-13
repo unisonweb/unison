@@ -110,7 +110,6 @@ library
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
-      Unison.LSP.WorkspaceSymbols
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types

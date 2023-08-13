@@ -14,15 +14,15 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
 import Data.Zip qualified as Zip
-import Language.LSP.Types
+import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
+import Language.LSP.Protocol.Lens qualified as LSPTypes
+import Language.LSP.Protocol.Types
   ( Diagnostic,
     Position,
     Range,
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
-import Language.LSP.Types.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
-import Language.LSP.Types.Lens qualified as LSPTypes
 import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli

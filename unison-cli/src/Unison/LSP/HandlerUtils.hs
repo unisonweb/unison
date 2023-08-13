@@ -5,8 +5,8 @@ module Unison.LSP.HandlerUtils where
 import Control.Lens
 import Control.Monad.Reader
 import Data.Map qualified as Map
-import Language.LSP.Types
-import Language.LSP.Types.Lens as LSP
+import Language.LSP.Protocol.Lens as LSP
+import Language.LSP.Protocol.Types
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude

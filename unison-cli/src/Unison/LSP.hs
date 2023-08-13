@@ -14,10 +14,10 @@ import Data.Char (toLower)
 import GHC.IO.Exception (ioe_errno)
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Types
+import Language.LSP.Protocol.Types.SMethodMap
+import Language.LSP.Protocol.Types.SMethodMap qualified as SMM
 import Language.LSP.Server
-import Language.LSP.Types
-import Language.LSP.Types.SMethodMap
-import Language.LSP.Types.SMethodMap qualified as SMM
 import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
