@@ -2651,7 +2651,7 @@ ensureSchemeExists =
         (ExitFailure _, _, _) -> pure False
 
 racketOpts :: FilePath -> FilePath -> [String] -> [String]
-racketOpts gendir statdir args = libs ++ args
+racketOpts gendir statdir args = "-y" : libs ++ args
   where
     includes = [gendir, statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
