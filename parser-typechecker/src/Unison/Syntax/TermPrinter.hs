@@ -1002,7 +1002,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
                     styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
                     fmt S.Var $ PP.text (Var.name y)
                   ]
-              x : _ ->
+              [x] ->
                 PP.sep
                   " "
                   [
