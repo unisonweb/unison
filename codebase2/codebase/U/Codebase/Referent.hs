@@ -2,7 +2,7 @@
 
 module U.Codebase.Referent where
 
-import Control.Lens (Prism, Prism', Traversal, review, prism, preview)
+import Control.Lens (Prism, Prism', Traversal, preview, prism, review)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)

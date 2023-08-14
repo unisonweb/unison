@@ -30,7 +30,9 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache
 import Unison.Codebase.TermEdit qualified as V1.TermEdit
 import Unison.Codebase.TypeEdit qualified as V1.TypeEdit
 import Unison.ConstructorReference qualified as V1 (GConstructorReference (..))
+import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
+import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
@@ -55,8 +57,6 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star3 qualified as V1.Star3
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as V1.WK
-import qualified Unison.ConstructorType as ConstructorType
-import Unison.ConstructorType (ConstructorType)
 
 sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
 sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32

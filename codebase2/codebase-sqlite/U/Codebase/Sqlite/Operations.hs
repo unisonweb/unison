@@ -188,6 +188,7 @@ import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
+import Unison.ConstructorType (ConstructorType)
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
@@ -198,7 +199,6 @@ import Unison.Sqlite
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
 import Unison.Util.Set qualified as Set
-import Unison.ConstructorType (ConstructorType)
 
 -- * Error handling
 
