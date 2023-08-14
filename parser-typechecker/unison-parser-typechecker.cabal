@@ -123,6 +123,7 @@ library
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin

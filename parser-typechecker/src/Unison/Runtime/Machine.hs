@@ -33,7 +33,7 @@ import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     Mem (..),
     SuperGroup,
-    groupLinks,
+    foldGroupLinks,
     maskTags,
     packTags,
     valueLinks,
@@ -1886,7 +1886,7 @@ codeValidate tml cc = do
   let f b r
         | b, M.notMember r rty0 = S.singleton r
         | otherwise = mempty
-      ntys0 = (foldMap . foldMap) (groupLinks f) tml
+      ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
       ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
       rty = ntys <> rty0
   ftm <- readTVarIO (freshTm cc)
@@ -1951,7 +1951,7 @@ expandSandbox sand0 groups = fixed mempty
     f sand False r = fromMaybe mempty $ M.lookup r sand
     f _ True _ = mempty
 
-    h sand (r, groupLinks (f sand) -> s)
+    h sand (r, foldGroupLinks (f sand) -> s)
       | S.null s = Nothing
       | otherwise = Just (r, s)
 
@@ -1972,10 +1972,10 @@ cacheAdd l cc = do
   sand <- readTVarIO (sandbox cc)
   let known = M.keysSet rtm <> S.fromList (fst <$> l)
       f b r
-        | not b, S.notMember r known = (S.singleton r, mempty)
-        | b, M.notMember r rty = (mempty, S.singleton r)
-        | otherwise = (mempty, mempty)
-      (missing, tys) = (foldMap . foldMap) (groupLinks f) l
+        | not b, S.notMember r known = Const (S.singleton r, mempty)
+        | b, M.notMember r rty = Const (mempty, S.singleton r)
+        | otherwise = Const (mempty, mempty)
+      (missing, tys) = getConst $ (foldMap . foldMap) (foldGroupLinks f) l
       l' = filter (\(r, _) -> M.notMember r rtm) l
   if S.null missing
     then [] <$ cacheAdd0 tys l' (expandSandbox sand l') cc

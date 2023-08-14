@@ -11,6 +11,7 @@ import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
+import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Foreign
   ( Foreign,
@@ -69,36 +70,39 @@ err = Left . lit . fromString
 
 decompile ::
   (Var v) =>
+  (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Closure ->
   Either Error (Term v ())
-decompile _ (DataC rf (maskTags -> ct) [] [])
+decompile _ _ (DataC rf (maskTags -> ct) [] [])
   | rf == booleanRef =
       boolean () <$> tag2bool ct
-decompile _ (DataC rf (maskTags -> ct) [i] []) =
+decompile _ _ (DataC rf (maskTags -> ct) [i] []) =
   decompileUnboxed rf ct i
-decompile topTerms (DataC rf _ [] [b])
+decompile backref topTerms (DataC rf _ [] [b])
   | rf == anyRef =
-      app () (builtin () "Any.Any") <$> decompile topTerms b
-decompile topTerms (DataC rf (maskTags -> ct) [] bs) =
-  apps' (con rf ct) <$> traverse (decompile topTerms) bs
-decompile topTerms (PApV (CIx rf rt k) [] bs)
+      app () (builtin () "Any.Any") <$> decompile backref topTerms b
+decompile backref topTerms (DataC rf (maskTags -> ct) [] bs) =
+  apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
+decompile backref topTerms (PApV (CIx rf rt k) [] bs)
   | Just t <- topTerms rt k =
-      Term.etaReduceEtaVars . substitute t <$> traverse (decompile topTerms) bs
+      Term.etaReduceEtaVars . substitute t
+        <$> traverse (decompile backref topTerms) bs
   | k > 0,
     Just _ <- topTerms rt 0 =
       err "cannot decompile an application to a local recursive binding"
   | otherwise =
       err $ "reference to unknown combinator: " ++ show rf
-decompile _ cl@(PAp _ _ _) =
+decompile _ _ cl@(PAp _ _ _) =
   err $
     "cannot decompile a partial application to unboxed values: "
       ++ show cl
-decompile _ (DataC {}) =
+decompile _ _ (DataC {}) =
   err "cannot decompile data type with multiple unboxed fields"
-decompile _ BlackHole = err "exception"
-decompile _ (Captured {}) = err "decompiling a captured continuation"
-decompile topTerms (Foreign f) = decompileForeign topTerms f
+decompile _ _ BlackHole = err "exception"
+decompile _ _ (Captured {}) = err "decompiling a captured continuation"
+decompile backref topTerms (Foreign f) =
+  decompileForeign backref topTerms f
 
 tag2bool :: Word64 -> Either Error Bool
 tag2bool 0 = Right False
@@ -125,20 +129,23 @@ decompileUnboxed r _ _ =
 
 decompileForeign ::
   (Var v) =>
+  (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   Either Error (Term v ())
-decompileForeign topTerms f
+decompileForeign backref topTerms f
   | Just t <- maybeUnwrapBuiltin f = Right $ text () (Text.toText t)
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
   | Just l <- maybeUnwrapForeign termLinkRef f =
-      Right $ termLink () l
+      Right . termLink () $ case l of
+        Ref r -> maybe l Ref $ backref r
+        _ -> l
   | Just l <- maybeUnwrapForeign typeLinkRef f =
       Right $ typeLink () l
   | Just s <- unwrapSeq f =
-      list' () <$> traverse (decompile topTerms) s
-decompileForeign _ f =
+      list' () <$> traverse (decompile backref topTerms) s
+decompileForeign _ _ f =
   err $ "cannot decompile Foreign: " ++ show f
 
 decompileBytes :: (Var v) => By.Bytes -> Term v ()
