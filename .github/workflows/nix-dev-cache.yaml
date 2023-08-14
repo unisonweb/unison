@@ -1,0 +1,33 @@
+name: Nix development cache
+
+on:
+  # Build on every pull request (and new PR commit)
+  pull_request:
+  # Build on new pushes to trunk (E.g. Merge commits)
+  # Without the branch filter, each commit on a branch with a PR is triggered twice.
+  # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
+  push:
+    branches:
+      - trunk
+
+jobs:
+  nix:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - macOS-12
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v22
+    - uses: cachix/cachix-action@v12
+      with:
+        name: unison
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - name: build all packages and development shells
+      run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
+

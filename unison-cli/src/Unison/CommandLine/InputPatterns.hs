@@ -6,6 +6,7 @@ module Unison.CommandLine.InputPatterns where
 import Control.Lens (preview, (^.))
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
@@ -452,7 +453,7 @@ ui =
     { patternName = "ui",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes = [(Optional, namespaceOrDefinitionArg)],
       help = P.wrap "`ui` opens the Local UI in the default browser.",
       parse = \case
         [] -> pure $ Input.UiI Path.relativeEmpty'
@@ -2961,6 +2962,17 @@ namespaceArg =
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = Set.fromList [Globbing.Namespace]
+    }
+
+namespaceOrDefinitionArg :: ArgumentType
+namespaceOrDefinitionArg =
+  ArgumentType
+    { typeName = "term, type, or namespace",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb do
+        namespaces <- prefixCompleteNamespace q p
+        termsTypes <- prefixCompleteTermOrType q p
+        pure (List.nubOrd $ namespaces <> termsTypes),
+      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type]
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
