@@ -87,6 +87,30 @@ List.forEach l f =
     [] -> ()
   go l
 
+List.zip : [a] -> [b] -> [(a,b)]
+List.zip = cases
+  [], _ -> []
+  _, [] -> []
+  x +: xs, y +: ys -> (x,y) +: List.zip xs ys
+
+List.unzip : [(a,b)] -> ([a],[b])
+List.unzip =
+  loop = cases
+    acc, [] -> acc
+    (as,bs), (a,b) +: abs ->
+      loop (as :+ a, bs :+ b) abs
+  loop ([],[])
+
+List.reverse : [a] -> [a]
+List.reverse =
+  loop acc = cases
+    [] -> acc
+    x +: xs -> loop (x +: acc) xs
+  loop []
+
+first : (a -> b) -> (a,c) -> (b,c)
+first f = cases (x,y) -> (f x, y)
+
 check: Text -> Boolean -> {Stream Result} ()
 check msg test = if test then emit (Ok msg) else emit (Fail msg)
 
