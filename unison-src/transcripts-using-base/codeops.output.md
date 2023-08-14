@@ -410,6 +410,9 @@ codeTests =
    , verified "big" (termLink bigFun)
    , verified "extensionality" (termLink extensionality)
    , verified "identicality" (termLink identicality)
+   , verified "mutual0" (termLink mutual0)
+   , verified "mutual1" (termLink mutual0)
+   , verified "mutual2" (termLink mutual0)
    , missed "mutual0" (termLink mutual0)
    , missed "mutual1" (termLink mutual1)
    , missed "mutual2" (termLink mutual2)
@@ -417,6 +420,8 @@ codeTests =
    , swapped "extensionality" (termLink extensionality)
    , swapped "identicality" (termLink identicality)
    , swapped "mututal0" (termLink mutual0)
+   , swapped "mututal1" (termLink mutual1)
+   , swapped "mututal2" (termLink mutual2)
    ]
 ```
 
@@ -460,6 +465,9 @@ codeTests =
   ◉ codeTests   (verified big) passed
   ◉ codeTests   (verified extensionality) passed
   ◉ codeTests   (verified identicality) passed
+  ◉ codeTests   (verified mutual0) passed
+  ◉ codeTests   (verified mutual1) passed
+  ◉ codeTests   (verified mutual2) passed
   ◉ codeTests   (rejected missing mutual0) passed
   ◉ codeTests   (rejected missing mutual1) passed
   ◉ codeTests   (rejected missing mutual2) passed
@@ -467,8 +475,10 @@ codeTests =
   ◉ codeTests   (rejected swapped extensionality) passed
   ◉ codeTests   (rejected swapped identicality) passed
   ◉ codeTests   (rejected swapped mututal0) passed
+  ◉ codeTests   (rejected swapped mututal1) passed
+  ◉ codeTests   (rejected swapped mututal2) passed
   
-  ✅ 25 test(s) passing
+  ✅ 30 test(s) passing
   
   Tip: Use view codeTests to view the source of a test.
 

@@ -266,6 +266,9 @@ codeTests =
    , verified "big" (termLink bigFun)
    , verified "extensionality" (termLink extensionality)
    , verified "identicality" (termLink identicality)
+   , verified "mutual0" (termLink mutual0)
+   , verified "mutual1" (termLink mutual0)
+   , verified "mutual2" (termLink mutual0)
    , missed "mutual0" (termLink mutual0)
    , missed "mutual1" (termLink mutual1)
    , missed "mutual2" (termLink mutual2)
@@ -273,6 +276,8 @@ codeTests =
    , swapped "extensionality" (termLink extensionality)
    , swapped "identicality" (termLink identicality)
    , swapped "mututal0" (termLink mutual0)
+   , swapped "mututal1" (termLink mutual1)
+   , swapped "mututal2" (termLink mutual2)
    ]
 ```
 
