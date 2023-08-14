@@ -257,6 +257,8 @@ boingoBeats refToDependencies allUpdates userUpdates =
           & zip [0 ..]
           & Bimap.fromList
 
+
+      -- | Compute and look up a ref in the reverse mapping (Set ref -> EC)
       whichEquivalenceClass :: ref -> Maybe EC
       whichEquivalenceClass =
         let m =
@@ -274,6 +276,8 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- Arya question for tomorrow: what about self-loops? (#foo3 calls #foo)
       -- Arya thinks we just ignore self-edges
       -- Mitchell thinks: hmm they don't seem to harm anything
+
+      -- | Relation.member a b if a depends on b.
       coreDependencyGraph :: Relation EC EC
       coreDependencyGraph = Relation.fromMultimap mm
         where
@@ -297,6 +301,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
       dependenciesOfDependentsOfCore =
         Relation.fromMultimap $
           getTransitiveDependents
+            refToDependencies
             (wundefined "scope / modified namespace")
             (wundefined "query / core class references")
 
@@ -315,8 +320,8 @@ boingoBeats refToDependencies allUpdates userUpdates =
 
       isConflictedBits :: UVector.Vector Bit
       isConflictedBits = UVector.generate (Bimap.size equivalenceClasses) \idx ->
-        let refs = equivalenceClasses Bimap.! (EC idx)
-            memberUserChanges = Set.intersection refs userUpdatesRhs
+        let ecMembers = equivalenceClasses Bimap.! (EC idx)
+            memberUserChanges = Set.intersection ecMembers userUpdatesRhs
          in Bit $ Set.size memberUserChanges > 1
 
       conflictedNodes :: Set EC
@@ -327,53 +332,20 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
       --
 
-      -- \| Returns the set of all transitive dependents of the given set of references.
-      -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
-      getTransitiveDependents ::
-        Set ref ->
-        -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions
-        Set ref ->
-        -- \^ "query" e.g. core class references
-        Map ref (Set ref)
-      -- \^ the encountered dependents, and their direct dependencies
-      getTransitiveDependents scope query = search Map.empty query (Set.toList scope)
-        where
-          search :: Map ref (Set ref) -> Set ref -> [ref] -> Map ref (Set ref)
-          search dependents _ [] = dependents
-          search dependents seen (ref : unseen) =
-            if Set.member ref seen
-              then search dependents seen unseen
-              else
-                let refDependencies = refToDependencies ref
-                    (dependentDeps, uncategorizedDeps) = Set.partition isDependent refDependencies
-                    unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
-                 in if null unseenDeps
-                      then -- we're ready to make a decision about ref
 
-                        let seen' = Set.insert ref seen
-                         in if null dependentDeps -- ref is not dependent on any of the query set
-                              then search dependents seen' unseen
-                              else search (Map.insert ref refDependencies dependents) seen' unseen
-                      else search dependents seen (toList unseenDeps ++ ref : unseen)
-            where
-              -- \| split the dependencies into three groups: known dependents, known independents, and unseen
-              -- It would be nice to short circuit if (any (flip Set.member dependents) dependencies)
-              -- and simply declare ref a dependent, but we can't do that because we might have unnamed dependencies.
-              -- that we won't detect unless we keep going.
-              -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
-              isDependent = flip Map.member dependents
-              isSeen = flip Set.member seen
    in -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
       -- 2. Next we do these in any order: (DONE)
       --     * classify the core nodes into conflicted or not (DONE: isConflicted)
       --     * add (from the LCA + both branches) the transitive dependents of all the core nodes. (DONE: getTransitiveDependents)
-      --         * Arya says use dynamic programming to search from <some set of named references>
-      --           to either the end or to a core node reference, to decide what's a transitive dependent.
       -- 3. Next we move <the conflicted nodes + all of their dependents>
       --     to a separate Map. The keys will be fully disjoint between the two maps.
       --     (suggestion: with a `seen :: Set v`)
       -- 4. Then we run Staryafish on the `Graph.flattenSCC <$> Graph.stronglyConnComp graph`
       --     of the "unconflicted" Map, and write the results to a new namespace.
+      --     Note: Could split this into:
+      --      4a. run Staryafish on the core group, preserving some state
+      --      4b. run simpler propagation algorithm, on the rest, initialized with the state from 4a
+      --     Note 2: Could do a single pass but branch to simpler logic when the EC size = 1
       -- 5. Then we pretty-print the `Graph.flattenSCC <$> Graph.stronglyConnComp graph`
       --     of the "conflicted" map and write the results to a scratch file.
 
@@ -382,3 +354,41 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- - Does everything break if I rename anything?
       --
       wundefined
+
+-- \| Returns the set of all transitive dependents of the given set of references.
+-- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
+getTransitiveDependents ::
+  forall ref. (ref -> Set ref) ->
+  Set ref ->
+  -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions
+  -- Anything in scope that is a dependent of the query set will be returned, and also intermediate dependents.
+  Set ref ->
+  -- \^ "query" e.g. core class references
+  Map ref (Set ref)
+-- \^ the encountered transitive dependents, and their direct dependencies
+getTransitiveDependents refToDependencies scope query = search Map.empty query (Set.toList scope)
+  where
+    search :: Map ref (Set ref) -> Set ref -> [ref] -> Map ref (Set ref)
+    search dependents _ [] = dependents
+    search dependents seen (ref : unseen) =
+      if Set.member ref seen
+        then search dependents seen unseen
+        else
+          let refDependencies = refToDependencies ref
+              (dependentDeps, uncategorizedDeps) = Set.partition isDependent refDependencies
+              unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
+            in if null unseenDeps
+                then -- we're ready to make a decision about ref
+                  let seen' = Set.insert ref seen
+                    in if null dependentDeps -- ref is not dependent on any of the query set
+                        then search dependents seen' unseen
+                        else search (Map.insert ref refDependencies dependents) seen' unseen
+                else search dependents seen (toList unseenDeps ++ ref : unseen)
+      where
+        -- \| split the dependencies into three groups: known dependents, known independents, and unseen
+        -- It would be nice to short circuit if (any (flip Set.member dependents) dependencies)
+        -- and simply declare ref a dependent, but we can't do that because we might have unnamed dependencies.
+        -- that we won't detect unless we keep going.
+        -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
+        isDependent = flip Map.member dependents
+        isSeen = flip Set.member seen
