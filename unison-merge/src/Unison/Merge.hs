@@ -31,6 +31,7 @@ import Unison.Prelude
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Var (Var)
 
 data NamespaceDiff reference referent = NamespaceDiff
   { -- Mapping from old term to new term.
@@ -391,3 +392,30 @@ getTransitiveDependents refToDependencies scope query = search Map.empty query (
         -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
         isDependent = flip Map.member dependents
         isSeen = flip Set.member seen
+
+staryafish ::
+  (Monad m, Var v) =>
+  -- Get a term by reference
+  (TermReference -> m (Term v)) ->
+  -- The type substitutions to make
+  (TypeReference -> TypeReference) ->
+  -- The constructor substitutions to make
+  ((TypeReference, ConstructorId, ConstructorType) -> (TypeReference, ConstructorId, ConstructorType)) ->
+  -- The term substitutions to make, which we will add to (if the substitution succeeds)
+  Map TermReference TermReference ->
+  [TermReference] ->
+  m ()
+staryafish getTerm _ _ _ termRefs = do
+  terms <- traverse getTerm termRefs
+
+  -- Perform type substitutions in-place
+
+  -- Perform term substitutions in-place
+
+  -- Perform data constructor substitutions in-place
+
+  -- Replace each term reference that's in an equivalency group with a new fresh variable
+
+  -- Hash
+
+  pure ()
