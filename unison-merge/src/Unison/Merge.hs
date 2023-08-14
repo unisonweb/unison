@@ -3,9 +3,11 @@ module Unison.Merge () where
 import Control.Lens ((%~))
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
+import Data.Bit (Bit (Bit, unBit))
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Vector.Unboxed qualified as UVector
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Reference (TermRReference, TermReference, TypeReference)
@@ -234,6 +236,10 @@ canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType selfHash 
           ConstructorType.Data -> pure (Term.Constructor (lookupCanonType typeRef) constructorId)
           ConstructorType.Effect -> pure (Term.Request (lookupCanonType typeRef) constructorId)
 
+newtype EC = EC {unEC :: Int}
+  deriving (Show)
+  deriving (Eq, Ord, Num, Enum) via Int
+
 boingoBeats ::
   forall ref.
   Ord ref =>
@@ -242,7 +248,7 @@ boingoBeats ::
   Relation ref ref ->
   ()
 boingoBeats refToDependencies allUpdates userUpdates =
-  let equivalenceClasses :: Bimap Int (Set ref)
+  let equivalenceClasses :: Bimap EC (Set ref)
       equivalenceClasses =
         allUpdates
           & computeEquivalenceClasses
@@ -251,7 +257,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
           & zip [0 ..]
           & Bimap.fromList
 
-      whichEquivalenceClass :: ref -> Maybe Int
+      whichEquivalenceClass :: ref -> Maybe EC
       whichEquivalenceClass =
         let m =
               equivalenceClasses
@@ -268,38 +274,78 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- Arya question for tomorrow: what about self-loops? (#foo3 calls #foo)
       -- Arya thinks we just ignore self-edges
       -- Mitchell thinks: hmm they don't seem to harm anything
-      coreClassDependencies :: Map Int [Int]
-      coreClassDependencies =
-        equivalenceClasses & Bimap.toMap & Map.map \class_ ->
-          let dependencies = foldMap refToDependencies . Set.intersection class_
-              -- The dependencies of *all* of the old stuff affected by the merge
-              lcaDeps = dependencies allUpdatesLhs
-              -- The dependencies of *the user-touched subset* of the old stuff
-              userUpdateLhsDeps = dependencies userUpdatesLhs
-              -- The dependencies of *the user-touched subset* of the new stuff
-              userUpdateRhsDeps = dependencies userUpdatesRhs
-           in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
-                & Set.mapMaybe whichEquivalenceClass
-                & Set.toList
+      coreDependencyGraph :: Relation EC EC
+      coreDependencyGraph = Relation.fromMultimap mm
+        where
+          mm =
+            equivalenceClasses & Bimap.toMap & Map.map \class_ ->
+              let dependencies = foldMap refToDependencies . Set.intersection class_
+                  -- The dependencies of *all* of the old stuff affected by the merge
+                  lcaDeps = dependencies allUpdatesLhs
+                  -- The dependencies of *the user-touched subset* of the old stuff
+                  userUpdateLhsDeps = dependencies userUpdatesLhs
+                  -- The dependencies of *the user-touched subset* of the new stuff
+                  userUpdateRhsDeps = dependencies userUpdatesRhs
+               in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
+                    & Set.mapMaybe whichEquivalenceClass
+
+      allDependencyGraph :: Relation EC EC
+      allDependencyGraph = coreDependencyGraph <> extraDependents
+      -- coreDependencyRelation = Relation.fromMultimap coreDependencyGraph
+
+      dependenciesOfDependentsOfCore :: Relation ref ref
+      dependenciesOfDependentsOfCore =
+        Relation.fromMultimap $
+          getTransitiveDependents
+            (wundefined "scope / modified namespace")
+            (wundefined "query / core class references")
+
+      extraECs :: Bimap EC (Set ref)
+      extraECs =
+        let startIndex = EC (Bimap.size equivalenceClasses)
+         in Bimap.fromList ([startIndex ..] `zip` (map Set.singleton . toList . Relation.dom) dependenciesOfDependentsOfCore)
+
+      extraDependents :: Relation EC EC
+      extraDependents =
+        let startIndex = Bimap.size equivalenceClasses
+         in wundefined
+
+      isConflicted :: EC -> Maybe Bool
+      isConflicted = fmap unBit . (isConflictedBits UVector.!?) . unEC
+
+      isConflictedBits :: UVector.Vector Bit
+      isConflictedBits = UVector.generate (Bimap.size equivalenceClasses) \idx ->
+        let refs = equivalenceClasses Bimap.! (EC idx)
+            memberUserChanges = Set.intersection refs userUpdatesRhs
+         in Bit $ Set.size memberUserChanges > 1
+
+      conflictedNodes :: Set EC
+      conflictedNodes = Set.filter (fromMaybe err . isConflicted) (Relation.dom coreDependencyGraph)
+        where
+          err = error "impossible: every node in the core graph should be in the map"
+
+      -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
+      --
 
       -- \| Returns the set of all transitive dependents of the given set of references.
+      -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
       getTransitiveDependents ::
         Set ref ->
-        -- \^ "scope" - any of these which are dependents of the query set must be included in the result.
-        -- e.g. some union of namespaces
+        -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions
         Set ref ->
-        -- \^ "query" we're looking for dependents of these. e.g. core class references
-        Set ref
-      -- \^ the dependents, which we want to add to the graph
-      getTransitiveDependents scope query = search Set.empty query (Set.toList scope)
+        -- \^ "query" e.g. core class references
+        Map ref (Set ref)
+      -- \^ the encountered dependents, and their direct dependencies
+      getTransitiveDependents scope query = search Map.empty query (Set.toList scope)
         where
-          search :: Set ref -> Set ref -> [ref] -> Set ref
+          search :: Map ref (Set ref) -> Set ref -> [ref] -> Map ref (Set ref)
           search dependents _ [] = dependents
           search dependents seen (ref : unseen) =
             if Set.member ref seen
               then search dependents seen unseen
               else
-                let (dependentDeps, uncategorizedDeps) = Set.partition isDependent (refToDependencies ref)
+                let refDependencies = refToDependencies ref
+                    (dependentDeps, uncategorizedDeps) = Set.partition isDependent refDependencies
                     unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
                  in if null unseenDeps
                       then -- we're ready to make a decision about ref
@@ -307,7 +353,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
                         let seen' = Set.insert ref seen
                          in if null dependentDeps -- ref is not dependent on any of the query set
                               then search dependents seen' unseen
-                              else search (Set.insert ref dependents) seen' unseen
+                              else search (Map.insert ref refDependencies dependents) seen' unseen
                       else search dependents seen (toList unseenDeps ++ ref : unseen)
             where
               -- \| split the dependencies into three groups: known dependents, known independents, and unseen
@@ -315,12 +361,12 @@ boingoBeats refToDependencies allUpdates userUpdates =
               -- and simply declare ref a dependent, but we can't do that because we might have unnamed dependencies.
               -- that we won't detect unless we keep going.
               -- If we can eventually know that all dependencies are named, then we can change this to short circuit.
-              isDependent = flip Set.member dependents
+              isDependent = flip Map.member dependents
               isSeen = flip Set.member seen
-   in -- 1. We have the mapping for the core nodes (coreClassDependencies).
-      -- 2. Next we do these in any order:
-      --     * classify the core nodes into conflicted or not
-      --     * add (from the LCA + both branches) the transitive dependents of all the core nodes.
+   in -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
+      -- 2. Next we do these in any order: (DONE)
+      --     * classify the core nodes into conflicted or not (DONE: isConflicted)
+      --     * add (from the LCA + both branches) the transitive dependents of all the core nodes. (DONE: getTransitiveDependents)
       --         * Arya says use dynamic programming to search from <some set of named references>
       --           to either the end or to a core node reference, to decide what's a transitive dependent.
       -- 3. Next we move <the conflicted nodes + all of their dependents>
@@ -335,4 +381,4 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- This can probably be in Step 4.
       -- - Does everything break if I rename anything?
       --
-      undefined
+      wundefined

@@ -56,6 +56,7 @@ library
   build-depends:
       base
     , bimap
+    , bitvec
     , containers
     , lens
     , unison-codebase
@@ -67,6 +68,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-util-relation
+    , vector
   default-language: Haskell2010
   if !os(windows)
     build-depends:
