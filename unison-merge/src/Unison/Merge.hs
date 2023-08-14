@@ -257,8 +257,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
           & zip [0 ..]
           & Bimap.fromList
 
-
-      -- | Compute and look up a ref in the reverse mapping (Set ref -> EC)
+      -- \| Compute and look up a ref in the reverse mapping (Set ref -> EC)
       whichEquivalenceClass :: ref -> Maybe EC
       whichEquivalenceClass =
         let m =
@@ -277,7 +276,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- Arya thinks we just ignore self-edges
       -- Mitchell thinks: hmm they don't seem to harm anything
 
-      -- | Relation.member a b if a depends on b.
+      -- \| Relation.member a b if a depends on b.
       coreDependencyGraph :: Relation EC EC
       coreDependencyGraph = Relation.fromMultimap mm
         where
@@ -328,12 +327,10 @@ boingoBeats refToDependencies allUpdates userUpdates =
       conflictedNodes = Set.filter (fromMaybe err . isConflicted) (Relation.dom coreDependencyGraph)
         where
           err = error "impossible: every node in the core graph should be in the map"
-
-      -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
+   in -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
       --
 
-
-   in -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
+      -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
       -- 2. Next we do these in any order: (DONE)
       --     * classify the core nodes into conflicted or not (DONE: isConflicted)
       --     * add (from the LCA + both branches) the transitive dependents of all the core nodes. (DONE: getTransitiveDependents)
@@ -358,7 +355,8 @@ boingoBeats refToDependencies allUpdates userUpdates =
 -- \| Returns the set of all transitive dependents of the given set of references.
 -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
 getTransitiveDependents ::
-  forall ref. (ref -> Set ref) ->
+  forall ref.
+  (ref -> Set ref) ->
   Set ref ->
   -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions
   -- Anything in scope that is a dependent of the query set will be returned, and also intermediate dependents.
@@ -377,10 +375,11 @@ getTransitiveDependents refToDependencies scope query = search Map.empty query (
           let refDependencies = refToDependencies ref
               (dependentDeps, uncategorizedDeps) = Set.partition isDependent refDependencies
               unseenDeps = Set.filter (not . isSeen) uncategorizedDeps
-            in if null unseenDeps
+           in if null unseenDeps
                 then -- we're ready to make a decision about ref
+
                   let seen' = Set.insert ref seen
-                    in if null dependentDeps -- ref is not dependent on any of the query set
+                   in if null dependentDeps -- ref is not dependent on any of the query set
                         then search dependents seen' unseen
                         else search (Map.insert ref refDependencies dependents) seen' unseen
                 else search dependents seen (toList unseenDeps ++ ref : unseen)
