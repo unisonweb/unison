@@ -113,7 +113,7 @@ closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
       dd <-
         fmap snd (Map.lookup v (UF.dataDeclarations' uf))
           <|> fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-      pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
+      pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.typeDependencies dd)
 
     resolveTypes :: Set Reference -> [Symbol]
     resolveTypes rs = [v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]

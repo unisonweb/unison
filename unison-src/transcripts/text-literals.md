@@ -13,6 +13,11 @@ and is terminated by the same number of quotes.
 Nothing is escaped. \n
 
 The initial newline, if it exists, is ignored.
+The last line, if it's just whitespace up to the closing quotes,
+is ignored.
+
+Use an extra blank line if you'd like a trailing newline. Like so:
+
 """
 
 > lit1

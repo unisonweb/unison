@@ -57,7 +57,6 @@ dependencies:
   - hashable
   - hashtables
   - haskeline
-  - here
   - http-client
   - http-media
   - http-types
@@ -132,6 +131,7 @@ dependencies:
   - vector
   - wai
   - warp
+  - witherable
   - x509
   - x509-store
   - x509-system

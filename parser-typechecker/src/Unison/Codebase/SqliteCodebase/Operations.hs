@@ -339,7 +339,7 @@ putTypeDeclaration_ ::
   Transaction ()
 putTypeDeclaration_ declBuffer (Reference.Id h i) decl = do
   BufferEntry size comp missing waiting <- Sqlite.unsafeIO (getBuffer declBuffer h)
-  let declDependencies = Set.toList $ Decl.declDependencies decl
+  let declDependencies = Set.toList $ Decl.declTypeDependencies decl
   let size' = max size (Just $ biggestSelfReference + 1)
         where
           biggestSelfReference =

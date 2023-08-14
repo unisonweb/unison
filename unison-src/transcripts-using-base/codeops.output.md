@@ -38,6 +38,13 @@ handleTest t = let
     { _ } -> Ok (pfx ++ "passed")
     { Throw.throw s -> _ } -> Fail (pfx ++ s)
 
+expectFailure : Text -> Request {Throw Text} a -> Result
+expectFailure t =
+  pfx = "(" ++ t ++ ") "
+  cases
+    { _ } -> Fail (pfx ++ ": expected failure, but succeeded")
+    { Throw.throw _ -> _ } -> Ok (pfx ++ "passed")
+
 identical : Text -> a -> a ->{Throw Text} ()
 identical err x y =
   if x == y
@@ -79,6 +86,13 @@ extensionals sh f g = cases
 fib10 : [Nat]
 fib10 = [1,2,3,5,8,13,21,34,55,89]
 
+mutual0 n = mutual1 (n+1)
+mutual1 n = mutual2 (drop n 1)
+mutual2 n =
+ if n == 0 then 5
+ else mutual0 (drop n 1)
+
+
 extensionality : Text -> (Three Nat Nat Nat -> Nat -> b) ->{io2.IO} Result
 extensionality t f = let
   sh t n = "(" ++ showThree t ++ ", " ++ toText n ++ ")"
@@ -100,6 +114,42 @@ idempotence t tl =
     b2 = Code.save co2
     identical "" b1 b2
   with handleTest t
+
+-- Check that the transitive dependencies of some code
+-- would pass validation.
+verify : Text -> [(Link.Term,Code)] -> ()
+verify name rco =
+  handle
+    match validateLinks rco with
+      Left rs -> throw "missing links"
+      Right [] -> ()
+      Right rs -> throw "invalid links"
+  with cases
+    { r } -> r
+    { raise _ -> _ } -> throw "failure raised"
+
+verified : Text -> Link.Term ->{io2.IO} Result
+verified name link =
+  handle verify name (Code.transitiveDeps link)
+  with handleTest ("verified " ++ name)
+
+rejected : Text -> [(Link.Term,Code)] ->{io2.IO} Result
+rejected name rco = 
+  handle verify name rco 
+  with expectFailure ("rejected " ++ name)
+
+missed : Text -> Link.Term -> Result
+missed name link =
+  rco = match Code.transitiveDeps link with
+    _ +: co -> co
+    _ -> []
+  rejected ("missing " ++ name) rco
+
+swapped : Text -> Link.Term -> Result
+swapped name link =
+  rco0 = Code.transitiveDeps link
+  rco = uncurry List.zip (first List.reverse (List.unzip rco0))
+  rejected ("swapped " ++ name) rco
 ```
 
 ```ucm
@@ -115,6 +165,7 @@ idempotence t tl =
       Code.load      : Bytes ->{IO, Throw Text} Code
       Code.save      : Code -> Bytes
       concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
+      expectFailure  : Text -> Request {Throw Text} a -> Result
       extensionality : Text
                        -> (Three Nat Nat Nat -> Nat -> b)
                        ->{IO} Result
@@ -129,11 +180,21 @@ idempotence t tl =
       identical      : Text -> a -> a ->{Throw Text} ()
       identicality   : Text -> a ->{IO} Result
       load           : Bytes ->{IO, Throw Text} a
+      missed         : Text -> Link.Term ->{IO} Result
+      mutual0        : Nat -> Nat
+      mutual1        : Nat -> Nat
+      mutual2        : Nat -> Nat
       prod           : [a] -> [b] -> [(a, b)]
+      rejected       : Text -> [(Link.Term, Code)] ->{IO} Result
       roundtrip      : a ->{IO, Throw Text} a
       save           : a -> Bytes
       showThree      : Three Nat Nat Nat -> Text
+      swapped        : Text -> Link.Term ->{IO} Result
       threes         : [Three Nat Nat Nat]
+      verified       : Text -> Link.Term ->{IO} Result
+      verify         : Text
+                       -> [(Link.Term, Code)]
+                       ->{Throw Text} ()
 
 ```
 ```ucm
@@ -146,6 +207,7 @@ idempotence t tl =
     Code.load      : Bytes ->{IO, Throw Text} Code
     Code.save      : Code -> Bytes
     concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
+    expectFailure  : Text -> Request {Throw Text} a -> Result
     extensionality : Text
                      -> (Three Nat Nat Nat -> Nat -> b)
                      ->{IO} Result
@@ -160,11 +222,21 @@ idempotence t tl =
     identical      : Text -> a -> a ->{Throw Text} ()
     identicality   : Text -> a ->{IO} Result
     load           : Bytes ->{IO, Throw Text} a
+    missed         : Text -> Link.Term ->{IO} Result
+    mutual0        : Nat -> Nat
+    mutual1        : Nat -> Nat
+    mutual2        : Nat -> Nat
     prod           : [a] -> [b] -> [(a, b)]
+    rejected       : Text -> [(Link.Term, Code)] ->{IO} Result
     roundtrip      : a ->{IO, Throw Text} a
     save           : a -> Bytes
     showThree      : Three Nat Nat Nat -> Text
+    swapped        : Text -> Link.Term ->{IO} Result
     threes         : [Three Nat Nat Nat]
+    verified       : Text -> Link.Term ->{IO} Result
+    verify         : Text
+                     -> [(Link.Term, Code)]
+                     ->{Throw Text} ()
 
 ```
 ```unison
@@ -329,6 +401,27 @@ codeTests =
    , idempotence "idem big" (termLink bigFun)
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
+   , verified "f" (termLink f)
+   , verified "h" (termLink h)
+   , verified "rotate" (termLink rotate)
+   , verified "zapper" (termLink zapper)
+   , verified "showThree" (termLink showThree)
+   , verified "concatMap" (termLink concatMap)
+   , verified "big" (termLink bigFun)
+   , verified "extensionality" (termLink extensionality)
+   , verified "identicality" (termLink identicality)
+   , verified "mutual0" (termLink mutual0)
+   , verified "mutual1" (termLink mutual0)
+   , verified "mutual2" (termLink mutual0)
+   , missed "mutual0" (termLink mutual0)
+   , missed "mutual1" (termLink mutual1)
+   , missed "mutual2" (termLink mutual2)
+   , swapped "zapper" (termLink zapper)
+   , swapped "extensionality" (termLink extensionality)
+   , swapped "identicality" (termLink identicality)
+   , swapped "mututal0" (termLink mutual0)
+   , swapped "mututal1" (termLink mutual1)
+   , swapped "mututal2" (termLink mutual2)
    ]
 ```
 
@@ -363,8 +456,29 @@ codeTests =
   ◉ codeTests   (idem big) passed
   ◉ codeTests   (idem extensionality) passed
   ◉ codeTests   (idem identicality) passed
+  ◉ codeTests   (verified f) passed
+  ◉ codeTests   (verified h) passed
+  ◉ codeTests   (verified rotate) passed
+  ◉ codeTests   (verified zapper) passed
+  ◉ codeTests   (verified showThree) passed
+  ◉ codeTests   (verified concatMap) passed
+  ◉ codeTests   (verified big) passed
+  ◉ codeTests   (verified extensionality) passed
+  ◉ codeTests   (verified identicality) passed
+  ◉ codeTests   (verified mutual0) passed
+  ◉ codeTests   (verified mutual1) passed
+  ◉ codeTests   (verified mutual2) passed
+  ◉ codeTests   (rejected missing mutual0) passed
+  ◉ codeTests   (rejected missing mutual1) passed
+  ◉ codeTests   (rejected missing mutual2) passed
+  ◉ codeTests   (rejected swapped zapper) passed
+  ◉ codeTests   (rejected swapped extensionality) passed
+  ◉ codeTests   (rejected swapped identicality) passed
+  ◉ codeTests   (rejected swapped mututal0) passed
+  ◉ codeTests   (rejected swapped mututal1) passed
+  ◉ codeTests   (rejected swapped mututal2) passed
   
-  ✅ 9 test(s) passing
+  ✅ 30 test(s) passing
   
   Tip: Use view codeTests to view the source of a test.
 

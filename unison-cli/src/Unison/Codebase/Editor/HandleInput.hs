@@ -16,7 +16,6 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
-import Control.Monad.Writer (WriterT (..))
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
@@ -30,20 +29,11 @@ import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
-import System.Directory
-  ( XdgDirectory (..),
-    createDirectoryIfMissing,
-    doesFileExist,
-    getXdgDirectory,
-  )
+import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
 import System.Environment (withArgs)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
-import System.Process
-  ( callProcess,
-    readCreateProcessWithExitCode,
-    shell,
-  )
+import System.Process (callProcess, readCreateProcessWithExitCode, shell)
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
@@ -65,7 +55,8 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (typecheck, typecheckTerm)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -95,11 +86,7 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
-import Unison.Codebase.Editor.HandleInput.TermResolution
-  ( resolveCon,
-    resolveMainRef,
-    resolveTermRef,
-  )
+import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
@@ -139,6 +126,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -224,65 +212,6 @@ import Witch (unsafeFrom)
 
 loop :: Either Event Input -> Cli ()
 loop e = do
-  let withFile ::
-        -- ambient abilities
-        [Type Symbol Ann] ->
-        Text ->
-        (Text, [L.Token L.Lexeme]) ->
-        Cli (TypecheckedUnisonFile Symbol Ann)
-      withFile ambient sourceName lexed@(text, tokens) = do
-        let getHQ = \case
-              L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.Hash sh -> Just (HQ.HashOnly sh)
-              _ -> Nothing
-            hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        rootBranch <- Cli.getRootBranch
-        currentPath <- Cli.getCurrentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-        State.modify' \loopState ->
-          loopState
-            & #latestFile .~ Just (Text.unpack sourceName, False)
-            & #latestTypecheckedFile .~ Nothing
-        MaybeT (WriterT (Identity (r, notes))) <- do
-          Cli.Env {codebase, generateUniqueName} <- ask
-          typecheck codebase generateUniqueName ambient parseNames sourceName lexed
-        result <- r & onNothing (Cli.returnEarly (ParseErrors text [err | Result.Parsing err <- toList notes]))
-        result & onLeft \uf -> do
-          -- set that the file at least parsed (but didn't typecheck)
-          State.modify' (& #latestTypecheckedFile .~ Just (Left uf))
-          ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames uf)
-          ppe <- suffixifiedPPE ns
-          let tes = [err | Result.TypeError err <- toList notes]
-              cbs =
-                [ bug
-                  | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                      toList notes
-                ]
-          when (not (null tes)) do
-            currentPath <- Cli.getCurrentPath
-            Cli.respond (TypeErrors currentPath text ppe tes)
-          when (not (null cbs)) do
-            Cli.respond (CompilerBugs text ppe cbs)
-          Cli.returnEarlyWithoutOutput
-
-      loadUnisonFile :: Text -> Text -> Cli ()
-      loadUnisonFile sourceName text = do
-        let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-        unisonFile <- withFile [] sourceName (text, lexed)
-        currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-        let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-        names <- displayNames unisonFile
-        pped <- prettyPrintEnvDecl names
-        let ppe = PPE.suffixifiedPPE pped
-        Cli.respond $ Typechecked sourceName ppe sr unisonFile
-        (bindings, e) <- evalUnisonFile False ppe unisonFile []
-        let e' = Map.map go e
-            go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-        when (not (null e')) do
-          Cli.respond $ Evaluated text ppe bindings e'
-        #latestTypecheckedFile .= Just (Right unisonFile)
-
   case e of
     Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
       schLength <- Cli.runTransaction Codebase.branchHashLength
@@ -1490,6 +1419,74 @@ loop e = do
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
 
+loadUnisonFile :: Text -> Text -> Cli ()
+loadUnisonFile sourceName text = do
+  let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
+  unisonFile <- withFile sourceName (text, lexed)
+  currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
+  names <- displayNames unisonFile
+  pped <- prettyPrintEnvDecl names
+  let ppe = PPE.suffixifiedPPE pped
+  Cli.respond $ Typechecked sourceName ppe sr unisonFile
+  (bindings, e) <- evalUnisonFile False ppe unisonFile []
+  let e' = Map.map go e
+      go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+  when (not (null e')) do
+    Cli.respond $ Evaluated text ppe bindings e'
+  #latestTypecheckedFile .= Just (Right unisonFile)
+  where
+    withFile ::
+      Text ->
+      (Text, [L.Token L.Lexeme]) ->
+      Cli (TypecheckedUnisonFile Symbol Ann)
+    withFile sourceName (text, tokens) = do
+      let getHQ = \case
+            L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+            L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+            L.Hash sh -> Just (HQ.HashOnly sh)
+            _ -> Nothing
+          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+      rootBranch <- Cli.getRootBranch
+      currentPath <- Cli.getCurrentPath
+      let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+      State.modify' \loopState ->
+        loopState
+          & #latestFile .~ Just (Text.unpack sourceName, False)
+          & #latestTypecheckedFile .~ Nothing
+      Cli.Env {codebase, generateUniqueName} <- ask
+      uniqueName <- liftIO generateUniqueName
+      let parsingEnv =
+            Parser.ParsingEnv
+              { uniqueNames = uniqueName,
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+                names = parseNames
+              }
+      unisonFile <-
+        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
+          & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
+      -- set that the file at least parsed (but didn't typecheck)
+      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+      typecheckingEnv <-
+        Cli.runTransaction do
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+      maybeTypecheckedUnisonFile & onNothing do
+        ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
+        ppe <- suffixifiedPPE ns
+        let tes = [err | Result.TypeError err <- toList notes]
+            cbs =
+              [ bug
+                | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                    toList notes
+              ]
+        when (not (null tes)) do
+          currentPath <- Cli.getCurrentPath
+          Cli.respond (TypeErrors currentPath text ppe tes)
+        when (not (null cbs)) do
+          Cli.respond (CompilerBugs text ppe cbs)
+        Cli.returnEarlyWithoutOutput
+
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
 
@@ -1907,7 +1904,7 @@ handleDependencies hq = do
               Codebase.getTypeDeclaration codebase i <&> \case
                 Nothing -> error $ "What happened to " ++ show i ++ "?"
                 Just decl ->
-                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.dependencies $
+                  Set.map LabeledDependency.TypeReference . Set.delete r . DD.typeDependencies $
                     DD.asDataDecl decl
             tp _ = pure mempty
             tm r@(Referent.Ref (Reference.DerivedId i)) =
@@ -2578,10 +2575,13 @@ doGenerateSchemeBoot force mppe = do
       swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
       cwrapf = dir </> "unison" </> "compound-wrappers.ss"
+      dinfof = dir </> "unison" </> "data-info.ss"
       dirTm = Term.text a (Text.pack dir)
   liftIO $ createDirectoryIfMissing True dir
+  saveData <- Term.ref a <$> resolveTermRef sdName
   saveBase <- Term.ref a <$> resolveTermRef sbName
   saveWrap <- Term.ref a <$> resolveTermRef swName
+  gen ppe saveData dinfof dirTm dinfoName
   gen ppe saveBase bootf dirTm bootName
   gen ppe saveWrap swrapf dirTm simpleWrapName
   gen ppe saveBase binf dirTm builtinName
@@ -2594,6 +2594,8 @@ doGenerateSchemeBoot force mppe = do
 
     sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
     swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
+    sdName = hq ".unison.internal.compiler.scheme.saveDataInfoFile"
+    dinfoName = hq ".unison.internal.compiler.scheme.dataInfos"
     bootName = hq ".unison.internal.compiler.scheme.bootSpec"
     builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
     simpleWrapName =
@@ -2609,9 +2611,9 @@ doGenerateSchemeBoot force mppe = do
 
 typecheckAndEval :: PPE.PrettyPrintEnv -> Term Symbol Ann -> Cli ()
 typecheckAndEval ppe tm = do
-  Cli.Env {runtime} <- ask
+  Cli.Env {codebase, runtime} <- ask
   let mty = Runtime.mainType runtime
-  typecheckTerm (Term.delay a tm) >>= \case
+  Cli.runTransaction (typecheckTerm codebase (Term.delay a tm)) >>= \case
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
@@ -2649,7 +2651,7 @@ ensureSchemeExists =
         (ExitFailure _, _, _) -> pure False
 
 racketOpts :: FilePath -> FilePath -> [String] -> [String]
-racketOpts gendir statdir args = libs ++ args
+racketOpts gendir statdir args = "-y" : libs ++ args
   where
     includes = [gendir, statdir </> "racket"]
     libs = concatMap (\dir -> ["-S", dir]) includes
@@ -2991,8 +2993,14 @@ parseType input src = do
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = mempty,
+            uniqueTypeGuid = \_ -> pure Nothing,
+            names
+          }
   typ <-
-    Parsers.parseType (Text.unpack (fst lexed)) (Parser.ParsingEnv mempty names) & onLeft \err ->
+    Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
   Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->

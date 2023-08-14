@@ -1222,7 +1222,10 @@ synthesizeWanted e
   | Term.TermLink' _ <- e = pure (Type.termLink l, [])
   | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
   | Term.Blank' blank <- e = do
-      v <- freshenVar Var.blank
+      let freshType = case blank of
+            B.Recorded (B.MissingResultPlaceholder _) -> Var.missingResult
+            _ -> Var.blank
+      v <- freshenVar freshType
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.List' v <- e = do
@@ -1249,6 +1252,10 @@ synthesizeWanted e
           et = existential' l B.Blank e
       appendContext $
         [existential i, existential e, existential o, Ann arg it]
+      when (Var.typeOf i == Var.Delay) $ do
+        -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
+        -- here's where the typechecker assumes this must be of type 'thunkArgType'
+        subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
       if Term.isLam body'
         then checkWithAbilities [] body' ot
@@ -1757,7 +1764,7 @@ ensureGuardedCycle bindings =
         then pure ()
         else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
-existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
   v <- extendExistential v
   e <- extendExistential Var.inferAbility

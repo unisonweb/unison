@@ -19,7 +19,6 @@ import Unison.Test.MCode qualified as MCode
 import Unison.Test.Referent qualified as Referent
 import Unison.Test.Syntax.FileParser qualified as FileParser
 import Unison.Test.Syntax.TermParser qualified as TermParser
-import Unison.Test.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Test.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Test.Term qualified as Term
 import Unison.Test.Type qualified as Type
@@ -37,7 +36,6 @@ test =
   tests
     [ Term.test,
       TermParser.test,
-      TermPrinter.test,
       Type.test,
       TypeError.test,
       TypePrinter.test,

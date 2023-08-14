@@ -1,5 +1,5 @@
 ```unison
-f : 'a -> Nat
+f : (() -> a) -> Nat
 f x = 42
 ```
 

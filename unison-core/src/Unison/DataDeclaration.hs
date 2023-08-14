@@ -16,12 +16,12 @@ module Unison.DataDeclaration
     constructorVars,
     constructorIds,
     declConstructorReferents,
-    declDependencies,
-    labeledDeclDependencies,
+    declTypeDependencies,
+    labeledDeclTypeDependencies,
     labeledDeclDependenciesIncludingSelf,
     declFields,
-    dependencies,
-    labeledDependencies,
+    typeDependencies,
+    labeledTypeDependencies,
     generateRecordAccessors,
     unhashComponent,
     mkDataDecl',
@@ -70,17 +70,17 @@ data DeclOrBuiltin v a
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
-declDependencies :: (Ord v) => Decl v a -> Set Reference
-declDependencies = either (dependencies . toDataDecl) dependencies
+declTypeDependencies :: (Ord v) => Decl v a -> Set Reference
+declTypeDependencies = either (typeDependencies . toDataDecl) typeDependencies
 
-labeledDeclDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
-labeledDeclDependencies = Set.map LD.TypeReference . declDependencies
+labeledDeclTypeDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
+labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
 
 -- | Compute the dependencies of a data declaration,
 -- including the type itself and references for each of its constructors.
 labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
 labeledDeclDependenciesIncludingSelf selfRef decl =
-  labeledDeclDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
+  labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
   where
     labeledConstructorRefs :: Set LD.LabeledDependency
     labeledConstructorRefs =
@@ -273,12 +273,15 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
     (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
-dependencies :: (Ord v) => DataDeclaration v a -> Set Reference
-dependencies dd =
+-- | All references to types mentioned in the given data declaration's fields/constructors
+-- Note: does not include references to the constructors or the decl itself
+-- (unless the decl is self-referential)
+typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
+typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-labeledDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
-labeledDependencies = Set.map LD.TypeReference . dependencies
+labeledTypeDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
+labeledTypeDependencies = Set.map LD.TypeReference . typeDependencies
 
 mkEffectDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a

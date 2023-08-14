@@ -64,9 +64,9 @@ transitiveDependencies code seen0 rid =
                   foldM
                     (transitiveDependencies code)
                     seen
-                    (getIds $ DD.dependencies (DD.toDataDecl ed))
+                    (getIds $ DD.typeDependencies (DD.toDataDecl ed))
                 Just (Right dd) ->
                   foldM
                     (transitiveDependencies code)
                     seen
-                    (getIds $ DD.dependencies dd)
+                    (getIds $ DD.typeDependencies dd)

@@ -218,7 +218,9 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where
     f (ABT.Term _ (a, bound) (ABT.Var v))
       | Set.notMember v bound =
-          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+          if Var.typeOf v == Var.MissingResult
+            then Just $ missingResult (a, bound) a
+            else Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
     f _ = Nothing
 
 amap :: (Ord v) => (a -> a2) -> Term v a -> Term v a2
@@ -624,13 +626,13 @@ pattern Lam' ::
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 
-pattern Delay' :: (Ord v) => Term2 vt at ap v a -> Term2 vt at ap v a
+pattern Delay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
 
-unDelay :: (Ord v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay :: (Var v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
-    | Set.notMember v (ABT.freeVars body) ->
+    | Var.typeOf v == Var.Delay || Var.typeOf v == Var.User "()" ->
         Just body
   _ -> Nothing
 
@@ -802,6 +804,9 @@ placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 resolve :: (Ord v) => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
+missingResult :: (Ord v) => at -> ab -> Term2 vt ab ap v at
+missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholder ab)
+
 constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
@@ -867,7 +872,7 @@ lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
 delay :: (Var v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a
 delay a body =
-  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
+  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.typed Var.Delay)) body))
 
 lam' :: (Ord v) => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
@@ -1155,15 +1160,19 @@ unLamsOpt' t = case unLams' t of
   r@(Just _) -> r
   Nothing -> Just ([], t)
 
--- Same as unLams', but stops at any variable named `()`, which indicates a
--- delay (`'`) annotation which we want to preserve.
+-- Same as unLams', but stops at any lambda which is considered a delay
 unLamsUntilDelay' ::
   (Var v) =>
   Term2 vt at ap v a ->
   Maybe ([v], Term2 vt at ap v a)
-unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
+unLamsUntilDelay' t = case unLamsPred' (t, ok) of
   r@(Just _) -> r
   Nothing -> Just ([], t)
+  where
+    ok v = case Var.typeOf v of
+      Var.User "()" -> False
+      Var.Delay -> False
+      _ -> True
 
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' ::
@@ -1585,6 +1594,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         B.Blank -> s "_"
         B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
+        B.Recorded (B.MissingResultPlaceholder _) -> s "_"
       go _ (Ref r) = s "Ref(" <> shows r <> s ")"
       go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
       go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"

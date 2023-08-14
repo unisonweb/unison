@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -90,6 +90,7 @@ library
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.UniqueTypeGuidLookup
       Unison.Codebase.Verbosity
       Unison.CodebasePath
       Unison.FileParsers
@@ -122,6 +123,7 @@ library
       Unison.PrintError
       Unison.Result
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
@@ -141,6 +143,7 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
+      Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
@@ -244,7 +247,6 @@ library
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -319,6 +321,7 @@ library
     , vector
     , wai
     , warp
+    , witherable
     , x509
     , x509-store
     , x509-system
@@ -347,7 +350,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
-      Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
       Unison.Test.Type
@@ -434,7 +436,6 @@ test-suite parser-typechecker-tests
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -511,6 +512,7 @@ test-suite parser-typechecker-tests
     , vector
     , wai
     , warp
+    , witherable
     , x509
     , x509-store
     , x509-system
