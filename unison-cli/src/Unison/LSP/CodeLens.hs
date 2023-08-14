@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Unison.LSP.CodeLens where
 
@@ -9,7 +10,8 @@ import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Lens hiding (error)
+import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Commands (TextReplacement (TextReplacement), replaceText)
@@ -45,9 +47,9 @@ instance Aeson.FromJSON TypeSigInsertion where
         Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
-codeLensHandler :: TRequestMessage 'TextDocumentCodeLens -> (Either ResponseError (List CodeLens) -> Lsp ()) -> Lsp ()
+codeLensHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentCodeLens -> (Either Msg.ResponseError ([CodeLens] |? Null) -> Lsp ()) -> Lsp ()
 codeLensHandler m respond =
-  respond . maybe (Right mempty) Right =<< runMaybeT do
+  respond . maybe (Right $ InL mempty) Right =<< runMaybeT do
     let fileUri = m ^. params . textDocument . uri
     FileAnalysis {typeSignatureHints} <- getFileAnalysis fileUri
     codeLenses <- ifor typeSignatureHints \_v (TypeSignatureHint name ref range typ) -> do
@@ -64,4 +66,4 @@ codeLensHandler m respond =
           range
           (Just $ replaceText rendered $ TextReplacement insertLocation "Insert type signature" (rendered <> "\n") fileUri)
           Nothing
-    pure (List (Map.elems codeLenses))
+    pure (InL $ Map.elems codeLenses)

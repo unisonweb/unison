@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Unison.LSP.Commands where
 
@@ -56,7 +57,7 @@ instance Aeson.FromJSON TextReplacement where
         Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
-executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either Msg.ResponseError Aeson.Value -> Lsp ()) -> Lsp ()
+executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either Msg.ResponseError (Aeson.Value |? Null) -> Lsp ()) -> Lsp ()
 executeCommandHandler m respond =
   respond =<< runExceptT do
     let cmd = m ^. params . command
@@ -76,4 +77,4 @@ executeCommandHandler m respond =
             )
         _ -> invalidCmdErr
       _ -> invalidCmdErr
-    pure Aeson.Null
+    pure $ InL Aeson.Null

@@ -1,4 +1,5 @@
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Unison.LSP.HandlerUtils where
 
@@ -19,12 +20,12 @@ import UnliftIO.STM
 import UnliftIO.Timeout (timeout)
 
 -- | Cancels an in-flight request
-cancelRequest :: Msg.SomeLspId -> Lsp ()
+cancelRequest :: (Int32 |? Text) -> Lsp ()
 cancelRequest lspId = do
   cancelMapVar <- asks cancellationMapVar
   cancel <- atomically $ do
     cancellers <- readTVar cancelMapVar
-    let (mayCancel, newMap) = Map.updateLookupWithKey (\_k _io -> Nothing) (lspId) cancellers
+    let (mayCancel, newMap) = Map.updateLookupWithKey (\_k _io -> Nothing) lspId cancellers
     case mayCancel of
       Nothing -> pure (pure ())
       Just cancel -> do
@@ -53,7 +54,9 @@ withCancellation ::
   (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) ->
   Lsp ()
 withCancellation mayTimeoutMillis handler message respond = do
-  let reqId = Msg.SomeLspId $ message ^. LSP.id
+  let reqId = case message ^. LSP.id of
+        Msg.IdInt i -> InL i
+        Msg.IdString s -> InR s
   -- The server itself seems to be single-threaded, so we need to fork in order to be able to
   -- process cancellation requests while still computing some other response
   void . forkIO $ flip finally (removeFromMap reqId) do
@@ -79,7 +82,7 @@ withCancellation mayTimeoutMillis handler message respond = do
     -- canceller has been added, but this means we're not blocking the request waiting for
     -- contention on the cancellation map on every request.
     -- The the majority of requests should be fast enough to complete "instantly" anyways.
-    waitForCancel :: Msg.SomeLspId -> Lsp ()
+    waitForCancel :: (Int32 |? Text) -> Lsp ()
     waitForCancel reqId = do
       barrier <- newEmptyMVar
       let canceller = void $ tryPutMVar barrier ()

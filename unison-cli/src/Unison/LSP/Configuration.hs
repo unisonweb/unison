@@ -4,7 +4,7 @@ module Unison.LSP.Configuration where
 
 import Data.Aeson
 import Data.Text qualified as Text
-import Language.LSP.Protocol.Types
+import Language.LSP.Protocol.Message qualified as Msg
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
@@ -18,6 +18,6 @@ updateConfig _oldConfig newConfig = Debug.debug Debug.LSP "Configuration Change"
 -- | We could use this notification to cancel/update work-in-progress,
 -- but we don't actually need to update the config here, that's handled by the lsp library
 -- automatically.
-workspaceConfigurationChanged :: NotificationMessage 'WorkspaceDidChangeConfiguration -> Lsp ()
+workspaceConfigurationChanged :: Msg.TNotificationMessage 'Msg.Method_WorkspaceDidChangeConfiguration -> Lsp ()
 workspaceConfigurationChanged _m = do
   pure ()

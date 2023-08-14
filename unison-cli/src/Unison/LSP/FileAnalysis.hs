@@ -287,7 +287,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
                  in mkDiagnostic
                       fileUri
                       newRange
-                      DsInfo
+                      DiagnosticSeverity_Information
                       msg
                       mempty
   pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
@@ -373,7 +373,7 @@ analyseNotes fileUri ppe src notes = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
-            pure $ mkDiagnostic fileUri (uToLspRange range) DsError txtMsg []
+            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
       -- TODO: Some parsing errors likely have reasonable code actions
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
@@ -430,7 +430,7 @@ analyseNotes fileUri ppe src notes = do
       let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src currentPath note
        in do
             (range, references) <- ranges
-            pure $ mkDiagnostic fileUri range DsError msg references
+            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error msg references
     -- Suggest name replacements or qualifications when there's ambiguity
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do

@@ -7,6 +7,7 @@ import Control.Lens hiding (List)
 import Control.Monad.Reader
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.HashQualified qualified as HQ
@@ -35,14 +36,14 @@ import UnliftIO qualified
 -- TODO:
 --   * Add docs
 --   * Resolve fqn on hover
-hoverHandler :: TRequestMessage 'TextDocumentHover -> (Either ResponseError (Msg.MessageResult 'TextDocumentHover) -> Lsp ()) -> Lsp ()
-hoverHandler m respond =
-  respond . Right =<< runMaybeT do
+hoverHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentHover -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentHover) -> Lsp ()) -> Lsp ()
+hoverHandler m respond = do
+  respond . Right . maybe (InR Null) InL =<< runMaybeT do
     let pos = (m ^. params . position)
     hoverTxt <- hoverInfo (m ^. params . textDocument . uri) pos
     pure $
       Hover
-        { _contents = HoverContents (MarkupContent MkMarkdown hoverTxt),
+        { _contents = InL (MarkupContent MarkupKind_Markdown hoverTxt),
           _range = Nothing -- TODO add range info
         }
 

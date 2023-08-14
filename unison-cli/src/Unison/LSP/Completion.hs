@@ -16,6 +16,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -47,9 +48,9 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import UnliftIO qualified
 
-completionHandler :: TRequestMessage 'TextDocumentCompletion -> (Either ResponseError (Msg.MessageResult 'TextDocumentCompletion) -> Lsp ()) -> Lsp ()
+completionHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentCompletion -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentCompletion) -> Lsp ()) -> Lsp ()
 completionHandler m respond =
-  respond . maybe (Right $ InL mempty) (Right . InR) =<< runMaybeT do
+  respond . maybe (Right $ InL mempty) (Right . InR . InL) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift globalPPED
@@ -69,7 +70,8 @@ completionHandler m respond =
               let biasedPPE = PPE.biasTo [fqn] ppe
                   hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
                in hqName <&> \hqName -> mkDefCompletionItem fileUri range (HQ'.toName hqName) fqn path (HQ'.toText hqName) dep
-    pure . CompletionList isIncomplete . List $ defCompletionItems
+    let itemDefaults = Nothing
+    pure . CompletionList isIncomplete itemDefaults $ defCompletionItems
   where
     -- Takes at most the specified number of completions, but also indicates with a boolean
     -- whether there were more completions remaining so we can pass that along to the client.
@@ -82,11 +84,12 @@ mkDefCompletionItem :: Uri -> Range -> Name -> Name -> Text -> Text -> LabeledDe
 mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixified dep =
   CompletionItem
     { _label = lbl,
+      _labelDetails = Nothing,
       _kind = case dep of
-        LD.TypeReference _ref -> Just CiClass
+        LD.TypeReference _ref -> Just CompletionItemKind_Class
         LD.TermReferent ref -> case ref of
-          Referent.Con {} -> Just CiConstructor
-          Referent.Ref {} -> Just CiValue,
+          Referent.Con {} -> Just CompletionItemKind_Constructor
+          Referent.Ref {} -> Just CompletionItemKind_Value,
       _tags = Nothing,
       _detail = Just (Name.toText fullyQualifiedName),
       _documentation = Nothing,
@@ -97,11 +100,12 @@ mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixifi
       _insertText = Nothing,
       _insertTextFormat = Nothing,
       _insertTextMode = Nothing,
-      _textEdit = Just (CompletionEditText $ TextEdit range suffixified),
+      _textEdit = Just (InL $ TextEdit range suffixified),
+      _textEditText = Nothing,
       _additionalTextEdits = Nothing,
       _commitCharacters = Nothing,
       _command = Nothing,
-      _xdata = Just $ Aeson.toJSON $ CompletionItemDetails {dep, relativeName, fullyQualifiedName, fileUri}
+      _data_ = Just $ Aeson.toJSON $ CompletionItemDetails {dep, relativeName, fullyQualifiedName, fileUri}
     }
   where
     -- We should generally show the longer of the path or suffixified name in the label,
@@ -255,12 +259,12 @@ matchCompletions (CompletionTree tree) txt =
       currentMatches <> childMatches
 
 -- | Called to resolve additional details for a completion item that the user is considering.
-completionItemResolveHandler :: TRequestMessage 'CompletionItemResolve -> (Either ResponseError CompletionItem -> Lsp ()) -> Lsp ()
+completionItemResolveHandler :: Msg.TRequestMessage 'Msg.Method_CompletionItemResolve -> (Either Msg.ResponseError CompletionItem -> Lsp ()) -> Lsp ()
 completionItemResolveHandler message respond = do
   let completion :: CompletionItem
       completion = message ^. params
   respond . maybe (Right completion) Right =<< runMaybeT do
-    case Aeson.fromJSON <$> (completion ^. xdata) of
+    case Aeson.fromJSON <$> (completion ^. data_) of
       Just (Aeson.Success (CompletionItemDetails {dep, fullyQualifiedName, relativeName, fileUri})) -> do
         pped <- lift $ ppedForFile fileUri
 
@@ -292,22 +296,22 @@ completionItemResolveHandler message respond = do
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent fileUri ref
             let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
-            let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
+            let doc = toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
             pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
           LD.TypeReference ref ->
             case ref of
               Reference.Builtin {} -> do
                 let renderedBuiltin = ": <builtin>"
-                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
+                let doc = toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedBuiltin, _documentation = Just doc} :: CompletionItem)
               Reference.DerivedId refId -> do
                 decl <- LSPQ.getTypeDeclaration fileUri refId
                 let renderedDecl = ": " <> (Text.pack . Pretty.toPlain typeWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly relativeName) decl)
-                let doc = CompletionDocMarkup $ toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
+                let doc = toMarkup (Text.unlines $ ["```unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
                 pure $ (completion {_detail = Just renderedDecl, _documentation = Just doc} :: CompletionItem)
       _ -> empty
   where
-    toMarkup txt = MarkupContent {_kind = MkMarkdown, _value = txt}
+    toMarkup txt = InR $ MarkupContent {_kind = MarkupKind_Markdown, _value = txt}
     -- Completion windows can be very small, so this seems like a good default
     typeWidth = Pretty.Width 20
 
