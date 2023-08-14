@@ -39,7 +39,7 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text (isPrefixOf)
+import Data.Text (isPrefixOf, unpack)
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)
@@ -307,7 +307,10 @@ performRehash rgrp0 ctx =
           r
       | otherwise = r
 
-    (rrefs, rrgrp) = rehashGroups $ fmap (overGroupLinks f) rgrp0
+    (rrefs, rrgrp) =
+      case rehashGroups $ fmap (overGroupLinks f) rgrp0 of
+        Left (msg, refs) -> error $ unpack msg ++ ": " ++ show refs
+        Right p -> p
 
 loadDeps ::
   CodeLookup Symbol IO () ->

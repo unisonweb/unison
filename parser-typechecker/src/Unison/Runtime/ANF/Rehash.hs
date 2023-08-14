@@ -24,17 +24,24 @@ checkGroupHashes ::
   Either (Text, [Referent]) (Either [Referent] [Referent])
 checkGroupHashes rgs = case checkMissing rgs of
   Left err -> Left err
-  Right []
-    | (rrs, _) <- rehashGroups . Map.fromList $ first toReference <$> rgs ->
+  Right [] ->
+    case rehashGroups . Map.fromList $ first toReference <$> rgs of
+      Left err -> Left err
+      Right (rrs, _) ->
         Right . Right . fmap (Ref . fst) . filter (uncurry (/=)) $ Map.toList rrs
   Right ms -> Right (Left $ Ref <$> ms)
 
 rehashGroups ::
   Var v =>
   Map.Map Reference (SuperGroup v) ->
-  (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
-rehashGroups m = foldl step (Map.empty, Map.empty) sccs
+  Either (Text, [Referent]) (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
+rehashGroups m
+  | badsccs <- filter (not . checkSCC) sccs,
+    not $ null badsccs =
+      Left (err, fmap (Ref . fst) . flattenSCC =<< badsccs)
+  | otherwise = Right $ foldl step (Map.empty, Map.empty) sccs
   where
+    err = "detected mutually recursive bindings with distinct hashes"
     f p@(r, sg) = (p, r, groupTermLinks sg)
 
     sccs = stronglyConnComp . fmap f $ Map.toList m
