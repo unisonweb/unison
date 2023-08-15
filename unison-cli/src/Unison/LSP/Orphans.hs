@@ -6,12 +6,8 @@
 module Unison.LSP.Orphans where
 
 import Control.Lens
-import Data.Function (on)
-import Language.LSP.Types
-import Language.LSP.Types.Lens (HasTextDocument (..), HasUri (..))
-
-instance Ord TextDocumentIdentifier where
-  compare = compare `on` view uri
+import Language.LSP.Protocol.Lens (HasTextDocument (..), HasUri (..))
+import Language.LSP.Protocol.Types
 
 instance HasTextDocument TextDocumentIdentifier TextDocumentIdentifier where
   textDocument = Prelude.id

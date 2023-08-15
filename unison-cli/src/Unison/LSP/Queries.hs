@@ -20,7 +20,7 @@ import Control.Lens
 import Control.Lens qualified as Lens
 import Control.Monad.Reader
 import Data.Generics.Product (field)
-import Language.LSP.Types
+import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as Builtins
 import Unison.Codebase qualified as Codebase
