@@ -388,6 +388,9 @@ import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
 
+debug :: Bool
+debug = False
+
 type TextPathSegments = [Text]
 
 -- * main squeeze
