@@ -11,6 +11,7 @@ import Data.Functor.Identity (Identity)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import U.Codebase.Branch (Branch, CausalBranch)
@@ -18,44 +19,75 @@ import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.Causal qualified as Causal
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.ShortHash qualified as ShortHash
+import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path qualified as Path
+import Unison.Hash qualified as Hash
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
+import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 resultPath = do
   alicePath <- Cli.resolvePath' alicePath0
   bobPath <- Cli.resolvePath' bobPath0
-  (definitionsDiff, dependenciesDiff) <-
-    Cli.runEitherTransaction do
-      runExceptT do
-        aliceBranch <- ExceptT (Cli.resolveAbsBranchIdV2 (Right alicePath))
-        bobBranch <- ExceptT (Cli.resolveAbsBranchIdV2 (Right bobPath))
-        let diff = Diff.diffBranches aliceBranch bobBranch
-        definitionsDiff <- lift (loadDefinitionsDiff diff)
-        dependenciesDiff <- lift (loadDependenciesDiff aliceBranch bobBranch)
-        pure (definitionsDiff, dependenciesDiff)
 
-  liftIO do
-    Text.putStrLn "===== begin dependencies diff ====="
-    printDefinitionsDiff Nothing definitionsDiff
-    Text.putStrLn "===== end dependencies diff =====\n"
+  Cli.runTransaction do
+    Sqlite.unsafeIO $ Text.putStrLn "===== hashes ====="
 
-    Text.putStrLn "===== begin dependencies diff ====="
-    Text.putStrLn "TODO"
-    Text.putStrLn "===== end dependencies diff =====\n"
+    aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
+    bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+
+    let aliceCausalHash = Causal.causalHash aliceCausal
+    let bobCausalHash = Causal.causalHash bobCausal
+
+    Sqlite.unsafeIO $ Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
+    Sqlite.unsafeIO $ Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
+    Sqlite.unsafeIO $ Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
+    Sqlite.unsafeIO $ Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
+
+    maybeLcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
+
+    Sqlite.unsafeIO case maybeLcaCausalHash of
+      Nothing -> Text.putStrLn "lca causal hash ="
+      Just lcaCausalHash -> Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
+    Sqlite.unsafeIO $ Text.putStrLn ""
+
+    case maybeLcaCausalHash of
+      -- TODO: go down 2-way merge code paths
+      Nothing -> pure ()
+      Just lcaCausalHash -> do
+        lcaCausal <- Operations.expectCausalBranchByCausalHash lcaCausalHash
+        lcaBranch <- Causal.value lcaCausal
+
+        aliceBranch <- Causal.value aliceCausal
+        let aliceDiff = Diff.diffBranches lcaBranch aliceBranch
+        aliceDefinitionsDiff <- loadDefinitionsDiff aliceDiff
+        Sqlite.unsafeIO do
+          Text.putStrLn "===== lca->alice diff ====="
+          printDefinitionsDiff Nothing aliceDefinitionsDiff
+          Text.putStrLn ""
+
+        bobBranch <- Causal.value bobCausal
+        let bobDiff = Diff.diffBranches lcaBranch bobBranch
+        bobDefinitionsDiff <- loadDefinitionsDiff bobDiff
+        Sqlite.unsafeIO do
+          Text.putStrLn "===== lca->bob diff ====="
+          printDefinitionsDiff Nothing bobDefinitionsDiff
+          Text.putStrLn ""
 
 loadDependenciesDiff ::
   Branch Transaction ->
@@ -81,12 +113,6 @@ namespaceDependencies branch =
     Just dependenciesCausal -> do
       dependenciesNamespace <- Causal.value dependenciesCausal
       pure (Branch.children dependenciesNamespace)
-
--- { terms :: Map NameSegment (Map Referent (m MdValues)),
---   types :: Map NameSegment (Map Reference (m MdValues)),
---   patches :: Map NameSegment (PatchHash, m Patch),
---   children :: Map NameSegment (CausalBranch m)
--- }
 
 loadDefinitionsDiff ::
   TreeDiff Transaction ->
@@ -154,3 +180,11 @@ printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
       Nothing -> Text.putStrLn (ty <> " " <> Name.toText name <> " (no changes)")
       Just (sym, hash) ->
         Text.putStrLn (ty <> " " <> Name.toText name <> " " <> sym <> ShortHash.toText (ShortHash.shortenTo 4 hash))
+
+showCausalHash :: CausalHash -> Text
+showCausalHash =
+  ("#" <>) . Text.take 4 . Hash.toBase32HexText . unCausalHash
+
+showNamespaceHash :: BranchHash -> Text
+showNamespaceHash =
+  ("#" <>) . Text.take 4 . Hash.toBase32HexText . unBranchHash
