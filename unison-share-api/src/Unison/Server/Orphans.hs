@@ -33,6 +33,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -362,3 +363,33 @@ deriving newtype instance ToSchema NameSegment
 deriving anyclass instance (ToSchema n) => ToSchema (HQ.HashQualified n)
 
 deriving anyclass instance (ToSchema n) => ToSchema (HQ'.HashQualified n)
+
+instance FromHttpApiData ProjectName where
+  parseQueryParam = mapLeft tShow . tryInto @ProjectName
+
+instance ToParamSchema ProjectName where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "[@handle/]name"
+
+instance ToCapture (Capture "project-name" ProjectName) where
+  toCapture _ =
+    DocCapture
+      "project-name"
+      "The name of a project. E.g. @handle/slug"
+
+instance FromHttpApiData ProjectBranchName where
+  parseQueryParam = mapLeft tShow . tryInto @ProjectBranchName
+
+instance ToParamSchema ProjectBranchName where
+  toParamSchema _ =
+    mempty
+      & type_ ?~ OpenApiString
+      & example ?~ Aeson.String "[@handle/]name"
+
+instance ToCapture (Capture "branch-name" ProjectBranchName) where
+  toCapture _ =
+    DocCapture
+      "branch-name"
+      "The name of a branch in a project. E.g. @handle/name"

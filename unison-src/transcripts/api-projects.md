@@ -12,7 +12,7 @@ joey.yaml.zz = 45
 ```
 
 ```api
-GET /api/projects
+GET /api/non-project-code/projects
 
-GET /api/projects?owner=joey
+GET /api/non-project-code/projects?owner=joey
 ```

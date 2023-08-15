@@ -33,7 +33,7 @@ joey.yaml.zz = 45
 
 ```
 ```api
-GET /api/projects
+GET /api/non-project-code/projects
 [
     {
         "hash": "#vjmnhfbas8pejgpgsh26255ebaolepuc56juiifft4b9bg8u43nmmhe2skfncrfvin3std4grbfa7io846nskq3j5b3819rvaddnbn0",
@@ -56,7 +56,7 @@ GET /api/projects
         "owner": "ross"
     }
 ]
-GET /api/projects?owner=joey
+GET /api/non-project-code/projects?owner=joey
 [
     {
         "hash": "#vjmnhfbas8pejgpgsh26255ebaolepuc56juiifft4b9bg8u43nmmhe2skfncrfvin3std4grbfa7io846nskq3j5b3819rvaddnbn0",

@@ -11,7 +11,6 @@ where
 import Control.Error.Util qualified as ErrorUtil
 import Control.Exception (catch)
 import Control.Lens
-import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
@@ -35,12 +34,9 @@ import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcessWithExitCode, shell)
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
-import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as V2 (Reference)
-import U.Codebase.Referent qualified as V2 (Referent)
-import U.Codebase.Referent qualified as V2.Referent
 import U.Codebase.Reflog qualified as Reflog
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -87,6 +83,7 @@ import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchA
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
+import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
@@ -123,7 +120,6 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.FileParsers qualified as FileParsers
@@ -204,7 +200,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
-import Web.Browser (openBrowser)
 import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -292,9 +287,9 @@ loop e = do
                     P.lines
                       [ "The API information is as follows:",
                         P.newline,
-                        P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl))),
+                        P.indentN 2 (P.hiBlue ("UI: " <> Pretty.text (Server.urlFor (Server.LooseCodeUI Path.absoluteEmpty Nothing) baseUrl))),
                         P.newline,
-                        P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
+                        P.indentN 2 (P.hiBlue ("API: " <> Pretty.text (Server.urlFor Server.Api baseUrl)))
                       ]
             CreateMessage pretty ->
               Cli.respond $ PrintMessage pretty
@@ -551,73 +546,7 @@ loop e = do
               Cli.updateRoot prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-            UiI path' -> do
-              Cli.Env {serverBaseUrl, codebase} <- ask
-              whenJust serverBaseUrl \url -> do
-                (perspective, definitionRef) <-
-                  getUIUrlParts codebase
-
-                _success <- liftIO (openBrowser (Server.urlFor (Server.UI perspective definitionRef) url))
-                pure ()
-              where
-                getUIUrlParts :: Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
-                getUIUrlParts codebase = do
-                  currentPath <- Cli.getCurrentPath
-                  let absPath = Path.resolve currentPath path'
-
-                  case Lens.unsnoc absPath of
-                    Just (abs, nameSeg) -> do
-                      namespaceBranch <-
-                        Cli.runTransaction
-                          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
-
-                      let terms = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.terms namespaceBranch))
-                      let types = maybe Set.empty Map.keysSet (Map.lookup nameSeg (V2Branch.types namespaceBranch))
-
-                      -- Only safe to force in toTypeReference and toTermReference
-                      case (Set.lookupMin terms, Set.lookupMin types) of
-                        (Just te, _) -> do
-                          let name = Path.unsafeToName $ Path.fromPath' path'
-                          defRef <- Cli.runTransaction (toTermReference codebase name te)
-
-                          if Path.isAbsolute path'
-                            then pure (Path.absoluteEmpty, Just defRef)
-                            else pure (currentPath, Just defRef)
-                        (Nothing, Just ty) ->
-                          let name = Path.unsafeToName $ Path.fromPath' path'
-                              defRef = toTypeReference name ty
-                           in if Path.isAbsolute path'
-                                then pure (Path.absoluteEmpty, Just defRef)
-                                else pure (currentPath, Just defRef)
-                        -- Catch all that uses the absPath to build the perspective.
-                        -- Also catches the case where a namespace arg was given.
-                        (Nothing, Nothing) ->
-                          pure (absPath, Nothing)
-                    Nothing ->
-                      pure (absPath, Nothing)
-
-                toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
-                toTypeReference name reference =
-                  Server.TypeReference $
-                    HQ.fromNamedReference name (Conversions.reference2to1 reference)
-
-                toTermReference :: Codebase m Symbol Ann -> Name -> V2.Referent -> Sqlite.Transaction Server.DefinitionReference
-                toTermReference codebase name referent = do
-                  case referent of
-                    V2.Referent.Ref reference ->
-                      pure $
-                        Server.TermReference $
-                          HQ.fromNamedReference name (Conversions.reference2to1 reference)
-                    V2.Referent.Con _ _ -> do
-                      v1Referent <- Conversions.referent2to1 (Codebase.getDeclType codebase) referent
-                      let hq = HQ.fromNamedReferent name v1Referent
-
-                      pure case v1Referent of
-                        Referent.Con _ ConstructorType.Data ->
-                          Server.DataConstructorReference hq
-                        Referent.Con _ ConstructorType.Effect ->
-                          Server.AbilityConstructorReference hq
-                        Referent.Ref _ -> error "Impossible! *twirls mustache*"
+            UiI path' -> openUI path'
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength

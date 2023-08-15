@@ -83,15 +83,20 @@ import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.HashQualified
 import Unison.Name as Name (Name, segments)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Errors (backendError)
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
@@ -119,9 +124,13 @@ instance MimeRender HTML RawHtml where
 
 type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
-type UnisonAndDocsAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type UnisonAPI =
+type LooseCodeAPI = "non-project-code" :> CodebaseServerAPI
+
+type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
+
+type CodebaseServerAPI =
   NamespaceListing.NamespaceListingAPI
     :<|> NamespaceDetails.NamespaceDetailsAPI
     :<|> Projects.ProjectsAPI
@@ -129,6 +138,9 @@ type UnisonAPI =
     :<|> FuzzyFindAPI
     :<|> TermSummaryAPI
     :<|> TypeSummaryAPI
+
+type ProjectsAPI =
+  "projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -156,83 +168,124 @@ data DefinitionReference
   | TypeReference (HashQualified Name) -- /types/...
   | AbilityConstructorReference (HashQualified Name) -- /ability-constructors/...
   | DataConstructorReference (HashQualified Name) -- /data-constructors/...
+  deriving stock (Show)
 
 data Service
-  = UI Path.Absolute (Maybe DefinitionReference)
+  = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
+  | -- (Project branch names, perspective within project, definition reference)
+    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Path (Maybe DefinitionReference)
   | Api
+  deriving stock (Show)
 
 instance Show BaseUrl where
   show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
+
+data URISegment
+  = EscapeMe Text
+  | DontEscape Text
+  deriving stock (Show)
 
 -- | Create a Service URL, either for the UI or the API
 --
 -- Examples:
 --
--- >>> urlFor Api (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
--- "https://localhost:1234/asdf/api"
+-- >>> urlFor Api (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- "http://localhost:1234/asdf/api"
 --
+-- Loose code with definition but no perspective
 -- >>> import qualified Unison.Syntax.Name as Name
--- >>> let service = UI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let service = LooseCodeUI (Path.absoluteEmpty) (Just (TermReference (NameOnly (Name.unsafeFromText "base.data.List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/latest/;/terms/base/data/List/map"
+-- "http://localhost:1234/asdf/ui/non-project-code/latest/terms/base/data/List/map"
 --
+-- Loose code with definition and perspective
 -- >>> import qualified Unison.Syntax.Name as Name
--- >>> let service = UI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
--- >>> let baseUrl = (BaseUrl{ urlHost = "https://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> let service = LooseCodeUI (Path.Absolute (Path.fromText "base.data")) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
 -- >>> urlFor service baseUrl
--- "https://localhost:1234/asdf/ui/latest/namespaces/base/data/;/terms/List/map"
-urlFor :: Service -> BaseUrl -> String
+-- "http://localhost:1234/asdf/ui/non-project-code/latest/namespaces/base/data/;/terms/List/map"
+--
+-- Project with definition but no perspective
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "base") (UnsafeProjectBranchName "main")) (Path.empty) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "http://localhost:1234/asdf/ui/projects/base/main/latest/terms/List/map"
+--
+-- Project with definition but no perspective, contributor branch
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Path.empty) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/terms/List/map"
+--
+-- Project with definition and perspective
+-- >>> import qualified Unison.Syntax.Name as Name
+-- >>> import Unison.Core.Project (ProjectName (..), ProjectBranchName (..), ProjectAndBranch (..))
+-- >>> let service = ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "@unison/base") (UnsafeProjectBranchName "@runarorama/contribution")) (Path.fromList ["data"]) (Just (TermReference (NameOnly (Name.unsafeFromText "List.map"))))
+-- >>> let baseUrl = (BaseUrl{ urlHost = "http://localhost", urlToken = "asdf", urlPort = 1234 })
+-- >>> urlFor service baseUrl
+-- "http://localhost:1234/asdf/ui/projects/@unison/base/@runarorama/contribution/latest/namespaces/data/;/terms/List/map"
+urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
-    UI ns def ->
-      show baseUrl <> "/ui" <> Text.unpack (path ns def)
-    Api -> show baseUrl <> "/api"
+    LooseCodeUI perspective def ->
+      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path (Path.unabsolute perspective) def)
+    ProjectBranchUI (ProjectAndBranch projectName branchName) perspective def ->
+      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path perspective def)
+    Api -> tShow baseUrl <> "/" <> toUrlPath [DontEscape "api"]
   where
-    path :: Path.Absolute -> Maybe DefinitionReference -> Text
+    path :: Path.Path -> Maybe DefinitionReference -> [URISegment]
     path ns def =
       let nsPath = namespacePath ns
        in case definitionPath def of
-            Just defPath -> "/latest" <> nsPath <> "/;" <> defPath
-            Nothing -> "/latest" <> nsPath
+            Just defPath -> case nsPath of
+              [] -> [DontEscape "latest"] <> defPath
+              _ -> [DontEscape "latest"] <> nsPath <> [DontEscape ";"] <> defPath
+            Nothing -> [DontEscape "latest"] <> nsPath
 
-    namespacePath :: Path.Absolute -> Text
+    namespacePath :: Path.Path -> [URISegment]
     namespacePath path =
-      if path == Path.absoluteEmpty
-        then ""
-        else "/namespaces/" <> toUrlPath (NameSegment.toText <$> Path.toList (Path.unabsolute path))
+      if path == Path.empty
+        then []
+        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toText <$> Path.toList path)
 
-    definitionPath :: Maybe DefinitionReference -> Maybe Text
+    definitionPath :: Maybe DefinitionReference -> Maybe [URISegment]
     definitionPath def =
       toDefinitionPath <$> def
 
-    toUrlPath :: [Text] -> Text
-    toUrlPath parts =
-      parts
-        & fmap UriEncode.encodeText
+    toUrlPath :: [URISegment] -> Text
+    toUrlPath path =
+      path
+        & fmap \case
+          EscapeMe txt -> UriEncode.encodeText txt
+          DontEscape txt -> txt
         & Text.intercalate "/"
 
-    refToUrlText :: HashQualified Name -> Text
+    refToUrlText :: HashQualified Name -> [URISegment]
     refToUrlText r =
       case r of
         NameOnly n ->
-          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
         HashOnly h ->
-          h & ShortHash.toText & UriEncode.encodeText
+          [EscapeMe $ ShortHash.toText h]
         HashQualified n _ ->
-          n & Name.segments & fmap NameSegment.toText & toList & toUrlPath
+          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
 
-    toDefinitionPath :: DefinitionReference -> Text
+    toDefinitionPath :: DefinitionReference -> [URISegment]
     toDefinitionPath d =
       case d of
         TermReference r ->
-          "/terms/" <> refToUrlText r
+          [DontEscape "terms"] <> refToUrlText r
         TypeReference r ->
-          "/types/" <> refToUrlText r
+          [DontEscape "types"] <> refToUrlText r
         AbilityConstructorReference r ->
-          "/ability-constructors/" <> refToUrlText r
+          [DontEscape "ability-constructors"] <> refToUrlText r
         DataConstructorReference r ->
-          "/data-constructors/" <> refToUrlText r
+          [DontEscape "data-constructors"] <> refToUrlText r
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -269,7 +322,7 @@ docsBS = mungeString . markdown $ docsWithIntros [intro] api
 unisonAndDocsAPI :: Proxy UnisonAndDocsAPI
 unisonAndDocsAPI = Proxy
 
-api :: Proxy UnisonAPI
+api :: Proxy UnisonLocalAPI
 api = Proxy
 
 serverAPI :: Proxy ServerAPI
@@ -430,7 +483,7 @@ server backendEnv rt codebase uiPath expectedToken =
         :<|> serveUnisonAndDocs backendEnv rt codebase
 
 serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
-serveUnisonAndDocs env rt codebase = serveUnison env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
+serveUnisonAndDocs env rt codebase = serveUnisonLocal env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
 
 serveDocs :: Application
 serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
@@ -444,13 +497,13 @@ serveOpenAPI = pure openAPI
 hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
-serveUnison ::
+serveLooseCode ::
   BackendEnv ->
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
-  Server UnisonAPI
-serveUnison env codebase rt =
-  hoistServer (Proxy @UnisonAPI) (backendHandler env) $
+  Server LooseCodeAPI
+serveLooseCode env codebase rt =
+  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $
     (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
       :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
       :<|> (\mayRoot mayOwner -> setCacheControl <$> Projects.serve codebase (Left <$> mayRoot) mayOwner)
@@ -458,6 +511,64 @@ serveUnison env codebase rt =
       :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
       :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
       :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+
+serveProjectsAPI ::
+  BackendEnv ->
+  Codebase IO Symbol Ann ->
+  Rt.Runtime Symbol ->
+  ProjectName ->
+  ProjectBranchName ->
+  Server LooseCodeAPI
+serveProjectsAPI env codebase rt projectName branchName =
+  hoistServer (Proxy @LooseCodeAPI) (backendHandler env) $ do
+    namespaceListingEndpoint
+      :<|> namespaceDetailsEndpoint
+      :<|> projectListingEndpoint
+      :<|> serveDefinitionsEndpoint
+      :<|> serveFuzzyFindEndpoint
+      :<|> serveTermSummaryEndpoint
+      :<|> serveTypeSummaryEndpoint
+  where
+    projectAndBranchName = ProjectAndBranch projectName branchName
+    namespaceListingEndpoint _rootParam rel name = do
+      root <- resolveProjectRoot
+      setCacheControl <$> NamespaceListing.serve codebase (Just root) rel name
+    namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just root) renderWidth
+    projectListingEndpoint _rootParam mayOwner = do
+      root <- resolveProjectRoot
+      setCacheControl <$> Projects.serve codebase (Just root) mayOwner
+
+    serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveDefinitions rt codebase (Just root) relativePath rawHqns renderWidth suff
+
+    serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveFuzzyFind codebase (Just root) relativePath limit renderWidth query
+
+    serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+
+    serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+      root <- resolveProjectRoot
+      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+
+    resolveProjectRoot :: Backend IO (Either ShortCausalHash CausalHash)
+    resolveProjectRoot = do
+      mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
+      case mayCH of
+        Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
+        Just ch -> pure (Right ch)
+
+serveUnisonLocal ::
+  BackendEnv ->
+  Codebase IO Symbol Ann ->
+  Rt.Runtime Symbol ->
+  Server UnisonLocalAPI
+serveUnisonLocal env codebase rt = serveProjectsAPI env codebase rt :<|> serveLooseCode env codebase rt
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

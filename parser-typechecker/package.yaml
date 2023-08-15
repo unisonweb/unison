@@ -126,6 +126,7 @@ dependencies:
   - unison-util-rope
   - unison-util-serialization
   - unliftio
+  - uuid
   - uri-encode
   - utf8-string
   - vector
