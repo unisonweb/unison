@@ -46,6 +46,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections

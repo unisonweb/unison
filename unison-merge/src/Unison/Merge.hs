@@ -1,6 +1,6 @@
 module Unison.Merge () where
 
-import Control.Lens ((%~))
+import Control.Lens (review, (%~), (^?))
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
@@ -357,6 +357,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
 -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
 getTransitiveDependents ::
   forall ref.
+  Ord ref =>
   (ref -> Set ref) ->
   Set ref ->
   -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions

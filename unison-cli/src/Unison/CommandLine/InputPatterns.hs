@@ -1539,6 +1539,24 @@ mergeLocal =
         _ -> Nothing
     )
 
+mergeInputPattern :: InputPattern
+mergeInputPattern =
+  InputPattern
+    { patternName = "merge2",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = "`merge alice bob result` merges `alice` and `bob` into `result` with the cool new algorithm",
+      parse =
+        \args ->
+          maybeToEither (I.help mergeLocal) do
+            [alice0, bob0, result0] <- Just args
+            Right alice <- Just (Path.parsePath' alice0)
+            Right bob <- Just (Path.parsePath' bob0)
+            Right result <- Just (Path.parsePath' result0)
+            pure (Input.MergeI alice bob result)
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
@@ -2840,6 +2858,7 @@ validInputs =
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
+      mergeInputPattern,
       mergeLocal,
       names False, -- names
       names True, -- names.global
