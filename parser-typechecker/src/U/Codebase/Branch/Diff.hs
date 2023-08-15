@@ -119,7 +119,7 @@ diffBranches from to =
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
       typeDiffs = diffMap (Branch.types from) (Branch.types to)
       defDiff = DefinitionDiffs {termDiffs, typeDiffs}
-      childDiff :: (Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs)))
+      childDiff :: Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs))
       childDiff = do
         Align.align (children from) (children to)
           & mapMaybe \case
