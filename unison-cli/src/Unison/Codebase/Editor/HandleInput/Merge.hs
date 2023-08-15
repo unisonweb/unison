@@ -16,12 +16,15 @@ import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import U.Codebase.Branch (Branch, CausalBranch)
 import U.Codebase.Branch qualified as Branch
-import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), TreeDiff (TreeDiff))
+import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
+import U.Codebase.Reference (Reference)
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
+import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
@@ -39,6 +42,8 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation qualified as Relation
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 resultPath = do
@@ -88,6 +93,46 @@ handleMerge alicePath0 bobPath0 resultPath = do
           Text.putStrLn "===== lca->bob diff ====="
           printDefinitionsDiff Nothing bobDefinitionsDiff
           Text.putStrLn ""
+
+        let printTypeUpdates =
+              Text.putStrLn
+                . Text.unlines
+                . map (\(old, new) -> showReference old <> " => " <> showReference new)
+                . Relation.toList
+
+        let printTermUpdates =
+              Text.putStrLn
+                . Text.unlines
+                . map (\(old, new) -> showReferent old <> " => " <> showReferent new)
+                . Relation.toList
+
+        let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
+        Sqlite.unsafeIO do
+          Text.putStrLn "===== alice type updates ====="
+          printTypeUpdates aliceTypeUpdates
+          Text.putStrLn ""
+          Text.putStrLn "===== alice term updates ====="
+          printTermUpdates aliceTermUpdates
+          Text.putStrLn ""
+
+        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
+        Sqlite.unsafeIO do
+          Text.putStrLn "===== bob type updates ====="
+          printTypeUpdates bobTypeUpdates
+          Text.putStrLn ""
+          Text.putStrLn "===== bob term updates ====="
+          printTermUpdates bobTermUpdates
+          Text.putStrLn ""
+
+definitionsDiffToUpdates ::
+  Cofree (Map NameSegment) DefinitionDiffs ->
+  (Relation Reference Reference, Relation Referent Referent)
+definitionsDiffToUpdates (DefinitionDiffs {termDiffs, typeDiffs} :< children) =
+  (diffToUpdates typeDiffs, diffToUpdates termDiffs) <> foldMap definitionsDiffToUpdates children
+
+diffToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
+diffToUpdates =
+  foldMap \Diff {adds, removals} -> Relation.fromSet (Set.cartesianProduct removals adds)
 
 loadDependenciesDiff ::
   Branch Transaction ->
@@ -155,31 +200,23 @@ printDefinitionsDiff prefix (diff :< children) = do
 
 printDiff :: Maybe Name -> DefinitionDiffs -> IO ()
 printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
-  for_ (Map.toList termDiffs) \(segment, Diff.Diff {adds, removals}) ->
+  for_ (Map.toList termDiffs) \(segment, Diff.Diff {adds, removals}) -> do
     let name =
           case prefix of
             Nothing -> Name.fromSegment segment
             Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
-     in if Set.null adds && Set.null removals
-          then put "term" name Nothing
-          else do
-            for_ adds \ref -> put "term" name (Just ("+", Referent.toShortHash ref))
-            for_ removals \ref -> put "term" name (Just ("-", Referent.toShortHash ref))
-  for_ (Map.toList typeDiffs) \(segment, Diff.Diff {adds, removals}) ->
+    for_ adds \ref -> put "term" name "+" (Referent.toShortHash ref)
+    for_ removals \ref -> put "term" name "-" (Referent.toShortHash ref)
+  for_ (Map.toList typeDiffs) \(segment, Diff.Diff {adds, removals}) -> do
     let name =
           case prefix of
             Nothing -> Name.fromSegment segment
             Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
-     in if Set.null adds && Set.null removals
-          then put "type" name Nothing
-          else do
-            for_ adds \ref -> put "type" name (Just ("+", Reference.toShortHash ref))
-            for_ removals \ref -> put "type" name (Just ("-", Reference.toShortHash ref))
+    for_ adds \ref -> put "type" name "+" (Reference.toShortHash ref)
+    for_ removals \ref -> put "type" name "-" (Reference.toShortHash ref)
   where
-    put ty name = \case
-      Nothing -> Text.putStrLn (ty <> " " <> Name.toText name <> " (no changes)")
-      Just (sym, hash) ->
-        Text.putStrLn (ty <> " " <> Name.toText name <> " " <> sym <> ShortHash.toText (ShortHash.shortenTo 4 hash))
+    put ty name sym hash =
+      Text.putStrLn (ty <> " " <> Name.toText name <> " " <> sym <> showShortHash hash)
 
 showCausalHash :: CausalHash -> Text
 showCausalHash =
@@ -188,3 +225,15 @@ showCausalHash =
 showNamespaceHash :: BranchHash -> Text
 showNamespaceHash =
   ("#" <>) . Text.take 4 . Hash.toBase32HexText . unBranchHash
+
+showReference :: Reference -> Text
+showReference =
+  showShortHash . Reference.toShortHash
+
+showReferent :: Referent -> Text
+showReferent =
+  showShortHash . Referent.toShortHash
+
+showShortHash :: ShortHash -> Text
+showShortHash =
+  ShortHash.toText . ShortHash.shortenTo 4
