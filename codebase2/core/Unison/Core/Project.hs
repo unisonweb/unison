@@ -17,12 +17,12 @@ import Unison.Prelude
 -- | The name of a project.
 newtype ProjectName
   = UnsafeProjectName Text
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
 
 -- | The name of a branch of a project.
 newtype ProjectBranchName
   = UnsafeProjectBranchName Text
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
 
 -- | A generic data structure that contains information about a project and a branch in that project.
 data ProjectAndBranch a b = ProjectAndBranch

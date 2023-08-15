@@ -24,6 +24,7 @@ import Unison.Codebase.ShortCausalHash
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Hash (Hash (..))
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
@@ -33,7 +34,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -379,8 +380,14 @@ instance ToCapture (Capture "project-name" ProjectName) where
       "project-name"
       "The name of a project. E.g. @handle/slug"
 
+instance ToSchema ProjectName
+
+deriving via Text instance ToJSON ProjectName
+
 instance FromHttpApiData ProjectBranchName where
   parseQueryParam = mapLeft tShow . tryInto @ProjectBranchName
+
+instance ToSchema ProjectBranchName
 
 instance ToParamSchema ProjectBranchName where
   toParamSchema _ =
@@ -393,3 +400,5 @@ instance ToCapture (Capture "branch-name" ProjectBranchName) where
     DocCapture
       "branch-name"
       "The name of a branch in a project. E.g. @handle/name"
+
+deriving via Text instance ToJSON ProjectBranchName
