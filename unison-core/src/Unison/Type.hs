@@ -622,15 +622,17 @@ purifyArrows = ABT.visitPure go
     go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
-removeEffectVars :: (ABT.Var v) => Set v -> Type v a -> Type v a
-removeEffectVars removals t =
+-- `keepEmptied` controls whether any ability lists that become `{}`
+-- after this transformation are kept in the signature or elided entirely
+removeEffectVars :: (ABT.Var v) => Bool -> Set v -> Type v a -> Type v a
+removeEffectVars keepEmptied removals t =
   let z = effects () []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
       -- leave explicitly empty `{}` alone
       removeEmpty (Effect1' (Effects' []) v) = Just (ABT.visitPure removeEmpty v)
       removeEmpty t@(Effect1' e v) =
         case flattenEffects e of
-          [] -> Just (ABT.visitPure removeEmpty v)
+          [] | not keepEmptied -> Just (ABT.visitPure removeEmpty v)
           es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
       removeEmpty t@(Effects' es) =
         Just $ effects (ABT.annotation t) (es >>= flattenEffects)
@@ -648,13 +650,21 @@ removeAllEffectVars t =
       go (Effect1' (Var' v) _) = Set.singleton v
       go _ = mempty
       (vs, tu) = unforall' t
-   in generalize vs (removeEffectVars allEffectVars tu)
+   in generalize vs (removeEffectVars False allEffectVars tu)
 
-removePureEffects :: (ABT.Var v) => Type v a -> Type v a
-removePureEffects t
+-- pure effect variables are those used only in covariant position
+-- for instance, in Nat ->{g} Nat ->{g2} Nat, `g` and `g2` only
+-- appear to the right of an `->`, and as a result this type is
+-- equivalent to `Nat ->{} Nat ->{} Nat`.
+--
+-- `keepEmptied` controls whether any ability lists that become `{}`
+-- after this transformation are removed from the signature or
+-- kept around.
+removePureEffects :: (ABT.Var v) => Bool -> Type v a -> Type v a
+removePureEffects keepEmptied t
   | not Settings.removePureEffects = t
   | otherwise =
-      generalize vs $ removeEffectVars fvs tu
+      generalize vs $ removeEffectVars keepEmptied fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs
@@ -775,7 +785,7 @@ cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
 cleanup :: (Var v) => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
-cleanup t = cleanupVars1 . cleanupAbilityLists $ t
+cleanup t = removePureEffects True . cleanupVars1 . cleanupAbilityLists $ t
 
 builtinAbilities :: Set Reference
 builtinAbilities = Set.fromList [builtinIORef, stmRef]

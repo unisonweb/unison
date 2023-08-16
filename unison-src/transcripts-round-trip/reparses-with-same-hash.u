@@ -258,3 +258,25 @@ raw_d = """
 structural ability Zoink where
   yay.there : Text -> Nat
   nay : Text -> (Nat,Nat) -> Nat
+
+
+-- Regression tests for https://github.com/unisonweb/unison/issues/2650
+
+fix_2650 =
+  addNumbers: 'Nat
+  addNumbers = 'let
+    use Nat +
+    y = 12
+    13 + y
+  !addNumbers
+
+fix_2650a tvar fun = ()
+
+fix_2650b tvar =
+  '(fix_2650a tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+
+fix_2650c = cases
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+  _ -> ()
