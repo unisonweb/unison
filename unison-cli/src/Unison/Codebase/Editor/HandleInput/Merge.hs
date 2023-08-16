@@ -6,6 +6,7 @@ where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.Functor.Compose (Compose (Compose))
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
@@ -18,8 +19,9 @@ import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.Causal qualified as Causal
+import U.Codebase.Decl qualified as Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
-import U.Codebase.Reference (Reference)
+import U.Codebase.Reference (Reference, Reference' (..), TermReference, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -33,6 +35,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
@@ -43,9 +46,13 @@ import Unison.Prelude hiding (catMaybes)
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation (Relation)
+import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Relation qualified as Relation
 import Witherable (catMaybes)
+import U.Codebase.Decl (Decl)
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 _resultPath = do
@@ -83,12 +90,13 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
         let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
 
-        -- aliceUserTypeUpdates <-
-        --   Merge.computeTypeUserUpdates
-        --     v2HashHandle
-        --     undefined
-        --     (\_ _ -> undefined)
-        --     aliceTypeUpdates
+        (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
+        aliceUserTypeUpdates <-
+          Merge.computeTypeUserUpdates
+            v2HashHandle
+            Operations.expectDeclByReference
+            (\ref1 ref2 -> undefined)
+            aliceTypeUpdates
 
         bobBranch <- Causal.value bobCausal
         bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
@@ -113,6 +121,25 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           printTermUpdates bobTermUpdates
           Text.putStrLn ""
 
+computeConstructorMapping ::
+  Relation3 Name TypeReference ConstructorId ->
+  TypeReferenceId ->
+  Decl v ->
+  Relation3 Name TypeReference ConstructorId ->
+  TypeReferenceId ->
+  Decl v ->
+  Maybe ([Decl.Type v] -> [Decl.Type v])
+computeConstructorMapping allNames1 ref1 decl1 allNames2 ref2 decl2 = do
+  -- Basic checks: there's no constructor mapping if these are clearly different types
+  guard (Decl.declType decl1 == Decl.declType decl2)
+  guard (Decl.modifier decl1 == Decl.modifier decl2)
+  guard (length (Decl.bound decl1) == length (Decl.bound decl2))
+  guard (length (Decl.constructorTypes decl1) == length (Decl.constructorTypes decl2))
+
+  -- It all looks good so far; let's see if the data constructors' names match.
+  -- TODO
+  Nothing
+
 definitionsDiffToUpdates ::
   Cofree (Map NameSegment) DefinitionDiffs ->
   (Relation Reference Reference, Relation Referent Referent)
@@ -122,6 +149,60 @@ definitionsDiffToUpdates (DefinitionDiffs {termDiffs, typeDiffs} :< children) =
 diffToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
 diffToUpdates =
   foldMap \Diff {adds, removals} -> Relation.fromSet (Set.cartesianProduct removals adds)
+
+-- | Load all term and type names from a branch (excluding dependencies) into memory.
+loadBranchDefinitionNames ::
+  forall m.
+  Monad m =>
+  Branch m ->
+  m (Relation Name TypeReference, Relation Name (TypeReference, ConstructorId), Relation Name TermReference)
+loadBranchDefinitionNames =
+  go []
+  where
+    go ::
+      [NameSegment] ->
+      Branch m ->
+      m (Relation Name TypeReference, Relation Name (TypeReference, ConstructorId), Relation Name TermReference)
+    go reversePrefix branch = do
+      let types :: Relation Name TypeReference
+          types =
+            Relation.fromMultimap (Map.fromList (map f (Map.toList (Branch.types branch))))
+            where
+              f (segment, xs) =
+                (Name.fromReverseSegments (segment :| reversePrefix), Map.keysSet xs)
+      let datacons :: Relation Name (TypeReference, ConstructorId)
+          terms :: Relation Name TermReference
+          (datacons, terms) =
+            Branch.terms branch
+              & Map.toList
+              & foldl' f (Relation.empty, Relation.empty)
+            where
+              f ::
+                (Relation Name (TypeReference, ConstructorId), Relation Name TermReference) ->
+                (NameSegment, Map Referent metadata) ->
+                (Relation Name (TypeReference, ConstructorId), Relation Name TermReference)
+              f acc (!segment, !refs) =
+                foldl' (g (Name.fromReverseSegments (segment :| reversePrefix))) acc (Map.keys refs)
+
+              g ::
+                Name ->
+                (Relation Name (TypeReference, ConstructorId), Relation Name TermReference) ->
+                Referent ->
+                (Relation Name (TypeReference, ConstructorId), Relation Name TermReference)
+              g name (!accDatacons, !accTerms) = \case
+                Referent.Ref ref -> (accDatacons, Relation.insert name ref accTerms)
+                Referent.Con ref cid -> (Relation.insert name (ref, cid) accDatacons, accTerms)
+      (childrenTypes, childrenDatacons, childrenTerms) <-
+        Branch.children branch
+          & Map.toList
+          & foldMapM \(childName, childCausal) -> do
+            childBranch <- Causal.value childCausal
+            go (childName : reversePrefix) childBranch
+      pure
+        ( types <> childrenTypes,
+          datacons <> childrenDatacons,
+          terms <> childrenTerms
+        )
 
 data DependencyDiff
   = AddDependency !CausalHash
@@ -208,7 +289,7 @@ printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
     let name =
           case prefix of
             Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
+            Just prefix1 -> Name.snoc prefix1 segment
     Text.putStrLn $
       "term "
         <> Name.toText name
@@ -221,7 +302,7 @@ printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
     let name =
           case prefix of
             Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
+            Just prefix1 -> Name.snoc prefix1 segment
     Text.putStrLn $
       "type "
         <> Name.toText name

@@ -40,8 +40,6 @@ data NamespaceDiff reference referent = NamespaceDiff
     typeUpdates :: Map reference reference
   }
 
-type ConstructorMapping = forall a. [a] -> [a]
-
 computeTypeECs :: Map reference reference -> Map reference reference -> [Set reference]
 computeTypeECs = undefined
 
@@ -113,10 +111,19 @@ computeTypeUserUpdates ::
   (Monad m) =>
   HashHandle ->
   (TypeReferenceId -> m (Decl Symbol)) ->
-  (TypeReferenceId -> TypeReferenceId -> ConstructorMapping) ->
+  -- | A function that, given two types, returns a function if the decls are thought to "match", which means the two
+  -- decls' decl types, modifiers, number of bound variables, and number of data constructors are equal, and the data
+  -- constructors all have the same names. The returned function ought to be applied to the second type's constructors,
+  -- which will put them in the order of the first.
+  ( TypeReferenceId ->
+    Decl Symbol ->
+    TypeReferenceId ->
+    Decl Symbol ->
+    Maybe ([Decl.Type Symbol] -> [Decl.Type Symbol])
+  ) ->
   Relation TypeReference TypeReference ->
   m (Relation TypeReference TypeReference)
-computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
+computeTypeUserUpdates hashHandle loadDecl getConstructorMapping allUpdates =
   Relation.fromList <$> filterM isUserUpdate0 (Relation.toList allUpdates)
   where
     lookupCanon :: TypeReference -> TypeReference
@@ -137,25 +144,14 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
 
     isUserUpdateDecl :: TypeReferenceId -> Decl Symbol -> TypeReferenceId -> Decl Symbol -> Bool
     isUserUpdateDecl oldRef oldDecl newRef newDecl =
-      or
-        [ Decl.modifier oldDecl /= Decl.modifier newDecl,
-          length (Decl.bound oldDecl) /= length (Decl.bound newDecl),
-          length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
-          any
-            ( \(a, b) ->
-                not
-                  ( alphaEquivalentTypesModCandidateRefs
-                      (oldRef ^. Reference.idH)
-                      (newRef ^. Reference.idH)
-                      a
-                      b
-                  )
-            )
-            ( zip
-                (Decl.constructorTypes oldDecl)
-                (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
-            )
-        ]
+      case getConstructorMapping oldRef oldDecl newRef newDecl of
+        Nothing -> True
+        Just mapping ->
+          let oldHash = oldRef ^. Reference.idH
+              newHash = newRef ^. Reference.idH
+           in any
+                (\(oldCon, newCon) -> not (alphaEquivalentTypesModCandidateRefs oldHash newHash oldCon newCon))
+                (zip (Decl.constructorTypes oldDecl) (mapping (Decl.constructorTypes newDecl)))
 
     alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
     alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs rhs =
