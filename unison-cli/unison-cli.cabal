@@ -205,6 +205,7 @@ library
     , servant-client
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -340,6 +341,7 @@ executable cli-integration-tests
     , shellmet
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -469,6 +471,7 @@ executable transcripts
     , silently
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -605,6 +608,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -744,6 +748,7 @@ test-suite cli-tests
     , stm
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these

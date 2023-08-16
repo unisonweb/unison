@@ -5,15 +5,14 @@ module Unison.Codebase.Editor.HandleInput.Merge
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Monad.Except (ExceptT (..), runExceptT)
 import Data.Functor.Compose (Compose (Compose))
-import Data.Functor.Identity (Identity)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
+import Text.ANSI qualified as Text
 import U.Codebase.Branch (Branch, CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff))
@@ -38,38 +37,37 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Prelude
+import Unison.Prelude hiding (catMaybes)
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Witherable (catMaybes)
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
-handleMerge alicePath0 bobPath0 resultPath = do
+handleMerge alicePath0 bobPath0 _resultPath = do
   alicePath <- Cli.resolvePath' alicePath0
   bobPath <- Cli.resolvePath' bobPath0
 
   Cli.runTransaction do
-    Sqlite.unsafeIO $ Text.putStrLn "===== hashes ====="
-
     aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
     bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
 
     let aliceCausalHash = Causal.causalHash aliceCausal
     let bobCausalHash = Causal.causalHash bobCausal
-
-    Sqlite.unsafeIO $ Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
-    Sqlite.unsafeIO $ Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
-    Sqlite.unsafeIO $ Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
-    Sqlite.unsafeIO $ Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
-
     maybeLcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
 
-    Sqlite.unsafeIO case maybeLcaCausalHash of
-      Nothing -> Text.putStrLn "lca causal hash ="
-      Just lcaCausalHash -> Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
-    Sqlite.unsafeIO $ Text.putStrLn ""
+    Sqlite.unsafeIO do
+      Text.putStrLn "===== hashes ====="
+      Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
+      Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
+      Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
+      Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
+      case maybeLcaCausalHash of
+        Nothing -> Text.putStrLn "lca causal hash ="
+        Just lcaCausalHash -> Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
+      Text.putStrLn ""
 
     case maybeLcaCausalHash of
       -- TODO: go down 2-way merge code paths
@@ -79,48 +77,30 @@ handleMerge alicePath0 bobPath0 resultPath = do
         lcaBranch <- Causal.value lcaCausal
 
         aliceBranch <- Causal.value aliceCausal
-        let aliceDiff = Diff.diffBranches lcaBranch aliceBranch
-        aliceDefinitionsDiff <- loadDefinitionsDiff aliceDiff
+        aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
+        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
+        let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
+
+        bobBranch <- Causal.value bobCausal
+        bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
+        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
+        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
+
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="
           printDefinitionsDiff Nothing aliceDefinitionsDiff
+          printDependenciesDiff aliceDependenciesDiff
           Text.putStrLn ""
-
-        bobBranch <- Causal.value bobCausal
-        let bobDiff = Diff.diffBranches lcaBranch bobBranch
-        bobDefinitionsDiff <- loadDefinitionsDiff bobDiff
-        Sqlite.unsafeIO do
           Text.putStrLn "===== lca->bob diff ====="
           printDefinitionsDiff Nothing bobDefinitionsDiff
+          printDependenciesDiff bobDependenciesDiff
           Text.putStrLn ""
-
-        let printTypeUpdates =
-              Text.putStrLn
-                . Text.unlines
-                . map (\(old, new) -> showReference old <> " => " <> showReference new)
-                . Relation.toList
-
-        let printTermUpdates =
-              Text.putStrLn
-                . Text.unlines
-                . map (\(old, new) -> showReferent old <> " => " <> showReferent new)
-                . Relation.toList
-
-        let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
-        Sqlite.unsafeIO do
-          Text.putStrLn "===== alice type updates ====="
+          Text.putStrLn "===== alice updates ====="
           printTypeUpdates aliceTypeUpdates
-          Text.putStrLn ""
-          Text.putStrLn "===== alice term updates ====="
           printTermUpdates aliceTermUpdates
           Text.putStrLn ""
-
-        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
-        Sqlite.unsafeIO do
-          Text.putStrLn "===== bob type updates ====="
+          Text.putStrLn "===== bob updates ====="
           printTypeUpdates bobTypeUpdates
-          Text.putStrLn ""
-          Text.putStrLn "===== bob term updates ====="
           printTermUpdates bobTermUpdates
           Text.putStrLn ""
 
@@ -134,30 +114,32 @@ diffToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
 diffToUpdates =
   foldMap \Diff {adds, removals} -> Relation.fromSet (Set.cartesianProduct removals adds)
 
-loadDependenciesDiff ::
-  Branch Transaction ->
-  Branch Transaction ->
-  Transaction (Map NameSegment (These CausalHash CausalHash))
-loadDependenciesDiff aliceBranch bobBranch = do
-  aliceDependencies <- namespaceDependencies aliceBranch
-  bobDependencies <- namespaceDependencies bobBranch
-  pure $
-    alignWith
-      ( \case
-          This aliceDep -> This (Causal.causalHash aliceDep)
-          That bobDep -> That (Causal.causalHash bobDep)
-          These aliceDep bobDep -> These (Causal.causalHash aliceDep) (Causal.causalHash bobDep)
-      )
-      aliceDependencies
-      bobDependencies
+data DependencyDiff
+  = AddDependency !CausalHash
+  | DeleteDependency !CausalHash
+  | UpdateDependency !CausalHash !CausalHash
 
+-- | Diff the "dependencies" ("lib" sub-namespace) of two namespaces.
+loadDependenciesDiff :: Branch Transaction -> Branch Transaction -> Transaction (Map NameSegment DependencyDiff)
+loadDependenciesDiff branch1 branch2 = do
+  dependencies1 <- namespaceDependencies branch1
+  dependencies2 <- namespaceDependencies branch2
+  pure (catMaybes (alignWith f dependencies1 dependencies2))
+  where
+    f = \case
+      This dep1 -> Just (DeleteDependency (Causal.causalHash dep1))
+      That dep2 -> Just (AddDependency (Causal.causalHash dep2))
+      These (Causal.causalHash -> dep1) (Causal.causalHash -> dep2) ->
+        if dep1 == dep2
+          then Nothing
+          else Just (UpdateDependency dep1 dep2)
+
+-- | Extract just the "dependencies" (sub-namespaces of "lib") of a branch.
 namespaceDependencies :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
 namespaceDependencies branch =
   case Map.lookup Name.libSegment (Branch.children branch) of
     Nothing -> pure Map.empty
-    Just dependenciesCausal -> do
-      dependenciesNamespace <- Causal.value dependenciesCausal
-      pure (Branch.children dependenciesNamespace)
+    Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
 
 loadDefinitionsDiff ::
   TreeDiff Transaction ->
@@ -188,35 +170,8 @@ loadDefinitionsDiff2 (diff :< Compose children0) = do
   children <- Map.traverseWithKey (\_name action -> action >>= loadDefinitionsDiff1) children0
   pure (diff :< children)
 
-printDefinitionsDiff :: Maybe Name -> Cofree (Map NameSegment) DefinitionDiffs -> IO ()
-printDefinitionsDiff prefix (diff :< children) = do
-  printDiff prefix diff
-  for_ (Map.toList children) \(segment, child) ->
-    let name =
-          case prefix of
-            Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
-     in printDefinitionsDiff (Just name) child
-
-printDiff :: Maybe Name -> DefinitionDiffs -> IO ()
-printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
-  for_ (Map.toList termDiffs) \(segment, Diff.Diff {adds, removals}) -> do
-    let name =
-          case prefix of
-            Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
-    for_ adds \ref -> put "term" name "+" (Referent.toShortHash ref)
-    for_ removals \ref -> put "term" name "-" (Referent.toShortHash ref)
-  for_ (Map.toList typeDiffs) \(segment, Diff.Diff {adds, removals}) -> do
-    let name =
-          case prefix of
-            Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
-    for_ adds \ref -> put "type" name "+" (Reference.toShortHash ref)
-    for_ removals \ref -> put "type" name "-" (Reference.toShortHash ref)
-  where
-    put ty name sym hash =
-      Text.putStrLn (ty <> " " <> Name.toText name <> " " <> sym <> showShortHash hash)
+-----------------------------------------------------------------------------------------------------------------------
+-- Debug show/print utils
 
 showCausalHash :: CausalHash -> Text
 showCausalHash =
@@ -237,3 +192,70 @@ showReferent =
 showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
+
+printDiff :: Maybe Name -> DefinitionDiffs -> IO ()
+printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
+  for_ (Map.toList termDiffs) \(segment, Diff.Diff {adds, removals}) -> do
+    let name =
+          case prefix of
+            Nothing -> Name.fromSegment segment
+            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
+    Text.putStrLn $
+      "term "
+        <> Name.toText name
+        <> " "
+        <> Text.unwords
+          ( map (Text.red . ("-" <>) . showReferent) (Set.toList removals)
+              ++ map (Text.green . ("+" <>) . showReferent) (Set.toList adds)
+          )
+  for_ (Map.toList typeDiffs) \(segment, Diff.Diff {adds, removals}) -> do
+    let name =
+          case prefix of
+            Nothing -> Name.fromSegment segment
+            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
+    Text.putStrLn $
+      "type "
+        <> Name.toText name
+        <> " "
+        <> Text.unwords
+          ( map (Text.red . ("-" <>) . showReference) (Set.toList removals)
+              ++ map (Text.green . ("+" <>) . showReference) (Set.toList adds)
+          )
+
+printDefinitionsDiff :: Maybe Name -> Cofree (Map NameSegment) DefinitionDiffs -> IO ()
+printDefinitionsDiff prefix (diff :< children) = do
+  printDiff prefix diff
+  for_ (Map.toList children) \(segment, child) ->
+    let name =
+          case prefix of
+            Nothing -> Name.fromSegment segment
+            Just prefix1 -> Name.joinDot prefix1 (Name.fromSegment segment)
+     in printDefinitionsDiff (Just name) child
+
+printDependenciesDiff :: Map NameSegment DependencyDiff -> IO ()
+printDependenciesDiff =
+  Text.putStr . Text.unlines . map f . Map.toList
+  where
+    f (name, diff) =
+      let prefix = "dep " <> NameSegment.toText name <> " "
+       in case diff of
+            AddDependency hash -> prefix <> plus hash
+            DeleteDependency hash -> prefix <> minus hash
+            UpdateDependency oldHash newHash -> prefix <> minus oldHash <> " " <> plus newHash
+
+    plus = Text.green . ("+" <>) . showCausalHash
+    minus = Text.red . ("-" <>) . showCausalHash
+
+printTypeUpdates :: Relation Reference Reference -> IO ()
+printTypeUpdates =
+  Text.putStr . Text.unlines . map f . Relation.toList
+  where
+    f (old, new) =
+      "type " <> showReference old <> " => " <> showReference new
+
+printTermUpdates :: Relation Referent Referent -> IO ()
+printTermUpdates =
+  Text.putStr . Text.unlines . map f . Relation.toList
+  where
+    f (old, new) =
+      "term " <> showReferent old <> " => " <> showReferent new
