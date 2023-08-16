@@ -217,6 +217,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -353,6 +354,7 @@ executable cli-integration-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -484,6 +486,7 @@ executable transcripts
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -621,6 +624,7 @@ executable unison
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -761,6 +765,7 @@ test-suite cli-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

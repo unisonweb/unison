@@ -1,6 +1,6 @@
-module Unison.Merge () where
+module Unison.Merge (computeTypeUserUpdates) where
 
-import Control.Lens (review, (%~), (^?))
+import Control.Lens (review, (%~), (^.), (^?))
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
@@ -10,7 +10,7 @@ import Data.Set qualified as Set
 import Data.Vector.Unboxed qualified as UVector
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (TermRReference, TermReference, TypeReference)
+import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -112,8 +112,8 @@ computeTypeUserUpdates ::
   forall m.
   (Monad m) =>
   HashHandle ->
-  (TypeReference -> m (Decl Symbol)) ->
-  (TypeReference -> TypeReference -> ConstructorMapping) ->
+  (TypeReferenceId -> m (Decl Symbol)) ->
+  (TypeReferenceId -> TypeReferenceId -> ConstructorMapping) ->
   Relation TypeReference TypeReference ->
   m (Relation TypeReference TypeReference)
 computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
@@ -123,36 +123,38 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
     lookupCanon = computeEquivClassLookupFunc allUpdates
 
     isUserUpdate0 :: (TypeReference, TypeReference) -> m Bool
-    isUserUpdate0 (oldRef, newRef) = do
-      oldDecl <- loadDecl oldRef
-      newDecl <- loadDecl newRef
-      pure
-        case Decl.declType oldDecl == Decl.declType newDecl of
-          True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
-          False -> True
+    isUserUpdate0 = \case
+      (ReferenceBuiltin _, ReferenceBuiltin _) -> pure True
+      (ReferenceBuiltin _, ReferenceDerived _) -> pure True
+      (ReferenceDerived _, ReferenceBuiltin _) -> pure True
+      (ReferenceDerived oldRef, ReferenceDerived newRef) -> do
+        oldDecl <- loadDecl oldRef
+        newDecl <- loadDecl newRef
+        pure
+          case Decl.declType oldDecl == Decl.declType newDecl of
+            True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
+            False -> True
 
-    isUserUpdateDecl ::
-      TypeReference ->
-      Decl Symbol ->
-      TypeReference ->
-      Decl Symbol ->
-      Bool
+    isUserUpdateDecl :: TypeReferenceId -> Decl Symbol -> TypeReferenceId -> Decl Symbol -> Bool
     isUserUpdateDecl oldRef oldDecl newRef newDecl =
       or
         [ Decl.modifier oldDecl /= Decl.modifier newDecl,
           length (Decl.bound oldDecl) /= length (Decl.bound newDecl),
           length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
-          case (oldRef, newRef) of
-            (Reference.ReferenceDerived (Reference.Id h0 _), Reference.ReferenceDerived (Reference.Id h1 _)) ->
-              any
-                (\(a, b) -> not (alphaEquivalentTypesModCandidateRefs h0 h1 a b))
-                ( zip
-                    (Decl.constructorTypes oldDecl)
-                    (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
-                )
-            (Reference.ReferenceBuiltin txt0, Reference.ReferenceBuiltin txt1) -> txt0 /= txt1
-            (Reference.ReferenceBuiltin _, Reference.ReferenceDerived _) -> True
-            (Reference.ReferenceDerived _, Reference.ReferenceBuiltin _) -> True
+          any
+            ( \(a, b) ->
+                not
+                  ( alphaEquivalentTypesModCandidateRefs
+                      (oldRef ^. Reference.idH)
+                      (newRef ^. Reference.idH)
+                      a
+                      b
+                  )
+            )
+            ( zip
+                (Decl.constructorTypes oldDecl)
+                (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
+            )
         ]
 
     alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool

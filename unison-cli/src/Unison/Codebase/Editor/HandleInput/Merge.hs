@@ -26,6 +26,7 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -33,6 +34,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Hash qualified as Hash
+import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -80,6 +82,13 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
         aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
         let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
+
+        -- aliceUserTypeUpdates <-
+        --   Merge.computeTypeUserUpdates
+        --     v2HashHandle
+        --     undefined
+        --     (\_ _ -> undefined)
+        --     aliceTypeUpdates
 
         bobBranch <- Causal.value bobCausal
         bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
