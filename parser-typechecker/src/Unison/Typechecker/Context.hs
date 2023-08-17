@@ -549,7 +549,7 @@ debugTrace e | debugEnabled = trace e False
 debugTrace _ = False
 
 showType :: Var v => Type.Type v a -> String
-showType ty =  TP.prettyStr (Just 120) PPE.empty ty
+showType ty = TP.prettyStr (Just 120) PPE.empty ty
 
 debugType :: Var v => String -> Type.Type v a -> Bool
 debugType tag ty

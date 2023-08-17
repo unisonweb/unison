@@ -741,15 +741,16 @@ freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
 
 -- normalizes the order that variables are introduced by a forall
 -- based on the location where the variables first appear in the type
-normalizeForallOrder :: forall v a . (Var v) => Type v a -> Type v a
+normalizeForallOrder :: forall v a. (Var v) => Type v a -> Type v a
 normalizeForallOrder tm0 =
   foldr step body vs
   where
-    step :: (a,v) -> Type v a -> Type v a
-    step (a,v) body | Set.member v (ABT.freeVars body) = forall a v body
-                    | otherwise = body
+    step :: (a, v) -> Type v a -> Type v a
+    step (a, v) body
+      | Set.member v (ABT.freeVars body) = forall a v body
+      | otherwise = body
     (body, vs0) = extract tm0
-    vs = sortOn (\(_,v) -> Map.lookup v ind) vs0
+    vs = sortOn (\(_, v) -> Map.lookup v ind) vs0
     extract tm@(ABT.Tm' (Forall (ABT.Abs'' v body))) = ((ABT.annotation tm, v) :) <$> extract body
     extract body = (body, [])
     ind = ABT.numberedFreeVars body

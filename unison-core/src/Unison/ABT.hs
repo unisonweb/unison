@@ -361,7 +361,7 @@ allVars t = case out t of
 -- used within the term. See usage in `Type.normalizeForallOrder`
 numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
 numberedFreeVars t =
-  Map.fromList $ reverse (go mempty t `zip` [0..])
+  Map.fromList $ reverse (go mempty t `zip` [0 ..])
   where
     go bound t = case out t of
       Var v -> if v `elem` bound then [] else [v]

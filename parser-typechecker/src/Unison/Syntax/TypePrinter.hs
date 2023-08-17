@@ -28,6 +28,7 @@ import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
+import Unison.Settings qualified as Settings
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Type
 import Unison.Util.ColorText (toPlain)
@@ -36,7 +37,6 @@ import Unison.Util.Pretty qualified as PP
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Settings qualified as Settings
 
 type SyntaxText = S.SyntaxText' Reference
 
