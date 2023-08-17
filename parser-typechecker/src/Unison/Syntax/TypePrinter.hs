@@ -36,6 +36,7 @@ import Unison.Util.Pretty qualified as PP
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.Settings qualified as Settings
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -123,7 +124,7 @@ prettyRaw im p tp = go im p tp
          in -- if we're printing a type signature, and all the type variables
             -- are universally quantified, then we can omit the `forall` keyword
             -- only if the type variables are not bound in an outer scope
-            if p < 0 && all Var.universallyQuantifyIfFree vs
+            if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCapture vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
       t@(Arrow' _ _) -> case t of

@@ -33,6 +33,7 @@ module Unison.ABT
     visitPure,
     changeVars,
     allVars,
+    numberedFreeVars,
     subterms,
     annotateBound,
     rebuildUp,
@@ -355,6 +356,18 @@ allVars t = case out t of
   Cycle body -> allVars body
   Abs v body -> v : allVars body
   Tm v -> Foldable.toList v >>= allVars
+
+-- Numbers the free vars by the position where they're first
+-- used within the term. See usage in `Type.normalizeForallOrder`
+numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
+numberedFreeVars t =
+  Map.fromList $ reverse (go mempty t `zip` [0..])
+  where
+    go bound t = case out t of
+      Var v -> if v `elem` bound then [] else [v]
+      Cycle body -> go bound body
+      Abs v body -> go (v : bound) body
+      Tm v -> Foldable.toList v >>= go bound
 
 -- | Freshens the given variable wrt. the set of used variables
 -- tracked by state. Adds the result to the set of used variables.

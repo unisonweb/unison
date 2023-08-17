@@ -23,7 +23,7 @@ x = ()
 So we can see the pretty-printed output:
 
 ```ucm
-.a1> edit 1-1000 
+.a1> edit 1-1000
 
   ☝️
   
@@ -66,6 +66,9 @@ So we can see the pretty-printed output:
     
     Abort.toOptional! : '{g, Abort} a ->{g} Optional a
     Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+    
+    catchAll : x -> Nat
+    catchAll x = 99
     
     ex1 : Nat
     ex1 =
@@ -193,12 +196,66 @@ So we can see the pretty-printed output:
         ()
       _ -> ()
     
+    fix_3110a : x -> f -> ()
+    fix_3110a x f =
+      _ = 99
+      ()
+    
+    fix_3110b : ()
+    fix_3110b =
+      fix_3110a
+        [1, 2, 3] (x -> let
+          y = Nat.increment x
+          ())
+    
+    fix_3110c : ()
+    fix_3110c =
+      fix_3110a [1, 2, 3] (x -> ignore (Nat.increment x))
+    
+    fix_3110d : ()
+    fix_3110d = fix_3110a [1, 2, 3] '(x -> do
+        y = Nat.increment x
+        ())
+    
     fix_3627 : Nat -> Nat -> Nat
     fix_3627 = cases
       aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
         bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
         aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           Nat.+ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    
+    fix_3710 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710 = do
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710a : (Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710a =
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710b : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710b x =
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710c : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710c x = do
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710d : Optional a -> a
+    fix_3710d = cases
+      Some x -> x
+      None   -> bug "oops"
     
     Fix_525.bar.quaffle : Nat
     Fix_525.bar.quaffle = 32
@@ -230,10 +287,79 @@ So we can see the pretty-printed output:
     Foo'.bar.qux3 : Text
     Foo'.bar.qux3 = "47"
     
+    forkAt : loc -> c -> Nat
+    forkAt loc c =
+      x = 99
+      390439034
+    
     handler_1778 : a -> Request {Abort} a -> a
     handler_1778 default = cases
       { a }          -> a
       { abort -> _ } -> default
+    
+    ignore : x -> ()
+    ignore x = ()
+    
+    longlines : x -> x
+    longlines x =
+      u = 92393
+      x
+    
+    longlines1 : 'Text
+    longlines1 =
+      do
+        longlines
+          !(longlines_helper
+             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+    
+    longlines2 : (Text, '{g} Bytes)
+    longlines2 =
+      ( "adsf"
+      , '(toUtf8
+            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
+      )
+    
+    longlines_helper : x -> 'x
+    longlines_helper x = do x
+    
+    multiline_fn :
+      a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
+    multiline_fn a b c d e f g h i j = 42
+    
+    multiline_list : [Nat]
+    multiline_list =
+      use Nat +
+      [ 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+          + 1
+      , multiline_fn
+          12939233
+          2102020
+          329292
+          429292
+          522020
+          62929292
+          72020202
+          820202
+          920202
+          1020202
+      ]
     
     nested_fences : Doc2
     nested_fences =
@@ -280,6 +406,147 @@ So we can see the pretty-printed output:
       use Nat +
       1 + 1
     
+    softhang : a -> b -> Nat
+    softhang a b = 42
+    
+    softhang2 : x -> f -> Nat
+    softhang2 x f = 0
+    
+    softhang21 : Nat
+    softhang21 =
+      use Nat +
+      handle
+        x = 1
+        y = abort
+        x + y
+      with cases
+        { a }          -> a
+        { abort -> _ } -> 0
+    
+    softhang21a : Text
+    softhang21a =
+      use Nat +
+      handle
+        x = 1
+        y = abort
+        x + y
+      with cases
+        { a } ->
+          "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+        { abort -> _ } ->
+          "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+    
+    softhang22 : Nat
+    softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
+      0 -> 0
+      1 -> 1
+      n -> n Nat.+ 100
+    
+    softhang23 : 'Nat
+    softhang23 = do
+      use Nat +
+      catchAll do
+        x = 1
+        y = 2
+        x + y
+    
+    softhang24 : 'Nat
+    softhang24 = do match 0 with
+      0 -> 0
+      1 -> 1
+      n -> n
+    
+    softhang25 : Text
+    softhang25 = match Nat.increment 1 with
+      2 -> "yay"
+      n -> "oh no"
+    
+    softhang26 : Nat
+    softhang26 = softhang2 [1, 2, 3, 4] cases
+      0 -> 1
+      n -> n Nat.+ 1
+    
+    softhang27 : somewhere -> Nat
+    softhang27 somewhere = forkAt somewhere do
+      use Nat +
+      x = 1
+      y = 2
+      x + y
+    
+    softhang28 : Nat
+    softhang28 = 
+      softhang2 [0, 1, 2, 3, 4, 5] cases
+        0 -> 0
+        1 -> 1
+        n ->
+          forkAt
+            0
+            (n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n)
+    
+    softhang_a : x -> 'Nat
+    softhang_a x = do
+      use Nat +
+      a = 1
+      b = 2
+      softhang a do
+        c = 3
+        a + b
+    
+    softhang_b : x -> 'Nat
+    softhang_b x =
+      do
+        use Nat +
+        a = 1
+        b = 2
+        softhang
+          (100
+          + 200
+          + 300
+          + 400
+          + 500
+          + 600
+          + 700
+          + 800
+          + 900
+          + 1000
+          + 1100
+          + 1200
+          + 1300
+          + 1400
+          + 1500)
+          do
+          c = 3
+          a + b
+    
+    softhang_c : x -> 'Nat
+    softhang_c x = do
+      use Nat +
+      a = 1
+      b = 2
+      1 + (softhang a do
+        c = 3
+        a + b)
+    
+    softhang_d : x -> '(b -> Nat)
+    softhang_d x = do
+      use Nat +
+      a = 1
+      b = 2
+      c = softhang do
+        c = 3
+        a + b
+      c
+    
     somethingVeryLong : 'Nat
     somethingVeryLong =
       go x =
@@ -291,6 +558,15 @@ So we can see the pretty-printed output:
               | lijaefliejalfijelfj == liaehjffeafijij  -> 1
             _ -> 2
       go (SomethingUnusuallyLong "one" "two" "three")
+    
+    test3 : '('('r))
+    test3 = do
+      run : Nat -> a
+      run x = bug x
+      runrun = 42
+      a = "asldkfj"
+      b = "asdflkjasdf"
+      ''(run runrun ''runrun)
     
     use_clauses_example : Int -> Text -> Nat
     use_clauses_example oo quaffle =
@@ -327,22 +603,54 @@ This diff should be empty if the two namespaces are equivalent. If it's nonempty
 ```ucm
 .> diff.namespace a1 a2
 
-  Updates:
+  The namespaces are identical.
+
+```
+Now check that definitions in 'reparses.u' at least parse on round trip:
+
+This just makes 'roundtrip.u' the latest scratch file.
+
+```unison
+---
+title: /private/tmp/roundtrip.u
+---
+x = ()
+
+```
+
+
+```ucm
+.a3> edit 1-5000
+
+  ☝️
   
-    1. fix_2650a : tvar -> fun -> ()
-       ↓
-    2. fix_2650a : tvar -> fun -> ()
-    
-    3. fix_2650b : tvar -> '()
-       ↓
-    4. fix_2650b : tvar -> '()
+  I added these definitions to the top of
+  /private/tmp/roundtrip.u
+  
+    explanationOfThisFile : Text
+    explanationOfThisFile =
+      """
+      Put definitions in here that are expected to
+      parse with a different hash after pretty-printing.
+      """
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
 
 ```
+These are currently all expected to have different hashes on round trip, though we'd prefer if they round tripped with the same hash.
+
+NOTE, since we don't currently have anything that round trips with a different hash, this fails. If you find an example that reparses with a different hash, add it to `reparses.u` and change this stanza to `ucm` rather than `ucm:error`.
+
+```ucm
+.> diff.namespace a3 a3_old
+
+  The namespaces are identical.
 
 ```
+## Other regression tests not covered by above
 
+### Comment out builtins in the edit command
 
+Regression test for https://github.com/unisonweb/unison/pull/3548
 
-🛑
-
-The transcript was expecting an error in the stanza above, but did not encounter one.
