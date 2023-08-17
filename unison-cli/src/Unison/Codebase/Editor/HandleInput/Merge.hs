@@ -59,6 +59,13 @@ import Witherable (catMaybes)
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 _resultPath = do
+  let mergeDatabase =
+        Merge.Database
+          { loadConstructorType = wundefined,
+            loadTerm = wundefined,
+            loadType = Operations.expectDeclByReference
+          }
+
   alicePath <- Cli.resolvePath' alicePath0
   bobPath <- Cli.resolvePath' bobPath0
 
@@ -97,7 +104,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         aliceUserTypeUpdates <-
           Merge.computeTypeUserUpdates
             v2HashHandle
-            Operations.expectDeclByReference
+            mergeDatabase
             ( \ref1 decl1 ref2 decl2 ->
                 computeConstructorMapping
                   lcaDataconNames
@@ -107,7 +114,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   ref2
                   decl2
             )
-            aliceTypeUpdates
+            (Merge.makeTypeBloboid aliceTypeUpdates)
 
         bobBranch <- Causal.value bobCausal
         bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
@@ -117,7 +124,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         bobUserTypeUpdates <-
           Merge.computeTypeUserUpdates
             v2HashHandle
-            Operations.expectDeclByReference
+            mergeDatabase
             ( \ref1 decl1 ref2 decl2 ->
                 computeConstructorMapping
                   lcaDataconNames
@@ -127,7 +134,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   ref2
                   decl2
             )
-            bobTypeUpdates
+            (Merge.makeTypeBloboid bobTypeUpdates)
 
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="

@@ -58,6 +58,7 @@ library
     , bimap
     , bitvec
     , containers
+    , generic-lens
     , lens
     , unison-codebase
     , unison-codebase-sqlite

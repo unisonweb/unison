@@ -3,9 +3,10 @@ module U.Codebase.Reference
     RReference,
     TermReference,
     TermRReference,
+    TermReferenceId,
     TypeReference,
-    TypeReferenceId,
     TypeRReference,
+    TypeReferenceId,
     Reference' (..),
     pattern Derived,
     Id,
@@ -49,6 +50,9 @@ type TypeReference = Reference
 type TypeRReference = RReference
 
 type Id = Id' Hash
+
+-- | A term reference id.
+type TermReferenceId = Id
 
 -- | A type reference id.
 type TypeReferenceId = Id

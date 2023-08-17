@@ -9,6 +9,7 @@ dependencies:
   - bimap
   - bitvec
   - containers
+  - generic-lens
   - unison-core
   - unison-core1
   - unison-prelude
