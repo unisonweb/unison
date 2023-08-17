@@ -56,6 +56,9 @@ So we can see the pretty-printed output:
       nay : Text -> (Nat, Nat) ->{Zoink} Nat
       yay.there : Text ->{Zoink} Nat
     
+    (>>>>) : Nat -> Nat -> ()
+    (>>>>) n = cases _ -> bug ""
+    
     Abort.toDefault! : a -> '{g, Abort} a ->{g} a
     Abort.toDefault! default thunk =
       h x = Abort.toDefault! (handler_1778 default x) thunk

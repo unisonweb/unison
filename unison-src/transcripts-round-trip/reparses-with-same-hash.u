@@ -453,3 +453,10 @@ test3 = do
   a = "asldkfj"
   b = "asdflkjasdf"
   do do run runrun do do runrun
+
+-- Regression test for https://github.com/unisonweb/unison/issues/4239
+-- `n` was replaced by `error` but should not be. Instead, render as if
+-- a second param, _, had been provided in the definition. 
+(>>>>) : Nat -> Nat -> ()
+(>>>>) n = cases
+  _ -> bug ""
