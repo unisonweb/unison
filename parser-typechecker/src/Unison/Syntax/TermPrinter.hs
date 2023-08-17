@@ -1005,8 +1005,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               [x] ->
                 PP.sep
                   " "
-                  [
-                    renderName v,
+                  [ renderName v,
                     fmt S.Var $ PP.text (Var.name x)
                   ]
               _ -> l "error"
