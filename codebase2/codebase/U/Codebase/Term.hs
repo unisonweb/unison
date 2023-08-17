@@ -36,7 +36,7 @@ type TermLink = ReferentH
 
 type TypeLink = Reference
 
-type ResolvedTerm v = ABT.Term (F' Text TermReference TypeReference Referent Reference v) v ()
+type ResolvedTerm v = ABT.Term (ResolvedF v) v ()
 
 -- | Base functor for terms in the Unison codebase
 type F vt =
