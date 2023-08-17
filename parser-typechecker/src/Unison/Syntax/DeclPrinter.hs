@@ -180,6 +180,10 @@ fieldNames env r name dd = do
     for accessors \(v, _a, trm) ->
       case Result.result (Typechecker.synthesize env Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
         Nothing -> Nothing
+        -- Note: Typechecker.synthesize doesn't normalize the output
+        -- type. We do so here using `Type.cleanup`, mirroring what's
+        -- done when typechecking a whole file and ensuring we get the
+        -- same inferred type.
         Just typ -> Just (v, trm, Type.cleanup typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
   let names =
