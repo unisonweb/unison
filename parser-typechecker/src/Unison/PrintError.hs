@@ -1092,8 +1092,9 @@ renderType ::
   (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a)) ->
   Type v loc ->
   Pretty (AnnotatedText a)
-renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects False t)
+renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
   where
+    cleanup t = Type.removeEmptyEffects (Type.removePureEffects False t)
     wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
     wrap start end test s = if test then start <> s <> end else s
     paren = wrap "(" ")"

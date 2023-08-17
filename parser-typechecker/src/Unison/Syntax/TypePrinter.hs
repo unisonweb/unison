@@ -81,7 +81,7 @@ pretty0 ::
   Int ->
   Type v a ->
   m (Pretty SyntaxText)
-pretty0 im p tp = prettyRaw im p (cleanup tp)
+pretty0 im p tp = prettyRaw im p (removeEmptyEffects $ cleanup tp)
 
 prettyRaw ::
   forall v a m.

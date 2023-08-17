@@ -629,7 +629,7 @@ removeEffectVars keepEmptied removals t =
   let z = effects () []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
       -- leave explicitly empty `{}` alone
-      removeEmpty (Effect1' (Effects' []) v) = Just (ABT.visitPure removeEmpty v)
+      removeEmpty (Effect1' (Effects' []) _) = Nothing
       removeEmpty t@(Effect1' e v) =
         case flattenEffects e of
           [] | not keepEmptied -> Just (ABT.visitPure removeEmpty v)
@@ -651,6 +651,14 @@ removeAllEffectVars t =
       go _ = mempty
       (vs, tu) = unforall' t
    in generalize vs (removeEffectVars False allEffectVars tu)
+
+-- Removes empty {} from type signatures, so
+--  `a ->{} b` becomes `a -> b`
+removeEmptyEffects :: (Ord v) => Type v a -> Type v a
+removeEmptyEffects t = ABT.rebuildUp' go t
+  where
+    go (Effect1' (Effects' []) t) = t
+    go t = t
 
 -- pure effect variables are those used only in covariant position
 -- for instance, in Nat ->{g} Nat ->{g2} Nat, `g` and `g2` only
@@ -800,7 +808,7 @@ cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
 cleanup :: (Var v) => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
-cleanup t = normalizeForallOrder . removePureEffects False . cleanupVars1 . cleanupAbilityLists $ t
+cleanup t = normalizeForallOrder . removePureEffects True . cleanupVars1 . cleanupAbilityLists $ t
 
 builtinAbilities :: Set Reference
 builtinAbilities = Set.fromList [builtinIORef, stmRef]

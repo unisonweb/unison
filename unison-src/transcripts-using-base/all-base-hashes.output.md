@@ -6,26 +6,26 @@ This transcript is intended to make visible accidental changes to the hashing al
   1.   -- #0moj6a30dak6suns8qefi93ljsl8j59ha9bpcu8qbmh49rbobik4bn9m4rre8sm7pprsistr9o5m4a667i82gs089eur75ua8geldj8
        ascii : Text -> Bytes
        
-  2.   -- #8gr403lgh2aq58nj3tfgc6bek1hqlv3he0hge0nlperojc99tdjg2cfdbu0vko5a4mp7jqt08npk4fa8grbbdu9fn47s0qmp1oa0aqo
+  2.   -- #oh5kl3a6l0jqi3j6f981kkhav59fcpklpnqjqu8tscuvbtpp7ea7da652n48eb4cb6qkj8rru26rgpbdhe0mluqve8ck0h8kn1nv2k0
        autoCleaned : '{IO, TempDirs} r ->{IO, Exception} r
        
-  3.   -- #lf7arjlkufc078rdqh1653j7ft4tt59b1deugc513p21kep0kj1cp7q7v43o6u8csoi172pt27i2mtu2unsv1au7g0ue52s5pmamjk0
+  3.   -- #cr14ohmefjtcnhdumcnpfkt8el2gk6phq23m3dtj8n4quvnibn6ht4d9q8f1880ovpr65ud5dg1f0dlmveif8g2j7lam0btfi710058
        autoCleaned.handler : '{IO} (Request {TempDirs} r
        ->{IO, Exception} r)
        
-  4.   -- #p1lh7ba73bdka6e18v9hmkrj811f2qsrogjumssr36drdjfgrfd6e6qotaqksb3o4lk44274fbcaqnj8e41rh0pjn56cbvsb3gv0880
+  4.   -- #9lvlnmoofsl2hsmlhuvt6sm7ps2fr5e00a4llojs7cci2pvl434em97ap19eenqij9bh7f9v1ebmfmn32nq5odru48i3f8po1ms1bpo
        bContains : [(a, b)] -> a -> Boolean
        
-  5.   -- #ck9knej1qu6jt87i9qun1btc67kvthamubpl658se75po13oe2vto97jck965ibs6uspmopt3097lqd1pmqnegmba8e2bbfgtre9ovo
+  5.   -- #s3e05chiqbp987u6ivq9ei1pf8deki532supq10pj0i47pplva737689e7mj73p144u0rhul7mo0p3am6issj5jiq2ool15fi1ohobg
        bInsert : [(a, b)] -> a -> b -> [(a, b)]
        
-  6.   -- #k1ge36n1ouvbaqjamm69pu7uuul0qc842tgqufm0ncaeb5h7im3r3vh9b7vikdu896p3f9ep2tf0dec3ifnrbr197k9lucl733rjpc0
+  6.   -- #5a3c2ktoj6biut4eshq5e8c2ojm0q8fgp3u4baef6lh19o1mjh0dvn10jsqbd34n653dui8snbrm31uagfcuahvdop1lnph1r3881qo
        bSearch : [(a, b)] -> a -> Optional b
        
-  7.   -- #0nmd69uoat0mr9tl1917mdb16cpvd2q8oev5uj9s5d6virfcolc4t7js3l9do0c6c26tj7mvd82fpcumjr513bfudelnunvbok317fo
+  7.   -- #87s85qsaavq4sde4j4al430ah4ibeabde9apseiospjt5fph5sp1pvpfh7g41aqlad92a02c2kgsicjg7alo8i7oo41be159m8146o8
        bSort : [(a, b)] -> [(a, b)]
        
-  8.   -- #re1saul4fhhdmg0b91ssrp3ok604nitpsler5dijra4eutcugsinmqvh9om3ah7qmcj1da57h3git1fn032lj8qs9kpqj3ujfs2ueig
+  8.   -- #ka88e5ntdav5g0ojbmt11jtkd3h62s6jpspj13qhkbklbvn1d3oqoh7llhp7ep5rbhitp2vp8t8rv4q3cpi7da3uh7k49fh7dakjqc8
        bSplit : [(a, b)] -> a -> ([(a, b)], [(a, b)])
        
   9.   -- #1j3e8vsn97qrprjr69ls6llab601sdh577uuvtu8pafmngf59suakbjr7asheadidcj3red140fnmdagsv9ihhdar1mc05ig28jtfr0
@@ -678,7 +678,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   201. -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg
        unique type builtin.Doc2.Term
        
-  202. -- #tu2du1k0lrp6iddor1aotdhdgn1j2b86r22tes3o3hka0bv4b4otlbimj88ttrdnbuacokk768k4e54795of8gnosopjirl4jm42g28
+  202. -- #42hub6f3fn0p5fk8t5bb2njhbgg5dj75vtqijvins6h45pkorakbu3g8h312ghu98ee4h75tb61fti192ckpk9cpdle9hsr8pdthkjo
        builtin.Doc2.term : '{g} a -> Doc2.Term
        
   203. -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg#0
@@ -735,7 +735,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   216. -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8#1
        builtin.Either.Left : a -> Either a b
        
-  217. -- #u3cen22u7p8dfj0nc45j0pg4lskqjjisflm3jq0957756d23lq53tf27vg37g6jnddh8o70grvotcvrfc1fnpog0rlfsvfvjrk1s94g
+  217. -- #i8po73lvi3etn7kqb6hpucm2e836861juvrjalqiv96legk4ds7e1qhfpaakbsajiruji4noos8u4f41i2un3glpemba22qnahl65lg
        builtin.Either.mapRight : (a ->{g} b)
        -> Either e a
        ->{g} Either e b
@@ -1754,7 +1754,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   503. -- ##List.empty
        builtin.List.empty : [a]
        
-  504. -- #a8ia0nqfghkpj4dt0t5gsk96tsfv6kg1k2cf7d7sb83tkqosebfiib2bkhjq48tc2v8ld94gf9o3hvc42pf6j49q75k0br395qavli0
+  504. -- #6frvp5jfjtt7odi9769i0p5phuuuij1fi1d9l5ncpelh416ab3vceaphhaijh0ct0v9n793j7e4h78687oij6ai97085u63m264gj5o
        builtin.List.map : (a ->{e} b) -> [a] ->{e} [b]
        
   505. -- ##List.size
@@ -2055,7 +2055,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        -> Annotated w txt
        -> Annotated w txt
        
-  582. -- #svdhl4ogs0m1pe7ihtq5q9td72mg41tmndqif4kktbtv4p8e1ciapaj8kvflfbm876llbh60tlkefpi0v0bra8hl7mfgnpscimeqtdg
+  582. -- #loh4epguhqj73ut43b287p1272ko7ackkr544k9scurlsf6m6smpifp5ghdcscvqdofpf79req1pl4e7qni0hvo4m0gsi3f1jhn9nvo
        builtin.Pretty.append : Pretty txt
        -> Pretty txt
        -> Pretty txt
@@ -2066,32 +2066,32 @@ This transcript is intended to make visible accidental changes to the hashing al
   584. -- #mlpplm1bhqkcif5j09204uuvfll7qte95msb0skjfd30nmei005kiich1ao39gm2j8687s14qvf5llu6i1a6fvt4vdmbp99jlfundfo
        builtin.Pretty.get : Pretty txt -> Annotated () txt
        
-  585. -- #d9m2k9igi4b50cp7v5tlp3o7dot6r41rbbbsc2a4iqae3hc2a7fceh83l1n3nuotfnn7nrgt40s1kfbcnl89qcqieih125gsafk2d00
+  585. -- #303bqopo0ditms2abmf35ikbgbb7gkcmqcd5g5eie85lvvmkpd89mi8v0etgm2508bejlgj9e7ffvpufj3v94mlks3ugvr3sjkbttq0
        builtin.Pretty.group : Pretty txt -> Pretty txt
        
-  586. -- #p6rkh0u8gfko2fpqdje6h8cain3qakom06a28rh4ccsjsnbagmmv6gadccg4t380c4nnetq9si7bkkvbh44it4lrfvfvcn4usps1uno
+  586. -- #o5dik2fg10998uep20m3du4iqqjbtap0apq4452g9emve8g3m655392u97iunphh90opvg92riaabbjsofc02bhr0qkcousvqgg2a78
        builtin.Pretty.indent : Pretty txt
        -> Pretty txt
        -> Pretty txt
        
-  587. -- #f59sgojafl5so8ei4vgdpqflqcpsgovpcea73509k5qm1jb8vkeojsfsavhn64gmfpd52uo631ejqu0oj2a6t6k8jcu282lbqjou7ug
+  587. -- #evbq94p3dn4l8ugge1o2f8dk072gcfho082lm7j02ejjsnctb5inkfsasuplmu8a529jh4v0h6v8ti7koff23e58cceda0nlh98m530
        builtin.Pretty.indent' : Pretty txt
        -> Pretty txt
        -> Pretty txt
        -> Pretty txt
        
-  588. -- #hpntja4i04u36vijdesobh75pubru68jf1fhgi49jl3nf6kall1so8hfc0bq0pm8r9kopgskiigdl04hqelklsdrdjndq5on9hsjgmo
+  588. -- #u5s76jh01asd7hbqaq466dp48v217o7tclphuk7gepc99vbv0fbfv5j2uq8o3n7lsvpiri5925o02j22a6tq7koc9t8tbcps4naetbg
        builtin.Pretty.join : [Pretty txt] -> Pretty txt
        
-  589. -- #jtn2i6bg3gargdp2rbk08jfd327htap62brih8phdfm2m4d6ib9cu0o2k5vrh7f4jik99eufu4hi0114akgd1oiivi8p1pa9m2fvjv0
+  589. -- #uoti2ppnfp1l11obl8tto1m2h4r6n1i14cc3i45bjpjrhogh52cuoch1n6b1q0n3jf6blr9585stb1i155jjq17b4c2hvd4d3abmrpo
        builtin.Pretty.lit : txt -> Pretty txt
        
-  590. -- #kfgfekabh7tiprb6ljjkf4qa5puqp6bbpe1oiqv9r39taljs8ahtb518mpcmec3plesvpssn3bpgvq3e7d71giot6lb2j7mbk23dtqo
+  590. -- #mabh3q4gsoiao223a03t7voj937b3sefb7e1j5r33su5o5tqrkmenl2aeboq909vs3bh2snltuqrfcsd3liic1vma0f976h1eo63upg
        builtin.Pretty.map : (txt ->{g} txt2)
        -> Pretty txt
        ->{g} Pretty txt2
        
-  591. -- #5rfcm6mlv2njfa8l9slkjp1q2q5r6m1vkp084run6pd632cf02mcpoh2bo3kuqf3uqbb5nh2drf37u51lpf16m5u415tcuk18djnr60
+  591. -- #i260pi6le5cdptpo78mbbi4r6qfc76kvb1g9r9d210b1altjtmoqi8b6psu3ag5hb8gq7crhgei406arn999c1dfrqt67j8vnls4gg8
        builtin.Pretty.orElse : Pretty txt
        -> Pretty txt
        -> Pretty txt
@@ -2099,15 +2099,15 @@ This transcript is intended to make visible accidental changes to the hashing al
   592. -- #cbo8de57n17pgc5iic1741jeiunhvhfcfd7gt79vd6516u64aplasdodqoouejbgovhge2le5jb6rje923fcrllhtu01t29cdrssgbg#0
        builtin.Pretty.Pretty : Annotated () txt -> Pretty txt
        
-  593. -- #qg050nfl4eeeiarp5mvun3j15h3qpgo31a01o03mql8rrrpht3o6h6htov9ghm7cikkbjejgu4vd9v3h1idp0hanol93pqpqiq8rg3g
+  593. -- #bvuv0d49kosa6op5j54ln2h3vbs3209e4fjtb3kehvn76p92l8682qnp2r5e9t7sflnv3dfb0uf9p0f76qbobn562oqdusi9mo3ubjo
        builtin.Pretty.sepBy : Pretty txt
        -> [Pretty txt]
        -> Pretty txt
        
-  594. -- #ev99k0kpivu29vfl7k8pf5n55fnnelq78ul7jqjrk946i1ckvrs5lmrji3l2avhd02mljspdbfspcn26phaqkug6p7rocbbf94uhcro
+  594. -- #rm3moq6nqvk1rs49lsshdtheqo72qv2fg1fqkk5m8tbqppik498otkrq6ppu7fu9p1kddldmpv0dig7bn82n0tj0ngnbu83fpb11upg
        builtin.Pretty.table : [[Pretty txt]] -> Pretty txt
        
-  595. -- #7c4jq9udglq9n7pfemqmc7qrks18r80t9dgjefpi78aerb1vo8cakc3fv843dg3h60ihbo75u0jrmbhqk0och8be2am98v3mu5f6v10
+  595. -- #n01tnlfatb0lo6s762cfofhtdavui9j8ovljacdbn9bvrfoeimd0pkner0694d3lb1f4qa5gur4975lvopftk7jkrflmhjv6gbsifbo
        builtin.Pretty.wrap : Pretty txt -> Pretty txt
        
   596. -- ##Ref
@@ -2222,27 +2222,27 @@ This transcript is intended to make visible accidental changes to the hashing al
   628. -- #uccvv8mn62ne8iqppsnpgbquqmhk4hk3n4tg7p6kttr20gov4698tu18jmmvdcs7ab455q7kklhb4uv1mtei4vbvq4qmbtbu1dbagmg
        builtin.syntax.docEmbedAnnotations : tms -> tms
        
-  629. -- #h53vvsbp1eflh5n41fepa5dana1ucfjbk8qc95kf4ht12svn304hc4fv431hiejspdr84oul4gmd3s65neil759q0hmjjrr8ottc6v0
+  629. -- #3r6c432d46j544g26chbfgfqrr79k7disfn41igdpe0thjar30lrjhqsuhipsr9rvg8jk6rpmnalc5iu8j842sq3svu1bo4c02og7to
        builtin.syntax.docEmbedSignatureLink : '{g} t
        -> Doc2.Term
        
-  630. -- #dvjs6ebt2ej6funsr6rv351aqe5eqt8pcbte5hpqossikbnqrblhhnve55pdg896s4e6dvd6m3us0151ejegfg1fi8kbfd7soa31dao
+  630. -- #pjtf55viib2vgc4hp60e2bui7r8iij7kan0u6uq6d60d6d6ccpq81f9ngcrou2lob9maqsvcqsa85ev4171iml9elg5hbfaopijo6lo
        builtin.syntax.docEmbedTermLink : '{g} t
        -> Either a Doc2.Term
        
   631. -- #7t98ois54isfkh31uefvdg4bg302s5q3sun4hfh0mqnosk4ded353jp0p2ij6b22vnvlcbipcv2jb91suh6qc33i7uqlfuto9f0r4n8
        builtin.syntax.docEmbedTypeLink : typ -> Either typ b
        
-  632. -- #r26nnrb8inld7nstp0rj4sbh7ldbibo3s6ld4hmii114i8fglrvij0a1jgj70u51it80s5vgj5dvu9oi5gqmr2n7j341tg8285mpesg
+  632. -- #ngon71rp4i6a3qd36pu015kk7d7il2i1491upfgernpm635hkjhcrm84oumfe6tvn193nb1lsrkulvvnmq5os0evm6sndlarquhe3i0
        builtin.syntax.docEval : 'a -> Doc2
        
-  633. -- #ojecdd8rnla7dqqop5a43u8kl12149l24452thb0ljkb99ivh6n2evg3g43dj6unlbsmbuvj5g9js5hvsi9f13lt22uqkueioe1vi9g
+  633. -- #hsmpfd41n9m02atorpvnj2gf7lcf04o51nrc8kohfddgq4vo18unk2c1ci8pfsam9f4i02babsu7urhvcek8fbfrilcusrgnaifp278
        builtin.syntax.docEvalInline : 'a -> Doc2
        
-  634. -- #lecedgertb8tj69o0f2bqeso83hl454am6cjp708epen78s5gtr0ljcc6agopns65lnm3du36dr4m4qu9rp8rtjvtcpg359bpbnfcm0
+  634. -- #73m68mnahgud6dl9red3rcmd49qn80d0ptr2m1h163e1jr1fitibr2hf84o62cqs7dsqiuea578ge7en7kk290k6778lgo39btl5468
        builtin.syntax.docExample : Nat -> '{g} t -> Doc2
        
-  635. -- #m4ini2v12rc468iflsee87m1qrm52b257e3blah4pcblqo2np3k6ad50bt5gkjob3qrct3jbihjd6i02t7la9oh3cft1d0483lf1pq0
+  635. -- #62nif2cvq90cnds9eo95hdn6uvgqo6np4eku52ar4pnb18sfdetl9oo6cu99hbksfa0b4krlcvse5gr5uv5k5b0ukuovt75krhlp418
        builtin.syntax.docExampleBlock : Nat -> '{g} t -> Doc2
        
   636. -- #pomj7lft70jnnuk5job0pstih2mosva1oee4tediqbkhnm54tjqnfe6qs1mqt8os1ehg9ksgenb6veub2ngdpb1qat400vn0bj3fju0
@@ -2250,7 +2250,7 @@ This transcript is intended to make visible accidental changes to the hashing al
          [Doc2.Term])]
        -> Doc2
        
-  637. -- #inrar1e9lnt58n0ru88v05a9d9d0la94m7ok5l6i7pr3pg4lapc9vegr542ffog1kl7pfqhmltr53of3qkci8nnrt8gig93qsnggisg
+  637. -- #dg44n9t54o1jkl3dtecsqh9vvs57jsvtvbfohkrtolqqgf2g7mf5el9i5jhg6qop1arms99c7s34d9h5rnrvf1fi4100lerjg3b38q8
        builtin.syntax.docFormatConsole : Doc2
        -> Pretty (Either SpecialForm ConsoleText)
        
@@ -2479,9 +2479,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Universal.murmurHash : a -> Nat
        
   710. -- ##unsafe.coerceAbilities
-       builtin.unsafe.coerceAbilities : (a ->{e1} b)
-       -> a
-       ->{e2} b
+       builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
        
   711. -- ##Value
        builtin type builtin.Value
@@ -2507,7 +2505,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   718. -- #dem6aglnj8cppfrnq9qipl7geo5pim3auo9cmv1rhh5la9edalj19sspbpm1pd4vh0plokdh6qfo48gs034dqlg0s7j9fhr9p9ndtpo#0
        builtin.Year.Year : Nat -> Year
        
-  719. -- #mtp25fuhkevfo0tm5upjua9vkdmppm7uv98u87pdblms7qo5sljcm01fe147kdunjvmbjkla0p7g3c8vn67214ckb9fdgbajuufs58o
+  719. -- #iur47o4jj4v554bfjsu95t8eru2vtko62d4jo4kvvt0mqnshtbleit15dlj1gkrpmokmf2pbegon8cof7600mv9s0m9229uk19bdvgg
        cache : [(Link.Term, Code)] ->{IO, Exception} ()
        
   720. -- #okolgrio28p1mbl1bfjfs9qtsr1m9upblcm3ul872gcir6epkcbq619vk5bdq1fnr371nelsof6jsp8469g4j6f0gg3007p79o4kf18
@@ -2516,33 +2514,33 @@ This transcript is intended to make visible accidental changes to the hashing al
   721. -- #je42vk6rsefjlup01e1fmmdssf5i3ba9l6aka3bipggetfm8o4i8d1q5d7hddggu5jure1bu5ot8aq5in31to4788ctrtpb44ri83r8
        checks : [Boolean] -> [Result]
        
-  722. -- #barg6v1n15ea1qhp80i77gjjq3vu1noc67q2jkv9n6n5v0c9djup70ltauujgpfe0kuo8ckd20gc9kutngdpb8d22rubtb5rjldrb3o
+  722. -- #jf82mm2gvoc3h5ibpejfeohkrl8022m38mi14r08v8s4np9187smglvtbk8u109ri427af2j5fuv1an6lq2k718vgtvr0c4rt9t32vg
        clientSocket : Text -> Text ->{IO, Exception} Socket
        
-  723. -- #lg7i12ido0jr43ovdbhhv2enpk5ar869leouri5qhrivinde93nl86s2rgshubtfhlogbe310k3rluotscmus9moo1tvpn0nmp1efv8
+  723. -- #72auim6cvu5tl8ubmfj5m2p1a822m0jq6fmi8osd99ujbs9h20o3t9e47hcitdcku1e7d40r052sdmfgi1oktio9is8tf503f5unh7g
        closeFile : Handle ->{IO, Exception} ()
        
-  724. -- #4e6qn65v05l32n380lpf536u4llnp6f6tvvt13hvo0bhqeh3f3i8bquekc120c8h59gld1mf02ok0sje7037ipg1fsu97fqrm01oi00
+  724. -- #nsvn5rj51knr3j62dp1ki0glb01bqj3ccq4537e1hgl2m89o9v7ghc54bu12r515mum791tcf4vgsrb6b1csa0tol1ldkiqrb8akkpo
        closeSocket : Socket ->{IO, Exception} ()
        
-  725. -- #2cl9ivrimnadurkum2blduls21kcihu89oasj2efmi03s1vfm433pi6c4k1d2a3obpmf2orm3c9lfgffnlhuc6ktaa98a1ccdhfueqo
+  725. -- #ei73jot64ogu4q76rm3jecdn76vmrj0h7riqqecf1d439mjav7ehh0h7rol5s18nupv586ln3l0m4kmh99p5mhgv6qfcrfgilkgq1oo
        Code.transitiveDeps : Link.Term
        ->{IO} [(Link.Term, Code)]
        
-  726. -- #sfud7h76up0cofgk61b7tf8rhdlugfmg44lksnpglfes1b8po26si7betka39r9j8dpgueorjdrb1i7v4g62m5bci1e971eqi8dblmo
-       compose : ∀ o g1 i1 g i.
+  726. -- #srpc2uag5p1grvshbcm3urjntakgi3g3dthfse2cp38sd6uestd5neseces5ue7kum2ca0gsg9i0cilkl0gn8dn3q5dn86v4r8lbha0
+       compose : ∀ i1 g1 o i g.
          (i1 ->{g1} o) -> (i ->{g} i1) -> i ->{g1, g} o
        
-  727. -- #b0tsob9a3fegn5dkb57jh15smd7ho2qo78st6qngpa7a8hc88mccl7vhido41o4otokv5l8hjdj3nabtkmpni5ikeatd44agmqbhano
-       compose2 : ∀ o g2 i2 g1 g i i1.
+  727. -- #stnrk323b8mm7dknlonfl70epd9f9ede60iom7sgok31mmggnic7etgi0are2uccs9g429qo3ruaeb9tk90bh35obnce1038p5qe6co
+       compose2 : ∀ i2 g2 o i1 g1 i g.
          (i2 ->{g2} o)
          -> (i1 ->{g1} i ->{g} i2)
          -> i1
          -> i
          ->{g2, g1, g} o
        
-  728. -- #m632ocgh2rougfejkddsso3vfpf4dmg1f8bhf0k6sha4g4aqfmbeuct3eo0je6dv9utterfvotjdu32p0kojuo9fj4qkp2g1bt464eg
-       compose3 : ∀ o g3 i3 g2 g1 g i i1 i2.
+  728. -- #mrc183aovjcae3i03r1a0ia26crmmkcf2e723pda860ps6q11rancsenjoqhc3fn0eraih1mobcvt245jr77l27uoujqa452utq8p68
+       compose3 : ∀ i3 g3 o i2 g2 i1 g1 i g.
          (i3 ->{g3} o)
          -> (i2 ->{g2} i1 ->{g1} i ->{g} i3)
          -> i2
@@ -2553,35 +2551,35 @@ This transcript is intended to make visible accidental changes to the hashing al
   729. -- #ilkeid6l866bmq90d2v1ilqp9dsjo6ucmf8udgrokq3nr3mo9skl2vao2mo7ish136as52rsf19u9v3jkmd85bl08gnmamo4e5v2fqo
        contains : Text -> Text -> Boolean
        
-  730. -- #pen6v1vcqdsg5ar8ajio0baiujthquamelbqd00p66amfjftk2o3stod4n81snc3hb9sc4fmnitf6ada0n5sfqfroi8sv1nbn7rnq48
+  730. -- #tc40jeeetbig6vcl7j6v1n0o59r8ugmjkhi6tee6o5fmkkbhmttevg093b29637gb6p70trmh9lrje86hhuuiqq565qs20qmjg4kbk0
        crawl : [(Link.Term, Code)]
        -> [Link.Term]
        ->{IO} [(Link.Term, Code)]
        
-  731. -- #o0qn048fk7tjb8e7d54vq5mg9egr5kophb9pcm0to4aj0kf39mv76c6olsm27vj309d7nhjh4nps7098fpvqe8j5cfg01ghf3bnju90
+  731. -- #urivjjshp3j122vb412mr5rq7jbf21ij1grh4amk1jfd33nfbcgv4emnnas5ekmblc4j4gsncoofatcdtktv0tp1f8sk8p06occb0hg
        createTempDirectory : Text ->{IO, Exception} Text
        
-  732. -- #4858f4krb9l4ot1hml21j48lp3bcvbo8b9unlk33b9a3ovu1jrbr1k56pnfhffkiu1bht2ovh0i82nn5jnoc5s5ru85qvua0m2ol43g
+  732. -- #h4ob7r10rul2v0dekeqjdfctbqr943ut9fgln5jgdgk0reg5d7ha0nlr16vcgcusfncgmquf5pv048lt3l9k7m653i7m0odmrvl69t0
        decodeCert : Bytes ->{Exception} SignedCert
        
   733. -- #ihbmfc4r7o3391jocjm6v4mojpp3hvt84ivqigrmp34vb5l3d7mmdlvh3hkrtebi812npso7rqo203a59pbs7r2g78ig6jvsv0nva38
        delay : Nat ->{IO, Exception} ()
        
-  734. -- #dsen29k7605pkfquesnaphhmlm3pjkfgm7m2oc90m53gqvob4l39p4g3id3pirl8emg5tcdmr81ctl3lk1enm52mldlfmlh1i85rjbg
+  734. -- #donnstdrflrkve7cqi26cqd90kvpdht2gp1q7v5u816a2v0h8uhevh4o618d6cdafqcnia2uqdanpn62sb7nafp77rqavj258vvjdr0
        directoryContents : Text ->{IO, Exception} [Text]
        
-  735. -- #b22tpqhkq6kvt27dcsddnbfci2bcqutvhmumdven9c5psiilboq2mb8v9ekihtkl6mkartd5ml5u75u84v850n29l91de63lkg3ud38
+  735. -- #ac6oh72pmu5gojdaff977lj48f83rr5cuquv2nhll3iiit0hu04dr2nflrvi5chbond10mnplq1d0uqu9i52uc7ebvn3dlqp1n504qg
        Either.isLeft : Either a b -> Boolean
        
-  736. -- #i1ec3csomb1pegm9r7ppabunabb7cq1t6bb6cvqtt72nd01jot7gde2mak288cbml910abbtho0smsbq17b2r33j599b0vuv7je04j8
+  736. -- #5n8bp6bvja969upaa6l2l346hab5vhemoa9ehb0n7qjer0kfapvuc7bd5hcugrf2o2auu11e9hstlf2g8uv6h3fn3v8ggmeig4blfe8
        Either.mapLeft : (i ->{g} o)
        -> Either i b
        ->{g} Either o b
        
-  737. -- #f765l0pa2tb9ieciivum76s7bp8rdjr8j7i635jjenj9tacgba9eeomur4vv3uuh4kem1pggpmrn61a1e3im9g90okcm13r192f7alg
+  737. -- #jp6itgd1nh1tjn2c7e0ebkskk7sgdooh48e023l1hhkvrkuhrklrdf4omr73jpvnodfbtt4tki495480n0bp54fd0o3hngj8k2knqs8
        Either.raiseMessage : v -> Either Text b ->{Exception} b
        
-  738. -- #9hifem8o2e1g7tdh4om9kfo98ifr60gfmdp8ci58djn17epm1b4m6idli8b373bsrg487n87n4l50ksq76avlrbh9q2jpobkk18ucvg
+  738. -- #4pa382t5o39uapf9tncjra8parmg9rppsn9ob3qnnrvbvtqc1oq8g3u69uapbjee9d118v8or3suhc3vu82de7l0c0og5h01beqjnko
        evalTest : '{IO, TempDirs, Exception, Stream Result} a
        ->{IO, Exception} ([Result], a)
        
@@ -2589,7 +2587,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        structural ability Exception
        structural ability builtin.Exception
        
-  740. -- #t20uuuiil07o22les8gv4sji7ju5esevloamnja3bjkrh2f250lgitv6595l6hlc2q64c1om0hhjqgter28dtnibb0dkr2j7e3ss530
+  740. -- #ilea09hgph2cdqsiaeup3o58met3e62m61nckvc89v20cq3g5e71pe19idi270o7i0jdfttra51lvi1vhs0g6oluvhavhdetpor74e0
        Exception.catch : '{g, Exception} a
        ->{g} Either Failure a
        
@@ -2604,67 +2602,67 @@ This transcript is intended to make visible accidental changes to the hashing al
   743. -- #5mqjoauctm02dlqdc10cc66relu40997d6o1u8fj7vv7g0i2mtacjc83afqhuekll1gkqr9vv4lq7aenanq4kf53kcce4l1srr6ip08
        Exception.reraise : Either Failure a ->{Exception} a
        
-  744. -- #1f774ia7im9i0cfp7l5a1g9tkvnd4m2940ga3buaf4ekd43dr1289vknghjjvi4qtevh7s61p5s573gpli51qh7e0i5pj9ggmeb69d0
+  744. -- #eak26rh0k633mbfsj8stppgj1e4l6gest2dfb2ol538l2hcmn1gpspq4vf3g72f1g8jnokfk8uv614cbdvcof0hk21nk2e55jseo18g
        Exception.toEither : '{ε, Exception} a
        ->{ε} Either Failure a
        
-  745. -- #li2h4hncbgmfi5scuah06rtdt8rjcipiv2t95hos15ol63usv78ti3vng7o9862a70906rum7nrrs9qd9q8iqu1rdcfe292r0al7n38
+  745. -- #g2qp63rds1msu1c3ejqfqnsbhsiigsneuij8eq3kfnv2gdmpqui5g7t0alo1cv6mqqgp36ihvst2jc9t1jp6tnumk18mn5v8m9r3n58
        Exception.toEither.handler : Request {Exception} a
        -> Either Failure a
        
-  746. -- #5fi0ep8mufag822f18ukaffakrmm3ddg8a83dkj4gh2ks4e2c60sk9s8pmk92p69bvkcflql3rgoalp8ruth7fapqrks3kbmdl61b00
+  746. -- #q1e3avumkdpbjalk4v7c5rog11ertc0ra5nlkpgd23n6jmbki58rkebl25cbfbn7i3t274srrpbgont7j12i80hkh3gnt713poo13c8
        Exception.unsafeRun! : '{g, Exception} a ->{g} a
        
-  747. -- #qdcih6h4dmf9a2tn2ndvn0br9ef41ubhcniadou1m6ro641gm2tn79m6boh5sr4q271oiui6ehbdqe53r0gobdeagotkjr67kieq3ro
+  747. -- #b6eskvgfv4vr30obfnaegflsf0h8u2t8816d3qhl2hl3r0l794rqgqks67q5hd46qlm06pbgt01439hmmk8jvuu3adc45cra0ggeqhg
        expect : Text
        -> (a -> a -> Boolean)
        -> a
        -> a
        ->{Stream Result} ()
        
-  748. -- #ngmnbge6f7nkehkkhj6rkit60rp3qlt0vij33itch1el3ta2ukrit4gvpn2n0j0s43sj9af53kphgs0h2n65bnqcr9pmasud2r7klsg
+  748. -- #6oqh4j31ujgecbu9kionucdbv8mbiiuasqrt294trdbqaoqlm5milniomc2c8jej0e2hco809kdb856djrr12luck2onn5que7kp2eo
        expectU : Text -> a -> a ->{Stream Result} ()
        
-  749. -- #f54plhut9f6mg77r1f033vubik89irq1eri79d5pd6mqi03rq9em99mc90plurvjnmvho73ssof5fvndgmcg4fgrpvuuil7hb5qmebo
+  749. -- #ug02c2qol2gp0af97nuceu59r3jm9f52lro04ahkandkin8sabseuckr6ep0lvuknjlfhhogj9k5m2epp15d0j8bipc8iljgg8at7ho
        fail : Text -> b ->{Exception} c
        
-  750. -- #mpe805fs330vqp5l5mg73deahken20dub4hrfvmuutfo97dikgagvimncfr6mfp1l24bjqes1m1dp11a3hop92u49b1fb45j8qs9hoo
+  750. -- #ri1irkdfcdg3a0c3orv23fk2vjda5n0mlp7ooi0hskvaloa8d8qs9i7essti135k0sfomqajspr9idhu2hgjpmmb6etfabj8jdo02a8
        fileExists : Text ->{IO, Exception} Boolean
        
-  751. -- #qp8s5ab41cebii67qtb5082gg87qslm2f60t2m540dumj65v9rcemk54e7afo7bou8co8blmr1f6m7effcb54ebk3c9ovhr8kq3l4ko
+  751. -- #urlf22mo1assv31k95beddq2ava91p953ueg8kdcddofc2ftogrt10jemg760mkcd8m3lnjc3keog8anop0r0kmo2k1lggbt2chse30
        first : (a ->{g} b) -> (a, c) ->{g} (b, c)
        
-  752. -- #cft2pjc05jljtlefm4osg96k5t2look2ujq1tgg5hoc5i3fkkatt9pf79g2ka461kq8nbmsggrvo2675ocl599to9e8nre5oef4scdo
+  752. -- #4rfr9je7fbsithij70iaqofqu4hgl6ji7t06ok0k98a5ni1397di8d0mllef935mdvj0e57hbg6rm9nn6ok5gcnvqr0vmodelli9qqg
        fromB32 : Bytes ->{Exception} Bytes
        
   753. -- #13fpchr37ua0pr38ssr7j22pudmseuedf490aok18upagh0f00kg40guj9pgl916v9qurqrvu53f3lpsvi0s82hg3dtjacanrpjvs38
        fromHex : Text -> Bytes
        
-  754. -- #b36oslvh534s82lda0ghc5ql7p7nir0tknsluigulmpso22tjh62uiiq4lq9s3m97a2grkso0qofpb423p06olkkikrt4mfn15vpkug
+  754. -- #od69b4q2upcvsdjhb7ra8unq1r8t7924mra5j5s8f7n173bmslp8dprhgt1mjdj49qj10h2gj91eflke1avj0qlecus1mdevufm3hho
        getBuffering : Handle ->{IO, Exception} BufferMode
        
-  755. -- #9vijttgmba0ui9cshmhmmvgn6ve2e95t168766h2n6pkviddebiimgipic5dbg5lmiht12g6np8a7e06jpk03rnue3ln5mbo4prde0g
+  755. -- #fupr0p6pmt834qep0jp18h9jhf4uadmtrsndpfac3kpkf4q4foqnqi6dmc6u4mgs9aubl8issknu89taqhi1mvaeg1ctbt3uf2lidh8
        getBytes : Handle -> Nat ->{IO, Exception} Bytes
        
-  756. -- #c5oeqqglf28ungtq1im4fjdh317eeoba4537l1ntq3ob22v07rpgj9307udscbghlrior398hqm1ci099qmriim8cs975kocacsd9r0
+  756. -- #qgocu5n2e7urg44ch4m8upn24efh6jk4cmp8bjsvhnenhahq8nniauav0ihpqa31p57v8fhqdep4fh5dj7nj1uul7596us04dr6dqng
        getChar : Handle ->{IO, Exception} Char
        
-  757. -- #j9jdo2pqvi4aktcfsb0n4ns1tk2be7dtckqdeedqp7n52oghsq82cgc1tv562rj1sf1abq2h0vta4uo6873cdbgrtrvd5cvollu3ovo
+  757. -- #t92if409jh848oifd8v6bbu6o0hd0916rc3rbdlj4vf46oll2tradqrilk6r28mmm19dao5sh8l349qrhc59qopv4u1hba3ndfiitq8
        getEcho : Handle ->{IO, Exception} Boolean
        
-  758. -- #0hj09gufk8fs2hvr6qij6pie8bp0h6hmm6hpsi8d5fvl1fp1dbk6u8c9p6h4eu2hle6ctgpdbepo9vit5atllkodogn6r0csar9fn1g
+  758. -- #5nc47o8abjut8sab84ltouhiv3mtid9poipn2b53q3bpceebdimb4sb1e7lkrmu3bn3ivgcqe568upqqh5clrqgkhfdsji58kcdrt4g
        getLine : Handle ->{IO, Exception} Text
        
-  759. -- #ck1nfg5fainelng0694jkdf9e06pmn60h7kvble1ff7hkc6jdgqtf7g5o3qevr7ic1bdhfn5n2rc3gde5bh6o9fpbit3ocs0av0scdg
+  759. -- #l9pfqiqb3u9o8qo7jnaajph1qh0jbodih4vtuqti53vjmtp4diddidt8r2qa826918bt7b1cf873oo511tkivfkg35fo5o4kh5j35r0
        getSomeBytes : Handle -> Nat ->{IO, Exception} Bytes
        
-  760. -- #bk29bjnrcuh55usf3vocm4j1aml161p6ila7t82cpr3ub9vu0g9lsg2mspmfuefc4ig0qtdqk7nds4t3f68jp6o77e0h4ltbitqjpno
+  760. -- #mdhva408l4fji5h23okmhk5t4dakt1lokuie28nsdspal45lbhe06vkmcu8hf8jplse56o576ogn72j7k5nbph06nl36o957qn25tvo
        getTempDirectory : '{IO, Exception} Text
        
-  761. -- #j8i534slc2rvakvmqcb6j28iatrh3d7btajai9qndutr0edi5aaoi2p5noditaococ4l104hdhhvjc5vr0rbcjoqrbng46fdeqtnf98
+  761. -- #vniqolukf0296u5dc6d68ngfvi9quuuklcsjodnfm0tm8atslq19sidso2uqnbf4g6h23qck69dpd0oceb9539ufoo12rhdcdd934lo
        handlePosition : Handle ->{IO, Exception} Nat
        
-  762. -- #bgf7sqs0h0p8bhm3t2ei8006oj1gjonvtkdejv2g9kar0kmvob9e88ceevdfh99jom9rs0hbalf1gut5juanudfcb8tpb1e9ta0vrm8
+  762. -- #85s6gvfbpv8lhgq8m36h7ebvan4lljiu2ffehbgese5c11h3vpqlcssts8svi2qo2c5d68oeke092puta1ng84982hiid972hss9m40
        handshake : Tls ->{IO, Exception} ()
        
   763. -- #128490j1tmitiu3vesv97sqspmefobg1am38vos9p0vt4s1bhki87l7kj4cctquffkp40eanmr9ummfglj9i7s25jrpb32ob5sf2tio
@@ -2673,74 +2671,74 @@ This transcript is intended to make visible accidental changes to the hashing al
   764. -- #ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0
        id : a -> a
        
-  765. -- #9qnapjbbdhcc2mjf1b0slm7mefu0idnj1bs4c5bckq42ruodftolnd193uehr31lc01air6d6b3j4ihurnks13n85h3r8rs16nqvj2g
+  765. -- #0lj5fufff9ocn6lfgc3sv23aup971joh61ei6llu7djblug7tmv2avijc91ing6jmm42hu3akdefl1ttdvepk69sc8jslih1g80npg8
        isDirectory : Text ->{IO, Exception} Boolean
        
-  766. -- #vb1e252fqt0q63hpmtkq2bkg5is2n6thejofnev96040thle5o1ia8dtq7dc6v359gtoqugbqg5tb340aqovrfticb63jgei4ncq3j8
+  766. -- #flakrb6iks7vgijtm8dhipj14v57tk96nq5uj3uluplpoamb1etufn7rsjrelaj3letaa0e2aivq95794nv2b8a8vqbqdumd6i0fvpo
        isFileEOF : Handle ->{IO, Exception} Boolean
        
-  767. -- #ahkhlm9sd7arpevos99sqc90g7k5nn9bj5n0lhh82c1uva52ltv0295ugc123l17vd1orkng061e11knqjnmk087qjg3vug3rs6mv60
+  767. -- #5qan8ssedn9pouru70v1a06tkivapiv0es8k6v3hjpmkmboekktnh30ia7asmevglf4pu8ujb0t9vsctjsjtam160o9bn9g02uciui8
        isFileOpen : Handle ->{IO, Exception} Boolean
        
   768. -- #2a11371klrv2i8726knma0l3g14on4m2ucihpg65cjj9k930aefg65ovvg0ak4uv3i9evtnu0a5249q3i8ugheqd65cnmgquc1a88n0
        isNone : Optional a -> Boolean
        
-  769. -- #ln4avnqpdk7813vsrrr414hg0smcmufrl1c7b87nb7nb0h9cogp6arqa7fbgd7rgolffmgue698ovvefo18j1k8g30t4hbp23onm3l8
+  769. -- #jsqdsol9g3qnkub2f2ogertbiieldlkqh859vn5qovub6halelfmpv1tc50u1n23kotgd9nnejnn0n6foef8aqfcp615ashd0cfi3j8
        isSeekable : Handle ->{IO, Exception} Boolean
        
   770. -- #gop2v9s6l24ii1v6bf1nks2h0h18pato0vbsf4u3el18s7mp1jfnp4c7fesdf9sunnlv5f5a9fjr1s952pte87mf63l1iqki9bp0mio
        List.all : (a ->{ε} Boolean) -> [a] ->{ε} Boolean
        
-  771. -- #m2g5korqq5etr0qk1qrgjbaqktj4ks4bu9m3c4v3j9g8ktsd2e218nml6q8vo45bi3meb53csack40mle6clfrfep073e313b3jagt0
+  771. -- #thvdk6pgdi019on95nttjhg3rbqo7aq5lv9fqgehg00657utkitc1k5r9bfl7soqdrqd82tjmesn5ocb6d30ire6vkl0ad6rcppg5vo
        List.filter : (a ->{g} Boolean) -> [a] ->{g} [a]
        
-  772. -- #8s836vq5jggucs6bj3bear30uhe6h9cskudjrdc772ghiec6ce2jqft09l1n05kd1n6chekrbgt0h8mkc9drgscjvgghacojm9e8c5o
+  772. -- #ca71f74kmn16u76lch7ropsgou2t3lbtc5hr06858l97qkhk0b4ado1pnii4hqfannelbgv4qruv4f1iqn43kgkbsq8lpjmo3mnrp38
        List.foldLeft : (b ->{g} a ->{g} b) -> b -> [a] ->{g} b
        
-  773. -- #m5tlb5a0m4kp5b4m9oq9vhda9d7nhu2obn2lpmosal0ebij9gon4gkd1aq0b3b61jtsc1go0hi7b2sm2memtil55ijq32b2n0k39vko
+  773. -- #o1gssqn32qvl4pa79a0lko5ksvbn0rtv8u5g9jpd73ig94om2r4nlbcqa4nd968q74ios37eg0ol36776praolimpch8jsbohg47j2o
        List.forEach : [a] -> (a ->{e} ()) ->{e} ()
        
-  774. -- #0b3krd0l4g9grcift3addptmt5db7n4shcclo0f9du91f7qqdk8goufs247671j4mikjdjll4rrrdr16s021m3b9pse9o71nfm25b08
+  774. -- #marlqbcbculvqjfro3iidf899g2ncob2f8ld3gosg7kas5t9hlh341d49uh57ff5litvrt0hlb2ms7tj0mkfqs9do67cm4msodt8dng
        List.reverse : [a] -> [a]
        
-  775. -- #ded5bbqvvqaebadskgvd1pu4k61b2m9tqn0v24e17dnbor3qa5ilam92m6s28kt758cqkp8ckrp0a0614p668u4mpl67cunte8b4u9o
+  775. -- #30hfqasco93u0oipi7irfoabh5uofuu2aeplo2c87p4dg0386si6gvv715dbr21s4ftfquev4baj5ost3h17mt8fajn64mbffp6c8c0
        List.unzip : [(a, b)] -> ([a], [b])
        
   776. -- #s8l7maltpsr01naqadvs5ssttg7eim4ca2096lbo3f3he1i1b11kk95ahtgb5ukb8cjr6kg4r4c1qrvshk9e8dp5fkq87254gc1pk48
        List.zip : [a] -> [b] -> [(a, b)]
        
-  777. -- #j9ve4ionu2sn7f814t0t4gc75objke2drgnfvvvb50v2f57ss0hlsa3ai5g5jsk2t4b8s37ocrtmte7nktfb2vjf8508ksvrc6llu30
+  777. -- #g6g6lhj9upe46032doaeo0ndu8lh1krfkc56gvupeg4a16me5vghhi6bthphnsvgtve9ogl73qab6d69ju6uorpj029g97pjg3p2k2o
        listen : Socket ->{IO, Exception} ()
        
-  778. -- #s0f4et1o1ns8cmmvp3i0cm6cmmv5qaf99qm2q4jmgpciof6ntmuh3mpr4epns3ocskn8raacbvm30ovvj2b6arv0ff7iks31rannbf0
+  778. -- #ilva5f9uoaia9l8suc3hl9kh2bg1lah1k7uvm8mlq3mt0b9krdh15kurbhb9pu7a8irmvk6m2lpulg75a5alf0a95u0rp0v0n9folmg
        loadCodeBytes : Bytes ->{Exception} Code
        
-  779. -- #dmrr078itg91kgomsmuhgorp0l9i054e3liukj6if838u8dr2kmpkvq1f08uapiamlmjg2ehk68b7u55h00k29kkrgcr0cj3piq6b00
+  779. -- #tjj9c7fbprd57jlnndl8huslhvfbhi1bt1mr45v1fvvr2b3bguhnjtll3lbsbnqqjb290tm9cnuafpbtlfev1csbtjjog0r2kfv0e50
        loadSelfContained : Text ->{IO, Exception} a
        
-  780. -- #g1hqlq27e3stamnnfp6q178pleeml9sbo2d6scj2ikubocane5cvf8ctausoqrgj9co9h56ttgt179sgktc0bei2r37dmtj51jg0ou8
+  780. -- #1pkgu9vbcdl57d9pn9ses1htmfokjq6212ed5oo9jscjkf8t2s407j71287hd9nr1shgsjmn0eunm5e7h262id4hh3t4op6barrvc70
        loadValueBytes : Bytes
        ->{IO, Exception} ([(Link.Term, Code)], Value)
        
-  781. -- #tlllu51stumo77vi2e5m0e8m05qletfbr3nea3d84dcgh66dq4s3bt7kdbf8mpdqh16mmnoh11kr3n43m8b5g4pf95l9gfbhhok1h20
+  781. -- #nqodnhhovq1ilb5fstpc61l8omfto62r8s0qq8s4ij39ulorqpgtinef64mullq0ns4914gck6obeuu6so1hds09hh5o1ptpt4k909g
        MVar.put : MVar i -> i ->{IO, Exception} ()
        
-  782. -- #3b7lp7s9m31mcvh73nh4gfj1kal6onrmppf35esvmma4jsg7bbm7a8tsrfcb4te88f03r97dkf7n1f2kcc6o7ng4vurp95svfj2fg7o
+  782. -- #4ck8hqiu4m7478q5p7osqd1g9piie53g2v6j89en9s90f3cnhb9jr2515f35605e18ohiod7nb93t03765cil0lecob3hcsht9870g0
        MVar.read : MVar o ->{IO, Exception} o
        
-  783. -- #be8m7lsjnf31u87pt5rvn04c9ellhbm3p56jgapbp8k7qp0v3mm7beh81luoifp17681l0ldjj46gthmmu32lkn0jnejr3tedjotntg
+  783. -- #tchse01rs4t1e6bk9br5ofad23ahlb9eanlv9nqqlk5eh7rv7qtpd5jmdjrcksm1q3uji64kqblrqq0vgap9tmak3urkr3ok4kg2ci0
        MVar.swap : MVar o -> o ->{IO, Exception} o
        
-  784. -- #c2qb0ca2dj3rronbp4slj3ph56p0iopaos7ib37hjunpkl1rcl1gp820dpg8qflhvt9cm2l1bfm40rkdslce2sr6f0oru5lr5cl5nu0
+  784. -- #23nq5mshk51uktsg3su3mnkr9s4fe3sktf4q388bpsluiik64l8h060qptgfv48r25fcskecmc9t4gdsm8im9fhjf70i1klp34epksg
        MVar.take : MVar o ->{IO, Exception} o
        
-  785. -- #ht0k9hb3k1cnjsgmtu9klivo074a2uro4csh63m1sqr2483rkojlj7abcf0jfmssbfig98i6is1osr2djoqubg3bp6articvq9o8090
+  785. -- #18pqussken2f5u9vuall7ds58cf4fajoc4trf7p93vk4640ia88vsh2lgq9kgu8fvpr86518443ecvn7eo5tessq2hmgs55aiftui8g
        newClient : ClientConfig -> Socket ->{IO, Exception} Tls
        
-  786. -- #coeloqmjin6lais8u6j0plh5f1601lpcue4ejfcute46opams4vsbkplqj6jg6af0uecjie3mbclv40b3jumghsf09aavvucrc0d148
+  786. -- #mmoj281h8bimgcfqfpfg6mfriu8cta5vva4ppo41ioc6phegdfii26ic2s5sh0lf5tc6o15o7v79ui8eeh2mbicup07tl6hkrq9q34o
        newServer : ServerConfig -> Socket ->{IO, Exception} Tls
        
-  787. -- #ocvo5mvs8fghsf715tt4mhpj1pu8e8r7pq9nue63ut0ol2vnv70k7t6tavtsljlmdib9lo3bt669qac94dk53ldcgtukvotvrlfkan0
+  787. -- #r6l6s6ni7ut1b9le2d84el9dkhqjcjhodhd0l1qsksahm4cbgdk0odjck9jnku08v0pn909kabe2v88p43jisavkariomtgmtrrtbu8
        openFile : Text -> FileMode ->{IO, Exception} Handle
        
   788. -- #c58qbcgd90d965dokk7bu82uehegkbe8jttm7lv4j0ohgi2qm3e3p4v1qfr8vc2dlsmsl9tv0v71kco8c18mneule0ntrhte4ks1090
@@ -2749,64 +2747,64 @@ This transcript is intended to make visible accidental changes to the hashing al
   789. -- #dck7pb7qv05ol3b0o76l88a22bc7enl781ton5qbs2umvgsua3p16n22il02m29592oohsnbt3cr7hnlumpdhv2ibjp6iji9te4iot0
        printText : Text ->{IO} Either Failure ()
        
-  790. -- #i9lm1g1j0p4qtakg164jdlgac409sgj1cb91k86k0c44ssajbluovuu7ptm5uc20sjgedjbak3iji8o859ek871ul51b8l30s4uf978
+  790. -- #5si7baedo99eap6jgd9krvt7q4ak8s98t4ushnno8mgjp7u9li137ferm3dn11g4k3mds1m8n33sbuodrohstbm9hcqm1937tfj7iq8
        putBytes : Handle -> Bytes ->{IO, Exception} ()
        
-  791. -- #84j6ua3924v85vh2a581de7sd8pee1lqbp1ibvatvjtui9hvk36sv2riabu0v2r0s25p62ipnvv4aeadpg0u8m5ffqrc202i71caopg
+  791. -- #gkd4pi7uossfe12b19s0mrr0a04v5vvhnfmq3qer3cu7jr24m5v4e1qu59mktrornbrrqgihsvkj1f29je971oqimpngiqgebkr9i58
        readFile : Text ->{IO, Exception} Bytes
        
-  792. -- #pk003cv7lvidkbmsnne4mpt20254gh4hd7vvretnbk8na8bhr9fg9776rp8pt9srhiucrd1c7sjl006vmil9e78p40gdcir81ujil2o
+  792. -- #ak95mrmd6jhaiikkr42qsvd5lu7au0mpveqm1e347mkr7s4f846apqhh203ei1p3pqi18dcuhuotf53l8p2ivsjs8octc1eenjdqb48
        ready : Handle ->{IO, Exception} Boolean
        
-  793. -- #unn7qak4qe0nbbpf62uesu0fe8i68o83l4o7f6jcblefbla53fef7a63ts28fh6ql81o5c04j44g7m5rq9aouo73dpeprbl5lka8170
+  793. -- #gpogpcuoc1dsktoh5t50ofl6dc4vulm0fsqoeevuuoivbrin87ah166b8k8vq3s3977ha0p7np5mn198gglqkjj1gh7nbv31eb7dbqo
        receive : Tls ->{IO, Exception} Bytes
        
-  794. -- #ugs4208vpm97jr2ecmr7l9h4e22r1ije6v379m4v6229c8o7hk669ba63bor4pe6n1bm24il87iq2d99sj78lt6n5eqa1fre0grn93g
+  794. -- #7rctbhido3s7lm9tjb6dit94cg2jofasr6div31976q840e5va5j6tu6p0pugkt106mcjrtiqndimaknakrnssdo6ul0jef6a9nf1qo
        removeDirectory : Text ->{IO, Exception} ()
        
-  795. -- #6pia69u5u5rja1jk04v3i9ke24gf4b1t7vnaj0noogord6ekiqhf72qfkc1n08rd11f2cbkofni5rd5u7t1qkgslbi40hut35pfi1v0
+  795. -- #710k006oln987ch4k1c986sb0jfqtpusp0a235te6cejhns51um6umr311ltgfiv80kt0s8sb8r0ic63gj2nvgbi66vq10s4ilkk5ng
        renameDirectory : Text -> Text ->{IO, Exception} ()
        
-  796. -- #amtsq2jq1k75r309esfp800a8slelm4d3q9i1pq1qqs3pil13at916958sf9ucb4607kpktbnup7nc58ecoq8mcs01e2a03d08agn18
+  796. -- #vb50tjb967ic3mr4brs0pro9819ftcj4q48eoeal8gmk02f05isuqhn0accbi7rv07g3i4hjgntu2b2r8b9bn15mjc59v10u9c3gjdo
        runTest : '{IO, TempDirs, Exception, Stream Result} a
        ->{IO} [Result]
        
-  797. -- #b59q94bf9mrvv4gl8gqjd04dc3ahq373ka5esh4grtjupkm8ov7o7h0n56q2dg3ocdsreqvm973rlhs4etua1tbrsuabc398e5pvs0o
+  797. -- #ub9vp3rs8gh7kj9ksq0dbpoj22r61iq179co8tpgsj9m52n36qha52rm5hlht4hesgqfb8917cp1tk8jhgcft6sufgis6bgemmd57ag
        saveSelfContained : a -> Text ->{IO, Exception} ()
        
-  798. -- #f55p4o2hlhka9olk8a9dnan57o51605g4q26jtpsbkt0g652s322779sej71182ntb6lkh01gom3g26cmngqq7vtl7m7oovdi0koc70
+  798. -- #utcu5rk68sot520tjcsjhrpipbb0dq3idd81o04ctparap6iusco52v3ojh3r0d6j0nnbfjvtiuo0f0ob7udshasudvlftjo6hnpsjg
        saveTestCase : Text
        -> (a -> Text)
        -> a
        ->{IO, Exception} ()
        
-  799. -- #v2otbk1e0e81d6ea9i3j1kivnfam6rk6earsjbjljv4mmrk1mgfals6jhfd74evor6al9mkb5gv8hf15f02807f0aa0hnsg9fas1qco
+  799. -- #uq87p0r1djq5clhkbimp3fc325e5kp3bv33dc8fpphotdqp95a0ps2c2ch8d2ftdpdualpq2oo9dmnka6kvnc9kvugs2538q62up4t0
        seekHandle : Handle
        -> SeekMode
        -> Int
        ->{IO, Exception} ()
        
-  800. -- #a98jlos4rj2um55iksdin9p5djo6j70qmuitoe2ff3uvkefb8pqensorln5flr3pm8hkc0lqkchbd63cf9tl0kqnqu3i17kvqnm35g0
+  800. -- #ftkuro0u0et9ahigdr1k38tl2sl7i0plm7cv5nciccdd71t6a64icla66ss0ufu7llfuj7cuvg3ms4ieel6penfi8gkahb9tm3sfhjo
        send : Tls -> Bytes ->{IO, Exception} ()
        
-  801. -- #qrdia2sc9vuoi7u3a4ukjk8lv0rlhn2i2bbin1adbhcuj79jn366dv3a8t52hpil0jtgkhhuiavibmdev63j5ndriod33rkktjekqv8
+  801. -- #k6gmcn3qg50h49gealh8o7j7tp74rvhgn040kftsavd2cldqopcv9945olnooe04cqitgpvekpcbr5ccqjosg7r9gb1lagju5v9ln0o
        serverSocket : Optional Text
        -> Text
        ->{IO, Exception} Socket
        
-  802. -- #3vft70875p42eao55rhb61siobuei4h0e9vlu4bbgucjo296c2vfjpucacovnu9538tvup5c7lo9123se8v4fe7m8q9aiqbkjpumkao
+  802. -- #umje4ibrfv3c6vsjrdkbne1u7c8hg4ll9185m3frqr2rsr8738hp5fq12kepa28h63u9qi23stsegjp1hv0incr5djbl7ulp2s12d8g
        setBuffering : Handle -> BufferMode ->{IO, Exception} ()
        
-  803. -- #erqshamlurgahpd4rroild36cc5e4rk56r38r53vcbg8cblr82c6gfji3um8f09ffgjlg58g7r32mtsbvjlcq4c65v0jn3va9888mao
+  803. -- #je6s0pdkrg3mvphpg535pubchjd40mepki6ipum7498sma7pll9l89h6de65063bufihf2jb5ihepth2jahir8rs757ggfrnpp7fs7o
        setEcho : Handle -> Boolean ->{IO, Exception} ()
        
-  804. -- #ugar51qqij4ur24frdi84eqdkvqa0fbsi4v6e2586hi3tai52ovtpm3f2dc9crnfv8pk0ppq6b5tv3utl4sl49n5aecorgkqddr7i38
-       snd : ∀ a a1. (a1, a) -> a
+  804. -- #in06o7cfgnlmm6pvdtv0jv9hniahcli0fvh27o01ork1p77ro2v51rc05ts1h6p9mtffqld4ufs8klcc4bse1tsj93cu0na0bbiuqb0
+       snd : ∀ a1 a. (a1, a) -> a
        
-  805. -- #leoq6smeq8to5ej3314uuujmh6rfbcsdb9q8ah8h3ohg9jq5kftc93mq671o0qh2he9vqgd288k0ecea3h7eerpbgjt6a8p843tmon8
+  805. -- #km3cpkvcnvcos0isfbnb7pb3s45ri5q42n74jmm9c4v1bcu8nlk63353u4ohfr7av4k00s4s180ddnqbam6a01thhlt2tie1hm5a9bo
        socketAccept : Socket ->{IO, Exception} Socket
        
-  806. -- #s43jbp19k91qq704tidpue2vs2re1lh4mtv46rdmdnurkdndst7u0k712entcvip160vh9cilmpamikmflbprg5up0k6cl15b8tr5l0
+  806. -- #ubteu6e7h7om7o40e8mm1rcmp8uur7qn7p5d92gtp3q92rtr459nn3rff4i9q46o2o60tmh77i9vgu0pub768s9kvn9egtcds30nk88
        socketPort : Socket ->{IO, Exception} Nat
        
   807. -- #3rp8h0dt7g60nrjdehuhqga9dmomti5rdqho7r1rm5rg5moet7kt3ieempo7c9urur752njachq6k48ggbic4ugbbv75jl2mfbk57a0
@@ -2818,22 +2816,22 @@ This transcript is intended to make visible accidental changes to the hashing al
   809. -- #rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8
        structural ability Stream a
        
-  810. -- #2jl99er43tnksj8r8oveap5ger9uqlvj0u0ghfs0uqa7i6m45jk976n7a726jb7rtusjdu2p8hbbcgmoacvke7k5o3kdgoj57c3v2v8
+  810. -- #s76vfp9t00khf3bvrg01h9u7gnqj5m62sere8ac97un79ojd82b71q2e0cllj002jn4r2g3qhjft40gkqotgor74v0iogkt3lfftlug
        Stream.collect : '{e, Stream a} r ->{e} ([a], r)
        
-  811. -- #rnuje46fvuqa4a8sdgl9e250a2gcmhtsscr8bdonj2bduhrst38ur7dorv3ahr2ghf9cufkfit7ndh9qb9gspbfapcnn3sol0l2moqg
+  811. -- #abc5m7k74em3fk9et4lrj0ee2lsbvp8vp826josen26l1g3lh9ansb47b68efe1vhhi8f6l6kaircd5t4ihlbt0pq4nlipgde9rq8v8
        Stream.collect.handler : Request {Stream a} r -> ([a], r)
        
   812. -- #rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8#0
        Stream.emit : a ->{Stream a} ()
        
-  813. -- #c70gf5m1blvh8tg4kvt1taee036fr7r22bbtqcupac5r5igs102nj077vdl0nimef94u951kfcl9a5hcevo01j04v9o6v3cpndq41bo
+  813. -- #mrhqdu5he7p8adejmvt4ss09apkbnu8jn66g4lpf0uas9dvm8goa6g65bo2u7s0175hrrofd6uqg7ogmduf928knfpkd12042k6o860
        Stream.toList : '{Stream a} r -> [a]
        
-  814. -- #ul69cgsrsspjni8b0hqnt4kt4bk7sjtp6jvlhhofom7bemu9nb2kimm6tt1raigr7j86afgmnjnrfabn6a5l5v1t219uidiu22ueiv0
+  814. -- #t3klufmrq2bk8gg0o4lukenlmu0dkkcssq9l80m4p3dm6rqesrt51nrebfujfgco9h47f4e5nplmj7rvc3salvs65labd7nvj2fkne8
        Stream.toList.handler : Request {Stream a} r -> [a]
        
-  815. -- #58d8kfuq8sqbipa1aaijjhm28pa6a844h19mgg5s4a1h160etbulig21cm0pcnfla8fisqvrp80840g9luid5u8amvcc8sf46pd25h8
+  815. -- #pus3urtj4e1bhv5p5l16d7vnv4g2hso78pcfussnufkt3d53j7oaqde1ajvijr1g6f0cv2c4ice34g8g8n17hd7hql6hvl8sgcgu6s8
        systemTime : '{IO, Exception} Nat
        
   816. -- #11mhfqj6rts8lm3im7saf44tn3km5bboqtu1td0udnaiit4qqg6ar1ecmccosl6gufsnp6sug3vcmgapsc58sgj7dh7rg8msq2qkj18
@@ -2845,13 +2843,13 @@ This transcript is intended to make visible accidental changes to the hashing al
   818. -- #11mhfqj6rts8lm3im7saf44tn3km5bboqtu1td0udnaiit4qqg6ar1ecmccosl6gufsnp6sug3vcmgapsc58sgj7dh7rg8msq2qkj18#1
        TempDirs.removeDir : Text ->{TempDirs} ()
        
-  819. -- #natgur73q6b4c3tp5jcor0v1cdnplh0n3fhm4qvhg4v74u3e3ff1352shs1lveot83lj82qqbl78n40qi9a132fhkmaa6g5s1ja91go
+  819. -- #ibj0sc16l6bd7r6ptft93jeocitrjod98g210beogdk30t3tb127fbe33vau29j0j4gt8mbs2asfs5rslgk0fl3o4did2t9oa8o5kf8
        terminate : Tls ->{IO, Exception} ()
        
-  820. -- #i3pbnc98rbfug5dnnvpd4uahm2e5fld2fu0re9r305isffr1r43048h7ql6ojdbjcsvjr6h91s6i026na046ltg5ff59klla6e7vq98
+  820. -- #iis8ph5ljlq8ijd9jsdlsga91fh1354fii7955l4v52mnvn71cd76maculs0eathrmtfjqh0knbc600kmvq6abj4k2ntnbh5ee10m2o
        testAutoClean : '{IO} [Result]
        
-  821. -- #spepthutvs3p6je794h520665rh8abl36qg43i7ipvj0mtg5sb0sbemjp2vpu9j3feithk2ae0sdtcmb8afoglo9rnvl350380t21h0
+  821. -- #k1prgid1t9d4fu6f60rct978khcuinkpq49ps95aqaimt2tfoa77fc0c8i3pmc8toeth1s98al3nosaa1mhbh2j2k2nvqivm0ks963o
        Text.fromUtf8 : Bytes ->{Exception} Text
        
   822. -- #32q9jqhmi8f08pec3hj0je4u7k52f9f1hdfsmn9ncg2kpki5da9dabigplvdcot3a00k7s5npc4n78psd6ojaumqjla259e9pqd4ov8
@@ -2860,17 +2858,17 @@ This transcript is intended to make visible accidental changes to the hashing al
   823. -- #32q9jqhmi8f08pec3hj0je4u7k52f9f1hdfsmn9ncg2kpki5da9dabigplvdcot3a00k7s5npc4n78psd6ojaumqjla259e9pqd4ov8#0
        Throw.throw : e ->{Throw e} a
        
-  824. -- #vri6fsnl704n6aqs346p6ijcbkcsv9875edr6b74enumrhbjiuon94ir4ufmrrn84k9b2jka4f05o16mcvsjrjav6gpskpiu4sknd1g
-       uncurry : ∀ o g1 i g i1.
-         (i1 ->{g} i ->{g1} o) -> (i1, i) ->{g1, g} o
+  824. -- #f6pkvs6ukf8ngh2j8lm935p1bqadso76o7e3t0j1ukupjh1rg0m1rhtp7u492sq17p3bkbintbnjehc1cqs33qlhnfkoihf5uee4ug0
+       uncurry : ∀ i1 g1 i g o.
+         (i1 ->{g1} i ->{g} o) -> (i1, i) ->{g1, g} o
        
-  825. -- #rhak55ntto40n4utgv5o93jvlmv82lceb625slrt8tsmg74vin5bclf10vkl1sgpau3thqsa6guiihog74qoknlsqbuce5th60bu2eg
+  825. -- #u1o44hd0cdlfa8racf458sahdmgea409k8baajgc5k7bqukf2ak5ggs2ped0u3h85v99pgefgb9r7ct2dv4nn9eihjghnqf30p4l57g
        Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
        
   826. -- #o5bg5el7ckak28ib98j5b6rt26bqbprpddd1brrg3s18qahhbbe3uohufjjnt5eenvtjg0hrvnvpra95jmdppqrovvmcfm1ih2k7guo
        void : x -> ()
        
-  827. -- #8ugamqlp7a4g0dmbcvipqfi8gnuuj23pjbdfbof11naiun1qf8otjcap80epaom2kl9fv5rhjaudt4558n38dovrc0lhipubqjgm8mg
+  827. -- #b4pssu6mf30r4irqj43vvgbc6geq8pp7eg4o2erl948qp3nskp6io5damjj54o2eq9q76mrhsijr1q1d0bna4soed3oggddfvdajaj8
        writeFile : Text -> Bytes ->{IO, Exception} ()
        
   828. -- #lcmj2envm11lrflvvcl290lplhvbccv82utoej0lg0eomhmsf2vrv8af17k6if7ff98fp1b13rkseng3fng4stlr495c8dn3gn4k400
