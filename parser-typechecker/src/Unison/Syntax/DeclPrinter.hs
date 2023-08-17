@@ -180,7 +180,7 @@ fieldNames env r name dd = do
     for accessors \(v, _a, trm) ->
       case Result.result (Typechecker.synthesize env Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
         Nothing -> Nothing
-        Just typ -> Just (v, trm, typ)
+        Just typ -> Just (v, trm, Type.cleanup typ)
   let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
