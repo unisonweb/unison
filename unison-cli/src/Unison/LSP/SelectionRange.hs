@@ -2,56 +2,43 @@
 
 module Unison.LSP.SelectionRange where
 
+import Control.Comonad.Cofree (Cofree)
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens hiding (List)
 import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy qualified as IM
-import Data.List (sortBy)
+import Data.Map qualified as Map
+import Language.LSP.Types (Range (..))
 import Language.LSP.Types hiding (Range (..))
 import Language.LSP.Types qualified as LSP
-import Language.LSP.Types.Lens
+import Language.LSP.Types.Lens hiding (to)
+import Unison.ABT qualified as ABT
+import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
-import Unison.LSP.Conversions (annToURange, rangeToInterval, uToLspRange)
+import Unison.LSP.Conversions (annToLspRange, annToURange, lspToUPos, rangeToInterval, uToLspRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
+import Unison.Lexer.Pos qualified as L
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import Unison.Util.Range (Range (..))
+import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Range qualified as URange
 
 selectionRangeHandler :: RequestMessage 'TextDocumentSelectionRange -> (Either ResponseError (ResponseResult 'TextDocumentSelectionRange) -> Lsp ()) -> Lsp ()
 selectionRangeHandler m respond =
   respond . Right . fromMaybe mempty =<< runMaybeT do
-    ranges <- allRangesForFile (m ^. params . textDocument . uri)
+    ranges <- rangesForFile (m ^. params . textDocument . uri)
     Debug.debugM Debug.LSP "selection ranges in file" ranges
-    for (m ^. params . positions) \position -> do
-      let intersects = IM.containing ranges position
-      Debug.debugM Debug.LSP "intersects" intersects
-      let sorted = sortBy compareRanges $ IM.elems intersects
-      Debug.debugM Debug.LSP "sorted" sorted
-      let grouped = groupByParentage sorted
-      Debug.debugM Debug.LSP "grouped" grouped
-      pure $ fromMaybe (idRange position) grouped
+    let results =
+          (m ^. params . positions) & fmap \position ->
+            fromMaybe emptyRange $ toSelectionRange (lspToUPos position) ranges
+    Debug.debugM Debug.LSP "selection range results" ranges
+    pure results
   where
-    idRange :: LSP.Position -> LSP.SelectionRange
-    idRange p = SelectionRange {_range = LSP.Range p p, _parent = Nothing}
-    groupByParentage :: [URange.Range] -> Maybe SelectionRange
-    groupByParentage (r : next : rest)
-      | next `URange.contains` r =
-          Just
-            SelectionRange
-              { _range = uToLspRange next,
-                _parent = groupByParentage (next : rest)
-              }
-      | otherwise = groupByParentage (r : rest)
-    groupByParentage [r] = Just $ SelectionRange {_range = uToLspRange r, _parent = Nothing}
-    groupByParentage [] = Nothing
-
-    compareRanges :: URange.Range -> URange.Range -> Ordering
-    compareRanges r1@(Range start1 end1) r2@(Range start2 end2)
-      | r1 `URange.contains` r2 = LT
-      | r2 `URange.contains` r1 = GT
-      -- Otherwise neither range fits within the other, so sort arbitrarily
-      | otherwise = (start1, end1) `compare` (start2, end2)
+    -- According to the lsp specification, send an empty range if the position doesn't have a
+    -- valid range.
+    emptyRange = SelectionRange {_range = LSP.Range {_start = Position 0 0, _end = Position 0 0}, _parent = Nothing}
 
 allRangesForFile :: Uri -> MaybeT Lsp (IM.IntervalMap Position URange.Range)
 allRangesForFile uri = do
@@ -67,3 +54,30 @@ allRangesForFile uri = do
   where
     aToR :: Ann -> [URange.Range]
     aToR = maybeToList . annToURange
+
+rangesForTerm :: (Foldable f, Functor f) => (ABT.Term f v a) -> Cofree [] a
+rangesForTerm =
+  ABT.cata \a abt ->
+    a Cofree.:< toList abt
+
+rangesForFile :: Uri -> MaybeT Lsp [Cofree [] Ann]
+rangesForFile uri = do
+  FileAnalysis {parsedFile} <- getFileAnalysis uri
+  pf <- MaybeT $ pure parsedFile
+  let termRanges =
+        (UF.terms pf <> fold (Map.elems (UF.watches pf)))
+          <&> \(_v, ann, term) -> ann Cofree.:< [rangesForTerm term]
+  let declRanges =
+        ((UF.dataDeclarationsId pf ^.. folded . _2) <> (UF.effectDeclarationsId pf ^.. folded . _2 . to DD.toDataDecl))
+          <&> \DD.DataDeclaration {annotation, constructors'} ->
+            annotation Cofree.:< (constructors' <&> \(ann, _v, typ) -> ann Cofree.:< [rangesForTerm typ])
+  pure (termRanges <> declRanges)
+
+toSelectionRange :: L.Pos -> [Cofree [] Ann] -> Maybe SelectionRange
+toSelectionRange pos defs = do
+  defs & altMap \(a Cofree.:< rest) -> do
+    guard $ a `Ann.contains` pos
+    range <- annToLspRange a
+    let parent = SelectionRange {_range = range, _parent = Nothing}
+    let child = toSelectionRange pos rest <&> \c -> c {_parent = Just parent}
+    (child <|> pure parent)
