@@ -49,6 +49,7 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # The 'always()' causes this to build even if the ormolu job is skipped.
     if: ${{ always() }}
     needs: ormolu
     defaults:
