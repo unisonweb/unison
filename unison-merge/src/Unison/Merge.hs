@@ -81,7 +81,7 @@ data TermBloboid = TermBloboid
 
 makeTermBloboid :: Relation Referent Referent -> TermBloboid
 makeTermBloboid updates =
-  let canonicalizeMap = UFMap.freeze undefined
+  let canonicalizeMap = UFMap.freeze equivalenceClasses
       canonicalize r = Map.findWithDefault r r canonicalizeMap
       equivalenceClasses = computeEquivalenceClasses updates
    in TermBloboid {canonicalize, equivalenceClasses, updates}

@@ -37,6 +37,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
@@ -61,8 +62,8 @@ handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 _resultPath = do
   let mergeDatabase =
         Merge.Database
-          { loadConstructorType = wundefined,
-            loadTerm = wundefined,
+          { loadConstructorType = SqliteCodebase.Operations.getDeclType,
+            loadTerm = Operations.expectTermByReference,
             loadType = Operations.expectDeclByReference
           }
 
@@ -100,6 +101,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
         aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
         let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
+        let aliceTypeBloboid = Merge.makeTypeBloboid aliceTypeUpdates
+        let aliceTermBloboid = Merge.makeTermBloboid aliceTermUpdates
         (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
         aliceUserTypeUpdates <-
           Merge.computeTypeUserUpdates
@@ -114,12 +117,15 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   ref2
                   decl2
             )
-            (Merge.makeTypeBloboid aliceTypeUpdates)
+            aliceTypeBloboid
+        aliceUserTermUpdates <- Merge.computeTermUserUpdates v2HashHandle mergeDatabase aliceTypeBloboid aliceTermBloboid
 
         bobBranch <- Causal.value bobCausal
         bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
         bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
         let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
+        let bobTypeBloboid = Merge.makeTypeBloboid bobTypeUpdates
+        let bobTermBloboid = Merge.makeTermBloboid bobTermUpdates
         (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
         bobUserTypeUpdates <-
           Merge.computeTypeUserUpdates
@@ -134,7 +140,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   ref2
                   decl2
             )
-            (Merge.makeTypeBloboid bobTypeUpdates)
+            bobTypeBloboid
+        bobUserTermUpdates <- Merge.computeTermUserUpdates v2HashHandle mergeDatabase bobTypeBloboid bobTermBloboid
 
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="
@@ -147,11 +154,11 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Text.putStrLn ""
           Text.putStrLn "===== alice updates ====="
           printTypeUpdates aliceTypeUpdates aliceUserTypeUpdates
-          printTermUpdates aliceTermUpdates
+          printTermUpdates aliceTermUpdates aliceUserTermUpdates
           Text.putStrLn ""
           Text.putStrLn "===== bob updates ====="
           printTypeUpdates bobTypeUpdates bobUserTypeUpdates
-          printTermUpdates bobTermUpdates
+          printTermUpdates bobTermUpdates bobUserTermUpdates
           Text.putStrLn ""
 
 computeConstructorMapping ::
@@ -422,10 +429,10 @@ printTypeUpdates allUpdates userUpdates =
           <> " => "
           <> showReference new
 
-printTermUpdates :: Relation Referent Referent -> IO ()
-printTermUpdates allUpdates =
+printTermUpdates :: Relation Referent Referent -> Relation Referent Referent -> IO ()
+printTermUpdates allUpdates userUpdates =
   Text.putStr (Text.unlines (map f (Relation.toList allUpdates)))
   where
     f (old, new) =
-      (if False then Text.magenta else id) $
+      (if Relation.member old new userUpdates then Text.magenta else id) $
         "term " <> showReferent old <> " => " <> showReferent new
