@@ -8,7 +8,8 @@ module Unison.LSP.Diagnostics
   )
 where
 
-import Language.LSP.Types
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
@@ -42,8 +43,8 @@ reportDiagnostics ::
   Lsp ()
 reportDiagnostics docUri fileVersion diags = do
   let jsonRPC = "2.0"
-  let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = List . toList $ diags}
-  sendNotification (NotificationMessage jsonRPC STextDocumentPublishDiagnostics params)
+  let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = toList $ diags}
+  sendNotification (Msg.TNotificationMessage jsonRPC Msg.SMethod_TextDocumentPublishDiagnostics params)
 
 mkDiagnostic :: Uri -> Range -> DiagnosticSeverity -> Text -> [(Text, Range)] -> Diagnostic
 mkDiagnostic uri r severity msg references =
@@ -58,7 +59,10 @@ mkDiagnostic uri r severity msg references =
         case references of
           [] -> Nothing
           refs ->
-            Just . List $
+            Just $
               refs <&> \(msg, range) ->
-                DiagnosticRelatedInformation (Location uri range) msg
+                DiagnosticRelatedInformation (Location uri range) msg,
+      -- Could put links to the website in here with more info about specific errors.
+      _codeDescription = Nothing,
+      _data_ = Nothing
     }

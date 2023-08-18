@@ -16,7 +16,7 @@ nested.names.readme = {{ I'm a readme! }}
 ```
 
 ```api
-GET /api/list?namespace=nested.names
+GET /api/non-project-code/list?namespace=nested.names
 
-GET /api/list?namespace=names&relativeTo=nested
+GET /api/non-project-code/list?namespace=names&relativeTo=nested
 ```

@@ -90,5 +90,5 @@ term = 42
 ```
 
 ```api
-GET /api/getDefinition?names=term
+GET /api/non-project-code/getDefinition?names=term
 ```
