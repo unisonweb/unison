@@ -49,6 +49,7 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    if: ${{ always() }}
     needs: ormolu
     defaults:
       run:
