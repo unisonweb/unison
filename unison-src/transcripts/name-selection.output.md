@@ -448,7 +448,7 @@ d = c + 10
     196. builtin.unsafe.coerceAbilities                : (a
                                                        ->{e1} b)
                                                        -> a
-                                                       ->{e2} b
+                                                       -> b
     197. builtin.Universal.compare                     : a
                                                        -> a
                                                        -> Int
