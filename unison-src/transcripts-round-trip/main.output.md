@@ -40,6 +40,11 @@ So we can see the pretty-printed output:
     structural type Fix_2392a x y
       = Oog Nat Nat (Nat, Nat)
     
+    structural type foo.Join
+      = Join Boolean
+      | Table
+      | Values [Nat]
+    
     structural type Fully.qualifiedName
       = Dontcare () Nat
     

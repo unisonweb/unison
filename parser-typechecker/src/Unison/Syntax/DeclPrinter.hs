@@ -117,7 +117,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
       Nothing -> prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
       Just ts -> case fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
-          P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $
+          P.group . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $
             P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
         Just fs ->
           P.group $

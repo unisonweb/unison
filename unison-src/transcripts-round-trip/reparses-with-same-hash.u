@@ -460,3 +460,9 @@ test3 = do
 (>>>>) : Nat -> Nat -> ()
 (>>>>) n = cases
   _ -> bug ""
+
+-- regression test for https://github.com/unisonweb/unison/issues/4272
+-- where constructors with at least one argument don't get printed correctly
+-- this would previously get printed as `Join.Join`
+structural type foo.Join =
+  Table | Join Boolean | Values [Nat]
