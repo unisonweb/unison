@@ -144,10 +144,9 @@ synthesizeFile env0 uf = do
       -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
       unisonFilePPE =
-        ( PPE.fromNames
-            10
-            (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
-        )
+        PPE.fromNames
+          10
+          (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
