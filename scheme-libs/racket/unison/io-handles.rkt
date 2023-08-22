@@ -45,6 +45,7 @@
     getArgs.impl.v1
     getEnv.impl.v1
     getChar.impl.v1
+    isFileOpen.impl.v3
     process.call
     getCurrentDirectory.impl.v3
     ))
@@ -63,6 +64,15 @@
     (let* ([x7 (unison-any-any payload)]
            [x8 (unison-failure-failure typeLink message x7)])
     (unison-either-left x8)))
+
+  (define
+  builtin-Boolean:typelink
+  (unison-typelink-builtin "Boolean"))
+
+(define-unison (isFileOpen.impl.v3 port)
+    (unison-either-right
+        (data builtin-Boolean:typelink
+      (if (port-closed? port) 0 1))))
 
 (define-unison (getCurrentDirectory.impl.v3 unit)
     (unison-either-right

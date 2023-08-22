@@ -17,6 +17,7 @@ io.tests = Tests.main do
     !io.test_getCurrentDirectory
     !io.test_createTempDirectory
     !io.test_renameFile
+    !io.test_isFileOpen
 
 rm_if_exists fp =
     if FilePath.exists fp
@@ -41,6 +42,16 @@ io.test_createTempDirectory = do
                 Tests.fail "Tmp directory doesn't exist" text
         else
             Tests.fail "Tmp directory doesn't contain prefix-" text
+
+io.test_isFileOpen = do
+    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
+    fhandle = open fp Write
+    open1 = isOpen fhandle
+    Handle.close fhandle
+    open2 = isOpen fhandle
+    rm_if_exists fp
+    checkEqual "opened handle is open" open1 true
+    checkEqual "closed handle is not open" open2 false
 
 io.test_renameFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
