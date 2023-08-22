@@ -15,6 +15,7 @@ io.tests = Tests.main do
     !io.test_getSomeBytes
     !io.test_getChar
     !io.test_getCurrentDirectory
+    !io.test_createTempDirectory
 
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")

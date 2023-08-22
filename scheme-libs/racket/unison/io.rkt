@@ -3,6 +3,7 @@
          unison/chunked-seq
          unison/core
          unison/data-info
+         racket/file
          racket/flonum
          (only-in unison/boot data-case define-unison)
          (only-in
@@ -31,7 +32,9 @@
   (prefix-out
     builtin-IO.
     (combine-out
-        createCurrentDirectory.impl.v3)))
+        createDirectory.impl.v3
+        removeDirectory.impl.v3
+        createTempDirectory.impl.v3)))
 
 (define (getFileSize.impl.v3 path)
     (with-handlers
@@ -43,8 +46,13 @@
         [[exn:fail:filesystem? (lambda (e) (exception "IOFailure" (exception->string e) '()))]]
         (right (file-or-directory-modify-seconds (chunked-string->string path)))))
 
+; in haskell, it's not just file but also directory
 (define (fileExists.impl.v3 path)
-    (right (bool (file-exists? (chunked-string->string path)))))
+    (let ([path-string (chunked-string->string path)])
+    (right (bool
+        (or
+        (file-exists? path-string)
+        (directory-exists? path-string))))))
 
 (define (removeFile.impl.v3 path)
     (delete-file (chunked-string->string path))
@@ -53,10 +61,21 @@
 (define (getTempDirectory.impl.v3)
     (right (string->chunked-string (path->string (find-system-path 'temp-dir)))))
 
-(define-unison (createCurrentDirectory.impl.v3 prefix)
+(define-unison (createTempDirectory.impl.v3 prefix)
     (unison-either-right
         (string->chunked-string
-            (make-temporary-directory* (chunked-string->string prefix) ""))))
+            (path->string
+                (make-temporary-directory*
+                    (string->bytes/utf-8
+                        (chunked-string->string prefix)) #"")))))
+
+(define-unison (createDirectory.impl.v3 file)
+    (make-directory (chunked-string->string file))
+    (unison-either-right none))
+
+(define-unison (removeDirectory.impl.v3 file)
+    (delete-directory (chunked-string->string file))
+    (unison-either-right none))
 
 (define (threadCPUTime.v1)
     (right (current-process-milliseconds (current-thread))))
