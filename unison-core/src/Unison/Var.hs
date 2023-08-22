@@ -17,6 +17,7 @@ module Unison.Var
     inferTypeConstructorArg,
     isAction,
     joinDot,
+    mergeEcVar,
     missingResult,
     name,
     nameStr,
@@ -140,6 +141,9 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
+mergeEcVar :: (Var v) => Int -> v
+mergeEcVar n = typed (EquivalenceClass n)
+
 unnamedRef :: (Var v) => Reference.Id -> v
 unnamedRef ref = typed (UnnamedReference ref)
 
@@ -157,6 +161,8 @@ data Type
     Blank
   | -- | An unnamed reference, created during unhashing a term/decl component.
     UnnamedReference Reference.Id
+  | -- | An unnamed reference, used for equating versions of a term during a merge.
+    EquivalenceClass Int
   | -- An unnamed watch expression of the given kind, for instance:
     --
     --  test> Ok "oog"

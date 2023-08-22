@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-prelude
+name:           unison-util-bimultimap
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,24 +17,12 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Text
-      Unison.Debug
-      Unison.Prelude
-      Unison.Util.Alternative
-      Unison.Util.Lens
-      Unison.Util.List
-      Unison.Util.Map
-      Unison.Util.Maybe
-      Unison.Util.Monoid
-      Unison.Util.Set
-      Unison.Util.Timing
+      Unison.Util.BiMultimap
   hs-source-dirs:
       src
   default-extensions:
       ApplicativeDo
-      BangPatterns
       BlockArguments
-      ConstraintKinds
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
@@ -43,26 +31,14 @@ library
       ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
-      RankNTypes
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
-    , bytestring
     , containers
-    , either
-    , extra
-    , lens
-    , mtl
-    , pretty-simple
-    , safe
-    , text
-    , time
-    , transformers
-    , unliftio
-    , vector
-    , witch
-    , witherable
+    , unison-prelude
   default-language: Haskell2010

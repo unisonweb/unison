@@ -1,12 +1,17 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Unison.Merge () where
 
 import Control.Lens ((%~))
+import Control.Lens qualified as Lens
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
-import Data.List qualified as List
+import Data.List (partition)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.Vector.Unboxed qualified as UVector
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
@@ -21,17 +26,37 @@ import U.Codebase.Term (ResolvedTerm, Term)
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type as Type
 import U.Core.ABT qualified as ABT
+import Unison.ABT qualified as ABT
+import Unison.ABT qualified as V1.ABT
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
-import Unison.Core.ConstructorId (ConstructorId)
+import Unison.DataDeclaration qualified as V1
+import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
+import Unison.Hashing.V2 qualified as Hashing.V2
+import Unison.Hashing.V2.Convert qualified as V2.Convert
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency qualified as LD
 import Unison.PatternMatchCoverage.UFMap (UFMap)
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
+import Unison.Reference qualified as V1
+import Unison.Reference qualified as V1.Reference
+import Unison.Referent qualified as V1
+import Unison.Referent qualified as V1.Referent
+import Unison.Term qualified as V1
+import Unison.Term qualified as V1.Term
+import Unison.Type qualified as V1
+import Unison.Type qualified as V1.Type
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.TransitiveClosure (transitiveClosure1')
 import Unison.Var (Var)
+import Unison.Var qualified as V1.Var
 
 data NamespaceDiff reference referent = NamespaceDiff
   { -- Mapping from old term to new term.
@@ -249,8 +274,8 @@ boingoBeats ::
   Relation ref ref ->
   ()
 boingoBeats refToDependencies allUpdates userUpdates =
-  let equivalenceClasses :: Bimap EC (Set ref)
-      equivalenceClasses =
+  let coreECs :: Bimap EC (Set ref)
+      coreECs =
         allUpdates
           & computeEquivalenceClasses
           & UFMap.toClasses
@@ -259,10 +284,10 @@ boingoBeats refToDependencies allUpdates userUpdates =
           & Bimap.fromList
 
       -- \| Compute and look up a ref in the reverse mapping (Set ref -> EC)
-      whichEquivalenceClass :: ref -> Maybe EC
-      whichEquivalenceClass =
+      lookupCoreEC :: ref -> Maybe EC
+      lookupCoreEC =
         let m =
-              equivalenceClasses
+              coreECs
                 & Bimap.toList
                 & foldl' (\acc (i, refs) -> foldl' (\acc2 ref -> Map.insert ref i acc2) acc refs) Map.empty
          in \ref -> Map.lookup ref m
@@ -282,7 +307,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
       coreDependencyGraph = Relation.fromMultimap mm
         where
           mm =
-            equivalenceClasses & Bimap.toMap & Map.map \class_ ->
+            coreECs & Bimap.toMap & Map.map \class_ ->
               let dependencies = foldMap refToDependencies . Set.intersection class_
                   -- The dependencies of *all* of the old stuff affected by the merge
                   lcaDeps = dependencies allUpdatesLhs
@@ -291,11 +316,10 @@ boingoBeats refToDependencies allUpdates userUpdates =
                   -- The dependencies of *the user-touched subset* of the new stuff
                   userUpdateRhsDeps = dependencies userUpdatesRhs
                in userUpdateRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdateLhsDeps)
-                    & Set.mapMaybe whichEquivalenceClass
+                    & Set.mapMaybe lookupCoreEC
 
-      allDependencyGraph :: Relation EC EC
-      allDependencyGraph = coreDependencyGraph <> extraDependents
-      -- coreDependencyRelation = Relation.fromMultimap coreDependencyGraph
+      -- allDependencyGraph :: Relation EC EC
+      -- allDependencyGraph = coreDependencyGraph <> extraDependents
 
       dependenciesOfDependentsOfCore :: Relation ref ref
       dependenciesOfDependentsOfCore =
@@ -305,22 +329,23 @@ boingoBeats refToDependencies allUpdates userUpdates =
             (wundefined "scope / modified namespace")
             (wundefined "query / core class references")
 
-      extraECs :: Bimap EC (Set ref)
-      extraECs =
-        let startIndex = EC (Bimap.size equivalenceClasses)
-         in Bimap.fromList ([startIndex ..] `zip` (map Set.singleton . toList . Relation.dom) dependenciesOfDependentsOfCore)
+      -- -- The dependencies of dependents
+      -- -- TODO: Need to prove that there's no overlap between core and extra
+      -- extraECs :: Bimap EC (Set ref)
+      -- extraECs =
+      --   let startIndex = EC (Bimap.size coreECs)
+      --    in Bimap.fromList ([startIndex ..] `zip` (map Set.singleton . toList . Relation.dom) dependenciesOfDependentsOfCore)
 
-      extraDependents :: Relation EC EC
-      extraDependents =
-        let startIndex = Bimap.size equivalenceClasses
-         in wundefined
+      -- extraDependents :: Relation EC EC
+      -- extraDependents =
+      --   let startIndex = Bimap.size equivalenceClasses
 
       isConflicted :: EC -> Maybe Bool
       isConflicted = fmap unBit . (isConflictedBits UVector.!?) . unEC
 
       isConflictedBits :: UVector.Vector Bit
-      isConflictedBits = UVector.generate (Bimap.size equivalenceClasses) \idx ->
-        let ecMembers = equivalenceClasses Bimap.! (EC idx)
+      isConflictedBits = UVector.generate (Bimap.size coreECs) \idx ->
+        let ecMembers = coreECs Bimap.! (EC idx)
             memberUserChanges = Set.intersection ecMembers userUpdatesRhs
          in Bit $ Set.size memberUserChanges > 1
 
@@ -328,10 +353,15 @@ boingoBeats refToDependencies allUpdates userUpdates =
       conflictedNodes = Set.filter (fromMaybe err . isConflicted) (Relation.dom coreDependencyGraph)
         where
           err = error "impossible: every node in the core graph should be in the map"
-   in -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
-      --
 
-      -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
+      -- Q: How do we move the conflicted nodes and their dependents to a separate Map?
+      unconflictedMap, conflictedMap :: Map EC (Set EC)
+      unconflictedMap = wundefined
+      conflictedMap = wundefined
+
+      outputMappings :: Map EC ref
+      outputMappings = wundefined
+   in -- 1. We have the mapping for the core nodes (DONE: coreClassDependencies).
       -- 2. Next we do these in any order: (DONE)
       --     * classify the core nodes into conflicted or not (DONE: isConflicted)
       --     * add (from the LCA + both branches) the transitive dependents of all the core nodes. (DONE: getTransitiveDependents)
@@ -357,14 +387,17 @@ boingoBeats refToDependencies allUpdates userUpdates =
 -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
 getTransitiveDependents ::
   forall ref.
+  Ord ref =>
+  -- | load dependents for a ref
   (ref -> Set ref) ->
-  Set ref ->
-  -- \^ "scope" e.g. the LCA namespace - fully removed references + newly added definitions
+  -- | "scope" e.g. the LCA namespace - fully removed references + newly added definitions
   -- Anything in scope that is a dependent of the query set will be returned, and also intermediate dependents.
   Set ref ->
-  -- \^ "query" e.g. core class references
+  -- | "query" e.g. core class references
+  Set ref ->
   Map ref (Set ref)
--- \^ the encountered transitive dependents, and their direct dependencies
+-- ^ the encountered transitive dependents, and for each, the set of their direct dependencies,
+-- since we have it here anyway and need it later.
 getTransitiveDependents refToDependencies scope query = search Map.empty query (Set.toList scope)
   where
     search :: Map ref (Set ref) -> Set ref -> [ref] -> Map ref (Set ref)
@@ -393,29 +426,357 @@ getTransitiveDependents refToDependencies scope query = search Map.empty query (
         isDependent = flip Map.member dependents
         isSeen = flip Set.member seen
 
-staryafish ::
-  (Monad m, Var v) =>
-  -- Get a term by reference
-  (TermReference -> m (Term v)) ->
-  -- The type substitutions to make
-  (TypeReference -> TypeReference) ->
-  -- The constructor substitutions to make
-  ((TypeReference, ConstructorId, ConstructorType) -> (TypeReference, ConstructorId, ConstructorType)) ->
-  -- The term substitutions to make, which we will add to (if the substitution succeeds)
-  Map TermReference TermReference ->
-  [TermReference] ->
-  m ()
-staryafish getTerm _ _ _ termRefs = do
-  terms <- traverse getTerm termRefs
+data Intervention v a = IResolveConflict (Defn v a) [Defn v a] | IKindCheck | ITypeCheck
+  deriving (Eq, Ord, Show)
 
-  -- Perform type substitutions in-place
+-- some cases where we want user intervention:
+-- a generated decl fails to kind check hahahaha
+-- a generated term fails to typecheck
 
-  -- Perform term substitutions in-place
+-- a type was updated and deleted a constructor, but a new use of that constructor was added, so we didn't delete the constructor (or we renamed it foo.deleted_<hashprefix>)
+-- could we have some convention that shows certain names as deprecated?
 
-  -- Perform data constructor substitutions in-place
+-- some things we want to warn about?:
+-- a definition was deleted, but a new dependent was added, so we didn't delete the definition (or we renamed it foo.deleted_<hashprefix>)
 
-  -- Replace each term reference that's in an equivalency group with a new fresh variable
+-- staryafish :: (Monad m, Var v)
+--   => (TypeReference -> m (Decl v)) -- ^ Load a type by reference
+--   -> (TermReference -> m (Term v)) -- ^ Load a term by reference
+--   -> [[(EC, Set TypeReference, TypeReference)]] -- ^ EC SCCs in topological order, dependencies before dependents
+--   -> m (Map EC (TypeReference, ManualIntervention))
 
-  -- Hash
+--
 
-  pure ()
+data Result v a = RSimple DefnRef | RSuccess DefnRefId (Defn v a) | RNeedsIntervention (Intervention v a) | RSkippedDependency EC
+  deriving (Eq, Ord, Show)
+
+data WorkItem = WiType EC | WiTypes (NESet EC) | WiTerm EC | WiTerms (NESet EC)
+  deriving (Eq, Ord, Show)
+
+data Defn v a = DefnTerm (V1.Term v a) (V1.Type v a) | DefnDecl (V1.Decl v a) | DefnCtor
+  deriving (Eq, Ord, Show)
+
+data DefnRef = DrTypeRef V1.TypeReference | DrTermish V1.Referent
+  deriving (Eq, Ord, Show)
+
+data DefnRefId = DriTypeRefId V1.TypeReferenceId | DriTermRefId V1.Referent.Id
+  deriving (Eq, Ord, Show)
+
+-- | The work queue comes in as [Set EC].
+-- Each (Set EC) represents a possible cycle/component in the output namespace.
+-- A single EC does not correspond to a cycle/component, it may contain references from many different cycle/components.
+-- The cycle/components are not important here, except that the (Set EC) represents potentially one or more components in the output namespace.
+processWorkItems ::
+  forall m v a.
+  (Monad m, Var v, Show a) =>
+  (V1.TermReferenceId -> m (Term v)) ->
+  (V1.TypeReferenceId -> m (Decl v)) ->
+  (EC -> DefnRef) ->
+  BiMultimap EC DefnRef ->
+  BiMultimap EC DefnRef ->
+  Relation EC EC ->
+  ((DefnRef -> Maybe (Result v a)) -> DefnRef -> (DefnRef, (Defn v a))) ->
+  Map EC (Result v a) ->
+  [WorkItem] ->
+  m (Map EC (Result v a))
+processWorkItems
+  (loadTerm :: V1.TermReferenceId -> m (Term v))
+  (loadDecl :: V1.TypeReferenceId -> m (Decl v))
+  (latestDefnRef :: EC -> DefnRef)
+  -- \^ to be able to rewrite them
+  (ecMembers :: BiMultimap EC DefnRef)
+  -- \^ any of these must be replaced by the synthesized result for the EC
+  (ecLatestMembers :: BiMultimap EC DefnRef)
+  (ecDependencies :: Relation EC EC)
+  -- \^ used for finding dependents to be moved to scratch
+  (rewriteComponent :: ((DefnRef -> Maybe (Result v a)) -> DefnRef -> (DefnRef, Defn v a)))
+  (replacements :: Map EC (Result v a))
+  (queue :: [WorkItem]) =
+    let recurse = processWorkItems loadTerm loadDecl latestDefnRef ecMembers ecLatestMembers ecDependencies rewriteComponent
+     in case queue of
+          [] -> pure replacements
+          wi : queue' ->
+            case wi of
+              WiType ec -> do
+                result <- handleOneType ec
+                recurse (Map.insert ec result replacements) queue'
+              WiTypes ecs -> wundefined
+              WiTerm ec -> wundefined
+              WiTerms ecs -> wundefined
+    where
+      handleOneType :: EC -> m (Result v a)
+      handleOneType ec = case latestDefnRef ec of
+        DrTypeRef r@V1.Reference.DerivedId {} -> do
+          decl <- fmap wundefined . loadDecl . wundefined $ r
+          let rewrittenDecl = rewriteDeclDependencies decl
+          let hashed = wundefined . Hashing.V2.hashClosedDecl @v . wundefined $ rewrittenDecl -- is this ok?
+          pure $ RSuccess (DriTypeRefId hashed) (DefnDecl rewrittenDecl)
+        dr@(DrTypeRef V1.Reference.Builtin {}) -> pure $ RSimple dr
+        DrTermish _ -> error "expected a type, got a term"
+
+      handleManyTypes :: NESet EC -> m (Result v a)
+      handleManyTypes ecs = do
+        let latestRefs :: Map EC V1.TypeReferenceId
+            latestRefs =
+              Map.fromList
+                [ (ec, r)
+                  | ec <- toList ecs,
+                    let r = case latestDefnRef ec of
+                          DrTypeRef (V1.Reference.DerivedId r) -> r
+                          _ -> error "expected a derived id"
+                ]
+        latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
+          Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
+        -- V1Decl.unhashComponent
+        wundefined
+      -- Staryafish algorithm:
+      -- 1. Load the latest version of each definition
+      --   (those on the end of a solid arrow, or those with no outbound solid arrows):
+      --   #a.0 (untouched), #f.0 (bob change), #d.0 (alice change)
+      -- 2. Equivalency groups:
+      --     "v0" = {#a.0, #d.1, #e.0}
+      --     "v1"  = {#b.0, #d.2, #f.0}
+      --     "v2" = {#c.0, #d.0}
+      -- 3. Make substitutions in terms we loaded:
+      --     "v0" = #a.0 such that #b.0 replaced by "v1"
+      --     "v1"  = #f.0 such that #c.0 replaced by "v2"
+      --     "v2" = #d.0 such that #d.1 replaced by "v0"
+      -- 4. Hash those
+
+      -- latestDefnsDrTypeRef (V1Reference.DerivedId r) =
+      -- latestDefnRef ec >>= \case {}
+      -- DrTypeRef
+      -- decls <- Map.fromList <$> traverse (\ec -> \DefnType (ec,) <$> loadLatestDefn ec) (toList ecs)
+
+      rewriteDeclDependencies :: decl -> decl
+      rewriteDeclDependencies decl =
+        let declDependencies :: Set V1.TypeReference
+            declDependencies = V1.Decl.declTypeDependencies @v (wundefined decl)
+            typeReplacements :: [(V1.TypeReference, V1.TypeReference)]
+            typeReplacements = mapMaybe (\dep -> (dep,) <$> typeReplacementRef dep) (toList declDependencies)
+            rewrittenDecl = foldl' (\decl (old, new) -> wundefined "replace old with new in decl" old new decl) decl typeReplacements
+         in rewrittenDecl
+
+      typeReplacementRef :: V1.TypeReference -> Maybe V1.TypeReference
+      typeReplacementRef dep =
+        -- for a dependency, look up its EC, and look up the replacement for that EC if any.
+        case BiMultimap.lookupR (DrTypeRef dep) ecMembers of
+          Just ec -> case Map.lookup ec replacements of
+            Just (RSuccess (DriTypeRefId r) _) -> Just (V1.Reference.DerivedId r)
+            Just r -> error $ "tried to look up a dependency that has already exhibited some problem: " ++ show ec ++ ": " ++ show r
+            Nothing -> error $ "tried to look up a dependency that hasn't been processed yet: " ++ show ec
+          Nothing -> Nothing
+
+-- Staryafish algorithm:
+-- 1. Load the latest version of each definition
+--   (those on the end of a solid arrow, or those with no outbound solid arrows):
+--   #a.0 (untouched), #f.0 (bob change), #d.0 (alice change)
+-- 2. Equivalency groups:
+--     "v0" = {#a.0, #d.1, #e.0}
+--     "v1"  = {#b.0, #d.2, #f.0}
+--     "v2" = {#c.0, #d.0}
+-- 3. Make substitutions in terms we loaded:
+--     "v0" = #a.0 such that #b.0 replaced by "v1"
+--     "v1"  = #f.0 such that #c.0 replaced by "v2"
+--     "v2" = #d.0 such that #d.1 replaced by "v0"
+-- 4. Hash those
+
+-- | Split the work queue in two (dependent on target, not dependent on target)
+moveDependents :: Relation EC EC -> EC -> [Set EC] -> ([Set EC], [Set EC])
+moveDependents
+  (ecDependencies :: Relation EC EC)
+  (target :: EC)
+  (queue :: [Set EC]) =
+    let getDependents :: EC -> Set EC
+        getDependents ec = Relation.lookupRan ec ecDependencies
+        transitiveDependents = transitiveClosure1' getDependents target
+     in partition (any (\e -> Set.member e transitiveDependents)) queue
+
+moveDependents' :: Relation EC EC -> EC -> [WorkItem] -> ([WorkItem], [WorkItem])
+moveDependents'
+  (ecDependencies :: Relation EC EC)
+  (target :: EC)
+  (queue :: [WorkItem]) =
+    let getDependents :: EC -> Set EC
+        getDependents ec = Relation.lookupRan ec ecDependencies
+        transitiveDependents = transitiveClosure1' getDependents target
+     in partition (any (`Set.member` transitiveDependents) . workItemToECs) queue
+
+workItemToECs :: WorkItem -> NESet EC
+workItemToECs = \case
+  WiType ec -> NESet.singleton ec
+  WiTypes ecs -> ecs
+  WiTerm ec -> NESet.singleton ec
+  WiTerms ecs -> ecs
+
+data DeclError = DeDependentKind (V1.TypeReference, V1.TypeReference)
+  deriving (Eq, Ord, Show)
+
+data TermError
+  = TeDependentKind (V1.TypeReference, V1.TypeReference)
+  | TeFailedTypecheck (V1.TypeReference, V1.TypeReference)
+  deriving (Eq, Ord, Show)
+
+-- | Staryafish on type decls.
+-- `component` must have 2+ elements.
+rewriteDeclComponent ::
+  forall m v a.
+  (Monad m, Var v, Monoid a, Show a) =>
+  (V1.TypeReferenceId -> m (V1.Decl v a)) ->
+  (DefnRef -> Maybe EC) ->
+  Map EC (Result v a) ->
+  Map EC (V1.Decl v a) ->
+  m (Map EC (Result v a))
+rewriteDeclComponent loadDecl ecForRef finished component = do
+  when (Map.size component < 2) $
+    error "rewriteDeclComponent: this function is only for components with mutual recursion"
+  -- we're going to iterate, doing one replacement step for each dependency of each member of the component
+  let declDependencies :: V1.Decl v a -> Set V1.TypeReference
+      declDependencies decl = V1.Decl.declTypeDependencies decl
+      -- goes from a set of dependencies to a list of replacement expressions
+      rewrittenComponent = traverse rewriteDecl component
+        where
+          ctorType = V1.Decl.constructors_ . Lens.each . Lens._3
+          rewriteDecl decl = foldl' stepDecl decl <$> (setupTypeReplacements (declDependencies decl))
+          setupTypeReplacements dependencies =
+            concat <$> traverse (buildTypeReplacement loadDecl ecForRef finished component) (toList dependencies)
+          stepDecl decl (oldType, newType) =
+            V1.Decl.modifyAsDataDecl (Lens.over ctorType (Maybe.rewrite (ABT.rewriteExpression oldType newType))) decl
+  -- todo: do we kind-check first? or hash first?
+  V2.Convert.hashDecls <$> (Map.mapKeys (V1.Var.mergeEcVar . unEC) <$> rewrittenComponent) >>= \case
+    Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
+    Right hashed -> pure $ foldl' addReplacement finished hashed
+      where
+        addReplacement :: Map EC (Result v a) -> (v, V1.Reference.Id, V1.Decl.Decl v a) -> Map EC (Result v a)
+        addReplacement replacements (v, declId, decl) =
+          let ec = case V1.Var.typeOf v of
+                V1.Var.EquivalenceClass ec -> EC ec
+                t -> error $ "unexpected Var type " ++ show t
+           in Map.insert ec (RSuccess (DriTypeRefId declId) (DefnDecl decl)) replacements
+
+-- | implementation detail of rewriteDeclComponent and rewriteTermComponent
+-- returns a list of replacements that should be attempted, if any, in order.
+buildTypeReplacement ::
+  (Monad m, Var v, Monoid a, Show a) =>
+  (V1.TypeReferenceId -> m (V1.Decl v a)) ->
+  (DefnRef -> Maybe EC) ->
+  Map EC (Result v a) ->
+  Map EC (V1.Decl v a) ->
+  V1.TypeReference ->
+  m [(V1.Type v a, V1.Type v a)]
+buildTypeReplacement loadDecl ecForRef finished component rOld = do
+  mayOldDecl <- case rOld of
+    V1.Reference.Builtin {} -> pure Nothing
+    V1.Reference.DerivedId rOld -> Just <$> loadDecl rOld
+  -- construct the fully-saturated replacement
+  let saturatedReplacement ty decl = mayOldDecl <&> \oldDecl -> (applySaturated (ref rOld) oldDecl, applySaturated ty decl)
+  case ecForRef (DrTypeRef rOld) of
+    Just ec ->
+      -- Is it part of the current component?
+      case (Map.lookup ec component, Map.lookup ec finished) of
+        -- Yes, it's part of the current component.
+        (Just latestDecl, Nothing) ->
+          pure . catMaybes $
+            [ saturatedReplacement (var ec) latestDecl,
+              Just (ref rOld, var ec)
+            ]
+        -- Is it part of an earlier component?
+        (Nothing, Just (RSimple (DrTypeRef rNew))) -> pure [(ref rOld, ref rNew)]
+        (Nothing, Just (RSuccess (DriTypeRefId rNew) (DefnDecl newDecl))) ->
+          pure . catMaybes $
+            [ saturatedReplacement (refId rNew) newDecl,
+              Just (ref rOld, refId rNew)
+            ]
+        (Just {}, Just {}) -> error $ "rewriteDeclComponent: " ++ show ec ++ " showed up as both finished and active"
+        (Nothing, Just e) -> error $ "rewriteDeclComponent: we shouldn't see this for a dependency: " ++ show ec ++ " " ++ show e
+        (Nothing, Nothing) -> error $ "rewriteDeclComponent: we should see something for " ++ show ec
+    -- r is not part of any EC, so we leave it alone.
+    Nothing -> pure []
+  where
+    ref r = V1.Type.ref mempty r
+    refId r = V1.Type.refId mempty r
+    var ec = V1.Type.var mempty (V1.Var.mergeEcVar (unEC ec))
+    -- given ty, decl; return the applied type (ty a b c...) where `a b c...` are the type vars bound by decl
+    applySaturated ty decl = V1.Type.apps' ty (V1.Type.var mempty <$> V1.Decl.bound (V1.Decl.asDataDecl decl))
+
+-- This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables
+rewriteTermComponent ::
+  forall m v a.
+  (Monad m, Var v, Monoid a, Eq a, Show a) =>
+  (V1.TypeReferenceId -> m (V1.Decl v a)) ->
+  (V1.Reference.Id -> m (V1.Term v a)) ->
+  (DefnRef -> Maybe EC) ->
+  Map EC (Result v a) ->
+  Map EC (V1.Term v a) ->
+  m (Map EC (Result v a))
+rewriteTermComponent loadDecl loadTerm ecForRef finished component = do
+  when (Map.size component < 2) $
+    error "Merge.rewriteTermComponent: this function is only for components with mutual recursion"
+  let termDependencies :: V1.Term v a -> Set LabeledDependency
+      termDependencies term = V1.Term.labeledDependencies term
+      rewrittenComponent = traverse rewriteTerm component
+        where
+          rewriteTerm term = foldl' stepTerm term <$> setupReplacements (termDependencies term)
+          stepTerm :: V1.Term.Term v a -> Either (V1.Type.Type v a, V1.Type.Type v a) (V1.Term.Term v a, V1.Term.Term v a) -> V1.Term.Term v a
+          stepTerm term = \case
+            Left (oldType, newType) -> term & Maybe.rewrite (V1.Term.rewriteSignatures oldType newType)
+            Right (oldTerm, newTerm) ->
+              term
+                & Maybe.rewrite (V1.Term.rewriteCasesLHS oldTerm newTerm)
+                & Maybe.rewrite (V1.ABT.rewriteExpression oldTerm newTerm)
+
+      setupReplacements :: Set LabeledDependency -> m [Either (V1.Type v a, V1.Type v a) (V1.Term v a, V1.Term v a)]
+      setupReplacements dependencies = concat <$> traverse buildReplacement (toList dependencies)
+        where
+          buildReplacement :: LabeledDependency -> m [Either (V1.Type v a, V1.Type v a) (V1.Term v a, V1.Term v a)]
+          buildReplacement = \case
+            LD.TypeReference rOld -> fmap Left <$> buildTypeReplacement loadDecl ecForRef finished mempty rOld
+            LD.TermReferent rOld -> do
+              mayOldTerm <- case rOld of
+                V1.Referent.Con {} -> pure Nothing
+                V1.Referent.Ref (V1.Reference.Builtin {}) -> pure Nothing
+                V1.Referent.Ref (V1.Reference.DerivedId rOld) -> Just <$> loadTerm rOld
+              -- construct the fully-saturated replacement
+              let saturatedReplacement fn decl = Nothing -- todo -- mayOldTerm <&> \oldTerm -> Right (applySaturated (ref rOld) (params oldTerm), applySaturated fn (params newTerm))
+              -- -- given ty, decl; return the applied type (ty a b c...) where `a b c...` are the type vars bound by decl
+              -- where applySaturated fn params = V1.Term.apps' fn (V1.Term.var mempty <$> params)
+              case ecForRef (DrTermish rOld) of
+                Nothing -> pure []
+                Just ec ->
+                  case (Map.lookup ec component, Map.lookup ec finished) of
+                    -- Is it part of the current component.
+                    (Just latestTerm, Nothing) ->
+                      pure . fmap Right . catMaybes $
+                        [ saturatedReplacement (var ec) latestTerm,
+                          Just (ref rOld, var ec)
+                        ]
+                    -- Is it part of an earlier component?
+                    (Nothing, Just (RSimple (DrTermish rNew))) -> pure [Right (ref rOld, ref rNew)]
+                    (Nothing, Just (RSuccess (DriTermRefId rNew) (DefnTerm newTerm _newTermType))) ->
+                      pure . fmap Right . catMaybes $
+                        [ saturatedReplacement (refId rNew) newTerm,
+                          Just (ref rOld, refId rNew)
+                        ]
+                    (Just {}, Just {}) -> error $ "rewriteTermComponent: " ++ show ec ++ " showed up as both finished and active"
+                    (Nothing, Just e) -> error $ "rewriteTermComponent: we shouldn't see this for a dependency: " ++ show ec ++ " " ++ show e
+                    (Nothing, Nothing) -> error $ "rewriteTermComponent: we should see something for " ++ show ec
+          ref :: V1.Referent -> V1.Term v a
+          ref r = V1.Term.fromReferent mempty r
+          refId :: V1.Referent.Id -> V1.Term v a
+          refId r = V1.Term.fromReferentId mempty r
+          var :: EC -> V1.Term v a
+          var ec = V1.Term.var mempty (V1.Var.mergeEcVar (unEC ec))
+
+  wundefined "todo: typecheck" rewrittenComponent >>= \case
+    Left failures ->
+      wundefined "todo: insert failure results into `finished"
+    Right typecheckedResult -> do
+      let hashed = V2.Convert.hashTermComponents typecheckedResult
+      let addReplacement :: Map EC (Result v a) -> (v, (V1.Reference.Id, V1.Term v a, V1.Type v a, extra)) -> Map EC (Result v a)
+          addReplacement m (v, (r, tm, tp, _extra)) =
+            let ec = case V1.Var.typeOf v of
+                  V1.Var.EquivalenceClass ec -> EC ec
+                  t -> error $ "unexpected Var type " ++ show t
+             in Map.insert ec (RSuccess (DriTermRefId $ V1.Referent.RefId r) (DefnTerm tm tp)) m
+      pure $ foldl' addReplacement finished (Map.toList hashed)

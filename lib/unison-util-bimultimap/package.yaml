@@ -1,0 +1,34 @@
+name: unison-util-bimultimap
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_bimultimap
+
+dependencies:
+  - base
+  - containers
+  - unison-prelude
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - ImportQualifiedPost
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

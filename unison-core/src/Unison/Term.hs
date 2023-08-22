@@ -16,7 +16,7 @@ import Data.Text qualified as Text
 import Text.Show
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
@@ -810,8 +810,14 @@ missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholde
 constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
+constructorId :: Ord v => a -> ConstructorReferenceId -> Term2 vt at ap v a
+constructorId a ref = constructor a (Reference.DerivedId <$> ref)
+
 request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
+
+requestId :: Ord v => a -> ConstructorReferenceId -> Term2 vt at ap v a
+requestId a ref = request a (Reference.DerivedId <$> ref)
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1375,6 +1381,17 @@ fromReferent a = \case
   Referent.Con r ct -> case ct of
     CT.Data -> constructor a r
     CT.Effect -> request a r
+
+fromReferentId ::
+  Ord v =>
+  a ->
+  Referent.Id ->
+  Term2 vt at ap v a
+fromReferentId a = \case
+  Referent.RefId r -> refId a r
+  Referent.ConId r ct -> case ct of
+    CT.Data -> constructorId a r
+    CT.Effect -> requestId a r
 
 -- Used to find matches of `@rewrite case` rules
 containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool

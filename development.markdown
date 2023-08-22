@@ -147,6 +147,8 @@ include:
 nix develop
 ```
 
+Note that `nix develop` will fail for some reason, if you have any local haskell dependencies that are not known to `git`.
+
 #### Get into a development environment for building with cabal
 This gets you into a development environment with the preferred
 versions of the compiler and other development tools. Additionally,

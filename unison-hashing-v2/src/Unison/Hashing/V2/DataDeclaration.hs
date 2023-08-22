@@ -3,6 +3,7 @@ module Unison.Hashing.V2.DataDeclaration
     EffectDeclaration (..),
     Decl,
     Modifier (..),
+    hashClosedDecl,
     hashDecls,
     alphaEquivalent,
   )
@@ -13,7 +14,7 @@ import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.ABT qualified as ABT
-import Unison.Hashing.V2.Reference (Reference (..), ReferenceId)
+import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..))
 import Unison.Hashing.V2.Reference.Util qualified as Reference.Util
 import Unison.Hashing.V2.Tokenizable (Hashable1)
 import Unison.Hashing.V2.Tokenizable qualified as Hashable
@@ -62,6 +63,9 @@ hashDecls0 decls =
       ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
       cs = Reference.Util.hashComponents ref abts
    in [(v, r) | (v, (r, _)) <- Map.toList cs]
+
+hashClosedDecl :: (ABT.Var v, Show v) => DataDeclaration v a -> ReferenceId
+hashClosedDecl decl = ReferenceId (ABT.hash . toABT $ void decl) 0
 
 -- precondition: "DataDeclaration"s must have no free variables
 --

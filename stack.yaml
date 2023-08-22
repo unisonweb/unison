@@ -26,6 +26,7 @@ packages:
 - lib/unison-pretty-printer
 - lib/unison-sqlite
 - lib/unison-util-base32hex
+- lib/unison-util-bimultimap
 - lib/unison-util-bytes
 - lib/unison-util-cache
 - lib/unison-util-file-embed
@@ -63,7 +64,8 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
+ "$locals": -Wall -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
+#  "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
 
  # See https://github.com/haskell/haskell-language-server/issues/208
  "$everything": -haddock

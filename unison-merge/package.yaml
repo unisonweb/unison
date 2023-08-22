@@ -9,15 +9,20 @@ dependencies:
   - bimap
   - bitvec
   - containers
+  - monad-validate
+  - mtl
+  - nonempty-containers
   - unison-core
   - unison-core1
   - unison-prelude
+  - unison-util-bimultimap
   - unison-util-relation
   - unison-codebase
   - unison-codebase-sqlite-hashing-v2
   - unison-codebase-sqlite
   - unison-parser-typechecker
   - unison-hash
+  - unison-hashing-v2
   - lens
   - vector
 
