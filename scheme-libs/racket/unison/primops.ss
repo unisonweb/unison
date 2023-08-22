@@ -73,11 +73,13 @@
     builtin-IO.getBuffering.impl.v3
     builtin-IO.setEcho.impl.v1
     builtin-IO.isFileOpen.impl.v3
+    builtin-IO.ready.impl.v1
     builtin-IO.process.call
     builtin-IO.getEcho.impl.v1
     builtin-IO.getArgs.impl.v1
     builtin-IO.getEnv.impl.v1
     builtin-IO.getChar.impl.v1
+    builtin-IO.ready.impl.v1
     builtin-IO.getCurrentDirectory.impl.v3
     builtin-IO.removeDirectory.impl.v3
     builtin-IO.renameFile.impl.v3

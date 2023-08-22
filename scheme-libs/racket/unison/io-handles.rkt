@@ -48,15 +48,13 @@
     isFileOpen.impl.v3
     process.call
     getCurrentDirectory.impl.v3
+    ready.impl.v1
     ))
 
 ; Still to implement:
 ;    handlePosition.impl.v3
 ;    isSeekable.impl.v3
 ;    getChar.impl.v1
-;    ready.impl.v1
-;    isFileOpen.impl.v3
-;    isFileEOF.impl.v3
    )
 
 ; typeLink msg any
@@ -65,14 +63,16 @@
            [x8 (unison-failure-failure typeLink message x7)])
     (unison-either-left x8)))
 
-  (define
-  builtin-Boolean:typelink
-  (unison-typelink-builtin "Boolean"))
-
 (define-unison (isFileOpen.impl.v3 port)
     (unison-either-right
-        (data builtin-Boolean:typelink
-      (if (port-closed? port) 0 1))))
+        (if (port-closed? port) unison-boolean-false unison-boolean-true)))
+
+(define-unison (ready.impl.v1 port)
+    (if (byte-ready? port)
+        (unison-either-right unison-boolean-true)
+        (if (port-eof? port)
+            (Exception 'IO "EOF" port)
+            (unison-either-right unison-boolean-false))))
 
 (define-unison (getCurrentDirectory.impl.v3 unit)
     (unison-either-right

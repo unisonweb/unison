@@ -18,6 +18,7 @@ io.tests = Tests.main do
     !io.test_createTempDirectory
     !io.test_renameFile
     !io.test_isFileOpen
+    !io.test_ready
 
 rm_if_exists fp =
     if FilePath.exists fp
@@ -52,6 +53,13 @@ io.test_isFileOpen = do
     rm_if_exists fp
     checkEqual "opened handle is open" open1 true
     checkEqual "closed handle is not open" open2 false
+
+io.test_ready = do
+    fp = !testFile
+    _ = writeFile fp "What"
+    fhandle = open fp Read
+    ready1 = ready fhandle
+    checkEqual "handle with text ready is ready" ready1 true
 
 io.test_renameFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
