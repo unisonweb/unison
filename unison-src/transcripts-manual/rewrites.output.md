@@ -72,7 +72,7 @@ After adding to the codebase, here's the rewritten source:
   ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
   
   rule1 :
-    ∀ o g i g1.
+    ∀ i g o g1.
       (i ->{g} o)
       -> Nat
       -> Rewrites

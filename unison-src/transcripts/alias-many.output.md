@@ -701,7 +701,7 @@ Let's try it!
   511. Universal.>= : a -> a -> Boolean
   512. Universal.compare : a -> a -> Int
   513. Universal.murmurHash : a -> Nat
-  514. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  514. unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   515. builtin type Value
   516. Value.dependencies : Value -> [Term]
   517. Value.deserialize : Bytes -> Either Text Value
