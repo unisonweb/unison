@@ -32,6 +32,7 @@
   (prefix-out
     builtin-IO.
     (combine-out
+        renameFile.impl.v3
         createDirectory.impl.v3
         removeDirectory.impl.v3
         createTempDirectory.impl.v3)))
@@ -75,6 +76,11 @@
 
 (define-unison (removeDirectory.impl.v3 file)
     (delete-directory (chunked-string->string file))
+    (unison-either-right none))
+
+(define-unison (renameFile.impl.v3 old new)
+    (rename-file-or-directory (chunked-string->string old)
+        (chunked-string->string new))
     (unison-either-right none))
 
 (define (threadCPUTime.v1)

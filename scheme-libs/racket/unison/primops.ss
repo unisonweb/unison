@@ -79,6 +79,7 @@
     builtin-IO.getChar.impl.v1
     builtin-IO.getCurrentDirectory.impl.v3
     builtin-IO.removeDirectory.impl.v3
+    builtin-IO.renameFile.impl.v3
     builtin-IO.createTempDirectory.impl.v3
     builtin-IO.createDirectory.impl.v3
     unison-FOp-IO.getFileSize.impl.v3

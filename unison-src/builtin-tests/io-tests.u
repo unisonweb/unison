@@ -16,14 +16,18 @@ io.tests = Tests.main do
     !io.test_getChar
     !io.test_getCurrentDirectory
     !io.test_createTempDirectory
+    !io.test_renameFile
 
-testFile = do
-    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
-    () = if FilePath.exists fp
+rm_if_exists fp =
+    if FilePath.exists fp
         then
             removeFile fp
         else
             ()
+
+testFile = do
+    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
+    rm_if_exists fp
     fp
 
 io.test_createTempDirectory = do
@@ -37,6 +41,19 @@ io.test_createTempDirectory = do
                 Tests.fail "Tmp directory doesn't exist" text
         else
             Tests.fail "Tmp directory doesn't contain prefix-" text
+
+io.test_renameFile = do
+    fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
+    rmp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test-renamed")
+    rm_if_exists fp
+    rm_if_exists rmp
+    contents = "a file contents"
+    _ = writeFile fp contents
+    renameFile fp rmp
+    got = (getText (open rmp Read))
+    rm_if_exists fp
+    rm_if_exists rmp
+    checkEqual "renameFile" contents got
 
 writeFile fp txt =
     fh = open fp Write
