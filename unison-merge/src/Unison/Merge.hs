@@ -708,20 +708,26 @@ rewriteDeclComponent loadDecl ecForRef finished component = do
           stepDecl decl (oldType, newType) =
             V1.Decl.modifyAsDataDecl (Lens.over ctorType (Maybe.rewrite (ABT.rewriteExpression oldType newType))) decl
   -- todo: do we kind-check first? or hash first?
-  V2.Convert.hashDecls <$> (Map.mapKeys (V1.Var.mergeEcVar . unEC) <$> rewrittenComponent) >>= \case
-    Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
-    Right hashed -> pure $ foldl' addReplacement finished hashed
-      where
-        addReplacement :: Map EC (Result v a) -> (v, V1.Reference.Id, V1.Decl.Decl v a) -> Map EC (Result v a)
-        addReplacement replacements (v, declId, decl) =
-          let ec = case V1.Var.typeOf v of
-                V1.Var.EquivalenceClass ec -> EC ec
-                t -> error $ "unexpected Var type " ++ show t
-           in Map.insert ec (RSuccess (DriTypeRefId declId) (DefnDecl decl)) replacements
+  finished' <-
+    V2.Convert.hashDecls <$> (Map.mapKeys (V1.Var.mergeEcVar . unEC) <$> rewrittenComponent) >>= \case
+      Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
+      Right hashed -> pure $ foldl' addReplacement finished hashed
+        where
+          addReplacement :: Map EC (Result v a) -> (v, V1.Reference.Id, V1.Decl.Decl v a) -> Map EC (Result v a)
+          addReplacement replacements (v, declId, decl) =
+            let ec = case V1.Var.typeOf v of
+                  V1.Var.EquivalenceClass ec -> EC ec
+                  t -> error $ "unexpected Var type " ++ show t
+             in Map.insert ec (RSuccess (DriTypeRefId declId) (DefnDecl decl)) replacements
+  pure finished'
 
 -- | implementation detail of rewriteDeclComponent and rewriteTermComponent
--- returns a list of replacements that should be attempted, if any, in order.
+-- `rOld` is some dependency reference that we want to replace throughout some dependent definition not mentioned here.
+-- The output is 0+ before/after type expressions that we're meant to replace in the dependent definition.
+-- e.g. 0 replacements if the dependency has not been updated in this merge
+--      1 or more for dependencies that we're going to replace in 1 or more ways
 buildTypeReplacement ::
+  forall m v a.
   (Monad m, Var v, Monoid a, Show a) =>
   (V1.TypeReferenceId -> m (V1.Decl v a)) ->
   (DefnRef -> Maybe EC) ->
@@ -734,7 +740,9 @@ buildTypeReplacement loadDecl ecForRef finished component rOld = do
     V1.Reference.Builtin {} -> pure Nothing
     V1.Reference.DerivedId rOld -> Just <$> loadDecl rOld
   -- construct the fully-saturated replacement
-  let saturatedReplacement ty decl = mayOldDecl <&> \oldDecl -> (applySaturated (ref rOld) oldDecl, applySaturated ty decl)
+  let saturatedReplacement :: V1.Type v a -> V1.Decl v a -> Maybe (V1.Type v a, V1.Type v a)
+      saturatedReplacement ty decl = mayOldDecl <&> \oldDecl -> (applySaturated (ref rOld) oldDecl, applySaturated ty decl)
+  -- look up the EC to determine what we need to replace the old ref with and how.
   case ecForRef (DrTypeRef rOld) of
     Just ec ->
       -- Is it part of the current component?
@@ -785,7 +793,9 @@ rewriteTermComponent loadDecl loadTerm ecForRef finished component = do
           rewriteTerm term = foldl' stepTerm term <$> setupReplacements (termDependencies term)
           stepTerm :: V1.Term.Term v a -> Either (V1.Type.Type v a, V1.Type.Type v a) (V1.Term.Term v a, V1.Term.Term v a) -> V1.Term.Term v a
           stepTerm term = \case
-            Left (oldType, newType) -> term & Maybe.rewrite (V1.Term.rewriteSignatures oldType newType)
+            Left (oldType, newType) ->
+              term
+                & Maybe.rewrite (V1.Term.rewriteSignatures oldType newType)
             Right (oldTerm, newTerm) ->
               term
                 & Maybe.rewrite (V1.Term.rewriteCasesLHS oldTerm newTerm)
