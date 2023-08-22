@@ -86,7 +86,7 @@ data Database m = Database
 
 data TypeBloboid = TypeBloboid
   { canonicalize :: TypeReference -> TypeReference,
-    equivalenceClasses :: UFMap TypeReference TypeReference,
+    coreEquivalenceClasses :: Bimap EC (Set TypeReference),
     updates :: Relation TypeReference TypeReference
   }
   deriving stock (Generic)
@@ -95,12 +95,13 @@ makeTypeBloboid :: Relation TypeReference TypeReference -> TypeBloboid
 makeTypeBloboid updates =
   let canonicalizeMap = UFMap.freeze equivalenceClasses
       canonicalize r = Map.findWithDefault r r canonicalizeMap
+      coreEquivalenceClasses = ufmapToECs equivalenceClasses
       equivalenceClasses = computeEquivalenceClasses updates
-   in TypeBloboid {canonicalize, equivalenceClasses, updates}
+   in TypeBloboid {canonicalize, coreEquivalenceClasses, updates}
 
 data TermBloboid = TermBloboid
   { canonicalize :: Referent -> Referent,
-    equivalenceClasses :: UFMap Referent Referent,
+    coreEquivalenceClasses :: Bimap EC (Set Referent),
     updates :: Relation Referent Referent
   }
   deriving stock (Generic)
@@ -109,8 +110,13 @@ makeTermBloboid :: Relation Referent Referent -> TermBloboid
 makeTermBloboid updates =
   let canonicalizeMap = UFMap.freeze equivalenceClasses
       canonicalize r = Map.findWithDefault r r canonicalizeMap
+      coreEquivalenceClasses = ufmapToECs equivalenceClasses
       equivalenceClasses = computeEquivalenceClasses updates
-   in TermBloboid {canonicalize, equivalenceClasses, updates}
+   in TermBloboid {canonicalize, coreEquivalenceClasses, updates}
+
+ufmapToECs :: Ord a => UFMap a a -> Bimap EC (Set a)
+ufmapToECs =
+  Bimap.fromList . zipWith (\ec (_, refs, _) -> (EC ec, refs)) [0 ..] . UFMap.toClasses
 
 -- | Compute equivalence classes from updates.
 computeEquivalenceClasses :: forall x. Ord x => Relation x x -> UFMap x x
@@ -124,16 +130,16 @@ computeEquivalenceClasses updates =
       nodesOnly :: UFMap x x
       nodesOnly = foldl' (\b a -> UFMap.insert a a b) UFMap.empty nodes
 
-      addEdge :: (x, x) -> UFMap x x -> UFMap x x
-      addEdge (a, b) m0 = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonk nonCanonV m -> do
+      addEdge :: UFMap x x -> (x, x) -> UFMap x x
+      addEdge m0 (a, b) = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonK nonCanonV m -> do
         let m' =
               UFMap.alter
-                canonk
+                canonK
                 (error "impossible")
                 (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
                 m
         Identity (Just m')
-   in foldl' (\b a -> addEdge a b) nodesOnly edges
+   in foldl' addEdge nodesOnly edges
 
 computeTermUserUpdates ::
   forall m.
@@ -161,14 +167,12 @@ computeTermUserUpdates hashHandle database typeBloboid termBloboid =
     loadCanonicalizedTerm :: TermReferenceId -> m (ResolvedTerm Symbol)
     loadCanonicalizedTerm ref = do
       term <- (database ^. #loadTerm) ref
-      canonicalize (ref ^. Reference.idH) term
-
-    canonicalize :: Hash -> Term Symbol -> m (ResolvedTerm Symbol)
-    canonicalize =
       canonicalizeTerm
         database
         (termBloboid ^. #canonicalize)
         (typeBloboid ^. #canonicalize)
+        (ref ^. Reference.idH)
+        term
 
 computeTypeUserUpdates ::
   forall m.
@@ -243,7 +247,7 @@ canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
     Term.Ann a typ -> pure $ Term.Ann a (Type.rmap lookupCanonType typ)
     Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
-    Term.Ref r -> lookupCanonTermRReference r
+    Term.Ref r -> lookupCanonReferent (Referent.Ref (resolveTermReference r))
     Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
     Term.TypeLink r -> pure $ Term.TypeLink (lookupCanonType r)
@@ -305,31 +309,29 @@ canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
 
     resolveTermReference :: TermRReference -> TermReference
     resolveTermReference =
-      Reference.h_ %~ \case
-        Nothing -> selfHash
-        Just h -> h
+      Reference.h_ %~ fromMaybe selfHash
 
     lookupTermLink :: Term.TermLink -> Referent
-    lookupTermLink = lookupCanonTerm . resolveReferent
-
-    lookupCanonTermRReference :: forall a. TermRReference -> m (Term.ResolvedF Symbol a)
-    lookupCanonTermRReference r =
-      lookupCanonReferent (Referent.Ref (resolveTermReference r))
+    lookupTermLink =
+      lookupCanonTerm . resolveReferent
 
     lookupCanonReferent :: forall a. Referent -> m (Term.ResolvedF Symbol a)
-    lookupCanonReferent r = case lookupCanonTerm r of
-      Referent.Ref x -> pure (Term.Ref x)
-      -- if the term reference now maps to a constructor we need
-      -- to lookup if it is a data constructor or an ability
-      -- handler
-      Referent.Con typeRef constructorId ->
+    lookupCanonReferent r =
+      case lookupCanonTerm r of
+        Referent.Ref x -> pure (Term.Ref x)
+        Referent.Con typeRef constructorId -> makeConstructorTerm typeRef constructorId
+
+    makeConstructorTerm :: TypeReference -> ConstructorId -> m (Term.ResolvedF Symbol a)
+    makeConstructorTerm typeRef constructorId = do
+      mkTerm <-
         (database ^. #loadConstructorType) typeRef <&> \case
-          ConstructorType.Data -> Term.Constructor (lookupCanonType typeRef) constructorId
-          ConstructorType.Effect -> Term.Request (lookupCanonType typeRef) constructorId
+          ConstructorType.Data -> Term.Constructor
+          ConstructorType.Effect -> Term.Request
+      pure (mkTerm typeRef constructorId)
 
 newtype EC = EC {unEC :: Int}
   deriving (Show)
-  deriving (Eq, Ord, Num, Enum) via Int
+  deriving (Enum, Eq, Num, Ord) via Int
 
 boingoBeats ::
   forall ref.
@@ -348,14 +350,18 @@ boingoBeats refToDependencies allUpdates userUpdates =
           & zip [0 ..]
           & Bimap.fromList
 
-      -- \| Compute and look up a ref in the reverse mapping (Set ref -> EC)
+      -- Compute and look up a ref in the reverse mapping (Set ref -> EC)
       lookupCoreEC :: ref -> Maybe EC
       lookupCoreEC =
-        let m =
+        let insertEC :: Map ref EC -> (EC, Set ref) -> Map ref EC
+            insertEC m (i, refs) =
+              foldl' (\acc ref -> Map.insert ref i acc) m refs
+
+            refToEcMap =
               coreECs
                 & Bimap.toList
-                & foldl' (\acc (i, refs) -> foldl' (\acc2 ref -> Map.insert ref i acc2) acc refs) Map.empty
-         in \ref -> Map.lookup ref m
+                & foldl' insertEC Map.empty
+         in \ref -> Map.lookup ref refToEcMap
 
       allUpdatesLhs = Relation.dom allUpdates
       allUpdatesRhs = Relation.ran allUpdates
@@ -363,11 +369,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
       userUpdatesLhs = Relation.dom userUpdates
       userUpdatesRhs = Relation.ran userUpdates
 
-      -- Arya question for tomorrow: what about self-loops? (#foo3 calls #foo)
-      -- Arya thinks we just ignore self-edges
-      -- Mitchell thinks: hmm they don't seem to harm anything
-
-      -- \| Relation.member a b if a depends on b.
+      -- Relation.member a b if a depends on b.
       coreDependencyGraph :: Relation EC EC
       coreDependencyGraph = Relation.fromMultimap mm
         where
@@ -448,7 +450,7 @@ boingoBeats refToDependencies allUpdates userUpdates =
       --
       wundefined
 
--- \| Returns the set of all transitive dependents of the given set of references.
+-- | Returns the set of all transitive dependents of the given set of references.
 -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
 getTransitiveDependents ::
   forall ref.
@@ -483,7 +485,7 @@ getTransitiveDependents refToDependencies scope query = search Map.empty query (
                         else search (Map.insert ref refDependencies dependents) seen' unseen
                 else search dependents seen (toList unseenDeps ++ ref : unseen)
       where
-        -- \| split the dependencies into three groups: known dependents, known independents, and unseen
+        -- split the dependencies into three groups: known dependents, known independents, and unseen
         -- It would be nice to short circuit if (any (flip Set.member dependents) dependencies)
         -- and simply declare ref a dependent, but we can't do that because we might have unnamed dependencies.
         -- that we won't detect unless we keep going.
