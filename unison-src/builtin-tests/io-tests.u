@@ -25,6 +25,18 @@ testFile = do
             ()
     fp
 
+io.test_createTempDirectory = do
+    tmp = (createTempDirectory (FilePath "prefix-"))
+    match tmp with
+        FilePath text -> if Text.contains "/prefix-" text then
+            if exists tmp then
+                removeDirectory tmp
+                Tests.pass "Tmp directory exists and contains prefix-"
+            else
+                Tests.fail "Tmp directory doesn't exist" text
+        else
+            Tests.fail "Tmp directory doesn't contain prefix-" text
+
 writeFile fp txt =
     fh = open fp Write
     putText fh txt
