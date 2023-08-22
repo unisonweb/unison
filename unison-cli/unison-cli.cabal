@@ -51,6 +51,7 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.Merge
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
@@ -204,6 +205,7 @@ library
     , servant-client
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -215,6 +217,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -339,6 +342,7 @@ executable cli-integration-tests
     , shellmet
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -350,6 +354,7 @@ executable cli-integration-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -468,6 +473,7 @@ executable transcripts
     , silently
     , stm
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -480,6 +486,7 @@ executable transcripts
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -604,6 +611,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -616,6 +624,7 @@ executable unison
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -743,6 +752,7 @@ test-suite cli-tests
     , stm
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -755,6 +765,7 @@ test-suite cli-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

@@ -58,6 +58,7 @@ library
     , bimap
     , bitvec
     , containers
+    , generic-lens
     , lens
     , monad-validate
     , mtl

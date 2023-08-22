@@ -65,6 +65,7 @@ dependencies:
   - servant-client
   - stm
   - text
+  - text-ansi
   - text-builder
   - text-rope
   - these
@@ -76,6 +77,7 @@ dependencies:
   - unison-core
   - unison-core1
   - unison-hash
+  - unison-merge
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer

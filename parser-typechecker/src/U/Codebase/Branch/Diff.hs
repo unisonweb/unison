@@ -33,9 +33,10 @@ import Unison.Util.Monoid (foldMapM, ifoldMapM)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 
+-- | Invariant: adds and removes are not both empty.
 data Diff a = Diff
-  { adds :: Set a,
-    removals :: Set a
+  { adds :: !(Set a),
+    removals :: !(Set a)
   }
   deriving (Show, Eq, Ord)
 
@@ -43,8 +44,8 @@ data Diff a = Diff
 --
 -- Note: doesn't yet include any info on metadata or patch diffs. Feel free to add it.
 data DefinitionDiffs = DefinitionDiffs
-  { termDiffs :: Map NameSegment (Diff Referent),
-    typeDiffs :: Map NameSegment (Diff Reference)
+  { termDiffs :: !(Map NameSegment (Diff Referent)),
+    typeDiffs :: !(Map NameSegment (Diff Reference))
     -- termMetadataDiffs :: Map (NameSegment, Referent) (Diff Reference),
     -- typeMetadataDiffs :: Map (NameSegment, Reference) (Diff Reference)
     -- patchDiffs :: Map NameSegment (Diff ())
@@ -119,7 +120,7 @@ diffBranches from to =
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
       typeDiffs = diffMap (Branch.types from) (Branch.types to)
       defDiff = DefinitionDiffs {termDiffs, typeDiffs}
-      childDiff :: (Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs)))
+      childDiff :: Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs))
       childDiff = do
         Align.align (children from) (children to)
           & mapMaybe \case
@@ -133,27 +134,28 @@ diffBranches from to =
               newChildBranch <- Causal.value ca
               pure . unTreeDiff $ diffBranches Branch.empty newChildBranch
             These fromC toC
-              | Causal.valueHash fromC == Causal.valueHash toC ->
-                  -- This child didn't change.
-                  Nothing
-              | otherwise -> Just $ do
+              -- This child didn't change.
+              | Causal.valueHash fromC == Causal.valueHash toC -> Nothing
+              | otherwise -> Just do
                   fromChildBranch <- Causal.value fromC
                   toChildBranch <- Causal.value toC
-                  case diffBranches fromChildBranch toChildBranch of
-                    TreeDiff (defDiffs :< Compose mchildren) -> do
-                      pure $ (defDiffs :< Compose mchildren)
+                  pure . unTreeDiff $ diffBranches fromChildBranch toChildBranch
    in TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
-        & fmap \case
-          This refs -> Diff {removals = Map.keysSet refs, adds = mempty}
-          That refs -> Diff {removals = mempty, adds = Map.keysSet refs}
+        & mapMaybe \case
+          This refs -> Just Diff {removals = Map.keysSet refs, adds = mempty}
+          That refs -> Just Diff {removals = mempty, adds = Map.keysSet refs}
           These l' r' ->
             let lRefs = Map.keysSet l'
                 rRefs = Map.keysSet r'
-             in Diff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs}
+                removals = lRefs `Set.difference` rRefs
+                adds = rRefs `Set.difference` lRefs
+             in if Set.null removals && Set.null adds
+                  then Nothing
+                  else Just Diff {removals, adds}
 
 -- | Get a summary of all of the name adds and removals from a tree diff.
 --

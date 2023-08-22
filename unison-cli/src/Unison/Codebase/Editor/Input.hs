@@ -237,6 +237,10 @@ data Input
   | BranchesI (Maybe ProjectName)
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
+  | -- This is a work-in-progress on the topic/merge branch. It's here just to help debug for now.
+    --
+    -- `merge alice bob result`: `alice` and `bob` get merged into `result`
+    MergeI Path' Path' Path'
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

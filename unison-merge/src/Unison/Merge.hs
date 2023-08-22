@@ -1,12 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Merge () where
+module Unison.Merge
+  ( Database (..),
+    TypeBloboid (..),
+    makeTypeBloboid,
+    TermBloboid (..),
+    makeTermBloboid,
+    computeTypeUserUpdates,
+    computeTermUserUpdates,
+  )
+where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), (^.))
 import Control.Lens qualified as Lens
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
+import Data.Generics.Labels ()
 import Data.List (partition)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -15,7 +25,7 @@ import Data.Set.NonEmpty qualified as NESet
 import Data.Vector.Unboxed qualified as UVector
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (TermRReference, TermReference, TypeReference)
+import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -30,6 +40,7 @@ import Unison.ABT qualified as ABT
 import Unison.ABT qualified as V1.ABT
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
@@ -65,10 +76,41 @@ data NamespaceDiff reference referent = NamespaceDiff
     typeUpdates :: Map reference reference
   }
 
-type ConstructorMapping = forall a. [a] -> [a]
+-- | An abstract interface to the bits of a code database that we need for performing a merge.
+data Database m = Database
+  { loadConstructorType :: TypeReference -> m ConstructorType,
+    loadTerm :: TermReferenceId -> m (Term Symbol),
+    loadType :: TypeReferenceId -> m (Decl Symbol)
+  }
+  deriving stock (Generic)
 
-computeTypeECs :: Map reference reference -> Map reference reference -> [Set reference]
-computeTypeECs = undefined
+data TypeBloboid = TypeBloboid
+  { canonicalize :: TypeReference -> TypeReference,
+    equivalenceClasses :: UFMap TypeReference TypeReference,
+    updates :: Relation TypeReference TypeReference
+  }
+  deriving stock (Generic)
+
+makeTypeBloboid :: Relation TypeReference TypeReference -> TypeBloboid
+makeTypeBloboid updates =
+  let canonicalizeMap = UFMap.freeze equivalenceClasses
+      canonicalize r = Map.findWithDefault r r canonicalizeMap
+      equivalenceClasses = computeEquivalenceClasses updates
+   in TypeBloboid {canonicalize, equivalenceClasses, updates}
+
+data TermBloboid = TermBloboid
+  { canonicalize :: Referent -> Referent,
+    equivalenceClasses :: UFMap Referent Referent,
+    updates :: Relation Referent Referent
+  }
+  deriving stock (Generic)
+
+makeTermBloboid :: Relation Referent Referent -> TermBloboid
+makeTermBloboid updates =
+  let canonicalizeMap = UFMap.freeze equivalenceClasses
+      canonicalize r = Map.findWithDefault r r canonicalizeMap
+      equivalenceClasses = computeEquivalenceClasses updates
+   in TermBloboid {canonicalize, equivalenceClasses, updates}
 
 -- | Compute equivalence classes from updates.
 computeEquivalenceClasses :: forall x. Ord x => Relation x x -> UFMap x x
@@ -93,92 +135,84 @@ computeEquivalenceClasses updates =
         Identity (Just m')
    in foldl' (\b a -> addEdge a b) nodesOnly edges
 
-computeEquivClassLookupFunc :: forall x. Ord x => Relation x x -> x -> x
-computeEquivClassLookupFunc rel =
-  let canonMap :: Map x x
-      canonMap = UFMap.freeze (computeEquivalenceClasses rel)
-   in \k -> case Map.lookup k canonMap of
-        Just x -> x
-        Nothing -> k
-
 computeTermUserUpdates ::
   forall m.
   Monad m =>
   HashHandle ->
-  (TypeReference -> TypeReference) ->
-  (TypeReference -> m ConstructorType) ->
-  (Referent -> m (Term Symbol)) ->
-  Relation Referent Referent ->
+  Database m ->
+  TypeBloboid ->
+  TermBloboid ->
   m (Relation Referent Referent)
-computeTermUserUpdates hashHandle lookupCanonType lookupConstructorType loadTerm allUpdates =
-  Relation.fromList <$> filterM isUserUpdate (Relation.toList allUpdates)
+computeTermUserUpdates hashHandle database typeBloboid termBloboid =
+  Relation.fromList <$> filterM isUserUpdate (Relation.toList (termBloboid ^. #updates))
   where
-    lookupCanonTerm :: Referent -> Referent
-    lookupCanonTerm = computeEquivClassLookupFunc allUpdates
-
     isUserUpdate :: (Referent, Referent) -> m Bool
-    isUserUpdate (t0, t1) = do
-      let canonicalize = canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType
-      case (t0, t1) of
-        (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) -> undefined
-        (Referent.Ref termRef0, Referent.Ref termRef1) ->
-          case (termRef0, termRef1) of
-            (Reference.ReferenceDerived (Reference.Id h0 _), Reference.ReferenceDerived (Reference.Id h1 _)) -> do
-              c0 <- canonicalize h0 =<< loadTerm t0
-              c1 <- canonicalize h1 =<< loadTerm t1
-              pure (HashHandle.hashTerm hashHandle c0 == HashHandle.hashTerm hashHandle c1)
-            (Reference.ReferenceBuiltin txt0, Reference.ReferenceBuiltin txt1) -> pure (txt0 /= txt1)
-            (Reference.ReferenceBuiltin _, Reference.ReferenceDerived _) -> pure True
-            (Reference.ReferenceDerived _, Reference.ReferenceBuiltin _) -> pure True
-        (Referent.Ref {}, Referent.Con {}) -> pure True
-        (Referent.Con {}, Referent.Ref {}) -> pure True
+    isUserUpdate = \case
+      (Referent.Ref {}, Referent.Con {}) -> pure True
+      (Referent.Con {}, Referent.Ref {}) -> pure True
+      (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) -> wundefined
+      (Referent.Ref (Reference.ReferenceDerived ref0), Referent.Ref (Reference.ReferenceDerived ref1)) -> do
+        term0 <- loadCanonicalizedTerm ref0
+        term1 <- loadCanonicalizedTerm ref1
+        pure (HashHandle.hashTerm hashHandle term0 /= HashHandle.hashTerm hashHandle term1)
+      -- Builtin-to-derived, derived-to-builtin, and builtin-to-builtin are all clearly user updates
+      (Referent.Ref {}, Referent.Ref {}) -> pure True
+
+    loadCanonicalizedTerm :: TermReferenceId -> m (ResolvedTerm Symbol)
+    loadCanonicalizedTerm ref = do
+      term <- (database ^. #loadTerm) ref
+      canonicalize (ref ^. Reference.idH) term
+
+    canonicalize :: Hash -> Term Symbol -> m (ResolvedTerm Symbol)
+    canonicalize =
+      canonicalizeTerm
+        database
+        (termBloboid ^. #canonicalize)
+        (typeBloboid ^. #canonicalize)
 
 computeTypeUserUpdates ::
   forall m.
   (Monad m) =>
   HashHandle ->
-  (TypeReference -> m (Decl Symbol)) ->
-  (TypeReference -> TypeReference -> ConstructorMapping) ->
-  Relation TypeReference TypeReference ->
+  Database m ->
+  -- | A function that, given two types, returns a function if the decls are thought to "match", which means the two
+  -- decls' decl types, modifiers, number of bound variables, and number of data constructors are equal, and the data
+  -- constructors all have the same names. The returned function ought to be applied to the second type's constructors,
+  -- which will put them in the order of the first.
+  ( TypeReferenceId ->
+    Decl Symbol ->
+    TypeReferenceId ->
+    Decl Symbol ->
+    Maybe ([Decl.Type Symbol] -> [Decl.Type Symbol])
+  ) ->
+  TypeBloboid ->
   m (Relation TypeReference TypeReference)
-computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
-  Relation.fromList <$> filterM isUserUpdate0 (Relation.toList allUpdates)
+computeTypeUserUpdates hashHandle database getConstructorMapping bloboid =
+  Relation.fromList <$> filterM isUserUpdate0 (Relation.toList (bloboid ^. #updates))
   where
-    lookupCanon :: TypeReference -> TypeReference
-    lookupCanon = computeEquivClassLookupFunc allUpdates
-
     isUserUpdate0 :: (TypeReference, TypeReference) -> m Bool
-    isUserUpdate0 (oldRef, newRef) = do
-      oldDecl <- loadDecl oldRef
-      newDecl <- loadDecl newRef
-      pure
-        case Decl.declType oldDecl == Decl.declType newDecl of
-          True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
-          False -> True
+    isUserUpdate0 = \case
+      (ReferenceBuiltin _, ReferenceBuiltin _) -> pure True
+      (ReferenceBuiltin _, ReferenceDerived _) -> pure True
+      (ReferenceDerived _, ReferenceBuiltin _) -> pure True
+      (ReferenceDerived oldRef, ReferenceDerived newRef) -> do
+        oldDecl <- (database ^. #loadType) oldRef
+        newDecl <- (database ^. #loadType) newRef
+        pure
+          case Decl.declType oldDecl == Decl.declType newDecl of
+            True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
+            False -> True
 
-    isUserUpdateDecl ::
-      TypeReference ->
-      Decl Symbol ->
-      TypeReference ->
-      Decl Symbol ->
-      Bool
+    isUserUpdateDecl :: TypeReferenceId -> Decl Symbol -> TypeReferenceId -> Decl Symbol -> Bool
     isUserUpdateDecl oldRef oldDecl newRef newDecl =
-      or
-        [ Decl.modifier oldDecl /= Decl.modifier newDecl,
-          length (Decl.bound oldDecl) /= length (Decl.bound newDecl),
-          length (Decl.constructorTypes oldDecl) /= length (Decl.constructorTypes newDecl),
-          case (oldRef, newRef) of
-            (Reference.ReferenceDerived (Reference.Id h0 _), Reference.ReferenceDerived (Reference.Id h1 _)) ->
-              any
-                (\(a, b) -> not (alphaEquivalentTypesModCandidateRefs h0 h1 a b))
-                ( zip
-                    (Decl.constructorTypes oldDecl)
-                    (constructorMapping oldRef newRef (Decl.constructorTypes newDecl))
-                )
-            (Reference.ReferenceBuiltin txt0, Reference.ReferenceBuiltin txt1) -> txt0 /= txt1
-            (Reference.ReferenceBuiltin _, Reference.ReferenceDerived _) -> True
-            (Reference.ReferenceDerived _, Reference.ReferenceBuiltin _) -> True
-        ]
+      case getConstructorMapping oldRef oldDecl newRef newDecl of
+        Nothing -> True
+        Just mapping ->
+          let oldHash = oldRef ^. Reference.idH
+              newHash = newRef ^. Reference.idH
+           in any
+                (\(oldCon, newCon) -> not (alphaEquivalentTypesModCandidateRefs oldHash newHash oldCon newCon))
+                (zip (Decl.constructorTypes oldDecl) (mapping (Decl.constructorTypes newDecl)))
 
     alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
     alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs rhs =
@@ -186,7 +220,7 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
           hashCanon h x = HashHandle.toReference hashHandle (canonicalize h x)
 
           canonicalize :: Hash -> TypeD Symbol -> TypeT Symbol
-          canonicalize selfHash x = Type.rmap (lookupCanon . subSelfReferences) x
+          canonicalize selfHash x = Type.rmap ((bloboid ^. #canonicalize) . subSelfReferences) x
             where
               subSelfReferences :: Reference.TypeRReference -> TypeReference
               subSelfReferences =
@@ -198,42 +232,73 @@ computeTypeUserUpdates hashHandle loadDecl constructorMapping allUpdates =
 canonicalizeTerm ::
   forall m.
   Monad m =>
+  Database m ->
   (Referent -> Referent) ->
-  (TypeReference -> m ConstructorType) ->
   (TypeReference -> TypeReference) ->
   Hash ->
   Term Symbol ->
   m (ResolvedTerm Symbol)
-canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType selfHash =
-  ABT.transformM go
+canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
+  ABT.transformM \case
+    Term.Ann a typ -> pure $ Term.Ann a (Type.rmap lookupCanonType typ)
+    Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
+    Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
+    Term.Ref r -> lookupCanonTermRReference r
+    Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
+    Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
+    Term.TypeLink r -> pure $ Term.TypeLink (lookupCanonType r)
+    -- Boring no-ops
+    Term.And p q -> pure $ Term.And p q
+    Term.App f a -> pure $ Term.App f a
+    Term.Boolean b -> pure $ Term.Boolean b
+    Term.Char c -> pure $ Term.Char c
+    Term.Float d -> pure $ Term.Float d
+    Term.Handle e h -> pure $ Term.Handle e h
+    Term.If c t f -> pure $ Term.If c t f
+    Term.Int i -> pure $ Term.Int i
+    Term.Lam b -> pure $ Term.Lam b
+    Term.Let a b -> pure $ Term.Let a b
+    Term.LetRec bs b -> pure $ Term.LetRec bs b
+    Term.List s -> pure $ Term.List s
+    Term.Nat n -> pure $ Term.Nat n
+    Term.Or p q -> pure $ Term.Or p q
+    Term.Text t -> pure $ Term.Text t
   where
-    go :: forall a. Term.F Symbol a -> m (Term.ResolvedF Symbol a)
-    go = \case
-      Term.Int i -> pure $ Term.Int i
-      Term.Nat n -> pure $ Term.Nat n
-      Term.Float d -> pure $ Term.Float d
-      Term.Boolean b -> pure $ Term.Boolean b
-      Term.Text t -> pure $ Term.Text t
-      Term.Char c -> pure $ Term.Char c
-      Term.Ref r -> lookupCanonTermRReference r
-      Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
-      Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
-      Term.Handle e h -> pure $ Term.Handle e h
-      Term.App f a -> pure $ Term.App f a
-      Term.Ann a typ -> pure $ Term.Ann a (Type.rmap lookupCanonType typ)
-      Term.List s -> pure $ Term.List s
-      Term.If c t f -> pure $ Term.If c t f
-      Term.And p q -> pure $ Term.And p q
-      Term.Or p q -> pure $ Term.Or p q
-      Term.Lam b -> pure $ Term.Lam b
-      Term.LetRec bs b -> pure $ Term.LetRec bs b
-      Term.Let a b -> pure $ Term.Let a b
-      Term.Match s cs -> pure $ Term.Match s (goCase <$> cs)
-      Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
-      Term.TypeLink r -> pure $ Term.TypeLink (lookupCanonType r)
+    canonicalizeCase :: forall t a. Term.MatchCase t TypeReference a -> Term.MatchCase t TypeReference a
+    canonicalizeCase (Term.MatchCase pat g body) =
+      Term.MatchCase (canonicalizePattern pat) g body
 
-    goCase :: forall t a. Term.MatchCase t TypeReference a -> Term.MatchCase t TypeReference a
-    goCase (Term.MatchCase pat g body) = Term.MatchCase (Term.rmapPattern id lookupCanonType pat) g body
+    canonicalizePattern :: Term.Pattern t TypeReference -> Term.Pattern t TypeReference
+    canonicalizePattern pat =
+      case pat of
+        -- Actual canonicalization happening here. If a datacon gets canonicalized to a term reference, that's ok -
+        -- just stuff it back into the pattern where the *type* reference should go (with a bogus constructor id). This
+        -- makes the term invalid, but we only care about its hash.
+        Term.PConstructor ref cid fields ->
+          let (cref, ccid) = canonicalizeConstructorPattern ref cid
+           in Term.PConstructor cref ccid (map canonicalizePattern fields)
+        Term.PEffectBind ref cid fields k ->
+          let (cref, ccid) = canonicalizeConstructorPattern ref cid
+           in Term.PEffectBind cref ccid (map canonicalizePattern fields) (canonicalizePattern k)
+        -- Boring recursive cases
+        Term.PAs x -> Term.PAs (canonicalizePattern x)
+        Term.PEffectPure x -> Term.PEffectPure (canonicalizePattern x)
+        Term.PSequenceLiteral xs -> Term.PSequenceLiteral (map canonicalizePattern xs)
+        Term.PSequenceOp x y z -> Term.PSequenceOp (canonicalizePattern x) y (canonicalizePattern z)
+        -- Boring no-ops
+        Term.PBoolean {} -> pat
+        Term.PChar {} -> pat
+        Term.PFloat {} -> pat
+        Term.PInt {} -> pat
+        Term.PNat {} -> pat
+        Term.PText {} -> pat
+        Term.PUnbound -> pat
+        Term.PVar -> pat
+      where
+        canonicalizeConstructorPattern ref cid =
+          case lookupCanonTerm (Referent.Con ref cid) of
+            Referent.Con cref ccid -> (cref, ccid)
+            Referent.Ref cref -> (cref, maxBound @ConstructorId)
 
     resolveReferent :: Referent.ReferentH -> Referent
     resolveReferent = Referent._Ref %~ resolveTermReference
@@ -258,9 +323,9 @@ canonicalizeTerm lookupCanonTerm lookupConstructorType lookupCanonType selfHash 
       -- to lookup if it is a data constructor or an ability
       -- handler
       Referent.Con typeRef constructorId ->
-        lookupConstructorType typeRef >>= \case
-          ConstructorType.Data -> pure (Term.Constructor (lookupCanonType typeRef) constructorId)
-          ConstructorType.Effect -> pure (Term.Request (lookupCanonType typeRef) constructorId)
+        (database ^. #loadConstructorType) typeRef <&> \case
+          ConstructorType.Data -> Term.Constructor (lookupCanonType typeRef) constructorId
+          ConstructorType.Effect -> Term.Request (lookupCanonType typeRef) constructorId
 
 newtype EC = EC {unEC :: Int}
   deriving (Show)

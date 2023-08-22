@@ -1,11 +1,10 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module U.Codebase.ShortHash
   ( ShortHash (..),
     ShortCausalHash (..),
     ShortNamespaceHash (..),
+    toText,
     shortenTo,
   )
 where
@@ -31,6 +30,15 @@ newtype ShortCausalHash = ShortCausalHash {shortCausalHashToText :: Text}
 
 newtype ShortNamespaceHash = ShortNamespaceHash {shortNamespaceHashToText :: Text}
   deriving stock (Eq, Ord, Show)
+
+toText :: ShortHash -> Text
+toText = \case
+  Builtin b -> "##" <> b
+  ShortHash {prefix, cycle, cid} ->
+    "#"
+      <> prefix
+      <> maybe "" (("." <>) . Text.pack . show) cycle
+      <> maybe "" (("#" <>) . Text.pack . show) cid
 
 shortenTo :: Int -> ShortHash -> ShortHash
 shortenTo _ b@(Builtin _) = b

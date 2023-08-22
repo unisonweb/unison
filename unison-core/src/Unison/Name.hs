@@ -5,6 +5,7 @@ module Unison.Name
 
     -- * Basic construction
     cons,
+    snoc,
     joinDot,
     fromSegment,
     fromSegments,
@@ -344,6 +345,13 @@ searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
 
 libSegment :: NameSegment
 libSegment = NameSegment "lib"
+
+-- | Snoc a name segment onto the end of a name.
+--
+-- /O(1)/.
+snoc :: Name -> NameSegment -> Name
+snoc (Name pos (s1 :| ss)) s0 =
+  Name pos (s0 :| s1 : ss)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =

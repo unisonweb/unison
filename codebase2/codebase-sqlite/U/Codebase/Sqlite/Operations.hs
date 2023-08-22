@@ -23,6 +23,7 @@ module U.Codebase.Sqlite.Operations
     Q.saveTermComponent,
     loadTermComponent,
     loadTermByReference,
+    expectTermByReference,
     loadTypeOfTermByTermReference,
 
     -- * decls
@@ -454,6 +455,12 @@ loadTermByReference r@(C.Reference.Id h i) = do
   -- retrieve and deserialize the blob
   (localIds, term) <- MaybeT (Q.loadTermObject oid (decodeTermElementDiscardingType i))
   lift (s2cTerm localIds term)
+
+expectTermByReference :: C.Reference.Id -> Transaction (C.Term Symbol)
+expectTermByReference r@(C.Reference.Id h i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  (localIds, term) <- Q.expectTermObject oid (decodeTermElementDiscardingType i)
+  s2cTerm localIds term
 
 loadTypeOfTermByTermReference :: C.Reference.Id -> MaybeT Transaction (C.Term.Type Symbol)
 loadTypeOfTermByTermReference id@(C.Reference.Id h i) = do

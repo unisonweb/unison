@@ -16,6 +16,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedStrings
   - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
