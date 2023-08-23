@@ -3,8 +3,8 @@
 module Unison.Merge
   ( Database (..),
     makeCanonicalize,
-    computeTypeUserUpdates,
-    computeTermUserUpdates,
+    isUserTypeUpdate,
+    isUserTermUpdate,
   )
 where
 
@@ -24,7 +24,7 @@ import Data.Set.NonEmpty qualified as NESet
 import Data.Vector.Unboxed qualified as UVector
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -117,30 +117,26 @@ computeEquivalenceClasses updates =
         Identity (Just m')
    in foldl' addEdge nodesOnly edges
 
-computeTermUserUpdates ::
+isUserTermUpdate ::
   forall m.
   Monad m =>
   HashHandle ->
   Database m ->
   (TypeReference -> TypeReference) ->
   (Referent -> Referent) ->
-  Relation Referent Referent ->
-  m (Relation Referent Referent)
-computeTermUserUpdates hashHandle database canonicalizeTypeRef canonicalizeTermRef updates =
-  Relation.fromList <$> filterM isUserUpdate (Relation.toList updates)
+  (Referent, Referent) ->
+  m Bool
+isUserTermUpdate hashHandle database canonicalizeTypeRef canonicalizeTermRef = \case
+  (Referent.Ref {}, Referent.Con {}) -> pure True
+  (Referent.Con {}, Referent.Ref {}) -> pure True
+  (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) -> wundefined
+  (Referent.Ref (Reference.ReferenceDerived ref0), Referent.Ref (Reference.ReferenceDerived ref1)) -> do
+    term0 <- loadCanonicalizedTerm ref0
+    term1 <- loadCanonicalizedTerm ref1
+    pure (HashHandle.hashTerm hashHandle term0 /= HashHandle.hashTerm hashHandle term1)
+  -- Builtin-to-derived, derived-to-builtin, and builtin-to-builtin are all clearly user updates
+  (Referent.Ref {}, Referent.Ref {}) -> pure True
   where
-    isUserUpdate :: (Referent, Referent) -> m Bool
-    isUserUpdate = \case
-      (Referent.Ref {}, Referent.Con {}) -> pure True
-      (Referent.Con {}, Referent.Ref {}) -> pure True
-      (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) -> wundefined
-      (Referent.Ref (Reference.ReferenceDerived ref0), Referent.Ref (Reference.ReferenceDerived ref1)) -> do
-        term0 <- loadCanonicalizedTerm ref0
-        term1 <- loadCanonicalizedTerm ref1
-        pure (HashHandle.hashTerm hashHandle term0 /= HashHandle.hashTerm hashHandle term1)
-      -- Builtin-to-derived, derived-to-builtin, and builtin-to-builtin are all clearly user updates
-      (Referent.Ref {}, Referent.Ref {}) -> pure True
-
     loadCanonicalizedTerm :: TermReferenceId -> m (ResolvedTerm Symbol)
     loadCanonicalizedTerm ref = do
       term <- (database ^. #loadTerm) ref
@@ -151,7 +147,7 @@ computeTermUserUpdates hashHandle database canonicalizeTypeRef canonicalizeTermR
         (ref ^. Reference.idH)
         term
 
-computeTypeUserUpdates ::
+isUserTypeUpdate ::
   forall m.
   (Monad m) =>
   HashHandle ->
@@ -167,49 +163,36 @@ computeTypeUserUpdates ::
     Maybe ([Decl.Type Symbol] -> [Decl.Type Symbol])
   ) ->
   (TypeReference -> TypeReference) ->
-  Relation TypeReference TypeReference ->
-  m (Relation TypeReference TypeReference)
-computeTypeUserUpdates hashHandle database getConstructorMapping canonicalizeType updates =
-  Relation.fromList <$> filterM isUserUpdate0 (Relation.toList updates)
-  where
-    isUserUpdate0 :: (TypeReference, TypeReference) -> m Bool
-    isUserUpdate0 = \case
-      (ReferenceBuiltin _, ReferenceBuiltin _) -> pure True
-      (ReferenceBuiltin _, ReferenceDerived _) -> pure True
-      (ReferenceDerived _, ReferenceBuiltin _) -> pure True
-      (ReferenceDerived oldRef, ReferenceDerived newRef) -> do
-        oldDecl <- (database ^. #loadType) oldRef
-        newDecl <- (database ^. #loadType) newRef
-        pure
-          case Decl.declType oldDecl == Decl.declType newDecl of
-            True -> isUserUpdateDecl oldRef oldDecl newRef newDecl
-            False -> True
-
-    isUserUpdateDecl :: TypeReferenceId -> Decl Symbol -> TypeReferenceId -> Decl Symbol -> Bool
-    isUserUpdateDecl oldRef oldDecl newRef newDecl =
-      case getConstructorMapping oldRef oldDecl newRef newDecl of
-        Nothing -> True
-        Just mapping ->
-          let oldHash = oldRef ^. Reference.idH
-              newHash = newRef ^. Reference.idH
-           in any
-                (\(oldCon, newCon) -> not (alphaEquivalentTypesModCandidateRefs oldHash newHash oldCon newCon))
+  (TypeReference, TypeReference) ->
+  m Bool
+isUserTypeUpdate hashHandle database getConstructorMapping canonicalizeTypeRef = \case
+  (ReferenceBuiltin _, ReferenceBuiltin _) -> pure True
+  (ReferenceBuiltin _, ReferenceDerived _) -> pure True
+  (ReferenceDerived _, ReferenceBuiltin _) -> pure True
+  (ReferenceDerived oldRef, ReferenceDerived newRef) -> do
+    oldDecl <- (database ^. #loadType) oldRef
+    newDecl <- (database ^. #loadType) newRef
+    pure
+      case Decl.declType oldDecl == Decl.declType newDecl of
+        False -> True
+        True ->
+          case getConstructorMapping oldRef oldDecl newRef newDecl of
+            Nothing -> True
+            Just mapping ->
+              any
+                (\(oldCon, newCon) -> canonicalizeAndHash oldHash oldCon /= canonicalizeAndHash newHash newCon)
                 (zip (Decl.constructorTypes oldDecl) (mapping (Decl.constructorTypes newDecl)))
+              where
+                oldHash = oldRef ^. Reference.idH
+                newHash = newRef ^. Reference.idH
+  where
+    canonicalizeAndHash :: Hash -> TypeD Symbol -> TypeReference
+    canonicalizeAndHash hash =
+      HashHandle.toReference hashHandle . Type.rmap (canonicalizeTypeRef . resolveTypeRef hash)
 
-    alphaEquivalentTypesModCandidateRefs :: Hash -> Hash -> TypeD Symbol -> TypeD Symbol -> Bool
-    alphaEquivalentTypesModCandidateRefs hlhs hrhs lhs rhs =
-      let hashCanon :: Hash -> TypeD Symbol -> Reference.Reference
-          hashCanon h x = HashHandle.toReference hashHandle (canonicalize h x)
-
-          canonicalize :: Hash -> TypeD Symbol -> TypeT Symbol
-          canonicalize selfHash x = Type.rmap (canonicalizeType . subSelfReferences) x
-            where
-              subSelfReferences :: Reference.TypeRReference -> TypeReference
-              subSelfReferences =
-                Reference.h_ %~ \case
-                  Nothing -> selfHash
-                  Just r -> r
-       in hashCanon hlhs lhs == hashCanon hrhs rhs
+    resolveTypeRef :: Hash -> TypeRReference -> TypeReference
+    resolveTypeRef hash =
+      Reference.h_ %~ fromMaybe hash
 
 canonicalizeTerm ::
   forall m.
