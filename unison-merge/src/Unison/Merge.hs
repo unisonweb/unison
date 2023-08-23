@@ -16,8 +16,10 @@ import Control.Lens qualified as Lens
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
+import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
 import Data.List (partition)
+import Data.Map.Lazy qualified as LazyMap
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
@@ -449,6 +451,77 @@ boingoBeats refToDependencies allUpdates userUpdates =
       -- - Does everything break if I rename anything?
       --
       wundefined
+
+type Dag a =
+  Map a (Set a)
+
+-- If    1
+--      / \
+--     2   3
+--      \ / \
+--       4   5
+--
+-- then `reifyDag loadDependencies [1]` will return
+--
+--   1 => {2, 3}
+--   2 => {4}
+--   3 => {4, 5}
+--   4 => {}
+--   5 => {}
+reifyDag ::
+  forall a m t.
+  (Foldable t, Monad m, Ord a) =>
+  -- | A function that looks up adjacent vertices.
+  (a -> m (Set a)) ->
+  -- | "Seed" vertices that populate the initial dag, and are used to look up adjacent vertices (recursively) until the
+  -- entire dag is formed.
+  t a ->
+  m (Dag a)
+reifyDag loadAdjacent =
+  go Map.empty
+  where
+    go :: forall t. Foldable t => Dag a -> t a -> m (Dag a)
+    go =
+      foldlM \dag vertex ->
+        case Map.member vertex dag of
+          True -> pure dag
+          False -> do
+            adjacent <- loadAdjacent vertex
+            dag1 <- go dag adjacent
+            pure $! Map.insert vertex adjacent dag1
+
+-- If    1
+--      / \
+--     2   3
+--      \ / \
+--       4   5
+--
+-- then this will return a function that maps a set of elements to its set of transitive dependents, for example
+--
+--   dagTransitiveDependents m {1}    = {1}
+--   dagTransitiveDependents m {2}    = {1, 2}
+--   dagTransitiveDependents m {4}    = {1, 2, 3, 4}
+--   dagTransitiveDependents m {2, 5} = {1, 2, 3, 5}
+--
+-- It accepts an entire set rather than a single element for efficiency in the case that the caller is interested in
+-- unioning the transitive dependents of multiple elements together. That is, if you want to get the union of
+-- transitive dependents of elements {x, y, z}, then it is more efficient to call
+--
+--   dagTransitiveDependents m {x, y, z}
+--
+-- than it is to call
+--
+--   dagTransitiveDependents m {x} `union` dagTransitiveDependents m {y} `union` dagTransitiveDependents m {z}
+--
+-- though both expressions will compute the same set.
+dagTransitiveDependents :: forall a. Ord a => Dag a -> Set a -> Set a
+dagTransitiveDependents dag vertices =
+  let isTransitiveDependent :: Map a Bool
+      isTransitiveDependent =
+        LazyMap.mapWithKey
+          (\dependent dependencies -> Set.member dependent vertices || any (isTransitiveDependent Map.!) dependencies)
+          dag
+   in Map.keysSet isTransitiveDependent
 
 -- | Returns the set of all transitive dependents of the given set of references.
 -- Uses dynamic programming to follow every transitive dependency from `scope` to `query`.
