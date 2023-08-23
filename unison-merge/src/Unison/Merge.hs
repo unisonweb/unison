@@ -2,10 +2,7 @@
 
 module Unison.Merge
   ( Database (..),
-    TypeBloboid (..),
-    makeTypeBloboid,
-    TermBloboid (..),
-    makeTermBloboid,
+    makeCanonicalize,
     computeTypeUserUpdates,
     computeTermUserUpdates,
   )
@@ -86,35 +83,12 @@ data Database m = Database
   }
   deriving stock (Generic)
 
-data TypeBloboid = TypeBloboid
-  { canonicalize :: TypeReference -> TypeReference,
-    coreEquivalenceClasses :: Bimap EC (Set TypeReference),
-    updates :: Relation TypeReference TypeReference
-  }
-  deriving stock (Generic)
-
-makeTypeBloboid :: Relation TypeReference TypeReference -> TypeBloboid
-makeTypeBloboid updates =
+makeCanonicalize :: forall a. Ord a => Relation a a -> a -> a
+makeCanonicalize updates =
   let canonicalizeMap = UFMap.freeze equivalenceClasses
       canonicalize r = Map.findWithDefault r r canonicalizeMap
-      coreEquivalenceClasses = ufmapToECs equivalenceClasses
       equivalenceClasses = computeEquivalenceClasses updates
-   in TypeBloboid {canonicalize, coreEquivalenceClasses, updates}
-
-data TermBloboid = TermBloboid
-  { canonicalize :: Referent -> Referent,
-    coreEquivalenceClasses :: Bimap EC (Set Referent),
-    updates :: Relation Referent Referent
-  }
-  deriving stock (Generic)
-
-makeTermBloboid :: Relation Referent Referent -> TermBloboid
-makeTermBloboid updates =
-  let canonicalizeMap = UFMap.freeze equivalenceClasses
-      canonicalize r = Map.findWithDefault r r canonicalizeMap
-      coreEquivalenceClasses = ufmapToECs equivalenceClasses
-      equivalenceClasses = computeEquivalenceClasses updates
-   in TermBloboid {canonicalize, coreEquivalenceClasses, updates}
+   in canonicalize
 
 ufmapToECs :: Ord a => UFMap a a -> Bimap EC (Set a)
 ufmapToECs =
@@ -148,11 +122,12 @@ computeTermUserUpdates ::
   Monad m =>
   HashHandle ->
   Database m ->
-  TypeBloboid ->
-  TermBloboid ->
+  (TypeReference -> TypeReference) ->
+  (Referent -> Referent) ->
+  Relation Referent Referent ->
   m (Relation Referent Referent)
-computeTermUserUpdates hashHandle database typeBloboid termBloboid =
-  Relation.fromList <$> filterM isUserUpdate (Relation.toList (termBloboid ^. #updates))
+computeTermUserUpdates hashHandle database canonicalizeTypeRef canonicalizeTermRef updates =
+  Relation.fromList <$> filterM isUserUpdate (Relation.toList updates)
   where
     isUserUpdate :: (Referent, Referent) -> m Bool
     isUserUpdate = \case
@@ -171,8 +146,8 @@ computeTermUserUpdates hashHandle database typeBloboid termBloboid =
       term <- (database ^. #loadTerm) ref
       canonicalizeTerm
         database
-        (termBloboid ^. #canonicalize)
-        (typeBloboid ^. #canonicalize)
+        canonicalizeTypeRef
+        canonicalizeTermRef
         (ref ^. Reference.idH)
         term
 
@@ -191,10 +166,11 @@ computeTypeUserUpdates ::
     Decl Symbol ->
     Maybe ([Decl.Type Symbol] -> [Decl.Type Symbol])
   ) ->
-  TypeBloboid ->
+  (TypeReference -> TypeReference) ->
+  Relation TypeReference TypeReference ->
   m (Relation TypeReference TypeReference)
-computeTypeUserUpdates hashHandle database getConstructorMapping bloboid =
-  Relation.fromList <$> filterM isUserUpdate0 (Relation.toList (bloboid ^. #updates))
+computeTypeUserUpdates hashHandle database getConstructorMapping canonicalizeType updates =
+  Relation.fromList <$> filterM isUserUpdate0 (Relation.toList updates)
   where
     isUserUpdate0 :: (TypeReference, TypeReference) -> m Bool
     isUserUpdate0 = \case
@@ -226,7 +202,7 @@ computeTypeUserUpdates hashHandle database getConstructorMapping bloboid =
           hashCanon h x = HashHandle.toReference hashHandle (canonicalize h x)
 
           canonicalize :: Hash -> TypeD Symbol -> TypeT Symbol
-          canonicalize selfHash x = Type.rmap ((bloboid ^. #canonicalize) . subSelfReferences) x
+          canonicalize selfHash x = Type.rmap (canonicalizeType . subSelfReferences) x
             where
               subSelfReferences :: Reference.TypeRReference -> TypeReference
               subSelfReferences =
@@ -239,20 +215,20 @@ canonicalizeTerm ::
   forall m.
   Monad m =>
   Database m ->
-  (Referent -> Referent) ->
   (TypeReference -> TypeReference) ->
+  (Referent -> Referent) ->
   Hash ->
   Term Symbol ->
   m (ResolvedTerm Symbol)
-canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
+canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef selfHash =
   ABT.transformM \case
-    Term.Ann a typ -> pure $ Term.Ann a (Type.rmap lookupCanonType typ)
+    Term.Ann a typ -> pure $ Term.Ann a (Type.rmap canonicalizeTypeRef typ)
     Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
     Term.Ref r -> lookupCanonReferent (Referent.Ref (resolveTermReference r))
     Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
-    Term.TypeLink r -> pure $ Term.TypeLink (lookupCanonType r)
+    Term.TypeLink r -> pure $ Term.TypeLink (canonicalizeTypeRef r)
     -- Boring no-ops
     Term.And p q -> pure $ Term.And p q
     Term.App f a -> pure $ Term.App f a
@@ -302,7 +278,7 @@ canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
         Term.PVar -> pat
       where
         canonicalizeConstructorPattern ref cid =
-          case lookupCanonTerm (Referent.Con ref cid) of
+          case canonicalizeTermRef (Referent.Con ref cid) of
             Referent.Con cref ccid -> (cref, ccid)
             Referent.Ref cref -> (cref, maxBound @ConstructorId)
 
@@ -315,11 +291,11 @@ canonicalizeTerm database lookupCanonTerm lookupCanonType selfHash =
 
     lookupTermLink :: Term.TermLink -> Referent
     lookupTermLink =
-      lookupCanonTerm . resolveReferent
+      canonicalizeTermRef . resolveReferent
 
     lookupCanonReferent :: forall a. Referent -> m (Term.ResolvedF Symbol a)
     lookupCanonReferent r =
-      case lookupCanonTerm r of
+      case canonicalizeTermRef r of
         Referent.Ref x -> pure (Term.Ref x)
         Referent.Con typeRef constructorId -> makeConstructorTerm typeRef constructorId
 

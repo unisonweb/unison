@@ -98,50 +98,48 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         (lcaTypeNames, lcaDataconNames, lcaTermNames) <- loadBranchDefinitionNames lcaBranch
 
         aliceBranch <- Causal.value aliceCausal
+        bobBranch <- Causal.value bobCausal
+
         aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
-        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
+        bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
+
         let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
-        let aliceTypeBloboid = Merge.makeTypeBloboid aliceTypeUpdates
-        let aliceTermBloboid = Merge.makeTermBloboid aliceTermUpdates
+        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
+
+        let typeUpdates = aliceTypeUpdates <> bobTypeUpdates
+        let termUpdates = aliceTermUpdates <> bobTermUpdates
+
+        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
+        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
+
         (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
+        (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
+
+        let canonicalizeType = Merge.makeCanonicalize typeUpdates
         aliceUserTypeUpdates <-
           Merge.computeTypeUserUpdates
             v2HashHandle
             mergeDatabase
-            ( \ref1 decl1 ref2 decl2 ->
-                computeConstructorMapping
-                  lcaDataconNames
-                  ref1
-                  decl1
-                  aliceDataconNames
-                  ref2
-                  decl2
-            )
-            aliceTypeBloboid
-        aliceUserTermUpdates <- Merge.computeTermUserUpdates v2HashHandle mergeDatabase aliceTypeBloboid aliceTermBloboid
-
-        bobBranch <- Causal.value bobCausal
-        bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
-        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
-        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
-        let bobTypeBloboid = Merge.makeTypeBloboid bobTypeUpdates
-        let bobTermBloboid = Merge.makeTermBloboid bobTermUpdates
-        (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
+            (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 aliceDataconNames ref2 decl2)
+            canonicalizeType
+            aliceTypeUpdates
         bobUserTypeUpdates <-
           Merge.computeTypeUserUpdates
             v2HashHandle
             mergeDatabase
-            ( \ref1 decl1 ref2 decl2 ->
-                computeConstructorMapping
-                  lcaDataconNames
-                  ref1
-                  decl1
-                  bobDataconNames
-                  ref2
-                  decl2
-            )
-            bobTypeBloboid
-        bobUserTermUpdates <- Merge.computeTermUserUpdates v2HashHandle mergeDatabase bobTypeBloboid bobTermBloboid
+            (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 bobDataconNames ref2 decl2)
+            canonicalizeType
+            bobTypeUpdates
+        let userTypeUpdates = aliceUserTypeUpdates <> bobUserTypeUpdates
+
+        let canonicalizeTerm = Merge.makeCanonicalize termUpdates
+        userTermUpdates <-
+          Merge.computeTermUserUpdates
+            v2HashHandle
+            mergeDatabase
+            canonicalizeType
+            canonicalizeTerm
+            termUpdates
 
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="
@@ -152,13 +150,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           printDefinitionsDiff Nothing bobDefinitionsDiff
           printDependenciesDiff bobDependenciesDiff
           Text.putStrLn ""
-          Text.putStrLn "===== alice updates ====="
-          printTypeUpdates aliceTypeUpdates aliceUserTypeUpdates
-          printTermUpdates aliceTermUpdates aliceUserTermUpdates
-          Text.putStrLn ""
-          Text.putStrLn "===== bob updates ====="
-          printTypeUpdates bobTypeUpdates bobUserTypeUpdates
-          printTermUpdates bobTermUpdates bobUserTermUpdates
+          Text.putStrLn "===== updates ====="
+          printTypeUpdates typeUpdates userTypeUpdates
+          printTermUpdates termUpdates userTermUpdates
           Text.putStrLn ""
 
 computeConstructorMapping ::
