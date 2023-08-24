@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.HandleInput.MetadataUtils
 where
 
 import Control.Lens
+import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
@@ -118,7 +119,7 @@ manageLinks silent srcs' metadataNames op = do
               ppe
               diff
 
--- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
+-- | Resolve a metadata name to its type/value, or fail if it's missing or ambiguous.
 resolveMetadata :: HQ.HashQualified Name -> Cli (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
@@ -131,14 +132,15 @@ resolveMetadata name = do
         Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
 
   terms <- getHQTerms name
-  ref <-
-    case Set.asSingleton terms of
-      Just (Referent.Ref ref) -> pure ref
-      -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
-      _ -> Cli.returnEarly (MetadataAmbiguous name ppe (Set.toList terms))
-  Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref)) <&> \case
-    Just ty -> Right (Hashing.typeToReference ty, ref)
-    Nothing -> Left (MetadataMissingType ppe (Referent.Ref ref))
+  runExceptT $ do
+    ref <-
+      case Set.asSingleton terms of
+        Just (Referent.Ref ref) -> pure ref
+        -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
+        _ -> throwError (MetadataAmbiguous name ppe (Set.toList terms))
+    lift (Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref))) >>= \case
+      Just ty -> pure (Hashing.typeToReference ty, ref)
+      Nothing -> throwError (MetadataMissingType ppe (Referent.Ref ref))
 
 resolveDefaultMetadata :: Path.Absolute -> Cli [String]
 resolveDefaultMetadata path = do
