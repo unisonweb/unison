@@ -57,6 +57,8 @@
     builtin-Value.fromBuiltin
     builtin-Code.fromGroup
     builtin-Code.toGroup
+    builtin-TermLink.fromReferent
+    builtin-TermLink.toReferent
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -419,7 +421,10 @@
           (unison arithmetic)
           (unison bytevector)
           (unison core)
-          (only (unison boot) define-unison)
+          (only (unison boot)
+                define-unison
+                referent->termlink
+                termlink->referent)
           (unison data)
           (unison data-info)
           (unison math)
@@ -444,6 +449,10 @@
   (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
   (define-unison (builtin-Code.toGroup co)
     (unison-code-rep co))
+  (define-unison (builtin-TermLink.fromReferent rf)
+    (referent->termlink rf))
+  (define-unison (builtin-TermLink.toReferent tl)
+    (termlink->referent tl))
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
