@@ -22,6 +22,7 @@ import Network.URI (URI (..), parseURI)
 import Network.Wai
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (getCredentials, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
@@ -106,6 +107,15 @@ authLogin host = do
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
   let creds = codeserverCredentials discoveryURI tokens fetchTime userInfo
+  -- Before saving new credentials we clear the temp entity caches,
+  -- this is to handle the case that the user logged into a new user and that they have
+  -- some hashJWTs for a different user around which won't work against the new user
+  -- credentials.
+  --
+  -- It also means that if the server changes signing-keys the user will simply get
+  -- "unauthenticated", call `auth.login`, and that will clear out any hashjwts signed with
+  -- the old key.
+  Cli.runTransaction Q.clearTempEntityTables
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
   pure userInfo

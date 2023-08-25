@@ -220,6 +220,7 @@ module U.Codebase.Sqlite.Queries
     saveTempEntityInMain,
     expectTempEntity,
     deleteTempEntity,
+    clearTempEntityTables,
 
     -- * elaborate hashes
     elaborateHashes,
@@ -2711,6 +2712,15 @@ deleteTempEntity hash =
       FROM temp_entity
       WHERE hash = :hash
     |]
+
+-- | Clears the `temp_entity` and `temp_entity_missing_dependency` tables.
+-- The hashjwts stored in temp entity tables can sometimes go stale, so we clear them out.
+-- This is safe because temp entities are generally considered ephemeral
+-- except during an active pull.
+clearTempEntityTables :: Transaction ()
+clearTempEntityTables = do
+  execute [sql| DELETE FROM temp_entity_missing_dependency |]
+  execute [sql| DELETE FROM temp_entity |]
 
 -- | "Elaborate" a set of `temp_entity` hashes.
 --
