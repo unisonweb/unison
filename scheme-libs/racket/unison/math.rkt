@@ -16,6 +16,7 @@
     builtin-Int.pow
     builtin-Int.trailingZeros
     builtin-Int.popCount
+    builtin-Nat.popCount
     builtin-Float.pow
  (prefix-out unison-POp-
              (combine-out
@@ -74,6 +75,7 @@
 (define-unison (builtin-Int.* n m) (* n m))
 (define-unison (builtin-Int.pow n m) (expt n m))
 (define-unison (builtin-Int.trailingZeros n) (TZRO n))
+(define-unison (builtin-Nat.popCount n) (POPC n))
 (define-unison (builtin-Int.popCount n) (POPC n))
 (define-unison (builtin-Float.pow n m) (expt n m))
 (define (EXPF n) (exp n))

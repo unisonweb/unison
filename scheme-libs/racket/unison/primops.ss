@@ -47,6 +47,7 @@
     builtin-Int.trailingZeros
     builtin-Int.popCount
     builtin-Nat.increment
+    builtin-Nat.popCount
     builtin-Nat.toFloat
     builtin-Text.indexOf
     builtin-Bytes.indexOf
