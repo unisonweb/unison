@@ -81,6 +81,12 @@ serial.loadSelfContained name path =
     then pass (name ++ " value roundtrip")
     else fail name "value roundtrip"
 
+    match validateLinks deps with
+      Left [] -> fail name "validateLinks: empty Left"
+      Left _  -> fail name "validateLinks: couldn't rehash"
+      Right [] -> pass (name ++ " links validated")
+      Right _ -> fail name "failed link validation"
+
     _ = cache_ deps
     match Value.load v with
       Left l -> raiseFailure "value missing deps" l
