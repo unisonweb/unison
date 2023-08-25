@@ -468,7 +468,7 @@
 
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
-  (define (unison-POp-ANDN m n) (fxand m n))
+  (define (unison-POp-ANDN m n) (bitwise-and m n))
   (define unison-POp-BLDS
     (lambda args-list
       (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
