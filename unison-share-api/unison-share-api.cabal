@@ -26,6 +26,7 @@ library
       Unison.Server.Errors
       Unison.Server.Local
       Unison.Server.Local.Definitions
+      Unison.Server.Local.Endpoints.Current
       Unison.Server.Local.Endpoints.DefinitionSummary
       Unison.Server.Local.Endpoints.FuzzyFind
       Unison.Server.Local.Endpoints.GetDefinitions

@@ -61,8 +61,10 @@ library
     , servant
     , servant-auth
     , text
+    , unison-core
     , unison-hash
     , unison-hash-orphans-aeson
     , unison-prelude
     , unordered-containers
+    , uuid
   default-language: Haskell2010

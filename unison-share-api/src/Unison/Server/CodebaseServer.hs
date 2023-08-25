@@ -99,6 +99,7 @@ import Unison.Server.Backend (Backend, BackendEnv, runBackend)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Errors (backendError)
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
+import Unison.Server.Local.Endpoints.Current (CurrentAPI, serveCurrent)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Local.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -128,7 +129,7 @@ type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
 type LooseCodeAPI = "non-project-code" :> CodebaseServerAPI
 
-type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
+type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI :<|> CurrentAPI
 
 type CodebaseServerAPI =
   NamespaceListing.NamespaceListingAPI
@@ -568,7 +569,7 @@ serveUnisonLocal ::
   Server UnisonLocalAPI
 serveUnisonLocal env codebase rt =
   hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $
-    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt
+    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt :<|> (setCacheControl <$> serveCurrent codebase)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =
