@@ -16,12 +16,10 @@ import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..), ProjectBran
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 import Unison.Project.Util (pattern UUIDNameSegment)
-import Unison.Symbol (Symbol)
 import Unison.NameSegment (NameSegment (..))
 
 type CurrentAPI =
@@ -54,11 +52,11 @@ instance ToJSON Current where
         "path" .= path
       ]
 
-serveCurrent :: forall m. (MonadIO m) => Codebase m Symbol Ann -> Backend m Current
+serveCurrent :: MonadIO m => Codebase m v a -> Backend m Current
 serveCurrent = lift . getCurrentProjectBranch 
 
 
-getCurrentProjectBranch :: (MonadIO m) => Codebase m v a -> m Current
+getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
   namespace <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
   let segments = NameSegment <$> namespace
