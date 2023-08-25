@@ -19,7 +19,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
@@ -28,13 +27,14 @@ import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Term (Term)
 import Unison.Term qualified as Term
-import Unison.Type qualified as Type
+import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import Unison.Typechecker.TypeLookup qualified as TL
-import Unison.UnisonFile (definitionLocation)
+import Unison.UnisonFile (UnisonFile, definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
@@ -42,12 +42,6 @@ import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-
-type Term v = Term.Term v Ann
-
-type Type v = Type.Type v Ann
-
-type UnisonFile v = UF.UnisonFile v Ann
 
 -- each round of TDNR emits its own TopLevelComponent notes, so we remove
 -- duplicates (based on var name and location), preferring the later note as
@@ -73,12 +67,12 @@ data ShouldUseTndr m
 --     * The parsing environment that was used to parse the parsed Unison file.
 --     * The parsed Unison file for which the typechecking environment is applicable.
 computeTypecheckingEnvironment ::
-  (Var v, Monad m) =>
+  (Var v, Monad m, Monoid a) =>
   ShouldUseTndr m ->
-  [Type v] ->
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  UnisonFile v ->
-  m (Typechecker.Env v Ann)
+  [Type v a] ->
+  (Set Reference -> m (TL.TypeLookup v a)) ->
+  UnisonFile v a ->
+  m (Typechecker.Env v a)
 computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
   case shouldUseTndr of
     ShouldUseTndr'No -> do
@@ -134,11 +128,11 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
           }
 
 synthesizeFile ::
-  forall m v.
-  (Monad m, Var v) =>
-  Typechecker.Env v Ann ->
-  UnisonFile v ->
-  ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
+  forall m v a.
+  (Monad m, Var v, Monoid a, Ord a) =>
+  Typechecker.Env v a ->
+  UF.UnisonFile v a ->
+  ResultT (Seq (Note v a)) m (UF.TypecheckedUnisonFile v a)
 synthesizeFile env0 uf = do
   let term = UF.typecheckingTerm uf
       -- substitute Blanks for any remaining free vars in UF body
@@ -152,21 +146,21 @@ synthesizeFile env0 uf = do
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result.makeResult (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
-      let topLevelBindings :: Map v (Term v)
+    (topLevelComponents :: [[(v, Term v a, Type v a)]]) <-
+      let topLevelBindings :: Map v (Term v a)
           topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
-          extractTopLevelBindings :: (Term.Term v a -> Map v (Term.Term v a))
+          extractTopLevelBindings :: (Term v a -> Map v (Term v a))
           extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
             Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
           extractTopLevelBindings _ = Map.empty
-          tlcsFromTypechecker :: [[(v, Type.Type v Ann, RedundantTypeAnnotation)]]
+          tlcsFromTypechecker :: [[(v, Type v a, RedundantTypeAnnotation)]]
           tlcsFromTypechecker =
             List.uniqueBy'
               (fmap vars)
               [t | Context.TopLevelComponent t <- infos]
             where
               vars (v, _, _) = v
-          addTypesToTopLevelBindings :: (v, c, c1) -> ResultT (Seq (Note v Ann)) m (v, Term v, c)
+          addTypesToTopLevelBindings :: (v, c, c1) -> ResultT (Seq (Note v a)) m (v, Term v a, c)
           addTypesToTopLevelBindings (v, typ, _redundant) = do
             tm <- case Map.lookup v topLevelBindings of
               Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
@@ -202,9 +196,9 @@ synthesizeFile env0 uf = do
         (map tlcKind watches')
   where
     applyTdnrDecisions ::
-      [Context.InfoNote v Ann] ->
-      Term v ->
-      Term v
+      [Context.InfoNote v a] ->
+      Term v a ->
+      Term v a
     applyTdnrDecisions infos tdnrTerm = ABT.visitPure resolve tdnrTerm
       where
         decisions = Map.fromList [((Var.nameStr v, loc), replacement) | Context.Decision v loc replacement <- infos]
