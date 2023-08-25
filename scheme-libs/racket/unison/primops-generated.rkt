@@ -176,7 +176,6 @@
      (unison-reference-derived (unison-id-id bs i))]
     [else (raise "termlink->reference: con case")]))
 
-
 (define (group-reference gr)
   (data-case gr
     [0 (r _) r]))
@@ -199,39 +198,6 @@
        (unison-reference-derived
          (unison-id-id h i)))]))
 
-(define (reify-reference rf)
-  (match rf
-    [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
-     (unison-typelink-builtin (chunked-string->string nm))]
-    [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
-     (match id
-       [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
-        (unison-typelink-derived rf i)])]))
-
-(define (reify-termlink-reference rf)
-  (match rf
-    [(unison-data _ t (list nm))
-     #:when (= t unison-reference-builtin:tag)
-     (unison-termlink-builtin nm)]
-    [(unison-data _ t (list id))
-     #:when (= t unison-reference-derived:tag)
-     (match id
-       [(unison-data _ t (list rf i))
-        #:when (= t unison-id-id:tag)
-        (unison-termlink-derived rf i)])]))
-
-(define (reify-referent rn)
-  (match rn
-    [(unison-data _ t (list rf i))
-     #:when (= t unison-referent-con:tag)
-     (unison-termlink-con (reify-reference rf) i)]
-    [(unison-data _ t (list rf))
-     #:when (= t unison-referent-def:tag)
-     (reify-termlink-reference rf)]))
-
 (define (reify-vlit vl)
   (match vl
     [(unison-data _ t (list l))
@@ -239,8 +205,8 @@
        [(= t unison-vlit-bytes:tag) l]
        [(= t unison-vlit-bytearray:tag) l]
        [(= t unison-vlit-text:tag) l]
-       [(= t unison-vlit-typelink:tag) (reify-reference l)]
-       [(= t unison-vlit-termlink:tag) (reify-referent l)]
+       [(= t unison-vlit-typelink:tag) (reference->typelink l)]
+       [(= t unison-vlit-termlink:tag) (referent->termlink l)]
        [(= t unison-vlit-code:tag) (unison-code l)]
        [(= t unison-vlit-quote:tag) (unison-quote l)]
        [(= t unison-vlit-seq:tag)
@@ -257,7 +223,7 @@
      (let ([us (chunked-list->list us0)]
            [bs (map reify-value (chunked-list->list bs0))])
        (cond
-         [(null? us) (make-data (reify-reference rf) rt bs)]
+         [(null? us) (make-data (reference->typelink rf) rt bs)]
          [(and (null? bs) (= 1 (length us))) (car us)]
          [else
            (raise
