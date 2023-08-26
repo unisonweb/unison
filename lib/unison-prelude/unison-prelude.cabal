@@ -26,6 +26,7 @@ library
       Unison.Util.Map
       Unison.Util.Maybe
       Unison.Util.Monoid
+      Unison.Util.NEMap
       Unison.Util.Set
       Unison.Util.Timing
   hs-source-dirs:
@@ -56,6 +57,7 @@ library
     , extra
     , lens
     , mtl
+    , nonempty-containers
     , pretty-simple
     , safe
     , text

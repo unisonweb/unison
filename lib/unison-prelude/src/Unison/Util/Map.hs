@@ -5,6 +5,7 @@ module Unison.Util.Map
     bitraversed,
     deleteLookup,
     foldMapM,
+    fromSetM,
     unionWithM,
     remap,
     traverseKeys,
@@ -21,6 +22,8 @@ import Data.Bifunctor qualified as B
 import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
 import Data.Map.Strict qualified as Map
+import Data.Map.Strict.Internal qualified as Map
+import Data.Set.Internal qualified as Set
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap)
@@ -95,3 +98,10 @@ traverseKeys f = bitraverse f pure
 traverseKeysWith :: (Applicative f, Ord k') => (v -> v -> v) -> (k -> f k') -> Map k v -> f (Map k' v)
 traverseKeysWith combine f m =
   Map.fromListWith combine <$> (Map.toList m & traversed . _1 %%~ f)
+
+fromSetM :: Monad f => (k -> f a) -> Set k -> f (Map k a)
+fromSetM f = \case
+  Set.Tip -> pure Map.Tip
+  Set.Bin sz x l r -> do
+    v <- f x
+    v `seq` Map.Bin sz x v <$> fromSetM f l <*> fromSetM f r

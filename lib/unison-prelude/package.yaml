@@ -16,6 +16,7 @@ dependencies:
   - extra
   - lens
   - mtl
+  - nonempty-containers
   - pretty-simple
   - safe
   - text
