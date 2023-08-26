@@ -10,6 +10,8 @@ where
 
 import Control.Lens ((%~), (^.))
 import Control.Lens qualified as Lens
+import Control.Monad.Validate (Validate, ValidateT, runValidateT)
+import Control.Monad.Validate qualified as Validate
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
@@ -67,6 +69,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
+import Unison.Util.NEMap qualified as NEMap
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -643,7 +646,6 @@ processWorkItems loadTerm loadDecl ech finished = \case
           WiTerms ecs -> wundefined
   where
     recurse = processWorkItems loadTerm loadDecl ech . NEMap.toMap
-
     handleOneType :: EC -> m (Result v a)
     handleOneType ec = case latestMember ech ec of
       LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> loadDecl r
@@ -663,10 +665,21 @@ processWorkItems loadTerm loadDecl ech finished = \case
 
     handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
     handleManyTypes ecs = do
-      component <- wundefined
-      pure $ rewriteDeclComponent ecForRef finished component
+      runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
+        Right component -> rewriteDeclComponent (memberToEc ech) finished component
+        Left problems -> recordProblems problems
       where
-        ecForRef = memberToEc ech
+        loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Decl v a)
+        loadLatestMember ec = case latestMember ech ec of
+          LmLatest (LD.DerivedType r) -> lift $ loadDecl r
+          LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
+          LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
+        recordProblems problems = NEMap.fromSet makeResult ecs
+          where
+            problemSet = NEMap.keysSet problems
+            makeResult ec = case NEMap.lookup ec problems of
+              Just i -> RNeedsIntervention i
+              Nothing -> RSkippedDependencies problemSet
 
 -- latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
 --   Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
