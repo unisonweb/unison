@@ -15,7 +15,6 @@ import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
 import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
-import Data.List (partition)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Lazy qualified as LazyMap
@@ -48,9 +47,7 @@ import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.FileParsers qualified as FP
 import Unison.Hash (Hash)
-import Unison.Hashing.V2 qualified as Hashing.V2
 import Unison.Hashing.V2.Convert qualified as Hashing.Convert
-import Unison.Hashing.V2.Convert qualified as V2.Convert
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.PatternMatchCoverage.UFMap (UFMap)
@@ -58,22 +55,21 @@ import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
-import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
 import Unison.Result qualified as Result
 import Unison.Term qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1
 import Unison.Type qualified as V1.Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
-import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
-import Unison.Util.TransitiveClosure (transitiveClosure1')
 import Unison.Var (Var)
 import Unison.Var qualified as V1.Var
 
@@ -577,8 +573,7 @@ data WorkItem = WiType EC | WiTypes (NESet EC) | WiTerm EC | WiTerms (NESet EC)
 data Defn v a = DefnTerm (V1.Term v a) (V1.Type v a) | DefnDecl (V1.Decl v a) | DefnCtor
   deriving (Eq, Ord, Show)
 
-data DefnRef = DrTypeRef V1.TypeReference | DrTermish V1.Referent
-  deriving (Eq, Ord, Show)
+type DefnRef = LabeledDependency
 
 data DefnRefId = DriTypeRefId V1.TypeReferenceId | DriTermRefId V1.Reference.Id
   deriving (Eq, Ord, Show)
@@ -597,6 +592,19 @@ data EcHandle = EcHandle
     ecDependenciesRelation :: Relation EC EC
   }
 
+data LatestMember = LmLatest DefnRef | LmConflict (NonEmpty DefnRef) (NonEmpty DefnRef)
+
+latestMember :: EcHandle -> EC -> LatestMember
+latestMember EcHandle {ecUserUpdatedMembers, ecOriginalMembers} ec =
+  case ecUserUpdatedMembers ec of
+    Just (updated :| []) -> LmLatest updated
+    Just updated -> LmConflict (ecOriginalMembers ec) updated
+    -- if there are no user-updated members but more than one original member,
+    -- that means that multiple original definitions were auto-propagated to the same new result
+    -- which means that any of the origianl definitions is an equally good starting point,
+    -- as they should be identical up to EC-canonical alpha-equivalence
+    Nothing -> LmLatest $ NonEmpty.head (ecOriginalMembers ec)
+
 ecDependencies, ecDependents :: EcHandle -> EC -> Set EC
 ecDependencies eh ec = Relation.lookupDom ec (ecDependenciesRelation eh)
 ecDependents eh ec = Relation.lookupRan ec (ecDependenciesRelation eh)
@@ -607,7 +615,7 @@ ecDependents eh ec = Relation.lookupRan ec (ecDependenciesRelation eh)
 -- The cycle/components are not important here, except that the (Set EC) represents potentially one or more components in the output namespace.
 processWorkItems ::
   forall m v a.
-  (Monad m, Var v, Show a) =>
+  (Monad m, Var v, Monoid a, Show a) =>
   (V1.TermReferenceId -> m (V1.Term v a)) ->
   (V1.TypeReferenceId -> m (V1.Decl v a)) ->
   EcHandle ->
@@ -617,61 +625,53 @@ processWorkItems ::
 processWorkItems loadTerm loadDecl ech finished = \case
   [] -> pure finished
   wi : queue' ->
-    let runAndRecurse :: WorkItem -> (WorkItem -> NEMap EC (Result v a)) -> m (Map EC (Result v a))
+    let runAndRecurse :: WorkItem -> (WorkItem -> m (NEMap EC (Result v a))) -> m (Map EC (Result v a))
         runAndRecurse wi run = do
           let wiECs = workItemToECs wi
               wiDependencies = foldMap (ecDependencies ech) wiECs
               isNotGood ec = maybe False (not . goodResult) $ Map.lookup ec finished
               badResults = Set.filter isNotGood wiDependencies
           newResults <- case NESet.nonEmptySet badResults of
-            Nothing -> pure $ run wi
+            Nothing -> run wi
             Just badResults -> pure $ NEMap.fromSet (const $ RSkippedDependencies badResults) wiECs
           let finished' = NEMap.withNonEmpty newResults (newResults <>) finished
           recurse finished' queue'
      in runAndRecurse wi \case
-          WiType ec -> NEMap.singleton ec $ handleOneType ec
+          WiType ec -> NEMap.singleton ec <$> handleOneType ec
           WiTypes ecs -> wundefined
-          WiTerm ec -> NEMap.singleton ec $ handleOneTerm ec
+          WiTerm ec -> NEMap.singleton ec <$> handleOneTerm ec
           WiTerms ecs -> wundefined
   where
     recurse = processWorkItems loadTerm loadDecl ech . NEMap.toMap
 
-    handleOneType, handleOneTerm :: EC -> Result v a
-    handleOneType ec = case ecUserUpdatedMembers ech ec of
-      Just (DrTypeRef (V1.Reference.DerivedId r) :| []) -> rewriteSingleDecl r
-      Just (dr@(DrTypeRef V1.Reference.Builtin {}) :| []) -> RSimple dr
-      Just uupdated@(_ :| _ : _) ->
-        RNeedsIntervention (IResolveConflict (ecOriginalMembers ech ec) uupdated)
-      Nothing -> case ecOriginalMembers ech ec of
-        -- if there are no userUpdatedMembers but more than one originalMember,
-        -- that means that multiple original definitions were auto-propagated to the same new result
-        -- which means that any of the origianl definitions is an equally good starting point,
-        -- as they should be identical up to EC-canonical alpha-equivalence
-        DrTypeRef (V1.Reference.DerivedId r) :| _ -> rewriteSingleDecl r
-        e -> error $ "handleOneType: Weird case ecOriginalMembers = " ++ show e
-      e -> error $ "handleOneType: Weird case ecUUpdatedMembers = " ++ show e
+    handleOneType :: EC -> m (Result v a)
+    handleOneType ec = case latestMember ech ec of
+      LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> loadDecl r
+      LmLatest dr@(LD.BuiltinType {}) -> pure $ RSimple dr
+      LmLatest (LD.TermReferent {}) -> error "handleOneType: latest member shouldn't be a term"
+      LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
 
-    handleOneTerm = wundefined
+    handleOneTerm ec = case latestMember ech ec of
+      LmLatest (LD.DerivedTerm r) -> rewriteSingleTerm (memberToEc ech) finished <$> loadTerm r
+      LmLatest dr@(LD.BuiltinTerm {}) -> pure $ RSimple dr
+      LmLatest dr@(LD.ConReference {}) -> pure $ RSimple dr
+      LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
+      LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
 
-    handleManyTypes, handleManyTerms :: NESet EC -> Map EC (Result v a)
-    handleManyTypes = wundefined
+    handleManyTerms :: NESet EC -> Map EC (Result v a)
     handleManyTerms = wundefined
 
--- handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
--- handleManyTypes ecs = do
---   let latestRefs :: Map EC V1.TypeReferenceId
---       latestRefs =
---         Map.fromList
---           [ (ec, r)
---             | ec <- toList ecs,
---               let r = case latestDefnRef ec of
---                     DrTypeRef (V1.Reference.DerivedId r) -> r
---                     _ -> error "expected a derived id"
---           ]
---   latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
---     Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
---   -- V1Decl.unhashComponent
---   wundefined
+    handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
+    handleManyTypes ecs = do
+      component <- wundefined
+      pure $ rewriteDeclComponent ecForRef finished component
+      where
+        ecForRef = memberToEc ech
+
+-- latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
+--   Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
+-- -- V1Decl.unhashComponent
+-- wundefined
 
 -- Staryafish algorithm:
 -- 1. Load the latest version of each definition
@@ -689,7 +689,7 @@ processWorkItems loadTerm loadDecl ech finished = \case
 
 -- latestDefnsDrTypeRef (V1Reference.DerivedId r) =
 -- latestDefnRef ec >>= \case {}
--- DrTypeRef
+-- LD.TypeReference
 -- decls <- Map.fromList <$> traverse (\ec -> \DefnType (ec,) <$> loadLatestDefn ec) (toList ecs)
 
 -- rewriteDeclDependencies :: decl -> decl
@@ -704,7 +704,7 @@ processWorkItems loadTerm loadDecl ech finished = \case
 -- typeReplacementRef :: V1.TypeReference -> Maybe V1.TypeReference
 -- typeReplacementRef dep =
 --   -- for a dependency, look up its EC, and look up the replacement for that EC if any.
---   case memberToEc ech (DrTypeRef dep)  of
+--   case memberToEc ech (LD.TypeReference dep)  of
 --     Just ec -> case Map.lookup ec replacements of
 --       Just (RSuccess (DriTypeRefId r) _) -> Just (V1.Reference.DerivedId r)
 --       Just r -> error $ "tried to look up a dependency that has already exhibited some problem: " ++ show ec ++ ": " ++ show r
@@ -761,9 +761,26 @@ data TermError
   | TeFailedTypecheck (V1.TypeReference, V1.TypeReference)
   deriving (Eq, Ord, Show)
 
-rewriteSingleDecl = wundefined
+rewriteSingleDecl :: (V1.ABT.Var v, Show v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> V1.Decl v a -> Result v a
+rewriteSingleDecl ecForRef finished decl = RSuccess (DriTypeRefId r') (DefnDecl decl')
+  where
+    r' = Hashing.Convert.hashClosedDecl decl'
+    decl' = foldl' (flip performOneDeclRewrite) decl (mapMaybe getReplacement . toList $ V1.Decl.declTypeDependencies decl)
+    getReplacement rOld = do
+      ec <- ecForRef (LD.TypeReference rOld)
+      simpleFinishedTypeReplacement finished ec rOld
 
--- forall m v a.
+performOneDeclRewrite ::
+  (V1.ABT.Var v, Show v) =>
+  (V1.Type v a, V1.Type v a) ->
+  V1.Decl.Decl v a ->
+  V1.Decl.Decl v a
+performOneDeclRewrite (oldType, newType) =
+  V1.Decl.modifyAsDataDecl (Lens.over ctorTypes (Maybe.rewrite (ABT.rewriteExpression oldType newType)))
+  where
+    ctorTypes = V1.Decl.constructors_ . Lens.each . Lens._3
+
+rewriteSingleTerm = wundefined
 
 -- | Staryafish on type decls.
 -- `component` must have 2+ elements.
@@ -785,89 +802,9 @@ rewriteDeclComponent ecForRef finished component =
       Right hashed -> hashed
       where
         rewrittenComponent = fmap performRewrites component
-        ctorTypes = V1.Decl.constructors_ . Lens.each . Lens._3
-        performRewrites decl = foldl' (flip performOneRewrite) decl (setupTypeRewrites (V1.Decl.declTypeDependencies decl))
-        performOneRewrite (oldType, newType) =
-          V1.Decl.modifyAsDataDecl (Lens.over ctorTypes (Maybe.rewrite (ABT.rewriteExpression oldType newType)))
-        setupTypeRewrites dependencies =
+        performRewrites decl = foldl' (flip performOneDeclRewrite) decl (setupRewrites (V1.Decl.declTypeDependencies decl))
+        setupRewrites dependencies =
           mapMaybe (buildSimpleTypeReplacementExpression ecForRef finished (NEMap.keysSet component)) (toList dependencies)
-
-ecToVar :: Var v => EC -> v
-ecToVar = V1.Var.mergeEcVar . unEC
-
-ecFromVar :: Var v => v -> EC
-ecFromVar v = case V1.Var.typeOf v of
-  V1.Var.EquivalenceClass ec -> EC ec
-  t -> error $ "ecFromVar: unexpected Var type " ++ show t
-
-buildSimpleTypeReplacementExpression ::
-  (Var v, Monoid a, Show a) =>
-  (DefnRef -> Maybe EC) ->
-  (Map EC (Result v a)) ->
-  NESet EC ->
-  V1.TypeReference ->
-  Maybe (V1.Type v a, V1.Type v a)
-buildSimpleTypeReplacementExpression ecForRef finished component rOld =
-  case ecForRef (DrTypeRef rOld) of
-    Just ec -> case (NESet.member ec component, Map.lookup ec finished) of
-      (True, Nothing) -> Just (refType rOld, varType ec)
-      (False, Just (RSimple (DrTypeRef rNew))) -> Just (refType rOld, refType rNew)
-      (False, Just (RSuccess (DriTypeRefId rNew) _newDefn)) -> Just (refType rOld, refIdType rNew)
-      (True, Just {}) -> error $ "buildSimpleTypeReplacementExpression: " ++ show ec ++ " showed up as both finished and active"
-      (False, Just e) -> error $ "buildSimpleTypeReplacementExpression: we shouldn't see this for a dependency: " ++ show ec ++ " " ++ show e
-      (False, Nothing) -> error $ "buildSimpleTypeReplacementExpression: we should see something for EC dependency " ++ show ec
-    Nothing -> Nothing
-
-ldToDefnRef :: LabeledDependency -> DefnRef
-ldToDefnRef = \case
-  LD.TypeReference r -> DrTypeRef r
-  LD.TermReferent r -> DrTermish r
-
-buildSimpleTermReplacementExpression ::
-  (Var v, Monoid a, Show a) =>
-  (DefnRef -> Maybe EC) ->
-  Map EC (Result v a) ->
-  NESet EC ->
-  LabeledDependency ->
-  Maybe (Either (V1.Type v a, V1.Type v a) (V1.Term v a, V1.Term v a))
-buildSimpleTermReplacementExpression ecForRef finished currentTermComponent ld =
-  case ldToDefnRef ld of
-    dr@(DrTypeRef rOld) ->
-      ecForRef dr
-        <&> Left . \ec ->
-          case Map.lookup ec finished of
-            Just (RSimple (DrTypeRef rNew)) -> (refType rOld, refType rNew)
-            Just (RSuccess (DriTypeRefId rNew) _newDecl) -> (refType rOld, refIdType rNew)
-            Just res -> error $ "buildSimpleTypeReplacementExpression: looked up dependency " ++ show dr ++ ", which had finished with an error: " ++ show res
-            Nothing -> error $ "buildSimpleTermReplacementExpressions: looked up dependency " ++ show dr ++ ", which should be finished, but isn't."
-    dr@(DrTermish rOld) ->
-      ecForRef dr
-        <&> Right . \ec ->
-          case (NESet.member ec currentTermComponent, Map.lookup ec finished) of
-            (True, Nothing) -> (refTerm rOld, varTerm ec)
-            (True, Just {}) -> error $ "buildSimpleTypeReplacementExpression: " ++ show ec ++ " showed up as both finished and active"
-            (False, Just (RSimple (DrTermish rNew))) -> (refTerm rOld, refTerm rNew)
-            (False, Just (RSuccess (DriTermRefId rNew) _newDefn)) -> (refTerm rOld, refIdTerm rNew)
-            (False, Just res) -> error $ "buildSimpleTypeReplacementExpression: looked up dependency " ++ show dr ++ ", which had finished with an error: " ++ show res
-            (False, Nothing) -> error $ "buildSimpleTermReplacementExpressions: looked up dependency " ++ show dr ++ ", which should be either finished or active, but is neither."
-
-refType :: (Ord v, Monoid a) => V1.Reference.Reference -> V1.Type.Type v a
-refType = V1.Type.ref mempty
-
-refIdType :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Type.Type v a
-refIdType = V1.Type.refId mempty
-
-varType :: (Var v, Monoid a) => EC -> V1.Type.Type v a
-varType = V1.Type.var mempty . ecToVar
-
-refTerm :: (Ord v, Monoid a) => V1.Referent.Referent -> V1.Term.Term2 vt at ap v a
-refTerm = V1.Term.fromReferent mempty
-
-refIdTerm :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Term.Term2 vt at ap v a
-refIdTerm = V1.Term.refId mempty
-
-varTerm :: (Var v, Monoid a) => EC -> V1.Term.Term2 vt at ap v a
-varTerm = V1.Term.var mempty . ecToVar
 
 -- | Construct some appropriate before/after pairs to feed into the structural find/replace functions
 -- to update these type decls.
@@ -894,7 +831,7 @@ buildSaturatedTypeReplacement loadDecl ecForRef finished component rOld = do
   let saturatedReplacement :: V1.Type v a -> V1.Decl v a -> Maybe (V1.Type v a, V1.Type v a)
       saturatedReplacement ty decl = mayOldDecl <&> \oldDecl -> (applySaturated (refType rOld) oldDecl, applySaturated ty decl)
   -- look up the EC to determine what we need to replace the old ref with and how.
-  case ecForRef (DrTypeRef rOld) of
+  case ecForRef (LD.TypeReference rOld) of
     Just ec ->
       -- Is it part of the current component?
       case (Map.lookup ec component, Map.lookup ec finished) of
@@ -913,33 +850,52 @@ buildSaturatedTypeReplacement loadDecl ecForRef finished component rOld = do
     -- given ty, decl; return the applied type (ty a b c...) where `a b c...` are the type vars bound by decl
     applySaturated ty decl = V1.Type.apps' ty (V1.Type.var mempty <$> V1.Decl.bound (V1.Decl.asDataDecl decl))
 
+resultsToTypeLookup :: NEMap EC (Result v a) -> TypeLookup v a
+resultsToTypeLookup finished = TL.TypeLookup typeOfTerms dataDecls effectDecls
+  where
+    typeOfTerms = Map.fromList [(V1.Reference.DerivedId r, tp) | RSuccess (DriTermRefId r) (DefnTerm _tm tp) <- toList finished]
+    dataDecls = Map.fromList [(V1.Reference.DerivedId r, dd) | RSuccess (DriTypeRefId r) (DefnDecl (Right dd)) <- toList finished]
+    effectDecls = Map.fromList [(V1.Reference.DerivedId r, ed) | RSuccess (DriTypeRefId r) (DefnDecl (Left ed)) <- toList finished]
+
 -- rewrite dependencies in a term component, including hashing, and save the results
 -- todo: do we care about the type from the database? or do we actually want to unwrap-or-infer it?
+-- return the results. The results don't include `finished`, you have to combine them yourself.
+--
+-- `typeLookup` should include everything in `finished`.
+-- The returned result will not contain anything in `finished`; it can be combined after returning.
 rewriteTermComponent ::
   forall v a.
   (Var v, Monoid a, Ord a, Show a) =>
+  TypeLookup v a ->
   (DefnRef -> Maybe EC) ->
   Map EC (Result v a) ->
   NEMap EC (V1.Term v a) ->
   NEMap EC (Result v a)
-rewriteTermComponent ecForRef finished component =
+rewriteTermComponent typeLookup ecForRef finished component =
   if NEMap.size component < 2
     then error "Merge.rewriteTermComponent: this function is only for components with mutual recursion"
-    else case Result.result $ FP.synthesizeFile (wundefined "env") uf of
-      Just tuf -> updatedResults (typecheckedComponent tuf)
+    else case Result.result $ FP.synthesizeFile typecheckingEnv uf of
+      Just tuf -> formatResults (typecheckedComponent tuf)
       Nothing -> errorResults
   where
-    uf :: UnisonFile v a = wundefined
-    errorResults = NEMap.withNonEmpty errorResults1 (errorResults1 <>) finished
+    uf :: UnisonFile v a = UF.UnisonFileId dds eds tms ws
       where
-        errorResults1 = NEMap.map (const $ RNeedsIntervention ITypeCheck) component
-    updatedResults typecheckedComponent =
-      NEMap.unsafeFromMap $ foldr addReplacement finished (Map.toList typecheckedComponent)
+        dds = mempty
+        eds = mempty
+        ws = mempty
+        tms :: [(v, a, V1.Term v a)]
+        tms = fmap (\(ec, tm) -> (ecToVar ec, mempty, tm)) . toList $ NEMap.toList rewrittenComponent
+    typecheckingEnv = Typechecker.Env ambientAbilities typeLookup termsByShortName
       where
-        addReplacement (v, (termId, term, typ)) =
-          Map.insert (ecFromVar v) (RSuccess (DriTermRefId termId) (DefnTerm term typ))
-    typecheckedComponent :: TypecheckedUnisonFile v a -> Map v (V1.Reference.Id, V1.Term v a, V1.Type v a)
-    typecheckedComponent tuf = Map.map (\(a, r, k, tm, tp) -> (r, tm, tp)) (UF.hashTermsId tuf)
+        ambientAbilities = mempty
+        termsByShortName = mempty
+    errorResults = NEMap.map (const $ RNeedsIntervention ITypeCheck) component
+    formatResults = NEMap.map makeResult . NEMap.mapKeysMonotonic ecFromVar
+      where
+        makeResult (termId, term, typ) = RSuccess (DriTermRefId termId) (DefnTerm term typ)
+    typecheckedComponent :: TypecheckedUnisonFile v a -> NEMap v (V1.Reference.Id, V1.Term v a, V1.Type v a)
+    typecheckedComponent tuf =
+      NEMap.unsafeFromMap $ Map.map (\(_a, r, _k, tm, tp) -> (r, tm, tp)) (UF.hashTermsId tuf)
     rewrittenComponent = fmap performRewrites component
     performRewrites tm = foldl' (flip performOneRewrite) tm (setupTermRewrites (V1.Term.labeledDependencies tm))
     performOneRewrite = \case
@@ -948,5 +904,98 @@ rewriteTermComponent ecForRef finished component =
       Right (oldTerm, newTerm) ->
         Maybe.rewrite (V1.ABT.rewriteExpression oldTerm newTerm)
           . Maybe.rewrite (V1.Term.rewriteCasesLHS oldTerm newTerm)
-    setupTermRewrites dependencies =
-      mapMaybe (buildSimpleTermReplacementExpression ecForRef finished (NEMap.keysSet component)) (toList dependencies)
+    setupTermRewrites =
+      mapMaybe (buildSimpleTermReplacementExpression ecForRef finished (NEMap.keysSet component)) . toList
+
+buildSimpleTypeReplacementExpression ::
+  (Var v, Monoid a, Show a) =>
+  (DefnRef -> Maybe EC) ->
+  (Map EC (Result v a)) ->
+  NESet EC ->
+  V1.TypeReference ->
+  Maybe (V1.Type v a, V1.Type v a)
+buildSimpleTypeReplacementExpression ecForRef finished component rOld =
+  case ecForRef (LD.TypeReference rOld) of
+    Just ec ->
+      asum
+        [ simpleComponentTypeReplacement component ec rOld,
+          simpleFinishedTypeReplacement finished ec rOld
+        ]
+    Nothing -> Nothing
+
+simpleComponentTypeReplacement ::
+  (Var v, Monoid a) =>
+  NESet EC ->
+  EC ->
+  V1.Reference.Reference ->
+  Maybe (V1.Type.Type v a, V1.Type.Type v a)
+simpleComponentTypeReplacement component ec rOld =
+  case NESet.member ec component of
+    True -> Just (refType rOld, varType ec)
+    False -> Nothing
+
+simpleFinishedTypeReplacement ::
+  (Ord v, Monoid a, Show v, Show a) =>
+  Map EC (Result v a) ->
+  EC ->
+  V1.Reference.Reference ->
+  Maybe (V1.Type.Type v a, V1.Type.Type v a)
+simpleFinishedTypeReplacement finished ec rOld =
+  case Map.lookup ec finished of
+    Just (RSimple (LD.TypeReference rNew)) -> Just (refType rOld, refType rNew)
+    Just (RSuccess (DriTypeRefId rNew) _newDefn) -> Just (refType rOld, refIdType rNew)
+    Just err -> error $ "simpleFinishedTypeReplacement: " ++ show rOld ++ " " ++ show ec ++ " showed up as " ++ show err
+    Nothing -> Nothing
+
+buildSimpleTermReplacementExpression ::
+  (Var v, Monoid a, Show a) =>
+  (DefnRef -> Maybe EC) ->
+  Map EC (Result v a) ->
+  NESet EC ->
+  LabeledDependency ->
+  Maybe (Either (V1.Type v a, V1.Type v a) (V1.Term v a, V1.Term v a))
+buildSimpleTermReplacementExpression ecForRef finished currentTermComponent = \case
+  dr@(LD.TypeReference rOld) ->
+    ecForRef dr
+      <&> Left . \ec ->
+        case Map.lookup ec finished of
+          Just (RSimple (LD.TypeReference rNew)) -> (refType rOld, refType rNew)
+          Just (RSuccess (DriTypeRefId rNew) _newDecl) -> (refType rOld, refIdType rNew)
+          Just res -> error $ "buildSimpleTypeReplacementExpression: looked up dependency " ++ show dr ++ ", which had finished with an error: " ++ show res
+          Nothing -> error $ "buildSimpleTermReplacementExpressions: looked up dependency " ++ show dr ++ ", which should be finished, but isn't."
+  dr@(LD.TermReferent rOld) ->
+    ecForRef dr
+      <&> Right . \ec ->
+        case (NESet.member ec currentTermComponent, Map.lookup ec finished) of
+          (True, Nothing) -> (refTerm rOld, varTerm ec)
+          (True, Just {}) -> error $ "buildSimpleTypeReplacementExpression: " ++ show ec ++ " showed up as both finished and active"
+          (False, Just (RSimple (LD.TermReferent rNew))) -> (refTerm rOld, refTerm rNew)
+          (False, Just (RSuccess (DriTermRefId rNew) _newDefn)) -> (refTerm rOld, refIdTerm rNew)
+          (False, Just res) -> error $ "buildSimpleTypeReplacementExpression: looked up dependency " ++ show dr ++ ", which had finished with an error: " ++ show res
+          (False, Nothing) -> error $ "buildSimpleTermReplacementExpressions: looked up dependency " ++ show dr ++ ", which should be either finished or active, but is neither."
+
+ecToVar :: Var v => EC -> v
+ecToVar = V1.Var.mergeEcVar . unEC
+
+ecFromVar :: Var v => v -> EC
+ecFromVar v = case V1.Var.typeOf v of
+  V1.Var.EquivalenceClass ec -> EC ec
+  t -> error $ "ecFromVar: unexpected Var type " ++ show t
+
+refType :: (Ord v, Monoid a) => V1.Reference.Reference -> V1.Type.Type v a
+refType = V1.Type.ref mempty
+
+refIdType :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Type.Type v a
+refIdType = V1.Type.refId mempty
+
+varType :: (Var v, Monoid a) => EC -> V1.Type.Type v a
+varType = V1.Type.var mempty . ecToVar
+
+refTerm :: (Ord v, Monoid a) => V1.Referent.Referent -> V1.Term.Term2 vt at ap v a
+refTerm = V1.Term.fromReferent mempty
+
+refIdTerm :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Term.Term2 vt at ap v a
+refIdTerm = V1.Term.refId mempty
+
+varTerm :: (Var v, Monoid a) => EC -> V1.Term.Term2 vt at ap v a
+varTerm = V1.Term.var mempty . ecToVar

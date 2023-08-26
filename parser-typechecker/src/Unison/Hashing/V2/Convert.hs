@@ -5,6 +5,7 @@ module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     hashBranch0,
     hashCausal,
+    hashClosedDecl,
     hashDataDecls,
     hashDecls,
     hashPatch,
@@ -103,6 +104,9 @@ hashTermComponentsWithoutTypes mTerms =
 
 hashClosedTerm :: (Var v) => Memory.Term.Term v a -> Memory.Reference.Id
 hashClosedTerm = h2mReferenceId . Hashing.hashClosedTerm . fst . Writer.runWriter . m2hTerm
+
+hashClosedDecl :: (ABT.Var v, Show v) => Memory.DD.Decl v a -> Memory.Reference.Id
+hashClosedDecl = h2mReferenceId . Hashing.hashClosedDecl . m2hDecl . Memory.DD.asDataDecl
 
 m2hTerm :: (Ord v) => Memory.Term.Term v a -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) (Hashing.Term v a)
 m2hTerm = ABT.transformM \case

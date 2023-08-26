@@ -86,6 +86,7 @@ rawName typ = case typ of
   Float -> "_float"
   Pattern -> "_pattern"
   Irrelevant -> "_irrelevant"
+  EquivalenceClass ec -> "_ec_" <> fromString (show ec)
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
   Delay -> "()"
