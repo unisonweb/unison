@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module U.Codebase.Sqlite.NamedRef where
 
 import Data.List.NonEmpty qualified as NEL

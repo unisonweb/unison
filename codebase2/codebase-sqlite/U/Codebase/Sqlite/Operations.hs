@@ -457,7 +457,7 @@ loadTermByReference r@(C.Reference.Id h i) = do
   lift (s2cTerm localIds term)
 
 expectTermByReference :: C.Reference.Id -> Transaction (C.Term Symbol)
-expectTermByReference r@(C.Reference.Id h i) = do
+expectTermByReference (C.Reference.Id h i) = do
   oid <- Q.expectObjectIdForPrimaryHash h
   (localIds, term) <- Q.expectTermObject oid (decodeTermElementDiscardingType i)
   s2cTerm localIds term
