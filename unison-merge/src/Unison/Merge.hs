@@ -618,7 +618,7 @@ ecDependents eh ec = Relation.lookupRan ec (ecDependenciesRelation eh)
 -- The cycle/components are not important here, except that the (Set EC) represents potentially one or more components in the output namespace.
 processWorkItems ::
   forall m v a.
-  (Monad m, Var v, Monoid a, Show a) =>
+  (Monad m, Var v, Monoid a, Show a, Ord a) =>
   (V1.TermReferenceId -> m (V1.Term v a)) ->
   (V1.TypeReferenceId -> m (V1.Decl v a)) ->
   EcHandle ->
@@ -660,26 +660,37 @@ processWorkItems loadTerm loadDecl ech finished = \case
       LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
       LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
 
-    handleManyTerms :: NESet EC -> Map EC (Result v a)
-    handleManyTerms = wundefined
+    handleManyTerms :: TypeLookup v a -> NESet EC -> m (NEMap EC (Result v a))
+    handleManyTerms typeLookup ecs = do
+      runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
+        Right component -> rewriteTermComponent typeLookup (memberToEc ech) finished component
+        Left problems -> recordProblems ecs problems
+      where
+        loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Term v a)
+        loadLatestMember ec = case latestMember ech ec of
+          LmLatest (LD.DerivedType r) -> lift $ loadTerm r
+          LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
+          LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
 
     handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
     handleManyTypes ecs = do
       runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
         Right component -> rewriteDeclComponent (memberToEc ech) finished component
-        Left problems -> recordProblems problems
+        Left problems -> recordProblems ecs problems
       where
         loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Decl v a)
         loadLatestMember ec = case latestMember ech ec of
           LmLatest (LD.DerivedType r) -> lift $ loadDecl r
           LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
           LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
-        recordProblems problems = NEMap.fromSet makeResult ecs
-          where
-            problemSet = NEMap.keysSet problems
-            makeResult ec = case NEMap.lookup ec problems of
-              Just i -> RNeedsIntervention i
-              Nothing -> RSkippedDependencies problemSet
+
+    recordProblems :: NESet EC -> NEMap EC (Intervention v a) -> NEMap EC (Result v a)
+    recordProblems ecs problems = NEMap.fromSet makeResult ecs
+      where
+        makeResult ec = case NEMap.lookup ec problems of
+          Just i -> RNeedsIntervention i
+          Nothing -> RSkippedDependencies problemSet
+        problemSet = NEMap.keysSet problems
 
 -- latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
 --   Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
