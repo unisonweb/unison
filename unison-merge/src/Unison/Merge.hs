@@ -42,6 +42,7 @@ import U.Codebase.Type as Type
 import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
 import Unison.ABT qualified as V1.ABT
+import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
@@ -57,6 +58,7 @@ import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
+import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
 import Unison.Result qualified as Result
 import Unison.Term qualified as V1
@@ -573,7 +575,11 @@ goodResult = \case
 data WorkItem = WiType EC | WiTypes (NESet EC) | WiTerm EC | WiTerms (NESet EC)
   deriving (Eq, Ord, Show)
 
-data Defn v a = DefnTerm (V1.Term v a) (V1.Type v a) | DefnDecl (V1.Decl v a) | DefnCtor
+data Defn v a
+  = DefnTerm (V1.Term v a) (V1.Type v a)
+  | -- a constructor mapping from latest to final decl
+    DefnDecl (V1.Decl v a) (Map ConstructorId ConstructorId)
+  | DefnCtor
   deriving (Eq, Ord, Show)
 
 type DefnRef = LabeledDependency
@@ -622,75 +628,77 @@ processWorkItems ::
   (V1.TermReferenceId -> m (V1.Term v a)) ->
   (V1.TypeReferenceId -> m (V1.Decl v a)) ->
   EcHandle ->
-  Map EC (Result v a) ->
   [WorkItem] ->
   m (Map EC (Result v a))
-processWorkItems loadTerm loadDecl ech finished = \case
-  [] -> pure finished
-  wi : queue' ->
-    let runAndRecurse :: WorkItem -> (WorkItem -> m (NEMap EC (Result v a))) -> m (Map EC (Result v a))
-        runAndRecurse wi run = do
-          let wiECs = workItemToECs wi
-              wiDependencies = foldMap (ecDependencies ech) wiECs
-              isNotGood ec = maybe False (not . goodResult) $ Map.lookup ec finished
-              badResults = Set.filter isNotGood wiDependencies
-          newResults <- case NESet.nonEmptySet badResults of
-            Nothing -> run wi
-            Just badResults -> pure $ NEMap.fromSet (const $ RSkippedDependencies badResults) wiECs
-          let finished' = NEMap.withNonEmpty newResults (newResults <>) finished
-          recurse finished' queue'
-     in runAndRecurse wi \case
-          WiType ec -> NEMap.singleton ec <$> handleOneType ec
-          WiTypes ecs -> wundefined
-          WiTerm ec -> NEMap.singleton ec <$> handleOneTerm ec
-          WiTerms ecs -> wundefined
+processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
   where
-    recurse = processWorkItems loadTerm loadDecl ech . NEMap.toMap
-    handleOneType :: EC -> m (Result v a)
-    handleOneType ec = case latestMember ech ec of
-      LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> loadDecl r
-      LmLatest dr@(LD.BuiltinType {}) -> pure $ RSimple dr
-      LmLatest (LD.TermReferent {}) -> error "handleOneType: latest member shouldn't be a term"
-      LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
-
-    handleOneTerm ec = case latestMember ech ec of
-      LmLatest (LD.DerivedTerm r) -> rewriteSingleTerm (memberToEc ech) finished <$> loadTerm r
-      LmLatest dr@(LD.BuiltinTerm {}) -> pure $ RSimple dr
-      LmLatest dr@(LD.ConReference {}) -> pure $ RSimple dr
-      LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
-      LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
-
-    handleManyTerms :: TypeLookup v a -> NESet EC -> m (NEMap EC (Result v a))
-    handleManyTerms typeLookup ecs = do
-      runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
-        Right component -> rewriteTermComponent typeLookup (memberToEc ech) finished component
-        Left problems -> recordProblems ecs problems
+    go finished typeLookup = \case
+      [] -> pure finished
+      wi : queue' ->
+        let runAndRecurse :: WorkItem -> [WorkItem] -> (WorkItem -> m (NEMap EC (Result v a))) -> m (Map EC (Result v a))
+            runAndRecurse wi queue' run = do
+              let wiECs = workItemToECs wi
+                  wiDependencies = foldMap (ecDependencies ech) wiECs
+                  isNotGood ec = maybe False (not . goodResult) $ Map.lookup ec finished
+                  badResults = Set.filter isNotGood wiDependencies
+              newResults <- case NESet.nonEmptySet badResults of
+                Nothing -> run wi
+                Just badResults -> pure $ NEMap.fromSet (const $ RSkippedDependencies badResults) wiECs
+              let finished' = NEMap.withNonEmpty newResults (newResults <>) finished
+                  newTypeLookup = resultsToTypeLookup newResults
+              go (NEMap.toMap finished') (newTypeLookup <> typeLookup) queue'
+         in runAndRecurse wi queue' \case
+              WiType ec -> NEMap.singleton ec <$> handleOneType ec
+              WiTypes ecs -> handleManyTypes ecs
+              WiTerm ec -> handleOneTerm typeLookup ec
+              WiTerms ecs -> handleManyTerms typeLookup ecs
       where
-        loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Term v a)
-        loadLatestMember ec = case latestMember ech ec of
-          LmLatest (LD.DerivedType r) -> lift $ loadTerm r
-          LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
-          LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
+        handleOneType :: EC -> m (Result v a)
+        handleOneType ec = case latestMember ech ec of
+          LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> loadDecl r
+          LmLatest dr@(LD.BuiltinType {}) -> pure $ RSimple dr
+          LmLatest (LD.TermReferent {}) -> error "handleOneType: latest member shouldn't be a term"
+          LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
 
-    handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
-    handleManyTypes ecs = do
-      runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
-        Right component -> rewriteDeclComponent (memberToEc ech) finished component
-        Left problems -> recordProblems ecs problems
-      where
-        loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Decl v a)
-        loadLatestMember ec = case latestMember ech ec of
-          LmLatest (LD.DerivedType r) -> lift $ loadDecl r
-          LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
-          LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
+        handleOneTerm typeLookup ec = case latestMember ech ec of
+          LmLatest dr@(LD.BuiltinTerm {}) -> pure . NEMap.singleton ec $ RSimple dr
+          LmLatest (LD.DerivedTerm r) -> handleManyTerms typeLookup (NESet.singleton ec) -- todo: single version?
+          LmLatest dr@(LD.ConReference (V1.ConstructorReference (V1.Reference.DerivedId r) cid) ct) -> rewriteConstructorTerm r cid ct
+          LmLatest (LD.ConReference (V1.ConstructorReference (V1.Reference.Builtin {}) _) _) -> error "handleOneTerm: builtin types don't have constructors"
+          LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
+          LmConflict original updated -> pure . NEMap.singleton ec $ RNeedsIntervention (IResolveConflict original updated)
 
-    recordProblems :: NESet EC -> NEMap EC (Intervention v a) -> NEMap EC (Result v a)
-    recordProblems ecs problems = NEMap.fromSet makeResult ecs
-      where
-        makeResult ec = case NEMap.lookup ec problems of
-          Just i -> RNeedsIntervention i
-          Nothing -> RSkippedDependencies problemSet
-        problemSet = NEMap.keysSet problems
+        handleManyTerms :: TypeLookup v a -> NESet EC -> m (NEMap EC (Result v a))
+        handleManyTerms typeLookup ecs = do
+          runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
+            Right component -> rewriteTermComponent typeLookup (memberToEc ech) finished component
+            Left problems -> recordProblems ecs problems
+          where
+            loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Term v a)
+            loadLatestMember ec = case latestMember ech ec of
+              LmLatest (LD.DerivedType r) -> lift $ loadTerm r
+              LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
+              LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
+
+        handleManyTypes :: NESet EC -> m (NEMap EC (Result v a))
+        handleManyTypes ecs = do
+          runValidateT (NEMap.fromSetM loadLatestMember ecs) <&> \case
+            Right component -> rewriteDeclComponent (memberToEc ech) finished component
+            Left problems -> recordProblems ecs problems
+          where
+            loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Decl v a)
+            loadLatestMember ec = case latestMember ech ec of
+              LmLatest (LD.DerivedType r) -> lift $ loadDecl r
+              LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
+              LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
+
+        recordProblems :: NESet EC -> NEMap EC (Intervention v a) -> NEMap EC (Result v a)
+        recordProblems ecs problems = NEMap.fromSet makeResult ecs
+          where
+            makeResult ec = case NEMap.lookup ec problems of
+              Just i -> RNeedsIntervention i
+              Nothing -> RSkippedDependencies problemSet
+            problemSet = NEMap.keysSet problems
 
 -- latestDefns <- --  :: Map V1Reference.Id (V1Decl.Decl Symbol ())
 --   Map.fromList <$> traverse (\(ec, r) -> (r,) <$> loadDecl r) (Map.toList latestRefs)
@@ -786,7 +794,7 @@ data TermError
   deriving (Eq, Ord, Show)
 
 rewriteSingleDecl :: (V1.ABT.Var v, Show v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> V1.Decl v a -> Result v a
-rewriteSingleDecl ecForRef finished decl = RSuccess (DriTypeRefId r') (DefnDecl decl')
+rewriteSingleDecl ecForRef finished decl = RSuccess (DriTypeRefId r') (DefnDecl decl' (wundefined "ctorMapping"))
   where
     r' = Hashing.Convert.hashClosedDecl decl'
     decl' = foldl' (flip performOneDeclRewrite) decl (mapMaybe getReplacement . toList $ V1.Decl.declTypeDependencies decl)
@@ -804,7 +812,15 @@ performOneDeclRewrite (oldType, newType) =
   where
     ctorTypes = V1.Decl.constructors_ . Lens.each . Lens._3
 
-rewriteSingleTerm = wundefined
+-- rewriteSingleTerm ecForRef finished term =
+
+rewriteConstructorTerm :: V1.Reference.Id -> ConstructorId -> ConstructorType -> m (NEMap EC (Result v a))
+rewriteConstructorTerm r cid ct = wundefined "look up (r, cid) in constructor map to get latest"
+
+-- \case
+-- LD.TermReferent (V1.Referent.Ref (V1.Reference.Builtin{})) -> wundefined
+-- LD.TermReferent (V1.Referent.Ref (V1.Reference.DerivedId r)) -> wundefined
+-- LD.TermReferent (V1.Referent.Con (V1.ConstructorReference r cid) ct) -> wundefined
 
 -- | Staryafish on type decls.
 -- `component` must have 2+ elements.
@@ -820,7 +836,7 @@ rewriteDeclComponent ecForRef finished component =
       where
         addReplacement :: (v, V1.Reference.Id, V1.Decl.Decl v a) -> Map EC (Result v a) -> Map EC (Result v a)
         addReplacement (v, declId, decl) =
-          Map.insert (ecFromVar v) (RSuccess (DriTypeRefId declId) (DefnDecl decl))
+          Map.insert (ecFromVar v) (RSuccess (DriTypeRefId declId) (DefnDecl decl (wundefined "ctor mapping")))
     hashedComponent = case Hashing.Convert.hashDecls (Map.mapKeys ecToVar (NEMap.toMap rewrittenComponent)) of
       Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
       Right hashed -> hashed
@@ -863,7 +879,7 @@ buildSaturatedTypeReplacement loadDecl ecForRef finished component rOld = do
         (Just latestDecl, Nothing) -> pure $ saturatedReplacement (varType ec) latestDecl
         -- Is it part of an earlier component?
         (Nothing, Just (RSimple {})) -> pure Nothing -- idk how to saturate this builtin
-        (Nothing, Just (RSuccess (DriTypeRefId rNew) (DefnDecl newDecl))) ->
+        (Nothing, Just (RSuccess (DriTypeRefId rNew) (DefnDecl newDecl _))) ->
           pure $ saturatedReplacement (refIdType rNew) newDecl
         (Just {}, Just {}) -> error $ "buildSaturatedTypeReplacement: " ++ show ec ++ " showed up as both finished and active"
         (Nothing, Just e) -> error $ "buildSaturatedTypeReplacement: we shouldn't see this for a dependency: " ++ show ec ++ " " ++ show e
@@ -878,8 +894,8 @@ resultsToTypeLookup :: NEMap EC (Result v a) -> TypeLookup v a
 resultsToTypeLookup finished = TL.TypeLookup typeOfTerms dataDecls effectDecls
   where
     typeOfTerms = Map.fromList [(V1.Reference.DerivedId r, tp) | RSuccess (DriTermRefId r) (DefnTerm _tm tp) <- toList finished]
-    dataDecls = Map.fromList [(V1.Reference.DerivedId r, dd) | RSuccess (DriTypeRefId r) (DefnDecl (Right dd)) <- toList finished]
-    effectDecls = Map.fromList [(V1.Reference.DerivedId r, ed) | RSuccess (DriTypeRefId r) (DefnDecl (Left ed)) <- toList finished]
+    dataDecls = Map.fromList [(V1.Reference.DerivedId r, dd) | RSuccess (DriTypeRefId r) (DefnDecl (Right dd) _) <- toList finished]
+    effectDecls = Map.fromList [(V1.Reference.DerivedId r, ed) | RSuccess (DriTypeRefId r) (DefnDecl (Left ed) _) <- toList finished]
 
 -- rewrite dependencies in a term component, including hashing, and save the results
 -- todo: do we care about the type from the database? or do we actually want to unwrap-or-infer it?
