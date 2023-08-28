@@ -1,3 +1,4 @@
+use base.Text toUtf8
 
 bytes.tests = do
   !bytes.lit.tests
@@ -23,7 +24,7 @@ bytes.lit.tests = do
     true
 
 bytes.debug.tests = do
- checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
+ checkEqual "Debug.evalToText on Bytes" (Debug.evalToText 0xs68656c6c6f) "0xs68656c6c6f"
 
 bytes.conversion.tests = do
   use base Bytes.fromList Bytes.toList
