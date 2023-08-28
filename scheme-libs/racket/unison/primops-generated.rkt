@@ -17,6 +17,7 @@
 
 (provide
   builtin-Value.value
+  builtin-Value.reflect
   unison-POp-CACH
   unison-POp-LOAD)
 
@@ -26,71 +27,71 @@
 (define (list->chunked-list l)
   (vector->chunked-list (list->vector l)))
 
-(define-syntax make-syntax-decoder
-  (lambda stx
-    (syntax-case stx ()
-      [(make-syntax-decoder)
-       #`(lambda (dfn)
-           (define (text->ident tx)
-             (let* ([st (chunked-string->string tx)]
-                    [n (string->number st)])
-               (if n n (string->symbol st))))
+(define (decode-term tm)
+  (match tm
+    [(unison-data _ t (list tms))
+     #:when (= t unison-schemeterm-sexpr:tag)
+     (map decode-term (chunked-list->list tms))]
+    [(unison-data _ t (list as h tms))
+     #:when (= t unison-schemeterm-handle:tag)
+     `(handle
+        ,(map
+           (lambda (tx) `(quote ,(text->ident tx)))
+           (chunked-list->list as))
+        ,(text->ident h)
+        ,@(map decode-term (chunked-list->list tms)))]
+    [(unison-data _ t (list hd sc cs))
+     #:when (= t unison-schemeterm-cases:tag)
+     `(,(text->ident hd)
+        ,(decode-term sc)
+        ,@(map decode-term (chunked-list->list cs)))]
+    [(unison-data _ t (list hd bs bd))
+     #:when (= t unison-schemeterm-binds:tag)
+     `(,(text->ident hd)
+        ,(map decode-binding (chunked-list->list bs))
+        ,(decode-term bd))]
+    [(unison-data _ t (list tx))
+     #:when (= t unison-schemeterm-ident:tag)
+     (text->ident tx)]
+    [(unison-data _ t (list tx))
+     #:when (= t unison-schemeterm-string:tag)
+     (chunked-string->string tx)]
+    [(unison-data _ t (list tx))
+     #:when (= t unison-schemeterm-symbol:tag)
+     `(quote ,(text->ident tx))]
+    [(unison-data _ t (list ns))
+     #:when (= t unison-schemeterm-bytevec:tag)
+     (list->bytes (chunked-list->list ns))]
+    [else
+      (raise (format "decode-term: unimplemented case: ~a" tm))]))
 
-           (define (decode-binding bn)
-             (data-case bn
-               [0 (nm rest)
-                 (data-case rest
-                   [0 (tm nil) (list (text->ident nm) (decode-term tm))])]
-               [else
-                 (raise
-                   (format
-                     "decode-binding: unimplemented case: ~a"
-                     bn))]))
+(define (decode-binding bn)
+  (data-case bn
+    [0 (nm rest)
+      (data-case rest
+        [0 (tm nil) (list (text->ident nm) (decode-term tm))])]
+    [else
+      (raise
+        (format "decode-binding: unimplemented case: ~a" bn))]))
 
-           (define (decode-term tm)
-             (data-case tm
-               [#,unison-schemeterm-sexpr:tag (tms)
-                (map decode-term (chunked-list->list tms))]
-               [#,unison-schemeterm-handle:tag (as h tms)
-                 `(handle
-                    ,(map
-                       (lambda (tx) `(quote ,(text->ident tx)))
-                       (chunked-list->list as))
-                    ,(text->ident h)
-                    ,@(map decode-term (chunked-list->list tms)))]
-               [#,unison-schemeterm-cases:tag (hd sc cs)
-                 `(,(text->ident hd)
-                    ,(decode-term sc)
-                    ,@(map decode-term (chunked-list->list cs)))]
-               [#,unison-schemeterm-binds:tag (hd bs bd)
-                 `(,(text->ident hd)
-                    ,(map decode-binding (chunked-list->list bs))
-                    ,(decode-term bd))]
-               [#,unison-schemeterm-ident:tag (tx) (text->ident tx)]
-               [#,unison-schemeterm-string:tag (tx)
-                (chunked-string->string tx)]
-               [#,unison-schemeterm-symbol:tag (tx)
-                `(quote ,(text->ident tx))]
-               [#,unison-schemeterm-bytevec:tag (ns) (bytevector ns)]
-               [else
-                 (raise
-                   (format
-                     "decode-term: unimplemented case: ~a"
-                     tm))]))
+(define (decode-syntax dfn)
+  (match dfn
+    [(unison-data _ t (list nm vs bd))
+     #:when (= t unison-schemedefn-define:tag)
+     (let ([head (map text->ident
+                      (cons nm (chunked-list->list vs)))]
+           [body (decode-term bd)])
+       (list 'define-unison head body))]
+    [(unison-data _ t (list nm bd))
+     #:when (= t unison-schemedefn-alias:tag)
+     (list 'define (text->ident nm) (decode-term bd))]
+    [else
+      (raise (format "decode-syntax: unimplemented case: ~a" dfn))]))
 
-           (data-case dfn
-             [#,unison-schemedefn-define:tag (nm vs bd)
-               (let ([head (map text->ident
-                                (cons nm (chunked-list->list vs)))]
-                     [body (decode-term bd)])
-                 (list 'define-unison head body))]
-             [else
-               (raise
-                 (format
-                   "decode-syntax: unimplemented case: ~a"
-                   dfn))]))])))
-
-(define decode-syntax (make-syntax-decoder))
+(define (text->ident tx)
+  (let* ([st (chunked-string->string tx)]
+         [n (string->number st)])
+    (if n n (string->symbol st))))
 
 (define (decode-ref rf)
   (match rf
@@ -196,7 +197,13 @@
     [(unison-termlink-derived h i)
      (unison-groupref-group
        (unison-reference-derived
-         (unison-id-id h i)))]))
+         (unison-id-id h i))
+       0)]
+    [(unison-termlink-builtin name)
+     (unison-groupref-group
+       (unison-reference-builtin (string->chunked-string name))
+       0)]
+    [else (raise "function->groupref: con case")]))
 
 (define (reify-vlit vl)
   (match vl
@@ -269,8 +276,23 @@
        (unison-reference-derived
          (unison-id-id h i)))]))
 
+(define (number-reference n)
+  (cond
+    [(exact-nonnegative-integer? n)
+     (unison-reference-builtin (string->chunked-string "Nat"))]
+    [(exact-integer? n)
+     (unison-reference-builtin (string->chunked-string "Int"))]
+    [else
+      (unison-reference-builtin (string->chunked-string "Float"))]))
+
 (define (reflect-value v)
   (match v
+    [(? number?)
+     (unison-value-data
+       (number-reference v)
+       0
+       (list->chunked-list (list v))
+       empty-chunked-list)]
     [(? chunked-bytes?)
      (unison-value-vlit (unison-vlit-bytes v))]
     [(? bytes?)
@@ -306,6 +328,11 @@
        empty-chunked-list
        (list->chunked-list (map reflect-value fs)))]))
 
+; replacment for Value.unsafeValue : a -> Value
+(define-unison
+  (builtin-Value.reflect v)
+  (reflect-value v))
+
 (define-unison
   (builtin-Value.value v)
   (let ([rv (reflect-value v)])
@@ -336,10 +363,13 @@
       [(unison-termlink-builtin name)
        (raise "CACH: trying to add code for a builtin")]
       [(unison-termlink-derived bs i)
-       (let ([sg (unison-code-rep co)]
-             [r (reflect-derived bs i)])
-         (map decode-syntax
-              (chunked-list->list (gen-scheme r sg))))])))
+       (let* ([sg (unison-code-rep co)]
+              [r (reflect-derived bs i)]
+              [ds (cons
+                    (gen-link-def r)
+                    (chunked-list->list (gen-scheme r sg)))]
+              [dc (decode-term (gen-link-decl r))])
+         (append (map decode-syntax ds) (list dc)))])))
 
 (define (flatten ls)
   (cond
