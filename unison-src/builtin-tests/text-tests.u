@@ -135,8 +135,8 @@ text.conversion.tests = do
   checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 "Hello, World!")) "Hello, World!"
 
 text.debug.tests = do
-  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
-  checkEqual "Debug.toText (2)" (Debug.toText "hello") "\"hello\""
+  checkEqual "Debug.evalToText (1)" (Debug.evalToText 3) "3"
+  checkEqual "Debug.evalToText (2)" (Debug.evalToText "hello") "\"hello\""
 
   catchMsg p = match catchAll p with
     Left (Failure tl msg v) -> msg
