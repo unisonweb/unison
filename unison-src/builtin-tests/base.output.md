@@ -5,9 +5,9 @@ Thus, make sure the contents of this file define the contents of the cache
 (e.g. don't pull `latest`.)
 
 ```ucm
-.> pull @unison/base/releases/2.2.0 .base
+.> pull @unison/base/releases/2.5.0 .base
 
-  Downloaded 12209 entities.
+  Downloaded 12426 entities.
 
   ✅
   
@@ -15,11 +15,11 @@ Thus, make sure the contents of this file define the contents of the cache
 
 .> compile.native.fetch
 
-  Downloaded 1255 entities.
+  Downloaded 1549 entities.
 
   ✅
   
   Successfully updated .unison.internal from
-  @unison/internal/releases/0.0.1.
+  @unison/internal/releases/0.0.3.
 
 ```
