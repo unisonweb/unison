@@ -6,10 +6,20 @@ then reference those tests (which should be of type `'{IO,Exception,Tests} ()`, 
 to `Tests.check` and `Tests.checkEqual`).
 
 ```ucm
-.> run.native tests
-
+.> alias.term ##IO.randomBytes IO.randomBytes.> load unison-src/builtin-tests/io-tests.u.> add
 ```
-```ucm
-.> run.native tests.jit.only
 
-```
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  The 1st argument to `(Int.>)`
+  
+            has type:  Nat
+      but I expected:  Int
+  
+     47 |             if seconds Int.> +10 then
+  
+

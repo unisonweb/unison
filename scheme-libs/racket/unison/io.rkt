@@ -38,6 +38,8 @@
         setCurrentDirectory.impl.v3
         renameDirectory.impl.v3
         isDirectory.impl.v3
+        systemTime.impl.v3
+        systemTimeMicroseconds.impl.v3
         createTempDirectory.impl.v3)))
 
 (define (getFileSize.impl.v3 path)
@@ -100,6 +102,12 @@
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
     (unison-either-right none))
+
+(define-unison (systemTime.impl.v3 unit)
+    (unison-either-right (current-seconds)))
+
+(define-unison (systemTimeMicroseconds.impl.v3 unit)
+    (unison-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
 
 (define (threadCPUTime.v1)
     (right (current-process-milliseconds (current-thread))))

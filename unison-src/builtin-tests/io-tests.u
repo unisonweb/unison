@@ -33,13 +33,29 @@ testFile = do
     rm_if_exists fp
     fp
 
+io.test_deprecated_systemTimeMicroseconds = do
+    match !systemTimeMicroseconds with
+        micro ->
+            if micro Int.> +10 then
+                Tests.pass "!systemTimeMicroseconds"
+            else
+                Tests.fail "!systemTimeMicroseconds" "systemTime is too small"
+
+io.test_deprecated_systemTime = do
+    match !systemTime with
+        EpochTime seconds ->
+            if seconds Int.> +10 then
+                Tests.pass "!systemTime"
+            else
+                Tests.fail "!systemTime" "systemTime is too small"
+
 io.test_now = do
     match !now with
         Instant a b ->
             if a Int.> +10 then
-                Tests.pass "!now is working"
+                Tests.pass "!now"
             else
-                Tests.fail "Now is too small" "yeah"
+                Tests.fail "!now" "now is too small"
 
 
 io.test_createTempDirectory = do
