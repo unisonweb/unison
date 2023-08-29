@@ -43,6 +43,7 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.VFS qualified as VFS
+import Unison.LSP.WorkspaceSymbols (workspaceSymbolHandler, workspaceSymbolResolveHandler)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
@@ -166,6 +167,8 @@ lspRequestHandlers =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert Msg.SMethod_WorkspaceSymbol (mkHandler workspaceSymbolHandler)
+    & SMM.insert Msg.SMethod_WorkspaceSymbolResolve (mkHandler workspaceSymbolResolveHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::

@@ -110,6 +110,7 @@ library
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
+      Unison.LSP.WorkspaceSymbols
       Unison.Share.Codeserver
       Unison.Share.Sync
       Unison.Share.Sync.Types
@@ -199,6 +200,7 @@ library
     , random-shuffle
     , recover-rtti
     , regex-tdfa
+    , row-types
     , semialign
     , servant
     , servant-client
@@ -333,6 +335,7 @@ executable cli-integration-tests
     , random-shuffle
     , recover-rtti
     , regex-tdfa
+    , row-types
     , semialign
     , servant
     , servant-client
@@ -461,6 +464,7 @@ executable transcripts
     , random-shuffle
     , recover-rtti
     , regex-tdfa
+    , row-types
     , semialign
     , servant
     , servant-client
@@ -596,6 +600,7 @@ executable unison
     , random-shuffle
     , recover-rtti
     , regex-tdfa
+    , row-types
     , semialign
     , servant
     , servant-client
@@ -736,6 +741,7 @@ test-suite cli-tests
     , random-shuffle
     , recover-rtti
     , regex-tdfa
+    , row-types
     , semialign
     , servant
     , servant-client

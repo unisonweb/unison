@@ -60,6 +60,7 @@ dependencies:
   - random-shuffle
   - recover-rtti
   - regex-tdfa
+  - row-types
   - semialign
   - servant
   - servant-client
