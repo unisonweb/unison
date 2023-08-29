@@ -1,5 +1,7 @@
 name: "release"
 
+run-name: "release ${{inputs.version}}"
+
 defaults:
   run:
     shell: bash
