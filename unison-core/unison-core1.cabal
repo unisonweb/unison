@@ -71,8 +71,10 @@ library
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -132,8 +134,10 @@ test-suite tests
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
