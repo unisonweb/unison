@@ -150,6 +150,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Reference (Reference (..), TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -2466,8 +2467,8 @@ doFetchCompiler username branch =
     -- fetching info
     prj =
       These
-        (unsafeFrom $ "@" <> Text.pack username <> "/internal")
-        (unsafeFrom $ Text.pack branch)
+        (unsafeFrom @Text $ "@" <> Text.pack username <> "/internal")
+        (ProjectBranchNameOrLatestRelease'Name . unsafeFrom @Text $ Text.pack branch)
 
     sourceTarget =
       PullSourceTarget2

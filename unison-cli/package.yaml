@@ -68,6 +68,7 @@ dependencies:
   - text-builder
   - text-rope
   - these
+  - these-lens
   - time
   - transformers
   - unison-codebase
@@ -188,6 +189,7 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - InstanceSigs
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - MultiWayIf
