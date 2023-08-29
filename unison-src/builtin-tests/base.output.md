@@ -7,19 +7,17 @@ Thus, make sure the contents of this file define the contents of the cache
 ```ucm
 .> pull @unison/base/releases/2.5.0 .base
 
-  Downloaded 12426 entities.
+  Merging...
 
-  ✅
+  😶
   
-  Successfully pulled into .base, which was empty.
+  .base was already up-to-date with @unison/base/releases/2.5.0.
 
 .> compile.native.fetch
 
-  Downloaded 1549 entities.
-
-  ✅
+  😶
   
-  Successfully updated .unison.internal from
+  .unison.internal was already up-to-date with
   @unison/internal/releases/0.0.3.
 
 ```

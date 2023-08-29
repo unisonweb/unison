@@ -19,6 +19,7 @@ io.tests = Tests.main do
     !io.test_renameFile
     !io.test_isFileOpen
     !io.test_ready
+    !io.test_now
 
 rm_if_exists fp =
     if FilePath.exists fp
@@ -31,6 +32,15 @@ testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
     rm_if_exists fp
     fp
+
+io.test_now = do
+    match !now with
+        Instant a b ->
+            if a Int.> +10 then
+                Tests.pass "!now is working"
+            else
+                Tests.fail "Now is too small" "yeah"
+
 
 io.test_createTempDirectory = do
     tmp = (createTempDirectory (FilePath "prefix-"))
