@@ -5,9 +5,9 @@ module Unison.Test.Referent where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import EasyTest
+import U.Codebase.ShortHash qualified as SH
 import Unison.Reference qualified as Rf
 import Unison.Referent qualified as R
-import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =
@@ -48,18 +48,18 @@ test =
                 ),
             scope "term ref, part of cycle" $
               expect
-                ( SH.fromText "#y9ycWkiC1.y9"
-                    == Just (SH.ShortHash "y9ycWkiC1" (Just "y9") Nothing)
+                ( SH.fromText "#y9ycWkiC1.1"
+                    == Just (SH.ShortHash "y9ycWkiC1" (Just 1) Nothing)
                 ),
             scope "constructor" $
               expect
                 ( SH.fromText "#cWkiC1x89#1"
-                    == Just (SH.ShortHash "cWkiC1x89" Nothing (Just "1"))
+                    == Just (SH.ShortHash "cWkiC1x89" Nothing (Just 1))
                 ),
             scope "constructor of a type in a cycle" $
               expect
-                ( SH.fromText "#DCxrnCAPS.WD#0"
-                    == Just (SH.ShortHash "DCxrnCAPS" (Just "WD") (Just "0"))
+                ( SH.fromText "#DCxrnCAPS.1#0"
+                    == Just (SH.ShortHash "DCxrnCAPS" (Just 1) (Just 0))
                 ),
             scope "Anything to the left of the first # is ignored" $
               expect
@@ -71,8 +71,8 @@ test =
                 expect (SH.fromText "foo#abc#2#hello" == Nothing),
             scope "Anything after a second . before a second # is ignored" $
               expect
-                ( SH.fromText "foo#abc.1f.x"
-                    == Just (SH.ShortHash "abc" (Just "1f") Nothing)
+                ( SH.fromText "foo#abc.1.x"
+                    == Just (SH.ShortHash "abc" (Just 1) Nothing)
                 )
           ]
     ]

@@ -31,6 +31,7 @@ where
 import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.ShortHash (ShortHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path')
@@ -45,8 +46,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver, ProjectBranchNameOrLatestRelease)
-import Unison.ShortHash (ShortHash)
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectBranchNameOrLatestRelease, ProjectName, Semver)
 import Unison.Util.Pretty qualified as P
 
 data Event

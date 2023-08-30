@@ -25,6 +25,7 @@ import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.ShortHash qualified as SH
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
@@ -52,7 +53,6 @@ import Unison.Server.Types
     TypeTag,
     mayDefaultWidth,
   )
-import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Type
 import Unison.Util.Pretty (Width)

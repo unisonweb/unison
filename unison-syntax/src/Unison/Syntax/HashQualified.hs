@@ -14,12 +14,12 @@ module Unison.Syntax.HashQualified
 where
 
 import Data.Text qualified as Text
+import U.Codebase.ShortHash qualified as SH
 import Unison.HashQualified (HashQualified (..))
 import Unison.HashQualified qualified as HashQualified
 import Unison.Name (Name, Parse)
 import Unison.Name qualified as Name
 import Unison.Prelude hiding (fromString)
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.Name qualified as Name (fromText, toText)
 import Unison.Var (Var)
 import Unison.Var qualified as Var

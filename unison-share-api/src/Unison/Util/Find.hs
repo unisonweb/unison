@@ -15,6 +15,7 @@ import Data.Text qualified as Text
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
 import Text.Regex.TDFA qualified as RE
+import U.Codebase.ShortHash qualified as SH
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -26,7 +27,6 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.Name qualified as Name (toString)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Monoid (intercalateMap)

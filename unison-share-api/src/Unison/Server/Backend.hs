@@ -112,6 +112,8 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
+import U.Codebase.ShortHash (ShortHash)
+import U.Codebase.ShortHash qualified as SH
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
@@ -175,8 +177,6 @@ import Unison.Server.SearchResult' qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
 import Unison.Server.Types qualified as ServerTypes
-import Unison.ShortHash
-import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -603,7 +603,7 @@ typeListEntry codebase mayBranch (ExactName nameSegment ref) = do
         typeEntryName = nameSegment,
         typeEntryConflicted = isConflicted,
         typeEntryTag = tag,
-        typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
+        typeEntryHash = SH.shortenTo hashLength $ Reference.toShortHash ref
       }
   where
     isConflicted = case mayBranch of

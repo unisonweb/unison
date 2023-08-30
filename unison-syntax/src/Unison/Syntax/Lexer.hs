@@ -52,10 +52,10 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
+import U.Codebase.ShortHash (ShortHash)
+import U.Codebase.ShortHash qualified as SH
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
-import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -875,7 +875,7 @@ lexemes' eof =
       P.lookAhead (char '#')
       -- `foo#xyz` should parse
       (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-      case SH.fromString potentialHash of
+      case SH.fromText (Text.pack potentialHash) of
         Nothing -> err start (InvalidShortHash potentialHash)
         Just sh -> pure sh
 
@@ -1426,8 +1426,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (WordyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
+      pretty (SymbolyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

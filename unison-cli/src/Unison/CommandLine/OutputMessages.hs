@@ -33,6 +33,7 @@ import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
@@ -123,7 +124,6 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -595,7 +595,7 @@ showListEdits patch ppe =
       let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
       case termEdit of
         TermEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])
@@ -620,7 +620,7 @@ showListEdits patch ppe =
       let lhsTypeName = PPE.typeName ppe lhsRef
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
       case typeEdit of
         TypeEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])

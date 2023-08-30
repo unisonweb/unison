@@ -32,6 +32,7 @@ import System.FilePath qualified as FilePath
 import System.FilePath.Posix qualified as FilePath.Posix
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import U.Codebase.Reflog qualified as Reflog
+import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Sync22 qualified as Sync22
@@ -74,7 +75,6 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)

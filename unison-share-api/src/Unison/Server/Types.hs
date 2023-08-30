@@ -35,10 +35,9 @@ import Servant.Docs qualified as Docs
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
+import U.Codebase.ShortHash (ShortHash)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.DisplayObject
-  ( DisplayObject,
-  )
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
@@ -51,7 +50,6 @@ import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
-import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Util.Pretty (Width (..))
 

@@ -55,6 +55,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.FuzzyFind qualified as FZF
+import U.Codebase.ShortHash (ShortHash)
+import U.Codebase.ShortHash qualified as SH
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
@@ -68,8 +70,6 @@ import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation

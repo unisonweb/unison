@@ -15,6 +15,7 @@ where
 
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference qualified as V2
+import U.Codebase.ShortHash (ShortHash)
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
@@ -30,7 +31,6 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)

@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.ShortHash where
+module Unison.ShortHash () where
 
 import Data.Text qualified as Text
 import Unison.Prelude

@@ -9,6 +9,7 @@ where
 
 import Control.Lens
 import Data.Set qualified as Set
+import U.Codebase.ShortHash qualified as SH
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as NamedRef
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -29,7 +30,6 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.NameSearch (NameSearch (..), Search (..))
 import Unison.Server.SearchResult qualified as SR
-import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Set qualified as Set
 

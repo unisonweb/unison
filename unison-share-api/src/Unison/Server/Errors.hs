@@ -5,12 +5,15 @@
 
 module Unison.Server.Errors where
 
+import Data.ByteString.Lazy qualified as LazyByteString
 import Data.ByteString.Lazy.Char8 qualified as BSC
 import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Encoding qualified as LazyText
 import Servant (ServerError (..), err400, err404, err409, err500)
 import U.Codebase.HashTags (BranchHash, CausalHash)
+import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
@@ -25,7 +28,6 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (toString)
 
 badHQN :: HashQualifiedName -> ServerError
@@ -113,7 +115,7 @@ ambiguousHashForDefinition :: SH.ShortHash -> ServerError
 ambiguousHashForDefinition shorthash =
   err400
     { errBody =
-        "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
+        "The hash prefix " <> LazyByteString.fromStrict (Text.encodeUtf8 (SH.toText shorthash)) <> " is ambiguous"
     }
 
 expectedNameLookup :: BranchHash -> ServerError

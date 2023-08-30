@@ -25,6 +25,7 @@ import Servant.Client qualified as Servant (ClientError)
 import System.Console.Haskeline qualified as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
@@ -68,7 +69,6 @@ import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
-import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share (DownloadEntitiesError, UploadEntitiesError)
 import Unison.Syntax.Parser qualified as Parser

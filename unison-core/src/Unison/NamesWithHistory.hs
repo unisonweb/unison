@@ -5,6 +5,7 @@ module Unison.NamesWithHistory where
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import U.Codebase.ShortHash (ShortHash)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
@@ -17,7 +18,6 @@ import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference as Reference
 import Unison.Referent as Referent
-import Unison.ShortHash (ShortHash)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R

@@ -15,6 +15,8 @@ import Data.Text qualified as Text
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
+import U.Codebase.ShortHash (ShortHash)
+import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -37,8 +39,6 @@ import Unison.Prelude
 import Unison.Project
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Syntax.HashQualified' qualified as HQ' (fromText)
 import Unison.Syntax.Name qualified as Name (fromTextEither, toText)

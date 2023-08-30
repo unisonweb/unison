@@ -4,14 +4,15 @@
 module Unison.Test.Codebase.Path where
 
 import Data.Either
+import Data.Maybe (fromJust)
 import Data.Sequence
 import Data.Text
 import EasyTest
+import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Path
 import Unison.Codebase.Path.Parse
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment
-import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =
@@ -46,7 +47,7 @@ test =
            in scope s . expect $
                 parseShortHashOrHQSplit' s
                   == (Right . Right)
-                    (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (SH.unsafeFromText "#34")),
+                    (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (fromJust (SH.fromText "#34"))),
           let s = "foo.bar.+"
            in scope s . expect $
                 parseShortHashOrHQSplit' s
@@ -55,12 +56,12 @@ test =
           let s = "#123"
            in scope s . expect $
                 parseShortHashOrHQSplit' s
-                  == (Right . Left) (SH.unsafeFromText "#123")
+                  == (Right . Left) (fromJust (SH.fromText "#123"))
         ],
       scope "parseHQ'Split'" . tests $
         [ let s = "foo.bar#34"
            in scope s . expect $
-                parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (SH.unsafeFromText "#34")),
+                parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (fromJust (SH.fromText "#34"))),
           let s = "foo.bar.+"
            in scope s . expect $
                 parseHQSplit' s == Right (relative ["foo", "bar"], HQ'.NameOnly (NameSegment "+")),

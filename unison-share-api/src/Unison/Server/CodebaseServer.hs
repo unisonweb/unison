@@ -84,6 +84,7 @@ import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.ShortHash qualified as ShortHash
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
@@ -108,7 +109,6 @@ import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDeta
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
 import Unison.Server.Types (mungeString, setCacheControl)
-import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 
 -- HTML content type

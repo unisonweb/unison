@@ -24,6 +24,7 @@ where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Metadata (Metadata)
@@ -41,7 +42,6 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.ShortHash qualified as SH
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation4 qualified as R4
