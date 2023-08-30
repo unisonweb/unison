@@ -6,9 +6,9 @@ import Data.Maybe (fromJust)
 import Data.Text qualified as Text
 import EasyTest
 import System.IO.CodePage (withCP65001)
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.Lexer
 
 main :: IO ()

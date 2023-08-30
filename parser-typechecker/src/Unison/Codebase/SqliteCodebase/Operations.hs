@@ -23,8 +23,6 @@ import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
 import U.Codebase.Projects qualified as Projects
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C.Referent
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.DbId (ObjectId)
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
@@ -58,6 +56,8 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sqlite.Transaction qualified as Sqlite

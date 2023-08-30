@@ -17,11 +17,11 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.HashTags
-      U.Codebase.ShortHash
       U.Core.ABT
       U.Core.ABT.Var
       Unison.Core.Project
       Unison.NameSegment
+      Unison.ShortHash
       Unison.Util.Alphabetical
   hs-source-dirs:
       ./

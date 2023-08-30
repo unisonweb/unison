@@ -5,9 +5,9 @@ module Unison.Test.Referent where
 import Data.Text (Text)
 import Data.Text qualified as Text
 import EasyTest
-import U.Codebase.ShortHash qualified as SH
 import Unison.Reference qualified as Rf
 import Unison.Referent qualified as R
+import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =

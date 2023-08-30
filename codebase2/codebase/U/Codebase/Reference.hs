@@ -3,11 +3,11 @@ module U.Codebase.Reference where
 import Control.Lens (Lens, Prism, Traversal, lens, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash

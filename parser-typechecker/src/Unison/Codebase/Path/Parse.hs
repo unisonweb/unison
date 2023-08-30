@@ -20,13 +20,13 @@ import Control.Lens (over, _1)
 import Control.Lens qualified as Lens
 import Data.List.Extra (stripPrefix)
 import Data.Text qualified as Text
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Path
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 import Unison.Syntax.Lexer qualified as Lexer
 
 -- .libs.blah.poo is Absolute

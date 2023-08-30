@@ -52,10 +52,10 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 

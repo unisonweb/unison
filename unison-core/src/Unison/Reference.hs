@@ -47,10 +47,10 @@ import Data.Generics.Sum (_Ctor)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Hash qualified as H
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.
 --

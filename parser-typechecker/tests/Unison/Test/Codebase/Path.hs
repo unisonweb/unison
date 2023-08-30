@@ -8,11 +8,11 @@ import Data.Maybe (fromJust)
 import Data.Sequence
 import Data.Text
 import EasyTest
-import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Path
 import Unison.Codebase.Path.Parse
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment
+import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =

@@ -29,8 +29,6 @@ where
 
 import Data.Char qualified as Char
 import Data.Text qualified as Text
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
@@ -41,6 +39,8 @@ import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R
 import Unison.Reference qualified as Reference
 import Unison.Referent' (Referent' (..), reference_, toReference')
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 -- | Specifies a term.
 --

@@ -1,8 +1,6 @@
 module Unison.HashQualified where
 
 import Data.Text qualified as Text
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name (Convert, Name)
@@ -12,6 +10,8 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 import Prelude hiding (take)
 
 data HashQualified n

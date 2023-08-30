@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module U.Codebase.ShortHash
+module Unison.ShortHash
   ( ShortHash (..),
     ShortCausalHash (..),
     ShortNamespaceHash (..),

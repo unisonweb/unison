@@ -13,7 +13,6 @@ import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Encoding qualified as LazyText
 import Servant (ServerError (..), err400, err404, err409, err500)
 import U.Codebase.HashTags (BranchHash, CausalHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
@@ -28,6 +27,7 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
+import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (toString)
 
 badHQN :: HashQualifiedName -> ServerError

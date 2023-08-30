@@ -9,11 +9,11 @@ module Unison.ConstructorReference
 where
 
 import Control.Lens
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r

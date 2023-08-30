@@ -12,9 +12,6 @@ import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2.Reference
 import U.Codebase.Referent qualified as V2
 import U.Codebase.Referent qualified as V2.Referent
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
-import U.Codebase.ShortHash qualified as V2
 import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
@@ -47,6 +44,8 @@ import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
 import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
+import Unison.ShortHash (ShortCausalHash (..), ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
@@ -56,8 +55,8 @@ import Unison.Util.Star3 qualified as V1.Star3
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as V1.WK
 
-sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
-sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
+sch1to2 :: V1.ShortCausalHash -> ShortCausalHash
+sch1to2 (V1.ShortCausalHash b32) = ShortCausalHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
