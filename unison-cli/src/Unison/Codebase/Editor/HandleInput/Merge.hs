@@ -5,7 +5,10 @@ module Unison.Codebase.Editor.HandleInput.Merge
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (mapped, over, _1)
+import Control.Lens (forOf_, mapped, over, traverseOf, (^?), _1)
+import Control.Monad.Trans.Writer.CPS (Writer, execWriter)
+import Control.Monad.Trans.Writer.CPS qualified as Writer
+import Data.Bitraversable (bitraverse)
 import Data.Functor.Compose (Compose (Compose))
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
@@ -30,7 +33,13 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.ShortHash (ShortHash)
 import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
+import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import U.Codebase.Term (Term)
+import U.Codebase.Term qualified as Term
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -143,6 +152,36 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   canonicalizeType
                   canonicalizeTerm
           Relation.filterM isUserTermUpdate termUpdates
+
+        let bigBoyUpdates :: Relation (Either TypeReference Referent) (Either TypeReference Referent)
+            bigBoyUpdates =
+              Relation.map (\(x, y) -> (Left x, Left y)) typeUpdates
+                <> Relation.map (\(x, y) -> (Right x, Right y)) termUpdates
+
+        let bigBoyEquivalenceClasses :: [Set (Either TypeReference Referent)]
+            bigBoyEquivalenceClasses =
+              Merge.groupUpdatesIntoEquivalenceClasses bigBoyUpdates
+
+        let typeDependsOn :: TypeReference -> Transaction (Set TypeReference)
+            typeDependsOn = \case
+              ReferenceBuiltin _ -> pure Set.empty
+              ReferenceDerived typeRefId0 -> do
+                typeRefId1 <- traverseOf Reference.idH Queries.expectObjectIdForPrimaryHash typeRefId0
+                dependencies0 <- Queries.getDependenciesForDependent typeRefId1
+                dependencies1 <-
+                  traverse
+                    (bitraverse Queries.expectText Queries.expectPrimaryHashByObjectId)
+                    dependencies0
+                pure (Set.fromList dependencies1)
+
+        let termDependsOn :: Referent -> Transaction (Set (Either TypeReference Referent))
+            termDependsOn = \case
+              Referent.Ref (ReferenceBuiltin _) -> pure Set.empty
+              Referent.Ref (ReferenceDerived termRef0) -> do
+                term <- Operations.expectTermByReference termRef0
+                pure (termDependencies term)
+              Referent.Con typeRef _conId ->
+                pure (Set.singleton (Left typeRef))
 
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="
@@ -338,6 +377,67 @@ loadDefinitionsDiff2 ::
 loadDefinitionsDiff2 (diff :< Compose children0) = do
   children <- Map.traverseWithKey (\_name action -> action >>= loadDefinitionsDiff1) children0
   pure (diff :< children)
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Term dependencies
+
+termDependencies :: Term Symbol -> Set (Either TypeReference Referent)
+termDependencies =
+  execWriter . ABT.visit_ (Writer.tell . termFDependencies)
+
+termFDependencies :: Term.F Symbol term -> Set (Either TypeReference Referent)
+termFDependencies = \case
+  Term.Ann _term ty -> Set.map Left (Type.dependencies ty)
+  Term.Constructor typeRef conId -> Set.singleton (Right (Referent.Con typeRef conId))
+  Term.Match _term cases -> Set.map Left (foldMap termMatchCaseDependencies cases)
+  Term.Ref rref ->
+    case rref ^? Reference._RReferenceReference of
+      Nothing -> Set.empty
+      Just ref -> Set.singleton (Right (Referent.Ref ref))
+  Term.Request typeRef conId -> Set.singleton (Right (Referent.Con typeRef conId))
+  Term.TermLink rref ->
+    case rref ^? Referent._ReferentHReferent of
+      Nothing -> Set.empty
+      Just ref -> Set.singleton (Right ref)
+  Term.TypeLink typeRef -> Set.singleton (Left typeRef)
+  -- No top-level dependencies: these either have inner terms (like App), or no dependencies (like Nat)
+  Term.And {} -> Set.empty
+  Term.App {} -> Set.empty
+  Term.Boolean {} -> Set.empty
+  Term.Char {} -> Set.empty
+  Term.Float {} -> Set.empty
+  Term.Handle {} -> Set.empty
+  Term.If {} -> Set.empty
+  Term.Int {} -> Set.empty
+  Term.Lam {} -> Set.empty
+  Term.Let {} -> Set.empty
+  Term.LetRec {} -> Set.empty
+  Term.List {} -> Set.empty
+  Term.Nat {} -> Set.empty
+  Term.Or {} -> Set.empty
+  Term.Text {} -> Set.empty
+
+termMatchCaseDependencies :: Term.MatchCase Text TypeReference term -> Set TypeReference
+termMatchCaseDependencies (Term.MatchCase pat _guard _body) =
+  termPatternDependencies pat
+
+termPatternDependencies :: Term.Pattern Text TypeReference -> Set TypeReference
+termPatternDependencies = \case
+  Term.PAs pat -> termPatternDependencies pat
+  Term.PConstructor typeRef _conId fields -> Set.insert typeRef (foldMap termPatternDependencies fields)
+  Term.PEffectBind typeRef _conId fields k -> Set.insert typeRef (foldMap termPatternDependencies (k : fields))
+  Term.PEffectPure pat -> termPatternDependencies pat
+  Term.PSequenceLiteral pats -> foldMap termPatternDependencies pats
+  Term.PSequenceOp lpat _op rpat -> Set.union (termPatternDependencies lpat) (termPatternDependencies rpat)
+  --
+  Term.PBoolean {} -> Set.empty
+  Term.PChar {} -> Set.empty
+  Term.PFloat {} -> Set.empty
+  Term.PInt {} -> Set.empty
+  Term.PNat {} -> Set.empty
+  Term.PText {} -> Set.empty
+  Term.PUnbound {} -> Set.empty
+  Term.PVar {} -> Set.empty
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils

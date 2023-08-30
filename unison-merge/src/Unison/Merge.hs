@@ -5,6 +5,13 @@ module Unison.Merge
     makeCanonicalize,
     isUserTypeUpdate,
     isUserTermUpdate,
+    groupUpdatesIntoEquivalenceClasses,
+    DefnRef (..),
+
+    -- * Dag things
+    Dag,
+    reifyDag,
+    dagTransitiveDependents,
   )
 where
 
@@ -126,6 +133,10 @@ computeEquivalenceClasses updates =
                 m
         Identity (Just m')
    in foldl' addEdge nodesOnly edges
+
+groupUpdatesIntoEquivalenceClasses :: Ord a => Relation a a -> [Set a]
+groupUpdatesIntoEquivalenceClasses =
+  map (\(_, refs, _) -> refs) . UFMap.toClasses . computeEquivalenceClasses
 
 isUserTermUpdate ::
   forall m.
@@ -504,7 +515,7 @@ getTransitiveDependents ::
   Set ref ->
   -- | "query" e.g. core class references
   Set ref ->
-  Map ref (Set ref)
+  Dag ref
 -- ^ the encountered transitive dependents, and for each, the set of their direct dependencies,
 -- since we have it here anyway and need it later.
 getTransitiveDependents refToDependencies scope query = search Map.empty query (Set.toList scope)
