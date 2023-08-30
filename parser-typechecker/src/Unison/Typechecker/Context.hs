@@ -70,6 +70,7 @@ import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as DDB
+import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -81,6 +82,7 @@ import Unison.DataDeclaration
   )
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.KindInference qualified as KindInference
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -399,6 +401,7 @@ data Cause v loc
   | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
+  | KindInferenceFailure (KindInference.KindError v loc)
   | InaccessiblePattern loc
   deriving (Show)
 
@@ -3054,7 +3057,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed ::
-  (Var v, Ord loc) =>
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc) =>
   PrettyPrintEnv ->
   PatternMatchCoverageCheckSwitch ->
   [Type v loc] ->
@@ -3073,6 +3076,13 @@ synthesizeClosed ppe pmcSwitch abilities lookupType term0 =
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
               *> verifyClosedTerm term
+          let kindInferRes = do
+                let decls = (Left <$> effects) <> (Right <$> datas)
+                st <- KindInference.inferDecls ppe decls
+                KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
+          case kindInferRes of
+            Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
+            Right () -> pure ()
           synthesizeClosed' abilities term
 
 verifyClosedTerm :: forall v loc. (Ord v) => Term v loc -> Result v loc ()

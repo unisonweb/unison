@@ -14,6 +14,7 @@ module Unison.PatternMatchCoverage.UFMap
   )
 where
 
+import Control.Monad.Trans.Class
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Foldable (foldl')
@@ -160,9 +161,10 @@ union ::
   k ->
   k ->
   UFMap k v ->
+  (UFMap k v -> m r) ->
   (k -> v -> UFMap k v -> m (Maybe r)) ->
   m (Maybe r)
-union k0 k1 mapinit mergeValues = toMaybe do
+union k0 k1 mapinit alreadyMerged mergeValues = toMaybe do
   rec let lu ::
             k ->
             UFMap k v ->
@@ -194,16 +196,21 @@ union k0 k1 mapinit mergeValues = toMaybe do
       let (chosenCanon, canonValue, nonCanonValue) = case size0 > size1 of
             True -> (kcanon0, v0, v1)
             False -> (kcanon1, v1, v0)
-  map2 <-
-    let res =
-          ExceptT $
-            mergeValues chosenCanon nonCanonValue map1 <&> \case
-              Nothing -> Left (MergeFailed v0 v1)
-              Just x -> Right x
-     in -- Now that both lookups have completed we can safely force the
-        -- final values
-        vfinal0 `seq` vfinal1 `seq` res
-  pure map2
+  case kcanon0 == kcanon1 of
+    True -> do
+      res <- lift (alreadyMerged map1)
+      pure (vfinal0 `seq` res)
+    False -> do
+      map2 <-
+        let res =
+              ExceptT $
+                mergeValues chosenCanon nonCanonValue map1 <&> \case
+                  Nothing -> Left (MergeFailed v0 v1)
+                  Just x -> Right x
+         in -- Now that both lookups have completed we can safely force the
+            -- final values
+            vfinal0 `seq` vfinal1 `seq` res
+      pure map2
   where
     toMaybe :: ExceptT (UnionHaltReason k v) m r -> m (Maybe r)
     toMaybe (ExceptT action) =

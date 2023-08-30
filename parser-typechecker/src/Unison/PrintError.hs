@@ -22,6 +22,9 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
+import Unison.KindInference (ConstraintConflict (..), KindError (..))
+import Unison.KindInference qualified as KindInference
+import Unison.KindInference.Solve (prettyUVarKind)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
@@ -609,6 +612,146 @@ renderTypeError e env src curPath = case e of
     Pr.hang
       "This case would be ignored because it's already covered by the preceding case(s):"
       (annotatedAsErrorSite src loc)
+  KindInferenceFailure ke0 ->
+    let prettyTyp var = Pr.bold (renderType' env (KindInference.getUVarType var))
+
+        varLoc var = ABT.annotation $ KindInference.getUVarType var
+
+        handleKindError ke = case ke of
+          CycleDetected uvars ->
+            let uvarLoc uvar =
+                  let typ = KindInference.getUVarType uvar
+                      typAnn = ABT.annotation typ
+                   in Pr.sep
+                        "\n"
+                        [ renderType' env typ,
+                          annotatedAsErrorSite src typAnn
+                        ]
+                locs = Pr.sep "\n" (map uvarLoc uvars)
+             in Pr.hang (Pr.bold "Cannot construct infinite kind") locs
+          UnexpectedArgument _loc abs arg _constraints ->
+            let theErrMsg =
+                  Pr.sep
+                    "\n"
+                    [ "Kind mismatch arising from",
+                      annotatedSrc,
+                      Pr.wrap
+                        ( pabs
+                            <> "doesn't expect an argument; however,"
+                            <> "it is applied to"
+                            <> Pr.group (parg <> ".")
+                        )
+                    ]
+                annotatedSrc =
+                  showSourceMaybes
+                    src
+                    [ (,Type1) <$> rangeForAnnotated (varLoc abs),
+                      (,Type2) <$> rangeForAnnotated (varLoc arg)
+                    ]
+
+                pabs = stylePretty Type1 (prettyTyp abs)
+                parg = stylePretty Type2 (prettyTyp arg)
+             in theErrMsg
+          ArgumentMismatch abs expected actual constraints ->
+            let theErrMsg =
+                  Pr.sep
+                    "\n"
+                    [ "Kind mismatch arising from",
+                      annotatedSrc,
+                      Pr.wrap
+                        ( mconcat
+                            [ pabs,
+                              " expects an argument of kind: ",
+                              Pr.group (stylePretty Type1 (prettyUVarKind env constraints expected) <> ";"),
+                              "however, it is applied to ",
+                              parg,
+                              "which has kind: ",
+                              Pr.group (stylePretty Type2 (prettyUVarKind env constraints actual) <> ".")
+                            ]
+                        )
+                    ]
+                annotatedSrc =
+                  showSourceMaybes
+                    src
+                    [ (,Type1) <$> rangeForAnnotated (varLoc abs),
+                      (,Type2) <$> rangeForAnnotated (varLoc actual)
+                    ]
+
+                pabs = stylePretty Type1 (prettyTyp abs)
+                parg = stylePretty Type2 (prettyTyp actual)
+             in theErrMsg
+          ArgumentMismatchArrow (_loc, _cod, _dom) ConstraintConflict' {conflictedVar, impliedConstraint, conflictedConstraint} constraints ->
+            let theErrMsg =
+                  Pr.sep
+                    "\n"
+                    [ "Kind mismatch arising from",
+                      annotatedSrc,
+                      Pr.wrap
+                        ( mconcat
+                            [ "The arrow type",
+                              Pr.group ("(" <> prettyArrow <> ")"),
+                              "expects arguments of kind",
+                              Pr.group (stylePretty Type1 (KindInference.prettySolvedConstraint env constraints impliedConstraint) <> ";"),
+                              "however, it is applied to",
+                              parg,
+                              "which has kind:",
+                              Pr.group (stylePretty Type2 (KindInference.prettySolvedConstraint env constraints conflictedConstraint) <> ".")
+                            ]
+                        )
+                    ]
+                prettyArrow = stylePretty Type1 "->"
+                annotatedSrc =
+                  showSourceMaybes
+                    src
+                    [ (,Type2) <$> rangeForAnnotated (varLoc conflictedVar)
+                    ]
+
+                parg = stylePretty Type2 (prettyTyp conflictedVar)
+             in theErrMsg
+          EffectListMismatch ConstraintConflict' {conflictedVar, impliedConstraint, conflictedConstraint} constraints ->
+            let theErrMsg =
+                  Pr.sep
+                    "\n"
+                    [ "Kind mismatch arising from",
+                      annotatedSrc,
+                      Pr.wrap
+                        ( mconcat
+                            [ "An ability list must consist solely of abilities;",
+                              "however, this list contains",
+                              parg,
+                              "which has kind",
+                              Pr.group (stylePretty Type2 (KindInference.prettySolvedConstraint env constraints conflictedConstraint) <> "."),
+                              "Abilities are of kind ",
+                              Pr.group (stylePretty Type1 (KindInference.prettySolvedConstraint env constraints impliedConstraint) <> ".")
+                            ]
+                        )
+                    ]
+                annotatedSrc =
+                  showSourceMaybes
+                    src
+                    [ (,Type2) <$> rangeForAnnotated (varLoc conflictedVar)
+                    ]
+
+                parg = stylePretty Type2 (prettyTyp conflictedVar)
+             in theErrMsg
+          ConstraintConflict _generatedConstraint ConstraintConflict' {conflictedVar, impliedConstraint, conflictedConstraint} constraints ->
+            let prettySolvedConstraint c = Pr.bold (KindInference.prettySolvedConstraint env constraints c)
+
+                theErrMsg =
+                  Pr.sep
+                    "\n"
+                    [ "Kind mismatch arising from",
+                      annotatedSrc,
+                      "Expected kind: " <> stylePretty Type1 (prettySolvedConstraint impliedConstraint),
+                      "Given kind: " <> stylePretty Type2 (prettySolvedConstraint conflictedConstraint)
+                    ]
+                annotatedSrc =
+                  showSourceMaybes
+                    src
+                    [ (,Type2) <$> rangeForAnnotated (varLoc conflictedVar)
+                    ]
+             in theErrMsg
+     in handleKindError ke0
   UnknownTerm {..}
     | Var.typeOf unknownTermV == Var.MissingResult ->
         Pr.lines
@@ -943,6 +1086,7 @@ renderTypeError e env src curPath = case e of
             fromString (show args),
             "\n"
           ]
+      C.KindInferenceFailure _ -> "kind inference failure"
       C.DuplicateDefinitions vs ->
         let go :: (v, [loc]) -> Pretty (AnnotatedText a)
             go (v, locs) =

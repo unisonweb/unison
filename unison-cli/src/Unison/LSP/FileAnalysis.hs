@@ -332,6 +332,7 @@ analyseNotes fileUri ppe src notes = do
               pure (r, ("duplicate definition",) <$> rs)
             TypeError.RedundantPattern loc -> singleRange loc
             TypeError.UncoveredPatterns loc _pats -> singleRange loc
+            TypeError.KindInferenceFailure{} -> empty
             -- These type errors don't have custom type error conversions, but some
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -352,6 +353,7 @@ analyseNotes fileUri ppe src notes = do
               Context.UncoveredPatterns loc _ -> singleRange loc
               Context.RedundantPattern loc -> singleRange loc
               Context.InaccessiblePattern loc -> singleRange loc
+              Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
           shouldHaveBeenHandled e = do
             Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
             empty
