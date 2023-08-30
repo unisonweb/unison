@@ -119,6 +119,13 @@
                   ormolu = { version = ormolu-ver; };
                   haskell-language-server = {
                     version = "latest";
+                    modules = [
+                      {
+                        packages.haskell-language-server.components.exes.haskell-language-server.postInstall = ''
+                          ln -sr "$out/bin/haskell-language-server" "$out/bin/haskell-language-server-wrapper"
+                        '';
+                      }
+                    ];
                     # specify flags via project file rather than a module override
                     # https://github.com/input-output-hk/haskell.nix/issues/1509
                     cabalProject = ''
