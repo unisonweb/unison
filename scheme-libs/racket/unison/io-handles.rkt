@@ -64,7 +64,7 @@
 
 (define-unison (isSeekable.impl.v3 handle)
     (unison-either-right
-        (if (port-has-set-port-position!? handle) unison-boolean-false unison-boolean-true)))
+        (if (port-has-set-port-position!? handle) unison-boolean-true unison-boolean-false)))
 
 (define-unison (handlePosition.impl.v3 handle)
     (unison-either-right (port-position handle)))

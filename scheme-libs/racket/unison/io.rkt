@@ -84,7 +84,7 @@
     (unison-either-right none))
 
 (define-unison (removeDirectory.impl.v3 file)
-    (delete-directory (chunked-string->string file))
+    (delete-directory/files (chunked-string->string file))
     (unison-either-right none))
 
 (define-unison (isDirectory.impl.v3 path)
