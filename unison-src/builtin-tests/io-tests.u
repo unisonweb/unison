@@ -28,14 +28,10 @@ io.tests = Tests.main do
 rm_if_exists fp =
     if FilePath.exists fp
         then
-            removeFile fp
-        else
-            ()
-
-rmdir_if_exists fp =
-    if FilePath.exists fp
-        then
-            removeDirectory fp
+            if isDirectory fp then
+                removeDirectory fp
+            else
+                removeFile fp
         else
             ()
 
@@ -119,15 +115,15 @@ join fp text =
 io.test_renameDirectory = do
     td = join !getTempDirectory "unison-dir"
     rd = join !getTempDirectory "unison-dir-rename"
-    rmdir_if_exists td
-    rmdir_if_exists rd
+    rm_if_exists td
+    rm_if_exists rd
     createDirectory td
     contents = "a file contents"
     _ = writeFile (join td "hello") contents
     renameDirectory td rd
     got = (getText (open (join rd "hello") Read))
-    rmdir_if_exists td
-    rmdir_if_exists rd
+    rm_if_exists td
+    rm_if_exists rd
     checkEqual "renameFile" contents got
 
 io.test_renameFile = do
