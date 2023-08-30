@@ -6,6 +6,7 @@ module Unison.LabeledDependency
     termRef,
     typeRef,
     referent,
+    referentId,
     dataConstructor,
     effectConstructor,
     fold,
@@ -87,6 +88,9 @@ termRef = TermReference
 
 referent :: Referent -> LabeledDependency
 referent = TermReferent
+
+referentId :: Referent.Id -> LabeledDependency
+referentId = TermReferent . fmap DerivedId
 
 dataConstructor :: ConstructorReference -> LabeledDependency
 dataConstructor r = ConReference r Data

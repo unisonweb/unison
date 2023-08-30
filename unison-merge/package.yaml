@@ -10,9 +10,11 @@ dependencies:
   - bitvec
   - containers
   - generic-lens
+  - lens
   - monad-validate
   - mtl
   - nonempty-containers
+  - safe
   - unison-core
   - unison-core1
   - unison-prelude
@@ -23,8 +25,6 @@ dependencies:
   - unison-codebase-sqlite
   - unison-parser-typechecker
   - unison-hash
-  - unison-hashing-v2
-  - lens
   - vector
 
 library:

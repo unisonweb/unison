@@ -10,7 +10,7 @@ where
 
 import Control.Lens ((%~), (^.))
 import Control.Lens qualified as Lens
-import Control.Monad.Validate (Validate, ValidateT, runValidateT)
+import Control.Monad.Validate (ValidateT, runValidateT)
 import Control.Monad.Validate qualified as Validate
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
@@ -27,6 +27,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Vector.Unboxed qualified as UVector
+import Safe (elemIndexJust)
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
@@ -58,7 +59,6 @@ import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
-import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
 import Unison.Result qualified as Result
 import Unison.Term qualified as V1
@@ -584,7 +584,7 @@ data Defn v a
 
 type DefnRef = LabeledDependency
 
-data DefnRefId = DriTypeRefId V1.TypeReferenceId | DriTermRefId V1.Reference.Id
+data DefnRefId = DriTypeRefId V1.TypeReferenceId | DriTermRefId V1.TermReferenceId
   deriving (Eq, Ord, Show)
 
 data DefnTag = DtLca | DtLatest
@@ -655,7 +655,7 @@ processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
       where
         handleOneType :: EC -> m (Result v a)
         handleOneType ec = case latestMember ech ec of
-          LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> loadDecl r
+          LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished <$> (r,) <$> loadDecl r
           LmLatest dr@(LD.BuiltinType {}) -> pure $ RSimple dr
           LmLatest (LD.TermReferent {}) -> error "handleOneType: latest member shouldn't be a term"
           LmConflict original updated -> pure $ RNeedsIntervention (IResolveConflict original updated)
@@ -663,7 +663,7 @@ processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
         handleOneTerm typeLookup ec = case latestMember ech ec of
           LmLatest dr@(LD.BuiltinTerm {}) -> pure . NEMap.singleton ec $ RSimple dr
           LmLatest (LD.DerivedTerm r) -> handleManyTerms typeLookup (NESet.singleton ec) -- todo: single version?
-          LmLatest dr@(LD.ConReference (V1.ConstructorReference (V1.Reference.DerivedId r) cid) ct) -> rewriteConstructorTerm r cid ct
+          LmLatest dr@(LD.ConReference r@(V1.ConstructorReference (V1.Reference.DerivedId {}) _) ct) -> wundefined "rewriteConstructorTerm r ct"
           LmLatest (LD.ConReference (V1.ConstructorReference (V1.Reference.Builtin {}) _) _) -> error "handleOneTerm: builtin types don't have constructors"
           LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
           LmConflict original updated -> pure . NEMap.singleton ec $ RNeedsIntervention (IResolveConflict original updated)
@@ -686,9 +686,9 @@ processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
             Right component -> rewriteDeclComponent (memberToEc ech) finished component
             Left problems -> recordProblems ecs problems
           where
-            loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.Decl v a)
+            loadLatestMember :: EC -> ValidateT (NEMap EC (Intervention v a)) m (V1.TypeReferenceId, V1.Decl v a)
             loadLatestMember ec = case latestMember ech ec of
-              LmLatest (LD.DerivedType r) -> lift $ loadDecl r
+              LmLatest (LD.DerivedType r) -> lift . fmap (r,) $ loadDecl r
               LmLatest dr -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show dr
               LmConflict original updated -> Validate.refute $ NEMap.singleton ec $ IResolveConflict original updated
 
@@ -793,14 +793,15 @@ data TermError
   | TeFailedTypecheck (V1.TypeReference, V1.TypeReference)
   deriving (Eq, Ord, Show)
 
-rewriteSingleDecl :: (V1.ABT.Var v, Show v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> V1.Decl v a -> Result v a
-rewriteSingleDecl ecForRef finished decl = RSuccess (DriTypeRefId r') (DefnDecl decl' (wundefined "ctorMapping"))
+rewriteSingleDecl :: (V1.ABT.Var v, Show v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> (V1.TypeReferenceId, V1.Decl v a) -> Result v a
+rewriteSingleDecl ecForRef finished (r, decl) = RSuccess (DriTypeRefId r') (DefnDecl decl' ctorMapping)
   where
     r' = Hashing.Convert.hashClosedDecl decl'
     decl' = foldl' (flip performOneDeclRewrite) decl (mapMaybe getReplacement . toList $ V1.Decl.declTypeDependencies decl)
     getReplacement rOld = do
       ec <- ecForRef (LD.TypeReference rOld)
       simpleFinishedTypeReplacement finished ec rOld
+    ctorMapping = wundefined $ buildConstructorMapping (r, decl) (r', decl')
 
 performOneDeclRewrite ::
   (V1.ABT.Var v, Show v) =>
@@ -814,17 +815,23 @@ performOneDeclRewrite (oldType, newType) =
 
 -- rewriteSingleTerm ecForRef finished term =
 
-rewriteConstructorTerm :: V1.Reference.Id -> ConstructorId -> ConstructorType -> m (NEMap EC (Result v a))
-rewriteConstructorTerm r cid ct = wundefined "look up (r, cid) in constructor map to get latest"
+-- | Update a "latest" constructor if its decl dependency has been updated
+rewriteConstructorTerm :: (DefnRef -> Maybe EC) -> Map EC (Result v a) -> (EC, V1.Referent.Id) -> NEMap EC (Result v a)
+rewriteConstructorTerm ecForRef finished (ec, rOld) = wundefined
 
--- \case
--- LD.TermReferent (V1.Referent.Ref (V1.Reference.Builtin{})) -> wundefined
--- LD.TermReferent (V1.Referent.Ref (V1.Reference.DerivedId r)) -> wundefined
--- LD.TermReferent (V1.Referent.Con (V1.ConstructorReference r cid) ct) -> wundefined
+-- case rOld of
+--   ConId (ConstructorReference rOldTypeId _cid) _ct -> do
+--     typeEc <- ecForRef (LD.DerivedType rOldTypeId)
+-- NEMap.singleton ec (RSimple (fromMaybe drOld drNew))
+-- where
+--   drNew =
+
+-- let ctorMapping = buildConstructorMapping ()
+--  in wundefined "look up (r, cid) in constructor map to get latest"
 
 -- | Staryafish on type decls.
 -- `component` must have 2+ elements.
-rewriteDeclComponent :: forall v a. (Var v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> NEMap EC (V1.Decl v a) -> NEMap EC (Result v a)
+rewriteDeclComponent :: forall v a. (Var v, Monoid a, Show a) => (DefnRef -> Maybe EC) -> Map EC (Result v a) -> NEMap EC (V1.TypeReferenceId, V1.Decl v a) -> NEMap EC (Result v a)
 rewriteDeclComponent ecForRef finished component =
   if NEMap.size component < 2
     then error "rewriteDeclComponent: this function is only for components with mutual recursion"
@@ -834,17 +841,33 @@ rewriteDeclComponent ecForRef finished component =
       -- Hashing.Convert.hashDecls isn't currently aw are of NEMaps, but the input is NonEmpty and the output must be too.
       NEMap.unsafeFromMap $ foldl' (flip addReplacement) finished hashedComponent
       where
-        addReplacement :: (v, V1.Reference.Id, V1.Decl.Decl v a) -> Map EC (Result v a) -> Map EC (Result v a)
+        addReplacement :: (v, V1.TypeReferenceId, V1.Decl v a) -> Map EC (Result v a) -> Map EC (Result v a)
         addReplacement (v, declId, decl) =
-          Map.insert (ecFromVar v) (RSuccess (DriTypeRefId declId) (DefnDecl decl (wundefined "ctor mapping")))
+          Map.insert ec (RSuccess (DriTypeRefId declId) (DefnDecl decl ctorMapping))
+          where
+            ec = ecFromVar v
+            ctorMapping = wundefined $ buildConstructorMapping (component NEMap.! ec) (declId, decl)
     hashedComponent = case Hashing.Convert.hashDecls (Map.mapKeys ecToVar (NEMap.toMap rewrittenComponent)) of
       Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
       Right hashed -> hashed
       where
-        rewrittenComponent = fmap performRewrites component
+        rewrittenComponent = fmap performRewrites (snd <$> component)
         performRewrites decl = foldl' (flip performOneDeclRewrite) decl (setupRewrites (V1.Decl.declTypeDependencies decl))
         setupRewrites dependencies =
           mapMaybe (buildSimpleTypeReplacementExpression ecForRef finished (NEMap.keysSet component)) (toList dependencies)
+
+-- | build a constructor mapping between two decls, assuming that they share the same constructor names
+-- e.g. when one has been synthesized from the other via auto-propagation.
+buildConstructorMapping :: Eq v => (V1.TypeReferenceId, V1.Decl v a) -> (V1.TypeReferenceId, V1.Decl v a) -> Map V1.ConstructorReferenceId V1.ConstructorReferenceId
+buildConstructorMapping (r1, d1) (r2, d2) =
+  Map.fromList
+    [ (V1.ConstructorReference r1 c1, V1.ConstructorReference r2 (fromIntegral c2))
+      | (name, c1) <- ctors1 `zip` [0 ..],
+        let c2 = elemIndexJust name ctors2
+    ]
+  where
+    ctors1 = V1.Decl.constructorVars . V1.Decl.asDataDecl $ d1
+    ctors2 = V1.Decl.constructorVars . V1.Decl.asDataDecl $ d2
 
 -- | Construct some appropriate before/after pairs to feed into the structural find/replace functions
 -- to update these type decls.
@@ -933,7 +956,7 @@ rewriteTermComponent typeLookup ecForRef finished component =
     formatResults = NEMap.map makeResult . NEMap.mapKeysMonotonic ecFromVar
       where
         makeResult (termId, term, typ) = RSuccess (DriTermRefId termId) (DefnTerm term typ)
-    typecheckedComponent :: TypecheckedUnisonFile v a -> NEMap v (V1.Reference.Id, V1.Term v a, V1.Type v a)
+    typecheckedComponent :: TypecheckedUnisonFile v a -> NEMap v (V1.TermReferenceId, V1.Term v a, V1.Type v a)
     typecheckedComponent tuf =
       NEMap.unsafeFromMap $ Map.map (\(_a, r, _k, tm, tp) -> (r, tm, tp)) (UF.hashTermsId tuf)
     rewrittenComponent = fmap performRewrites component
@@ -1025,7 +1048,7 @@ ecFromVar v = case V1.Var.typeOf v of
 refType :: (Ord v, Monoid a) => V1.Reference.Reference -> V1.Type.Type v a
 refType = V1.Type.ref mempty
 
-refIdType :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Type.Type v a
+refIdType :: (Ord v, Monoid a) => V1.TypeReferenceId -> V1.Type.Type v a
 refIdType = V1.Type.refId mempty
 
 varType :: (Var v, Monoid a) => EC -> V1.Type.Type v a
@@ -1034,7 +1057,7 @@ varType = V1.Type.var mempty . ecToVar
 refTerm :: (Ord v, Monoid a) => V1.Referent.Referent -> V1.Term.Term2 vt at ap v a
 refTerm = V1.Term.fromReferent mempty
 
-refIdTerm :: (Ord v, Monoid a) => V1.Reference.Id -> V1.Term.Term2 vt at ap v a
+refIdTerm :: (Ord v, Monoid a) => V1.TermReferenceId -> V1.Term.Term2 vt at ap v a
 refIdTerm = V1.Term.refId mempty
 
 varTerm :: (Var v, Monoid a) => EC -> V1.Term.Term2 vt at ap v a
