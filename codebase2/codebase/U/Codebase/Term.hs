@@ -203,32 +203,3 @@ rmapPattern ft fr = go
       PEffectBind r i ps p -> PEffectBind (fr r) i (go <$> ps) (go p)
       PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
       PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
-
-_dependencies ::
-  (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>
-  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
-  (Set termRef, Set typeRef, Set termLink, Set typeLink)
-_dependencies =
-  Writer.execWriter . ABT.visit_ \case
-    Ref r -> termRef r
-    Constructor r _ -> typeRef r
-    Request r _ -> typeRef r
-    Match _ cases -> Foldable.for_ cases \case
-      MatchCase pat _guard _body -> go pat
-        where
-          go = \case
-            PConstructor r _i args -> typeRef r *> Foldable.traverse_ go args
-            PAs pat -> go pat
-            PEffectPure pat -> go pat
-            PEffectBind r _i args k -> typeRef r *> Foldable.traverse_ go args *> go k
-            PSequenceLiteral pats -> Foldable.traverse_ go pats
-            PSequenceOp l _op r -> go l *> go r
-            _ -> pure ()
-    TermLink r -> termLink r
-    TypeLink r -> typeLink r
-    _ -> pure ()
-  where
-    termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty)
-    typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
-    termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
-    typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)

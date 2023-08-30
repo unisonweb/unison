@@ -16,7 +16,7 @@ instance ToField ConstructorType where
     ConstructorType.Data -> SQLInteger 0
     ConstructorType.Effect -> SQLInteger 1
 
-instance FromField (ConstructorType) where
+instance FromField ConstructorType where
   fromField f =
     fromField @Int f >>= \case
       0 -> pure ConstructorType.Data
