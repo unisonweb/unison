@@ -20,6 +20,10 @@ io.tests = Tests.main do
     !io.test_isFileOpen
     !io.test_ready
     !io.test_now
+    !io.test_isSeekable
+    !io.test_handlePosition
+    !io.test_renameDirectory
+    !io.test_setCurrentDirectory
 
 rm_if_exists fp =
     if FilePath.exists fp
@@ -28,10 +32,32 @@ rm_if_exists fp =
         else
             ()
 
+rmdir_if_exists fp =
+    if FilePath.exists fp
+        then
+            removeDirectory fp
+        else
+            ()
+
+
 testFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
     rm_if_exists fp
     fp
+
+io.test_isSeekable = do
+    fp = !testFile
+    fhandle = open fp Write
+    checkEqual "isSeekable file" true (isSeekable fhandle)
+
+io.test_handlePosition = do
+    fp = !testFile
+    writeFile fp "123456"
+    fhandle = open fp Read
+    checkEqual "handlePosition initial" 0 (position fhandle)
+    _ = getBytes fhandle 2
+    checkEqual "handlePosition" 2 (position fhandle)
+
 
 io.test_deprecated_systemTimeMicroseconds = do
     match !systemTimeMicroseconds with
@@ -44,7 +70,7 @@ io.test_deprecated_systemTimeMicroseconds = do
 io.test_deprecated_systemTime = do
     match !systemTime with
         EpochTime seconds ->
-            if seconds Int.> +10 then
+            if seconds > 10 then
                 Tests.pass "!systemTime"
             else
                 Tests.fail "!systemTime" "systemTime is too small"
@@ -86,6 +112,23 @@ io.test_ready = do
     fhandle = open fp Read
     ready1 = ready fhandle
     checkEqual "handle with text ready is ready" ready1 true
+
+join fp text =
+    FilePath (FilePath.toText fp ++ "/" ++ text)
+
+io.test_renameDirectory = do
+    td = join !getTempDirectory "unison-dir"
+    rd = join !getTempDirectory "unison-dir-rename"
+    rmdir_if_exists td
+    rmdir_if_exists rd
+    createDirectory td
+    contents = "a file contents"
+    _ = writeFile (join td "hello") contents
+    renameDirectory td rd
+    got = (getText (open (join rd "hello") Read))
+    rmdir_if_exists td
+    rmdir_if_exists rd
+    checkEqual "renameFile" contents got
 
 io.test_renameFile = do
     fp = FilePath ((FilePath.toText !getTempDirectory) ++ "/unison-test")
@@ -132,6 +175,14 @@ test_getFileTimestamp = do
 
 test_getFileTimestamp_err = do
     expectError' "File timestamp of missing file" ["does not exist", "error getting"] '(FilePath.getTimestamp !testFile)
+
+io.test_setCurrentDirectory = do
+    prev = !getCurrentDirectory
+    setCurrentDirectory (FilePath "/")
+    new = !getCurrentDirectory
+    setCurrentDirectory prev
+    match new with
+        FilePath text -> checkEqual "Current directory set & get" "/" text
 
 io.test_getCurrentDirectory = do
     match !getCurrentDirectory with
