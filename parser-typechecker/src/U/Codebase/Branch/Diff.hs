@@ -222,11 +222,10 @@ streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :
             let name = appendName ns
              in (listifyNames name $ adds diff, listifyNames name $ removals diff)
   let nameChanges = NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
-  acc <- f namePrefix nameChanges
-  -- acc <-
-  --   if nameChanges == mempty
-  --     then pure mempty
-  --     else f namePrefix nameChanges
+  acc <-
+    if nameChanges == mempty
+      then pure mempty
+      else f namePrefix nameChanges
   childAcc <-
     children
       & ifoldMapM
