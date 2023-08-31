@@ -99,7 +99,7 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
                 -- Fetching these in parallel would be an improvement
                 maybeRemoteProject <- Share.getProjectByName remoteProjectName
                 maybeRemoteBranch <-
-                  Share.getProjectBranchByName (ProjectAndBranch remoteBranchProjectId remoteBranchName) <&> \case
+                  Share.getProjectBranchByName Share.NoSquashedHead (ProjectAndBranch remoteBranchProjectId remoteBranchName) <&> \case
                     Share.GetProjectBranchResponseBranchNotFound -> Nothing
                     Share.GetProjectBranchResponseProjectNotFound -> Nothing
                     Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch

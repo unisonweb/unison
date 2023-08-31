@@ -546,7 +546,7 @@ pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
           }
     Just remoteProject -> do
       let remoteProjectId = remoteProject ^. #projectId
-      Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
+      Share.getProjectBranchByName Share.NoSquashedHead (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
         Share.GetProjectBranchResponseBranchNotFound -> do
           pure
             UploadPlan
@@ -579,7 +579,7 @@ pushToProjectBranch1 ::
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
 pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
+  Share.getProjectBranchByName Share.NoSquashedHead (over #project fst remoteProjectAndBranch) >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> do
       pure
         UploadPlan

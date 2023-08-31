@@ -150,6 +150,7 @@ type GetProjectBranchAPI =
     :> QueryParam' '[Required, Strict] "projectId" Text
     :> QueryParam "branchId" Text
     :> QueryParam "branchName" Text
+    :> QueryParam "squashed" Bool
     :> Verb 'GET 200 '[JSON] GetProjectBranchResponse
 
 -- | @GET /project-branch@ response.
@@ -364,7 +365,8 @@ data ProjectBranch = ProjectBranch
     projectName :: Text,
     branchId :: Text,
     branchName :: Text,
-    branchHead :: HashJWT
+    branchHead :: HashJWT,
+    squashedBranchHead :: Maybe HashJWT
   }
   deriving stock (Eq, Show, Generic)
 
@@ -376,16 +378,18 @@ instance FromJSON ProjectBranch where
       branchId <- parseField o "branch-id"
       branchName <- parseField o "branch-name"
       branchHead <- parseField o "branch-head"
+      squashedBranchHead <- o .:? "squashed-branch-head"
       pure ProjectBranch {..}
 
 instance ToJSON ProjectBranch where
-  toJSON (ProjectBranch projectId projectName branchId branchName branchHead) =
+  toJSON (ProjectBranch projectId projectName branchId branchName branchHead squashedBranchHead) =
     object
       [ "project-id" .= projectId,
         "project-name" .= projectName,
         "branch-id" .= branchId,
         "branch-name" .= branchName,
-        "branch-head" .= branchHead
+        "branch-head" .= branchHead,
+        "squashed-branch-head" .= squashedBranchHead
       ]
 
 -- | A project id and branch id.

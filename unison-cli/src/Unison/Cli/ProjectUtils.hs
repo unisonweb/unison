@@ -207,7 +207,7 @@ loadRemoteProjectBranchByName ::
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Maybe Share.RemoteProjectBranch)
 loadRemoteProjectBranchByName projectAndBranch =
-  Share.getProjectBranchByName projectAndBranch <&> \case
+  Share.getProjectBranchByName Share.NoSquashedHead projectAndBranch <&> \case
     Share.GetProjectBranchResponseBranchNotFound -> Nothing
     Share.GetProjectBranchResponseProjectNotFound -> Nothing
     Share.GetProjectBranchResponseSuccess branch -> Just branch
@@ -216,7 +216,7 @@ expectRemoteProjectBranchByName ::
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli Share.RemoteProjectBranch
 expectRemoteProjectBranchByName projectAndBranch =
-  Share.getProjectBranchByName (projectAndBranch & over #project fst) >>= \case
+  Share.getProjectBranchByName Share.NoSquashedHead (projectAndBranch & over #project fst) >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> doesntExist
     Share.GetProjectBranchResponseProjectNotFound -> doesntExist
     Share.GetProjectBranchResponseSuccess branch -> pure branch
