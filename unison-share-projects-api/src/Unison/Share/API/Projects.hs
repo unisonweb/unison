@@ -150,7 +150,7 @@ type GetProjectBranchAPI =
     :> QueryParam' '[Required, Strict] "projectId" Text
     :> QueryParam "branchId" Text
     :> QueryParam "branchName" Text
-    :> QueryFlag "squashed"
+    :> QueryFlag "includeSquashed" -- If set, include the squashed branch head in the response
     :> Verb 'GET 200 '[JSON] GetProjectBranchResponse
 
 -- | @GET /project-branch@ response.
