@@ -88,6 +88,13 @@
     builtin-IO.renameFile.impl.v3
     builtin-IO.createTempDirectory.impl.v3
     builtin-IO.createDirectory.impl.v3
+    builtin-IO.setCurrentDirectory.impl.v3
+    builtin-IO.renameDirectory.impl.v3
+    builtin-IO.isDirectory.impl.v3
+    builtin-IO.isSeekable.impl.v3
+    builtin-IO.handlePosition.impl.v3
+    builtin-IO.systemTime.impl.v3
+    builtin-IO.systemTimeMicroseconds.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
