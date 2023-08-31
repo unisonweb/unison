@@ -18,13 +18,21 @@ where
 import Data.Text qualified as Text
 import Unison.Prelude
 
+-- A ShortHash is used to query the Codebase for anonymous definitions. The prefix should look like base32hex, but is
+-- not decoded here because the prefix doesn't correspond to anything useful - we'll just compare strings against the
+-- codebase later.
+--
 -- ##Text.++
---   ^^^^^^^-- builtin
-
--- #abc123.a#0
---  ^      ^ ^-cid
---  |      \-cycle
---  \-- prefix
+--   ^^^^^^^
+--   |
+--   builtin
+--
+-- #abc123.1#2
+--  ^^^^^^ ^ ^
+--  |      | |
+--  |      | cid
+--  |      cycle
+--  prefix
 data ShortHash
   = Builtin Text
   | ShortHash {prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64}
