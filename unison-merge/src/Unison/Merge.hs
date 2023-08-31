@@ -8,6 +8,14 @@ module Unison.Merge
     groupUpdatesIntoEquivalenceClasses,
     DefnRef (..),
 
+    -- * Random misc things, temporarily exported
+    Node (..),
+    typeUpdatesToNodes,
+    termUpdatesToNodes,
+
+    -- * EC things (temporarily exported)
+    EC (..),
+
     -- * Dag things
     Dag,
     reifyDag,
@@ -78,6 +86,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.NEMap qualified as NEMap
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -134,6 +143,7 @@ computeEquivalenceClasses updates =
         Identity (Just m')
    in foldl' addEdge nodesOnly edges
 
+-- Post-condition: sets have 2+ elements
 groupUpdatesIntoEquivalenceClasses :: Ord a => Relation a a -> [Set a]
 groupUpdatesIntoEquivalenceClasses =
   map (\(_, refs, _) -> refs) . UFMap.toClasses . computeEquivalenceClasses
@@ -314,6 +324,137 @@ canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef selfHash =
 newtype EC = EC {unEC :: Int}
   deriving (Show)
   deriving (Enum, Eq, Num, Ord) via Int
+
+data Node tm ty
+  = Node'Term tm
+  | Node'Terms (NESet tm) -- 2+ terms
+  | Node'Type ty
+  | Node'Types (NESet ty) -- 2+ types
+  deriving stock (Eq, Ord, Show)
+
+pattern NodeTms :: Set tm -> Node tm ty
+pattern NodeTms tms <- (asNodeTms -> Just tms)
+
+pattern NodeTys :: Set ty -> Node tm ty
+pattern NodeTys tys <- (asNodeTys -> Just tys)
+
+{-# COMPLETE NodeTys, NodeTms #-}
+
+asNodeTms :: Node tm ty -> Maybe (Set tm)
+asNodeTms = \case
+  Node'Term tm -> Just (Set.singleton tm)
+  Node'Terms tms -> Just (NESet.toSet tms)
+  Node'Type _ -> Nothing
+  Node'Types _ -> Nothing
+
+asNodeTys :: Node tm ty -> Maybe (Set ty)
+asNodeTys = \case
+  Node'Type ty -> Just (Set.singleton ty)
+  Node'Types tys -> Just (NESet.toSet tys)
+  Node'Term _ -> Nothing
+  Node'Terms _ -> Nothing
+
+-- Create graph nodes from type updates.
+typeUpdatesToNodes :: Ord ty => Relation ty ty -> [Node tm ty]
+typeUpdatesToNodes =
+  groupUpdatesIntoEquivalenceClasses
+    >>> map (NESet.unsafeFromSet >>> Node'Types) -- safe; each EC will have 2+ elements
+
+-- Create graph nodes from term updates.
+termUpdatesToNodes :: Ord tm => Relation tm tm -> [Node tm ty]
+termUpdatesToNodes =
+  groupUpdatesIntoEquivalenceClasses
+    >>> map (NESet.unsafeFromSet >>> Node'Terms) -- safe; each EC will have 2+ elements
+
+-- The big big bazooka currently computes the core EC dependencies. Calling code will most likely will also need the
+-- inner EC <-> Node bimap, so this can be gutted/refactored whenever.
+bigbigBazooka ::
+  forall m tm ty.
+  (Monad m, Ord tm, Ord ty) =>
+  (ty -> m (Set ty)) ->
+  (tm -> m (Set (Either ty tm))) ->
+  Relation ty ty ->
+  Relation ty ty ->
+  Relation tm tm ->
+  Relation tm tm ->
+  m (Relation EC EC)
+bigbigBazooka getTypeDependencies getTermDependencies allTypeUpdates userTypeUpdates allTermUpdates userTermUpdates = do
+  let -- Make graph nodes out of all the type updates
+      typeNodes :: [Node x ty]
+      typeNodes = typeUpdatesToNodes allTypeUpdates
+
+      -- Make graph nodes out of all the type updates
+      termNodes :: [Node tm x]
+      termNodes = termUpdatesToNodes allTermUpdates
+
+      -- Combine the term and type nodes together, and assign each a unique EC number
+      ecToNodeBimap :: Bimap EC (Node tm ty)
+      ecToNodeBimap =
+        Bimap.fromList (zip [0 ..] (typeNodes ++ termNodes))
+
+      -- Make a couple lookup functions from term/type back to EC
+      (lookupTypeEc, lookupTermEc) =
+        makeEcLookupFunctions ecToNodeBimap
+
+      getTypeDependencyEcs :: ty -> m (Set EC)
+      getTypeDependencyEcs =
+        getTypeDependencies >>> fmap (Set.mapMaybe lookupTypeEc)
+
+      getTermDependencyEcs :: tm -> m (Set EC)
+      getTermDependencyEcs =
+        getTermDependencies >>> fmap (Set.mapMaybe (either lookupTypeEc lookupTermEc))
+
+      -- FIXME reduce duplication in here for term/type cases
+      f :: Node tm ty -> m (Set EC)
+      f = \case
+        NodeTms tms -> do
+          let dependenciesIn :: Set tm -> m (Set EC)
+              dependenciesIn =
+                (tms `Set.intersection`) >>> foldMapM getTermDependencyEcs
+          lcaDeps <- dependenciesIn allTermUpdatesLhs
+          userTermUpdatesLhsDeps <- dependenciesIn userTermUpdatesLhs
+          userTermUpdatesRhsDeps <- dependenciesIn userTermUpdatesRhs
+          pure (userTermUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTermUpdatesLhsDeps))
+        NodeTys tys -> do
+          let dependenciesIn :: Set ty -> m (Set EC)
+              dependenciesIn =
+                (tys `Set.intersection`) >>> foldMapM getTypeDependencyEcs
+          lcaDeps <- dependenciesIn allTypeUpdatesLhs
+          userTypeUpdatesLhsDeps <- dependenciesIn userTypeUpdatesLhs
+          userTypeUpdatesRhsDeps <- dependenciesIn userTypeUpdatesRhs
+          pure (userTypeUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTypeUpdatesLhsDeps))
+
+  Relation.fromMultimap <$> traverse f (Bimap.toMap ecToNodeBimap)
+  where
+    allTypeUpdatesLhs = Relation.dom allTypeUpdates
+    allTypeUpdatesRhs = Relation.ran allTypeUpdates
+
+    userTypeUpdatesLhs = Relation.dom userTypeUpdates
+    userTypeUpdatesRhs = Relation.ran userTypeUpdates
+
+    allTermUpdatesLhs = Relation.dom allTermUpdates
+    allTermUpdatesRhs = Relation.ran allTermUpdates
+
+    userTermUpdatesLhs = Relation.dom userTermUpdates
+    userTermUpdatesRhs = Relation.ran userTermUpdates
+
+makeEcLookupFunctions :: forall tm ty. (Ord tm, Ord ty) => Bimap EC (Node tm ty) -> (ty -> Maybe EC, tm -> Maybe EC)
+makeEcLookupFunctions ecToNodeBimap =
+  let insertEc :: (Map ty EC, Map tm EC) -> (EC, Node tm ty) -> (Map ty EC, Map tm EC)
+      insertEc (!accTy, !accTm) (ec, node) =
+        case node of
+          Node'Term tm -> let !accTm1 = Map.insert tm ec accTm in (accTy, accTm1)
+          Node'Terms tms -> let !accTm1 = foldl' (\acc tm -> Map.insert tm ec acc) accTm tms in (accTy, accTm1)
+          Node'Type ty -> let !accTy1 = Map.insert ty ec accTy in (accTy1, accTm)
+          Node'Types tys -> let !accTy1 = foldl' (\acc ty -> Map.insert ty ec acc) accTy tys in (accTy1, accTm)
+
+      typeToEcMap :: Map ty EC
+      termToEcMap :: Map tm EC
+      (typeToEcMap, termToEcMap) =
+        ecToNodeBimap
+          & Bimap.toList
+          & foldl' insertEc (Map.empty, Map.empty)
+   in ((`Map.lookup` typeToEcMap), (`Map.lookup` termToEcMap))
 
 boingoBeats ::
   forall ref.

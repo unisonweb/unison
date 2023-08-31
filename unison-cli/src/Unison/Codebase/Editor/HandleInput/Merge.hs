@@ -158,10 +158,19 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               Relation.map (\(x, y) -> (Left x, Left y)) typeUpdates
                 <> Relation.map (\(x, y) -> (Right x, Right y)) termUpdates
 
+        let typeCoreEquivalenceClasses :: [Set TypeReference]
+            typeCoreEquivalenceClasses =
+              Merge.groupUpdatesIntoEquivalenceClasses typeUpdates
+
+        let termCoreEquivalenceClasses :: [Set Referent]
+            termCoreEquivalenceClasses =
+              Merge.groupUpdatesIntoEquivalenceClasses termUpdates
+
         let bigBoyEquivalenceClasses :: [Set (Either TypeReference Referent)]
             bigBoyEquivalenceClasses =
               Merge.groupUpdatesIntoEquivalenceClasses bigBoyUpdates
 
+        -- TODO we probably want to pass down a version of this that caches
         let typeDependsOn :: TypeReference -> Transaction (Set TypeReference)
             typeDependsOn = \case
               ReferenceBuiltin _ -> pure Set.empty
@@ -174,6 +183,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                     dependencies0
                 pure (Set.fromList dependencies1)
 
+        -- TODO we probably want to pass down a version of this that caches
         let termDependsOn :: Referent -> Transaction (Set (Either TypeReference Referent))
             termDependsOn = \case
               Referent.Ref (ReferenceBuiltin _) -> pure Set.empty
