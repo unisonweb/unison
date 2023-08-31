@@ -417,7 +417,6 @@ data ShareError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
   | ShareErrorUploadEntities Share.UploadEntitiesError
-  | ShareErrorExpectedSquashedBranchCausalHash
 
 data HistoryTail
   = EndOfLog CausalHash

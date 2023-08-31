@@ -150,7 +150,7 @@ type GetProjectBranchAPI =
     :> QueryParam' '[Required, Strict] "projectId" Text
     :> QueryParam "branchId" Text
     :> QueryParam "branchName" Text
-    :> QueryParam "squashed" Bool
+    :> QueryFlag "squashed"
     :> Verb 'GET 200 '[JSON] GetProjectBranchResponse
 
 -- | @GET /project-branch@ response.
