@@ -224,19 +224,19 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
-      projectBranchCausalHashJWT <- downloadShareProjectBranch pullMode remoteBranch
+      projectBranchCausalHashJWT <- downloadShareProjectBranch (pullMode == Input.PullWithoutHistory) remoteBranch
       let causalHash = Common.hash32ToCausalHash (Share.hashJWTHash projectBranchCausalHashJWT)
       liftIO (Codebase.expectBranchForHash codebase causalHash)
 
 -- | @downloadShareProjectBranch branch@ downloads the given branch.
-downloadShareProjectBranch :: PullMode -> Share.RemoteProjectBranch -> Cli HashJWT
-downloadShareProjectBranch pullMode branch = do
+downloadShareProjectBranch :: Bool -> Share.RemoteProjectBranch -> Cli HashJWT
+downloadShareProjectBranch useSquashedIfAvailable branch = do
   let remoteProjectBranchName = branch ^. #branchName
   let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))
-  causalHashJwt <- case pullMode of
-    Input.PullWithHistory -> pure $ branch ^. #branchHead
-    Input.PullWithoutHistory ->
-      (branch ^. #squashedBranchHead) `whenNothing` Cli.returnEarly (Output.ShareError Output.ShareErrorExpectedSquashedBranchCausalHash)
+  let causalHashJwt =
+        if useSquashedIfAvailable
+          then (branch ^. #branchHead)
+          else fromMaybe (branch ^. #branchHead) (branch ^. #squashedBranchHead)
   exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
   when (not exists) do
     (result, numDownloaded) <-
