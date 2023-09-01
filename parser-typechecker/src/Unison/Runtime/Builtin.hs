@@ -2439,10 +2439,10 @@ declareForeigns = do
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
     $ \(n :: Int) -> case n of
-      0 -> pure (Just SYS.stdin)
-      1 -> pure (Just SYS.stdout)
-      2 -> pure (Just SYS.stderr)
-      _ -> pure Nothing
+      0 -> pure SYS.stdin
+      1 -> pure SYS.stdout
+      2 -> pure SYS.stderr
+      _ -> die "IO.stdHandle: invalid input."
 
   let exitDecode ExitSuccess = 0
       exitDecode (ExitFailure n) = n
