@@ -366,6 +366,14 @@ termUpdatesToNodes =
   groupUpdatesIntoEquivalenceClasses
     >>> map (NESet.unsafeFromSet >>> Node'Terms) -- safe; each EC will have 2+ elements
 
+data Updates ty tm = Updates
+  { terms :: Relation tm tm,
+    types :: Relation ty ty,
+    userTerms :: Relation tm tm,
+    userTypes :: Relation ty ty
+  }
+  deriving stock (Generic)
+
 -- The big big bazooka currently computes the core EC dependencies. Calling code will most likely will also need the
 -- inner EC <-> Node bimap, so this can be gutted/refactored whenever.
 bigbigBazooka ::
@@ -373,19 +381,16 @@ bigbigBazooka ::
   (Monad m, Ord tm, Ord ty) =>
   (ty -> m (Set ty)) ->
   (tm -> m (Set (Either ty tm))) ->
-  Relation ty ty ->
-  Relation ty ty ->
-  Relation tm tm ->
-  Relation tm tm ->
+  Updates ty tm ->
   m (Relation EC EC)
-bigbigBazooka getTypeDependencies getTermDependencies allTypeUpdates userTypeUpdates allTermUpdates userTermUpdates = do
+bigbigBazooka getTypeDependencies getTermDependencies updates = do
   let -- Make graph nodes out of all the type updates
       typeNodes :: [Node x ty]
-      typeNodes = typeUpdatesToNodes allTypeUpdates
+      typeNodes = typeUpdatesToNodes (updates ^. #types)
 
       -- Make graph nodes out of all the type updates
       termNodes :: [Node tm x]
-      termNodes = termUpdatesToNodes allTermUpdates
+      termNodes = termUpdatesToNodes (updates ^. #terms)
 
       -- Combine the term and type nodes together, and assign each a unique EC number
       ecToNodeBimap :: Bimap EC (Node tm ty)
@@ -408,35 +413,23 @@ bigbigBazooka getTypeDependencies getTermDependencies allTypeUpdates userTypeUpd
       f :: Node tm ty -> m (Set EC)
       f = \case
         NodeTms tms -> do
-          let dependenciesIn :: Set tm -> m (Set EC)
+          let dependenciesIn :: Map tm x -> m (Set EC)
               dependenciesIn =
-                (tms `Set.intersection`) >>> foldMapM getTermDependencyEcs
-          lcaDeps <- dependenciesIn allTermUpdatesLhs
-          userTermUpdatesLhsDeps <- dependenciesIn userTermUpdatesLhs
-          userTermUpdatesRhsDeps <- dependenciesIn userTermUpdatesRhs
+                (`Set.intersectKeys` tms) >>> foldMapM getTermDependencyEcs
+          lcaDeps <- dependenciesIn (Relation.domain (updates ^. #terms))
+          userTermUpdatesLhsDeps <- dependenciesIn (Relation.domain (updates ^. #userTerms))
+          userTermUpdatesRhsDeps <- dependenciesIn (Relation.range (updates ^. #userTerms))
           pure (userTermUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTermUpdatesLhsDeps))
         NodeTys tys -> do
-          let dependenciesIn :: Set ty -> m (Set EC)
+          let dependenciesIn :: Map ty x -> m (Set EC)
               dependenciesIn =
-                (tys `Set.intersection`) >>> foldMapM getTypeDependencyEcs
-          lcaDeps <- dependenciesIn allTypeUpdatesLhs
-          userTypeUpdatesLhsDeps <- dependenciesIn userTypeUpdatesLhs
-          userTypeUpdatesRhsDeps <- dependenciesIn userTypeUpdatesRhs
+                (`Set.intersectKeys` tys) >>> foldMapM getTypeDependencyEcs
+          lcaDeps <- dependenciesIn (Relation.domain (updates ^. #types))
+          userTypeUpdatesLhsDeps <- dependenciesIn (Relation.domain (updates ^. #userTypes))
+          userTypeUpdatesRhsDeps <- dependenciesIn (Relation.range (updates ^. #userTypes))
           pure (userTypeUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTypeUpdatesLhsDeps))
 
   Relation.fromMultimap <$> traverse f (Bimap.toMap ecToNodeBimap)
-  where
-    allTypeUpdatesLhs = Relation.dom allTypeUpdates
-    allTypeUpdatesRhs = Relation.ran allTypeUpdates
-
-    userTypeUpdatesLhs = Relation.dom userTypeUpdates
-    userTypeUpdatesRhs = Relation.ran userTypeUpdates
-
-    allTermUpdatesLhs = Relation.dom allTermUpdates
-    allTermUpdatesRhs = Relation.ran allTermUpdates
-
-    userTermUpdatesLhs = Relation.dom userTermUpdates
-    userTermUpdatesRhs = Relation.ran userTermUpdates
 
 makeEcLookupFunctions :: forall tm ty. (Ord tm, Ord ty) => Bimap EC (Node tm ty) -> (ty -> Maybe EC, tm -> Maybe EC)
 makeEcLookupFunctions ecToNodeBimap =
