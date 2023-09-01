@@ -36,6 +36,9 @@ data SectionT
   | LetT
   | DieT
   | ExitT
+  | DMatchT
+  | NMatchT
+  | RMatchT
 
 instance Tag SectionT where
   tag2word AppT = 0
@@ -47,6 +50,9 @@ instance Tag SectionT where
   tag2word LetT = 6
   tag2word DieT = 7
   tag2word ExitT = 8
+  tag2word DMatchT = 9
+  tag2word NMatchT = 10
+  tag2word RMatchT = 11
 
   word2tag 0 = pure AppT
   word2tag 1 = pure CallT
@@ -57,6 +63,9 @@ instance Tag SectionT where
   word2tag 6 = pure LetT
   word2tag 7 = pure DieT
   word2tag 8 = pure ExitT
+  word2tag 9 = pure DMatchT
+  word2tag 10 = pure NMatchT
+  word2tag 11 = pure RMatchT
   word2tag i = unknownTag "SectionT" i
 
 putSection :: (MonadPut m) => Section -> m ()
@@ -78,6 +87,15 @@ putSection (Die s) =
   putTag DieT *> serialize s
 putSection Exit =
   putTag ExitT
+putSection (DMatch mr i b) =
+  putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
+putSection (NMatch mr i b) =
+  putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
+putSection (RMatch i pu bs) =
+  putTag RMatchT
+    *> pInt i
+    *> putSection pu
+    *> putEnumMap pWord putBranch bs
 
 getSection :: (MonadGet m) => m Section
 getSection =
@@ -91,6 +109,10 @@ getSection =
     LetT -> Let <$> getSection <*> getCombIx
     DieT -> Die <$> deserialize
     ExitT -> pure Exit
+    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
+    NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
+    RMatchT ->
+      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
 
 data InstrT
   = UPrim1T
@@ -111,6 +133,7 @@ data InstrT
   | AtomicallyT
   | SeqT
   | TryForceT
+  | BLitT
 
 instance Tag InstrT where
   tag2word UPrim1T = 0
@@ -131,6 +154,7 @@ instance Tag InstrT where
   tag2word AtomicallyT = 15
   tag2word SeqT = 16
   tag2word TryForceT = 17
+  tag2word BLitT = 18
 
   word2tag 0 = pure UPrim1T
   word2tag 1 = pure UPrim2T
@@ -150,6 +174,7 @@ instance Tag InstrT where
   word2tag 15 = pure AtomicallyT
   word2tag 16 = pure SeqT
   word2tag 17 = pure TryForceT
+  word2tag 18 = pure BLitT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: (MonadPut m) => Instr -> m ()
@@ -177,6 +202,8 @@ putInstr (Unpack mr i) =
   putTag UnpackT *> putMaybe mr putReference *> pInt i
 putInstr (Lit l) =
   putTag LitT *> putLit l
+putInstr (BLit r l) =
+  putTag BLitT *> putReference r *> putLit l
 putInstr (Print i) =
   putTag PrintT *> pInt i
 putInstr (Reset s) =
@@ -205,6 +232,7 @@ getInstr =
     PackT -> Pack <$> getReference <*> gWord <*> getArgs
     UnpackT -> Unpack <$> getMaybe getReference <*> gInt
     LitT -> Lit <$> getLit
+    BLitT -> BLit <$> getReference <*> getLit
     PrintT -> Print <$> gInt
     ResetT -> Reset <$> getEnumSet gWord
     ForkT -> Fork <$> gInt

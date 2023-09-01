@@ -238,6 +238,17 @@ unitValue = Enum Rf.unitRef unitTag
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
+buildLit :: Reference -> MLit -> Closure
+buildLit rf (MI i)
+  | Just n <- M.lookup rf builtinTypeNumbering,
+    rt <- toEnum (fromIntegral n) =
+      DataU1 rf (packTags rt 0) i
+  | otherwise = error "buildLit: unknown reference"
+buildLit _ (MT t) = Foreign (Wrap Rf.textRef t)
+buildLit _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
+buildLit _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
+buildLit _ (MD _) = error "buildLit: double"
+
 exec ::
   CCache ->
   DEnv ->
@@ -453,6 +464,10 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MY r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BLit rf l) = do
+  bstk <- bump bstk
+  poke bstk $ buildLit rf l
+  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Reset ps) = do
   (ustk, ua) <- saveArgs ustk
   (bstk, ba) <- saveArgs bstk
@@ -528,6 +543,13 @@ encodeExn ustk bstk (Left exn) = do
           (Rf.threadKilledFailureRef, disp ie, unitValue)
       | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
+numValue :: Maybe Reference -> Closure -> IO Word64
+numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
+numValue mr clo =
+  die $ "numValue: bad closure: "
+          ++ show clo
+          ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+
 eval ::
   CCache ->
   DEnv ->
@@ -544,6 +566,22 @@ eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i br) = do
   n <- peekOffN ustk i
   eval env denv activeThreads ustk bstk k r $ selectBranch n br
+eval !env !denv !activeThreads !ustk !bstk !k r (DMatch mr i br) = do
+  (t, ustk, bstk) <- dumpDataNoTag mr ustk bstk =<< peekOff bstk i
+  eval env denv activeThreads ustk bstk k r $
+    selectBranch (maskTags t) br
+eval !env !denv !activeThreads !ustk !bstk !k r (NMatch mr i br) = do
+  n <- numValue mr =<< peekOff bstk i
+  eval env denv activeThreads ustk bstk k r $ selectBranch n br
+eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
+  (t, ustk, bstk) <- dumpDataNoTag Nothing ustk bstk =<< peekOff bstk i
+  if t == 0
+  then eval env denv activeThreads ustk bstk k r pu
+  else case ANF.unpackTags t of
+    (ANF.rawTag -> e, ANF.rawTag -> t)
+      | Just ebs <- EC.lookup e br ->
+        eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
+      | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
   | asize ustk + asize bstk > 0,
     BArg1 i <- args =
@@ -888,6 +926,50 @@ buildData !ustk !bstk !r !t (DArgV ui bi) = do
     ul = fsize ustk - ui
     bl = fsize bstk - bi
 {-# INLINE buildData #-}
+
+-- Dumps a data type closure to the stack without writing its tag.
+-- Instead, the tag is returned for direct case analysis.
+dumpDataNoTag ::
+  Maybe Reference ->
+  Stack 'UN ->
+  Stack 'BX ->
+  Closure ->
+  IO (Word64, Stack 'UN, Stack 'BX)
+dumpDataNoTag !_ !ustk !bstk (Enum _ t) = pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataU1 _ t x) = do
+  ustk <- bump ustk
+  poke ustk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataU2 _ t x y) = do
+  ustk <- bumpn ustk 2
+  pokeOff ustk 1 y
+  poke ustk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataB1 _ t x) = do
+  bstk <- bump bstk
+  poke bstk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataB2 _ t x y) = do
+  bstk <- bumpn bstk 2
+  pokeOff bstk 1 y
+  poke bstk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataUB _ t x y) = do
+  ustk <- bump ustk
+  bstk <- bump bstk
+  poke ustk x
+  poke bstk y
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataG _ t us bs) = do
+  ustk <- dumpSeg ustk us S
+  bstk <- dumpSeg bstk bs S
+  pure (t, ustk, bstk)
+dumpDataNoTag !mr !_ !_ clo =
+  die $
+    "dumpDataNoTag: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+{-# INLINE dumpDataNoTag #-}
 
 dumpData ::
   Maybe Reference ->
@@ -1805,12 +1887,15 @@ resolve env _ _ (Env n i) =
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  Nothing -> readTVarIO (tagRefs env) >>= err
-    where
-      unhandled rs = case EC.lookup i rs of
-        Just r -> show r
-        Nothing -> show i
-      err rs = die $ "resolve: unhandled ability request: " ++ unhandled rs
+  Nothing -> unhandledErr "resolve" env i
+
+unhandledErr :: String -> CCache -> Word64 -> IO a
+unhandledErr fname env i =
+  readTVarIO (tagRefs env) >>= \rs -> case EC.lookup i rs of
+    Just r -> bomb (show r)
+    Nothing -> bomb (show i)
+  where
+  bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
 combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =

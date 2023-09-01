@@ -72,6 +72,16 @@ putFloat = serializeBE
 getFloat :: (MonadGet m) => m Double
 getFloat = deserializeBE
 
+putBool :: (MonadPut m) => Bool -> m ()
+putBool b = putWord8 (if b then 1 else 0)
+
+getBool :: (MonadGet m) => m Bool
+getBool = d =<< getWord8
+  where
+    d 0 = pure False
+    d 1 = pure True
+    d n = exn $ "getBool: bad tag: " ++ show n
+
 putNat :: (MonadPut m) => Word64 -> m ()
 putNat = putWord64be
 

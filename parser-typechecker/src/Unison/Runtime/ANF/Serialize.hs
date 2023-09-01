@@ -44,6 +44,7 @@ data TmTag
   | NameVarT
   | LetDirT
   | LetIndT
+  | BxLitT
 
 data FnTag
   = FVarT
@@ -61,6 +62,7 @@ data MtTag
   | MEmptyT
   | MDataT
   | MSumT
+  | MNumT
 
 data LtTag
   = IT
@@ -98,6 +100,7 @@ instance Tag TmTag where
     NameVarT -> 9
     LetDirT -> 10
     LetIndT -> 11
+    BxLitT -> 12
   word2tag = \case
     1 -> pure VarT
     2 -> pure ForceT
@@ -110,6 +113,7 @@ instance Tag TmTag where
     9 -> pure NameVarT
     10 -> pure LetDirT
     11 -> pure LetIndT
+    12 -> pure BxLitT
     n -> unknownTag "TmTag" n
 
 instance Tag FnTag where
@@ -140,6 +144,7 @@ instance Tag MtTag where
     MEmptyT -> 3
     MDataT -> 4
     MSumT -> 5
+    MNumT -> 6
 
   word2tag = \case
     0 -> pure MIntT
@@ -148,6 +153,7 @@ instance Tag MtTag where
     3 -> pure MEmptyT
     4 -> pure MDataT
     5 -> pure MSumT
+    6 -> pure MNumT
     n -> unknownTag "MtTag" n
 
 instance Tag LtTag where
@@ -353,6 +359,7 @@ putNormal refrep fops ctx tm = case tm of
       *> putVar ctx v
       *> putBranches refrep fops ctx bs
   TLit l -> putTag LitT *> putLit l
+  TBLit l -> putTag BxLitT *> putLit l
   TName v (Left r) as e ->
     putTag NameRefT
       *> pr
@@ -393,6 +400,7 @@ getNormal ctx frsh0 =
         v = getFresh frsh0
     MatchT -> TMatch <$> getVar ctx <*> getBranches ctx frsh0
     LitT -> TLit <$> getLit
+    BxLitT -> TBLit <$> getLit
     NameRefT ->
       TName v . Left
         <$> getReference
@@ -676,8 +684,6 @@ putBranches refrep fops ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
     putNormal refrep fops (v : ctx) df
-    where
-
   MatchData r m df -> do
     putTag MDataT
     putReference r
@@ -686,6 +692,11 @@ putBranches refrep fops ctx bs = case bs of
   MatchSum m -> do
     putTag MSumT
     putEnumMap putWord64be (putCase refrep fops ctx) m
+  MatchNumeric r m df -> do
+    putTag MNumT
+    putReference r
+    putEnumMap putWord64be (putNormal refrep fops ctx) m
+    putMaybe df $ putNormal refrep fops ctx
   _ -> exn "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -713,6 +724,11 @@ getBranches ctx frsh0 =
         <*> getEnumMap getCTag (getCase ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
     MSumT -> MatchSum <$> getEnumMap getWord64be (getCase ctx frsh0)
+    MNumT ->
+      MatchNumeric
+        <$> getReference
+        <*> getEnumMap getWord64be (getNormal ctx frsh0)
+        <*> getMaybe (getNormal ctx frsh0)
 
 putCase ::
   (MonadPut m) =>

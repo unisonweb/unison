@@ -906,21 +906,16 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 4 $ \[r, f, n, j, k] ->
-    TMatch r . flip (MatchData Ty.exceptionRef) Nothing $
-      mapFromList
-        [ (0, ([BX], TAbs f $ TVar f)),
-          ( i,
-            ( [UN, BX],
-              TAbss [j, f]
-                . TShift Ty.exceptionRef k
-                . TLetD n BX (TLit $ T "builtin.raise")
-                $ TPrm EROR [n, f]
-            )
+  unop0 3 $ \[r, f, n, k] ->
+    TMatch r . flip MatchRequest (TAbs f $ TVar f)
+      . Map.singleton Ty.exceptionRef
+      $ mapSingleton 0
+          ( [BX],
+            TAbs f
+              . TShift Ty.exceptionRef k
+              . TLetD n BX (TLit $ T "builtin.raise")
+              $ TPrm EROR [n, f]
           )
-        ]
-  where
-    i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
