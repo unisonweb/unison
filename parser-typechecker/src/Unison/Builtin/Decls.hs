@@ -1,4 +1,132 @@
-module Unison.Builtin.Decls where
+-- | This module contains a bunch of manually-constructor data/effect decls needed by type signatures of builtin terms.
+-- It would be great if we could parse them as Unison source, but we have a bootstrapping problem.
+--
+-- Side note: it looks like some other things have sneaked in here, various utilities
+-- and definitions related to the builtin types; but I think they should probably move.
+module Unison.Builtin.Decls
+  ( builtinDataDecls,
+    builtinEffectDecls,
+
+    -- * for type signatures of builtin terms
+    exceptionType,
+    optionalType,
+    unitType,
+    pairType,
+    failureType,
+    eitherType,
+    fileModeType,
+    bufferModeType,
+    seekModeType,
+    stdHandleType,
+
+    -- * for Runtime
+    exceptionRef,
+    eitherRef,
+    eitherLeftId,
+    eitherRightId,
+    failureRef,
+    arithmeticFailureRef,
+    arrayFailureRef,
+    fileModeRef,
+    ioFailureRef,
+    miscFailureRef,
+    runtimeFailureRef,
+    stmFailureRef,
+    threadKilledFailureRef,
+    tlsFailureRef,
+    pairRef,
+    unitRef,
+    optionalRef,
+    noneId,
+    someId,
+    seekModeRef,
+    seqViewRef,
+    seqViewEmpty,
+    seqViewElem,
+    stdHandleRef,
+    bufferModeRef,
+    bufferModeBlockBufferingId,
+    bufferModeNoBufferingId,
+    bufferModeLineBufferingId,
+    bufferModeSizedBlockBufferingId,
+    unitTerm,
+    tupleTerm,
+    pattern TupleTerm',
+
+    -- * for UCM
+    testResultType,
+    testResultRefId,
+
+    -- ** metadata
+
+    -- isPropagatedRef,
+    isPropagatedRefId,
+    isPropagatedConstructorId,
+    isTestRefId,
+    isTestConstructorId,
+
+    -- ** testing
+    okConstructorId,
+    okConstructorReferent,
+    failConstructorId,
+    failConstructorReferent,
+
+    -- ** parsing / printing
+    docRef,
+    docRefId,
+    docBlobId,
+    docEvaluateId,
+    docLinkId,
+    docJoinId,
+    docSignatureId,
+    docSourceId,
+    pattern Doc,
+    pattern DocRefId,
+    pattern DocBlobId,
+    pattern DocJoinId,
+    pattern DocLink,
+    pattern DocSource,
+    pattern DocSignature,
+    pattern DocEvaluate,
+    linkRefId,
+    linkTermId,
+    linkTypeId,
+    thunkArgType,
+    pairRefId,
+    pairCtorRef,
+    pattern Rewrites',
+    pattern RewriteCase',
+    pattern RewriteTerm',
+    pattern RewriteSignature',
+    pattern TuplePattern,
+    pattern UnitRefId,
+    unitRefId,
+    unitCtorRef,
+
+    -- *** terms and types
+    pattern DocBlob,
+    pattern DocJoin,
+    pattern LinkTerm,
+    pattern LinkType,
+    -- pattern TuplePattern,
+    -- pattern TupleTerm',
+    pattern TupleType',
+    delayTerm,
+    forceTerm,
+
+    -- ** Server.Doc
+    pattern EitherLeft',
+    pattern EitherRight',
+    pattern OptionalNone',
+    pattern OptionalSome',
+
+    -- ** rewrites
+    rewrites,
+    rewriteTerm,
+    rewriteCase,
+    rewriteType,
+  )
+where
 
 import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
@@ -14,7 +142,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)
 import Unison.Pattern qualified as Pattern
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -26,47 +154,54 @@ import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
-lookupDeclRef :: Text -> Reference
-lookupDeclRef str
-  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
+lookupDeclRef :: Text -> TypeReference
+lookupDeclRef = Reference.DerivedId . lookupDeclRefId
+
+lookupDeclRefId :: Text -> TypeReferenceId
+lookupDeclRefId str
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
     decls = [(a, b) | (a, b, _) <- builtinDataDecls]
 
-lookupEffectRef :: Text -> Reference
-lookupEffectRef str
-  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
+lookupEffectRef :: Text -> TypeReference
+lookupEffectRef = Reference.DerivedId . lookupEffectRefId
+
+lookupEffectRefId :: Text -> TypeReferenceId
+lookupEffectRefId str
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = d
   | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
   where
     decls = [(a, b) | (a, b, _) <- builtinEffectDecls]
 
-unitRef, pairRef, optionalRef, eitherRef :: Reference
-unitRef = lookupDeclRef "Unit"
-pairRef = lookupDeclRef "Tuple"
-optionalRef = lookupDeclRef "Optional"
-eitherRef = lookupDeclRef "Either"
+unitRef, pairRef, optionalRef, eitherRef :: TypeReference
+unitRefId, pairRefId, optionalRefId, eitherRefId :: TypeReferenceId
+(unitRef, unitRefId) = (Reference.DerivedId unitRefId, lookupDeclRefId "Unit")
+(pairRef, pairRefId) = (Reference.DerivedId pairRefId, lookupDeclRefId "Tuple")
+(optionalRef, optionalRefId) = (Reference.DerivedId optionalRefId, lookupDeclRefId "Optional")
+(eitherRef, eitherRefId) = (Reference.DerivedId eitherRefId, lookupDeclRefId "Either")
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
-failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
-exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
-isPropagatedRef, isTestRef :: Reference
-isPropagatedRef = lookupDeclRef "IsPropagated"
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: TypeReference
+failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: TypeReference
+exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: TypeReference
+isPropagatedRef, isTestRef :: TypeReference
+(isPropagatedRef, isPropagatedRefId) = (Reference.DerivedId isPropagatedRefId, lookupDeclRefId "IsPropagated")
 
-isTestRef = lookupDeclRef "IsTest"
+(isTestRef, isTestRefId) = (Reference.DerivedId isTestRefId, lookupDeclRefId "IsTest")
 
-testResultRef = lookupDeclRef "Test.Result"
+(testResultRef, testResultRefId) = (Reference.DerivedId testResultRefId, lookupDeclRefId "Test.Result")
 
-linkRef = lookupDeclRef "Link"
+(linkRef, linkRefId) = (Reference.DerivedId linkRefId, lookupDeclRefId "Link")
 
-docRef = lookupDeclRef "Doc"
+(docRef, docRefId) = (Reference.DerivedId docRefId, lookupDeclRefId "Doc")
 
-ioErrorRef = lookupDeclRef "io2.IOError"
+(ioErrorRef, ioErrorRefId) = (Reference.DerivedId ioErrorRefId, lookupDeclRefId "io2.IOError")
 
-stdHandleRef = lookupDeclRef "io2.StdHandle"
+(stdHandleRef, stdHandleRefId) = (Reference.DerivedId stdHandleRefId, lookupDeclRefId "io2.StdHandle")
 
-failureRef = lookupDeclRef "io2.Failure"
+(failureRef, failureRefId) = (Reference.DerivedId failureRefId, lookupDeclRefId "io2.Failure")
 
-exceptionRef = lookupEffectRef "Exception"
+(exceptionRef, exceptionRefId) = (Reference.DerivedId exceptionRefId, lookupEffectRefId "Exception")
 
 ioFailureRef = lookupDeclRef "io2.IOFailure"
 
@@ -74,96 +209,102 @@ tlsFailureRef = lookupDeclRef "io2.TlsFailure"
 
 arrayFailureRef = lookupDeclRef "io2.ArrayFailure"
 
-tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
+(tlsSignedCertRef, tlsSignedCertRefId) = (Reference.DerivedId tlsSignedCertRefId, lookupDeclRefId "io2.Tls.SignedCert")
 
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
-runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: Reference
+runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: TypeReference
 runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
 arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
 miscFailureRef = lookupDeclRef "io2.MiscFailure"
 stmFailureRef = lookupDeclRef "io2.STMFailure"
 threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
 
-fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
-fileModeRef = lookupDeclRef "io2.FileMode"
-filePathRef = lookupDeclRef "io2.FilePath"
-bufferModeRef = lookupDeclRef "io2.BufferMode"
-seekModeRef = lookupDeclRef "io2.SeekMode"
-seqViewRef = lookupDeclRef "SeqView"
+fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: TypeReference
+(fileModeRef, fileModeRefId) = (Reference.DerivedId fileModeRefId, lookupDeclRefId "io2.FileMode")
+(filePathRef, filePathRefId) = (Reference.DerivedId filePathRefId, lookupDeclRefId "io2.FilePath")
+(bufferModeRef, bufferModeRefId) = (Reference.DerivedId bufferModeRefId, lookupDeclRefId "io2.BufferMode")
+(seekModeRef, seekModeRefId) = (Reference.DerivedId seekModeRefId, lookupDeclRefId "io2.SeekMode")
+(seqViewRef, seqViewRefId) = (Reference.DerivedId seqViewRefId, lookupDeclRefId "SeqView")
 
 pairCtorRef, unitCtorRef :: Referent
-pairCtorRef = Referent.Con (ConstructorReference pairRef 0) CT.Data
-unitCtorRef = Referent.Con (ConstructorReference unitRef 0) CT.Data
+pairCtorRef = Referent.Con (ConstructorReference pairRefId 0) CT.Data
+unitCtorRef = Referent.Con (ConstructorReference unitRefId 0) CT.Data
 
-constructorId :: Reference -> Text -> Maybe ConstructorId
+constructorId :: TypeReferenceId -> Text -> Maybe ConstructorId
 constructorId ref name = do
-  (_, _, dd) <- find (\(_, r, _) -> Reference.DerivedId r == ref) builtinDataDecls
+  (_, _, dd) <- find (\(_, r, _) -> r == ref) builtinDataDecls
   fmap fromIntegral . elemIndex name $ DD.constructorNames dd
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId :: ConstructorId
 seqViewEmpty, seqViewElem :: ConstructorId
-noneId = Maybe.fromJust $ constructorId optionalRef "Optional.None"
-someId = Maybe.fromJust $ constructorId optionalRef "Optional.Some"
+noneId = Maybe.fromJust $ constructorId optionalRefId "Optional.None"
+someId = Maybe.fromJust $ constructorId optionalRefId "Optional.Some"
 
-isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
+isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRefId "IsPropagated.IsPropagated"
 
-isTestConstructorId = Maybe.fromJust $ constructorId isTestRef "IsTest.IsTest"
+isTestConstructorId = Maybe.fromJust $ constructorId isTestRefId "IsTest.IsTest"
 
-okConstructorId = Maybe.fromJust $ constructorId testResultRef "Test.Result.Ok"
+okConstructorId = Maybe.fromJust $ constructorId testResultRefId "Test.Result.Ok"
 
-failConstructorId = Maybe.fromJust $ constructorId testResultRef "Test.Result.Fail"
+failConstructorId = Maybe.fromJust $ constructorId testResultRefId "Test.Result.Fail"
 
-docBlobId = Maybe.fromJust $ constructorId docRef "Doc.Blob"
+docBlobId = Maybe.fromJust $ constructorId docRefId "Doc.Blob"
 
-docLinkId = Maybe.fromJust $ constructorId docRef "Doc.Link"
+docLinkId = Maybe.fromJust $ constructorId docRefId "Doc.Link"
 
-docSignatureId = Maybe.fromJust $ constructorId docRef "Doc.Signature"
+docSignatureId = Maybe.fromJust $ constructorId docRefId "Doc.Signature"
 
-docSourceId = Maybe.fromJust $ constructorId docRef "Doc.Source"
+docSourceId = Maybe.fromJust $ constructorId docRefId "Doc.Source"
 
-docEvaluateId = Maybe.fromJust $ constructorId docRef "Doc.Evaluate"
+docEvaluateId = Maybe.fromJust $ constructorId docRefId "Doc.Evaluate"
 
-docJoinId = Maybe.fromJust $ constructorId docRef "Doc.Join"
+docJoinId = Maybe.fromJust $ constructorId docRefId "Doc.Join"
 
-linkTermId = Maybe.fromJust $ constructorId linkRef "Link.Term"
+linkTermId = Maybe.fromJust $ constructorId linkRefId "Link.Term"
 
-linkTypeId = Maybe.fromJust $ constructorId linkRef "Link.Type"
+linkTypeId = Maybe.fromJust $ constructorId linkRefId "Link.Type"
 
-eitherRightId = Maybe.fromJust $ constructorId eitherRef "Either.Right"
+eitherRightId = Maybe.fromJust $ constructorId eitherRefId "Either.Right"
 
-eitherLeftId = Maybe.fromJust $ constructorId eitherRef "Either.Left"
+eitherLeftId = Maybe.fromJust $ constructorId eitherRefId "Either.Left"
 
-seqViewEmpty = Maybe.fromJust $ constructorId seqViewRef "SeqView.VEmpty"
+seqViewEmpty = Maybe.fromJust $ constructorId seqViewRefId "SeqView.VEmpty"
 
-seqViewElem = Maybe.fromJust $ constructorId seqViewRef "SeqView.VElem"
+seqViewElem = Maybe.fromJust $ constructorId seqViewRefId "SeqView.VElem"
 
-bufferModeNoBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.NoBuffering"
+bufferModeNoBufferingId = Maybe.fromJust $ constructorId bufferModeRefId "io2.BufferMode.NoBuffering"
 
-bufferModeLineBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.LineBuffering"
+bufferModeLineBufferingId = Maybe.fromJust $ constructorId bufferModeRefId "io2.BufferMode.LineBuffering"
 
-bufferModeBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.BlockBuffering"
+bufferModeBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRefId "io2.BufferMode.BlockBuffering"
 
-bufferModeSizedBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
+bufferModeSizedBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRefId "io2.BufferMode.SizedBlockBuffering"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
-okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
-failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
+okConstructorReferent = Referent.Con (ConstructorReference testResultRefId okConstructorId) CT.Data
+failConstructorReferent = Referent.Con (ConstructorReference testResultRefId failConstructorId) CT.Data
 
-rewriteTermRef :: Reference
-rewriteTermRef = lookupDeclRef "RewriteTerm"
+-- rewriteTermRef :: TypeReference
+-- rewriteTermRef = lookupDeclRef "RewriteTerm"
+
+rewriteTermRefId :: TypeReferenceId
+rewriteTermRefId = lookupDeclRefId "RewriteTerm"
 
 pattern RewriteTerm' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteTerm' lhs rhs <- (unRewriteTerm -> Just (lhs, rhs))
 
 unRewriteTerm :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
 unRewriteTerm (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
-  | r == rewriteTermRef = Just (lhs, rhs)
+  | r == rewriteTermRefId = Just (lhs, rhs)
 unRewriteTerm _ = Nothing
 
-rewriteCaseRef :: Reference
+rewriteCaseRef :: TypeReference
 rewriteCaseRef = lookupDeclRef "RewriteCase"
+
+rewriteCaseRefId :: TypeReferenceId
+rewriteCaseRefId = lookupDeclRefId "RewriteCase"
 
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
@@ -172,21 +313,21 @@ rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 v
 rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
-    r = ConstructorReference rewriteCaseRef 0
+    r = ConstructorReference rewriteCaseRefId 0
 
 rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
-    r = ConstructorReference rewriteTermRef 0
+    r = ConstructorReference rewriteTermRefId 0
 
 unRewriteCase :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
 unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
-  | r == rewriteCaseRef = Just (lhs, rhs)
+  | r == rewriteCaseRefId = Just (lhs, rhs)
 unRewriteCase _ = Nothing
 
-rewriteTypeRef :: Reference
-rewriteTypeRef = lookupDeclRef "RewriteSignature"
+rewriteTypeRefId :: TypeReferenceId
+rewriteTypeRefId = lookupDeclRefId "RewriteSignature"
 
 pattern RewriteSignature' :: forall vt at ap v a. [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
 pattern RewriteSignature' vs lhs rhs <- (unRewriteSignature -> Just (vs, lhs, rhs))
@@ -195,7 +336,7 @@ rewriteType :: (Var v, Semigroup a) => a -> [v] -> Type v a -> Type v a -> Term2
 rewriteType a vs lhs rhs =
   Term.app
     a
-    (Term.constructor la (ConstructorReference rewriteTypeRef 0))
+    (Term.constructor la (ConstructorReference rewriteTypeRefId 0))
     ( Term.ann
         a
         (Term.delay a (Term.delay a (unitTerm a)))
@@ -211,24 +352,24 @@ unRewriteSignature
       (Term.Constructor' (ConstructorReference r _))
       (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit))))
     )
-    | r == rewriteTypeRef = Just (vs, lhs, rhs)
+    | r == rewriteTypeRefId = Just (vs, lhs, rhs)
 unRewriteSignature _ = Nothing
 
-rewritesRef :: Reference
-rewritesRef = lookupDeclRef "Rewrites"
+rewritesRefId :: TypeReferenceId
+rewritesRefId = lookupDeclRefId "Rewrites"
 
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
 
 rewrites :: (Var v, Monoid a) => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
-rewrites a [] = Term.app a (Term.constructor a (ConstructorReference rewritesRef 0)) (tupleTerm [])
-rewrites a ts@(hd : _) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRef 0)) (tupleTerm ts)
+rewrites a [] = Term.app a (Term.constructor a (ConstructorReference rewritesRefId 0)) (tupleTerm [])
+rewrites a ts@(hd : _) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRefId 0)) (tupleTerm ts)
   where
     a1 = ABT.annotation hd
 
 unRewrites :: Term2 vt at ap v a -> Maybe [Term2 vt at ap v a]
 unRewrites (Term.App' (Term.Constructor' (ConstructorReference r _)) tup)
-  | r == rewritesRef, TupleTerm' ts <- tup = Just ts
+  | r == rewritesRefId, TupleTerm' ts <- tup = Just ts
 unRewrites _ = Nothing
 
 -- | parse some builtin data types, and resolve their free variables using
@@ -585,16 +726,16 @@ builtinEffectDecls =
         [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
         ]
 
-pattern UnitRef :: Reference
-pattern UnitRef <- (unUnitRef -> True)
+pattern UnitRefId :: TypeReferenceId
+pattern UnitRefId <- (unUnitRef -> True)
 
-pattern PairRef :: Reference
-pattern PairRef <- (unPairRef -> True)
+pattern PairRefId :: TypeReferenceId
+pattern PairRefId <- (unPairRef -> True)
 
-pattern EitherRef :: Reference
-pattern EitherRef <- ((==) eitherRef -> True)
+pattern EitherRefId :: TypeReferenceId
+pattern EitherRefId <- ((==) eitherRefId -> True)
 
-pattern OptionalRef :: Reference
+pattern OptionalRef :: TypeReferenceId
 pattern OptionalRef <- (unOptionalRef -> True)
 
 pattern OptionalNone' :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
@@ -631,48 +772,48 @@ unLeftTerm,
     Term.Term2 vt at ap v a ->
     Maybe (Term.Term2 vt at ap v a)
 unRightTerm t = case t of
-  Term.App' (Term.Constructor' (ConstructorReference EitherRef EitherRightId)) tm ->
+  Term.App' (Term.Constructor' (ConstructorReference EitherRefId EitherRightId)) tm ->
     Just tm
   _ -> Nothing
 unLeftTerm t = case t of
-  Term.App' (Term.Constructor' (ConstructorReference EitherRef EitherLeftId)) tm ->
+  Term.App' (Term.Constructor' (ConstructorReference EitherRefId EitherLeftId)) tm ->
     Just tm
   _ -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
-pattern DocRef :: Reference
-pattern DocRef <- ((== docRef) -> True)
+pattern DocRefId :: TypeReferenceId
+pattern DocRefId <- ((== docRefId) -> True)
 
 pattern DocJoin ::
   Seq (ABT.Term (Term.F typeVar typeAnn patternAnn) v a) ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocJoin segs <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocJoinId)) (Term.List' segs)
+pattern DocJoin segs <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocJoinId)) (Term.List' segs)
 
 pattern DocBlob :: Text -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocBlob txt <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocBlobId)) (Term.Text' txt)
+pattern DocBlob txt <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocBlobId)) (Term.Text' txt)
 
 pattern DocLink ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocLink link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocLinkId)) link
+pattern DocLink link <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocLinkId)) link
 
 pattern DocSource ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocSource link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSourceId)) link
+pattern DocSource link <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocSourceId)) link
 
 pattern DocSignature ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocSignature link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSignatureId)) link
+pattern DocSignature link <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocSignatureId)) link
 
 pattern DocEvaluate ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern DocEvaluate link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocEvaluateId)) link
+pattern DocEvaluate link <- Term.App' (Term.Constructor' (ConstructorReference DocRefId DocEvaluateId)) link
 
 pattern Doc :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern Doc <- Term.App' (Term.Constructor' (ConstructorReference DocRef _)) _
+pattern Doc <- Term.App' (Term.Constructor' (ConstructorReference DocRefId _)) _
 
 pattern DocSignatureId :: ConstructorId
 pattern DocSignatureId <- ((== docSignatureId) -> True)
@@ -698,16 +839,16 @@ pattern LinkTermId <- ((== linkTermId) -> True)
 pattern LinkTypeId :: ConstructorId
 pattern LinkTypeId <- ((== linkTypeId) -> True)
 
-pattern LinkRef :: Reference
-pattern LinkRef <- ((== linkRef) -> True)
+pattern LinkRefId :: TypeReferenceId
+pattern LinkRefId <- ((== linkRefId) -> True)
 
 pattern LinkTerm :: ABT.Term (Term.F typeVar typeAnn patternAnn) v a -> ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern LinkTerm tm <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTermId)) tm
+pattern LinkTerm tm <- Term.App' (Term.Constructor' (ConstructorReference LinkRefId LinkTermId)) tm
 
 pattern LinkType ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a ->
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
-pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTypeId)) ty
+pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRefId LinkTypeId)) ty
 
 unitType,
   pairType,
@@ -724,27 +865,27 @@ unitType,
   thunkArgType,
   exceptionType ::
     (Ord v) => a -> Type v a
-unitType a = Type.ref a unitRef
+unitType a = Type.refId a unitRefId
 -- used for the type of the argument to force a thunk
 thunkArgType = unitType
-pairType a = Type.ref a pairRef
-testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
-optionalType a = Type.ref a optionalRef
-eitherType a = Type.ref a eitherRef
-ioErrorType a = Type.ref a ioErrorRef
-fileModeType a = Type.ref a fileModeRef
-filePathType a = Type.ref a filePathRef
-bufferModeType a = Type.ref a bufferModeRef
-seekModeType a = Type.ref a seekModeRef
-stdHandleType a = Type.ref a stdHandleRef
-failureType a = Type.ref a failureRef
-exceptionType a = Type.ref a exceptionRef
+pairType a = Type.refId a pairRefId
+testResultType a = Type.app a (Type.list a) (Type.refId a testResultRefId)
+optionalType a = Type.refId a optionalRefId
+eitherType a = Type.refId a eitherRefId
+ioErrorType a = Type.refId a ioErrorRefId
+fileModeType a = Type.refId a fileModeRefId
+filePathType a = Type.refId a filePathRefId
+bufferModeType a = Type.refId a bufferModeRefId
+seekModeType a = Type.refId a seekModeRefId
+stdHandleType a = Type.refId a stdHandleRefId
+failureType a = Type.refId a failureRefId
+exceptionType a = Type.refId a exceptionRefId
 
 tlsSignedCertType :: (Var v) => a -> Type v a
-tlsSignedCertType a = Type.ref a tlsSignedCertRef
+tlsSignedCertType a = Type.refId a tlsSignedCertRefId
 
 unitTerm :: (Var v) => a -> Term2 vt at ap v a
-unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)
+unitTerm ann = Term.constructor ann (ConstructorReference unitRefId 0)
 
 tupleConsTerm ::
   (Ord v, Semigroup a) =>
@@ -752,7 +893,7 @@ tupleConsTerm ::
   Term2 vt at ap v a ->
   Term2 vt at ap v a
 tupleConsTerm hd tl =
-  Term.apps' (Term.constructor (ABT.annotation hd) (ConstructorReference pairRef 0)) [hd, tl]
+  Term.apps' (Term.constructor (ABT.annotation hd) (ConstructorReference pairRefId 0)) [hd, tl]
 
 tupleTerm :: (Var v, Monoid a) => [Term2 vt at ap v a] -> Term2 vt at ap v a
 tupleTerm = foldr tupleConsTerm (unitTerm mempty)
@@ -769,24 +910,24 @@ unTupleTerm ::
   Term.Term2 vt at ap v a ->
   Maybe [Term.Term2 vt at ap v a]
 unTupleTerm t = case t of
-  Term.Apps' (Term.Constructor' (ConstructorReference PairRef 0)) [fst, snd] ->
+  Term.Apps' (Term.Constructor' (ConstructorReference PairRefId 0)) [fst, snd] ->
     (fst :) <$> unTupleTerm snd
-  Term.Constructor' (ConstructorReference UnitRef 0) -> Just []
+  Term.Constructor' (ConstructorReference UnitRefId 0) -> Just []
   _ -> Nothing
 
 unTupleType :: (Var v) => Type v a -> Maybe [Type v a]
 unTupleType t = case t of
-  Type.Apps' (Type.Ref' PairRef) [fst, snd] -> (fst :) <$> unTupleType snd
-  Type.Ref' UnitRef -> Just []
+  Type.Apps' (Type.RefId' PairRefId) [fst, snd] -> (fst :) <$> unTupleType snd
+  Type.RefId' UnitRefId -> Just []
   _ -> Nothing
 
 unTuplePattern :: Pattern.Pattern loc -> Maybe [Pattern.Pattern loc]
 unTuplePattern p = case p of
-  Pattern.Constructor _ (ConstructorReference PairRef 0) [fst, snd] -> (fst :) <$> unTuplePattern snd
-  Pattern.Constructor _ (ConstructorReference UnitRef 0) [] -> Just []
+  Pattern.Constructor _ (ConstructorReference PairRefId 0) [fst, snd] -> (fst :) <$> unTuplePattern snd
+  Pattern.Constructor _ (ConstructorReference UnitRefId 0) [] -> Just []
   _ -> Nothing
 
-unUnitRef, unPairRef, unOptionalRef :: Reference -> Bool
-unUnitRef = (== unitRef)
-unPairRef = (== pairRef)
-unOptionalRef = (== optionalRef)
+unUnitRef, unPairRef, unOptionalRef :: TypeReferenceId -> Bool
+unUnitRef = (== unitRefId)
+unPairRef = (== pairRefId)
+unOptionalRef = (== optionalRefId)

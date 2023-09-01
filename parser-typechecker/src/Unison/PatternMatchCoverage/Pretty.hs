@@ -1,7 +1,7 @@
 module Unison.PatternMatchCoverage.Pretty where
 
 import Data.Char
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PrettyPrintEnv
 import Unison.Symbol
 import Unison.Syntax.TermPrinter qualified as TermPrinter
@@ -20,7 +20,7 @@ prettyVar v =
               _ -> go d
    in P.bold $ string (go (freshId v))
 
-prettyConstructorReference :: PrettyPrintEnv -> ConstructorReference -> Pretty ColorText
+prettyConstructorReference :: PrettyPrintEnv -> ConstructorReferenceId -> Pretty ColorText
 prettyConstructorReference ppe cr =
   let con :: Term.Term Symbol ()
       con = Term.constructor () cr

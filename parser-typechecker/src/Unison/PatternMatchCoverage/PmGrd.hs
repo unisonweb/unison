@@ -1,6 +1,6 @@
 module Unison.PatternMatchCoverage.PmGrd where
 
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
 import Unison.PatternMatchCoverage.Pretty
 import Unison.PrettyPrintEnv qualified as PPE
@@ -19,14 +19,14 @@ data
     PmCon
       v
       -- ^ Variable
-      ConstructorReference
+      ConstructorReferenceId
       -- ^ Constructor
       [(v, Type vt loc)]
       -- ^ Constructor argument values and types
   | PmEffect
       v
       -- ^ Variable
-      ConstructorReference
+      ConstructorReferenceId
       -- ^ Constructor
       [(v, Type vt loc)]
       -- ^ Constructor argument values and types

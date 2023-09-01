@@ -5,6 +5,7 @@ module Unison.Referent
   ( Referent,
     pattern Ref,
     pattern Con,
+    pattern Con0,
     Id,
     pattern RefId,
     pattern ConId,
@@ -20,13 +21,15 @@ module Unison.Referent
     reference_,
 
     -- * ShortHash helpers
-    isPrefixOf,
+    isPrefixOf1,
+    -- isPrefixOf2,
     toShortHash,
     toText,
     toString,
   )
 where
 
+import Control.Lens qualified as Lens
 import Data.Char qualified as Char
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -53,8 +56,16 @@ type Referent = Referent' Reference
 pattern Ref :: TermReference -> Referent
 pattern Ref r = Ref' r
 
-pattern Con :: ConstructorReference -> ConstructorType -> Referent
-pattern Con r t = Con' r t
+pattern Con0 :: ConstructorReference -> ConstructorType -> Referent
+pattern Con0 r t = Con' r t
+
+-- When Referent uses TypeReferenceId for its constructors, then make this the default one.
+pattern Con :: ConstructorReferenceId -> ConstructorType -> Referent
+pattern Con r t <- Con' (traverse (Lens.matching Reference._DerivedId) -> Right r) t
+  where
+    Con (ConstructorReference r cid) t = Con' (ConstructorReference (Reference.DerivedId r) cid) t
+
+{-# COMPLETE Ref, Con0 #-}
 
 {-# COMPLETE Ref, Con #-}
 
@@ -78,10 +89,15 @@ toShortHash = \case
   Ref r -> R.toShortHash r
   Con r _ -> ConstructorReference.toShortHash r
 
+idToShortHash :: Id -> ShortHash
+idToShortHash = \case
+  RefId r -> R.idToShortHash r
+  ConId r _ -> ConstructorReference.toShortHash r
+
 toText :: Referent -> Text
 toText = \case
   Ref r -> R.toText r
-  Con (ConstructorReference r cid) ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
+  Con (ConstructorReference r cid) ct -> R.idToText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
 
 ctorTypeText :: CT.ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
@@ -114,8 +130,11 @@ fromTermReference r = Ref r
 fromTermReferenceId :: TermReferenceId -> Referent
 fromTermReferenceId = fromTermReference . Reference.fromId
 
-isPrefixOf :: ShortHash -> Referent -> Bool
-isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
+isPrefixOf1 :: ShortHash -> Referent -> Bool
+isPrefixOf1 sh r = SH.isPrefixOf sh (toShortHash r)
+
+isPrefixOf2 :: ShortHash -> Id -> Bool
+isPrefixOf2 sh r = SH.isPrefixOf sh (idToShortHash r)
 
 -- #abc[.xy][#<T>cid]
 --
@@ -136,7 +155,9 @@ fromText t =
       else
         if Text.all Char.isDigit cidPart && (not . Text.null) cidPart
           then do
-            r <- R.fromText (Text.dropEnd 1 refPart)
+            r <-
+              maybeToRight ("non-derived reference: " ++ Text.unpack t) $
+                R.idFromText (Text.dropEnd 1 refPart)
             ctorType <- ctorType
             let maybeCid = readMaybe (Text.unpack cidPart)
             case maybeCid of

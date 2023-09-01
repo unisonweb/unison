@@ -121,7 +121,7 @@ handleUpdate input optionalPatch requestedNames = do
       termDeprecations :: [(Name, Referent)]
       termDeprecations =
         [ (n, r)
-          | (_, oldTypeRef, _) <- typeEdits,
+          | (_, DerivedId oldTypeRef, _) <- typeEdits,
             (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
         ]
   patchOps <- for patchPath \patchPath -> do
@@ -600,7 +600,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     (isTestType, isTestValue) = IOSource.isTest
     md v =
       if Set.member v tests
-        then Metadata.singleton isTestType isTestValue
+        then Metadata.singleton (DerivedId isTestType) isTestValue
         else Metadata.empty
     doTerm :: Symbol -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of

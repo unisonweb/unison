@@ -3,12 +3,11 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.UnisonFile.Env (Env (..), datas) where
+module Unison.UnisonFile.Env (Env (..)) where
 
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Names (Names)
 import Unison.Prelude
-import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 
 data Env v a = Env
@@ -19,6 +18,3 @@ data Env v a = Env
     -- Naming environment
     names :: Names
   }
-
-datas :: Env v a -> Map v (Reference, DataDeclaration v a)
-datas = fmap (first Reference.DerivedId) . datasId

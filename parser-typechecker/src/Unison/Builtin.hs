@@ -6,9 +6,9 @@ module Unison.Builtin
     constructorType,
     names,
     names0,
+    builtinConstructorType,
     builtinDataDecls,
     builtinEffectDecls,
-    builtinConstructorType,
     builtinTypeDependents,
     builtinTypeDependentsOfComponent,
     builtinTypes,
@@ -64,7 +64,7 @@ names0 = Names terms types
     terms =
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)
         <> Rel.fromList
-          [ (Name.unsafeFromVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
+          [ (Name.unsafeFromVar vc, Referent.Con (ConstructorReference r cid) ct)
             | (ct, (_, (r, decl))) <-
                 ((CT.Data,) <$> builtinDataDecls)
                   <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
@@ -94,13 +94,11 @@ typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
-    (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
-    (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
+    (Map.fromList $ map snd builtinDataDecls)
+    (Map.fromList $ map snd builtinEffectDecls)
 
-constructorType :: R.Reference -> Maybe CT.ConstructorType
-constructorType r =
-  TL.constructorType typeLookup r
-    <|> Map.lookup r builtinConstructorType
+constructorType :: R.Id -> Maybe CT.ConstructorType
+constructorType r = TL.constructorType typeLookup r
 
 builtinDataDecls :: [(Symbol, (R.Id, DataDeclaration))]
 builtinDataDecls =
@@ -266,11 +264,11 @@ intrinsicTypeReferences = foldl' go mempty builtinTypesSrc
       D' r -> Set.insert (R.Builtin r) acc
       _ -> acc
 
-intrinsicTermReferences :: Set R.Reference
-intrinsicTermReferences = Map.keysSet termRefTypes
-
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
+
+intrinsicTermReferences :: Set R.Reference
+intrinsicTermReferences = Map.keysSet termRefTypes
 
 data BuiltinTypeDSL = B' Text CT.ConstructorType | D' Text | Rename' Text Text | Alias' Text Text
 

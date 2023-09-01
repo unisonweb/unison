@@ -97,8 +97,8 @@ term1to2 h =
       V1.Term.Text t -> V2.Term.Text t
       V1.Term.Char c -> V2.Term.Char c
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
-      V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
-      V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
+      V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (referenceid1to2 r) (fromIntegral i)
+      V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (referenceid1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
       V1.Term.Ann e t -> V2.Term.Ann e (ttype1to2 t)
@@ -117,7 +117,7 @@ term1to2 h =
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
 
-    goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference
+    goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference.Id
     goPat = \case
       V1.Pattern.Unbound _ -> V2.Term.PUnbound
       V1.Pattern.Var _ -> V2.Term.PVar
@@ -128,11 +128,11 @@ term1to2 h =
       V1.Pattern.Text _ t -> V2.Term.PText t
       V1.Pattern.Char _ c -> V2.Term.PChar c
       V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
-        V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
+        V2.Term.PConstructor (referenceid1to2 r) i (goPat <$> ps)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
       V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
       V1.Pattern.EffectBind _ (V1.ConstructorReference r i) ps k ->
-        V2.Term.PEffectBind (reference1to2 r) i (goPat <$> ps) (goPat k)
+        V2.Term.PEffectBind (referenceid1to2 r) i (goPat <$> ps) (goPat k)
       V1.Pattern.SequenceLiteral _ ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
       V1.Pattern.SequenceOp _ p op p2 ->
         V2.Term.PSequenceOp (goPat p) (goSeqOp op) (goPat p2)
@@ -141,13 +141,13 @@ term1to2 h =
       V1.Pattern.Snoc -> V2.Term.PSnoc
       V1.Pattern.Concat -> V2.Term.PConcat
 
-term2to1 :: forall m. (Monad m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
+term2to1 :: forall m. (Monad m) => Hash -> (V2.Reference.Id -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
 term2to1 h lookupCT =
   ABT.transformM (termF2to1 h lookupCT)
     . ABT.vmap symbol2to1
     . ABT.amap (const Ann.External)
   where
-    termF2to1 :: forall m a. (Monad m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
+    termF2to1 :: forall m a. (Monad m) => Hash -> (V2.Reference.Id -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
     termF2to1 h lookupCT = go
       where
         go :: V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
@@ -160,9 +160,9 @@ term2to1 h lookupCT =
           V2.Term.Char c -> pure $ V1.Term.Char c
           V2.Term.Ref r -> pure $ V1.Term.Ref (rreference2to1 h r)
           V2.Term.Constructor r i ->
-            pure (V1.Term.Constructor (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
+            pure (V1.Term.Constructor (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)))
           V2.Term.Request r i ->
-            pure (V1.Term.Request (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
+            pure (V1.Term.Request (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
           V2.Term.App a a4 -> pure $ V1.Term.App a a4
           V2.Term.Ann a t2 -> pure $ V1.Term.Ann a (ttype2to1 t2)
@@ -189,11 +189,11 @@ term2to1 h lookupCT =
           V2.Term.PText t -> pure $ V1.Pattern.Text a t
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
-            V1.Pattern.Constructor a (V1.ConstructorReference (reference2to1 r) i) <$> traverse goPat ps
+            V1.Pattern.Constructor a (V1.ConstructorReference (referenceid2to1 r) i) <$> traverse goPat ps
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
           V2.Term.PEffectBind r i ps p ->
-            V1.Pattern.EffectBind a (V1.ConstructorReference (reference2to1 r) i) <$> traverse goPat ps <*> goPat p
+            V1.Pattern.EffectBind a (V1.ConstructorReference (referenceid2to1 r) i) <$> traverse goPat ps <*> goPat p
           V2.Term.PSequenceLiteral ps -> V1.Pattern.SequenceLiteral a <$> traverse goPat ps
           V2.Term.PSequenceOp p1 op p2 -> V1.Pattern.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
         goOp = \case
@@ -293,37 +293,37 @@ referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id h i
 referenceid2to1 :: V2.Reference.Id -> V1.Reference.Id
 referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id h i
 
-rreferent2to1 :: (Applicative m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
+rreferent2to1 :: (Applicative m) => Hash -> (V2.Reference.Id -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
 rreferent2to1 h lookupCT = \case
   V2.Ref r -> pure . V1.Ref $ rreference2to1 h r
-  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
+  V2.Con r i -> V1.Con (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT r
 
 rreferent1to2 :: Hash -> V1.Referent -> V2.ReferentH
 rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
-  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (referenceid1to2 r) (fromIntegral i)
 
-referent2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
+referent2to1 :: (Applicative m) => (V2.Reference.Id -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
 referent2to1 lookupCT = \case
   V2.Ref r -> pure $ V1.Ref (reference2to1 r)
-  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
+  V2.Con r i -> V1.Con (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT r
 
 -- | Like referent2to1, but uses the provided constructor type directly
 referent2to1UsingCT :: V2.ConstructorType -> V2.Referent -> V1.Referent
 referent2to1UsingCT ct = \case
   V2.Ref r -> V1.Ref (reference2to1 r)
-  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) (constructorType2to1 ct)
+  V2.Con r i -> V1.Con (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) (constructorType2to1 ct)
 
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r
-  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (referenceid1to2 r) (fromIntegral i)
 
-referentid2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
+referentid2to1 :: (Applicative m) => (V2.Reference.Id -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupCT = \case
   V2.RefId r -> pure $ V1.RefId (referenceid2to1 r)
   V2.ConId r i ->
-    V1.ConId (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT (V2.ReferenceDerived r)
+    V1.ConId (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT r
 
 constructorType1to2 :: CT.ConstructorType -> V2.ConstructorType
 constructorType1to2 = \case
@@ -390,7 +390,7 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
+causalbranch2to1 :: (Monad m) => BranchCache m -> (V2.Reference.Id -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
 causalbranch2to1 branchCache lookupCT cb = do
   let ch = V2.causalHash cb
   lookupCachedBranch branchCache ch >>= \case
@@ -400,7 +400,7 @@ causalbranch2to1 branchCache lookupCT cb = do
       insertCachedBranch branchCache ch b
       pure b
 
-causalbranch2to1' :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' :: (Monad m) => BranchCache m -> (V2.Reference.Id -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> parents) me) = do
   let branchHash = branchHash2to1 eh
   case parents of
@@ -515,7 +515,7 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
 branch2to1 ::
   (Monad m) =>
   BranchCache m ->
-  (V2.Reference -> m CT.ConstructorType) ->
+  (V2.Reference.Id -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->
   m (V1.Branch.Branch0 m)
 branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
@@ -547,7 +547,7 @@ referent2toshorthash1 hashLength ref =
   maybe id V1.ShortHash.take hashLength $ case ref of
     V2.Referent.Ref r -> reference2toshorthash1 hashLength r
     V2.Referent.Con r conId ->
-      case reference2toshorthash1 hashLength r of
+      case referenceid2toshorthash1 r of
         V1.ShortHash.ShortHash h p _con -> V1.ShortHash.ShortHash h p (Just $ tShow conId)
         sh@(V1.ShortHash.Builtin {}) -> sh
 
@@ -557,7 +557,11 @@ referent2toshorthash1 hashLength ref =
 reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> V1.ShortHash.ShortHash
 reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ case ref of
   (V2.Reference.ReferenceBuiltin b) -> V1.ShortHash.Builtin b
-  (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) -> V1.ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
+  (V2.Reference.ReferenceDerived r) -> referenceid2toshorthash1 r
+
+referenceid2toshorthash1 :: V2.Reference.Id' Hash -> V1.ShortHash.ShortHash
+referenceid2toshorthash1 = \case
+  V2.Reference.Id h i -> V1.ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
   where
     showComponentPos :: V2.Reference.Pos -> Maybe Text
     showComponentPos 0 = Nothing

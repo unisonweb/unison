@@ -19,7 +19,7 @@ import Unison.ShortHash qualified as ShortHash
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
   = ConstructorReference !r !ConstructorId
-  deriving stock (Eq, Functor, Ord, Show)
+  deriving stock (Eq, Functor, Foldable, Traversable, Ord, Show)
 
 type ConstructorReference = GConstructorReference TypeReference
 
@@ -30,8 +30,8 @@ reference_ :: Lens (GConstructorReference r) (GConstructorReference s) r s
 reference_ =
   lens (\(ConstructorReference r _) -> r) \(ConstructorReference _ i) r -> ConstructorReference r i
 
-toShortHash :: ConstructorReference -> ShortHash
+toShortHash :: ConstructorReferenceId -> ShortHash
 toShortHash (ConstructorReference r i) =
-  case Reference.toShortHash r of
-    ShortHash.Builtin b -> ShortHash.Builtin b
+  case Reference.idToShortHash r of
     ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just $ tShow i)
+    ShortHash.Builtin b -> error $ "toShortHash: impossible constructor reference " ++ show b

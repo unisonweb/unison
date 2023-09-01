@@ -17,7 +17,7 @@ where
 import Data.Functor.Compose
 import Data.Sequence (pattern Empty)
 import Data.Set qualified as Set
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PatternMatchCoverage.Constraint
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -204,8 +204,8 @@ data VarInfo vt v loc = VarInfo
 -- of negative constraints.
 data VarConstraints vt v loc
   = Vc'Constructor
-      (Maybe (ConstructorReference, [(v, Type vt loc)]))
-      (Set ConstructorReference)
+      (Maybe (ConstructorReferenceId, [(v, Type vt loc)]))
+      (Set ConstructorReferenceId)
   | Vc'Effect
       (Maybe (EffectHandler, [(v, Type vt loc)]))
       (Set EffectHandler)

@@ -33,7 +33,10 @@ convertId defaultHash = \case
   V2.Id m p -> H2.ReferenceId (fromMaybe defaultHash m) p
 
 v2ToH2Reference :: V2.Reference -> H2.Reference
-v2ToH2Reference = convertReference' (\(V2.Id a b) -> H2.ReferenceId a b)
+v2ToH2Reference = convertReference' v2ToH2ReferenceId
+
+v2ToH2ReferenceId :: V2Reference.Id -> H2.ReferenceId
+v2ToH2ReferenceId = \(V2.Id a b) -> H2.ReferenceId a b
 
 convertReference' :: (V2Reference.Id' hash -> H2.ReferenceId) -> V2.Reference' Text hash -> H2.Reference
 convertReference' idConv = \case
@@ -73,7 +76,7 @@ h2ToV2Reference = \case
 v2ToH2Referent :: V2Referent.Referent -> H2.Referent
 v2ToH2Referent = \case
   V2Referent.Ref r -> H2.ReferentRef (v2ToH2Reference r)
-  V2Referent.Con r cid -> H2.ReferentCon (v2ToH2Reference r) cid
+  V2Referent.Con r cid -> H2.ReferentCon (v2ToH2ReferenceId r) cid
 
 v2ToH2Branch :: Monad m => V2.Branch m -> m H2.Branch
 v2ToH2Branch V2.Branch {terms, types, patches, children} = do
@@ -117,4 +120,4 @@ hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, chil
     cvreferent = \case
       V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second unComponentHash ref))
       V2Referent.Con typeRef conId -> do
-        (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
+        (H2.ReferentCon (v2ToH2ReferenceId $ fmap unComponentHash typeRef) conId)

@@ -263,6 +263,7 @@ module U.Codebase.Sqlite.Queries
     s2cTermWithType,
     saveDeclComponent,
     saveReferenceH,
+    saveReferenceIdH,
     saveSyncEntity,
     saveTermComponent,
     schemaVersion,
@@ -2857,7 +2858,7 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
       unlocalizeRefs ((LocalIds tIds oIds, tm, tp), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Reference =
-              let (tmRefs, tpRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
+              let (tmRefs, tpRefs, ctRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
                   tpRefs' = Foldable.toList $ C.Type.dependencies tp
                   getTermSRef :: S.Term.TermRef -> S.Reference
                   getTermSRef = \case
@@ -2868,15 +2869,18 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
                   getTypeSRef = \case
                     C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
                     C.Reference.Derived h i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
+                  getCtorSRef :: S.Term.CtorRef -> S.Reference
+                  getCtorSRef (C.Reference.Id h i) = C.Reference.Derived (oIds Vector.! fromIntegral h) i
                   getSTypeLink = getTypeSRef
                   getSTermLink :: S.Term.TermLink -> S.Reference
                   getSTermLink = \case
-                    C.Referent.Con ref _conId -> getTypeSRef ref
+                    C.Referent.Con ref _conId -> getCtorSRef ref
                     C.Referent.Ref ref -> getTermSRef ref
                in Set.fromList $
                     map getTermSRef tmRefs
                       ++ map getSTermLink tmLinks
                       ++ map getTypeSRef (tpRefs ++ tpRefs')
+                      ++ map getCtorSRef ctRefs
                       ++ map getSTypeLink tpLinks
          in (dependencies, self)
   for_ (map unlocalizeRefs (sTermElements `zip` [0 ..])) \(dependencies, dependent) ->
@@ -2947,11 +2951,12 @@ localIdsToLookups loadText loadHash localIds = do
 x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> Hash) -> S.Term.Term -> C.Term Symbol
 x2cTerm substText substHash =
   -- substitute the text and hashes back into the term
-  C.Term.extraMap substText substTermRef substTypeRef substTermLink substTypeLink id
+  C.Term.extraMap substText substTermRef substTypeRef substCtorRef substTermLink substTypeLink id
   where
     substTermRef = bimap substText (fmap substHash)
     substTypeRef = bimap substText substHash
-    substTermLink = bimap substTermRef substTypeRef
+    substCtorRef = fmap substHash
+    substTermLink = bimap substTermRef substCtorRef
     substTypeLink = substTypeRef
 
 -- | implementation detail of {s,w}2c*Term*
@@ -3032,12 +3037,12 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.Char ch -> pure $ C.Term.Char ch
       C.Term.Ref r ->
         C.Term.Ref <$> bitraverse lookupText (traverse lookupDefn) r
-      C.Term.Constructor typeRef cid ->
+      C.Term.Constructor ctorRef cid ->
         C.Term.Constructor
-          <$> bitraverse lookupText lookupDefn typeRef
+          <$> traverse lookupDefn ctorRef
           <*> pure cid
       C.Term.Request typeRef cid ->
-        C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
+        C.Term.Request <$> traverse lookupDefn typeRef <*> pure cid
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2
       C.Term.App a a2 -> pure $ C.Term.App a a2
       C.Term.Ann a typ -> C.Term.Ann a <$> ABT.transformM goType typ
@@ -3053,7 +3058,7 @@ c2xTerm saveText saveDefn tm tp =
         C.Term.TermLink
           <$> bitraverse
             (bitraverse lookupText (traverse lookupDefn))
-            (bitraverse lookupText lookupDefn)
+            (traverse lookupDefn)
             r
       C.Term.TypeLink r ->
         C.Term.TypeLink <$> bitraverse lookupText lookupDefn r
@@ -3080,8 +3085,8 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.MatchCase Text C.Term.TypeRef a ->
-      m (C.Term.MatchCase LocalTextId S.Term.TypeRef a)
+      C.Term.MatchCase Text C.Term.CtorRef a ->
+      m (C.Term.MatchCase LocalTextId S.Term.CtorRef a)
     goCase = \case
       C.Term.MatchCase pat guard body ->
         C.Term.MatchCase <$> goPat pat <*> pure guard <*> pure body
@@ -3094,8 +3099,8 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.Pattern Text C.Term.TypeRef ->
-      m (C.Term.Pattern LocalTextId S.Term.TypeRef)
+      C.Term.Pattern Text C.Term.CtorRef ->
+      m (C.Term.Pattern LocalTextId S.Term.CtorRef)
     goPat = \case
       C.Term.PUnbound -> pure $ C.Term.PUnbound
       C.Term.PVar -> pure $ C.Term.PVar
@@ -3105,10 +3110,10 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.PFloat d -> pure $ C.Term.PFloat d
       C.Term.PText t -> C.Term.PText <$> lookupText t
       C.Term.PChar c -> pure $ C.Term.PChar c
-      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
+      C.Term.PConstructor r i ps -> C.Term.PConstructor <$> traverse lookupDefn r <*> pure i <*> traverse goPat ps
       C.Term.PAs p -> C.Term.PAs <$> goPat p
       C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
-      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
+      C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> traverse lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k
       C.Term.PSequenceLiteral ps -> C.Term.PSequenceLiteral <$> traverse goPat ps
       C.Term.PSequenceOp l op r -> C.Term.PSequenceOp <$> goPat l <*> pure op <*> goPat r
 
@@ -3125,6 +3130,9 @@ c2xTerm saveText saveDefn tm tp =
 -- | Save the text and hash parts of a Reference to the database and substitute their ids.
 saveReferenceH :: C.Reference -> Transaction S.ReferenceH
 saveReferenceH = bitraverse saveText saveHashHash
+
+saveReferenceIdH :: C.Reference.Id -> Transaction S.IdH
+saveReferenceIdH = traverse saveHashHash
 
 lookupText ::
   forall m s w t.

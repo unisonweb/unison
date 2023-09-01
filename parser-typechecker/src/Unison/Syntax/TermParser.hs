@@ -27,7 +27,7 @@ import Data.Tuple.Extra qualified as TupleE
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -194,8 +194,8 @@ matchCase = do
       pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
-      unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
-      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
+      unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRefId 0) []
+      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRefId 0) [p1, p2]
   let guardedBlocks = label "pattern guard" . some $ do
         reserved "|"
         guard <-
@@ -257,9 +257,9 @@ parsePattern = label "pattern" root
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
     parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-    unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
+    unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRefId 0) [], [])
     pair (p1, v1) (p2, v2) =
-      ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
+      ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRefId 0) [p1, p2],
         v1 ++ v2
       )
     -- Foo x@(Blah 10)
@@ -272,7 +272,7 @@ parsePattern = label "pattern" root
         else pure (Pattern.Var (ann v), [tokenToPair v])
     unbound :: P v m (Pattern Ann, [(Ann, v)])
     unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) -> P v m (L.Token ConstructorReference)
+    ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReferenceId -> Error v) -> P v m (L.Token ConstructorReferenceId)
     ctor ct err = do
       -- this might be a var, so we avoid consuming it at first
       tok <- P.try (P.lookAhead hqPrefixId)
@@ -583,7 +583,7 @@ docBlock = do
   segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
-  pure . docNormalize $ Term.app a (Term.constructor a (ConstructorReference DD.docRef DD.docJoinId)) (Term.list a segs)
+  pure . docNormalize $ Term.app a (Term.constructor a (ConstructorReference DD.docRefId DD.docJoinId)) (Term.list a segs)
   where
     segment = blob <|> linky
     blob = do
@@ -591,7 +591,7 @@ docBlock = do
       pure $
         Term.app
           (ann s)
-          (Term.constructor (ann s) (ConstructorReference DD.docRef DD.docBlobId))
+          (Term.constructor (ann s) (ConstructorReference DD.docRefId DD.docBlobId))
           (Term.text (ann s) (L.payload s))
     linky = asum [include, signature, evaluate, source, link]
     include = do
@@ -603,7 +603,7 @@ docBlock = do
       pure $
         Term.app
           (ann tok)
-          (Term.constructor (ann tok) (ConstructorReference DD.docRef DD.docSignatureId))
+          (Term.constructor (ann tok) (ConstructorReference DD.docRefId DD.docSignatureId))
           (Term.termLink (ann tok) (L.payload tok))
     evaluate = do
       _ <- P.try (reserved "evaluate")
@@ -611,7 +611,7 @@ docBlock = do
       pure $
         Term.app
           (ann tok)
-          (Term.constructor (ann tok) (ConstructorReference DD.docRef DD.docEvaluateId))
+          (Term.constructor (ann tok) (ConstructorReference DD.docRefId DD.docEvaluateId))
           (Term.termLink (ann tok) (L.payload tok))
     source = do
       _ <- P.try (reserved "source")
@@ -619,23 +619,23 @@ docBlock = do
       pure $
         Term.app
           (ann l)
-          (Term.constructor (ann l) (ConstructorReference DD.docRef DD.docSourceId))
+          (Term.constructor (ann l) (ConstructorReference DD.docRefId DD.docSourceId))
           l
     link'' = either ty t <$> link'
       where
         t tok =
           Term.app
             (ann tok)
-            (Term.constructor (ann tok) (ConstructorReference DD.linkRef DD.linkTermId))
+            (Term.constructor (ann tok) (ConstructorReference DD.linkRefId DD.linkTermId))
             (Term.termLink (ann tok) (L.payload tok))
         ty tok =
           Term.app
             (ann tok)
-            (Term.constructor (ann tok) (ConstructorReference DD.linkRef DD.linkTypeId))
+            (Term.constructor (ann tok) (ConstructorReference DD.linkRefId DD.linkTypeId))
             (Term.typeLink (ann tok) (L.payload tok))
     link = d <$> link''
       where
-        d tm = Term.app (ann tm) (Term.constructor (ann tm) (ConstructorReference DD.docRef DD.docLinkId)) tm
+        d tm = Term.app (ann tm) (Term.constructor (ann tm) (ConstructorReference DD.docRefId DD.docLinkId)) tm
 
 -- Used by unbreakParas within docNormalize.  Doc literals are a joined sequence
 -- segments.  This type describes a property of a segment.
@@ -689,7 +689,7 @@ docNormalize :: (Ord v, Show v) => Term v a -> Term v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
   -- the annotations.  The aim is just to map `normalize` over it.
-  a@(Term.App' c@(Term.Constructor' (ConstructorReference DD.DocRef DD.DocJoinId)) s@(Term.List' seqs)) ->
+  a@(Term.App' c@(Term.Constructor' (ConstructorReference DD.DocRefId DD.DocJoinId)) s@(Term.List' seqs)) ->
     join
       (ABT.annotation a)
       (ABT.annotation c)
@@ -932,12 +932,12 @@ docNormalize tm = case tm of
     tracing when x =
       (const id $ trace ("at " ++ when ++ ": " ++ (show x) ++ "\n")) x
     blob aa ac at txt =
-      Term.app aa (Term.constructor ac (ConstructorReference DD.docRef DD.docBlobId)) (Term.text at txt)
+      Term.app aa (Term.constructor ac (ConstructorReference DD.docRefId DD.docBlobId)) (Term.text at txt)
     join aa ac as segs =
-      Term.app aa (Term.constructor ac (ConstructorReference DD.docRef DD.docJoinId)) (Term.list' as segs)
+      Term.app aa (Term.constructor ac (ConstructorReference DD.docRefId DD.docJoinId)) (Term.list' as segs)
     mapBlob :: (Ord v) => (Text -> Text) -> Term v a -> Term v a
     -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
-    mapBlob f (aa@(Term.App' ac@(Term.Constructor' (ConstructorReference DD.DocRef DD.DocBlobId)) at@(Term.Text' txt))) =
+    mapBlob f (aa@(Term.App' ac@(Term.Constructor' (ConstructorReference DD.DocRefId DD.DocBlobId)) at@(Term.Text' txt))) =
       blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
     mapBlob _ t = t
 
@@ -1254,7 +1254,7 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm
         (ann t1 <> ann t2)
         ( Term.app
             (ann t1)
-            (Term.constructor (ann t1 <> ann t2) (ConstructorReference DD.pairRef 0))
+            (Term.constructor (ann t1 <> ann t2) (ConstructorReference DD.pairRefId 0))
             t1
         )
         t2

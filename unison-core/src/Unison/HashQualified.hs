@@ -1,7 +1,7 @@
 module Unison.HashQualified where
 
 import Data.Text qualified as Text
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name (Convert, Name)
 import Unison.Name qualified as Name
@@ -100,7 +100,7 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified Name
 fromReference = HashOnly . Reference.toShortHash
 
-fromPattern :: ConstructorReference -> HashQualified Name
+fromPattern :: ConstructorReferenceId -> HashQualified Name
 fromPattern r = HashOnly $ ConstructorReference.toShortHash r
 
 fromName :: n -> HashQualified n

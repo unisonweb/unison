@@ -13,3 +13,36 @@ dependencies:
   - mtl
   - unison-core
   - unison-codebase
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - InstanceSigs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

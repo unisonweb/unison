@@ -4,6 +4,7 @@ import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Pattern (SeqOp)
 import Unison.Prelude
+import Unison.Reference qualified as Reference
 import Unison.Referent' (Referent')
 import Unison.Util.AnnotatedText (AnnotatedText (..), annotate, segment)
 
@@ -52,6 +53,9 @@ data Element r
   | -- the 'include' in @[include], etc
     DocKeyword
   deriving (Eq, Ord, Show, Functor)
+
+pattern TypeReferenceId :: Reference.Id -> Element Reference.Reference
+pattern TypeReferenceId r = TypeReference (Reference.DerivedId r)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

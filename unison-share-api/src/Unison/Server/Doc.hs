@@ -246,9 +246,9 @@ renderDoc pped doc = renderSpecial <$> doc
                     . PPE.typeName suffixifiedPPE
                     $ r
              in [Type (Reference.toText r, DO.BuiltinObject name)]
-          FoundDecl r decl -> [Type (Reference.toText r, DO.UserObject (Src folded full))]
+          FoundDecl rId@(Reference.DerivedId -> r) decl -> [Type (Reference.toText r, DO.UserObject (Src folded full))]
             where
-              full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName suffixifiedPPE r) decl)
+              full = formatPretty (DeclPrinter.prettyDecl pped rId (PPE.typeName suffixifiedPPE r) decl)
               folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName suffixifiedPPE r) decl)
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingBuiltinTypeSig r -> [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
@@ -402,17 +402,17 @@ evalDoc terms typeOf eval types tm =
     goSrc :: [Term v ()] -> m [EvaluatedSrc v]
     goSrc es = do
       let toRef (Term.Ref' r) = Set.singleton r
-          toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
+          toRef (Term.RequestOrCtor' r) = Set.singleton (Reference.DerivedId $ r ^. ConstructorReference.reference_)
           toRef _ = mempty
           goType :: Reference -> m (EvaluatedSrc v)
           goType r@(Reference.Builtin _builtin) =
             pure (EvaluatedSrcDecl (BuiltinDecl r))
-          goType r = do
+          goType r@(Reference.DerivedId rId) = do
             d <- types r
             case d of
               Nothing -> pure (EvaluatedSrcDecl $ MissingDecl r)
               Just decl ->
-                pure $ EvaluatedSrcDecl (FoundDecl r decl)
+                pure $ EvaluatedSrcDecl (FoundDecl rId decl)
 
           go ::
             (Set.Set Reference, [EvaluatedSrc v]) ->
@@ -437,7 +437,7 @@ evalDoc terms typeOf eval types tm =
                               Just tm -> do
                                 typ <- fromMaybe (Type.builtin () "unknown") <$> typeOf (Referent.Ref ref)
                                 pure $ EvaluatedSrcTerm (FoundTerm ref typ tm)
-                  Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
+                  Term.RequestOrCtor' (Reference.DerivedId . view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (: acc) <$> goType r
                   _ -> pure acc
             DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
               | Set.notMember ref seen ->
@@ -460,7 +460,7 @@ data EvaluatedSrc v
 data EvaluatedDecl v
   = MissingDecl Reference
   | BuiltinDecl Reference
-  | FoundDecl Reference (DD.Decl v ())
+  | FoundDecl Reference.Id (DD.Decl v ())
   deriving stock (Show, Eq, Generic)
 
 data EvaluatedTerm v
@@ -504,7 +504,7 @@ dependenciesSpecial = \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl ref -> Set.singleton (LD.TypeReference ref)
           BuiltinDecl ref -> Set.singleton (LD.TypeReference ref)
-          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependenciesIncludingSelf ref decl
+          FoundDecl refId decl -> Set.singleton (LD.DerivedType refId) <> DD.labeledDeclDependenciesIncludingSelf refId decl
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingTerm ref -> Set.singleton (LD.TermReference ref)
           BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)

@@ -1,6 +1,6 @@
 module Unison.PatternMatchCoverage.EffectHandler where
 
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PatternMatchCoverage.Pretty
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -8,7 +8,7 @@ import Unison.Util.Pretty
 
 data EffectHandler
   = NoEffect
-  | Effect ConstructorReference
+  | Effect ConstructorReferenceId
   deriving stock (Show, Eq, Ord, Generic)
 
 prettyEffectHandler :: PrettyPrintEnv -> EffectHandler -> Pretty ColorText

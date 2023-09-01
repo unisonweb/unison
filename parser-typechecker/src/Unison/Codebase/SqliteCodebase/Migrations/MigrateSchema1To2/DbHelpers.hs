@@ -8,9 +8,9 @@ where
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
-import U.Codebase.Reference qualified as S hiding (Reference)
-import U.Codebase.Reference qualified as S.Reference
-import U.Codebase.Referent qualified as S.Referent
+import U.Codebase.Reference qualified as C
+import U.Codebase.Reference qualified as C.Reference
+import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.Branch.Full (DbMetadataSet)
 import U.Codebase.Sqlite.Branch.Full qualified as S
 import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
@@ -24,6 +24,7 @@ import U.Codebase.Sqlite.Patch.TypeEdit qualified as S (TypeEdit)
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Reference qualified as S
+import U.Codebase.Sqlite.Reference qualified as S.Reference
 import U.Codebase.Sqlite.Referent qualified as S
 import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as Hashing
@@ -97,23 +98,31 @@ s2hNameSegment =
 
 s2hReferent :: S.Referent -> Transaction Hashing.Referent
 s2hReferent = \case
-  S.Referent.Ref r -> Hashing.ReferentRef <$> s2hReference r
-  S.Referent.Con r cid -> Hashing.ReferentCon <$> s2hReference r <*> pure (fromIntegral cid)
+  C.Referent.Ref r -> Hashing.ReferentRef <$> s2hReference r
+  C.Referent.Con r cid -> Hashing.ReferentCon <$> s2hReferenceId r <*> pure (fromIntegral cid)
 
 s2hReferentH :: S.ReferentH -> Transaction Hashing.Referent
 s2hReferentH = \case
-  S.Referent.Ref r -> Hashing.ReferentRef <$> s2hReferenceH r
-  S.Referent.Con r cid -> Hashing.ReferentCon <$> s2hReferenceH r <*> pure (fromIntegral cid)
+  C.Referent.Ref r -> Hashing.ReferentRef <$> s2hReferenceH r
+  C.Referent.Con r cid -> Hashing.ReferentCon <$> s2hReferenceIdH r <*> pure (fromIntegral cid)
 
 s2hReference :: S.Reference -> Transaction Hashing.Reference
 s2hReference = \case
-  S.ReferenceBuiltin t -> Hashing.ReferenceBuiltin <$> Q.expectText t
-  S.Reference.Derived h i -> Hashing.ReferenceDerived <$> Q.expectPrimaryHashByObjectId h <*> pure i
+  C.ReferenceBuiltin t -> Hashing.ReferenceBuiltin <$> Q.expectText t
+  C.Reference.Derived h i -> Hashing.ReferenceDerived <$> Q.expectPrimaryHashByObjectId h <*> pure i
 
 s2hReferenceH :: S.ReferenceH -> Transaction Hashing.Reference
 s2hReferenceH = \case
-  S.ReferenceBuiltin t -> Hashing.ReferenceBuiltin <$> Q.expectText t
-  S.Reference.Derived h i -> Hashing.ReferenceDerived <$> Q.expectHash h <*> pure i
+  C.ReferenceBuiltin t -> Hashing.ReferenceBuiltin <$> Q.expectText t
+  C.Reference.Derived h i -> Hashing.ReferenceDerived <$> Q.expectHash h <*> pure i
+
+s2hReferenceId :: S.Reference.Id -> Transaction Hashing.ReferenceId
+s2hReferenceId = \case
+  C.Reference.Id h i -> Hashing.ReferenceId <$> Q.expectPrimaryHashByObjectId h <*> pure i
+
+s2hReferenceIdH :: S.Reference.IdH -> Transaction Hashing.ReferenceId
+s2hReferenceIdH = \case
+  C.Reference.Id h i -> Hashing.ReferenceId <$> Q.expectHash h <*> pure i
 
 s2hTermEdit :: S.TermEdit -> Transaction Hashing.TermEdit
 s2hTermEdit = \case

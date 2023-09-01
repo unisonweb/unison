@@ -13,7 +13,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference (DerivedId))
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Relation qualified as R
@@ -50,9 +50,9 @@ labeledDependencies TodoOutput {..} =
            ]
         <>
         -- and decls of type refs
-        [ labeledDep | (declRef, UserObject d) <- snd todoFrontier, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
+        [ labeledDep | (DerivedId declRef, UserObject d) <- snd todoFrontier, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
         ]
-        <> [ labeledDep | (_, declRef, UserObject d) <- snd todoFrontierDependents, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
+        <> [ labeledDep | (_, DerivedId declRef, UserObject d) <- snd todoFrontierDependents, labeledDep <- toList (DD.labeledDeclDependenciesIncludingSelf declRef d)
            ]
     )
     <>

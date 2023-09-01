@@ -5,7 +5,7 @@ module Unison.NamesWithHistory where
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified qualified as HQ
@@ -171,7 +171,7 @@ lookupRelativeHQTerm' =
 -- searched, too, if searching current names produces no hits.
 lookupHQTerm :: HashQualified Name -> NamesWithHistory -> Set Referent
 lookupHQTerm =
-  lookupHQRef Names.terms Referent.isPrefixOf
+  lookupHQRef Names.terms Referent.isPrefixOf1
 
 -- | Find all terms whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQTerm'.
 lookupHQTerm' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
@@ -264,7 +264,7 @@ lookupHQPattern ::
   HQ.HashQualified Name ->
   CT.ConstructorType ->
   NamesWithHistory ->
-  Set ConstructorReference
+  Set ConstructorReferenceId
 lookupHQPattern hq ctt names =
   Set.fromList
     [ r

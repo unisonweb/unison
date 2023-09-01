@@ -2442,9 +2442,9 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
         <> map (Right . (Nothing,)) terms
         <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
     pretty (Left (Left (n, (r, et)))) =
-      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
+      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' r (hqv n) (Left et))
     pretty (Left (Right (n, (r, dt)))) =
-      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
+      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' r (hqv n) (Right dt))
     pretty (Right (Nothing, (n, a, tm))) =
       (a, pb (hqv n) tm)
     pretty (Right (Just wk, (n, a, tm))) =
@@ -2492,10 +2492,12 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
             (TypePrinter.prettySyntax (ppeBody r) typ)
         UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
     go2 ((n, r), dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject _ -> builtin n
-        UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n decl
+      case (r, dt) of
+        (_, MissingObject r) -> missing n r
+        (_, BuiltinObject _) -> builtin n
+        (Reference.DerivedId rId, UserObject decl) -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) rId n decl
+        (Reference.Builtin {}, UserObject _) -> error $ "How did we get a Decl for " ++ show r ++ "?"
+
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
       P.wrap
@@ -2616,10 +2618,12 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
 
     prettyType :: (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
     prettyType (n, r, dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject _ -> builtin n
-        UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
+      case (r, dt) of
+        (Reference.DerivedId {}, MissingObject r) -> missing n r
+        (Reference.Builtin {}, BuiltinObject _) -> builtin n
+        (Reference.DerivedId rId, UserObject decl) ->
+          DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) rId n decl
+        _ -> error $ "How did we get from " ++ show r ++ " to " ++ show dt ++ "?"
 
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
@@ -2781,7 +2785,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2796,7 +2800,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -3608,7 +3612,7 @@ isTestOk tm = case tm of
     where
       isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
         cid == DD.okConstructorId
-          && ref == DD.testResultRef
+          && ref == DD.testResultRefId
       isSuccess _ = False
   _ -> False
 

@@ -4,7 +4,7 @@ module Unison.PatternMatchCoverage.Constraint
   )
 where
 
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.PmLit
@@ -22,10 +22,10 @@ data Constraint vt v loc
   = -- | Positive constraint regarding data type. States that the
     -- given variable must be the given constructor, and it also binds
     -- variables corresponding to constructor arguments.
-    PosCon v ConstructorReference [(v, Type vt loc)]
+    PosCon v ConstructorReferenceId [(v, Type vt loc)]
   | -- | Negative constraint concerning data type. States that the
     -- given variable must not be the given constructor.
-    NegCon v ConstructorReference
+    NegCon v ConstructorReferenceId
   | -- | Positive constraint regarding data type. States that the
     -- given variable must be the given constructor, and it also binds
     -- variables corresponding to constructor arguments.

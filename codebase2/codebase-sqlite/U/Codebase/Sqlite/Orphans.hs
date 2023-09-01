@@ -28,14 +28,19 @@ instance ToRow (AsSqlite C.Reference.Reference) where
 instance ToRow (AsSqlite C.Referent.Referent) where
   toRow (AsSqlite ref) = case ref of
     C.Referent.Ref ref' -> toRow (AsSqlite ref') <> [SQLNull]
-    C.Referent.Con ref' conId -> toRow (AsSqlite ref') <> [toField conId]
+    C.Referent.Con ref' conId -> toRow (AsSqlite (C.Reference.ReferenceDerived @Text ref')) <> [toField conId]
 
 instance FromRow (AsSqlite C.Referent.Referent) where
   fromRow = do
     AsSqlite reference <- fromRow
     field >>= \case
       Nothing -> pure $ AsSqlite (C.Referent.Ref reference)
-      Just conId -> pure $ AsSqlite (C.Referent.Con reference conId)
+      Just conId -> pure $ AsSqlite (C.Referent.Con (unsafeCtorReferenceAsId reference) conId)
+
+unsafeCtorReferenceAsId :: C.Reference.Reference' t h -> C.Reference.Id' h
+unsafeCtorReferenceAsId = \case
+  C.Reference.ReferenceDerived i -> i
+  C.Reference.ReferenceBuiltin {} -> error "we shouldn't see builtin referents"
 
 instance FromRow (AsSqlite C.Reference.Reference) where
   fromRow = do

@@ -44,7 +44,7 @@ type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHas
 
 type HashBranch = Branch' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (Reference' t h) (Reference.Id' h)
 
 data Branch' t h p c = Branch
   { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
@@ -59,7 +59,7 @@ emptyBranch = Branch Map.empty Map.empty Map.empty Map.empty
 
 branchHashes_ :: (Ord h', Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h' p c) h h'
 branchHashes_ f Branch {..} = do
-  newTerms <- for terms (Map.bitraversed both metadataSetFormatReferences_ . Reference.h_ %%~ f)
+  newTerms <- for terms (Map.bitraversed (beside Reference.h_ Reference.idH) (metadataSetFormatReferences_ . Reference.h_) %%~ f)
   newTypes <- for types (Map.bitraversed id metadataSetFormatReferences_ . Reference.h_ %%~ f)
   pure Branch {terms = newTerms, types = newTypes, patches, children}
 
@@ -93,6 +93,6 @@ quadmap ft fh fp fc (Branch terms types patches children) =
     (Map.bimap ft fp patches)
     (Map.bimap ft fc children)
   where
-    doTerms = Map.bimap (bimap (bimap ft fh) (bimap ft fh)) doMetadata
+    doTerms = Map.bimap (bimap (bimap ft fh) (fmap fh)) doMetadata
     doTypes = Map.bimap (bimap ft fh) doMetadata
     doMetadata (Inline s) = Inline . Set.map (bimap ft fh) $ s

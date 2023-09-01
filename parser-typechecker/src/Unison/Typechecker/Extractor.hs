@@ -5,7 +5,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
 import Unison.Blank qualified as B
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term
@@ -300,7 +300,7 @@ effectConstructorWrongArgCount ::
   ErrorExtractor
     v
     loc
-    (C.ExpectedArgCount, C.ActualArgCount, ConstructorReference)
+    (C.ExpectedArgCount, C.ActualArgCount, ConstructorReferenceId)
 effectConstructorWrongArgCount =
   cause >>= \case
     C.EffectConstructorWrongArgCount expected actual r ->

@@ -1,13 +1,144 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Unison.Runtime.IOSource where
+-- | This module defines Unison code that UCM relies on.
+-- Unlike Unison.Builtin.Decls, we're not defining dependencies of builtins,
+-- so we can actually write Unison code and use the parser and typechecker.
+--
+-- We also have a bunch of utilities in here that could probably go elsewhere
+-- e.g. deconstructing values of these types
+module Unison.Runtime.IOSource
+  ( codeLookupM,
+
+    -- * AuthorInfo
+    copyrightHolderRef,
+    authorRef,
+    guidRef,
+
+    -- * display values
+    prettyAnnotatedRef,
+    prettyGetRef,
+    doc2FormatConsoleRef,
+    isTestReference,
+
+    -- * LSP
+    typecheckedFile,
+
+    -- * merge / propagate / branchDiff
+    isPropagatedReference,
+    isPropagatedValue,
+    isTest,
+    isTestReference,
+
+    -- * Unison.Server.Backend
+    doc2Ref,
+
+    -- * Unison.Server.Doc
+
+    -- ** Term deconstructors
+    pattern Doc2Ref,
+    pattern Doc2MediaSourceRef,
+    pattern Doc2VideoRef,
+    pattern Doc2FrontMatterRef,
+    pattern Doc2LaTeXInlineRef,
+    pattern Doc2SvgRef,
+    pattern Doc2Word,
+    pattern Doc2Code,
+    pattern Doc2CodeBlock,
+    pattern Doc2Bold,
+    pattern Doc2Italic,
+    pattern Doc2Strikethrough,
+    pattern Doc2Style,
+    pattern Doc2Anchor,
+    pattern Doc2Blockquote,
+    pattern Doc2Blankline,
+    pattern Doc2Linebreak,
+    pattern Doc2SectionBreak,
+    pattern Doc2Tooltip,
+    pattern Doc2Aside,
+    pattern Doc2Callout,
+    pattern Doc2Table,
+    pattern Doc2Folded,
+    pattern Doc2Paragraph,
+    pattern Doc2BulletedList,
+    pattern Doc2NumberedList,
+    pattern Doc2Section,
+    pattern Doc2NamedLink,
+    pattern Doc2Image,
+    pattern Doc2Special,
+    pattern Doc2Join,
+    pattern Doc2UntitledSection,
+    pattern Doc2Column,
+    pattern Doc2Group,
+    pattern Doc2SpecialFormRef,
+    pattern Doc2SpecialFormSource,
+    pattern Doc2SpecialFormFoldedSource,
+    pattern Doc2SpecialFormExample,
+    pattern Doc2SpecialFormExampleBlock,
+    pattern Doc2SpecialFormLink,
+    pattern Doc2SpecialFormSignature,
+    pattern Doc2SpecialFormSignatureInline,
+    pattern Doc2SpecialFormEval,
+    pattern Doc2SpecialFormEvalInline,
+    pattern Doc2SpecialFormEmbed,
+    pattern Doc2SpecialFormEmbedInline,
+    pattern Doc2MediaSource,
+    pattern Doc2SpecialFormEmbedVideo,
+    pattern Doc2SpecialFormEmbedFrontMatter,
+    pattern Doc2SpecialFormEmbedLaTeXInline,
+    pattern Doc2SpecialFormEmbedSvg,
+    pattern Doc2Example,
+    pattern Doc2Term,
+    pattern Doc2TermRef,
+
+    -- * Pretty
+    pattern PrettyAnnotatedRef,
+    pattern PrettyEmpty,
+    pattern PrettyGroup,
+    pattern PrettyLit,
+    pattern PrettyWrap,
+    pattern PrettyIndent,
+    pattern PrettyOrElse,
+    pattern PrettyTable,
+    pattern PrettyAppend,
+    pattern PrettyRef,
+
+    -- * AnsiColor
+    pattern AnsiColorRef,
+    pattern AnsiColorBlack,
+    pattern AnsiColorRed,
+    pattern AnsiColorGreen,
+    pattern AnsiColorYellow,
+    pattern AnsiColorBlue,
+    pattern AnsiColorMagenta,
+    pattern AnsiColorCyan,
+    pattern AnsiColorWhite,
+    pattern AnsiColorBrightBlack,
+    pattern AnsiColorBrightRed,
+    pattern AnsiColorBrightGreen,
+    pattern AnsiColorBrightYellow,
+    pattern AnsiColorBrightBlue,
+    pattern AnsiColorBrightMagenta,
+    pattern AnsiColorBrightCyan,
+    pattern AnsiColorBrightWhite,
+
+    -- * ConsoleText
+    pattern ConsoleTextRef,
+    pattern ConsoleTextPlain,
+    pattern ConsoleTextForeground,
+    pattern ConsoleTextBackground,
+    pattern ConsoleTextBold,
+    pattern ConsoleTextUnderline,
+    pattern ConsoleTextInvert,
+  )
+where
 
 import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
+import Network.TLS qualified as Unison.Server
 import Text.RawString.QQ (r)
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -72,10 +203,10 @@ typecheckedFile' =
     Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
     Result.Result _ (Just file) -> file
 
-typecheckedFileTerms :: Map.Map Symbol R.Reference
+typecheckedFileTerms :: Map.Map Symbol R.TermReference
 typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
 
-termNamed :: String -> R.Reference
+termNamed :: String -> R.TermReference
 termNamed s =
   fromMaybe (error $ "No builtin term called: " <> s) $
     Map.lookup (Var.nameds s) typecheckedFileTerms
@@ -92,8 +223,11 @@ typeNamedId s =
     Nothing -> error $ "No builtin type called: " <> s
     Just (r, _) -> r
 
-typeNamed :: String -> R.Reference
-typeNamed = R.DerivedId . typeNamedId
+typeNamed :: String -> R.TypeReferenceId
+typeNamed = typeNamedId
+
+typeNamed' :: String -> R.Reference
+typeNamed' = R.DerivedId . typeNamedId
 
 abilityNamedId :: String -> R.Id
 abilityNamedId s =
@@ -105,16 +239,16 @@ eitherReference,
   optionReference,
   isTestReference,
   isPropagatedReference ::
-    R.Reference
+    R.TypeReferenceId
 eitherReference = typeNamed "Either"
 optionReference = typeNamed "Optional"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
 
-isTest :: (R.Reference, R.Reference)
+isTest :: (R.TypeReferenceId, R.TermReference)
 isTest = (isTestReference, termNamed "metadata.isTest")
 
-isIOTest :: (R.Reference, R.Reference)
+isIOTest :: (R.TypeReferenceId, R.Reference)
 isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 
 isPropagatedValue :: R.Reference
@@ -126,12 +260,12 @@ eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
 
-authorRef, guidRef, copyrightHolderRef :: R.Reference
+authorRef, guidRef, copyrightHolderRef :: R.TypeReferenceId
 authorRef = typeNamed "Author"
 guidRef = typeNamed "GUID"
 copyrightHolderRef = typeNamed "CopyrightHolder"
 
-doc2Ref :: R.Reference
+doc2Ref :: R.TypeReferenceId
 doc2Ref = typeNamed "Doc2"
 
 doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
@@ -204,27 +338,27 @@ doc2ColumnId = constructorNamed doc2Ref "Doc2.Column"
 
 doc2GroupId = constructorNamed doc2Ref "Doc2.Group"
 
-doc2MediaSourceRef :: R.Reference
+doc2MediaSourceRef :: R.TypeReferenceId
 doc2MediaSourceRef = typeNamed "Doc2.MediaSource"
 
 pattern Doc2MediaSourceRef <- ((== doc2MediaSourceRef) -> True)
 
-doc2VideoRef :: R.Reference
+doc2VideoRef :: R.TypeReferenceId
 doc2VideoRef = typeNamed "Doc2.Video"
 
 pattern Doc2VideoRef <- ((== doc2VideoRef) -> True)
 
-doc2FrontMatterRef :: R.Reference
+doc2FrontMatterRef :: R.TypeReferenceId
 doc2FrontMatterRef = typeNamed "Doc2.FrontMatter"
 
 pattern Doc2FrontMatterRef <- ((== doc2FrontMatterRef) -> True)
 
-doc2LaTeXInlineRef :: R.Reference
+doc2LaTeXInlineRef :: R.TypeReferenceId
 doc2LaTeXInlineRef = typeNamed "Doc2.LaTeXInline"
 
 pattern Doc2LaTeXInlineRef <- ((== doc2LaTeXInlineRef) -> True)
 
-doc2SvgRef :: R.Reference
+doc2SvgRef :: R.TypeReferenceId
 doc2SvgRef = typeNamed "Doc2.Svg"
 
 pattern Doc2SvgRef <- ((== doc2SvgRef) -> True)
@@ -488,9 +622,9 @@ pattern ConsoleTextUnderline ct <- Term.App' (Term.Constructor' (ConstructorRefe
 
 pattern ConsoleTextInvert ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextInvertId -> True))) ct
 
-constructorNamed :: R.Reference -> Text -> DD.ConstructorId
+constructorNamed :: R.TypeReferenceId -> Text -> DD.ConstructorId
 constructorNamed ref name =
-  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
+  case runIdentity . getTypeDeclaration codeLookup $ ref of
     Nothing ->
       error $
         "There's a bug in the Unison runtime. Couldn't find type "

@@ -347,15 +347,11 @@ loadReferentType codebase = \case
   Referent.Con r _ -> getTypeOfConstructor r
   where
     -- Mitchell wonders: why was this definition copied from Unison.Codebase?
-    getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
+    getTypeOfConstructor (ConstructorReference r cid) = do
       maybeDecl <- Codebase.getTypeDeclaration codebase r
       pure $ case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    getTypeOfConstructor r =
-      error $
-        "Don't know how to getTypeOfConstructor "
-          ++ show r
 
 data TermEntry v a = TermEntry
   { termEntryReferent :: V2Referent.Referent,
@@ -497,10 +493,10 @@ isDoc' typeOfTerm = do
     Nothing -> False
 
 doc1Type :: (Ord v, Monoid a) => Type v a
-doc1Type = Type.ref mempty Decls.docRef
+doc1Type = Type.refId mempty Decls.docRefId
 
 doc2Type :: (Ord v, Monoid a) => Type v a
-doc2Type = Type.ref mempty DD.doc2Ref
+doc2Type = Type.refId mempty DD.doc2Ref
 
 isTestResultList :: forall v a. (Var v, Monoid a) => Maybe (Type v a) -> Bool
 isTestResultList typ = case typ of
@@ -508,7 +504,7 @@ isTestResultList typ = case typ of
   Just t -> Typechecker.isSubtype t resultListType
 
 resultListType :: (Ord v, Monoid a) => Type v a
-resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
+resultListType = Type.app mempty (Type.list mempty) (Type.refId mempty Decls.testResultRefId)
 
 termListEntry ::
   (MonadIO m) =>
@@ -553,8 +549,8 @@ getTermTag codebase r sig = do
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case sig of
         Just t ->
-          Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
-            || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+          Typechecker.isSubtype t (Type.refId mempty Decls.docRefId)
+            || Typechecker.isSubtype t (Type.refId mempty DD.doc2Ref)
         Nothing -> False
   -- A term is a test if it has the type [test.Result]
   let isTest = case sig of
@@ -833,7 +829,10 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
       typeDeps =
         typeResults
           & ifoldMap \typeRef ddObj ->
-            foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
+            case typeRef of
+              Reference.DerivedId typeRef ->
+                foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
+              _ -> mempty
    in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
@@ -1008,7 +1007,7 @@ docsForDefinitionName codebase (NameSearch {termSearch}) name = do
         Referent.Ref r ->
           maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
         _ -> pure []
-      pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
+      pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.refId mempty DD.doc2Ref)]
 
 -- | Evaluate and render the given docs
 renderDocRefs ::
@@ -1256,7 +1255,7 @@ definitionsBySuffixes codebase nameSearch includeCycles query = do
       where
         f :: SR.SearchResult -> Maybe Reference
         f = \case
-          SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
+          SR.Tm' _ (Referent.Con r _) _ -> Just (Reference.DerivedId $ r ^. ConstructorReference.reference_)
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
 
@@ -1335,8 +1334,11 @@ typesToSyntax suff width ppe0 types =
       BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
       MissingObject sh -> MissingObject sh
       UserObject d ->
-        UserObject . Pretty.render width $
-          DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
+        case r of
+          Reference.Builtin {} -> error "Shouldn't get here, a decl without a reference.id?"
+          Reference.DerivedId rId ->
+            UserObject . Pretty.render width $
+              DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) rId n d
 
 -- | Renders a type to its decl header, e.g.
 --

@@ -24,7 +24,7 @@ where
 
 import Data.Ord (Down (Down))
 import Data.Semigroup (Max (Max))
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified qualified as HQ
@@ -63,7 +63,7 @@ termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r
 typeNameOrHashOnly :: PrettyPrintEnv -> Reference -> HQ.HashQualified Name
 typeNameOrHashOnly ppe r = maybe (HQ.fromReference r) HQ'.toHQ $ types ppe r
 
-patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
+patterns :: PrettyPrintEnv -> ConstructorReferenceId -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =
   terms ppe (Referent.Con r CT.Data)
     <|> terms ppe (Referent.Con r CT.Effect)
@@ -128,7 +128,7 @@ labeledRefName ppe = \case
   LD.TermReferent ref -> termName ppe ref
   LD.TypeReference ref -> typeName ppe ref
 
-patternName :: PrettyPrintEnv -> ConstructorReference -> HashQualified Name
+patternName :: PrettyPrintEnv -> ConstructorReferenceId -> HashQualified Name
 patternName env r =
   case patterns env r of
     Just name -> HQ'.toHQ name

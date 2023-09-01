@@ -272,7 +272,7 @@ writeForeignBuiltin = writeForeignAs (Foreign . wrapBuiltin)
 writeTypeLink ::
   Stack 'UN ->
   Stack 'BX ->
-  Reference ->
+  Unison.Reference.Reference ->
   IO (Stack 'UN, Stack 'BX)
 writeTypeLink = writeForeignAs (Foreign . Wrap typeLinkRef)
 
@@ -281,7 +281,7 @@ readTypelink ::
   [Int] ->
   Stack 'UN ->
   Stack 'BX ->
-  IO ([Int], [Int], Reference)
+  IO ([Int], [Int], Unison.Reference.Reference)
 readTypelink = readForeignAs (unwrapForeign . marshalToForeign)
 
 instance ForeignConvention Double where

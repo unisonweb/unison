@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.AuthorInfo where
+module Unison.Codebase.Editor.AuthorInfo
+  ( AuthorInfo (..),
+    createAuthorInfo,
+  )
+where
 
 import Crypto.Random (getRandomBytes)
 import Data.ByteString (unpack)
@@ -28,45 +32,46 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
   where
     createAuthorInfo' :: [Word8] -> AuthorInfo v a
     createAuthorInfo' bytes =
-      let (guidRef, guidTerm) =
-            hashAndWrangle "guid" guidType $
-              Term.app
-                a
-                (Term.constructor a (ConstructorReference guidTypeRef 0))
-                ( Term.app
-                    a
-                    (Term.builtin a "Bytes.fromList")
-                    (Term.list a (map (Term.nat a . fromIntegral) bytes))
-                )
+      AuthorInfo
+        (guidRef, guidTerm, guidType)
+        (authorRef, authorTerm, authorType)
+        (chRef, chTerm, chType)
+      where
+        (guidRef, guidTerm) =
+          hashAndWrangle "guid" guidType $
+            Term.app
+              a
+              (Term.constructor a (ConstructorReference guidTypeRef 0))
+              ( Term.app
+                  a
+                  (Term.builtin a "Bytes.fromList")
+                  (Term.list a (map (Term.nat a . fromIntegral) bytes))
+              )
 
-          (authorRef, authorTerm) =
-            hashAndWrangle "author" authorType $
-              Term.apps
-                (Term.constructor a (ConstructorReference authorTypeRef 0))
-                [ (a, Term.ref a (Reference.DerivedId guidRef)),
-                  (a, Term.text a t)
-                ]
+        (authorRef, authorTerm) =
+          hashAndWrangle "author" authorType $
+            Term.apps
+              (Term.constructor a (ConstructorReference authorTypeRef 0))
+              [ (a, Term.refId a guidRef),
+                (a, Term.text a t)
+              ]
 
-          (chRef, chTerm) =
-            hashAndWrangle "copyrightHolder" chType $
-              Term.apps
-                (Term.constructor a (ConstructorReference chTypeRef 0))
-                [ (a, Term.ref a (Reference.DerivedId guidRef)),
-                  (a, Term.text a t)
-                ]
-       in AuthorInfo
-            (guidRef, guidTerm, guidType)
-            (authorRef, authorTerm, authorType)
-            (chRef, chTerm, chType)
-    hashAndWrangle ::
-      Text ->
-      Type v a ->
-      Term v a ->
-      (Reference.Id, Term v a)
-    hashAndWrangle v typ tm =
-      case Foldable.toList $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ, ())) of
-        [(id, tm, _tp, ())] -> (id, tm)
-        _ -> error "hashAndWrangle: Expected a single definition."
-    (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
-    (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)
-    (guidType, guidTypeRef) = (Type.ref a guidTypeRef, IOSource.guidRef)
+        (chRef, chTerm) =
+          hashAndWrangle "copyrightHolder" chType $
+            Term.apps
+              (Term.constructor a (ConstructorReference chTypeRef 0))
+              [ (a, Term.refId a guidRef),
+                (a, Term.text a t)
+              ]
+        (chType, chTypeRef) = (Type.refId a chTypeRef, IOSource.copyrightHolderRef)
+        (authorType, authorTypeRef) = (Type.refId a authorTypeRef, IOSource.authorRef)
+        (guidType, guidTypeRef) = (Type.refId a guidTypeRef, IOSource.guidRef)
+        hashAndWrangle ::
+          Text ->
+          Type v a ->
+          Term v a ->
+          (Reference.Id, Term v a)
+        hashAndWrangle v typ tm =
+          case Foldable.toList $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ, ())) of
+            [(id, tm, _tp, ())] -> (id, tm)
+            _ -> error "hashAndWrangle: Expected a single definition."

@@ -18,7 +18,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReferenceId, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -41,13 +41,13 @@ type Pretty = P.Pretty P.ColorText
 displayTerm ::
   (Monad m) =>
   PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term Symbol ()))) ->
+  (TermReferenceId -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
-  (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
+  (TypeReferenceId -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
-displayTerm = displayTerm' False
+displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl = displayTerm' False ppe loadTerm loadTypeOfTerm evalTerm loadDecl
 
 -- Whether to elide printing of `()` at the end of a block
 -- For instance, in:
@@ -65,15 +65,15 @@ displayTerm' ::
   (Monad m) =>
   ElideUnit ->
   PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term Symbol ()))) ->
+  (TermReferenceId -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
-  (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
+  (TypeReferenceId -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
 displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
-    | typ == DD.docRef -> displayDoc pped terms typeOf eval types tm
+    | typ == DD.docRefId -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref -> do
         -- Pretty.get (doc.formatConsole tm)
         let tm' =
@@ -112,10 +112,10 @@ displayPretty ::
   forall m.
   (Monad m) =>
   PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term Symbol ()))) ->
+  (TermReferenceId -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
   (Term Symbol () -> m (Maybe (Term Symbol ()))) ->
-  (Reference -> m (Maybe (DD.Decl Symbol ()))) ->
+  (TypeReferenceId -> m (Maybe (DD.Decl Symbol ()))) ->
   Term Symbol () ->
   m Pretty
 displayPretty pped terms typeOf eval types tm = go tm
@@ -145,15 +145,15 @@ displayPretty pped terms typeOf eval types tm = go tm
       -- to do some ascii art rendering
       let tys = [ref | DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns] <- toList es]
           toRef (Term.Ref' r) = Just r
-          toRef (Term.RequestOrCtor' r) = Just (r ^. ConstructorReference.reference_)
+          toRef (Term.RequestOrCtor' r) = Just (Reference.DerivedId $ r ^. ConstructorReference.reference_)
           toRef _ = Nothing
           tms = [ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)), _anns] <- toList es]
       typeMap <-
         let -- todo: populate the variable names / kind once BuiltinObject supports that
             go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject ())
-            go ref =
+            go ref@(Reference.DerivedId rId) =
               (ref,) <$> do
-                decl <- types ref
+                decl <- types rId
                 let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
                 pure $ maybe missing DO.UserObject decl
          in Map.fromList <$> traverse go tys
@@ -161,7 +161,7 @@ displayPretty pped terms typeOf eval types tm = go tm
         let go ref =
               (ref,) <$> case ref of
                 Reference.Builtin _ -> pure $ Builtin.typeOf missing DO.BuiltinObject ref
-                _ -> maybe missing DO.UserObject <$> terms ref
+                Reference.DerivedId ref -> maybe missing DO.UserObject <$> terms ref
               where
                 missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
          in Map.fromList <$> traverse go tms
@@ -290,10 +290,10 @@ displayDoc ::
   forall v m.
   (Var v, Monad m) =>
   PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term v ()))) ->
+  (TermReferenceId -> m (Maybe (Term v ()))) ->
   (Referent -> m (Maybe (Type v ()))) ->
   (Term v () -> m (Maybe (Term v ()))) ->
-  (Reference -> m (Maybe (DD.Decl v ()))) ->
+  (TypeReferenceId -> m (Maybe (DD.Decl v ()))) ->
   Term v () ->
   m Pretty
 displayDoc pped terms typeOf evaluated types = go
@@ -319,25 +319,29 @@ displayDoc pped terms typeOf evaluated types = go
               [(r, PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
     prettyEval terms r = case r of
       Referent.Ref (Reference.Builtin n) -> pure . P.syntaxToColor $ P.text n
-      Referent.Ref ref ->
+      Referent.Ref ref@(Reference.DerivedId {}) ->
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
               Just tm -> pure $ TP.pretty ppe tm
-      Referent.Con (ConstructorReference r _) _ -> pure $ typeName (PPE.declarationPPE pped r) r
+      Referent.Con (ConstructorReference (Reference.DerivedId -> r) _) _ -> pure $ typeName (PPE.declarationPPE pped r) r
+    prettyTerm :: (TermReferenceId -> m (Maybe (Term v a))) -> Referent -> m Pretty
     prettyTerm terms r = case r of
       Referent.Ref (Reference.Builtin _) -> prettySignature r
-      Referent.Ref ref ->
+      Referent.Ref ref@(Reference.DerivedId rId) ->
         let ppe = PPE.declarationPPE pped ref
-         in terms ref >>= \case
+         in terms rId >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
               Just tm -> pure . P.syntaxToColor . P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
-      Referent.Con (ConstructorReference r _) _ -> prettyType r
-    prettyType r =
-      let ppe = PPE.declarationPPE pped r
-       in types r >>= \case
-            Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
-            Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped r (PPE.typeName ppe r) ty
+      Referent.Con (ConstructorReference r _) _ -> prettyType (Reference.DerivedId r)
+    prettyType r = case r of
+      Reference.Builtin {} -> pure $ "😶  Missing type source for: " <> typeName ppe r
+      Reference.DerivedId rId ->
+        types rId >>= \case
+          Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
+          Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped rId (PPE.typeName ppe r) ty
+      where
+        ppe = PPE.declarationPPE pped r
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r =

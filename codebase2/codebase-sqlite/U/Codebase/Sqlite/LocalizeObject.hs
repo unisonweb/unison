@@ -51,7 +51,8 @@ import U.Codebase.Sqlite.Patch.Format qualified as Patch
 import U.Codebase.Sqlite.Patch.Full (LocalPatch, Patch, Patch' (..))
 import U.Codebase.Sqlite.Patch.TermEdit (LocalTermEdit, TermEdit)
 import U.Codebase.Sqlite.Patch.TypeEdit (LocalTypeEdit, TypeEdit)
-import U.Codebase.Sqlite.Reference (LocalReference, LocalReferenceH, Reference, ReferenceH)
+import U.Codebase.Sqlite.Reference (LocalReference, LocalReferenceH, LocalReferenceIdH, Reference, ReferenceH)
+import U.Codebase.Sqlite.Reference qualified as Reference
 import U.Codebase.Sqlite.Referent (LocalReferent, LocalReferentH, Referent, ReferentH)
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
@@ -181,22 +182,30 @@ localizeReference :: (ContainsDefns s, ContainsText s, Monad m) => Reference -> 
 localizeReference =
   bitraverse localizeText localizeDefn
 
+-- Localize a reference in any monad that encapsulates the stateful localization of an object that contains references.
+localizeReferenceId :: (ContainsDefns s, ContainsText s, Monad m) => Reference.Id -> StateT s m Reference.LocalId
+localizeReferenceId =
+  traverse localizeDefn
+
 -- Localize a possibly-missing reference in any monad that encapsulates the stateful localization of an object that contains
 -- possibly-missing references.
 localizeReferenceH :: (ContainsHashes s, ContainsText s, Monad m) => ReferenceH -> StateT s m LocalReferenceH
 localizeReferenceH =
   bitraverse localizeText localizeHash
 
+localizeReferenceIdH :: (ContainsHashes s, ContainsText s, Monad m) => Reference.IdH -> StateT s m LocalReferenceIdH
+localizeReferenceIdH = traverse localizeHash
+
 -- Localize a referent in any monad that encapsulates the stateful localization of an object that contains referents.
 localizeReferent :: (ContainsDefns s, ContainsText s, Monad m) => Referent -> StateT s m LocalReferent
 localizeReferent =
-  bitraverse localizeReference localizeReference
+  bitraverse localizeReference localizeReferenceId
 
 -- Localize a possibly-missing referent in any monad that encapsulates the stateful localization of an object that contains possibly-missing
 -- referents.
 localizeReferentH :: (ContainsHashes s, ContainsText s, Monad m) => ReferentH -> StateT s m LocalReferentH
 localizeReferentH =
-  bitraverse localizeReferenceH localizeReferenceH
+  bitraverse localizeReferenceH localizeReferenceIdH
 
 -- Localize a text reference in any monad that encapsulates the stateful localization of an object that contains text.
 localizeText :: (ContainsText s, Monad m) => TextId -> StateT s m LocalTextId

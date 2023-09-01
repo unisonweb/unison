@@ -25,7 +25,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Reference (Id (..), Reference (..), pattern Derived)
+import Unison.Reference (Id (..), Reference (..), unsafeId, pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
@@ -192,7 +192,7 @@ putReferent = \case
     putReference r
   Con r ct -> do
     putWord8 1
-    putConstructorReference r
+    putConstructorReference (fmap DerivedId r)
     putConstructorType ct
 
 getReferent :: (MonadGet m) => m Referent
@@ -200,7 +200,7 @@ getReferent = do
   tag <- getWord8
   case tag of
     0 -> Ref <$> getReference
-    1 -> Con <$> getConstructorReference <*> getConstructorType
+    1 -> Con . fmap unsafeId <$> getConstructorReference <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
 getConstructorType :: (MonadGet m) => m CT.ConstructorType

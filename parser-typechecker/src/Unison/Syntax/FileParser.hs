@@ -118,7 +118,7 @@ file = do
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
             | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datasId env)]
           ]
         uf =
           UnisonFileId

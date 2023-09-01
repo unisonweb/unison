@@ -220,9 +220,9 @@ putTerm t = putABT putSymbol putUnit putF t
       Term.Ref r ->
         putWord8 5 *> putRecursiveReference r
       Term.Constructor r cid ->
-        putWord8 6 *> putReference r *> putVarInt cid
+        putWord8 6 *> putCtorReference r *> putVarInt cid
       Term.Request r cid ->
-        putWord8 7 *> putReference r *> putVarInt cid
+        putWord8 7 *> putCtorReference r *> putVarInt cid
       Term.Handle h a ->
         putWord8 8 *> putChild h *> putChild a
       Term.App f arg ->
@@ -248,13 +248,13 @@ putTerm t = putABT putSymbol putUnit putF t
       Term.Char c ->
         putWord8 19 *> putChar c
       Term.TermLink r ->
-        putWord8 20 *> putReferent' putRecursiveReference putReference r
+        putWord8 20 *> putReferent' putRecursiveReference putCtorReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
-    putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
+    putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.CtorRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
-    putPattern :: (MonadPut m) => Term.Pattern LocalTextId TermFormat.TypeRef -> m ()
+    putPattern :: (MonadPut m) => Term.Pattern LocalTextId TermFormat.CtorRef -> m ()
     putPattern p = case p of
       Term.PUnbound -> putWord8 0
       Term.PVar -> putWord8 1
@@ -264,14 +264,14 @@ putTerm t = putABT putSymbol putUnit putF t
       Term.PFloat n -> putWord8 5 *> putFloat n
       Term.PConstructor r cid ps ->
         putWord8 6
-          *> putReference r
+          *> putCtorReference r
           *> putVarInt cid
           *> putFoldable putPattern ps
       Term.PAs p -> putWord8 7 *> putPattern p
       Term.PEffectPure p -> putWord8 8 *> putPattern p
       Term.PEffectBind r cid args k ->
         putWord8 9
-          *> putReference r
+          *> putCtorReference r
           *> putVarInt cid
           *> putFoldable putPattern args
           *> putPattern k
@@ -309,8 +309,8 @@ getTerm = getABT getSymbol getUnit getF
         3 -> Term.Boolean <$> getBoolean
         4 -> Term.Text <$> getVarInt
         5 -> Term.Ref <$> getRecursiveReference
-        6 -> Term.Constructor <$> getReference <*> getVarInt
-        7 -> Term.Request <$> getReference <*> getVarInt
+        6 -> Term.Constructor <$> getCtorReference <*> getVarInt
+        7 -> Term.Request <$> getCtorReference <*> getVarInt
         8 -> Term.Handle <$> getChild <*> getChild
         9 -> Term.App <$> getChild <*> getChild
         10 -> Term.Ann <$> getChild <*> getType getReference
@@ -331,13 +331,13 @@ getTerm = getABT getSymbol getUnit getF
         21 -> Term.TypeLink <$> getReference
         tag -> unknownTag "getTerm" tag
       where
-        getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
+        getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.CtorRef)
         getReferent =
           getWord8 >>= \case
             0 -> Referent.Ref <$> getRecursiveReference
-            1 -> Referent.Con <$> getReference <*> getVarInt
+            1 -> Referent.Con <$> getCtorReference <*> getVarInt
             x -> unknownTag "getTermComponent" x
-        getPattern :: (MonadGet m) => m (Term.Pattern LocalTextId TermFormat.TypeRef)
+        getPattern :: (MonadGet m) => m (Term.Pattern LocalTextId TermFormat.CtorRef)
         getPattern =
           getWord8 >>= \case
             0 -> pure Term.PUnbound
@@ -346,12 +346,12 @@ getTerm = getABT getSymbol getUnit getF
             3 -> Term.PInt <$> getInt
             4 -> Term.PNat <$> getNat
             5 -> Term.PFloat <$> getFloat
-            6 -> Term.PConstructor <$> getReference <*> getVarInt <*> getList getPattern
+            6 -> Term.PConstructor <$> getCtorReference <*> getVarInt <*> getList getPattern
             7 -> Term.PAs <$> getPattern
             8 -> Term.PEffectPure <$> getPattern
             9 ->
               Term.PEffectBind
-                <$> getReference
+                <$> getCtorReference
                 <*> getVarInt
                 <*> getList getPattern
                 <*> getPattern
@@ -915,14 +915,12 @@ putReferent ::
     Integral h1,
     Bits t1,
     Bits h1,
-    Integral t2,
     Integral h2,
-    Bits t2,
     Bits h2
   ) =>
-  Referent' (Reference' t1 h1) (Reference' t2 h2) ->
+  Referent' (Reference' t1 h1) (Reference.Id' h2) ->
   m ()
-putReferent = putReferent' putReference putReference
+putReferent = putReferent' putReference putCtorReference
 
 putReferent' :: (MonadPut m) => (r1 -> m ()) -> (r2 -> m ()) -> Referent' r1 r2 -> m ()
 putReferent' putRefRef putConRef = \case
@@ -957,13 +955,11 @@ getReferent ::
     Integral h1,
     Bits t1,
     Bits h1,
-    Integral t2,
     Integral h2,
-    Bits t2,
     Bits h2
   ) =>
-  m (Referent' (Reference' t1 h1) (Reference' t2 h2))
-getReferent = getReferent' getReference getReference
+  m (Referent' (Reference' t1 h1) (Reference.Id' h2))
+getReferent = getReferent' getReference getCtorReference
 
 getReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>
@@ -973,6 +969,20 @@ getReference =
     0 -> ReferenceBuiltin <$> getVarInt
     1 -> ReferenceDerived <$> (Reference.Id <$> getVarInt <*> getVarInt)
     x -> unknownTag "getRecursiveReference" x
+
+-- in a future serialization format we can drop the putWord8
+putCtorReference :: (MonadPut m, Integral r, Bits r) => Reference.Id' r -> m ()
+putCtorReference = \case
+  Reference.Id r index ->
+    putWord8 1 *> putVarInt r *> putVarInt index
+
+getCtorReference ::
+  (MonadGet m, Integral r, Bits r) => m (Reference.Id' r)
+getCtorReference =
+  getWord8 >>= \case
+    -- no 0, which means Builtin. In a future serialization format, we can skip the word8 altogether.
+    1 -> Reference.Id <$> getVarInt <*> getVarInt
+    x -> unknownTag "getCtorReference" x
 
 putRecursiveReference ::
   (MonadPut m, Integral t, Bits t, Integral r, Bits r) =>

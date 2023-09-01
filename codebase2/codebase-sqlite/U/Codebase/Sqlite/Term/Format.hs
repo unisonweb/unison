@@ -4,7 +4,7 @@ module U.Codebase.Sqlite.Term.Format where
 
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
-import U.Codebase.Reference (Reference')
+import U.Codebase.Reference (Id', Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId, WatchLocalIds)
@@ -25,7 +25,9 @@ type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 -- * Non-builtin types are represented by a local definition id.
 type TypeRef = Reference' LocalTextId LocalDefnId
 
-type TermLink = Referent' TermRef TypeRef
+type CtorRef = Id' LocalDefnId
+
+type TermLink = Referent' TermRef CtorRef
 
 type TypeLink = TypeRef
 
@@ -97,7 +99,7 @@ object table =
 -}
 
 type F =
-  Term.F' LocalTextId TermRef TypeRef TermLink TypeLink Symbol
+  Term.F' LocalTextId TermRef TypeRef CtorRef TermLink TypeLink Symbol
 
 type FT = Type.F' TypeRef
 

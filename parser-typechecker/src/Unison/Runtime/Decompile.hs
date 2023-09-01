@@ -10,7 +10,7 @@ import Unison.ABT (substs)
 import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, unsafeId)
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Foreign
@@ -63,7 +63,7 @@ import Unison.Var (Var)
 import Unsafe.Coerce -- for Int -> Double
 
 con :: (Var v) => Reference -> Word64 -> Term v ()
-con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)
+con rf ct = constructor () (ConstructorReference (unsafeId rf) $ fromIntegral ct)
 
 err :: String -> Either Error a
 err = Left . lit . fromString

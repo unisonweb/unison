@@ -2,7 +2,7 @@ module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuil
 
 import Data.List (isPrefixOf)
 import Data.Map qualified as Map
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
   ( DataDeclaration,
@@ -18,7 +18,8 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference (DerivedId))
+import Unison.Reference (Reference (DerivedId), TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
@@ -41,7 +42,7 @@ type SyntaxText = S.SyntaxText' Reference
 prettyDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  Reference.Id ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
@@ -52,7 +53,7 @@ prettyDecl ppe r hq d = case d of
 prettyEffectDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  Reference.Id ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
   Pretty SyntaxText
@@ -62,7 +63,7 @@ prettyGADT ::
   (Var v) =>
   PrettyPrintEnvDecl ->
   CT.ConstructorType ->
-  Reference ->
+  TypeReferenceId ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
@@ -76,14 +77,14 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
+          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
   PrettyPrintEnv ->
   CT.ConstructorType ->
   HQ.HashQualified Name ->
-  ConstructorReference ->
+  ConstructorReferenceId ->
   Pretty SyntaxText
 prettyPattern env ctorType namespace ref =
   styleHashQualified''
@@ -100,7 +101,7 @@ prettyPattern env ctorType namespace ref =
 prettyDataDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  Reference.Id ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
@@ -128,9 +129,9 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
               <> fmt S.DelimiterChar " }"
     field (fname, typ) =
       P.group $
-        styleHashQualified'' (fmt (S.TypeReference r)) fname
+        styleHashQualified'' (fmt (S.TypeReference (DerivedId r))) fname
           <> fmt S.TypeAscriptionColon " :"
-          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -150,7 +151,7 @@ fieldNames ::
   forall v a.
   (Var v) =>
   PrettyPrintEnv ->
-  Reference ->
+  Reference.Id ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Maybe [HQ.HashQualified Name]

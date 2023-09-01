@@ -89,12 +89,9 @@ getTypeOfReferent fileUri ref = do
         Referent.Ref (Reference.Builtin {}) -> empty
         Referent.Ref (Reference.DerivedId termRefId) -> do
           MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _3 . _Just)
-        Referent.Con (ConstructorReference r0 cid) _type -> do
-          case r0 of
-            Reference.DerivedId r -> do
+        Referent.Con (ConstructorReference r cid) _type -> do
               decl <- getTypeDeclaration fileUri r
               MaybeT . pure $ DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-            Reference.Builtin _ -> empty
     getFromCodebase = do
       Env {codebase} <- ask
       MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
@@ -252,7 +249,7 @@ findSmallestEnclosingNode pos term
     cleanImplicitUnit :: Term Symbol Ann -> Maybe (Term Symbol Ann)
     cleanImplicitUnit = \case
       ABT.Tm' (Term.App (ABT.Tm' (Term.App (ABT.Tm' (Term.Constructor (ConstructorReference ref 0))) x)) trm)
-        | ref == Builtins.pairRef && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
+        | ref == Builtins.pairRefId && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
       _ -> Nothing
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
@@ -290,7 +287,7 @@ findSmallestEnclosingPattern pos pat
     cleanImplicitUnit :: Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
     cleanImplicitUnit = \case
       (Pattern.Constructor _loc (ConstructorReference conRef 0) [pat1, Pattern.Constructor _ (ConstructorReference mayUnitRef 0) _])
-        | conRef == Builtins.pairRef && mayUnitRef == Builtins.unitRef -> Just pat1
+        | conRef == Builtins.pairRefId && mayUnitRef == Builtins.unitRefId -> Just pat1
       _ -> Nothing
 
 -- | Find the the node in a type which contains the specified position, but none of its

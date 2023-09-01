@@ -2,7 +2,7 @@
 
 module U.Codebase.Referent where
 
-import Control.Lens (Prism, Traversal)
+import Control.Lens (Prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
@@ -19,23 +19,14 @@ data ConstructorType
   | EffectConstructor
   deriving (Show, Eq, Ord)
 
-type Referent = Referent' Reference Reference
+type Referent = Referent' Reference Reference.Id
 
-type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type ReferentH = Referent' (Reference' Text (Maybe Hash)) Reference.Id
 
 data Referent' termRef typeRef
   = Ref termRef
   | Con typeRef ConstructorId
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-
-refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
-refs_ f r = bitraverse f f r
-
-typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
-typeRef_ f = bitraverse f pure
-
-termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
-termRef_ f = bitraverse pure f
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"
@@ -46,7 +37,12 @@ _Con = _Ctor @"Con"
 toReference :: Referent -> Reference
 toReference = \case
   Ref termRef -> termRef
-  Con typeRef _ -> typeRef
+  Con typeRef _ -> Reference.ReferenceDerived typeRef
+
+toTypeReference :: Referent -> Maybe Reference.Id
+toTypeReference = \case
+  Ref {} -> Nothing
+  Con r _ -> Just r
 
 toTermReference :: Referent' termRef typeRef -> Maybe termRef
 toTermReference = \case
@@ -94,6 +90,6 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> Reference.toShortHash r
   Con r conId ->
-    case Reference.toShortHash r of
-      SH.Builtin b -> SH.Builtin b
-      SH.ShortHash prefix cycle _cid -> SH.ShortHash prefix cycle (Just conId)
+    case Reference.idToShortHash r of
+      SH.ShortHash prefix cycle Nothing -> SH.ShortHash prefix cycle (Just conId)
+      _ -> error $ "unexpected output calling idToShortHash on " ++ show r

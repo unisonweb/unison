@@ -100,7 +100,7 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Id, Reference (..))
+import Unison.Reference (Id, Reference (..), unsafeId)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
@@ -227,7 +227,7 @@ enclose keep rec t@(Handle' h body)
     lbody = rec keep body
     fv = Var.freshIn fvs $ typed Var.Eta
     args
-      | null evs = [constructor a (ConstructorReference Ty.unitRef 0)]
+      | null evs = [Ty.unitTerm a]
       | otherwise = var a <$> evs
     lamb
       | null evs = lam' a [fv] lbody
@@ -592,10 +592,10 @@ saturate ::
   Term v a ->
   Term v a
 saturate dat = ABT.visitPure $ \case
-  Apps' f@(Constructor' r) args -> sat r f args
-  Apps' f@(Request' r) args -> sat r f args
-  f@(Constructor' r) -> sat r f []
-  f@(Request' r) -> sat r f []
+  Apps' f@(Constructor' r) args -> sat (fmap DerivedId r) f args
+  Apps' f@(Request' r) args -> sat (fmap DerivedId r) f args
+  f@(Constructor' r) -> sat (fmap DerivedId r) f []
+  f@(Request' r) -> sat (fmap DerivedId r) f []
   _ -> Nothing
   where
     frsh avoid _ =
@@ -1795,9 +1795,9 @@ anfBlock (Apps' f args) = do
   (actx, cas) <- anfArgs args
   pure (fctx <> actx, (d, TApp cf cas))
 anfBlock (Constructor' (ConstructorReference r t)) =
-  pure (mempty, pure $ TCon r (fromIntegral t) [])
+  pure (mempty, pure $ TCon (DerivedId r) (fromIntegral t) [])
 anfBlock (Request' (ConstructorReference r t)) =
-  pure (mempty, (Indirect (), TReq r (fromIntegral t) []))
+  pure (mempty, (Indirect (), TReq (DerivedId r) (fromIntegral t) []))
 anfBlock (Boolean' b) =
   pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
@@ -1866,7 +1866,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
       AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
   | P.Constructor _ (ConstructorReference r t) ps <- p = do
       (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us, bd) ->
-        AccumData r Nothing
+        AccumData (DerivedId r) Nothing
           . EC.mapSingleton (fromIntegral t)
           . (BX <$ us,)
           . ABTN.TAbss us
@@ -1885,11 +1885,11 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
                   unsnoc exp
               jn = Builtin "jumpCont"
            in flip AccumRequest Nothing
-                . Map.singleton r
+                . Map.singleton (DerivedId r)
                 . EC.mapSingleton (fromIntegral t)
                 . (BX <$ us,)
                 . ABTN.TAbss us
-                . TShift r kf
+                . TShift (DerivedId r) kf
                 . TName uk (Left jn) [kf]
                 $ bd
   | P.SequenceLiteral _ [] <- p =
@@ -2013,7 +2013,7 @@ litLinks ::
   f Lit
 litLinks f (LY r) = LY <$> f True r
 litLinks f (LM (Con (ConstructorReference r i) t)) =
-  LM . flip Con t . flip ConstructorReference i <$> f True r
+  LM . flip Con t . flip ConstructorReference i . unsafeId <$> f True (DerivedId r)
 litLinks f (LM (Ref r)) = LM . Ref <$> f False r
 litLinks _ v = pure v
 
@@ -2083,8 +2083,8 @@ anfCases u = getCompose . fmap fold . traverse (anfInitCase u)
 anfFunc :: (Var v) => Term v a -> ANFM v (Ctx v, Directed () (Func v))
 anfFunc (Var' v) = pure (mempty, (Indirect (), FVar v))
 anfFunc (Ref' r) = pure (mempty, (Indirect (), FComb r))
-anfFunc (Constructor' (ConstructorReference r t)) = pure (mempty, (Direct, FCon r $ fromIntegral t))
-anfFunc (Request' (ConstructorReference r t)) = pure (mempty, (Indirect (), FReq r $ fromIntegral t))
+anfFunc (Constructor' (ConstructorReference r t)) = pure (mempty, (Direct, FCon (DerivedId r) $ fromIntegral t))
+anfFunc (Request' (ConstructorReference r t)) = pure (mempty, (Indirect (), FReq (DerivedId r) $ fromIntegral t))
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm

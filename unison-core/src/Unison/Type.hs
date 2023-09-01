@@ -15,7 +15,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Settings qualified as Settings
 import Unison.Util.List qualified as List
@@ -85,8 +85,11 @@ arity (Ann' a _) = arity a
 arity _ = 0
 
 -- some smart patterns
-pattern Ref' :: Reference -> ABT.Term F v a
+pattern Ref' :: TypeReference -> ABT.Term F v a
 pattern Ref' r <- ABT.Tm' (Ref r)
+
+pattern RefId' :: TypeReferenceId -> ABT.Term F v a
+pattern RefId' r <- ABT.Tm' (Ref (Reference.DerivedId r))
 
 pattern Arrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)

@@ -38,7 +38,8 @@ module Unison.Names
     unionLeft,
     unionLeftName,
     unionLeftRef,
-    namesForReference,
+    namesForTypeReference,
+    namesForTypeReferenceId,
     namesForReferent,
     shadowTerms,
     importing,
@@ -64,7 +65,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -276,14 +277,17 @@ typesNamed = flip R.lookupDom . types
 namesForReferent :: Names -> Referent -> Set Name
 namesForReferent names r = R.lookupRan r (terms names)
 
-namesForReference :: Names -> TypeReference -> Set Name
-namesForReference names r = R.lookupRan r (types names)
+namesForTypeReference :: Names -> TypeReference -> Set Name
+namesForTypeReference names r = R.lookupRan r (types names)
+
+namesForTypeReferenceId :: Names -> TypeReferenceId -> Set Name
+namesForTypeReferenceId names = namesForTypeReference names . Reference.DerivedId
 
 termAliases :: Names -> Name -> Referent -> Set Name
 termAliases names n r = Set.delete n $ namesForReferent names r
 
 typeAliases :: Names -> Name -> TypeReference -> Set Name
-typeAliases names n r = Set.delete n $ namesForReference names r
+typeAliases names n r = Set.delete n $ namesForTypeReference names r
 
 addType :: Name -> TypeReference -> Names -> Names
 addType n r = (<> fromTypes [(n, r)])
@@ -481,7 +485,7 @@ expandWildcardImport prefix ns =
       pure (suffix, full)
 
 -- Finds all the constructors for the given type in the `Names`
-constructorsForType :: TypeReference -> Names -> [(Name, Referent)]
+constructorsForType :: TypeReferenceId -> Names -> [(Name, Referent)]
 constructorsForType r ns =
   let -- rather than searching all of names, we use the known possible forms
       -- that the constructors can take

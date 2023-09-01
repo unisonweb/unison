@@ -13,6 +13,7 @@ import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference')
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
@@ -47,7 +48,7 @@ addsRemoves map = (adds, removes)
   where
     (fmap fst -> adds, fmap fst -> removes) = List.partition snd (Map.toList map)
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (Reference' t h) (Reference.Id' h)
 
 data Diff' t h p c = Diff
   { terms :: Map t (Map (Referent'' t h) (DefinitionOp' (Metadata t h))),
@@ -67,8 +68,9 @@ quadmap ft fh fp fc (Diff terms types patches children) =
     (Map.bimap ft doPatchOp patches)
     (Map.bimap ft doChildOp children)
   where
-    doReferent = bimap doReference doReference
+    doReferent = bimap doReference doCtorReference
     doReference = bimap ft fh
+    doCtorReference = fmap fh
     doDefnOp = \case
       RemoveDef -> RemoveDef
       AddDefWithMetadata rs -> AddDefWithMetadata (Set.map doReference rs)

@@ -301,8 +301,8 @@ declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =
   TL.TypeLookup
     mempty
-    (wrangle (dataDeclarations uf))
-    (wrangle (effectDeclarations uf))
+    (wrangle (dataDeclarationsId uf))
+    (wrangle (effectDeclarationsId uf))
   where
     wrangle = Map.fromList . Map.elems
 

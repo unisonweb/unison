@@ -145,7 +145,7 @@ import Unison.Codebase.Type
     SyncToDir,
   )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
@@ -324,15 +324,12 @@ addDefsToCodebase c uf = do
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
-getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
-getTypeOfConstructor codebase (ConstructorReference r0 cid) =
-  case r0 of
-    Reference.DerivedId r -> do
-      maybeDecl <- getTypeDeclaration codebase r
-      pure $ case maybeDecl of
-        Nothing -> Nothing
-        Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
+getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReferenceId -> Sqlite.Transaction (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference r cid) = do
+  maybeDecl <- getTypeDeclaration codebase r
+  pure $ case maybeDecl of
+    Nothing -> Nothing
+    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -373,19 +370,21 @@ typeLookupForDependencies codebase s = do
         Nothing ->
           getTypeDeclaration codebase id >>= \case
             Just (Left ed) ->
-              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
+              let z = tl <> TypeLookup mempty mempty (Map.singleton id ed)
                in depthFirstAccum z (DD.typeDependencies $ DD.toDataDecl ed)
             Just (Right dd) ->
-              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
+              let z = tl <> TypeLookup mempty (Map.singleton id dd) mempty
                in depthFirstAccum z (DD.typeDependencies dd)
             Nothing -> pure tl
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
-    unseen tl r =
+    unseen tl r@Reference.Builtin {} =
+      isNothing (Map.lookup r (TL.typeOfTerms tl) $> ())
+    unseen tl r@(Reference.DerivedId id) =
       isNothing
-        ( Map.lookup r (TL.dataDecls tl) $> ()
+        ( Map.lookup id (TL.dataDecls tl) $> ()
             <|> Map.lookup r (TL.typeOfTerms tl) $> ()
-            <|> Map.lookup r (TL.effectDecls tl) $> ()
+            <|> Map.lookup id (TL.effectDecls tl) $> ()
         )
 
 toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann

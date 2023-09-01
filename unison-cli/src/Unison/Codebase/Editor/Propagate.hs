@@ -42,7 +42,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Reference (Reference (..), TermReference, TypeReference)
+import Unison.Reference (Reference (..), TermReference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -111,8 +111,8 @@ propagateAndApply patch branch = do
 -- had the same role in the two versions of the cycle.
 propagateCtorMapping ::
   (Var v, Show a) =>
-  Map v (Reference, Decl v a) ->
-  Map v (Reference, Decl.DataDeclaration v a) ->
+  Map v (Reference.Id, Decl v a) ->
+  Map v (Reference.Id, Decl.DataDeclaration v a) ->
   Map Referent Referent
 propagateCtorMapping oldComponent newComponent =
   let singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
@@ -150,7 +150,7 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
   let mappings :: (Reference, Reference) -> Sqlite.Transaction (Map Referent Referent)
       mappings (old, new) = do
         old <- unhashTypeComponent old
-        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
+        new <- fmap (over _2 Decl.asDataDecl) <$> unhashTypeComponent new
         pure $ ctorMapping old new
   Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
   where
@@ -169,15 +169,16 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
         (Names.namesForReferent rootNames oldR)
         (Names.namesForReferent rootNames newR)
 
+    typeNamesMatch :: Map TypeReference TypeReference -> TypeReferenceId -> TypeReferenceId -> Bool
     typeNamesMatch typeMapping oldType newType =
-      Map.lookup oldType typeMapping == Just newType
+      Map.lookup (DerivedId oldType) typeMapping == Just (DerivedId newType)
         || unqualifiedNamesMatch
-          (Names.namesForReference rootNames oldType)
-          (Names.namesForReference rootNames oldType)
+          (Names.namesForTypeReferenceId rootNames oldType)
+          (Names.namesForTypeReferenceId rootNames oldType)
 
     ctorMapping ::
-      Map v (Reference, Decl v a) ->
-      Map v (Reference, Decl.DataDeclaration v a) ->
+      Map v (Reference.Id, Decl v a) ->
+      Map v (Reference.Id, Decl.DataDeclaration v a) ->
       Map Referent Referent
     ctorMapping oldComponent newComponent =
       let singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
@@ -248,7 +249,7 @@ propagate patch b = case validatePatch patch of
           -- could just become show r if we don't care
           let rns =
                 Names.namesForReferent rootNames (Referent.Ref r)
-                  <> Names.namesForReference rootNames r
+                  <> Names.namesForTypeReference rootNames r
            in case toList rns of
                 [] -> show r
                 n : _ -> show n
@@ -337,10 +338,7 @@ propagate patch b = case validatePatch patch of
                         <$> componentMap
                     declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
                     -- TODO: kind-check the new components
-                    hashedDecls =
-                      (fmap . fmap) (over _2 DerivedId)
-                        . Hashing.hashDataDecls
-                        $ view _2 <$> declMap
+                    hashedDecls = Hashing.hashDataDecls $ view _2 <$> declMap
                 hashedComponents' <- case hashedDecls of
                   Left _ ->
                     error $
@@ -349,28 +347,28 @@ propagate patch b = case validatePatch patch of
                         <> " could not be resolved."
                   Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
                 let -- Relation: (nameOfType, oldRef, newRef, newType)
-                    joinedStuff :: [(Symbol, (Reference, Reference, Decl.DataDeclaration Symbol Ann))]
+                    joinedStuff :: [(Symbol, (Reference.Id, Reference.Id, Decl.DataDeclaration Symbol Ann))]
                     joinedStuff =
                       Map.toList (Map.intersectionWith f declMap hashedComponents')
                     f (oldRef, _) (newRef, newType) = (oldRef, newRef, newType)
                     typeEdits' = typeEdits <> (Map.fromList . fmap toEdit) joinedStuff
-                    toEdit (_, (r, r', _)) = (r, TypeEdit.Replace r')
+                    toEdit (_, (r, r', _)) = (DerivedId r, TypeEdit.Replace (DerivedId r'))
                     typeReplacements' =
                       typeReplacements
                         <> (Map.fromList . fmap toReplacement) joinedStuff
-                    toReplacement (_, (r, r', _)) = (r, r')
+                    toReplacement (_, (r, r', _)) = (DerivedId r, DerivedId r')
                     -- New types this iteration
                     newNewTypes = (Map.fromList . fmap toNewType) joinedStuff
                     -- Accumulated new types
                     newTypes' = newTypes <> newNewTypes
                     toNewType (v, (_, r', tp)) =
-                      ( r',
+                      ( DerivedId r',
                         case Map.lookup v componentMap of
                           Just (_, Left _) -> Left (Decl.EffectDeclaration tp)
                           Just (_, Right _) -> Right tp
                           _ -> error "It's not gone well!"
                       )
-                    seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
+                    seen' = seen <> Set.fromList (DerivedId . view _1 . view _2 <$> joinedStuff)
                     writeTypes = traverse_ $ \case
                       (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
                       _ -> error "propagate: Expected DerivedId"
@@ -561,16 +559,18 @@ propagate patch b = case validatePatch patch of
             & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
             & pure
 
--- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
-unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))
+unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
 unhashTypeComponent r = case Reference.toId r of
   Nothing -> pure mempty
-  Just id -> do
-    unhashed <- unhashTypeComponent' (Reference.idToHash id)
-    pure $ over _1 Reference.DerivedId <$> unhashed
+  Just id -> unhashTypeComponent' id
 
-unhashTypeComponent' :: Hash -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
-unhashTypeComponent' h =
+unhashTypeComponent' :: Reference.Id -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent' id = do
+  unhashed <- unhashTypeComponent'' (Reference.idToHash id)
+  pure unhashed
+
+unhashTypeComponent'' :: Hash -> Sqlite.Transaction (Map Symbol (Reference.Id, Decl Symbol Ann))
+unhashTypeComponent'' h =
   Codebase.getDeclComponent h <&> foldMap \decls ->
     unhash $ Map.fromList (Reference.componentFor h decls)
   where
@@ -618,7 +618,7 @@ applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constr
     isPropagated r = Set.notMember r allPatchTargets
     allPatchTargets = Patch.allReferenceTargets patch
     propagatedMd :: forall r. r -> (r, Metadata.Type, Metadata.Value)
-    propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
+    propagatedMd r = (r, Reference.DerivedId IOSource.isPropagatedReference, IOSource.isPropagatedValue)
 
     updateLevel ::
       Map Referent Referent ->

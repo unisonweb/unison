@@ -303,11 +303,17 @@ c2sReference = bitraverse Q.saveText Q.expectObjectIdForPrimaryHash
 c2sTextReference :: C.Reference -> S.TextReference
 c2sTextReference = bimap id H.toBase32Hex
 
+c2sTextReferenceId :: C.Reference.Id -> S.TextReferenceId
+c2sTextReferenceId = fmap H.toBase32Hex
+
 s2cReference :: S.Reference -> Transaction C.Reference
 s2cReference = bitraverse Q.expectText Q.expectPrimaryHashByObjectId
 
 s2cTextReference :: S.TextReference -> C.Reference
 s2cTextReference = bimap id H.fromBase32Hex
+
+s2cTextReferenceId :: S.TextReferenceId -> C.Reference.Id
+s2cTextReferenceId = fmap H.fromBase32Hex
 
 c2sReferenceId :: C.Reference.Id -> Transaction S.Reference.Id
 c2sReferenceId = C.Reference.idH Q.expectObjectIdForPrimaryHash
@@ -325,10 +331,10 @@ c2hReference :: C.Reference -> MaybeT Transaction S.ReferenceH
 c2hReference = bitraverse (MaybeT . Q.loadTextId) (MaybeT . Q.loadHashIdByHash)
 
 s2cReferent :: S.Referent -> Transaction C.Referent
-s2cReferent = bitraverse s2cReference s2cReference
+s2cReferent = bitraverse s2cReference s2cReferenceId
 
 s2cTextReferent :: S.TextReferent -> C.Referent
-s2cTextReferent = bimap s2cTextReference s2cTextReference
+s2cTextReferent = bimap s2cTextReference s2cTextReferenceId
 
 s2cConstructorType :: S.ConstructorType -> C.ConstructorType
 s2cConstructorType = \case
@@ -344,21 +350,21 @@ s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
 
 c2sReferent :: C.Referent -> Transaction S.Referent
-c2sReferent = bitraverse c2sReference c2sReference
+c2sReferent = bitraverse c2sReference c2sReferenceId
 
 c2sTextReferent :: C.Referent -> S.TextReferent
-c2sTextReferent = bimap c2sTextReference c2sTextReference
+c2sTextReferent = bimap c2sTextReference c2sTextReferenceId
 
 c2sReferentId :: C.Referent.Id -> Transaction S.Referent.Id
 c2sReferentId = bitraverse Q.expectObjectIdForPrimaryHash Q.expectObjectIdForPrimaryHash
 
 h2cReferent :: S.ReferentH -> Transaction C.Referent
-h2cReferent = bitraverse h2cReference h2cReference
+h2cReferent = bitraverse h2cReference h2cReferenceId
 
 -- ** convert and save references
 
 saveReferentH :: C.Referent -> Transaction S.ReferentH
-saveReferentH = bitraverse Q.saveReferenceH Q.saveReferenceH
+saveReferentH = bitraverse Q.saveReferenceH Q.saveReferenceIdH
 
 -- ** Edits transformations
 

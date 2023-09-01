@@ -48,7 +48,7 @@ import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
@@ -70,6 +70,7 @@ data DeclOrBuiltin v a
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
 
+-- | return the types referenced by the constructors of a decl
 declTypeDependencies :: (Ord v) => Decl v a -> Set Reference
 declTypeDependencies = either (typeDependencies . toDataDecl) typeDependencies
 
@@ -78,18 +79,15 @@ labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
 
 -- | Compute the dependencies of a data declaration,
 -- including the type itself and references for each of its constructors.
-labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
-labeledDeclDependenciesIncludingSelf selfRef decl =
-  labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
+labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReferenceId -> Decl v a -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelf selfRefId decl =
+  labeledDeclTypeDependencies decl <> (Set.singleton $ LD.DerivedType selfRefId) <> labeledConstructorRefs
   where
     labeledConstructorRefs :: Set LD.LabeledDependency
     labeledConstructorRefs =
-      case selfRef of
-        Reference.Builtin {} -> mempty
-        Reference.DerivedId selfRefId ->
-          declConstructorReferents selfRefId decl
-            & fmap (LD.TermReferent . fmap Reference.DerivedId)
-            & Set.fromList
+      declConstructorReferents selfRefId decl
+        & fmap (LD.TermReferent . fmap Reference.DerivedId)
+        & Set.fromList
 
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case
@@ -133,7 +131,7 @@ generateRecordAccessors ::
   (Semigroup a, Var v) =>
   [(v, a)] ->
   v ->
-  Reference ->
+  TypeReferenceId ->
   [(v, a, Term v a)]
 generateRecordAccessors fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]

@@ -13,7 +13,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference (DerivedId))
 import Unison.Referent (Referent)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -73,5 +73,6 @@ labeledDependencies :: (Ord v) => SearchResult' v a -> Set LabeledDependency
 labeledDependencies = \case
   Tm' (TermResult' _ t r _) ->
     Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
-  Tp' (TypeResult' _ d r _) ->
-    maybe mempty (DD.labeledDeclDependenciesIncludingSelf r) (DT.toMaybe d)
+  Tp' (TypeResult' _ d r _) -> case (DT.toMaybe d, r) of
+    (Just decl, DerivedId r) -> DD.labeledDeclDependenciesIncludingSelf r decl
+    _ -> mempty

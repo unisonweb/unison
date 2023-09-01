@@ -89,7 +89,7 @@ verboseOutput =
 
 migrateSchema1To2 ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash CodebaseOps.TermBufferEntry) ->
   TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Sqlite.Transaction ()
@@ -186,7 +186,7 @@ data Entity
 
 migrationSync ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash CodebaseOps.TermBufferEntry) ->
   TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Sync (StateT MigrationState Sqlite.Transaction) Entity
@@ -414,7 +414,7 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
 -- something that hasn't been migrated yet. If we do it last, we know that missing references are indeed just missing from the codebase.
 migrateWatch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   WatchKind ->
   Reference.Id ->
   StateT MigrationState Sqlite.Transaction (Sync.TrySyncResult Entity)
@@ -461,11 +461,10 @@ someReferent_ typeOrTermTraversal_ =
                   . asConstructorReference_
               )
   where
-    asPair_ f (UReference.ReferenceDerived id', conId) =
+    asPair_ f (id', conId) =
       f (ConstructorReference.ConstructorReference id' (fromIntegral conId))
         <&> \(ConstructorReference.ConstructorReference newId newConId) ->
-          (UReference.ReferenceDerived newId, fromIntegral newConId)
-    asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
+          (newId, fromIntegral newConId)
 
 someReference_ ::
   (forall ref. Traversal' ref (SomeReference ref)) ->
@@ -520,7 +519,7 @@ typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 
 migrateTermComponent ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash CodebaseOps.TermBufferEntry) ->
   TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
   Unison.Hash ->
@@ -730,18 +729,8 @@ termFReferences_ f t =
     >>= Term._TypeLink . Reference._DerivedId . asTypeReference_ %%~ f
 
 -- | Build a SomeConstructorReference
-someRefCon_ :: Traversal' ConstructorReference.ConstructorReference SomeReferenceId
-someRefCon_ = refConPair_ . asConstructorReference_
-  where
-    refConPair_ :: Traversal' ConstructorReference.ConstructorReference ConstructorReference.ConstructorReferenceId
-    refConPair_ f s =
-      case s of
-        ConstructorReference.ConstructorReference (Reference.Builtin _) _ -> pure s
-        ConstructorReference.ConstructorReference (Reference.DerivedId n) c ->
-          ( \(ConstructorReference.ConstructorReference n' c') ->
-              ConstructorReference.ConstructorReference (Reference.DerivedId n') c'
-          )
-            <$> f (ConstructorReference.ConstructorReference n c)
+someRefCon_ :: Traversal' ConstructorReference.ConstructorReferenceId SomeReferenceId
+someRefCon_ = asConstructorReference_
 
 patternReferences_ :: Traversal' (Pattern loc) SomeReferenceId
 patternReferences_ f = \case

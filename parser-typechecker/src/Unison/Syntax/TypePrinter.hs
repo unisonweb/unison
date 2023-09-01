@@ -128,7 +128,7 @@ prettyRaw im p tp = go im p tp
               then ifM (willCapture vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
       t@(Arrow' _ _) -> case t of
-        EffectfulArrows' (Ref' DD.UnitRef) rest ->
+        EffectfulArrows' (RefId' DD.UnitRefId) rest ->
           PP.parenthesizeIf (p >= 10) <$> arrows True True rest
         EffectfulArrows' fst rest ->
           case fst of
@@ -159,8 +159,8 @@ prettyRaw im p tp = go im p tp
       Bool ->
       [(Maybe [Type v a], Type v a)] ->
       m (Pretty SyntaxText)
-    arrows delay first [(mes, Ref' DD.UnitRef)] = (<> fmt S.Unit "()") <$> arrow delay first mes
-    arrows delay first ((mes, Ref' DD.UnitRef) : rest) = do
+    arrows delay first [(mes, RefId' DD.UnitRefId)] = (<> fmt S.Unit "()") <$> arrow delay first mes
+    arrows delay first ((mes, RefId' DD.UnitRefId) : rest) = do
       es <- arrow delay first mes
       rest' <- arrows True True rest
       pure $ es <> parenNoGroup delay rest'

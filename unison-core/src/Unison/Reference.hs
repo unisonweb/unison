@@ -47,6 +47,7 @@ import Data.Generics.Sum (_Ctor)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Safe.Partial (Partial)
 import Unison.Hash qualified as H
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
@@ -92,7 +93,7 @@ type TypeReference = Reference
 
 type TypeReferenceId = Id
 
-unsafeId :: Reference -> Id
+unsafeId :: Partial => Reference -> Id
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
 unsafeId (DerivedId x) = x

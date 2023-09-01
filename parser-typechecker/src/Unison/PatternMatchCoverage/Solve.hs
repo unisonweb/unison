@@ -21,8 +21,8 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import Unison.Builtin.Decls (unitRef)
-import Unison.ConstructorReference (ConstructorReference, reference_)
+import Unison.Builtin.Decls (unitRefId)
+import Unison.ConstructorReference (ConstructorReferenceId, reference_)
 import Unison.Debug (DebugFlag (PatternCoverageConstraintSolver), shouldDebug)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -41,6 +41,7 @@ import Unison.PatternMatchCoverage.PmLit (PmLit)
 import Unison.PatternMatchCoverage.PmLit qualified as PmLit
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
+import Unison.Reference (Reference (DerivedId))
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Pretty qualified as P
@@ -321,7 +322,7 @@ expandSolution x nc =
                                                     (_vc, vi, nc') -> case vi_con vi of
                                                       Vc'Constructor pos neg
                                                         -- always instantiate unit, this ensures we print tuple patterns correctly
-                                                        | Type.Ref' x <- vi_typ vi, x == unitRef -> go newFuel v nc'
+                                                        | Type.Ref' x <- vi_typ vi, x == DerivedId unitRefId -> go newFuel v nc'
                                                         | Just _ <- pos -> go newFuel v nc'
                                                         | not (Set.null neg) -> go (newFuel - 1) v nc'
                                                       Vc'Effect pos neg
@@ -754,9 +755,9 @@ modifyConstructorC ::
   forall vt v loc m.
   (Pmc vt v loc m) =>
   v ->
-  ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
-    Set ConstructorReference ->
-    (C vt v loc m (), ConstraintUpdate (Maybe (ConstructorReference, [(v, Type vt loc)]), Set ConstructorReference))
+  ( (Maybe (ConstructorReferenceId, [(v, Type vt loc)])) ->
+    Set ConstructorReferenceId ->
+    (C vt v loc m (), ConstraintUpdate (Maybe (ConstructorReferenceId, [(v, Type vt loc)]), Set ConstructorReferenceId))
   ) ->
   NormalizedConstraints vt v loc ->
   m (Maybe (NormalizedConstraints vt v loc))
@@ -768,9 +769,9 @@ modifyConstructorF ::
   forall vt v loc f.
   (Var v, Functor f) =>
   v ->
-  ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
-    Set ConstructorReference ->
-    f (ConstraintUpdate (Maybe (ConstructorReference, [(v, Type vt loc)]), Set ConstructorReference))
+  ( (Maybe (ConstructorReferenceId, [(v, Type vt loc)])) ->
+    Set ConstructorReferenceId ->
+    f (ConstraintUpdate (Maybe (ConstructorReferenceId, [(v, Type vt loc)]), Set ConstructorReferenceId))
   ) ->
   NormalizedConstraints vt v loc ->
   f (NormalizedConstraints vt v loc)
@@ -868,9 +869,9 @@ modifyVarConstraints v updateVarConstraint nc0 = do
 posAndNegConstructor ::
   forall f vt v loc.
   (Functor f) =>
-  ( (Maybe (ConstructorReference, [(v, Type vt loc)])) ->
-    Set ConstructorReference ->
-    f (Maybe (ConstructorReference, [(v, Type vt loc)]), Set ConstructorReference)
+  ( (Maybe (ConstructorReferenceId, [(v, Type vt loc)])) ->
+    Set ConstructorReferenceId ->
+    f (Maybe (ConstructorReferenceId, [(v, Type vt loc)]), Set ConstructorReferenceId)
   ) ->
   VarConstraints vt v loc ->
   f (VarConstraints vt v loc)

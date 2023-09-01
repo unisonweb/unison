@@ -7,7 +7,6 @@ import Data.Set qualified as Set
 import U.Codebase.Reference (Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
-import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
@@ -35,7 +34,7 @@ type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
 -- @
 type LocalPatch = Patch' LocalTextId LocalHashId LocalDefnId
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (Reference' t h) (Reference.Id' h)
 
 data Patch' t h o = Patch
   { termEdits :: Map (Referent'' t h) (Set (TermEdit' t o)),
@@ -44,7 +43,7 @@ data Patch' t h o = Patch
 
 patchH_ :: (Ord t, Ord h') => Traversal (Patch' t h o) (Patch' t h' o) h h'
 patchH_ f Patch {termEdits, typeEdits} = do
-  newTermEdits <- termEdits & Map.traverseKeys . Referent.refs_ . Reference.h_ %%~ f
+  newTermEdits <- termEdits & Map.traverseKeys . beside Reference.h_ Reference.idH %%~ f
   newTypeEdits <- typeEdits & Map.traverseKeys . Reference.h_ %%~ f
   pure Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
 
@@ -63,5 +62,5 @@ trimap ::
   Patch' t' h' o'
 trimap ft fh fo (Patch tms tps) =
   Patch
-    (Map.bimap (bimap (bimap ft fh) (bimap ft fh)) (Set.map (bimap ft fo)) tms)
+    (Map.bimap (bimap (bimap ft fh) (fmap fh)) (Set.map (bimap ft fo)) tms)
     (Map.bimap (bimap ft fh) (Set.map (bimap ft fo)) tps)

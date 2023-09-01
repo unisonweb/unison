@@ -10,6 +10,7 @@ import Unison.Name qualified as Name
 import Unison.Names (Names (Names))
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
+import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Type.Names qualified as Type.Names
@@ -18,12 +19,12 @@ import Unison.Var (Var)
 import Prelude hiding (cycle)
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames :: (Var v) => (v -> Name.Name) -> CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> Names
-toNames varToName ct typeSymbol (Reference.DerivedId -> r) dd =
+toNames :: (Var v) => (v -> Name.Name) -> CT.ConstructorType -> v -> TypeReferenceId -> DataDeclaration v a -> Names
+toNames varToName ct typeSymbol r dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
     -- name of the type itself
-    <> Names mempty (Rel.singleton (varToName typeSymbol) r)
+    <> Names mempty (Rel.singleton (varToName typeSymbol) (Reference.DerivedId r))
   where
     names (ctor, i) =
       Names (Rel.singleton (varToName ctor) (Referent.Con (ConstructorReference r i) ct)) mempty

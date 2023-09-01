@@ -27,7 +27,6 @@ import Text.Show.Unicode qualified as U
 import Unison.ABT (annotation, reannotateUp, pattern AbsN')
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
-import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
@@ -295,9 +294,9 @@ pretty0
                     `PP.hang` pb
                     <> PP.softbreak
                     <> fmt S.ControlKeyword "with"
-                    `hangHandler` ph
+                      `hangHandler` ph
                 ]
-      App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
+      App' x (Constructor' (ConstructorReference DD.UnitRefId 0)) -> do
         px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
         pure . paren (p >= 11 || isBlock x && p >= 3) $
           fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
@@ -424,7 +423,7 @@ pretty0
                     if isDocLiteral term
                       then applyPPE3 prettyDoc im term
                       else pretty0 (a {docContext = NoDoc}) term
-              (TupleTerm' [x], _) -> do
+              (DD.TupleTerm' [x], _) -> do
                 let conRef = DD.pairCtorRef
                 name <- elideFQN im <$> applyPPE2 PrettyPrintEnv.termName conRef
                 let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference conRef)) name
@@ -432,8 +431,8 @@ pretty0
                 pure . paren (p >= 10) $
                   pair
                     `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
-              (TupleTerm' xs, _) -> do
-                let tupleLink p = fmt (S.TypeReference DD.pairRef) p
+              (DD.TupleTerm' xs, _) -> do
+                let tupleLink p = fmt (S.TypeReferenceId DD.pairRefId) p
                 let comma = tupleLink ", " `PP.orElse` ("\n" <> tupleLink ", ")
                 pelems <- traverse (fmap (PP.indentNAfterNewline 2) . goNormal 0) xs
                 let clist = PP.sep comma pelems
@@ -564,7 +563,7 @@ pretty0
         body <- body e
         pure . paren (sc /= Block && p >= 12) . letIntro $ PP.lines (uses <> bs <> body)
         where
-          body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = pure []
+          body (Constructor' (ConstructorReference DD.UnitRefId 0)) | elideUnit = pure []
           body e = (: []) <$> pretty0 (ac 0 Normal im doc) e
           printBinding (v, binding) =
             if Var.isAction v
@@ -576,8 +575,8 @@ pretty0
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
-        Constructor' (ConstructorReference DD.UnitRef 0) -> False
-        Constructor' (ConstructorReference DD.DocRef _) -> False
+        Constructor' (ConstructorReference DD.UnitRefId 0) -> False
+        Constructor' (ConstructorReference DD.DocRefId _) -> False
         _ -> True
 
       nonUnitArgPred :: (Var v) => v -> Bool
@@ -665,7 +664,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
   Pattern.Nat _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
   Pattern.Float _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   Pattern.Text _ t -> (fmt S.TextLiteral $ l $ show t, vs)
-  TuplePattern pats
+  DD.TuplePattern pats
     | length pats /= 1 ->
         let (pats_printed, tail_vs) = patterns (-1) vs pats
          in (PP.parenthesizeCommas pats_printed, tail_vs)
@@ -1265,7 +1264,8 @@ suffixCounterTerm n usedTm usedTy = \case
 suffixCounterType :: (Var v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
 suffixCounterType n used = \case
   Type.Var' v -> countHQ used $ HQ.unsafeFromVar v
-  Type.Ref' r | noImportRefs r || r == Type.listRef -> mempty
+  Type.RefId' r | noImportRefs r -> mempty
+  Type.Ref' r | r == Type.listRef -> mempty
   Type.Ref' r -> countHQ used $ PrettyPrintEnv.typeName n r
   _ -> mempty
 
@@ -1340,13 +1340,13 @@ dotConcat = Text.concat . intersperse "."
 --
 -- Don't do `use builtin.Doc Blob`, `use builtin.Link Term`, or similar.  That avoids
 -- unnecessary use statements above Doc literals and termLink/typeLink.
-noImportRefs :: Reference -> Bool
+noImportRefs :: Reference.Id -> Bool
 noImportRefs r =
   r
-    `elem` [ DD.pairRef,
-             DD.unitRef,
-             DD.docRef,
-             DD.linkRef
+    `elem` [ DD.pairRefId,
+             DD.unitRefId,
+             DD.docRefId,
+             DD.linkRefId
            ]
 
 infixl 0 |>
@@ -1696,7 +1696,7 @@ unLamsMatch' t = case unLamsUntilDelay' t of
   -- x y z -> match (x,y,z) with (pat1, pat2, pat3) -> ...
   --   becomes
   -- cases pat1 pat2 pat3 -> ...`
-  Just (reverse -> vs@(_ : _), Match' (TupleTerm' scrutes) branches)
+  Just (reverse -> vs@(_ : _), Match' (DD.TupleTerm' scrutes) branches)
     | multiway vs (reverse scrutes)
         &&
         -- (as above) if any of the vars are referenced in any of the branches,
@@ -1707,12 +1707,12 @@ unLamsMatch' t = case unLamsUntilDelay' t of
         && len /= 0 -> -- all patterns need to match arity of scrutes
         Just (reverse (drop len vs), branches')
     where
-      isRightArity (MatchCase (TuplePattern ps) _ _) = length ps == len
+      isRightArity (MatchCase (DD.TuplePattern ps) _ _) = length ps == len
       isRightArity MatchCase {} = False
       len = length scrutes
       fvs = Set.unions $ freeVars <$> branches
       notFree v = Set.notMember v fvs
-      branches' = [(ps, guard, body) | MatchCase (TuplePattern ps) guard body <- branches]
+      branches' = [(ps, guard, body) | MatchCase (DD.TuplePattern ps) guard body <- branches]
   _ -> Nothing
   where
     -- multiway vs tms checks that length tms <= length vs, and their common prefix

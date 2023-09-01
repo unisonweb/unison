@@ -1198,11 +1198,11 @@ loop e = do
               Cli.runTransaction do
                 Codebase.addDefsToCodebase codebase uf
                 -- these have not necessarily been added yet
-                Codebase.addDefsToCodebase codebase IOSource.typecheckedFile'
+                Codebase.addDefsToCodebase codebase IOSource.typecheckedFile
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
+              let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
               _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
@@ -1840,7 +1840,7 @@ handleDependencies hq = do
               Codebase.getTerm codebase i <&> \case
                 Nothing -> error $ "What happened to " ++ show i ++ "?"
                 Just tm -> Set.delete (LabeledDependency.TermReferent r) (Term.labeledDependencies tm)
-            tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
+            tm con@(Referent.Con (ConstructorReference i cid) _ct) =
               Codebase.getTypeDeclaration codebase i <&> \case
                 Nothing -> error $ "What happened to " ++ show i ++ "?"
                 Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
@@ -1877,7 +1877,7 @@ handleDependents hq = do
           tm = \case
             Referent.Ref r -> Codebase.dependents Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
-              Codebase.dependents Queries.ExcludeOwnComponent r
+              Codebase.dependents Queries.ExcludeOwnComponent (DerivedId r)
        in Cli.runTransaction (LD.fold tp tm ld)
     let -- True is term names, False is type names
         results :: [(Bool, HQ.HashQualified Name, Reference)]
@@ -1976,13 +1976,13 @@ handleIOTest main = do
         [ (r, msg)
           | (r, Term.List' ts) <- results,
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
+            cid == DD.okConstructorId && ref == DD.testResultRefId
         ]
       fails results =
         [ (r, msg)
           | (r, Term.List' ts) <- results,
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
+            cid == DD.failConstructorId && ref == DD.testResultRefId
         ]
 
   matches <-
@@ -2070,7 +2070,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       pure \ref ->
         branch
           & Branch.deepTermMetadata
-          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) IOSource.isTestReference
+          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) (DerivedId IOSource.isTestReference)
     Cli.respond $
       DisplayDefinitions
         DisplayDefinitionsOutput
@@ -2115,7 +2115,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
     branch <- Cli.getCurrentBranch0
     branch
       & Branch.deepTermMetadata
-      & R4.restrict34d12 IOSource.isTest
+      & R4.restrict34d12 (first DerivedId IOSource.isTest)
       & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
       & R.dom
       & pure
@@ -2124,13 +2124,13 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         [ (r, msg)
           | (r, Term.List' ts) <- Map.toList results,
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
+            cid == DD.okConstructorId && ref == DD.testResultRefId
         ]
       fails results =
         [ (r, msg)
           | (r, Term.List' ts) <- Map.toList results,
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
+            cid == DD.failConstructorId && ref == DD.testResultRefId
         ]
   cachedTests <- do
     fmap Map.fromList do
@@ -2223,14 +2223,12 @@ doDisplay outputLoc names tm = do
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
           evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
-      loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
+      loadTerm r = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
-      loadTerm _ = pure Nothing
-      loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
+      loadDecl r = case Map.lookup r typs of
         Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
         Just decl -> pure (Just $ DD.amap (const ()) decl)
-      loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
@@ -2390,7 +2388,7 @@ searchResultsFor ns terms types =
   ]
     <> [ SR.typeSearchResult ns name ref
          | ref <- types,
-           name <- toList (Names.namesForReference ns ref)
+           name <- toList (Names.namesForTypeReference ns ref)
        ]
 
 searchBranchScored ::
@@ -2843,7 +2841,7 @@ docsI srcLoc prettyPrintNames src =
 
     codebaseByMetadata :: Cli ()
     codebaseByMetadata = do
-      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, IOSource.doc2Ref])
+      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, DerivedId IOSource.doc2Ref])
       case out of
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
@@ -3077,14 +3075,11 @@ executePPE unisonFile =
 
 loadTypeOfTerm :: Codebase m Symbol Ann -> Referent -> Sqlite.Transaction (Maybe (Type Symbol Ann))
 loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
-loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
+loadTypeOfTerm codebase (Referent.Con (ConstructorReference r cid) _) = do
   decl <- Codebase.getTypeDeclaration codebase r
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
     Nothing -> pure Nothing
-loadTypeOfTerm _ Referent.Con {} =
-  error $
-    reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
 hqNameQuery :: [HQ.HashQualified Name] -> Cli QueryResult
 hqNameQuery query = do

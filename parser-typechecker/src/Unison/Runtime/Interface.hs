@@ -182,7 +182,7 @@ categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize =
   \case
     RF.TypeReference ref -> (Set.singleton ref, mempty)
-    RF.ConReference (RF.ConstructorReference ref _conId) _conType -> (Set.singleton ref, mempty)
+    RF.ConReference (RF.ConstructorReference ref _conId) _conType -> (Set.singleton (RF.DerivedId ref), mempty)
     RF.TermReference ref -> (mempty, Set.singleton ref)
 
 recursiveTermDeps ::
@@ -193,7 +193,7 @@ recursiveTermDeps ::
   IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
   rec <- for (toList (deps \\ seen0)) $ \case
-    RF.ConReference (RF.ConstructorReference (RF.DerivedId refId) _conId) _conType -> handleTypeReferenceId refId
+    RF.ConReference (RF.ConstructorReference refId _conId) _conType -> handleTypeReferenceId refId
     RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
     RF.TermReference r -> recursiveRefDeps seen cl r
     _ -> pure mempty

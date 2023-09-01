@@ -19,7 +19,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
 import Unison.NameSegment (NameSegment)
-import Unison.Reference (Reference, pattern Derived)
+import Unison.Reference (Id (Id), Reference, pattern Derived)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.Relation qualified as R
@@ -81,7 +81,7 @@ fromBranch0 b =
               ++ [h | (Derived h _) <- mdValues s]
         decls =
           Set.fromList $
-            [h | Referent.Con (ConstructorReference (Derived h _i) _) _ <- references s]
+            [h | Referent.Con (ConstructorReference (Id h _i) _) _ <- references s]
     fromTypesStar :: Branch.Star Reference NameSegment -> Dependencies
     fromTypesStar s = Dependencies mempty terms decls
       where

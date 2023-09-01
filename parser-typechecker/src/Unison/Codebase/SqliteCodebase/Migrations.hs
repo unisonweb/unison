@@ -43,7 +43,7 @@ import UnliftIO qualified
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   CodebasePath ->
@@ -120,7 +120,7 @@ ensureCodebaseIsUpToDate ::
   LocalOrRemote ->
   CodebasePath ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   Bool ->

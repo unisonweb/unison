@@ -48,7 +48,7 @@ lookupTerm hq parseNames = toList (lookupHQTerm hq hnames)
 lookupCon ::
   HQ.HashQualified Name ->
   Names ->
-  ([ConstructorReference], [Referent])
+  ([ConstructorReferenceId], [Referent])
 lookupCon hq parseNames =
   unzip . catMaybes . fmap extract $ lookupTerm hq parseNames
   where
@@ -93,7 +93,7 @@ resolveTerm name = do
         where
           ppe = fromSuffixNames hashLength (NamesWithHistory nms mempty)
 
-resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
+resolveCon :: HQ.HashQualified Name -> Cli ConstructorReferenceId
 resolveCon name = do
   hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->

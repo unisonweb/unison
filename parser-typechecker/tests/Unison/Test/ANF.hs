@@ -13,7 +13,7 @@ import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Pattern qualified as P
-import Unison.Reference (Reference (Builtin))
+import Unison.Reference (Reference (Builtin, DerivedId))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
 import Unison.Term qualified as Term
@@ -94,10 +94,12 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
     df = case f of
       FVar v -> Term.var () v
       FComb _ -> error "FComb"
-      FCon r n ->
+      FCon (DerivedId r) n ->
         Term.constructor () (ConstructorReference r (fromIntegral $ rawTag n))
-      FReq r n ->
+      FCon {} -> error "FCon"
+      FReq (DerivedId r) n ->
         Term.request () (ConstructorReference r (fromIntegral $ rawTag n))
+      FReq {} -> error "FReq"
       FPrim _ -> error "FPrim"
       FCont _ -> error "denormalize FCont"
 denormalize (TFrc _) = error "denormalize TFrc"
@@ -128,8 +130,10 @@ denormalizeMatch b
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
     i == j =
       (dcase (ipat @Word64 @Integer r) <$> mapToList m) ++ dfcase df
-  | MatchData r m df <- b =
+  | MatchData (DerivedId r) m df <- b =
       (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
+  | MatchData (Builtin {}) _m _df <- b =
+      error "MatchData with builltin Ref"
   | MatchRequest hs df <- b = denormalizeHandler hs df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
@@ -172,7 +176,7 @@ denormalizeHandler cs df = dcs
       ]
       where
         (_, db) = denormalizeBranch @Int df
-    rf r rcs = foldMapWithKey (cf r) rcs
+    rf (DerivedId r) rcs = foldMapWithKey (cf r) rcs
     cf r t b =
       [ Term.MatchCase
           ( P.EffectBind

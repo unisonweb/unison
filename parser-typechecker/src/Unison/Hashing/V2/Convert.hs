@@ -79,7 +79,7 @@ hashTermComponents mTerms =
         & Writer.runWriter
     h2mTermResult ::
       (Ord v) =>
-      ( Memory.Reference.Reference ->
+      ( Memory.Reference.Id ->
         Memory.ConstructorType.ConstructorType
       ) ->
       (Hashing.ReferenceId, Hashing.Term v a, Hashing.Type v a, extra) ->
@@ -98,13 +98,13 @@ hashTermComponentsWithoutTypes mTerms =
   case Writer.runWriter (traverse m2hTerm mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponentsWithoutTypes hTerms
   where
-    h2mTermResult :: (Ord v) => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.ReferenceId, Hashing.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
+    h2mTermResult :: (Ord v) => (Memory.Reference.Id -> Memory.ConstructorType.ConstructorType) -> (Hashing.ReferenceId, Hashing.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
     h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
 
 hashClosedTerm :: (Var v) => Memory.Term.Term v a -> Memory.Reference.Id
 hashClosedTerm = h2mReferenceId . Hashing.hashClosedTerm . fst . Writer.runWriter . m2hTerm
 
-m2hTerm :: (Ord v) => Memory.Term.Term v a -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) (Hashing.Term v a)
+m2hTerm :: (Ord v) => Memory.Term.Term v a -> Writer (Map Memory.Reference.Id Memory.ConstructorType.ConstructorType) (Hashing.Term v a)
 m2hTerm = ABT.transformM \case
   Memory.Term.Int i -> pure (Hashing.TermInt i)
   Memory.Term.Nat n -> pure (Hashing.TermNat n)
@@ -114,8 +114,8 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Char c -> pure (Hashing.TermChar c)
   Memory.Term.Blank b -> pure (Hashing.TermBlank b)
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
-  Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
-  Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
+  Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReferenceId r) i)
+  Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReferenceId r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
   Memory.Term.Ann e t -> pure (Hashing.TermAnn e (m2hType t))
@@ -144,11 +144,11 @@ m2hPattern = \case
   Memory.Pattern.Text loc t -> Hashing.PatternText loc t
   Memory.Pattern.Char loc c -> Hashing.PatternChar loc c
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
-    Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
+    Hashing.PatternConstructor loc (m2hReferenceId r) i (fmap m2hPattern ps)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.PatternEffectPure loc (m2hPattern p)
   Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k ->
-    Hashing.PatternEffectBind loc (m2hReference r) i (fmap m2hPattern ps) (m2hPattern k)
+    Hashing.PatternEffectBind loc (m2hReferenceId r) i (fmap m2hPattern ps) (m2hPattern k)
   Memory.Pattern.SequenceLiteral loc ps -> Hashing.PatternSequenceLiteral loc (fmap m2hPattern ps)
   Memory.Pattern.SequenceOp loc l op r -> Hashing.PatternSequenceOp loc (m2hPattern l) (m2hSequenceOp op) (m2hPattern r)
 
@@ -158,14 +158,14 @@ m2hSequenceOp = \case
   Memory.Pattern.Snoc -> Hashing.Snoc
   Memory.Pattern.Concat -> Hashing.Concat
 
-m2hReferent :: Memory.Referent.Referent -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) Hashing.Referent
+m2hReferent :: Memory.Referent.Referent -> Writer (Map Memory.Reference.Id Memory.ConstructorType.ConstructorType) Hashing.Referent
 m2hReferent = \case
   Memory.Referent.Ref ref -> pure (Hashing.ReferentRef (m2hReference ref))
   Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference ref n) ct -> do
     Writer.tell (Map.singleton ref ct)
-    pure (Hashing.ReferentCon (m2hReference ref) n)
+    pure (Hashing.ReferentCon (m2hReferenceId ref) n)
 
-h2mTerm :: (Ord v) => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Term v a -> Memory.Term.Term v a
+h2mTerm :: (Ord v) => (Memory.Reference.Id -> Memory.ConstructorType.ConstructorType) -> Hashing.Term v a -> Memory.Term.Term v a
 h2mTerm getCT = ABT.transform \case
   Hashing.TermInt i -> Memory.Term.Int i
   Hashing.TermNat n -> Memory.Term.Nat n
@@ -175,8 +175,8 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermChar c -> Memory.Term.Char c
   Hashing.TermBlank b -> Memory.Term.Blank b
   Hashing.TermRef r -> Memory.Term.Ref (h2mReference r)
-  Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
-  Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
+  Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReferenceId r) i)
+  Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReferenceId r) i)
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)
@@ -205,11 +205,11 @@ h2mPattern = \case
   Hashing.PatternText loc t -> Memory.Pattern.Text loc t
   Hashing.PatternChar loc c -> Memory.Pattern.Char loc c
   Hashing.PatternConstructor loc r i ps ->
-    Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
+    Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReferenceId r) i) (h2mPattern <$> ps)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.PatternEffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
   Hashing.PatternEffectBind loc r i ps k ->
-    Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps) (h2mPattern k)
+    Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference (h2mReferenceId r) i) (h2mPattern <$> ps) (h2mPattern k)
   Hashing.PatternSequenceLiteral loc ps -> Memory.Pattern.SequenceLiteral loc (h2mPattern <$> ps)
   Hashing.PatternSequenceOp loc l op r -> Memory.Pattern.SequenceOp loc (h2mPattern l) (h2mSequenceOp op) (h2mPattern r)
 
@@ -219,11 +219,11 @@ h2mSequenceOp = \case
   Hashing.Snoc -> Memory.Pattern.Snoc
   Hashing.Concat -> Memory.Pattern.Concat
 
-h2mReferent :: (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Referent -> Memory.Referent.Referent
+h2mReferent :: (Memory.Reference.Id -> Memory.ConstructorType.ConstructorType) -> Hashing.Referent -> Memory.Referent.Referent
 h2mReferent getCT = \case
   Hashing.ReferentRef ref -> Memory.Referent.Ref (h2mReference ref)
   Hashing.ReferentCon ref n ->
-    let mRef = h2mReference ref
+    let mRef = h2mReferenceId ref
      in Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference mRef n) (getCT mRef)
 
 hashDataDecls ::

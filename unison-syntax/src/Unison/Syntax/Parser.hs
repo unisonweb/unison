@@ -71,7 +71,7 @@ import Text.Megaparsec (runParserT)
 import Text.Megaparsec qualified as P
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Hashable qualified as Hashable
@@ -149,8 +149,8 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
-  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReferenceId)
+  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReferenceId)
   | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)

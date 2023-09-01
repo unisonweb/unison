@@ -14,7 +14,7 @@ module Unison.Codebase.Type
 where
 
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Reference qualified as V2
+import U.Codebase.Reference qualified as V2.Reference
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
@@ -60,7 +60,7 @@ data Codebase m v a = Codebase
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
-    getDeclType :: V2.Reference -> Sqlite.Transaction CT.ConstructorType,
+    getDeclType :: V2.Reference.Id -> Sqlite.Transaction CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.

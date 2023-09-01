@@ -55,8 +55,11 @@ isBuiltin _ = False
 
 toShortHash :: Reference -> ShortHash
 toShortHash (ReferenceBuiltin b) = SH.Builtin b
-toShortHash (ReferenceDerived (Id h 0)) = SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
-toShortHash (ReferenceDerived (Id h i)) = SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
+toShortHash (ReferenceDerived id) = idToShortHash id
+
+idToShortHash :: Id -> ShortHash
+idToShortHash (Id h 0) = SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
+idToShortHash (Id h i) = SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
 
 instance Bifunctor Reference' where
   bimap f _ (ReferenceBuiltin t) = ReferenceBuiltin (f t)

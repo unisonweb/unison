@@ -19,6 +19,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent
@@ -173,7 +174,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
             pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeFromVar typeName)
           existingConstructorsFromEditedTypes = Set.fromList $ do
             -- List Monad
-            ref <- Set.toList oldRefsForEditedTypes
+            Reference.DerivedId ref <- Set.toList oldRefsForEditedTypes
             (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
             pure name
        in -- Compute any constructors which were deleted
@@ -305,14 +306,14 @@ buildVarReferences uf =
     constructors =
       let effectConstructors :: Map TaggedVar LD.LabeledDependency
           effectConstructors = Map.fromList $ do
-            (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarations' uf)
+            (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarationsId' uf)
             let decl = DD.toDataDecl effect
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
             pure $ (ConstructorVar constructorV, LD.effectConstructor (CR.ConstructorReference typeRefId conId))
 
           dataConstructors :: Map TaggedVar LD.LabeledDependency
           dataConstructors = Map.fromList $ do
-            (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarations' uf)
+            (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarationsId' uf)
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
             pure $ (ConstructorVar constructorV, LD.dataConstructor (CR.ConstructorReference typeRefId conId))
        in effectConstructors <> dataConstructors

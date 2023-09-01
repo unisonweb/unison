@@ -16,9 +16,9 @@ import Data.Set.NonEmpty qualified as NES
 import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
-import Unison.Builtin.Decls (unitRef, pattern TupleType')
+import Unison.Builtin.Decls (unitRefId, pattern TupleType')
 import Unison.Codebase.Path qualified as Path
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
@@ -414,7 +414,7 @@ renderTypeError e env src curPath = case e of
           <> " to ignore a result."
       unitHint = if giveUnitHint then unitHintMsg else ""
       giveUnitHint = case expectedType of
-        Type.Ref' u | u == unitRef -> case mismatchSite of
+        Type.RefId' u | u == unitRefId -> case mismatchSite of
           Term.Let1Named' v _ _ -> Var.isAction v
           _ -> False
         _ -> False
@@ -969,7 +969,7 @@ renderTypeError e env src curPath = case e of
               C.Effect -> "  ability used as data type",
             "\n",
             "  reference=",
-            showTypeRef env rf
+            showTypeRefId env rf
           ]
 
 renderCompilerBug ::
@@ -986,7 +986,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Effect -> "  ability",
       "\n",
       "  reference = ",
-      showTypeRef env rf
+      showTypeRefId env rf
     ]
   C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
     [ "UnknownConstructor:\n",
@@ -994,7 +994,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
         C.Data -> "  data type\n"
         C.Effect -> "  ability\n",
       "  reference = ",
-      showTypeRef env rf,
+      showTypeRefId env rf,
       "\n",
       "  constructor index = ",
       fromString (show i)
@@ -1160,11 +1160,14 @@ renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 showTermRef :: (IsString s) => Env -> Referent -> s
 showTermRef env r = fromString . HQ.toString $ PPE.termName env r
 
-showTypeRef :: (IsString s) => Env -> R.Reference -> s
+showTypeRef :: (IsString s) => Env -> R.TypeReference -> s
 showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
+showTypeRefId :: (IsString s) => Env -> R.TypeReferenceId -> s
+showTypeRefId env r = fromString . HQ.toString $ PPE.typeName env (R.DerivedId r)
+
 -- todo: do something different/better if cid not found
-showConstructor :: (IsString s) => Env -> ConstructorReference -> s
+showConstructor :: (IsString s) => Env -> ConstructorReferenceId -> s
 showConstructor env r =
   fromString . HQ.toString $
     PPE.patternName env r

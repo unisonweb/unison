@@ -8,16 +8,17 @@ module Unison.Pattern where
 import Data.List (intercalate)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type qualified as Type
+import Unison.Util.Set qualified as Set
 
 data Pattern loc
   = Unbound loc
@@ -28,10 +29,10 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !ConstructorReference [Pattern loc]
+  | Constructor loc !ConstructorReferenceId [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
-  | EffectBind loc !ConstructorReference [Pattern loc] (Pattern loc)
+  | EffectBind loc !ConstructorReferenceId [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
   deriving (Ord, Generic, Functor, Foldable, Traversable)
@@ -169,26 +170,30 @@ foldMap' f p = case p of
   SequenceLiteral _ ps -> f p <> foldMap (foldMap' f) ps
   SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
+-- It looks like this is only used by Term.generalizedDependencies,
+-- so it can have whatever semantics are needed there.
+-- Currently it calls `dataType` and `dataConstructor`
 generalizedDependencies ::
   (Ord r) =>
   (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
+  (TypeReferenceId -> ConstructorId -> r) ->
+  (TypeReferenceId -> r) ->
+  (TypeReferenceId -> ConstructorId -> r) ->
+  (TypeReferenceId -> r) ->
   Pattern loc ->
   Set r
 generalizedDependencies literalType dataConstructor dataType effectConstructor effectType =
   Set.fromList
+    -- foldMap' handles the recursion
     . foldMap'
       ( \case
           Unbound _ -> mempty
           Var _ -> mempty
           As _ _ -> mempty
           Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
-          EffectPure _ _ -> [effectType Type.effectRef]
-          EffectBind _ (ConstructorReference r cid) _ _ ->
-            [effectType Type.effectRef, effectType r, effectConstructor r cid]
+          -- should these two lines call `literalType Type.effect`?
+          EffectPure _ _ -> []
+          EffectBind _ (ConstructorReference r cid) _ _ -> [effectType r, effectConstructor r cid]
           SequenceLiteral _ _ -> [literalType Type.listRef]
           SequenceOp {} -> [literalType Type.listRef]
           Boolean _ _ -> [literalType Type.booleanRef]
@@ -199,11 +204,14 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
           Char _ _ -> [literalType Type.charRef]
       )
 
+-- We'll say that we don't count constructors as two separate dependencies (as Type and Referent)
+-- We'll just count it as the referent.
 labeledDependencies :: Pattern loc -> Set LabeledDependency
 labeledDependencies =
-  generalizedDependencies
-    LD.typeRef
-    (\r i -> LD.dataConstructor (ConstructorReference r i))
-    LD.typeRef
-    (\r i -> LD.effectConstructor (ConstructorReference r i))
-    LD.typeRef
+  Set.mapMaybe id
+    . generalizedDependencies
+      (Just . LD.typeRef)
+      (\r i -> Just $ LD.dataConstructor (ConstructorReference r i))
+      (const Nothing)
+      (\r i -> Just $ LD.effectConstructor (ConstructorReference r i))
+      (const Nothing)

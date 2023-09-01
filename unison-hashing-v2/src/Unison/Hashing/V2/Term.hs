@@ -44,8 +44,8 @@ data TermF typeVar typeAnn patternAnn a
   | TermRef Reference
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
-    TermConstructor Reference ConstructorId
-  | TermRequest Reference ConstructorId
+    TermConstructor ReferenceId ConstructorId
+  | TermRequest ReferenceId ConstructorId
   | TermHandle a a
   | TermApp a a
   | TermAnn a (Type typeVar typeAnn)
@@ -181,8 +181,8 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermLet b a -> [tag 8, hashed $ hash b, hashed $ hash a]
                   TermIf b t f ->
                     [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
-                  TermRequest r n -> [tag 10, accumulateToken r, varint n]
-                  TermConstructor r n -> [tag 12, accumulateToken r, varint n]
+                  TermRequest r n -> [tag 10, accumulateToken (ReferenceDerivedId r), varint n]
+                  TermConstructor r n -> [tag 12, accumulateToken (ReferenceDerivedId r), varint n]
                   TermMatch e branches ->
                     tag 13 : hashed (hash e) : concatMap h branches
                     where

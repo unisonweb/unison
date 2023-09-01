@@ -5,6 +5,7 @@ import Data.Map (Map)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference')
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
@@ -16,7 +17,7 @@ type PatchDiff = PatchDiff' Db.TextId Db.HashId Db.ObjectId
 
 type LocalPatchDiff = PatchDiff' LocalTextId LocalHashId LocalDefnId
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (Reference' t h) (Reference.Id' h)
 
 -- | diff. = min. - sub.
 data PatchDiff' t h d = PatchDiff
@@ -43,4 +44,4 @@ trimap ft fh fd (PatchDiff atm atp rtm rtp) =
     (Map.bimap bimapReferent (Set.map (bimap ft fd)) rtm)
     (Map.bimap (bimap ft fh) (Set.map (bimap ft fd)) rtp)
   where
-    bimapReferent = bimap (bimap ft fh) (bimap ft fh)
+    bimapReferent = bimap (bimap ft fh) (fmap fh)

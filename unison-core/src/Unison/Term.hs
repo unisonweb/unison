@@ -16,7 +16,7 @@ import Data.Text qualified as Text
 import Text.Show
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
@@ -29,13 +29,14 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, TypeReferenceId, pattern Builtin)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.List (multimap, validate)
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
@@ -64,8 +65,8 @@ data F typeVar typeAnn patternAnn a
   | Char Char
   | Blank (B.Blank typeAnn)
   | Ref Reference
-  | Constructor ConstructorReference
-  | Request ConstructorReference
+  | Constructor ConstructorReferenceId
+  | Request ConstructorReferenceId
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
@@ -101,10 +102,10 @@ _Ref = _Ctor @"Ref"
 _Match :: Prism' (F tv ta pa a) (a, [MatchCase pa a])
 _Match = _Ctor @"Match"
 
-_Constructor :: Prism' (F tv ta pa a) ConstructorReference
+_Constructor :: Prism' (F tv ta pa a) ConstructorReferenceId
 _Constructor = _Ctor @"Constructor"
 
-_Request :: Prism' (F tv ta pa a) ConstructorReference
+_Request :: Prism' (F tv ta pa a) ConstructorReferenceId
 _Request = _Ctor @"Request"
 
 _Ann :: Prism' (F tv ta pa a) (a, ABT.Term Type.F tv ta)
@@ -528,13 +529,13 @@ pattern Match' ::
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 
-pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Constructor' :: ConstructorReferenceId -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
 
-pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Request' :: ConstructorReferenceId -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
 
-pattern RequestOrCtor' :: ConstructorReference -> Term2 vt at ap v a
+pattern RequestOrCtor' :: ConstructorReferenceId -> Term2 vt at ap v a
 pattern RequestOrCtor' ref <- (unReqOrCtor -> Just ref)
 
 pattern If' ::
@@ -807,10 +808,10 @@ resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 missingResult :: (Ord v) => at -> ab -> Term2 vt ab ap v at
 missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholder ab)
 
-constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
+constructor :: (Ord v) => a -> ConstructorReferenceId -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
-request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
+request :: (Ord v) => a -> ConstructorReferenceId -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
 
 -- todo: delete and rename app' to app
@@ -1183,7 +1184,7 @@ unLamsPred' (LamNamed' v body, pred) | pred v = case unLamsPred' (body, pred) of
   Just (vs, body) -> Just (v : vs, body)
 unLamsPred' _ = Nothing
 
-unReqOrCtor :: Term2 vt at ap v a -> Maybe ConstructorReference
+unReqOrCtor :: Term2 vt at ap v a -> Maybe ConstructorReferenceId
 unReqOrCtor (Constructor' r) = Just r
 unReqOrCtor (Request' r) = Just r
 unReqOrCtor _ = Nothing
@@ -1209,7 +1210,11 @@ termDependencies =
 -- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
-  Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
+  Set.fromList . mapMaybe (LD.fold Just constructorTypes) . toList . labeledDependencies
+  where
+    constructorTypes = \case
+      Referent.Con (ConstructorReference r _cid) _ct -> Just (Reference.DerivedId r)
+      Referent.Ref _r -> Nothing
 
 -- Gets the types to which this term contains references via patterns and
 -- data constructors.
@@ -1220,21 +1225,21 @@ constructorDependencies =
     . generalizedDependencies
       (const mempty)
       (const mempty)
-      Set.singleton
-      (const . Set.singleton)
-      Set.singleton
-      (const . Set.singleton)
-      Set.singleton
+      (Set.singleton)
+      (const . Set.singleton . Reference.DerivedId)
+      (const mempty)
+      (const . Set.singleton . Reference.DerivedId)
+      (const mempty)
 
 generalizedDependencies ::
-  (Ord v, Ord vt, Ord r) =>
+  (Ord r, Ord v, Ord vt) =>
   (Reference -> r) ->
   (Reference -> r) ->
   (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
+  (TypeReferenceId -> ConstructorId -> r) ->
+  (TypeReferenceId -> r) ->
+  (TypeReferenceId -> ConstructorId -> r) ->
+  (TypeReferenceId -> r) ->
   Term2 vt at ap v a ->
   Set r
 generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType =
@@ -1270,17 +1275,19 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
           effectType
           pat
 
+-- A constructor or pattern doesn't directly create a dependency on the type that defines it
 labeledDependencies ::
-  (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
+  forall vt at ap v a. (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
 labeledDependencies =
-  generalizedDependencies
-    LD.termRef
-    LD.typeRef
-    LD.typeRef
-    (\r i -> LD.dataConstructor (ConstructorReference r i))
-    LD.typeRef
-    (\r i -> LD.effectConstructor (ConstructorReference r i))
-    LD.typeRef
+  Set.mapMaybe id
+    . generalizedDependencies @(Maybe LabeledDependency) @v @vt
+      (Just . LD.termRef)
+      (Just . LD.typeRef)
+      (Just . LD.typeRef)
+      (\r i -> Just $ LD.dataConstructor (ConstructorReference r i))
+      (const Nothing) -- (Just . LD.derivedType)
+      (\r i -> Just $ LD.effectConstructor (ConstructorReference r i))
+      (const Nothing) -- (Just . LD.derivedType)
 
 updateDependencies ::
   (Ord v) =>

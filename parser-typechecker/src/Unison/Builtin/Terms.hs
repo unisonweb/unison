@@ -22,17 +22,18 @@ import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
+-- This exists presumably only because constructors can't be metadata
 builtinTermsSrc :: a -> [(Symbol, a, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =
   [ ( v "metadata.isPropagated",
       ann,
-      Term.constructor ann (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
-      Type.ref ann Decls.isPropagatedRef
+      Term.constructor ann (ConstructorReference Decls.isPropagatedRefId Decls.isPropagatedConstructorId),
+      Type.refId ann Decls.isPropagatedRefId
     ),
     ( v "metadata.isTest",
       ann,
-      Term.constructor ann (ConstructorReference Decls.isTestRef Decls.isTestConstructorId),
-      Type.ref ann Decls.isTestRef
+      Term.constructor ann (ConstructorReference Decls.isTestRefId Decls.isTestConstructorId),
+      Type.refId ann Decls.isTestRefId
     )
   ]
 

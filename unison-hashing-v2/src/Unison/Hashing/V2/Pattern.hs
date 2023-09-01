@@ -5,7 +5,7 @@ module Unison.Hashing.V2.Pattern
 where
 
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashing.V2.Reference (Reference)
+import Unison.Hashing.V2.Reference (Reference (ReferenceDerivedId), ReferenceId)
 import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
 
@@ -18,10 +18,10 @@ data Pattern loc
   | PatternFloat loc !Double
   | PatternText loc !Text
   | PatternChar loc !Char
-  | PatternConstructor loc !Reference !ConstructorId [Pattern loc]
+  | PatternConstructor loc !ReferenceId !ConstructorId [Pattern loc]
   | PatternAs loc (Pattern loc)
   | PatternEffectPure loc (Pattern loc)
-  | PatternEffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
+  | PatternEffectBind loc !ReferenceId !ConstructorId [Pattern loc] (Pattern loc)
   | PatternSequenceLiteral loc [Pattern loc]
   | PatternSequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
   deriving stock (Foldable, Functor, Generic, Ord, Show, Traversable)
@@ -45,10 +45,10 @@ instance H.Tokenizable (Pattern p) where
   tokens (PatternNat _ n) = H.Tag 4 : [H.Nat n]
   tokens (PatternFloat _ f) = H.Tag 5 : H.tokens f
   tokens (PatternConstructor _ r n args) =
-    [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
+    [H.Tag 6, H.accumulateToken (ReferenceDerivedId r), H.Nat $ fromIntegral n, H.accumulateToken args]
   tokens (PatternEffectPure _ p) = H.Tag 7 : H.tokens p
   tokens (PatternEffectBind _ r n args k) =
-    [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
+    [H.Tag 8, H.accumulateToken (ReferenceDerivedId r), H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (PatternAs _ p) = H.Tag 9 : H.tokens p
   tokens (PatternText _ t) = H.Tag 10 : H.tokens t
   tokens (PatternSequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps

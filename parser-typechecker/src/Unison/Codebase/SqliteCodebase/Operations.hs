@@ -32,8 +32,7 @@ import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import Unison.Builtin qualified as Builtins
-import Unison.Codebase.Branch (Branch (..))
+import Unison.Codebase.Branch.Type (Branch (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -180,7 +179,7 @@ tryFlushBuffer buf saveComponent tryWaiting h =
 
 getTerm ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   Reference.Id ->
   Transaction (Maybe (Term Symbol Ann))
 getTerm doGetDeclType (Reference.Id h i) =
@@ -188,17 +187,8 @@ getTerm doGetDeclType (Reference.Id h i) =
     term2 <- Ops.loadTermByReference (C.Reference.Id h i)
     lift (Cv.term2to1 h doGetDeclType term2)
 
-getDeclType :: C.Reference.Reference -> Transaction CT.ConstructorType
-getDeclType = \case
-  C.Reference.ReferenceBuiltin t ->
-    let err =
-          error $
-            "I don't know about the builtin type ##"
-              ++ show t
-              ++ ", but I've been asked for it's ConstructorType."
-     in pure . fromMaybe err $
-          Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
-  C.Reference.ReferenceDerived i -> expectDeclTypeById i
+getDeclType :: C.Reference.Id -> Transaction CT.ConstructorType
+getDeclType i = expectDeclTypeById i
 
 expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType
 expectDeclTypeById = fmap Cv.decltype2to1 . Ops.expectDeclTypeById
@@ -211,7 +201,7 @@ getTypeOfTermImpl (Reference.Id h i) =
 
 getTermComponentWithTypes ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   Hash ->
   Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
 getTermComponentWithTypes doGetDeclType h =
@@ -377,7 +367,7 @@ tryFlushDeclBuffer termBuffer declBuffer =
 
 uncachedLoadRootBranch ::
   BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   Transaction (Branch Transaction)
 uncachedLoadRootBranch branchCache getDeclType = do
   causal2 <- Ops.expectRootCausal
@@ -399,7 +389,7 @@ putRootBranch branch1 = do
 getBranchForHash ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   CausalHash ->
   Transaction (Maybe (Branch Transaction))
 getBranchForHash branchCache doGetDeclType h = do
@@ -455,7 +445,7 @@ watches w =
 
 getWatch ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   UF.WatchKind ->
   Reference.Id ->
   Transaction (Maybe (Term Symbol Ann))
@@ -489,7 +479,7 @@ standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
 termsOfTypeImpl ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   Reference ->
   Transaction (Set Referent.Id)
 termsOfTypeImpl doGetDeclType r =
@@ -498,7 +488,7 @@ termsOfTypeImpl doGetDeclType r =
 
 termsMentioningTypeImpl ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   Reference ->
   Transaction (Set Referent.Id)
 termsMentioningTypeImpl doGetDeclType r =
@@ -531,7 +521,7 @@ typeReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
 
 referentsByPrefix ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Transaction CT.ConstructorType) ->
   ShortHash ->
   Transaction (Set Referent.Id)
 referentsByPrefix _doGetDeclType SH.Builtin {} = pure mempty
@@ -624,7 +614,7 @@ namesAtPath bh path = do
 
 -- | Add an index for the provided branch hash if one doesn't already exist.
 ensureNameLookupForBranchHash ::
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   -- | An optional branch which we may already have an index for.
   -- This should be a branch which is relatively similar to the branch we're creating a name
   -- lookup for, e.g. a recent ancestor of the new branch. The more similar it is, the faster
@@ -691,7 +681,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
 -- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if
 -- they somehow get corrupt, or during local testing and debugging.
 regenerateNameLookup ::
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
+  (C.Reference.Id -> Sqlite.Transaction CT.ConstructorType) ->
   BranchHash ->
   Sqlite.Transaction ()
 regenerateNameLookup getDeclType bh = do

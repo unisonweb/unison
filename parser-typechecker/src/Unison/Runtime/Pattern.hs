@@ -38,7 +38,7 @@ import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
 import Unison.Pattern qualified as P
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference (..), unsafeId)
 import Unison.Runtime.ANF (internalBug)
 import Unison.Term hiding (Term, matchPattern)
 import Unison.Term qualified as Tm
@@ -170,7 +170,7 @@ decomposePattern (Just rf0) t _ (P.Boolean _ b)
       [[]]
 decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference rf u) ps)
   | t == fromIntegral u,
-    rf0 == rf =
+    rf0 == (DerivedId rf) =
       if length ps == nfields
         then [ps]
         else internalBug err
@@ -180,7 +180,7 @@ decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference r
         ++ show (nfields, p)
 decomposePattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf u) ps pk)
   | t == fromIntegral u,
-    rf0 == rf =
+    rf0 == (DerivedId rf) =
       if length ps + 1 == nfields
         then [ps ++ [pk]]
         else internalBug err
@@ -569,8 +569,8 @@ preparePattern p = prepareAs p =<< freshVar
 buildPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
 buildPattern effect r vs nfields
   | effect, [] <- vps = internalBug "too few patterns for effect bind"
-  | effect = P.EffectBind () r (init vps) (last vps)
-  | otherwise = P.Constructor () r vps
+  | effect = P.EffectBind () (fmap unsafeId r) (init vps) (last vps)
+  | otherwise = P.Constructor () (fmap unsafeId r) vps
   where
     vps
       | length vs < nfields =
@@ -761,7 +761,7 @@ determineType = foldMap f
     f P.Char {} = PData Rf.charRef
     f P.SequenceLiteral {} = PData Rf.listRef
     f P.SequenceOp {} = PData Rf.listRef
-    f (P.Constructor _ r _) = PData (r ^. ConstructorReference.reference_)
-    f (P.EffectBind _ r _ _) = PReq $ Set.singleton (r ^. ConstructorReference.reference_)
+    f (P.Constructor _ r _) = PData (DerivedId $ r ^. ConstructorReference.reference_)
+    f (P.EffectBind _ r _ _) = PReq $ Set.singleton (DerivedId $ r ^. ConstructorReference.reference_)
     f P.EffectPure {} = PReq mempty
     f _ = Unknown

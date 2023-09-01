@@ -71,7 +71,7 @@ import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as DDB
 import Unison.ConstructorReference
-  ( ConstructorReference,
+  ( ConstructorReferenceId,
     GConstructorReference (..),
     reference_,
   )
@@ -153,9 +153,9 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
 -- The typechecking state
 data Env v loc = Env {freshId :: Word64, ctx :: Context v loc}
 
-type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
+type DataDeclarations v loc = Map Reference.Id (DataDeclaration v loc)
 
-type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
+type EffectDeclarations v loc = Map Reference.Id (EffectDeclaration v loc)
 
 data Result v loc a
   = Success !(Seq (InfoNote v loc)) !a
@@ -264,8 +264,8 @@ modEnv' f = MT (\_ _ _ _ env -> pure . f $ env)
 data Unknown = Data | Effect deriving (Show)
 
 data CompilerBug v loc
-  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
-  | UnknownConstructor Unknown ConstructorReference (DataDeclaration v loc)
+  = UnknownDecl Unknown Reference.Id (Map Reference.Id (DataDeclaration v loc))
+  | UnknownConstructor Unknown ConstructorReferenceId (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -386,7 +386,7 @@ data Cause v loc
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | AbilityEqFailure [Type v loc] [Type v loc] (Context v loc)
-  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
+  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReferenceId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
   | PatternArityMismatch loc (Type v loc) Int
@@ -396,7 +396,7 @@ data Cause v loc
     UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
   | HandlerOfUnexpectedType loc (Type v loc)
-  | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
+  | DataEffectMismatch Unknown Reference.Id (DataDeclaration v loc)
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
   | InaccessiblePattern loc
@@ -784,7 +784,7 @@ failWith cause = liftResult $ typeError cause
 compilerCrashResult :: CompilerBug v loc -> Result v loc a
 compilerCrashResult bug = CompilerBug bug mempty mempty
 
-getDataDeclaration :: Reference -> M v loc (DataDeclaration v loc)
+getDataDeclaration :: Reference.Id -> M v loc (DataDeclaration v loc)
 getDataDeclaration r = do
   ddecls <- getDataDeclarations
   case Map.lookup r ddecls of
@@ -797,7 +797,7 @@ getDataDeclaration r = do
               DataEffectMismatch Effect r (DD.toDataDecl decl)
     Just decl -> pure decl
 
-getEffectDeclaration :: Reference -> M v loc (EffectDeclaration v loc)
+getEffectDeclaration :: Reference.Id -> M v loc (EffectDeclaration v loc)
 getEffectDeclaration r = do
   edecls <- getEffectDeclarations
   case Map.lookup r edecls of
@@ -811,7 +811,7 @@ getEffectDeclaration r = do
             liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
-getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
+getDataConstructorType :: (Var v, Ord loc) => ConstructorReferenceId -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
 getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
@@ -834,15 +834,15 @@ getDataConstructors typ
   | Just r <- theRef typ = ConstructorType . crFromDecl r <$> getDataDeclaration r
   | otherwise = pure OtherType
   where
-    crFromDecl :: Reference -> DataDeclaration v loc -> [(v, ConstructorReference, Type v loc)]
+    crFromDecl :: Reference.Id -> DataDeclaration v loc -> [(v, ConstructorReferenceId, Type v loc)]
     crFromDecl r decl =
       [(v, ConstructorReference r i, ABT.vmap TypeVar.Universal t) | (i, (v, t)) <- zip [0 ..] (DD.constructors decl)]
     theRef t = case t of
-      Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just r
-      Type.Ref' r@Reference.DerivedId {} -> Just r
+      Type.Apps' (Type.Ref' (Reference.DerivedId r)) _targs -> Just r
+      Type.Ref' (Reference.DerivedId r) -> Just r
       _ -> Nothing
 
-getEffectConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
+getEffectConstructorType :: (Var v, Ord loc) => ConstructorReferenceId -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go
   where
     go r = DD.toDataDecl <$> getEffectDeclaration r
@@ -852,8 +852,8 @@ getEffectConstructorType = getConstructorType' Effect go
 getConstructorType' ::
   (Var v) =>
   Unknown ->
-  (Reference -> M v loc (DataDeclaration v loc)) ->
-  ConstructorReference ->
+  (Reference.Id -> M v loc (DataDeclaration v loc)) ->
+  ConstructorReferenceId ->
   M v loc (Type v loc)
 getConstructorType' kind get (ConstructorReference r cid) = do
   decl <- get r
@@ -1313,13 +1313,13 @@ getDataConstructorsAtType t0 = do
   dataConstructors <- getDataConstructors t0
   case t0 of
     Type.Request' ets _res ->
-      let effectMap :: Map Reference (Type v loc)
+      let effectMap :: Map Reference.Id (Type v loc)
           effectMap =
             Map.fromList
               . mapMaybe
                 ( \e -> case e of
-                    Type.Apps' (Type.Ref' r@Reference.DerivedId {}) _targs -> Just (r, e)
-                    Type.Ref' r@Reference.DerivedId {} -> Just (r, e)
+                    Type.Apps' (Type.Ref' (Reference.DerivedId r)) _targs -> Just (r, e)
+                    Type.Ref' (Reference.DerivedId r) -> Just (r, e)
                     _ -> Nothing
                 )
               $ ets
@@ -1445,7 +1445,7 @@ ensureReqEffects sty res = do
   subtype (Type.effectV lo (lo, Type.effects lo es') (lo, vt)) sty
 
 getEffect ::
-  (Var v) => (Ord loc) => ConstructorReference -> M v loc (Type v loc)
+  (Var v) => (Ord loc) => ConstructorReferenceId -> M v loc (Type v loc)
 getEffect ref = do
   ect <- getEffectConstructorType ref
   uect <- ungeneralize ect

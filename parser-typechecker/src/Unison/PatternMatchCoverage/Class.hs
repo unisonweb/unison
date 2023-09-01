@@ -10,7 +10,7 @@ where
 import Control.Monad.Fix (MonadFix)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorReference (ConstructorReferenceId)
 import Unison.PatternMatchCoverage.ListPat (ListPat)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Type (Type)
@@ -23,7 +23,7 @@ class (Ord loc, Var vt, Var v, MonadFix m) => Pmc vt v loc m | m -> vt v loc whe
   getConstructors :: Type vt loc -> m (EnumeratedConstructors vt v loc)
 
   -- | Get the types of the arguments of a specific constructor
-  getConstructorVarTypes :: Type vt loc -> ConstructorReference -> m [Type vt loc]
+  getConstructorVarTypes :: Type vt loc -> ConstructorReferenceId -> m [Type vt loc]
 
   -- | Get a fresh variable
   fresh :: m v
@@ -31,8 +31,8 @@ class (Ord loc, Var vt, Var v, MonadFix m) => Pmc vt v loc m | m -> vt v loc whe
   getPrettyPrintEnv :: m PrettyPrintEnv
 
 data EnumeratedConstructors vt v loc
-  = ConstructorType [(v, ConstructorReference, Type vt loc)]
-  | AbilityType (Type vt loc) (Map ConstructorReference (v, Type vt loc))
+  = ConstructorType [(v, ConstructorReferenceId, Type vt loc)]
+  | AbilityType (Type vt loc) (Map ConstructorReferenceId (v, Type vt loc))
   | SequenceType [(ListPat, [Type vt loc])]
   | BooleanType
   | OtherType
@@ -40,7 +40,7 @@ data EnumeratedConstructors vt v loc
 
 traverseConstructorTypes ::
   (Applicative f) =>
-  (v -> ConstructorReference -> Type vt loc -> f (Type vt loc)) ->
+  (v -> ConstructorReferenceId -> Type vt loc -> f (Type vt loc)) ->
   EnumeratedConstructors vt v loc ->
   f (EnumeratedConstructors vt v loc)
 traverseConstructorTypes f = \case

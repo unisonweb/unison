@@ -18,9 +18,13 @@ type Reference = Reference' TextId ObjectId
 -- than we'd like when writing/reading the entire name lookup table.
 type TextReference = Reference' Text Base32Hex
 
+type TextReferenceId = Id' Base32Hex
+
 type Id = Id' ObjectId
 
 type LocalReferenceH = Reference' LocalTextId LocalHashId
+
+type LocalReferenceIdH = Id' LocalHashId
 
 type LocalReference = Reference' LocalTextId LocalDefnId
 
@@ -38,6 +42,10 @@ instance ToRow (Reference' TextId HashId) where
 
 instance ToRow Reference where
   toRow = referenceToRow
+
+-- It would be good to eventually drop the SQLNull, but it's included here for compatibility with existing Referents
+instance ToRow TextReferenceId where
+  toRow (Id h i) = toRow (Only h) ++ toRow (Only i)
 
 referenceToRow :: (ToField t, ToField h) => Reference' t h -> [SQLData]
 referenceToRow = \case

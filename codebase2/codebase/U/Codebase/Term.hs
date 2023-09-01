@@ -3,7 +3,7 @@ module U.Codebase.Term where
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
 import Data.Set qualified as Set
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (Id, Reference, Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
@@ -21,7 +21,9 @@ type TermRef = Reference' Text (Maybe Hash)
 
 type TypeRef = Reference
 
-type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type CtorRef = U.Codebase.Reference.Id
+
+type TermLink = Referent' TermRef CtorRef
 
 type TypeLink = Reference
 
@@ -31,13 +33,14 @@ type F vt =
     Text
     TermRef
     TypeRef
+    CtorRef
     TermLink
     TypeLink
     vt
 
 -- | Generalized version.  We could generalize further to allow sharing within
 --  terms.
-data F' text termRef typeRef termLink typeLink vt a
+data F' text termRef typeRef ctorRef termLink typeLink vt a
   = Int Int64
   | Nat Word64
   | Float Double
@@ -47,8 +50,8 @@ data F' text termRef typeRef termLink typeLink vt a
   | Ref termRef
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
-    Constructor typeRef ConstructorId
-  | Request typeRef ConstructorId
+    Constructor ctorRef ConstructorId
+  | Request ctorRef ConstructorId
   | Handle a a
   | App a a
   | Ann a (TypeR typeRef vt)
@@ -73,7 +76,7 @@ data F' text termRef typeRef termLink typeLink vt a
     --   Match x
     --     [ (Constructor 0 [Var], ABT.abs n rhs1)
     --     , (Constructor 1 [], rhs2) ]
-    Match a [MatchCase text typeRef a]
+    Match a [MatchCase text ctorRef a]
   | TermLink termLink
   | TypeLink typeLink
   deriving (Foldable, Functor, Traversable, Show)
@@ -109,12 +112,14 @@ extraMap ::
     text
     termRef
     typeRef
+    ctorRef
     termLink
     typeLink
     vt
     text'
     termRef'
     typeRef'
+    ctorRef'
     termLink'
     typeLink'
     vt'
@@ -124,15 +129,16 @@ extraMap ::
   (text -> text') ->
   (termRef -> termRef') ->
   (typeRef -> typeRef') ->
+  (ctorRef -> ctorRef') ->
   (termLink -> termLink') ->
   (typeLink -> typeLink') ->
   (vt -> vt') ->
-  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
-  ABT.Term (F' text' termRef' typeRef' termLink' typeLink' vt') v a
-extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
+  ABT.Term (F' text termRef typeRef ctorRef termLink typeLink vt) v a ->
+  ABT.Term (F' text' termRef' typeRef' ctorRef' termLink' typeLink' vt') v a
+extraMap ftext ftermRef ftypeRef fctorRef ftermLink ftypeLink fvt = go'
   where
     go' = ABT.transform go
-    go :: forall x. F' text termRef typeRef termLink typeLink vt x -> F' text' termRef' typeRef' termLink' typeLink' vt' x
+    go :: forall x. F' text termRef typeRef ctorRef termLink typeLink vt x -> F' text' termRef' typeRef' ctorRef' termLink' typeLink' vt' x
     go = \case
       Int i -> Int i
       Nat n -> Nat n
@@ -141,8 +147,8 @@ extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Text t -> Text (ftext t)
       Char c -> Char c
       Ref r -> Ref (ftermRef r)
-      Constructor r cid -> Constructor (ftypeRef r) cid
-      Request r cid -> Request (ftypeRef r) cid
+      Constructor r cid -> Constructor (fctorRef r) cid
+      Request r cid -> Request (fctorRef r) cid
       Handle e h -> Handle e h
       App f a -> App f a
       Ann a typ -> Ann a (Type.rmap ftypeRef $ ABT.vmap fvt typ)
@@ -156,9 +162,9 @@ extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Match s cs -> Match s (goCase <$> cs)
       TermLink r -> TermLink (ftermLink r)
       TypeLink r -> TypeLink (ftypeLink r)
-    goCase :: MatchCase text typeRef x -> MatchCase text' typeRef' x
+    goCase :: MatchCase text ctorRef x -> MatchCase text' ctorRef' x
     goCase (MatchCase p g b) = MatchCase (goPat p) g b
-    goPat = rmapPattern ftext ftypeRef
+    goPat = rmapPattern ftext fctorRef
 
 rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
 rmapPattern ft fr = go
@@ -180,22 +186,23 @@ rmapPattern ft fr = go
       PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
 
 dependencies ::
-  (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>
-  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
-  (Set termRef, Set typeRef, Set termLink, Set typeLink)
+  (Ord termRef, Ord typeRef, Ord ctorRef, Ord termLink, Ord typeLink, Ord vt, Ord v) =>
+  ABT.Term (F' text termRef typeRef ctorRef termLink typeLink vt) v a ->
+  (Set termRef, Set typeRef, Set ctorRef, Set termLink, Set typeLink)
 dependencies =
   Writer.execWriter . ABT.visit_ \case
+    Ann _ typ -> typeAnn typ
     Ref r -> termRef r
-    Constructor r _ -> typeRef r
-    Request r _ -> typeRef r
+    Constructor r _ -> ctorRef r
+    Request r _ -> ctorRef r
     Match _ cases -> Foldable.for_ cases \case
       MatchCase pat _guard _body -> go pat
         where
           go = \case
-            PConstructor r _i args -> typeRef r *> Foldable.traverse_ go args
+            PConstructor r _i args -> ctorRef r *> Foldable.traverse_ go args
             PAs pat -> go pat
             PEffectPure pat -> go pat
-            PEffectBind r _i args k -> typeRef r *> Foldable.traverse_ go args *> go k
+            PEffectBind r _i args k -> ctorRef r *> Foldable.traverse_ go args *> go k
             PSequenceLiteral pats -> Foldable.traverse_ go pats
             PSequenceOp l _op r -> go l *> go r
             _ -> pure ()
@@ -203,7 +210,8 @@ dependencies =
     TypeLink r -> typeLink r
     _ -> pure ()
   where
-    termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty)
-    typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
-    termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
-    typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
+    typeAnn typ = Writer.tell (mempty, Type.dependencies typ, mempty, mempty, mempty)
+    termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty, mempty)
+    ctorRef r = Writer.tell (mempty, mempty, Set.singleton r, mempty, mempty)
+    termLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r, mempty)
+    typeLink r = Writer.tell (mempty, mempty, mempty, mempty, Set.singleton r)

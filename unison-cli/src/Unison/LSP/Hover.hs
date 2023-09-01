@@ -65,6 +65,7 @@ hoverInfo uri pos =
             LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
             LD.TermReferent ref -> PPE.termName unsuffixifiedPPE ref
 
+      -- kicks off evaluation of IOSource immediately on startup so that hopefully it’s finished by the time you actually need to use it
       builtinsAsync <- liftIO . UnliftIO.async $ UnliftIO.evaluate IOSource.typecheckedFile
       checkBuiltinsReady <- liftIO do
         pure
@@ -93,10 +94,10 @@ hoverInfo uri pos =
         case ref of
           LD.TypeReference (Reference.Builtin {}) -> do
             pure (symAtCursor <> " : <builtin>")
-          LD.TypeReference ref@(Reference.DerivedId refId) -> do
+          LD.TypeReference (Reference.DerivedId refId) -> do
             nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
             decl <- LSPQ.getTypeDeclaration uri refId
-            let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
+            let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped refId (HQ.NameOnly nameAtCursor) decl
             pure typ
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent uri ref
