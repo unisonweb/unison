@@ -126,33 +126,26 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
         (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
 
-        let canonicalizeType = Merge.makeCanonicalize typeUpdates
+        let canonicalizer = Merge.makeCanonicalizer v2HashHandle mergeDatabase typeUpdates termUpdates
+
         aliceUserTypeUpdates <- do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
-                  v2HashHandle
                   mergeDatabase
+                  canonicalizer
                   (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 aliceDataconNames ref2 decl2)
-                  canonicalizeType
           Relation.filterM isUserTypeUpdate aliceTypeUpdates
         bobUserTypeUpdates <- do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
-                  v2HashHandle
                   mergeDatabase
+                  canonicalizer
                   (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 bobDataconNames ref2 decl2)
-                  canonicalizeType
           Relation.filterM isUserTypeUpdate bobTypeUpdates
         let userTypeUpdates = aliceUserTypeUpdates <> bobUserTypeUpdates
 
-        let canonicalizeTerm = Merge.makeCanonicalize termUpdates
         userTermUpdates <- do
-          let isUserTermUpdate =
-                Merge.isUserTermUpdate
-                  v2HashHandle
-                  mergeDatabase
-                  canonicalizeType
-                  canonicalizeTerm
+          let isUserTermUpdate = Merge.isUserTermUpdate mergeDatabase canonicalizer
           Relation.filterM isUserTermUpdate termUpdates
 
         let updates :: Merge.Updates TypeReference Referent

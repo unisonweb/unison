@@ -2,12 +2,13 @@
 
 module Unison.Merge
   ( Database (..),
-    makeCanonicalize,
     isUserTypeUpdate,
     isUserTermUpdate,
     DefnRef (..),
 
     -- * Random misc things, temporarily exported
+    Canonicalizer (..),
+    makeCanonicalizer,
     Node (..),
     pattern NodeTms,
     pattern NodeTys,
@@ -152,47 +153,85 @@ groupUpdatesIntoEquivalenceClasses :: Ord a => Relation a a -> [Set a]
 groupUpdatesIntoEquivalenceClasses =
   map (\(_, refs, _) -> refs) . UFMap.toClasses . computeEquivalenceClasses
 
-isUserTermUpdate ::
+data Canonicalizer m = Canonicalizer
+  { termsAreEqual :: TermWithSelfHash -> TermWithSelfHash -> m Bool,
+    typesAreEqual :: TypeWithSelfHash -> TypeWithSelfHash -> Bool
+  }
+  deriving stock (Generic)
+
+data TermWithSelfHash
+  = TermWithSelfHash !Hash !(Term Symbol)
+
+data TypeWithSelfHash
+  = TypeWithSelfHash !Hash !(TypeD Symbol)
+
+makeCanonicalizer ::
   forall m.
   Monad m =>
   HashHandle ->
   Database m ->
-  (TypeReference -> TypeReference) ->
-  (Referent -> Referent) ->
+  Relation TypeReference TypeReference ->
+  Relation Referent Referent ->
+  Canonicalizer m
+makeCanonicalizer hashHandle database typeUpdates termUpdates =
+  Canonicalizer {termsAreEqual, typesAreEqual}
+  where
+    canonicalizeTypeRef :: TypeReference -> TypeReference
+    canonicalizeTypeRef =
+      makeCanonicalize typeUpdates
+
+    canonicalizeTermRef :: Referent -> Referent
+    canonicalizeTermRef =
+      makeCanonicalize termUpdates
+
+    termsAreEqual :: TermWithSelfHash -> TermWithSelfHash -> m Bool
+    termsAreEqual term0 term1 = do
+      cterm0 <- canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef term0
+      cterm1 <- canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef term1
+      pure (HashHandle.hashClosedTerm hashHandle cterm0 == HashHandle.hashClosedTerm hashHandle cterm1)
+
+    typesAreEqual :: TypeWithSelfHash -> TypeWithSelfHash -> Bool
+    typesAreEqual type0 type1 =
+      hashType type0 == hashType type1
+
+    hashType :: TypeWithSelfHash -> Reference
+    hashType (TypeWithSelfHash selfHash ty) =
+      HashHandle.toReference hashHandle (canonicalizeType canonicalizeTypeRef selfHash ty)
+
+isUserTermUpdate ::
+  forall m.
+  Monad m =>
+  Database m ->
+  Canonicalizer m ->
   (Referent, Referent) ->
   m Bool
-isUserTermUpdate hashHandle database canonicalizeTypeRef canonicalizeTermRef = \case
+isUserTermUpdate database canonicalizer = \case
   (Referent.Ref {}, Referent.Con {}) -> pure True
   (Referent.Con {}, Referent.Ref {}) -> pure True
   (Referent.Con (Reference.ReferenceDerived typeRef0) cid0, Referent.Con (Reference.ReferenceDerived typeRef1) cid1) -> do
     type0 <- (database ^. #loadConstructorTypeSignature) typeRef0 cid0
     type1 <- (database ^. #loadConstructorTypeSignature) typeRef1 cid1
-    let ctype0 = canonicalizeType canonicalizeTypeRef (typeRef0 ^. Reference.idH) type0
-    let ctype1 = canonicalizeType canonicalizeTypeRef (typeRef1 ^. Reference.idH) type1
-    pure (HashHandle.toReference hashHandle ctype0 /= HashHandle.toReference hashHandle ctype1)
+    pure $
+      (canonicalizer ^. #typesAreEqual)
+        (TypeWithSelfHash (typeRef0 ^. Reference.idH) type0)
+        (TypeWithSelfHash (typeRef1 ^. Reference.idH) type1)
   (Referent.Ref (Reference.ReferenceDerived ref0), Referent.Ref (Reference.ReferenceDerived ref1)) -> do
-    term0 <- loadCanonicalizedTerm ref0
-    term1 <- loadCanonicalizedTerm ref1
-    pure (HashHandle.hashClosedTerm hashHandle term0 /= HashHandle.hashClosedTerm hashHandle term1)
+    term0 <- (database ^. #loadTerm) ref0
+    term1 <- (database ^. #loadTerm) ref1
+    termsAreEqual <-
+      (canonicalizer ^. #termsAreEqual)
+        (TermWithSelfHash (ref0 ^. Reference.idH) term0)
+        (TermWithSelfHash (ref1 ^. Reference.idH) term1)
+    pure (not termsAreEqual)
   -- Builtin-to-derived, derived-to-builtin, and builtin-to-builtin are all clearly user updates
   (Referent.Con {}, Referent.Con {}) -> pure True
   (Referent.Ref {}, Referent.Ref {}) -> pure True
-  where
-    loadCanonicalizedTerm :: TermReferenceId -> m (ClosedTerm Symbol)
-    loadCanonicalizedTerm ref = do
-      term <- (database ^. #loadTerm) ref
-      canonicalizeTerm
-        database
-        canonicalizeTypeRef
-        canonicalizeTermRef
-        (ref ^. Reference.idH)
-        term
 
 isUserTypeUpdate ::
   forall m.
   (Monad m) =>
-  HashHandle ->
   Database m ->
+  Canonicalizer m ->
   -- | A function that, given two types, returns a function if the decls are thought to "match", which means the two
   -- decls' decl types, modifiers, number of bound variables, and number of data constructors are equal, and the data
   -- constructors all have the same names. The returned function ought to be applied to the second type's constructors,
@@ -203,10 +242,9 @@ isUserTypeUpdate ::
     Decl Symbol ->
     Maybe ([Decl.Type Symbol] -> [Decl.Type Symbol])
   ) ->
-  (TypeReference -> TypeReference) ->
   (TypeReference, TypeReference) ->
   m Bool
-isUserTypeUpdate hashHandle database getConstructorMapping canonicalizeTypeRef = \case
+isUserTypeUpdate database canonicalizer getConstructorMapping = \case
   (ReferenceBuiltin _, ReferenceBuiltin _) -> pure True
   (ReferenceBuiltin _, ReferenceDerived _) -> pure True
   (ReferenceDerived _, ReferenceBuiltin _) -> pure True
@@ -221,15 +259,16 @@ isUserTypeUpdate hashHandle database getConstructorMapping canonicalizeTypeRef =
             Nothing -> True
             Just mapping ->
               any
-                (\(oldCon, newCon) -> canonicalizeAndHash oldHash oldCon /= canonicalizeAndHash newHash newCon)
+                ( \(oldCon, newCon) ->
+                    not $
+                      (canonicalizer ^. #typesAreEqual)
+                        (TypeWithSelfHash oldHash oldCon)
+                        (TypeWithSelfHash newHash newCon)
+                )
                 (zip (Decl.constructorTypes oldDecl) (mapping (Decl.constructorTypes newDecl)))
               where
                 oldHash = oldRef ^. Reference.idH
                 newHash = newRef ^. Reference.idH
-  where
-    canonicalizeAndHash :: Hash -> TypeD Symbol -> TypeReference
-    canonicalizeAndHash hash =
-      HashHandle.toReference hashHandle . canonicalizeType canonicalizeTypeRef hash
 
 canonicalizeType :: (TypeReference -> TypeReference) -> Hash -> TypeD Symbol -> TypeT Symbol
 canonicalizeType canonicalizeTypeRef selfHash =
@@ -241,35 +280,36 @@ canonicalizeTerm ::
   Database m ->
   (TypeReference -> TypeReference) ->
   (Referent -> Referent) ->
-  Hash ->
-  Term Symbol ->
+  TermWithSelfHash ->
   m (ClosedTerm Symbol)
-canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef selfHash =
-  ABT.transformM \case
-    Term.Ann a typ -> pure $ Term.Ann a (Type.rmap canonicalizeTypeRef typ)
-    Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
-    Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
-    Term.Ref r -> lookupCanonReferent (Referent.Ref (Reference.closeRReference selfHash r))
-    Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
-    Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
-    Term.TypeLink r -> pure $ Term.TypeLink (canonicalizeTypeRef r)
-    -- Boring no-ops
-    Term.And p q -> pure $ Term.And p q
-    Term.App f a -> pure $ Term.App f a
-    Term.Boolean b -> pure $ Term.Boolean b
-    Term.Char c -> pure $ Term.Char c
-    Term.Float d -> pure $ Term.Float d
-    Term.Handle e h -> pure $ Term.Handle e h
-    Term.If c t f -> pure $ Term.If c t f
-    Term.Int i -> pure $ Term.Int i
-    Term.Lam b -> pure $ Term.Lam b
-    Term.Let a b -> pure $ Term.Let a b
-    Term.LetRec bs b -> pure $ Term.LetRec bs b
-    Term.List s -> pure $ Term.List s
-    Term.Nat n -> pure $ Term.Nat n
-    Term.Or p q -> pure $ Term.Or p q
-    Term.Text t -> pure $ Term.Text t
+canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef (TermWithSelfHash selfHash theTerm) =
+  ABT.transformM canonicalizeTermF theTerm
   where
+    canonicalizeTermF :: Term.F Symbol x -> m (Term.ClosedF Symbol x)
+    canonicalizeTermF = \case
+      Term.Ann a typ -> pure $ Term.Ann a (Type.rmap canonicalizeTypeRef typ)
+      Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
+      Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
+      Term.Ref r -> lookupCanonReferent (Referent.Ref (Reference.closeRReference selfHash r))
+      Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
+      Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
+      Term.TypeLink r -> pure $ Term.TypeLink (canonicalizeTypeRef r)
+      -- Boring no-ops
+      Term.And p q -> pure $ Term.And p q
+      Term.App f a -> pure $ Term.App f a
+      Term.Boolean b -> pure $ Term.Boolean b
+      Term.Char c -> pure $ Term.Char c
+      Term.Float d -> pure $ Term.Float d
+      Term.Handle e h -> pure $ Term.Handle e h
+      Term.If c t f -> pure $ Term.If c t f
+      Term.Int i -> pure $ Term.Int i
+      Term.Lam b -> pure $ Term.Lam b
+      Term.Let a b -> pure $ Term.Let a b
+      Term.LetRec bs b -> pure $ Term.LetRec bs b
+      Term.List s -> pure $ Term.List s
+      Term.Nat n -> pure $ Term.Nat n
+      Term.Or p q -> pure $ Term.Or p q
+      Term.Text t -> pure $ Term.Text t
     canonicalizeCase :: forall t a. Term.MatchCase t TypeReference a -> Term.MatchCase t TypeReference a
     canonicalizeCase (Term.MatchCase pat g body) =
       Term.MatchCase (canonicalizePattern pat) g body
