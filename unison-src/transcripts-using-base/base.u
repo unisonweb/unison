@@ -58,6 +58,15 @@ Exception.unsafeRun! e =
 structural ability Throw e where
   throw : e -> a
 
+List.range : Nat -> Nat -> [Nat]
+List.range m =
+  go acc n =
+    if n <= m then acc
+    else
+      n' = drop n 1
+      go (n' +: acc) n'
+  go []
+
 List.all : (a ->{ε} Boolean) -> [a] ->{ε} Boolean
 List.all f = cases
   [] -> true
