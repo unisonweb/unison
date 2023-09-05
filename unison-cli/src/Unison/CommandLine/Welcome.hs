@@ -15,7 +15,7 @@ import Prelude hiding (readFile, writeFile)
 data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
     unisonVersion :: Text,
-    welcomeHint :: Bool
+    showWelcomeHint :: Bool
   }
 
 -- Previously Created is different from Previously Onboarded because a user can
@@ -36,11 +36,11 @@ data Onboarding
   deriving (Show, Eq)
 
 welcome :: CodebaseInitStatus -> Text -> Bool -> Welcome
-welcome initStatus unisonVersion welcomeHint =
-  Welcome (Init initStatus) unisonVersion welcomeHint
+welcome initStatus unisonVersion showWelcomeHint =
+  Welcome (Init initStatus) unisonVersion showWelcomeHint
 
 run :: Welcome -> [Either Event Input]
-run Welcome {onboarding = onboarding, unisonVersion = version, welcomeHint = welcomeHint} = do
+run Welcome {onboarding = onboarding, unisonVersion = version, showWelcomeHint = showWelcomeHint} = do
   go onboarding []
   where
     go :: Onboarding -> [Either Event Input] -> [Either Event Input]
@@ -59,8 +59,8 @@ run Welcome {onboarding = onboarding, unisonVersion = version, welcomeHint = wel
           where
             authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
-        Finished -> reverse (toInput (getStarted welcomeHint) : acc)
-        PreviouslyOnboarded -> reverse (toInput (getStarted welcomeHint) : acc)
+        Finished -> reverse (toInput (getStarted showWelcomeHint) : acc)
+        PreviouslyOnboarded -> reverse (toInput (getStarted showWelcomeHint) : acc)
 
 toInput :: P.Pretty P.ColorText -> Either Event Input
 toInput pretty =
@@ -112,11 +112,11 @@ authorSuggestion =
       ]
 
 getStarted :: Bool -> P.Pretty P.ColorText
-getStarted welcomeHint =
+getStarted showWelcomeHint =
   P.wrap "📚 Read the official docs at https://www.unison-lang.org/learn/"
     <> P.newline
     <> P.newline
-    <> P.wrap (if welcomeHint
+    <> P.wrap (if showWelcomeHint
               then "Hint: type 'projects' to list all your projects"
               else "Type 'project.create' to get started.")
 

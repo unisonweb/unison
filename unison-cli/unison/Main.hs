@@ -479,12 +479,12 @@ launch ::
   CommandLine.ShouldWatchFiles ->
   IO ()
 launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
-  welcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
+  showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
         OpenedCodebase -> PreviouslyCreatedCodebase
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase ucmVersion welcomeHint
+      welcome = Welcome.welcome isNewCodebase ucmVersion showWelcomeHint
    in CommandLine.main
         dir
         welcome
