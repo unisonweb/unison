@@ -5,9 +5,11 @@ module Unison.Codebase.Editor.HandleInput.Merge
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (forOf_, mapped, over, traverseOf, (^?), _1)
-import Control.Monad.Trans.Writer.CPS (Writer, execWriter)
+import Control.Lens (mapped, over, traverseOf, (^?), _1)
+import Control.Monad.Trans.Writer.CPS (execWriter)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
+import Data.Bimap (Bimap)
+import Data.Bimap qualified as Bimap
 import Data.Bitraversable (bitraverse)
 import Data.Functor.Compose (Compose (Compose))
 import Data.List.NonEmpty (pattern (:|))
@@ -153,22 +155,16 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   canonicalizeTerm
           Relation.filterM isUserTermUpdate termUpdates
 
-        let bigBoyUpdates :: Relation (Either TypeReference Referent) (Either TypeReference Referent)
-            bigBoyUpdates =
-              Relation.map (\(x, y) -> (Left x, Left y)) typeUpdates
-                <> Relation.map (\(x, y) -> (Right x, Right y)) termUpdates
+        let updates :: Merge.Updates TypeReference Referent
+            updates =
+              Merge.Updates
+                { terms = termUpdates,
+                  types = typeUpdates,
+                  userTerms = userTermUpdates,
+                  userTypes = userTypeUpdates
+                }
 
-        let typeCoreEquivalenceClasses :: [Set TypeReference]
-            typeCoreEquivalenceClasses =
-              Merge.groupUpdatesIntoEquivalenceClasses typeUpdates
-
-        let termCoreEquivalenceClasses :: [Set Referent]
-            termCoreEquivalenceClasses =
-              Merge.groupUpdatesIntoEquivalenceClasses termUpdates
-
-        let bigBoyEquivalenceClasses :: [Set (Either TypeReference Referent)]
-            bigBoyEquivalenceClasses =
-              Merge.groupUpdatesIntoEquivalenceClasses bigBoyUpdates
+        let coreEcs = Merge.makeCoreEcs updates
 
         -- TODO we probably want to pass down a version of this that caches
         let typeDependsOn :: TypeReference -> Transaction (Set TypeReference)
@@ -205,6 +201,10 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Text.putStrLn "===== updates ====="
           printTypeUpdates typeUpdates userTypeUpdates
           printTermUpdates termUpdates userTermUpdates
+          Text.putStrLn ""
+          Text.putStrLn "===== core ecs ====="
+          printEcs coreEcs
+
           Text.putStrLn ""
 
 computeConstructorMapping ::
@@ -524,6 +524,15 @@ printDependenciesDiff =
 
     plus = Text.green . ("+" <>) . showCausalHash
     minus = Text.red . ("-" <>) . showCausalHash
+
+printEcs :: Bimap Merge.EC (Merge.Node Referent TypeReference) -> IO ()
+printEcs =
+  Text.putStr . Text.unlines . map (uncurry f) . Bimap.toList
+  where
+    f (Merge.EC ec) node =
+      "(" <> tShow ec <> ") " <> case node of
+        Merge.NodeTms tms -> "{" <> Text.intercalate ", " (map showReferent (Set.toList tms)) <> "}"
+        Merge.NodeTys tys -> "{" <> Text.intercalate ", " (map showReference (Set.toList tys)) <> "}"
 
 printTypeUpdates :: Relation Reference Reference -> Relation Reference Reference -> IO ()
 printTypeUpdates allUpdates userUpdates =
