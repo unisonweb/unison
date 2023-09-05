@@ -82,6 +82,10 @@ data BLTag
   | QuoteT
   | CodeT
   | BArrT
+  | PosT
+  | NegT
+  | CharT
+  | FloatT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -186,6 +190,10 @@ instance Tag BLTag where
     QuoteT -> 5
     CodeT -> 6
     BArrT -> 7
+    PosT -> 8
+    NegT -> 9
+    CharT -> 10
+    FloatT -> 11
 
   word2tag = \case
     0 -> pure TextT
@@ -196,6 +204,10 @@ instance Tag BLTag where
     5 -> pure QuoteT
     6 -> pure CodeT
     7 -> pure BArrT
+    8 -> pure PosT
+    9 -> pure NegT
+    10 -> pure CharT
+    11 -> pure FloatT
     t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
@@ -643,6 +655,10 @@ putBLit (Bytes b) = putTag BytesT *> putBytes b
 putBLit (Quote v) = putTag QuoteT *> putValue v
 putBLit (Code g) = putTag CodeT *> putGroup mempty mempty g
 putBLit (BArr a) = putTag BArrT *> putByteArray a
+putBLit (Pos n) = putTag PosT *> putPositive n
+putBLit (Neg n) = putTag NegT *> putPositive n
+putBLit (Char n) = putTag CharT *> putWord64be n
+putBLit (Float d) = putTag FloatT *> putFloat d
 
 getBLit :: (MonadGet m) => Version -> m BLit
 getBLit v =
@@ -655,6 +671,10 @@ getBLit v =
     QuoteT -> Quote <$> getValue v
     CodeT -> Code <$> getGroup
     BArrT -> BArr <$> getByteArray
+    PosT -> Pos <$> getPositive
+    NegT -> Neg <$> getPositive
+    CharT -> Char <$> getWord64be
+    FloatT -> Float <$> getFloat
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -763,76 +783,106 @@ getGroupRef :: (MonadGet m) => m GroupRef
 getGroupRef = GR <$> getReference <*> getWord64be
 
 putValue :: (MonadPut m) => Value -> m ()
-putValue (Partial gr ws vs) =
+putValue (Partial gr [] vs) =
   putTag PartialT
     *> putGroupRef gr
-    *> putFoldable putWord64be ws
     *> putFoldable putValue vs
-putValue (Data r t ws vs) =
+putValue Partial{} =
+  exn "putValue: Partial with unboxed values no longer supported"
+putValue (Data r t [] vs) =
   putTag DataT
     *> putReference r
     *> putWord64be t
-    *> putFoldable putWord64be ws
     *> putFoldable putValue vs
-putValue (Cont us bs k) =
+putValue Data{} =
+  exn "putValue: Data with unboxed contents no longer supported"
+putValue (Cont [] bs k) =
   putTag ContT
-    *> putFoldable putWord64be us
     *> putFoldable putValue bs
     *> putCont k
+putValue Cont{} =
+  exn "putValue: Cont with unboxed stack no longer supported"
 putValue (BLit l) =
   putTag BLitT *> putBLit l
 
 getValue :: (MonadGet m) => Version -> m Value
 getValue v =
   getTag >>= \case
-    PartialT ->
-      Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
-    DataT ->
-      Data
-        <$> getReference
-        <*> getWord64be
-        <*> getList getWord64be
-        <*> getList (getValue v)
-    ContT -> Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
+    PartialT
+      | v < 4 ->
+        Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
+      | otherwise ->
+        flip Partial [] <$> getGroupRef <*> getList (getValue v)
+    DataT
+      | v < 4 ->
+        Data
+          <$> getReference
+          <*> getWord64be
+          <*> getList getWord64be
+          <*> getList (getValue v)
+      | otherwise ->
+        (\r t -> Data r t [])
+          <$> getReference
+          <*> getWord64be
+          <*> getList (getValue v)
+    ContT
+      | v < 4 ->
+        Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
+      | otherwise -> Cont [] <$> getList (getValue v) <*> getCont v
     BLitT -> BLit <$> getBLit v
 
 putCont :: (MonadPut m) => Cont -> m ()
 putCont KE = putTag KET
-putCont (Mark ua ba rs ds k) =
+putCont (Mark 0 ba rs ds k) =
   putTag MarkT
-    *> putWord64be ua
     *> putWord64be ba
     *> putFoldable putReference rs
     *> putMap putReference putValue ds
     *> putCont k
-putCont (Push i j m n gr k) =
+putCont Mark{} =
+  exn "putCont: Mark with unboxed args no longer supported"
+putCont (Push 0 j 0 n gr k) =
   putTag PushT
-    *> putWord64be i
     *> putWord64be j
-    *> putWord64be m
     *> putWord64be n
     *> putGroupRef gr
     *> putCont k
+putCont Push{} =
+  exn "putCont: Push with unboxed information no longer supported"
 
 getCont :: (MonadGet m) => Version -> m Cont
 getCont v =
   getTag >>= \case
     KET -> pure KE
-    MarkT ->
-      Mark
-        <$> getWord64be
-        <*> getWord64be
-        <*> getList getReference
-        <*> getMap getReference (getValue v)
-        <*> getCont v
-    PushT ->
-      Push
-        <$> getWord64be
-        <*> getWord64be
-        <*> getWord64be
-        <*> getWord64be
-        <*> getGroupRef
-        <*> getCont v
+    MarkT
+      | v < 4 ->
+        Mark
+          <$> getWord64be
+          <*> getWord64be
+          <*> getList getReference
+          <*> getMap getReference (getValue v)
+          <*> getCont v
+      | otherwise ->
+        Mark 0
+          <$> getWord64be
+          <*> getList getReference
+          <*> getMap getReference (getValue v)
+          <*> getCont v
+    PushT
+      | v < 4 ->
+        Push
+          <$> getWord64be
+          <*> getWord64be
+          <*> getWord64be
+          <*> getWord64be
+          <*> getGroupRef
+          <*> getCont v
+      | otherwise ->
+        (\j n -> Push 0 j 0 n)
+          <$> getWord64be
+          <*> getWord64be
+          <*> getGroupRef
+          <*> getCont v
 
 deserializeGroup :: (Var v) => ByteString -> Either String (SuperGroup v)
 deserializeGroup bs = runGetS (getVersion *> getGroup) bs
@@ -890,7 +940,7 @@ deserializeValue bs = runGetS (getVersion >>= getValue) bs
         n
           | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
-          | n == 3 -> pure n
+          | n <= 4 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 serializeValue :: Value -> ByteString
@@ -904,7 +954,7 @@ serializeValueLazy v = runPutLazy (putVersion *> putValue v)
     putVersion = putWord32be valueVersion
 
 valueVersion :: Word32
-valueVersion = 3
+valueVersion = 4
 
 codeVersion :: Word32
 codeVersion = 1

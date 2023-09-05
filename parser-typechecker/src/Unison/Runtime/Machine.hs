@@ -18,6 +18,7 @@ import Data.Ord (comparing)
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
+import Data.Primitive.ByteArray qualified as BA
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
@@ -2079,6 +2080,7 @@ reflectValue rty = goV
 
     goV (PApV cix ua ba) =
       ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+    goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
     goV (CapV k _ _ us bs) =
@@ -2119,6 +2121,15 @@ reflectValue rty = goV
       | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
           pure (ANF.BArr a)
       | otherwise = die $ err $ "foreign value: " <> (show f)
+
+    reflectUData :: Word64 -> Int -> IO ANF.BLit
+    reflectUData t v
+      | t == natTag = pure $ ANF.Pos (fromIntegral v)
+      | t == charTag = pure $ ANF.Char (fromIntegral v)
+      | t == intTag, v >= 0 = pure $ ANF.Pos (fromIntegral v)
+      | t == intTag, v < 0 = pure $ ANF.Neg (fromIntegral (- v))
+      | t == floatTag = pure $ ANF.Float (intToDouble v)
+      | otherwise = die . err $ "unboxed data: " <> show (t,v)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
@@ -2193,6 +2204,19 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
     goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
+    goL (ANF.Char w) = pure $ DataU1 Rf.charRef charTag (fromIntegral w)
+    goL (ANF.Pos w) =
+      pure $ DataU1 Rf.natRef natTag (fromIntegral w)
+    goL (ANF.Neg w) =
+      pure $ DataU1 Rf.intRef intTag (- fromIntegral w)
+    goL (ANF.Float d) =
+      pure $ DataU1 Rf.floatRef floatTag (doubleToInt d)
+
+doubleToInt :: Double -> Int
+doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
+
+intToDouble :: Int -> Double
+intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
 -- Universal comparison functions
 
@@ -2211,6 +2235,8 @@ universalEq ::
 universalEq frn = eqc
   where
     eql cm l r = length l == length r && and (zipWith cm l r)
+    eqc (DataC _ ct1 [w1] []) (DataC _ ct2 [w2] []) =
+      matchTags ct1 ct2 && w1 == w2
     eqc (DataC _ ct1 us1 bs1) (DataC _ ct2 us2 bs2) =
       ct1 == ct2
         && eql (==) us1 us2
@@ -2234,6 +2260,13 @@ universalEq frn = eqc
           length sl == length sr && and (Sq.zipWith eqc sl sr)
       | otherwise = frn fl fr
     eqc c d = closureNum c == closureNum d
+
+    -- serialization doesn't necessarily preserve Int tags, so be
+    -- more accepting for those.
+    matchTags ct1 ct2 =
+      ct1 == ct2
+        || (ct1 == intTag && ct2 == natTag)
+        || (ct1 == natTag && ct2 == intTag)
 
 arrayEq :: (Closure -> Closure -> Bool) -> PA.Array Closure -> PA.Array Closure -> Bool
 arrayEq eqc l r
@@ -2296,6 +2329,13 @@ natTag
       packTags rt 0
   | otherwise = error "internal error: natTag"
 
+intTag :: Word64
+intTag
+  | Just n <- M.lookup Rf.intRef builtinTypeNumbering,
+    rt <- toEnum (fromIntegral n) =
+      packTags rt 0
+  | otherwise = error "internal error: intTag"
+
 charTag :: Word64
 charTag
   | Just n <- M.lookup Rf.charRef builtinTypeNumbering,
@@ -2320,8 +2360,10 @@ universalCompare frn = cmpc False
     cmpl cm l r =
       compare (length l) (length r) <> fold (zipWith cm l r)
     cmpc _ (DataC _ ct1 [i] []) (DataC _ ct2 [j] [])
-      | ct1 == floatTag && ct2 == floatTag = compareAsFloat i j
-      | ct1 == natTag && ct2 == natTag = compareAsNat i j
+      | ct1 == floatTag, ct2 == floatTag = compareAsFloat i j
+      | ct1 == natTag, ct2 == natTag = compareAsNat i j
+      | ct1 == intTag, ct2 == natTag = compare i j
+      | ct1 == natTag, ct2 == intTag = compare i j
     cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2) =
       (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
         <> compare (maskTags ct1) (maskTags ct2)

@@ -1513,6 +1513,10 @@ data BLit
   | Quote Value
   | Code (SuperGroup Symbol)
   | BArr PA.ByteArray
+  | Pos Word64
+  | Neg Word64
+  | Char Word64
+  | Float Double
   deriving (Show)
 
 groupVars :: ANFM v (Set v)
