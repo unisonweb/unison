@@ -235,8 +235,8 @@ downloadShareProjectBranch useSquashedIfAvailable branch = do
   let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))
   let causalHashJwt =
         if useSquashedIfAvailable
-          then (branch ^. #branchHead)
-          else fromMaybe (branch ^. #branchHead) (branch ^. #squashedBranchHead)
+          then fromMaybe (error "downloadShareProjectBranch: Requested squashed causal from server but it wasn't provided") (branch ^. #squashedBranchHead)
+          else (branch ^. #branchHead)
   exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
   when (not exists) do
     (result, numDownloaded) <-
