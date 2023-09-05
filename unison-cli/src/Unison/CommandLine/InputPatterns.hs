@@ -686,13 +686,19 @@ deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> Inpu
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
-        P.sep
+        P.wrapColumn2 [
+          (P.sep
           " "
           [ backtick (P.sep " " [P.string cmd, "foo"]),
             "removes the",
             P.string target,
             "name `foo` from the namespace."
-          ]
+          ], ""),
+          (P.sep
+            " "
+            [ backtick (P.sep " " [P.string cmd, "foo bar"]),
+            P.string target,
+            "name `foo` and `bar` from the namespace" ], "")]
       warn =
         P.sep
           " "
