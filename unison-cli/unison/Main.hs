@@ -478,13 +478,13 @@ launch ::
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+  welcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
         OpenedCodebase -> PreviouslyCreatedCodebase
-
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase ucmVersion
+      welcome = Welcome.welcome isNewCodebase ucmVersion welcomeHint
    in CommandLine.main
         dir
         welcome

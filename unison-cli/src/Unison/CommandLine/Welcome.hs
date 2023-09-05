@@ -14,7 +14,8 @@ import Prelude hiding (readFile, writeFile)
 
 data Welcome = Welcome
   { onboarding :: Onboarding, -- Onboarding States
-    unisonVersion :: Text
+    unisonVersion :: Text,
+    welcomeHint :: Bool
   }
 
 -- Previously Created is different from Previously Onboarded because a user can
@@ -34,12 +35,12 @@ data Onboarding
   | PreviouslyOnboarded
   deriving (Show, Eq)
 
-welcome :: CodebaseInitStatus -> Text -> Welcome
-welcome initStatus unisonVersion =
-  Welcome (Init initStatus) unisonVersion
+welcome :: CodebaseInitStatus -> Text -> Bool -> Welcome
+welcome initStatus unisonVersion welcomeHint =
+  Welcome (Init initStatus) unisonVersion welcomeHint
 
 run :: Welcome -> [Either Event Input]
-run Welcome {onboarding = onboarding, unisonVersion = version} = do
+run Welcome {onboarding = onboarding, unisonVersion = version, welcomeHint = welcomeHint} = do
   go onboarding []
   where
     go :: Onboarding -> [Either Event Input] -> [Either Event Input]
@@ -58,8 +59,8 @@ run Welcome {onboarding = onboarding, unisonVersion = version} = do
           where
             authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
-        Finished -> reverse (toInput getStarted : acc)
-        PreviouslyOnboarded -> reverse (toInput getStarted : acc)
+        Finished -> reverse (toInput (getStarted welcomeHint) : acc)
+        PreviouslyOnboarded -> reverse (toInput (getStarted welcomeHint) : acc)
 
 toInput :: P.Pretty P.ColorText -> Either Event Input
 toInput pretty =
@@ -110,9 +111,12 @@ authorSuggestion =
         P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"
       ]
 
-getStarted :: P.Pretty P.ColorText
-getStarted =
+getStarted :: Bool -> P.Pretty P.ColorText
+getStarted welcomeHint =
   P.wrap "📚 Read the official docs at https://www.unison-lang.org/learn/"
     <> P.newline
     <> P.newline
-    <> P.wrap "Type 'project.create' to get started."
+    <> P.wrap (if welcomeHint
+              then "Hint: type 'projects' to list all your projects"
+              else "Type 'project.create' to get started.")
+
