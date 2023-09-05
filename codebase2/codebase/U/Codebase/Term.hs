@@ -1,11 +1,11 @@
 module U.Codebase.Term
   ( Term,
-    ResolvedTerm,
+    ClosedTerm,
     Type,
     TermLink,
     TypeLink,
     F,
-    ResolvedF,
+    ClosedF,
     F' (..),
     MatchCase (..),
     Pattern (..),
@@ -36,7 +36,8 @@ type TermLink = ReferentH
 
 type TypeLink = Reference
 
-type ResolvedTerm v = ABT.Term (ResolvedF v) v ()
+-- | A closed term has no free variables, nor holes that represent self-references.
+type ClosedTerm v = ABT.Term (ClosedF v) v ()
 
 -- | Base functor for terms in the Unison codebase
 type F vt =
@@ -48,13 +49,13 @@ type F vt =
     TypeLink
     vt
 
-type ResolvedF vt =
+type ClosedF vt =
   F'
     Text
     TermReference
     TypeReference
     Referent
-    Reference
+    TypeReference
     vt
 
 -- | Generalized version.  We could generalize further to allow sharing within

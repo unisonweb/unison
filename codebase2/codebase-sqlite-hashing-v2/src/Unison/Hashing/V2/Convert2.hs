@@ -60,10 +60,10 @@ v2ToH2Type' mkReference = ABT.transform convertF
       V2.Type.Forall a -> H2.TypeForall a
       V2.Type.IntroOuter a -> H2.TypeIntroOuter a
 
-v2ToH2Term :: forall v. (Ord v) => V2.Term.ResolvedTerm v -> H2.Term v ()
+v2ToH2Term :: forall v. (Ord v) => V2.Term.ClosedTerm v -> H2.Term v ()
 v2ToH2Term = ABT.transform convertF
   where
-    convertF :: forall a. V2.Term.ResolvedF v a -> H2.TermF v () () a
+    convertF :: forall a. V2.Term.ClosedF v a -> H2.TermF v () () a
     convertF = \case
       V2.Term.Int x -> H2.TermInt x
       V2.Term.Nat x -> H2.TermNat x

@@ -18,11 +18,12 @@ module U.Codebase.Reference
     h_,
     idH,
     isBuiltin,
+    closeRReference,
     toShortHash,
   )
 where
 
-import Control.Lens (Lens, Prism, Prism', Traversal, lens, prism)
+import Control.Lens (Lens, Prism, Prism', Traversal, lens, prism, (%~))
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import U.Codebase.ShortHash (ShortHash)
@@ -109,6 +110,11 @@ isBuiltin :: Reference -> Bool
 isBuiltin = \case
   ReferenceBuiltin {} -> True
   ReferenceDerived {} -> False
+
+-- | "Close" an RReference to a Reference by replacing all self-references with the given self-hash.
+closeRReference :: Hash -> RReference -> Reference
+closeRReference selfHash =
+  h_ %~ fromMaybe selfHash
 
 toShortHash :: Reference -> ShortHash
 toShortHash (ReferenceBuiltin b) = SH.Builtin b

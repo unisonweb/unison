@@ -47,14 +47,14 @@ import Data.Vector.Unboxed qualified as UVector
 import Safe (elemIndexJust)
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (Reference' (..), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (RReference, Reference, Reference' (..), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Symbol (Symbol)
-import U.Codebase.Term (ResolvedTerm, Term)
+import U.Codebase.Term (ClosedTerm, Term)
 import U.Codebase.Term qualified as Term
 import U.Codebase.Type as Type
 import U.Core.ABT qualified as ABT
@@ -106,6 +106,8 @@ data NamespaceDiff reference referent = NamespaceDiff
 -- | An abstract interface to the bits of a code database that we need for performing a merge.
 data Database m = Database
   { loadConstructorType :: TypeReference -> m ConstructorType,
+    -- FIXME use ConstructorReference when there's only one Reference
+    loadConstructorTypeSignature :: TypeReferenceId -> ConstructorId -> m (TypeD Symbol),
     loadTerm :: TermReferenceId -> m (Term Symbol),
     loadType :: TypeReferenceId -> m (Decl Symbol)
   }
@@ -162,17 +164,21 @@ isUserTermUpdate ::
 isUserTermUpdate hashHandle database canonicalizeTypeRef canonicalizeTermRef = \case
   (Referent.Ref {}, Referent.Con {}) -> pure True
   (Referent.Con {}, Referent.Ref {}) -> pure True
-  (Referent.Con typeRef0 cid0, Referent.Con typeRef1 cid1) ->
-    -- TODO implement this
-    const (pure False) wundefined
+  (Referent.Con (Reference.ReferenceDerived typeRef0) cid0, Referent.Con (Reference.ReferenceDerived typeRef1) cid1) -> do
+    type0 <- (database ^. #loadConstructorTypeSignature) typeRef0 cid0
+    type1 <- (database ^. #loadConstructorTypeSignature) typeRef1 cid1
+    let ctype0 = canonicalizeType canonicalizeTypeRef (typeRef0 ^. Reference.idH) type0
+    let ctype1 = canonicalizeType canonicalizeTypeRef (typeRef1 ^. Reference.idH) type1
+    pure (HashHandle.toReference hashHandle ctype0 /= HashHandle.toReference hashHandle ctype1)
   (Referent.Ref (Reference.ReferenceDerived ref0), Referent.Ref (Reference.ReferenceDerived ref1)) -> do
     term0 <- loadCanonicalizedTerm ref0
     term1 <- loadCanonicalizedTerm ref1
-    pure (HashHandle.hashTerm hashHandle term0 /= HashHandle.hashTerm hashHandle term1)
+    pure (HashHandle.hashClosedTerm hashHandle term0 /= HashHandle.hashClosedTerm hashHandle term1)
   -- Builtin-to-derived, derived-to-builtin, and builtin-to-builtin are all clearly user updates
+  (Referent.Con {}, Referent.Con {}) -> pure True
   (Referent.Ref {}, Referent.Ref {}) -> pure True
   where
-    loadCanonicalizedTerm :: TermReferenceId -> m (ResolvedTerm Symbol)
+    loadCanonicalizedTerm :: TermReferenceId -> m (ClosedTerm Symbol)
     loadCanonicalizedTerm ref = do
       term <- (database ^. #loadTerm) ref
       canonicalizeTerm
@@ -223,11 +229,11 @@ isUserTypeUpdate hashHandle database getConstructorMapping canonicalizeTypeRef =
   where
     canonicalizeAndHash :: Hash -> TypeD Symbol -> TypeReference
     canonicalizeAndHash hash =
-      HashHandle.toReference hashHandle . Type.rmap (canonicalizeTypeRef . resolveTypeRef hash)
+      HashHandle.toReference hashHandle . canonicalizeType canonicalizeTypeRef hash
 
-    resolveTypeRef :: Hash -> TypeRReference -> TypeReference
-    resolveTypeRef hash =
-      Reference.h_ %~ fromMaybe hash
+canonicalizeType :: (TypeReference -> TypeReference) -> Hash -> TypeD Symbol -> TypeT Symbol
+canonicalizeType canonicalizeTypeRef selfHash =
+  Type.rmap (canonicalizeTypeRef . Reference.closeRReference selfHash)
 
 canonicalizeTerm ::
   forall m.
@@ -237,13 +243,13 @@ canonicalizeTerm ::
   (Referent -> Referent) ->
   Hash ->
   Term Symbol ->
-  m (ResolvedTerm Symbol)
+  m (ClosedTerm Symbol)
 canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef selfHash =
   ABT.transformM \case
     Term.Ann a typ -> pure $ Term.Ann a (Type.rmap canonicalizeTypeRef typ)
     Term.Constructor r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.Match s cs -> pure $ Term.Match s (canonicalizeCase <$> cs)
-    Term.Ref r -> lookupCanonReferent (Referent.Ref (resolveTermReference r))
+    Term.Ref r -> lookupCanonReferent (Referent.Ref (Reference.closeRReference selfHash r))
     Term.Request r cid -> lookupCanonReferent (Referent.Con r cid)
     Term.TermLink r -> pure $ Term.TermLink (lookupTermLink r)
     Term.TypeLink r -> pure $ Term.TypeLink (canonicalizeTypeRef r)
@@ -301,23 +307,20 @@ canonicalizeTerm database canonicalizeTypeRef canonicalizeTermRef selfHash =
             Referent.Ref cref -> (cref, maxBound @ConstructorId)
 
     resolveReferent :: Referent.ReferentH -> Referent
-    resolveReferent = Referent._Ref %~ resolveTermReference
-
-    resolveTermReference :: TermRReference -> TermReference
-    resolveTermReference =
-      Reference.h_ %~ fromMaybe selfHash
+    resolveReferent =
+      Referent._Ref %~ Reference.closeRReference selfHash
 
     lookupTermLink :: Term.TermLink -> Referent
     lookupTermLink =
       canonicalizeTermRef . resolveReferent
 
-    lookupCanonReferent :: forall a. Referent -> m (Term.ResolvedF Symbol a)
+    lookupCanonReferent :: forall a. Referent -> m (Term.ClosedF Symbol a)
     lookupCanonReferent r =
       case canonicalizeTermRef r of
         Referent.Ref x -> pure (Term.Ref x)
         Referent.Con typeRef constructorId -> makeConstructorTerm typeRef constructorId
 
-    makeConstructorTerm :: TypeReference -> ConstructorId -> m (Term.ResolvedF Symbol a)
+    makeConstructorTerm :: TypeReference -> ConstructorId -> m (Term.ClosedF Symbol a)
     makeConstructorTerm typeRef constructorId = do
       mkTerm <-
         (database ^. #loadConstructorType) typeRef <&> \case

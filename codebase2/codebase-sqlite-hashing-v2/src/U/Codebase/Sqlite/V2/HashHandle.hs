@@ -18,7 +18,7 @@ v2HashHandle =
       toReferenceMentions = Set.map h2ToV2Reference . H2.typeToReferenceMentions . v2ToH2Type . removeAllEffectVars,
       toReferenceDecl = \h -> h2ToV2Reference . H2.typeToReference . v2ToH2TypeD h . removeAllEffectVars,
       toReferenceDeclMentions = \h -> Set.map h2ToV2Reference . H2.typeToReferenceMentions . v2ToH2TypeD h . removeAllEffectVars,
-      hashTerm = h2ToV2ReferenceId . H2.hashClosedTerm . v2ToH2Term,
+      hashClosedTerm = h2ToV2ReferenceId . H2.hashClosedTerm . v2ToH2Term,
       hashBranch = H2.hashBranch,
       hashCausal = H2.hashCausal
     }

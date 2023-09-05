@@ -12,14 +12,14 @@ module U.Codebase.Decl
 where
 
 import U.Codebase.Reference (TypeRReference)
-import U.Codebase.Type (TypeR)
+import U.Codebase.Type (TypeD, TypeR)
 import U.Codebase.Type qualified as Type
 import Unison.ConstructorType (ConstructorType)
 import Unison.Prelude
 
 type Decl v = DeclR TypeRReference v
 
-type Type v = TypeR TypeRReference v
+type Type v = TypeD v
 
 data Modifier = Structural | Unique !Text
   deriving (Eq, Ord, Show)

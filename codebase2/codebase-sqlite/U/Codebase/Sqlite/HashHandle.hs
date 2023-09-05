@@ -7,6 +7,7 @@ import U.Codebase.Branch.Type (Branch)
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Symbol (Symbol)
+import U.Codebase.Term (ClosedTerm)
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import Unison.Hash (Hash)
@@ -21,7 +22,7 @@ data HashHandle = HashHandle
     toReferenceDecl :: Hash -> C.Type.TypeD Symbol -> C.Reference,
     -- | Hash decl's mentions
     toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference,
-    hashTerm :: C.Term.ResolvedTerm Symbol -> C.Id,
+    hashClosedTerm :: ClosedTerm Symbol -> C.Id,
     hashBranch :: forall m. Monad m => Branch m -> m BranchHash,
     hashCausal ::
       -- The causal's namespace hash
