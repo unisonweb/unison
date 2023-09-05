@@ -699,7 +699,7 @@ deleteGen suffix target mkTarget =
             [ backtick (P.sep " " [P.string cmd, "foo bar"]),
             "removes the",
             P.string target,
-            "name `foo` and `bar` from the namespace" ], "")]
+            "name `foo` and `bar` from the namespace." ], "")]
       warn =
         P.sep
           " "
