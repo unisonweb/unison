@@ -23,7 +23,6 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as DD
-import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DP
 import Unison.Syntax.NamePrinter qualified as NP
@@ -154,7 +153,7 @@ displayPretty pped terms typeOf eval types tm = go tm
             go ref =
               (ref,) <$> do
                 decl <- types ref
-                let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                let missing = DO.MissingObject (Reference.toShortHash ref)
                 pure $ maybe missing DO.UserObject decl
          in Map.fromList <$> traverse go tys
       termMap <-
@@ -163,7 +162,7 @@ displayPretty pped terms typeOf eval types tm = go tm
                 Reference.Builtin _ -> pure $ Builtin.typeOf missing DO.BuiltinObject ref
                 _ -> maybe missing DO.UserObject <$> terms ref
               where
-                missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                missing = DO.MissingObject (Reference.toShortHash ref)
          in Map.fromList <$> traverse go tms
       -- in docs, we use suffixed names everywhere
       let pped' = pped {PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped}

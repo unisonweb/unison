@@ -1012,7 +1012,7 @@ loop e = do
                     let termNotFound =
                           Cli.returnEarly
                             . TermNotFound'
-                            . SH.take hqLength
+                            . SH.shortenTo hqLength
                             . Reference.toShortHash
                     ft <- mft & onNothing (termNotFound fr)
                     tt <- mtt & onNothing (termNotFound tr)
@@ -2161,7 +2161,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
           Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
-              Cli.respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+              Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId rid)
               pure []
             Just tm -> do
               Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm

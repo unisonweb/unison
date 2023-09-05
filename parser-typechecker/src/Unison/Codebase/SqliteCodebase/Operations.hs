@@ -16,7 +16,6 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as BranchDiff
@@ -58,7 +57,6 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
@@ -515,7 +513,7 @@ branchHashLength = pure 10
 
 defnReferencesByPrefix :: OT.ObjectType -> ShortHash -> Transaction (Set Reference.Id)
 defnReferencesByPrefix _ (ShortHash.Builtin _) = pure mempty
-defnReferencesByPrefix ot (ShortHash.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) _cid) = do
+defnReferencesByPrefix ot (ShortHash.ShortHash prefix cycle _cid) = do
   refs <- do
     Ops.componentReferencesByPrefix ot prefix cycle
       >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
@@ -534,18 +532,12 @@ referentsByPrefix ::
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   ShortHash ->
   Transaction (Set Referent.Id)
-referentsByPrefix _doGetDeclType SH.Builtin {} = pure mempty
-referentsByPrefix doGetDeclType (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = do
+referentsByPrefix _doGetDeclType ShortHash.Builtin {} = pure mempty
+referentsByPrefix doGetDeclType (ShortHash.ShortHash prefix cycle cid) = do
   termReferents <-
     Ops.termReferentsByPrefix prefix cycle
       >>= traverse (Cv.referentid2to1 doGetDeclType)
-  cid' <- case cid of
-    Nothing -> pure Nothing
-    Just c ->
-      case readMaybe (Text.unpack c) of
-        Nothing -> error $ reportBug "994787297" "cid of ShortHash must be an integer but got: " <> show cid
-        Just cInt -> pure $ Just cInt
-  declReferents' <- Ops.declReferentsByPrefix prefix cycle cid'
+  declReferents' <- Ops.declReferentsByPrefix prefix cycle cid
   let declReferents =
         [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
           | (h, pos, ct, cids) <- declReferents',

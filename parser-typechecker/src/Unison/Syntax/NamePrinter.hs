@@ -1,5 +1,6 @@
 module Unison.Syntax.NamePrinter where
 
+import Data.Text qualified as Text
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
@@ -56,7 +57,7 @@ prettyLabeledDependency :: Int -> LabeledDependency -> Pretty SyntaxText
 prettyLabeledDependency len = LD.fold (prettyReference len) (prettyReferent len)
 
 prettyShortHash :: (IsString s) => ShortHash -> Pretty s
-prettyShortHash = fromString . SH.toString
+prettyShortHash = fromString . Text.unpack . SH.toText
 
 styleHashQualified ::
   (IsString s) => (Pretty s -> Pretty s) -> HQ.HashQualified Name -> Pretty s

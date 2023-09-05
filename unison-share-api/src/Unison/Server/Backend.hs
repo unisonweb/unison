@@ -176,7 +176,7 @@ import Unison.Server.SearchResult' qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
 import Unison.Server.Types qualified as ServerTypes
-import Unison.ShortHash
+import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -604,7 +604,7 @@ typeListEntry codebase mayBranch (ExactName nameSegment ref) = do
         typeEntryName = nameSegment,
         typeEntryConflicted = isConflicted,
         typeEntryTag = tag,
-        typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
+        typeEntryHash = SH.shortenTo hashLength $ Reference.toShortHash ref
       }
   where
     isConflicted = case mayBranch of
