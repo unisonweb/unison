@@ -11,8 +11,10 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.CommandLine.OutputMessages qualified as Msg
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName)
+import Unison.Util.Pretty qualified as P
 import Witch (unsafeFrom)
 
 -- | Switch to an existing project or project branch, with a flexible syntax that does not require prefixing branch
@@ -40,11 +42,37 @@ projectSwitch = \case
           (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
           (False, True) -> switchToProjectAndBranchByTheseNames (These currentProjectName branchName)
           (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
-          (True, True) ->
-            Cli.respondNumbered $
-              Output.AmbiguousSwitch
-                projectName
-                (ProjectAndBranch currentProjectName branchName)
+          (True, True) -> do
+            unambiguous <-
+              Cli.choose
+                ( P.wrap
+                    ( "I'm not sure if you wanted to switch to the branch"
+                        <> Msg.prettyProjectAndBranchName (ProjectAndBranch projectName branchName)
+                        <> "or the project"
+                        <> P.group (Msg.prettyProjectName projectName <> ".")
+                        <> "Could you be more specific?"
+                    )
+                    <> P.newline
+                    <> P.newline
+                )
+                [ ( Msg.prettySlashProjectBranchName branchName
+                      <> " (the branch "
+                      <> Msg.prettyProjectBranchName branchName
+                      <> " in the current project)",
+                    These currentProjectName branchName
+                  ),
+                  ( Msg.prettyProjectNameSlash projectName
+                      <> " (the project "
+                      <> Msg.prettyProjectName projectName
+                      <> ", with the branch left unspecified)",
+                    This projectName
+                  )
+                ]
+            switchToProjectAndBranchByTheseNames unambiguous
+  -- Cli.respondNumbered
+  -- \$ Output.AmbiguousSwitch
+  --   projectName
+  --   (ProjectAndBranch currentProjectName branchName)
   ProjectAndBranchNames'Unambiguous projectAndBranchNames0 ->
     switchToProjectAndBranchByTheseNames projectAndBranchNames0
 

@@ -31,6 +31,9 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.Machine
+      Unison.Cli.Machine.Confirmation
+      Unison.Cli.Machine.Enum
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
@@ -157,6 +160,7 @@ library
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
+    , array
     , async
     , base
     , bytes
@@ -291,6 +295,7 @@ executable cli-integration-tests
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
+    , array
     , async
     , base
     , bytes
@@ -421,6 +426,7 @@ executable transcripts
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
+    , array
     , async
     , base
     , bytes
@@ -558,6 +564,7 @@ executable unison
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
+    , array
     , async
     , base
     , bytes
@@ -699,6 +706,7 @@ test-suite cli-tests
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
+    , array
     , async
     , base
     , bytes
