@@ -77,3 +77,4 @@ The format for this list: name, GitHub handle
 * Chris Krycho (@chriskrycho)
 * Hatim Khambati (@hatimkhambati26)
 * Kyle Goetz (@kylegoetz)
+* Ethan Morgan (@sixfourtwelve)
