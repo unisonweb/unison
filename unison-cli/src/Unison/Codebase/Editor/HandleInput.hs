@@ -1012,7 +1012,7 @@ loop e = do
                     let termNotFound =
                           Cli.returnEarly
                             . TermNotFound'
-                            . SH.take hqLength
+                            . SH.shortenTo hqLength
                             . Reference.toShortHash
                     ft <- mft & onNothing (termNotFound fr)
                     tt <- mtt & onNothing (termNotFound tr)
@@ -1320,7 +1320,7 @@ loop e = do
                 Cli.runTransaction do
                   fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
                   toBranch <- Codebase.expectCausalBranchByCausalHash toCH >>= V2Causal.value
-                  let treeDiff = V2Branch.Diff.diffBranches fromBranch toBranch
+                  treeDiff <- V2Branch.Diff.diffBranches fromBranch toBranch
                   nameChanges <- V2Branch.Diff.allNameChanges Nothing treeDiff
                   pure (DisplayDebugNameDiff nameChanges)
               Cli.respond output
@@ -1909,7 +1909,7 @@ handleDiffNamespaceToPatch description input = do
         branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
         branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
         lift do
-          branchDiff <- V2Branch.Diff.nameBasedDiff (V2Branch.Diff.diffBranches branch1 branch2)
+          branchDiff <- V2Branch.Diff.diffBranches branch1 branch2 >>= V2Branch.Diff.nameBasedDiff
           termEdits <-
             (branchDiff ^. #terms)
               & Relation.domain
@@ -2161,7 +2161,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
           Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
             Nothing -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
-              Cli.respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+              Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId rid)
               pure []
             Just tm -> do
               Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
