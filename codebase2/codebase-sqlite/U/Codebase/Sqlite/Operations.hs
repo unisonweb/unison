@@ -35,6 +35,7 @@ module U.Codebase.Sqlite.Operations
 
     -- * terms/decls
     getCycleLen,
+    expectCycleLen,
 
     -- * patches
     savePatch,
@@ -419,6 +420,11 @@ getCycleLen h = do
     -- byte that is always 0 for now, followed by a framed array representing
     -- the strongly-connected component. :grimace:
     lift (Q.expectObject oid decodeComponentLengthOnly)
+
+expectCycleLen :: H.Hash -> Transaction Word64
+expectCycleLen hash = do
+  oid <- Q.expectObjectIdForAnyHash hash
+  Q.expectObject oid decodeComponentLengthOnly
 
 -- | Get the constructor type of a 'C.Reference.Id'.
 expectDeclTypeById :: C.Reference.Id -> Transaction ConstructorType

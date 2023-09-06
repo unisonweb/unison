@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (mapped, over, traverseOf, (^?), _1)
+import Control.Lens (mapped, over, traverseOf, (^.), (^?), _1)
 import Control.Monad.Trans.Writer.CPS (execWriter)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bimap (Bimap)
@@ -71,9 +71,11 @@ import Witherable (catMaybes)
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 _resultPath = do
+  -- FIXME we want to cache some of these, right?
   let mergeDatabase =
         Merge.Database
-          { loadConstructorType = SqliteCodebase.Operations.getDeclType,
+          { loadConstructorTypeSignature = wundefined,
+            loadConstructorType = SqliteCodebase.Operations.getDeclType,
             loadTerm = Operations.expectTermByReference,
             loadType = Operations.expectDeclByReference
           }
@@ -165,7 +167,16 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         -- build the core ecs from the updates
         let coreEcs = Merge.makeCoreEcs updates
 
+        let getTypeConstructorTerms :: TypeReference -> Transaction [Referent]
+            getTypeConstructorTerms ref =
+              case ref of
+                ReferenceBuiltin _ -> pure []
+                ReferenceDerived refId -> do
+                  cycleLen <- Operations.expectCycleLen (refId ^. Reference.idH)
+                  pure (map (Referent.Con ref) [0 .. cycleLen - 1])
+
         -- TODO we probably want to pass down a version of this that caches
+        -- FIXME use ConstructorReference when there's only one
         let typeDependsOn :: TypeReference -> Transaction (Set TypeReference)
             typeDependsOn = \case
               ReferenceBuiltin _ -> pure Set.empty
@@ -187,6 +198,14 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                 pure (termDependencies term)
               Referent.Con typeRef _conId ->
                 pure (Set.singleton (Left typeRef))
+
+        coreEcDependencies <-
+          Merge.makeCoreEcDependencies
+            getTypeConstructorTerms
+            typeDependsOn
+            termDependsOn
+            updates
+            coreEcs
 
         Sqlite.unsafeIO do
           Text.putStrLn "===== lca->alice diff ====="

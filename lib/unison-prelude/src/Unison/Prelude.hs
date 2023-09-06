@@ -7,6 +7,7 @@ module Unison.Prelude
     uncurry4,
     reportBug,
     tShow,
+    werror,
     wundefined,
 
     -- * @Maybe@ control flow
@@ -207,6 +208,10 @@ reportBug bugId msg =
       "on the issue to let the team know you encountered it, and you can add",
       "any additional details you know of to the issue."
     ]
+
+{-# WARNING werror "You left this werror." #-}
+werror :: (HasCallStack) => String -> a
+werror = error
 
 {-# WARNING wundefined "You left this wundefined." #-}
 wundefined :: (HasCallStack) => a
