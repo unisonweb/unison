@@ -42,6 +42,7 @@ module U.Codebase.Sqlite.Queries
     expectObjectIdForPrimaryHash,
     loadPatchObjectIdForPrimaryHash,
     loadObjectIdForAnyHash,
+    expectObjectIdForAnyHash,
     loadObjectIdForAnyHashId,
     expectObjectIdForAnyHashId,
     recordObjectRehash,
@@ -839,10 +840,25 @@ loadPatchObjectIdForPrimaryHash =
   (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash . unPatchHash
 
 loadObjectIdForAnyHash :: Hash -> Transaction (Maybe ObjectId)
-loadObjectIdForAnyHash h =
-  loadHashIdByHash h >>= \case
-    Nothing -> pure Nothing
-    Just hashId -> loadObjectIdForAnyHashId hashId
+loadObjectIdForAnyHash hash =
+  queryMaybeCol (loadObjectIdForAnyHashSql hash)
+
+-- FIXME(mitchell): "for any hash" is weird, but this query follows the existing pattern of just ignoring
+-- hash_object.hash_version... seems like that's a relevant column
+expectObjectIdForAnyHash :: Hash -> Transaction ObjectId
+expectObjectIdForAnyHash hash =
+  queryOneCol (loadObjectIdForAnyHashSql hash)
+
+loadObjectIdForAnyHashSql :: Hash -> Sql
+loadObjectIdForAnyHashSql hash =
+  [sql|
+    SELECT hash_object.object_id
+    FROM hash
+      JOIN hash_object ON hash.id = hash_object.hash_id
+    WHERE hash.base32 = :hash32
+  |]
+  where
+    hash32 = Hash32.fromHash hash
 
 loadObjectIdForAnyHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForAnyHashId h =

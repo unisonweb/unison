@@ -433,15 +433,32 @@ makeCoreEcs updates =
       termNodes = termUpdatesToNodes (updates ^. #terms)
    in Bimap.fromList (zip [0 ..] (typeNodes ++ termNodes))
 
+-- makeCoreEcDependencies tycons tydeps tmdeps updates core
+--   tycons: a function that resolves a type to a list of term constructors.
+--     for example, given the type reference
+--       #somehash -- Maybe
+--     it should return the term references for the constructors
+--       #somehash#0 -- Nothing
+--       #somehash#1 -- Just
+--
+--   tydeps: a function that returns the direct dependencies of a type
+--
+--   tmdeps: a function that returns the direct dependencies of a term. a term that uses a data constructor (in either
+--     pattern or constructor position) is said to depend on that particular constructor term, rather than on its type.
+--
+--   updates: the bag of type and term updates, classified into user- and not-user-updates
+--
+--   core: the core equivalence classes computed from the updates
 makeCoreEcDependencies ::
   forall m tm ty.
   (Monad m, Ord tm, Ord ty) =>
+  (ty -> m [tm]) ->
   (ty -> m (Set ty)) ->
   (tm -> m (Set (Either ty tm))) ->
   Updates ty tm ->
   Bimap EC (Node tm ty) ->
   m (Relation EC EC)
-makeCoreEcDependencies getTypeDependencies getTermDependencies updates coreEcs = do
+makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDependencies updates coreEcs = do
   Relation.fromMultimap <$> traverse getNodeDependencyEcs (Bimap.toMap coreEcs)
   where
     -- Make a couple lookup functions from term/type back to EC
