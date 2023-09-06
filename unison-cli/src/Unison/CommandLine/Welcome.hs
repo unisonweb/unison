@@ -117,6 +117,6 @@ getStarted showWelcomeHint =
     <> P.newline
     <> P.newline
     <> P.wrap (if showWelcomeHint
-              then "Hint: type 'projects' to list all your projects."
+              then "Hint: Type 'projects' to list all your projects, or 'project.create' to start something new."
               else "Type 'project.create' to get started.")
 
