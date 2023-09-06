@@ -27,6 +27,7 @@ library
       Unison.Util.Maybe
       Unison.Util.Monoid
       Unison.Util.NEMap
+      Unison.Util.NESet
       Unison.Util.Set
       Unison.Util.Timing
   hs-source-dirs:

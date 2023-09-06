@@ -134,23 +134,18 @@ validateUnisonFile :: (Var v) => UnisonFile v Ann -> P v m ()
 validateUnisonFile uf =
   checkForDuplicateTermsAndConstructors uf
 
--- | Because types and abilities can introduce their own constructors and fields it's difficult
--- to detect all duplicate terms during parsing itself. Here we collect all terms and
--- constructors and verify that no duplicates exist in the file, triggering an error if needed.
-checkForDuplicateTermsAndConstructors ::
+checkForDuplicateTermsAndConstructors' ::
   forall m v.
-  (Ord v) =>
+  (Applicative m, Ord v) =>
+  ([(v, [Ann])] -> m ()) ->
   UnisonFile v Ann ->
-  P v m ()
-checkForDuplicateTermsAndConstructors uf = do
-  when (not . null $ duplicates) $ do
-    let dupeList :: [(v, [Ann])]
-        dupeList =
-          duplicates
-            & fmap Set.toList
-            & Map.toList
-    P.customFailure (DuplicateTermNames dupeList)
+  m ()
+checkForDuplicateTermsAndConstructors' notifyDuplicateTermNames uf = do
+  when (not . null $ duplicates) $
+    notifyDuplicateTermNames dupeList
   where
+    dupeList :: [(v, [Ann])]
+    dupeList = duplicates & fmap Set.toList & Map.toList
     effectDecls :: [DataDeclaration v Ann]
     effectDecls = (Map.elems . fmap (DD.toDataDecl . snd) $ (effectDeclarationsId uf))
     dataDecls :: [DataDeclaration v Ann]
@@ -173,6 +168,17 @@ checkForDuplicateTermsAndConstructors uf = do
     duplicates =
       -- Any vars with multiple annotations are duplicates.
       Map.filter ((> 1) . Set.size) mergedTerms
+
+-- | Because types and abilities can introduce their own constructors and fields it's difficult
+-- to detect all duplicate terms during parsing itself. Here we collect all terms and
+-- constructors and verify that no duplicates exist in the file, triggering an error if needed.
+checkForDuplicateTermsAndConstructors ::
+  forall m v.
+  (Ord v) =>
+  UnisonFile v Ann ->
+  P v m ()
+checkForDuplicateTermsAndConstructors =
+  checkForDuplicateTermsAndConstructors' $ P.customFailure . DuplicateTermNames
 
 -- A stanza is either a watch expression like:
 --   > 1 + x

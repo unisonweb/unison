@@ -111,23 +111,28 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         aliceBranch <- Causal.value aliceCausal
         bobBranch <- Causal.value bobCausal
 
+        (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
+        (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
+
+        -- diff everything except lib
         aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
         bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
 
+        -- special diff for `lib`
+        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
+        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
+
+        -- collect all the updates
         let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
         let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
 
         let typeUpdates = aliceTypeUpdates <> bobTypeUpdates
         let termUpdates = aliceTermUpdates <> bobTermUpdates
 
-        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
-        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
-
-        (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
-        (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
-
+        -- the canonicalizer is just an implementation detail of the isUser{Type,Term}Update classifiers
         let canonicalizer = Merge.makeCanonicalizer v2HashHandle mergeDatabase typeUpdates termUpdates
 
+        -- classify the updates
         aliceUserTypeUpdates <- do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
@@ -157,6 +162,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   userTypes = userTypeUpdates
                 }
 
+        -- build the core ecs from the updates
         let coreEcs = Merge.makeCoreEcs updates
 
         -- TODO we probably want to pass down a version of this that caches
