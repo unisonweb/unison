@@ -1927,12 +1927,9 @@ notifyUser dir = \case
 
   ProjectAndBranchNameAlreadyExists projectAndBranch ->
     pure . P.wrap $ 
-      prettyProjectAndBranchName projectAndBranch <> "already exists." 
-      <> P.newline
-      <> P.newline
-      <> "You can switch to it with 'switch " 
-      <> prettyBranchName projectAndBranch 
-      <> "'"
+      prettyProjectAndBranchName projectAndBranch 
+      <> "already exists." 
+      <> "You can switch to it with 'switch " <> prettyBranchName projectAndBranch <> "'"
 
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
