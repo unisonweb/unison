@@ -69,15 +69,16 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
+import Text.Printf (printf)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
 step name action = do
-  Sqlite.unsafeIO (Text.putStr ("* " <> name <> "..."))
   t0 <- Sqlite.unsafeIO getMonotonicTime
   result <- action
-  t1 <- Sqlite.unsafeIO getMonotonicTime
-  Sqlite.unsafeIO (Text.putStrLn (" done. (" <> tShow (round ((t1 - t0) * 1000) :: Int) <> "ms)"))
+  Sqlite.unsafeIO do
+    t1 <- getMonotonicTime
+    Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
   pure result
 
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
