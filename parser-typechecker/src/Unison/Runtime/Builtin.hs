@@ -680,6 +680,27 @@ viewrs = unop0 3 $ \[s, u, i, l] ->
         (1, ([BX, BX], TAbss [i, l] $ seqViewElem i l))
       ]
 
+splitls, splitrs :: (Var v) => SuperNormal v
+splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLL [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
+splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLR [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
 eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
 eqt = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm EQLT [x, y]) $
@@ -2121,6 +2142,8 @@ builtinLookup =
         ("List.empty", (Untracked, emptys)),
         ("List.viewl", (Untracked, viewls)),
         ("List.viewr", (Untracked, viewrs)),
+        ("List.splitLeft", (Untracked, splitls)),
+        ("List.splitRight", (Untracked, splitrs)),
         --
         --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
         ("Universal.==", (Untracked, equ)),

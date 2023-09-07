@@ -1772,21 +1772,22 @@ anfBlock (Match' scrut cas) = do
     AccumSeqSplit en n mdf bd -> do
       i <- fresh
       r <- fresh
-      n <- fresh
+      s <- fresh
+      b <- binder
+      let split = ST1 (Indirect b) r BX (TCom op [i, v])
       pure
-        ( sctx <> cx <> directed [lit i, split i r],
-          pure . TMatch r . MatchSum $
+        ( sctx <> cx <> directed [lit i, split],
+          pure . TMatch r . MatchDataCover Ty.seqViewRef $
             mapFromList
-              [ (0, ([], df n)),
-                (1, ([BX, BX], bd))
+              [ (fromIntegral Ty.seqViewEmpty, ([], df s)),
+                (fromIntegral Ty.seqViewElem, ([BX, BX], bd))
               ]
         )
       where
         op
-          | SLeft <- en = SPLL
-          | otherwise = SPLR
-        lit i = ST1 Direct i UN (TLit . N $ fromIntegral n)
-        split i r = ST1 Direct r UN (TPrm op [i, v])
+          | SLeft <- en = Builtin "List.splitLeft"
+          | otherwise = Builtin "List.splitRight"
+        lit i = ST1 Direct i BX (TBLit . N $ fromIntegral n)
         df n =
           fromMaybe
             ( TLet Direct n BX (TLit (T "pattern match failure")) $
