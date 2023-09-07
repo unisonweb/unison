@@ -1924,13 +1924,12 @@ notifyUser dir = \case
       prettyProjectName name
         <> "requires a username, as in"
         <> prettyProjectName (unsafeFrom @Text "@unison/base")
-
   ProjectAndBranchNameAlreadyExists projectAndBranch ->
-    pure . P.wrap $ 
-      prettyProjectAndBranchName projectAndBranch 
-      <> "already exists." 
-      <> "You can switch to it with 'switch " <> prettyBranchName projectAndBranch <> "'"
-
+    pure . P.wrap $
+      prettyProjectAndBranchName projectAndBranch
+        <> "already exists."
+        <> "You can switch to it with "
+        <> IP.makeExample IP.projectSwitch [prettyBranchName projectAndBranch]
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
