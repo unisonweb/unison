@@ -135,7 +135,7 @@ denormalizeMatch b
       (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
   | MatchNumeric _ cs df <- b =
-    (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList cs) ++ dfcase df
+      (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList cs) ++ dfcase df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
     dfcase (Just d) =

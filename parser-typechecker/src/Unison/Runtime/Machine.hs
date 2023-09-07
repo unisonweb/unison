@@ -15,10 +15,10 @@ import Control.Exception
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
+import Data.Primitive.ByteArray qualified as BA
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
-import Data.Primitive.ByteArray qualified as BA
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
@@ -547,9 +547,10 @@ encodeExn ustk bstk (Left exn) = do
 numValue :: Maybe Reference -> Closure -> IO Word64
 numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
 numValue mr clo =
-  die $ "numValue: bad closure: "
-          ++ show clo
-          ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+  die $
+    "numValue: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 
 eval ::
   CCache ->
@@ -577,12 +578,12 @@ eval !env !denv !activeThreads !ustk !bstk !k r (NMatch mr i br) = do
 eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
   (t, ustk, bstk) <- dumpDataNoTag Nothing ustk bstk =<< peekOff bstk i
   if t == 0
-  then eval env denv activeThreads ustk bstk k r pu
-  else case ANF.unpackTags t of
-    (ANF.rawTag -> e, ANF.rawTag -> t)
-      | Just ebs <- EC.lookup e br ->
-        eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
-      | otherwise -> unhandledErr "eval" env e
+    then eval env denv activeThreads ustk bstk k r pu
+    else case ANF.unpackTags t of
+      (ANF.rawTag -> e, ANF.rawTag -> t)
+        | Just ebs <- EC.lookup e br ->
+            eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
+        | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
   | asize ustk + asize bstk > 0,
     BArg1 i <- args =
@@ -1896,7 +1897,7 @@ unhandledErr fname env i =
     Just r -> bomb (show r)
     Nothing -> bomb (show i)
   where
-  bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
+    bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
 combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
@@ -2127,9 +2128,9 @@ reflectValue rty = goV
       | t == natTag = pure $ ANF.Pos (fromIntegral v)
       | t == charTag = pure $ ANF.Char (toEnum v)
       | t == intTag, v >= 0 = pure $ ANF.Pos (fromIntegral v)
-      | t == intTag, v < 0 = pure $ ANF.Neg (fromIntegral (- v))
+      | t == intTag, v < 0 = pure $ ANF.Neg (fromIntegral (-v))
       | t == floatTag = pure $ ANF.Float (intToDouble v)
-      | otherwise = die . err $ "unboxed data: " <> show (t,v)
+      | otherwise = die . err $ "unboxed data: " <> show (t, v)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
@@ -2208,7 +2209,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Pos w) =
       pure $ DataU1 Rf.natRef natTag (fromIntegral w)
     goL (ANF.Neg w) =
-      pure $ DataU1 Rf.intRef intTag (- fromIntegral w)
+      pure $ DataU1 Rf.intRef intTag (-fromIntegral w)
     goL (ANF.Float d) =
       pure $ DataU1 Rf.floatRef floatTag (doubleToInt d)
 

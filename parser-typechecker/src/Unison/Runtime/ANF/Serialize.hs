@@ -787,20 +787,20 @@ putValue (Partial gr [] vs) =
   putTag PartialT
     *> putGroupRef gr
     *> putFoldable putValue vs
-putValue Partial{} =
+putValue Partial {} =
   exn "putValue: Partial with unboxed values no longer supported"
 putValue (Data r t [] vs) =
   putTag DataT
     *> putReference r
     *> putWord64be t
     *> putFoldable putValue vs
-putValue Data{} =
+putValue Data {} =
   exn "putValue: Data with unboxed contents no longer supported"
 putValue (Cont [] bs k) =
   putTag ContT
     *> putFoldable putValue bs
     *> putCont k
-putValue Cont{} =
+putValue Cont {} =
   exn "putValue: Cont with unboxed stack no longer supported"
 putValue (BLit l) =
   putTag BLitT *> putBLit l
@@ -810,24 +810,24 @@ getValue v =
   getTag >>= \case
     PartialT
       | v < 4 ->
-        Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
+          Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
       | otherwise ->
-        flip Partial [] <$> getGroupRef <*> getList (getValue v)
+          flip Partial [] <$> getGroupRef <*> getList (getValue v)
     DataT
       | v < 4 ->
-        Data
-          <$> getReference
-          <*> getWord64be
-          <*> getList getWord64be
-          <*> getList (getValue v)
+          Data
+            <$> getReference
+            <*> getWord64be
+            <*> getList getWord64be
+            <*> getList (getValue v)
       | otherwise ->
-        (\r t -> Data r t [])
-          <$> getReference
-          <*> getWord64be
-          <*> getList (getValue v)
+          (\r t -> Data r t [])
+            <$> getReference
+            <*> getWord64be
+            <*> getList (getValue v)
     ContT
       | v < 4 ->
-        Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
+          Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
       | otherwise -> Cont [] <$> getList (getValue v) <*> getCont v
     BLitT -> BLit <$> getBLit v
 
@@ -839,7 +839,7 @@ putCont (Mark 0 ba rs ds k) =
     *> putFoldable putReference rs
     *> putMap putReference putValue ds
     *> putCont k
-putCont Mark{} =
+putCont Mark {} =
   exn "putCont: Mark with unboxed args no longer supported"
 putCont (Push 0 j 0 n gr k) =
   putTag PushT
@@ -847,7 +847,7 @@ putCont (Push 0 j 0 n gr k) =
     *> putWord64be n
     *> putGroupRef gr
     *> putCont k
-putCont Push{} =
+putCont Push {} =
   exn "putCont: Push with unboxed information no longer supported"
 
 getCont :: (MonadGet m) => Version -> m Cont
@@ -856,33 +856,33 @@ getCont v =
     KET -> pure KE
     MarkT
       | v < 4 ->
-        Mark
-          <$> getWord64be
-          <*> getWord64be
-          <*> getList getReference
-          <*> getMap getReference (getValue v)
-          <*> getCont v
+          Mark
+            <$> getWord64be
+            <*> getWord64be
+            <*> getList getReference
+            <*> getMap getReference (getValue v)
+            <*> getCont v
       | otherwise ->
-        Mark 0
-          <$> getWord64be
-          <*> getList getReference
-          <*> getMap getReference (getValue v)
-          <*> getCont v
+          Mark 0
+            <$> getWord64be
+            <*> getList getReference
+            <*> getMap getReference (getValue v)
+            <*> getCont v
     PushT
       | v < 4 ->
-        Push
-          <$> getWord64be
-          <*> getWord64be
-          <*> getWord64be
-          <*> getWord64be
-          <*> getGroupRef
-          <*> getCont v
+          Push
+            <$> getWord64be
+            <*> getWord64be
+            <*> getWord64be
+            <*> getWord64be
+            <*> getGroupRef
+            <*> getCont v
       | otherwise ->
-        (\j n -> Push 0 j 0 n)
-          <$> getWord64be
-          <*> getWord64be
-          <*> getGroupRef
-          <*> getCont v
+          (\j n -> Push 0 j 0 n)
+            <$> getWord64be
+            <*> getWord64be
+            <*> getGroupRef
+            <*> getCont v
 
 deserializeGroup :: (Var v) => ByteString -> Either String (SuperGroup v)
 deserializeGroup bs = runGetS (getVersion *> getGroup) bs
