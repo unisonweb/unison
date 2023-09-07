@@ -890,6 +890,7 @@ deserializeGroup bs = runGetS (getVersion *> getGroup) bs
     getVersion =
       getWord32be >>= \case
         1 -> pure ()
+        2 -> pure ()
         n -> fail $ "deserializeGroup: unknown version: " ++ show n
 
 serializeGroup ::
@@ -957,4 +958,4 @@ valueVersion :: Word32
 valueVersion = 4
 
 codeVersion :: Word32
-codeVersion = 1
+codeVersion = 2
