@@ -1,3 +1,4 @@
+Run base tests. Hidden due to excessive output.
 
 Note: This should be forked off of the codebase created by base.md
 
