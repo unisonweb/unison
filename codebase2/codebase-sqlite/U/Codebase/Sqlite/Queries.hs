@@ -107,6 +107,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * projects
     projectExists,
+    doProjectsExist,
     projectExistsByName,
     loadProject,
     loadProjectByName,
@@ -3223,6 +3224,12 @@ projectExists projectId =
         WHERE id = :projectId
       )
     |]
+
+-- | Check if any projects exist
+doProjectsExist :: Transaction Bool
+doProjectsExist =
+  queryOneCol
+    [sql| SELECT EXISTS (SELECT 1 FROM project) |]
 
 -- | Does a project exist by this name?
 projectExistsByName :: ProjectName -> Transaction Bool
