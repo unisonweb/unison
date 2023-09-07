@@ -468,10 +468,14 @@ makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDepend
     (lookupTypeEc, lookupTermEc) =
       makeEcLookupFunctions coreEcs
 
+    -- Get the set of ECs that a type depends on
     getTypeDependencyEcs :: ty -> m (Set EC)
-    getTypeDependencyEcs =
-      getTypeDependencies >>> fmap (Set.mapMaybe lookupTypeEc)
+    getTypeDependencyEcs ty = do
+      deps <- getTypeDependencies ty
+      -- FIXME add dependencies on constructors' ECs
+      pure (Set.mapMaybe lookupTypeEc deps)
 
+    -- Get the set of ECs that a term depends on
     getTermDependencyEcs :: tm -> m (Set EC)
     getTermDependencyEcs =
       getTermDependencies >>> fmap (Set.mapMaybe (either lookupTypeEc lookupTermEc))

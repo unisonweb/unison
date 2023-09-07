@@ -3,6 +3,9 @@ module U.Codebase.Branch.Diff
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
+    pattern DiffIsAdd,
+    pattern DiffIsRemoval,
+    pattern DiffIsUpdate,
     NameBasedDiff (..),
     diffBranches,
     allNameChanges,
@@ -18,6 +21,8 @@ import Data.Functor.Compose (Compose (..))
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.These
 import U.Codebase.Branch
 import U.Codebase.Branch.Type qualified as Branch
@@ -38,7 +43,26 @@ data Diff a = Diff
   { adds :: !(Set a),
     removals :: !(Set a)
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Generic, Ord, Show)
+
+-- Note: the DiffIsAdd and DiffIsUpdate pattern synonyms below intentionally return only a single arbitrary element
+-- from the add set, and as such are most useful to calling code that has this invariant on adds (such as the merge
+-- algorithm, which disallows merging namespaces that have conflicted names).
+
+-- | Does this diff look like an "add", that is, the removal of 0 things, and the addition of 1 thing?
+pattern DiffIsAdd :: a -> Diff a
+pattern DiffIsAdd x <- Diff (Set.lookupMin -> Just x) (Set.null -> True)
+
+-- | Does this diff look like a "removal", that is, the removal of 1+ things, and the addition of 0 things?
+pattern DiffIsRemoval :: NESet a -> Diff a
+pattern DiffIsRemoval xs <- Diff (Set.null -> True) (NESet.nonEmptySet -> Just xs)
+
+-- | Does this diff look like an "update", that is, the removal of 1+ things, and the addition of 1 thing?
+pattern DiffIsUpdate :: NESet a -> a -> Diff a
+pattern DiffIsUpdate xs y <- Diff (Set.lookupMin -> Just y) (NESet.nonEmptySet -> Just xs)
+
+-- Complete due to the invariant that adds/removals are not both empty.
+{-# COMPLETE DiffIsAdd, DiffIsRemoval, DiffIsUpdate #-}
 
 -- | Represents the changes to definitions at a given path, not including child paths.
 --
