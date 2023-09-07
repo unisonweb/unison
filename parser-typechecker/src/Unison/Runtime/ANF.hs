@@ -785,6 +785,8 @@ instance ABTN.Align ANormalF where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
   align _ _ (ALit l) (ALit r)
     | l == r = Just $ pure (ALit l)
+  align _ _ (ABLit l) (ABLit r)
+    | l == r = Just $ pure (ABLit l)
   align _ g (ALet dl ccl bl el) (ALet dr ccr br er)
     | dl == dr,
       ccl == ccr =
@@ -892,6 +894,14 @@ alignBranch f (MatchSum bl) (MatchSum br)
   | keysSet bl == keysSet br,
     all (\w -> fst (bl ! w) == fst (br ! w)) (keys bl) =
       Just $ MatchSum <$> interverse (alignCCs f) bl br
+alignBranch f (MatchNumeric rl bl dl) (MatchNumeric rr br dr)
+  | rl == rr,
+    keysSet bl == keysSet br,
+    Just ds <- alignMaybe f dl dr =
+      Just $
+        MatchNumeric rl
+          <$> interverse f bl br
+          <*> ds
 alignBranch _ _ _ = Nothing
 
 alignCCs :: (Functor f) => (l -> r -> f s) -> (a, l) -> (a, r) -> f (a, s)
