@@ -448,7 +448,7 @@ d = c + 10
     196. builtin.unsafe.coerceAbilities                : (a
                                                        ->{e1} b)
                                                        -> a
-                                                       ->{e2} b
+                                                       -> b
     197. builtin.Universal.compare                     : a
                                                        -> a
                                                        -> Int
@@ -1428,61 +1428,66 @@ d = c + 10
                                                          Code)]
                                                        ->{IO} Optional
                                                          Failure
-    513. builtin.io2.validateSandboxed                 : [Term]
+    513. builtin.Code.validateLinks                    : [( Term,
+                                                         Code)]
+                                                       ->{Exception} Either
+                                                         [Term]
+                                                         [Term]
+    514. builtin.io2.validateSandboxed                 : [Term]
                                                        -> a
                                                        -> Boolean
-    514. builtin.Value.value                           : a
+    515. builtin.Value.value                           : a
                                                        -> Value
-    515. builtin.io2.IO.process.wait                   : ProcessHandle
+    516. builtin.io2.IO.process.wait                   : ProcessHandle
                                                        ->{IO} Nat
-    516. builtin.Debug.watch                           : Text
+    517. builtin.Debug.watch                           : Text
                                                        -> a
                                                        -> a
-    517. builtin.Char.Class.whitespace                 : Class
-    518. builtin.MutableArray.write                    : MutableArray
+    518. builtin.Char.Class.whitespace                 : Class
+    519. builtin.MutableArray.write                    : MutableArray
                                                          g a
                                                        -> Nat
                                                        -> a
                                                        ->{g,
                                                        Exception} ()
-    519. builtin.io2.Promise.write                     : Promise
+    520. builtin.io2.Promise.write                     : Promise
                                                          a
                                                        -> a
                                                        ->{IO} Boolean
-    520. builtin.Ref.write                             : Ref g a
+    521. builtin.Ref.write                             : Ref g a
                                                        -> a
                                                        ->{g} ()
-    521. builtin.io2.TVar.write                        : TVar a
+    522. builtin.io2.TVar.write                        : TVar a
                                                        -> a
                                                        ->{STM} ()
-    522. builtin.MutableByteArray.write16be            : MutableByteArray
+    523. builtin.MutableByteArray.write16be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    523. builtin.MutableByteArray.write32be            : MutableByteArray
+    524. builtin.MutableByteArray.write32be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    524. builtin.MutableByteArray.write64be            : MutableByteArray
+    525. builtin.MutableByteArray.write64be            : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    525. builtin.MutableByteArray.write8               : MutableByteArray
+    526. builtin.MutableByteArray.write8               : MutableByteArray
                                                          g
                                                        -> Nat
                                                        -> Nat
                                                        ->{g,
                                                        Exception} ()
-    526. builtin.Int.xor                               : Int
+    527. builtin.Int.xor                               : Int
                                                        -> Int
                                                        -> Int
-    527. builtin.Nat.xor                               : Nat
+    528. builtin.Nat.xor                               : Nat
                                                        -> Nat
                                                        -> Nat
   

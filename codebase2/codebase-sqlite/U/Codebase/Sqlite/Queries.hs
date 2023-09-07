@@ -108,6 +108,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * projects
     projectExists,
+    doProjectsExist,
     projectExistsByName,
     loadProject,
     loadProjectByName,
@@ -221,6 +222,7 @@ module U.Codebase.Sqlite.Queries
     saveTempEntityInMain,
     expectTempEntity,
     deleteTempEntity,
+    clearTempEntityTables,
 
     -- * elaborate hashes
     elaborateHashes,
@@ -389,6 +391,9 @@ import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
+
+debug :: Bool
+debug = False
 
 type TextPathSegments = [Text]
 
@@ -2726,6 +2731,15 @@ deleteTempEntity hash =
       WHERE hash = :hash
     |]
 
+-- | Clears the `temp_entity` and `temp_entity_missing_dependency` tables.
+-- The hashjwts stored in temp entity tables can sometimes go stale, so we clear them out.
+-- This is safe because temp entities are generally considered ephemeral
+-- except during an active pull.
+clearTempEntityTables :: Transaction ()
+clearTempEntityTables = do
+  execute [sql| DELETE FROM temp_entity_missing_dependency |]
+  execute [sql| DELETE FROM temp_entity |]
+
 -- | "Elaborate" a set of `temp_entity` hashes.
 --
 -- Given a set of `temp_entity` hashes, returns the (known) set of transitive dependencies that haven't already been
@@ -3228,6 +3242,12 @@ projectExists projectId =
       )
     |]
 
+-- | Check if any projects exist
+doProjectsExist :: Transaction Bool
+doProjectsExist =
+  queryOneCol
+    [sql| SELECT EXISTS (SELECT 1 FROM project) |]
+
 -- | Does a project exist by this name?
 projectExistsByName :: ProjectName -> Transaction Bool
 projectExistsByName name =
@@ -3282,21 +3302,16 @@ loadAllProjects =
     |]
 
 -- | Load all projects whose name matches a prefix.
-loadAllProjectsBeginningWith :: Text -> Transaction [Project]
-loadAllProjectsBeginningWith prefix =
-  -- since we are not likely to many projects, we just get them all and filter in Haskell. This seems much simpler than
-  -- running a LIKE query, and dealing with escaping, case sensitivity, etc
-  fmap (filter matches) $
-    queryListRow
-      [sql|
+loadAllProjectsBeginningWith :: Maybe Text -> Transaction [Project]
+loadAllProjectsBeginningWith mayPrefix = do
+  let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
+  queryListRow
+    [sql|
         SELECT id, name
         FROM project
+        WHERE name GLOB :prefixGlob
         ORDER BY name ASC
       |]
-  where
-    matches :: Project -> Bool
-    matches Project {name = UnsafeProjectName name} =
-      prefix `Text.isPrefixOf` name
 
 -- | Insert a `project` row.
 insertProject :: ProjectId -> ProjectName -> Transaction ()
@@ -3397,23 +3412,18 @@ loadProjectBranchByNames projectName branchName =
         AND project_branch.name = :branchName
     |]
 
--- | Load all branch id/name pairs in a project whose name matches a prefix.
-loadAllProjectBranchesBeginningWith :: ProjectId -> Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
-loadAllProjectBranchesBeginningWith projectId prefix =
-  -- since a project is not likely to have many branches, we just get them all and filter in Haskell. This seems much
-  -- simpler than running a LIKE query, and dealing with escaping, case sensitivity, etc
-  fmap (filter matches) $
-    queryListRow
-      [sql|
+-- | Load all branch id/name pairs in a project whose name matches an optional prefix.
+loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
+loadAllProjectBranchesBeginningWith projectId mayPrefix =
+  let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
+   in queryListRow
+        [sql|
         SELECT project_branch.branch_id, project_branch.name
         FROM project_branch
         WHERE project_branch.project_id = :projectId
+          AND project_branch.name GLOB :prefixGlob
         ORDER BY project_branch.name ASC
       |]
-  where
-    matches :: (ProjectBranchId, ProjectBranchName) -> Bool
-    matches (_, UnsafeProjectBranchName name) =
-      prefix `Text.isPrefixOf` name
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --

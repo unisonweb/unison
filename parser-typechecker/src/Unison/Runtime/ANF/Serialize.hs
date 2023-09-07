@@ -14,13 +14,14 @@ import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
+import Data.Maybe (mapMaybe)
 import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
-import Unison.Reference (Reference)
+import Unison.Reference (Reference (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
@@ -268,14 +269,31 @@ getCCs =
       1 -> BX
       _ -> exn "getCCs: bad calling convention"
 
+-- Serializes a `SuperGroup`.
+--
+-- The Reference map allows certain term references to be switched out
+-- for a given 64 bit word. This is used when re-hashing intermediate
+-- code. For actual serialization, the empty map should be used, so
+-- that the process is reversible. The purpose of this is merely to
+-- strip out (mutual/)self-references when producing a byte sequence
+-- to recompute a hash of a connected component of intermediate
+-- definitons, since it is infeasible to
+--
+-- The EnumMap associates 'foreign' operations with a textual name
+-- that is used as the serialized representation. Since they are
+-- generated somewhat dynamically, it is not easy to associate them
+-- with a fixed numbering like we can with POps.
 putGroup ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   SuperGroup v ->
   m ()
-putGroup fops (Rec bs e) =
-  putLength n *> traverse_ (putComb fops ctx) cs *> putComb fops ctx e
+putGroup refrep fops (Rec bs e) =
+  putLength n
+    *> traverse_ (putComb refrep fops ctx) cs
+    *> putComb refrep fops ctx e
   where
     n = length us
     (us, cs) = unzip bs
@@ -293,12 +311,13 @@ getGroup = do
 putComb ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   [v] ->
   SuperNormal v ->
   m ()
-putComb fops ctx (Lambda ccs (TAbss us e)) =
-  putCCs ccs *> putNormal fops (pushCtx us ctx) e
+putComb refrep fops ctx (Lambda ccs (TAbss us e)) =
+  putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
 
 getFresh :: (Var v) => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
@@ -313,41 +332,52 @@ getComb ctx frsh0 = do
 putNormal ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   [v] ->
   ANormal v ->
   m ()
-putNormal fops ctx tm = case tm of
+putNormal refrep fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
   TFrc v -> putTag ForceT *> putVar ctx v
-  TApp f as -> putTag AppT *> putFunc fops ctx f *> putArgs ctx as
+  TApp f as -> putTag AppT *> putFunc refrep fops ctx f *> putArgs ctx as
   THnd rs h e ->
-    putTag HandleT *> putRefs rs *> putVar ctx h *> putNormal fops ctx e
+    putTag HandleT
+      *> putRefs rs
+      *> putVar ctx h
+      *> putNormal refrep fops ctx e
   TShift r v e ->
-    putTag ShiftT *> putReference r *> putNormal fops (v : ctx) e
-  TMatch v bs -> putTag MatchT *> putVar ctx v *> putBranches fops ctx bs
+    putTag ShiftT *> putReference r *> putNormal refrep fops (v : ctx) e
+  TMatch v bs ->
+    putTag MatchT
+      *> putVar ctx v
+      *> putBranches refrep fops ctx bs
   TLit l -> putTag LitT *> putLit l
   TName v (Left r) as e ->
     putTag NameRefT
-      *> putReference r
+      *> pr
       *> putArgs ctx as
-      *> putNormal fops (v : ctx) e
+      *> putNormal refrep fops (v : ctx) e
+    where
+      pr
+        | Just w <- Map.lookup r refrep = putWord64be w
+        | otherwise = putReference r
   TName v (Right u) as e ->
     putTag NameVarT
       *> putVar ctx u
       *> putArgs ctx as
-      *> putNormal fops (v : ctx) e
+      *> putNormal refrep fops (v : ctx) e
   TLets Direct us ccs l e ->
     putTag LetDirT
       *> putCCs ccs
-      *> putNormal fops ctx l
-      *> putNormal fops (pushCtx us ctx) e
+      *> putNormal refrep fops ctx l
+      *> putNormal refrep fops (pushCtx us ctx) e
   TLets (Indirect w) us ccs l e ->
     putTag LetIndT
       *> putWord16be w
       *> putCCs ccs
-      *> putNormal fops ctx l
-      *> putNormal fops (pushCtx us ctx) e
+      *> putNormal refrep fops ctx l
+      *> putNormal refrep fops (pushCtx us ctx) e
   _ -> exn "putNormal: malformed term"
 
 getNormal :: (MonadGet m) => (Var v) => [v] -> Word64 -> m (ANormal v)
@@ -398,13 +428,16 @@ getNormal ctx frsh0 =
 putFunc ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   [v] ->
   Func v ->
   m ()
-putFunc fops ctx f = case f of
+putFunc refrep fops ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
-  FComb r -> putTag FCombT *> putReference r
+  FComb r
+    | Just w <- Map.lookup r refrep -> putTag FCombT *> putWord64be w
+    | otherwise -> putTag FCombT *> putReference r
   FCont v -> putTag FContT *> putVar ctx v
   FCon r c -> putTag FConT *> putReference r *> putCTag c
   FReq r c -> putTag FReqT *> putReference r *> putCTag c
@@ -600,7 +633,7 @@ putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
 putBLit (Quote v) = putTag QuoteT *> putValue v
-putBLit (Code g) = putTag CodeT *> putGroup mempty g
+putBLit (Code g) = putTag CodeT *> putGroup mempty mempty g
 putBLit (BArr a) = putTag BArrT *> putByteArray a
 
 getBLit :: (MonadGet m) => Version -> m BLit
@@ -624,34 +657,35 @@ getRefs = getList getReference
 putBranches ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   [v] ->
   Branched (ANormal v) ->
   m ()
-putBranches fops ctx bs = case bs of
+putBranches refrep fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
   MatchIntegral m df -> do
     putTag MIntT
-    putEnumMap putWord64be (putNormal fops ctx) m
-    putMaybe df $ putNormal fops ctx
+    putEnumMap putWord64be (putNormal refrep fops ctx) m
+    putMaybe df $ putNormal refrep fops ctx
   MatchText m df -> do
     putTag MTextT
-    putMap (putText . Util.Text.toText) (putNormal fops ctx) m
-    putMaybe df $ putNormal fops ctx
+    putMap (putText . Util.Text.toText) (putNormal refrep fops ctx) m
+    putMaybe df $ putNormal refrep fops ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
-    putMap putReference (putEnumMap putCTag (putCase fops ctx)) m
-    putNormal fops (v : ctx) df
+    putMap putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
+    putNormal refrep fops (v : ctx) df
     where
 
   MatchData r m df -> do
     putTag MDataT
     putReference r
-    putEnumMap putCTag (putCase fops ctx) m
-    putMaybe df $ putNormal fops ctx
+    putEnumMap putCTag (putCase refrep fops ctx) m
+    putMaybe df $ putNormal refrep fops ctx
   MatchSum m -> do
     putTag MSumT
-    putEnumMap putWord64be (putCase fops ctx) m
+    putEnumMap putWord64be (putCase refrep fops ctx) m
   _ -> exn "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -683,12 +717,13 @@ getBranches ctx frsh0 =
 putCase ::
   (MonadPut m) =>
   (Var v) =>
+  Map Reference Word64 ->
   EC.EnumMap FOp Text ->
   [v] ->
   ([Mem], ANormal v) ->
   m ()
-putCase fops ctx (ccs, (TAbss us e)) =
-  putCCs ccs *> putNormal fops (pushCtx us ctx) e
+putCase refrep fops ctx (ccs, (TAbss us e)) =
+  putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
 
 getCase :: (MonadGet m) => (Var v) => [v] -> Word64 -> m ([Mem], ANormal v)
 getCase ctx frsh0 = do
@@ -793,9 +828,43 @@ deserializeGroup bs = runGetS (getVersion *> getGroup) bs
 
 serializeGroup ::
   (Var v) => EC.EnumMap FOp Text -> SuperGroup v -> ByteString
-serializeGroup fops sg = runPutS (putVersion *> putGroup fops sg)
+serializeGroup fops sg = runPutS (putVersion *> putGroup mempty fops sg)
   where
     putVersion = putWord32be codeVersion
+
+-- | Serializes a `SuperGroup` for rehashing.
+--
+-- Expected as arguments are some code, and the `Reference` that
+-- refers to it. In particular, if the code refers to itself by
+-- reference, or if the code is part of a mututally-recursive set of
+-- definitions (which have a common hash), the reference used as part
+-- of that (mutual) recursion must be supplied.
+--
+-- Using that reference, we find all references in the code to that
+-- connected component. In the resulting byte string, those references
+-- are instead replaced by positions in a listing of the connected
+-- component. This means that the byte string is independent of the
+-- hash used for the self reference. Only the order matters (which is
+-- determined by the `Reference`). Then the bytes can be re-hashed to
+-- establish a new hash for the connected component. This operation
+-- should be idempotent as long as the indexing is preserved.
+--
+-- Supplying a `Builtin` reference is not supported. Such code
+-- shouldn't be subject to rehashing.
+serializeGroupForRehash ::
+  Var v =>
+  EC.EnumMap FOp Text ->
+  Reference ->
+  SuperGroup v ->
+  L.ByteString
+serializeGroupForRehash _ (Builtin _) _ =
+  error "serializeForRehash: builtin reference"
+serializeGroupForRehash fops (Derived h _) sg =
+  runPutLazy $ putGroup refrep fops sg
+  where
+    f r@(Derived h' i) | h == h' = Just (r, i)
+    f _ = Nothing
+    refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
 deserializeValue :: ByteString -> Either String Value
 deserializeValue bs = runGetS (getVersion >>= getValue) bs

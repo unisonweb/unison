@@ -537,6 +537,23 @@ debugShow :: (Show a) => a -> Bool
 debugShow e | debugEnabled = traceShow e False
 debugShow _ = False
 
+debugTrace :: String -> Bool
+debugTrace e | debugEnabled = trace e False
+debugTrace _ = False
+
+showType :: Var v => Type.Type v a -> String
+showType ty = TP.prettyStr (Just 120) PPE.empty ty
+
+debugType :: Var v => String -> Type.Type v a -> Bool
+debugType tag ty
+  | debugEnabled = debugTrace $ "(" <> show tag <> "," <> showType ty <> ")"
+  | otherwise = False
+
+debugTypes :: Var v => String -> Type.Type v a -> Type.Type v a -> Bool
+debugTypes tag t1 t2
+  | debugEnabled = debugTrace $ "(" <> show tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
+  | otherwise = False
+
 debugPatternsEnabled :: Bool
 debugPatternsEnabled = False
 
@@ -980,6 +997,7 @@ vectorConstructorOfArity loc arity = do
   pure vt
 
 generalizeAndUnTypeVar :: (Var v) => Type v a -> Type.Type v a
+generalizeAndUnTypeVar t | debugType "generalizeAndUnTypeVar" t = undefined
 generalizeAndUnTypeVar t =
   Type.cleanup . ABT.vmap TypeVar.underlying . Type.generalize (Set.toList $ ABT.freeVars t) $ t
 
@@ -2149,7 +2167,7 @@ defaultAbility _ = pure False
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
 discardCovariant :: (Var v) => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugShow ("discardCovariant" :: Text, ty) = undefined
+discardCovariant _ ty | debugType "discardCovariant" ty = undefined
 discardCovariant gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
@@ -2343,7 +2361,7 @@ check m0 t0 = scope (InCheck m0 t0) $ do
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
-subtype tx ty | debugEnabled && traceShow ("subtype" :: String, tx, ty) False = undefined
+subtype tx ty | debugTypes "subtype" tx ty = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do
   ctx <- getContext
   go (ctx :: Context v loc) (Type.stripIntroOuters tx) (Type.stripIntroOuters ty)

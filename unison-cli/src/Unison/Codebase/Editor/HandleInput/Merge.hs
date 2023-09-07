@@ -21,6 +21,7 @@ import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
+import Text.Printf (printf)
 import U.Codebase.Branch (Branch, CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff), pattern DiffIsAdd)
@@ -33,8 +34,6 @@ import U.Codebase.Reference (Reference, Reference' (..), TermReference, TypeRefe
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.Symbol (Symbol)
@@ -58,6 +57,8 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
@@ -69,7 +70,6 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
-import Text.Printf (printf)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -126,10 +126,12 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         (lcaTypeNames, lcaDataconNames, lcaTermNames) <- step "load lca names" $ loadBranchDefinitionNames lcaBranch
 
         -- Compute and load the (deep) definition diffs (everything but lib.*)
-        let aliceBranchDiff = Diff.diffBranches lcaBranch aliceBranch
-        let bobBranchDiff = Diff.diffBranches lcaBranch bobBranch
-        aliceDefinitionsDiff <- step "load alice definitions diff" $ loadDefinitionsDiff aliceBranchDiff
-        bobDefinitionsDiff <- step "load bob definitions diff" $ loadDefinitionsDiff bobBranchDiff
+        aliceDefinitionsDiff <- step "load alice definitions diff" do
+          aliceBranchDiff <- Diff.diffBranches lcaBranch aliceBranch
+          loadDefinitionsDiff aliceBranchDiff
+        bobDefinitionsDiff <- step "load bob definitions diff" do
+          bobBranchDiff <- Diff.diffBranches lcaBranch bobBranch
+          loadDefinitionsDiff bobBranchDiff
 
         -- Special diff for `lib`
         aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch

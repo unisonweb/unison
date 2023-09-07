@@ -5,13 +5,25 @@
 # ./previous-tag.sh M4a -> M4
 # ./previous-tag.sh M4b -> M4a
 
+awk_exe="awk"
+
+# if gawk exists, use that:
+if command -V "gawk" >/dev/null 2>&1; then
+   awk_exe=gawk
+fi
+
+if ! ("$awk_exe" --version | grep GNU) >/dev/null 2>&1; then
+   echo "GNU awk is required, install with \`brew install gawk\`"
+   exit 1
+fi
+
 if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
  echo "Version tag must be of the form 'M4' or 'M4a'. E.g."
  echo "$0 M4a"
  exit 1
 fi
 
-echo "$1" | awk '
+echo "$1" | $awk_exe '
         # This script figures out a previous tag for a given release to make release notes from.
 
         # The previous release of something like M4a is just M4

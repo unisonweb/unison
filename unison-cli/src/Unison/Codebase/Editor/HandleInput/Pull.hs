@@ -49,9 +49,10 @@ import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
+import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName)
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync qualified as Share
@@ -59,6 +60,7 @@ import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sync.Common qualified as Common
 import Unison.Sync.Types qualified as Share
+import Witch (unsafeFrom)
 
 doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
 doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
@@ -151,13 +153,53 @@ resolveImplicitSource =
       pure (ReadShare'ProjectBranch remoteBranch)
 
 resolveExplicitSource ::
-  ReadRemoteNamespace (These ProjectName ProjectBranchName) ->
+  ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease) ->
   Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveExplicitSource = \case
   ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
   ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
-  ReadShare'ProjectBranch projectAndBranchNames ->
-    ReadShare'ProjectBranch <$> ProjectUtils.expectRemoteProjectBranchByTheseNames projectAndBranchNames
+  ReadShare'ProjectBranch (This remoteProjectName) -> do
+    remoteProject <- ProjectUtils.expectRemoteProjectByName remoteProjectName
+    let remoteProjectId = remoteProject ^. #projectId
+    let remoteBranchName = unsafeFrom @Text "main"
+    remoteProjectBranch <-
+      ProjectUtils.expectRemoteProjectBranchByName
+        (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+    pure (ReadShare'ProjectBranch remoteProjectBranch)
+  ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
+    (ProjectAndBranch localProject localBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
+    let localProjectId = localProject ^. #projectId
+    let localBranchId = localBranch ^. #branchId
+    Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
+      Just (remoteProjectId, _maybeProjectBranchId) -> do
+        remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
+        remoteBranchName <- resolveRemoteBranchName remoteProjectName branchNameOrLatestRelease
+        remoteProjectBranch <-
+          ProjectUtils.expectRemoteProjectBranchByName
+            (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+        pure (ReadShare'ProjectBranch remoteProjectBranch)
+      Nothing -> do
+        Cli.returnEarly $
+          Output.NoAssociatedRemoteProject
+            Share.hardCodedUri
+            (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
+  ReadShare'ProjectBranch (These projectName branchNameOrLatestRelease) -> do
+    remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
+    let remoteProjectId = remoteProject ^. #projectId
+    branchName <- resolveRemoteBranchName projectName branchNameOrLatestRelease
+    remoteProjectBranch <-
+      ProjectUtils.expectRemoteProjectBranchByName
+        (ProjectAndBranch (remoteProjectId, projectName) branchName)
+    pure (ReadShare'ProjectBranch remoteProjectBranch)
+  where
+    resolveRemoteBranchName :: ProjectName -> ProjectBranchNameOrLatestRelease -> Cli ProjectBranchName
+    resolveRemoteBranchName projectName = \case
+      ProjectBranchNameOrLatestRelease'Name branchName -> pure branchName
+      ProjectBranchNameOrLatestRelease'LatestRelease -> do
+        remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
+        case remoteProject ^. #latestRelease of
+          Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases projectName)
+          Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))
 
 resolveImplicitTarget :: Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
 resolveImplicitTarget =

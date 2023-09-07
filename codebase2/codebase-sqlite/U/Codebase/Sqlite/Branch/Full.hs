@@ -10,6 +10,7 @@ module U.Codebase.Sqlite.Branch.Full where
 import Control.Lens
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import U.Codebase.HashTags
 import U.Codebase.Reference (Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
@@ -40,6 +41,8 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 --   }
 -- @
 type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+
+type HashBranch = Branch' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
 

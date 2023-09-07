@@ -8,11 +8,11 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
 import U.Codebase.Reference (Reference, TermRReference, TermReference, TypeReference)
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 type Referent = Referent' TermReference TypeReference
 

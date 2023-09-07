@@ -495,10 +495,42 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
+fromUnisonPair :: Closure -> (a, b)
+fromUnisonPair (DataC _ _ [] [x, DataC _ _ [] [y, _]]) =
+  (unwrapForeignClosure x, unwrapForeignClosure y)
+fromUnisonPair _ = error "fromUnisonPair: invalid closure"
+
+toUnisonPair ::
+  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> Closure
+toUnisonPair (x, y) =
+  DataC
+    Ty.pairRef
+    0
+    []
+    [wr x, DataC Ty.pairRef 0 [] [wr y, un]]
+  where
+    un = DataC Ty.unitRef 0 [] []
+    wr z = Foreign $ wrapBuiltin z
+
+unwrapForeignClosure :: Closure -> a
+unwrapForeignClosure = unwrapForeign . marshalToForeign
+
+instance {-# OVERLAPPABLE #-} (BuiltinForeign a, BuiltinForeign b) => ForeignConvention [(a, b)] where
+  readForeign us (i : bs) _ bstk =
+    (us,bs,)
+      . fmap fromUnisonPair
+      . toList
+      <$> peekOffS bstk i
+  readForeign _ _ _ _ = foreignCCError "[(a,b)]"
+
+  writeForeign ustk bstk l = do
+    bstk <- bump bstk
+    (ustk, bstk) <$ pokeS bstk (toUnisonPair <$> Sq.fromList l)
+
 instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention [b] where
   readForeign us (i : bs) _ bstk =
     (us,bs,)
-      . fmap (unwrapForeign . marshalToForeign)
+      . fmap unwrapForeignClosure
       . toList
       <$> peekOffS bstk i
   readForeign _ _ _ _ = foreignCCError "[b]"

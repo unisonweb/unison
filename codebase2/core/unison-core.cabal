@@ -23,6 +23,7 @@ library
       Unison.Core.ConstructorId
       Unison.Core.Project
       Unison.NameSegment
+      Unison.ShortHash
       Unison.Util.Alphabetical
   hs-source-dirs:
       ./

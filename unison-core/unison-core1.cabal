@@ -47,7 +47,6 @@ library
       Unison.Referent
       Unison.Referent'
       Unison.Settings
-      Unison.ShortHash
       Unison.Symbol
       Unison.Term
       Unison.Type
@@ -69,8 +68,10 @@ library
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -130,8 +131,10 @@ test-suite tests
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns

@@ -278,9 +278,9 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         PT.putPrettyLn $
                           P.lines
                             [ "I've started the Codebase API server at",
-                              P.string $ Server.urlFor Server.Api baseUrl,
+                              P.text $ Server.urlFor Server.Api baseUrl,
                               "and the Codebase UI at",
-                              P.string $ Server.urlFor (Server.UI Path.absoluteEmpty Nothing) baseUrl
+                              P.text $ Server.urlFor (Server.LooseCodeUI Path.absoluteEmpty Nothing) baseUrl
                             ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "
@@ -478,13 +478,13 @@ launch ::
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles =
+launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+  showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
         OpenedCodebase -> PreviouslyCreatedCodebase
-
       (ucmVersion, _date) = Version.gitDescribe
-      welcome = Welcome.welcome isNewCodebase ucmVersion
+      welcome = Welcome.welcome isNewCodebase ucmVersion showWelcomeHint
    in CommandLine.main
         dir
         welcome

@@ -875,7 +875,7 @@ lexemes' eof =
       P.lookAhead (char '#')
       -- `foo#xyz` should parse
       (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-      case SH.fromString potentialHash of
+      case SH.fromText (Text.pack potentialHash) of
         Nothing -> err start (InvalidShortHash potentialHash)
         Just sh -> pure sh
 
@@ -1426,8 +1426,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (WordyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
+      pretty (SymbolyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh
