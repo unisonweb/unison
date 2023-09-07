@@ -749,7 +749,24 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
               branchOldCausalHash = Just remoteBranchHead,
               branchNewCausalHash = localBranchHead
             }
+    let onSuccess =
+          case pushing of
+            PushingLooseCode -> pure ()
+            PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
+              Cli.runTransaction do
+                Queries.ensureBranchRemoteMapping
+                  (localProject ^. #projectId)
+                  (localBranch ^. #branchId)
+                  (remoteBranch ^. #projectId)
+                  Share.hardCodedUri
+                  (remoteBranch ^. #branchId)
     Share.setProjectBranchHead request >>= \case
+      Share.SetProjectBranchHeadResponseSuccess -> onSuccess
+      -- Sometimes a different request gets through in between checking the remote head and
+      -- executing the check-and-set push, if it managed to set the head to what we wanted
+      -- then the goal was achieved and we can consider it a success.
+      Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected actual
+        | actual == localBranchHead -> onSuccess
       Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
         Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
@@ -758,17 +775,6 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
         Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
         Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.SetProjectBranchHeadResponseSuccess -> do
-        case pushing of
-          PushingLooseCode -> pure ()
-          PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
-            Cli.runTransaction do
-              Queries.ensureBranchRemoteMapping
-                (localProject ^. #projectId)
-                (localBranch ^. #branchId)
-                (remoteBranch ^. #projectId)
-                Share.hardCodedUri
-                (remoteBranch ^. #branchId)
   where
     remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)

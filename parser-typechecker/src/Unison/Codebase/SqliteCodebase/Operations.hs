@@ -640,7 +640,7 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
       toBranch <- Ops.expectBranchByBranchHash toBranchHash
       depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
       let depMountPaths = (Path.fromList . coerce) . fst <$> depMounts
-      let treeDiff = ignoreDepMounts depMountPaths $ BranchDiff.diffBranches fromBranch toBranch
+      treeDiff <- ignoreDepMounts depMountPaths <$> BranchDiff.diffBranches fromBranch toBranch
       let namePrefix = Nothing
       Ops.buildNameLookupForBranchHash
         mayExistingLookupBH

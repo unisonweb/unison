@@ -1,33 +1,15 @@
 #lang racket/base
-(require racket/exn
-         racket/string
-         racket/file
+(require racket/string
          rnrs/io/ports-6
          (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
          (only-in racket empty? with-output-to-string system/exit-code system false?)
-         compatibility/mlist
          (only-in unison/boot data-case define-unison)
          unison/data
          unison/chunked-seq
-         unison/core
-         unison/tcp
-         unison/pem
-          unison/core
-          unison/data
-          unison/data-info
-          unison/math
-          unison/chunked-seq
-          unison/chunked-bytes
-          unison/bytes-nat
-          unison/pattern
-          unison/crypto
-          unison/data
-          unison/io
-          unison/tls
-          unison/tcp
-          unison/gzip
-          unison/zlib
-          unison/concurrent
+         unison/data
+         unison/data-info
+         unison/chunked-seq
+         unison/data
          )
 
 (provide
@@ -46,6 +28,8 @@
     getEnv.impl.v1
     getChar.impl.v1
     isFileOpen.impl.v3
+    isSeekable.impl.v3
+    handlePosition.impl.v3
     process.call
     getCurrentDirectory.impl.v3
     ready.impl.v1
@@ -77,6 +61,13 @@
 (define-unison (getCurrentDirectory.impl.v3 unit)
     (unison-either-right
       (string->chunked-string (path->string (current-directory)))))
+
+(define-unison (isSeekable.impl.v3 handle)
+    (unison-either-right
+        (if (port-has-set-port-position!? handle) unison-boolean-true unison-boolean-false)))
+
+(define-unison (handlePosition.impl.v3 handle)
+    (unison-either-right (port-position handle)))
 
 (define-unison (seekHandle.impl.v3 handle mode amount)
     (data-case mode
