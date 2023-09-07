@@ -2125,7 +2125,7 @@ reflectValue rty = goV
     reflectUData :: Word64 -> Int -> IO ANF.BLit
     reflectUData t v
       | t == natTag = pure $ ANF.Pos (fromIntegral v)
-      | t == charTag = pure $ ANF.Char (fromIntegral v)
+      | t == charTag = pure $ ANF.Char (toEnum v)
       | t == intTag, v >= 0 = pure $ ANF.Pos (fromIntegral v)
       | t == intTag, v < 0 = pure $ ANF.Neg (fromIntegral (- v))
       | t == floatTag = pure $ ANF.Float (intToDouble v)
@@ -2204,7 +2204,7 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
     goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
-    goL (ANF.Char w) = pure $ DataU1 Rf.charRef charTag (fromIntegral w)
+    goL (ANF.Char c) = pure $ DataU1 Rf.charRef charTag (fromEnum c)
     goL (ANF.Pos w) =
       pure $ DataU1 Rf.natRef natTag (fromIntegral w)
     goL (ANF.Neg w) =

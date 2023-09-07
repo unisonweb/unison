@@ -1525,7 +1525,7 @@ data BLit
   | BArr PA.ByteArray
   | Pos Word64
   | Neg Word64
-  | Char Word64
+  | Char Char
   | Float Double
   deriving (Show)
 

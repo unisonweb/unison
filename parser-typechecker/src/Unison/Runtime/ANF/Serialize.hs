@@ -657,7 +657,7 @@ putBLit (Code g) = putTag CodeT *> putGroup mempty mempty g
 putBLit (BArr a) = putTag BArrT *> putByteArray a
 putBLit (Pos n) = putTag PosT *> putPositive n
 putBLit (Neg n) = putTag NegT *> putPositive n
-putBLit (Char n) = putTag CharT *> putWord64be n
+putBLit (Char c) = putTag CharT *> putChar c
 putBLit (Float d) = putTag FloatT *> putFloat d
 
 getBLit :: (MonadGet m) => Version -> m BLit
@@ -673,7 +673,7 @@ getBLit v =
     BArrT -> BArr <$> getByteArray
     PosT -> Pos <$> getPositive
     NegT -> Neg <$> getPositive
-    CharT -> Char <$> getWord64be
+    CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
