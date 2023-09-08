@@ -251,12 +251,15 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           printTypeConflictedAdds typeConflictedAdds
           printTermConflictedAdds termConflictedAdds
           Text.putStrLn ""
-          Text.putStrLn "===== updates ====="
+          Text.putStrLn ("===== updates (" <> Text.magenta "magenta" <> " means user-update) =====")
           printTypeUpdates typeUpdates typeUserUpdates
           printTermUpdates termUpdates termUserUpdates
           Text.putStrLn ""
           Text.putStrLn "===== core ecs ====="
           printEcs coreEcs
+          Text.putStrLn ""
+          Text.putStrLn "===== core ec dependencies ====="
+          printEcDependencies coreEcDependencies
 
           Text.putStrLn ""
 
@@ -687,9 +690,16 @@ printEcs =
   Text.putStr . Text.unlines . map (uncurry f) . Bimap.toList
   where
     f (Merge.EC ec) node =
-      "(" <> tShow ec <> ") " <> case node of
-        Merge.NodeTms tms -> "{" <> Text.intercalate ", " (map showReferent (Set.toList tms)) <> "}"
-        Merge.NodeTys tys -> "{" <> Text.intercalate ", " (map showReference (Set.toList tys)) <> "}"
+      tShow ec <> ": " <> case node of
+        Merge.NodeTms tms -> "terms " <> Text.unwords (map showReferent (Set.toList tms))
+        Merge.NodeTys tys -> "types " <> Text.unwords (map showReference (Set.toList tys))
+
+printEcDependencies :: Relation Merge.EC Merge.EC -> IO ()
+printEcDependencies =
+  Text.putStr . Text.unlines . map (uncurry f) . Relation.toList
+  where
+    f (Merge.EC ec0) (Merge.EC ec1) =
+      tShow ec0 <> " -> " <> tShow ec1
 
 printTypeConflictedAdds :: Relation Reference Reference -> IO ()
 printTypeConflictedAdds =
