@@ -9,6 +9,22 @@ Test that tab completion works as expected.
 ```ucm
 .> debug.tab-complete vi
 .> debug.tab-complete delete.
+.> debug.tab-complete delete.type
+.> debug.tab-complete delete.term
+```
+
+## Tab Complete Delete Subcommands
+```unison
+unique type Foo = A | B
+
+add : a -> a
+add b = b
+```
+
+```ucm
+.> update
+.> delete.type Foo
+.> delete.term add
 ```
 
 ## Tab complete terms & types

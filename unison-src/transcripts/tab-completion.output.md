@@ -29,6 +29,55 @@ Test that tab completion works as expected.
    delete.type.verbose
    delete.verbose
 
+.> debug.tab-complete delete.type
+
+  * delete.type
+    delete.type-replacement
+    delete.type.verbose
+
+.> debug.tab-complete delete.term
+
+  * delete.term
+    delete.term-replacement
+    delete.term.verbose
+
+```
+## Tab Complete Delete Subcommands
+```unison
+unique type Foo = A | B
+
+add : a -> a
+add b = b
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Foo
+      add : a -> a
+
+```
+```ucm
+.> update
+
+  ⍟ I've added these definitions:
+  
+    unique type Foo
+    add : a -> a
+
+.> delete.type Foo
+
+  Done.
+
+.> delete.term add
+
+  Done.
+
 ```
 ## Tab complete terms & types
 
