@@ -1931,7 +1931,7 @@ toDocVerbatim ppe (App' (Ref' r) (toDocWord ppe -> Just txt))
 toDocVerbatim _ _ = Nothing
 
 toDocEval :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEval ppe (App' (Ref' r) (Delay' tm))
+toDocEval ppe (App' (Ref' r) (DDelay' tm))
   | nameEndsWith ppe ".docEval" r = Just tm
   | r == _oldDocEval = Just tm
 toDocEval _ _ = Nothing
