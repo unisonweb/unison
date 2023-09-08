@@ -686,20 +686,26 @@ deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> Inpu
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
-        P.wrapColumn2 [
-          (P.sep
-          " "
-          [ backtick (P.sep " " [P.string cmd, "foo"]),
-            "removes the",
-            P.string target,
-            "name `foo` from the namespace."
-          ], ""),
-          (P.sep
-            " "
-            [ backtick (P.sep " " [P.string cmd, "foo bar"]),
-            "removes the",
-            P.string target,
-            "name `foo` and `bar` from the namespace." ], "")]
+        P.wrapColumn2
+          [ ( P.sep
+                " "
+                [ backtick (P.sep " " [P.string cmd, "foo"]),
+                  "removes the",
+                  P.string target,
+                  "name `foo` from the namespace."
+                ],
+              ""
+            ),
+            ( P.sep
+                " "
+                [ backtick (P.sep " " [P.string cmd, "foo bar"]),
+                  "removes the",
+                  P.string target,
+                  "name `foo` and `bar` from the namespace."
+                ],
+              ""
+            )
+          ]
       warn =
         P.sep
           " "
@@ -2612,7 +2618,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, projectAndBranchNamesArg False)],
+      argTypes = [(Optional, projectAndBranchNamesArg False)],
       help =
         P.wrapColumn2
           [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
@@ -2620,10 +2626,11 @@ projectSwitch =
             ("`switch /bar`", "switches to the branch `bar` in the current project")
           ],
       parse = \case
+        [] -> Right (Input.ProjectSwitchI Nothing)
         [name] ->
           case tryInto @ProjectAndBranchNames (Text.pack name) of
             Left _ -> Left (showPatternHelp projectSwitch)
-            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI $ Just projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)
     }
 

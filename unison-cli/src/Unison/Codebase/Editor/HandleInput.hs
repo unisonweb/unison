@@ -120,7 +120,6 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
@@ -150,7 +149,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectBranchNameOrLatestRelease (..))
+import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
 import Unison.Reference (Reference (..), TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
