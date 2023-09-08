@@ -65,7 +65,10 @@ import Witch (unsafeFrom)
 
 doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
 doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
-  (source, target) <- resolveSourceAndTarget unresolvedSourceAndTarget
+  let includeSquashed = case pullMode of
+        Input.PullWithHistory -> Share.NoSquashedHead
+        Input.PullWithoutHistory -> Share.IncludeSquashedHead
+  (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
   remoteBranchObject <- loadRemoteNamespaceIntoMemory syncMode pullMode source
   when (Branch.isEmpty0 (Branch.head remoteBranchObject)) do
     Cli.respond (PulledEmptyBranch source)
@@ -113,19 +116,20 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
           else PullAlreadyUpToDate source target
 
 resolveSourceAndTarget ::
+  Share.IncludeSquashedHead ->
   PullSourceTarget ->
   Cli
     ( ReadRemoteNamespace Share.RemoteProjectBranch,
       Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
     )
-resolveSourceAndTarget = \case
-  Input.PullSourceTarget0 -> liftA2 (,) resolveImplicitSource resolveImplicitTarget
-  Input.PullSourceTarget1 source -> liftA2 (,) (resolveExplicitSource source) resolveImplicitTarget
+resolveSourceAndTarget includeSquashed = \case
+  Input.PullSourceTarget0 -> liftA2 (,) (resolveImplicitSource includeSquashed) resolveImplicitTarget
+  Input.PullSourceTarget1 source -> liftA2 (,) (resolveExplicitSource includeSquashed source) resolveImplicitTarget
   Input.PullSourceTarget2 source target ->
-    liftA2 (,) (resolveExplicitSource source) (ProjectUtils.expectLooseCodeOrProjectBranch target)
+    liftA2 (,) (resolveExplicitSource includeSquashed source) (ProjectUtils.expectLooseCodeOrProjectBranch target)
 
-resolveImplicitSource :: Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
-resolveImplicitSource =
+resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
+resolveImplicitSource includeSquashed =
   ProjectUtils.getCurrentProjectBranch >>= \case
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
     Just (localProjectAndBranch, _restPath) -> do
@@ -147,16 +151,17 @@ resolveImplicitSource =
                 Left $
                   Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch
       remoteBranch <-
-        ProjectUtils.expectRemoteProjectBranchById $
+        ProjectUtils.expectRemoteProjectBranchById includeSquashed $
           ProjectAndBranch
             (remoteProjectId, remoteProjectName)
             (remoteBranchId, remoteBranchName)
       pure (ReadShare'ProjectBranch remoteBranch)
 
 resolveExplicitSource ::
+  Share.IncludeSquashedHead ->
   ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease) ->
   Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
-resolveExplicitSource = \case
+resolveExplicitSource includeSquashed = \case
   ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
   ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
   ReadShare'ProjectBranch (This remoteProjectName) -> do
@@ -165,6 +170,7 @@ resolveExplicitSource = \case
     let remoteBranchName = unsafeFrom @Text "main"
     remoteProjectBranch <-
       ProjectUtils.expectRemoteProjectBranchByName
+        includeSquashed
         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
@@ -177,6 +183,7 @@ resolveExplicitSource = \case
         remoteBranchName <- resolveRemoteBranchName remoteProjectName branchNameOrLatestRelease
         remoteProjectBranch <-
           ProjectUtils.expectRemoteProjectBranchByName
+            includeSquashed
             (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
         pure (ReadShare'ProjectBranch remoteProjectBranch)
       Nothing -> do
@@ -190,6 +197,7 @@ resolveExplicitSource = \case
     branchName <- resolveRemoteBranchName projectName branchNameOrLatestRelease
     remoteProjectBranch <-
       ProjectUtils.expectRemoteProjectBranchByName
+        includeSquashed
         (ProjectAndBranch (remoteProjectId, projectName) branchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   where
@@ -229,7 +237,7 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
       liftIO (Codebase.expectBranchForHash codebase causalHash)
 
 -- | @downloadShareProjectBranch branch@ downloads the given branch.
-downloadShareProjectBranch :: Bool -> Share.RemoteProjectBranch -> Cli HashJWT
+downloadShareProjectBranch :: HasCallStack => Bool -> Share.RemoteProjectBranch -> Cli HashJWT
 downloadShareProjectBranch useSquashedIfAvailable branch = do
   let remoteProjectBranchName = branch ^. #branchName
   let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))

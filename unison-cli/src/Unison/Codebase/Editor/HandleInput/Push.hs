@@ -422,7 +422,7 @@ pushProjectBranchToProjectBranch'InferredProject force localProjectAndBranch loc
                       Output.RemoteProjectBranchDoesntExist
                         Share.hardCodedUri
                         (ProjectAndBranch remoteProjectName remoteBranchName)
-              Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
+              Share.getProjectBranchById Share.NoSquashedHead (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
                 Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
                 Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
                 Share.GetProjectBranchResponseSuccess remoteBranch -> do

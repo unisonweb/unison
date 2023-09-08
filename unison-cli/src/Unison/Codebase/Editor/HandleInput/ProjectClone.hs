@@ -45,7 +45,7 @@ data RemoteProjectKey
 handleClone :: ProjectAndBranchNames -> Maybe ProjectAndBranchNames -> Cli ()
 handleClone remoteNames0 maybeLocalNames0 = do
   maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
-  resolvedRemoteNames <- resolveRemoteNames maybeCurrentProjectBranch remoteNames0
+  resolvedRemoteNames <- resolveRemoteNames Share.NoSquashedHead maybeCurrentProjectBranch remoteNames0
   localNames1 <- resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames0
   cloneInto localNames1 (resolvedRemoteNames ^. #branch)
 
@@ -82,10 +82,11 @@ data ResolvedRemoteNamesFrom
 --                              project in question, and the "@runar/topic" project does not exist), we'll do that,
 --                              otherwise abort
 resolveRemoteNames ::
+  Share.IncludeSquashedHead ->
   Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path) ->
   ProjectAndBranchNames ->
   Cli ResolvedRemoteNames
-resolveRemoteNames maybeCurrentProjectBranch = \case
+resolveRemoteNames includeSquashed maybeCurrentProjectBranch = \case
   ProjectAndBranchNames'Ambiguous remoteProjectName remoteBranchName ->
     case maybeCurrentProjectBranch of
       Nothing -> resolveP remoteProjectName
@@ -99,7 +100,7 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
                 -- Fetching these in parallel would be an improvement
                 maybeRemoteProject <- Share.getProjectByName remoteProjectName
                 maybeRemoteBranch <-
-                  Share.getProjectBranchByName Share.NoSquashedHead (ProjectAndBranch remoteBranchProjectId remoteBranchName) <&> \case
+                  Share.getProjectBranchByName includeSquashed (ProjectAndBranch remoteBranchProjectId remoteBranchName) <&> \case
                     Share.GetProjectBranchResponseBranchNotFound -> Nothing
                     Share.GetProjectBranchResponseProjectNotFound -> Nothing
                     Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
@@ -110,6 +111,7 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
                     let remoteBranchName = unsafeFrom @Text "main"
                     remoteBranch <-
                       ProjectUtils.expectRemoteProjectBranchByName
+                        includeSquashed
                         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
                     pure
                       ResolvedRemoteNames
@@ -158,9 +160,9 @@ resolveRemoteNames maybeCurrentProjectBranch = \case
       case remoteProjectKey of
         RemoteProjectKey'Id remoteProjectId -> do
           remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-          ProjectUtils.expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+          ProjectUtils.expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
         RemoteProjectKey'Name remoteProjectName ->
-          ProjectUtils.expectRemoteProjectBranchByNames (ProjectAndBranch remoteProjectName remoteBranchName)
+          ProjectUtils.expectRemoteProjectBranchByNames includeSquashed (ProjectAndBranch remoteProjectName remoteBranchName)
 
 -- Resolve the local names to an actual local project (which may not exist yet), aborting on nonsense
 -- inputs:

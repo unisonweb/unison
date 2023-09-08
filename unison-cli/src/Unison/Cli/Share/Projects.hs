@@ -100,10 +100,10 @@ data IncludeSquashedHead
 -- | Get a project branch by id.
 --
 -- On success, update the `remote_project_branch` table.
-getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
-getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
-  let includeSquashed = False
-  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing includeSquashed) & onLeftM servantClientError
+getProjectBranchById :: IncludeSquashedHead -> ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById includeSquashed (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
+  let squashed = includeSquashed == IncludeSquashedHead
+  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing squashed) & onLeftM servantClientError
   onGetProjectBranchResponse response
 
 -- | Get a project branch by name.
@@ -111,17 +111,19 @@ getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjec
 -- On success, update the `remote_project_branch` table.
 getProjectBranchByName :: IncludeSquashedHead -> ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
 getProjectBranchByName includeSquashed (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  let squashed = includeSquashed == IncludeSquashedHead
   response <-
-    servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)) (includeSquashed == IncludeSquashedHead))
+    servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)) squashed)
       & onLeftM servantClientError
   onGetProjectBranchResponse response
 
 -- | Variant of 'getProjectBranchByName' that returns servant client errors.
 getProjectBranchByName' ::
+  IncludeSquashedHead ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Either Servant.ClientError GetProjectBranchResponse)
-getProjectBranchByName' (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
-  let squashed = False
+getProjectBranchByName' includeSquashed (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  let squashed = includeSquashed == IncludeSquashedHead
   servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)) squashed) >>= \case
     Left err -> pure (Left err)
     Right response -> Right <$> onGetProjectBranchResponse response
