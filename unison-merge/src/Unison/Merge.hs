@@ -1080,22 +1080,22 @@ rewriteDeclComponent ecForRef finished component =
       -- Hashing.Convert.hashDecls isn't currently aw are of NEMaps, but the input is NonEmpty and the output must be too.
       NEMap.unsafeFromMap $ foldl' (flip addReplacement) mempty hashedComponent
       where
+        -- for each decl, update the decl and its constructor mapping
         addReplacement :: (v, V1.TypeReferenceId, V1.Decl v a) -> Map EC (Result v a) -> Map EC (Result v a)
         addReplacement (v, r', decl') =
-          Map.insert ec (RSuccess (DriTypeRefId r') (DefnDecl decl')) . Map.union ctorResultMap
+          Map.insert ec (RSuccess (DriTypeRefId r') (DefnDecl decl')) . Map.union ctorResults
           where
             ec = ecFromVar v
-            ctorResultMap = Map.fromList $ mapMaybe makeCtorResult $ Map.toList ctorMapping
-            -- ctorMapping = wundefined $ buildConstructorMapping (component NEMap.! ec) (declId, decl)
-            ctorMapping = buildConstructorMapping (r, decl) (r', decl')
             (r, decl) = (NEMap.!) component ec
+            ctorResults = Map.fromList $ mapMaybe makeCtorResult $ Map.toList ctorMapping
+            ctorMapping = buildConstructorMapping (r, decl) (r', decl')
             -- convert one ctor mapping to a ctor result
             makeCtorResult :: (V1.ConstructorReferenceId, V1.ConstructorReferenceId) -> Maybe (EC, Result v a)
-            makeCtorResult (oldCtor, newCtor) = case ecForRef $ crIdToDefnRef oldCtor of
-              Nothing -> trace ("Warning: No EC for " ++ show oldCtor ++ ". It may not have been named?") $ Nothing
-              Just ctorEc -> Just (ctorEc, RSimple $ crIdToDefnRef newCtor)
+            makeCtorResult (oldCtor, newCtor) = case ecForRef $ ctorRefIdToDefnRef oldCtor of
+              Nothing -> trace ("Warning: No EC for " ++ show oldCtor ++ ". It may not have been named?") $ Nothing -- todo: is this fine?
+              Just ctorEc -> Just (ctorEc, RSimple $ ctorRefIdToDefnRef newCtor)
             ctorType = V1.Decl.constructorType decl
-            crIdToDefnRef = LD.referentId . flip V1.Referent.ConId ctorType
+            ctorRefIdToDefnRef = LD.referentId . flip V1.Referent.ConId ctorType
     hashedComponent = case Hashing.Convert.hashDecls (Map.mapKeys ecToVar (NEMap.toMap rewrittenComponent)) of
       Left errors -> error $ "rewriteDeclComponent: hashDecls failed: " ++ show errors
       Right hashed -> hashed
