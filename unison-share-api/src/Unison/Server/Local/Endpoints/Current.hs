@@ -9,20 +9,20 @@ import Data.OpenApi (ToSchema (..))
 import Servant ((:>))
 import Servant.Docs (ToSample (..))
 import U.Codebase.Sqlite.DbId
-import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.Project qualified as Project
 import U.Codebase.Sqlite.ProjectBranch qualified as ProjectBranch
-import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..), ProjectBranchName (..))
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Project.Util (pattern UUIDNameSegment)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
-import Unison.Project.Util (pattern UUIDNameSegment)
-import Unison.NameSegment (NameSegment (..))
 
-type CurrentAPI =
+type CurrentEndpoint =
   "current"
     :> APIGet Current
 
@@ -48,13 +48,12 @@ instance ToJSON Current where
   toJSON (Current {..}) =
     object
       [ "project" .= project,
-        "branch" .=  branch,
+        "branch" .= branch,
         "path" .= path
       ]
 
 serveCurrent :: MonadIO m => Codebase m v a -> Backend m Current
-serveCurrent = lift . getCurrentProjectBranch 
-
+serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
@@ -77,9 +76,8 @@ getCurrentProjectBranch codebase = do
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Just $ ProjectBranchId branchId}
         "__projects" : UUIDNameSegment projectId : _ ->
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Nothing}
-        _ -> 
+        _ ->
           ProjectAndBranch {project = Nothing, branch = Nothing}
 
     toPath :: [NameSegment] -> Path.Absolute
     toPath = Path.Absolute . Path.fromList
-
