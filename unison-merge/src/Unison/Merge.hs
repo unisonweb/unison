@@ -12,7 +12,7 @@ module Unison.Merge
     Node (..),
     pattern NodeTms,
     pattern NodeTys,
-    Updates (..),
+    Changes (..),
     makeCoreEcs,
     makeCoreEcDependencies,
 
@@ -26,7 +26,7 @@ module Unison.Merge
   )
 where
 
-import Control.Lens ((%~), (^.))
+import Control.Lens (Lens', (%~), (^.))
 import Control.Lens qualified as Lens
 import Control.Monad.Validate (ValidateT, runValidateT)
 import Control.Monad.Validate qualified as Validate
@@ -403,6 +403,23 @@ asNodeTys = \case
   Node'Term _ -> Nothing
   Node'Terms _ -> Nothing
 
+-- Create graph nodes from type conflicted adds.
+typeConflictedAddsToNodes :: Ord ty => Relation ty ty -> [Node tm ty]
+typeConflictedAddsToNodes =
+  conflictedAddsToNodes Node'Types
+
+-- Create graph nodes from term conflicted adds.
+termConflictedAddsToNodes :: Ord tm => Relation tm tm -> [Node tm ty]
+termConflictedAddsToNodes =
+  conflictedAddsToNodes Node'Terms
+
+conflictedAddsToNodes :: Ord ref => (NESet ref -> node) -> Relation ref ref -> [node]
+conflictedAddsToNodes mkNode =
+  Relation.toList >>> map (nonEmptySetFromPair >>> mkNode)
+  where
+    nonEmptySetFromPair (x, y) =
+      NESet.insert y (NESet.singleton x)
+
 -- Create graph nodes from type updates.
 typeUpdatesToNodes :: Ord ty => Relation ty ty -> [Node tm ty]
 typeUpdatesToNodes =
@@ -415,28 +432,36 @@ termUpdatesToNodes =
   groupUpdatesIntoEquivalenceClasses
     >>> map (NESet.unsafeFromSet >>> Node'Terms) -- safe; each EC will have 2+ elements
 
-data Updates ty tm = Updates
-  { terms :: Relation tm tm,
-    types :: Relation ty ty,
-    userTerms :: Relation tm tm,
-    userTypes :: Relation ty ty
+data Changes ty tm = Changes
+  { termConflictedAdds :: Relation tm tm,
+    typeConflictedAdds :: Relation ty ty,
+    termUpdates :: Relation tm tm,
+    typeUpdates :: Relation ty ty,
+    termUserUpdates :: Relation tm tm,
+    typeUserUpdates :: Relation ty ty
   }
   deriving stock (Generic)
 
-makeCoreEcs :: forall tm ty. (Ord tm, Ord ty) => Updates ty tm -> Bimap EC (Node tm ty)
-makeCoreEcs updates =
-  -- Make graph nodes out of all the type updates and term updates, combine them together, and assign each a unique EC
-  -- number
+makeCoreEcs :: forall tm ty. (Ord tm, Ord ty) => Changes ty tm -> Bimap EC (Node tm ty)
+makeCoreEcs changes =
+  -- Make graph nodes out of all the type/term add conflicts and updates, combine them together, and assign each a
+  -- unique EC number
   let typeNodes :: [Node x ty]
-      typeNodes = typeUpdatesToNodes (updates ^. #types)
-
-      -- Make graph nodes out of all the type updates
+      typeNodes =
+        fold
+          [ typeConflictedAddsToNodes (changes ^. #typeConflictedAdds),
+            typeUpdatesToNodes (changes ^. #typeUpdates)
+          ]
       termNodes :: [Node tm x]
-      termNodes = termUpdatesToNodes (updates ^. #terms)
+      termNodes =
+        fold
+          [ termConflictedAddsToNodes (changes ^. #termConflictedAdds),
+            termUpdatesToNodes (changes ^. #termUpdates)
+          ]
    in Bimap.fromList (zip [0 ..] (typeNodes ++ termNodes))
 
--- after we've created the core ecs, we need to know their dependency relationships
--- makeCoreEcDependencies tycons tydeps tmdeps updates core
+-- makeCoreEcDependencies tycons tydeps tmdeps changes core
+--
 --   tycons: a function that resolves a type to a list of term constructors.
 --     for example, given the type reference
 --       #somehash -- Maybe
@@ -449,19 +474,21 @@ makeCoreEcs updates =
 --   tmdeps: a function that returns the direct dependencies of a term. a term that uses a data constructor (in either
 --     pattern or constructor position) is said to depend on that particular constructor term, rather than on its type.
 --
---   updates: the bag of type and term updates, classified into user- and not-user-updates
+--   changes: the add conflicts and updates
 --
 --   core: the core equivalence classes computed from the updates
+--
+-- FIXME use term/typeAddConflicts here (or think a little and realize they are irrelevant)
 makeCoreEcDependencies ::
   forall m tm ty.
   (Monad m, Ord tm, Ord ty) =>
   (ty -> m [tm]) ->
   (ty -> m (Set ty)) ->
   (tm -> m (Set (Either ty tm))) ->
-  Updates ty tm ->
+  Changes ty tm ->
   Bimap EC (Node tm ty) ->
   m (Relation EC EC)
-makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDependencies updates coreEcs = do
+makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDependencies changes coreEcs = do
   Relation.fromMultimap <$> traverse getNodeDependencyEcs (Bimap.toMap coreEcs)
   where
     -- Make a couple lookup functions from term/type back to EC
@@ -480,25 +507,27 @@ makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDepend
     getTermDependencyEcs =
       getTermDependencies >>> fmap (Set.mapMaybe (either lookupTypeEc lookupTermEc))
 
-    -- FIXME reduce duplication in here for term/type cases
     getNodeDependencyEcs :: Node tm ty -> m (Set EC)
     getNodeDependencyEcs = \case
-      NodeTms tms -> do
-        let dependenciesIn :: Map tm x -> m (Set EC)
-            dependenciesIn =
-              (`Set.intersectKeys` tms) >>> foldMapM getTermDependencyEcs
-        lcaDeps <- dependenciesIn (Relation.domain (updates ^. #terms))
-        userTermUpdatesLhsDeps <- dependenciesIn (Relation.domain (updates ^. #userTerms))
-        userTermUpdatesRhsDeps <- dependenciesIn (Relation.range (updates ^. #userTerms))
-        pure (userTermUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTermUpdatesLhsDeps))
-      NodeTys tys -> do
-        let dependenciesIn :: Map ty x -> m (Set EC)
-            dependenciesIn =
-              (`Set.intersectKeys` tys) >>> foldMapM getTypeDependencyEcs
-        lcaDeps <- dependenciesIn (Relation.domain (updates ^. #types))
-        userTypeUpdatesLhsDeps <- dependenciesIn (Relation.domain (updates ^. #userTypes))
-        userTypeUpdatesRhsDeps <- dependenciesIn (Relation.range (updates ^. #userTypes))
-        pure (userTypeUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userTypeUpdatesLhsDeps))
+      NodeTms tms -> go getTermDependencyEcs (changes ^. #termUpdates) (changes ^. #termUserUpdates) tms
+      NodeTys tys -> go getTypeDependencyEcs (changes ^. #typeUpdates) (changes ^. #typeUserUpdates) tys
+      where
+        go ::
+          forall ref.
+          Ord ref =>
+          (ref -> m (Set EC)) ->
+          Relation ref ref ->
+          Relation ref ref ->
+          Set ref ->
+          m (Set EC)
+        go getDependencyEcs updates userUpdates tys = do
+          let dependenciesIn :: Map ref x -> m (Set EC)
+              dependenciesIn =
+                (`Set.intersectKeys` tys) >>> foldMapM getDependencyEcs
+          lcaDeps <- dependenciesIn (Relation.domain updates)
+          userUpdatesLhsDeps <- dependenciesIn (Relation.domain userUpdates)
+          userUpdatesRhsDeps <- dependenciesIn (Relation.range userUpdates)
+          pure (userUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdatesLhsDeps))
 
 makeEcLookupFunctions :: forall tm ty. (Ord tm, Ord ty) => Bimap EC (Node tm ty) -> (ty -> Maybe EC, tm -> Maybe EC)
 makeEcLookupFunctions coreEcs =

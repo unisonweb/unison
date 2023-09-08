@@ -156,37 +156,39 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         let canonicalizer = Merge.makeCanonicalizer v2HashHandle mergeDatabase typeUpdates termUpdates
 
         -- Classify the updates
-        aliceUserTypeUpdates <- step "classify alice user type updates" do
+        aliceTypeUserUpdates <- step "classify alice user type updates" do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
                   mergeDatabase
                   canonicalizer
                   (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 aliceDataconNames ref2 decl2)
           Relation.filterM isUserTypeUpdate aliceTypeUpdates
-        bobUserTypeUpdates <- step "classify bob user type updates" do
+        bobTypeUserUpdates <- step "classify bob user type updates" do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
                   mergeDatabase
                   canonicalizer
                   (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 bobDataconNames ref2 decl2)
           Relation.filterM isUserTypeUpdate bobTypeUpdates
-        let userTypeUpdates = aliceUserTypeUpdates <> bobUserTypeUpdates
+        let typeUserUpdates = aliceTypeUserUpdates <> bobTypeUserUpdates
 
-        userTermUpdates <- step "classify user term updates" do
+        termUserUpdates <- step "classify user term updates" do
           let isUserTermUpdate = Merge.isUserTermUpdate mergeDatabase canonicalizer
           Relation.filterM isUserTermUpdate termUpdates
 
-        let updates :: Merge.Updates TypeReference Referent
-            updates =
-              Merge.Updates
-                { terms = termUpdates,
-                  types = typeUpdates,
-                  userTerms = userTermUpdates,
-                  userTypes = userTypeUpdates
+        let changes :: Merge.Changes TypeReference Referent
+            changes =
+              Merge.Changes
+                { termConflictedAdds,
+                  typeConflictedAdds,
+                  termUpdates,
+                  typeUpdates,
+                  termUserUpdates,
+                  typeUserUpdates
                 }
 
-        -- Build the core ecs from the updates
-        let coreEcs = Merge.makeCoreEcs updates
+        -- Build the core ecs from the changes
+        let coreEcs = Merge.makeCoreEcs changes
 
         let getTypeConstructorTerms :: TypeReference -> Transaction [Referent]
             getTypeConstructorTerms ref =
@@ -225,7 +227,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
             getTypeConstructorTerms
             typeDependsOn
             termDependsOn
-            updates
+            changes
             coreEcs
 
         Sqlite.unsafeIO do
@@ -250,8 +252,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           printTermConflictedAdds termConflictedAdds
           Text.putStrLn ""
           Text.putStrLn "===== updates ====="
-          printTypeUpdates typeUpdates userTypeUpdates
-          printTermUpdates termUpdates userTermUpdates
+          printTypeUpdates typeUpdates typeUserUpdates
+          printTermUpdates termUpdates termUserUpdates
           Text.putStrLn ""
           Text.putStrLn "===== core ecs ====="
           printEcs coreEcs
@@ -313,6 +315,7 @@ computeConstructorMapping allNames1 ref1 decl1 allNames2 ref2 decl2 = do
 -- where/when do we care about normal unconflicted adds? may make sense to include them here too?
 data TwoSetsOfChanges ref = TwoSetsOfChanges
   { -- All of the (alice, bob) conflicts due to the same name being used for two different refs.
+    -- TODO make this a Set (ref, ref); no need for the indexing of a Relation
     -- Invariant: irreflexive (i.e. no x is related to itself)
     conflictedAdds :: !(Relation ref ref),
     -- All of the (old, new) updates from each set of changes.
