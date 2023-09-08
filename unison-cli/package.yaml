@@ -65,6 +65,7 @@ dependencies:
   - servant
   - servant-client
   - stm
+  - strict-tuple
   - text
   - text-ansi
   - text-builder

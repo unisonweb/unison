@@ -19,6 +19,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
+import Data.Tuple.Strict
 import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
 import Text.Printf (printf)
@@ -114,8 +115,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     -- TODO assert somehow that these branches don't have any conflicted names anywhere, as we'd rather like to not
     -- deal with some of the annoying complexity those cases bring, wrt. classifying things as conflicted adds/updates.
 
-    (aliceTypeNames, aliceDataconNames, aliceTermNames) <- step "load alice names" $ loadBranchDefinitionNames aliceBranch
-    (bobTypeNames, bobDataconNames, bobTermNames) <- step "load bob names" $ loadBranchDefinitionNames bobBranch
+    T3 aliceTypeNames aliceDataconNames aliceTermNames <- step "load alice names" $ loadBranchDefinitionNames aliceBranch
+    T3 bobTypeNames bobDataconNames bobTermNames <- step "load bob names" $ loadBranchDefinitionNames bobBranch
 
     case maybeLcaCausalHash of
       -- TODO: go down 2-way merge code paths
@@ -123,7 +124,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       Just lcaCausalHash -> do
         lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
         lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-        (lcaTypeNames, lcaDataconNames, lcaTermNames) <- step "load lca names" $ loadBranchDefinitionNames lcaBranch
+        T3 lcaTypeNames lcaDataconNames lcaTermNames <- step "load lca names" $ loadBranchDefinitionNames lcaBranch
 
         -- Compute and load the (deep) definition diffs (everything but lib.*)
         aliceDefinitionsDiff <- step "load alice definitions diff" do
@@ -435,9 +436,10 @@ loadBranchDefinitionNames ::
   Monad m =>
   Branch m ->
   m
-    ( Relation Name TypeReference,
-      Relation3 Name TypeReference ConstructorId,
-      Relation Name TermReference
+    ( T3
+        (Relation Name TypeReference)
+        (Relation3 Name TypeReference ConstructorId)
+        (Relation Name TermReference)
     )
 loadBranchDefinitionNames =
   go []
@@ -446,9 +448,10 @@ loadBranchDefinitionNames =
       [NameSegment] ->
       Branch m ->
       m
-        ( Relation Name TypeReference,
-          Relation3 Name TypeReference ConstructorId,
-          Relation Name TermReference
+        ( T3
+            (Relation Name TypeReference)
+            (Relation3 Name TypeReference ConstructorId)
+            (Relation Name TermReference)
         )
     go reversePrefix branch = do
       let types :: Relation Name TypeReference
@@ -460,38 +463,35 @@ loadBranchDefinitionNames =
 
       let datacons :: Relation3 Name TypeReference ConstructorId
           terms :: Relation Name TermReference
-          (datacons, terms) =
+          T2 datacons terms =
             Branch.terms branch
               & Map.toList
-              & foldl' f (Relation3.empty, Relation.empty)
+              & foldl' f (T2 Relation3.empty Relation.empty)
             where
               f ::
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference) ->
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
                 (NameSegment, Map Referent metadata) ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference)
-              f acc (!segment, !refs) =
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+              f acc (segment, refs) =
                 foldl' (g (Name.fromReverseSegments (segment :| reversePrefix))) acc (Map.keys refs)
 
               g ::
                 Name ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference) ->
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
                 Referent ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference)
-              g name (!accDatacons, !accTerms) = \case
-                Referent.Ref ref -> (accDatacons, Relation.insert name ref accTerms)
-                Referent.Con ref cid -> (Relation3.insert name ref cid accDatacons, accTerms)
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+              g name (T2 accDatacons accTerms) = \case
+                Referent.Ref ref -> T2 accDatacons (Relation.insert name ref accTerms)
+                Referent.Con ref cid -> T2 (Relation3.insert name ref cid accDatacons) accTerms
 
-      (childrenTypes, childrenDatacons, childrenTerms) <-
+      childrenNames <-
         Branch.children branch
           & Map.toList
           & foldMapM \(childName, childCausal) -> do
             childBranch <- Causal.value childCausal
             go (childName : reversePrefix) childBranch
 
-      let !allTypes = types <> childrenTypes
-      let !allDatacons = datacons <> childrenDatacons
-      let !allTerms = terms <> childrenTerms
-      pure (allTypes, allDatacons, allTerms)
+      pure (T3 types datacons terms <> childrenNames)
 
 data DependencyDiff
   = AddDependency !CausalHash
