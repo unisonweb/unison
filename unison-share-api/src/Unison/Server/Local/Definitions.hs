@@ -50,7 +50,8 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
     shallowBranch <- V2Causal.value shallowRoot
     Local.relocateToNameRoot perspective perspectiveQuery shallowBranch >>= \case
       Left err -> pure $ Left err
-      Right (namesRoot, locatedQuery) -> pure $ Right (shallowRoot, namesRoot, locatedQuery)
+      Right (namesRoot, locatedQuery) -> do
+        pure $ Right (shallowRoot, namesRoot, locatedQuery)
   (shallowRoot, namesRoot, query) <- either throwError pure result
   -- Bias towards both relative and absolute path to queries,
   -- This allows us to still bias towards definitions outside our perspective but within the
@@ -61,7 +62,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-  (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) perspective
+  (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do

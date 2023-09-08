@@ -28,6 +28,7 @@ import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
+import Unison.Settings qualified as Settings
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Type
 import Unison.Util.ColorText (toPlain)
@@ -80,7 +81,7 @@ pretty0 ::
   Int ->
   Type v a ->
   m (Pretty SyntaxText)
-pretty0 im p tp = prettyRaw im p (cleanup (removePureEffects tp))
+pretty0 im p tp = prettyRaw im p (removeEmptyEffects $ cleanup tp)
 
 prettyRaw ::
   forall v a m.
@@ -123,7 +124,7 @@ prettyRaw im p tp = go im p tp
          in -- if we're printing a type signature, and all the type variables
             -- are universally quantified, then we can omit the `forall` keyword
             -- only if the type variables are not bound in an outer scope
-            if p < 0 && all Var.universallyQuantifyIfFree vs
+            if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCapture vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
       t@(Arrow' _ _) -> case t of

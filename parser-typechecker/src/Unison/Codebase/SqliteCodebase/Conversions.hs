@@ -12,7 +12,6 @@ import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2.Reference
 import U.Codebase.Referent qualified as V2
 import U.Codebase.Referent qualified as V2.Referent
-import U.Codebase.ShortHash qualified as V2
 import U.Codebase.Sqlite.Symbol qualified as V2
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.TermEdit qualified as V2.TermEdit
@@ -45,7 +44,8 @@ import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
 import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
-import Unison.ShortHash qualified as V1.ShortHash
+import Unison.ShortHash (ShortCausalHash (..), ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol qualified as V1
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
@@ -55,8 +55,8 @@ import Unison.Util.Star3 qualified as V1.Star3
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as V1.WK
 
-sch1to2 :: V1.ShortCausalHash -> V2.ShortCausalHash
-sch1to2 (V1.ShortCausalHash b32) = V2.ShortCausalHash b32
+sch1to2 :: V1.ShortCausalHash -> ShortCausalHash
+sch1to2 (V1.ShortCausalHash b32) = ShortCausalHash b32
 
 decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
 decltype2to1 = \case
@@ -245,11 +245,6 @@ symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
 
 symbol1to2 :: V1.Symbol -> V2.Symbol
 symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
-
-shortHashSuffix1to2 :: Text -> V1.Reference.Pos
-shortHashSuffix1to2 =
-  -- todo: move suffix parsing to frontend
-  either error id . V1.Reference.readSuffix
 
 rreference2to1 :: Hash -> V2.Reference' Text (Maybe Hash) -> V1.Reference
 rreference2to1 h = \case
@@ -542,23 +537,23 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
 -- | Generates a v1 short hash from a v2 referent.
 -- Also shortens the hash to the provided length. If 'Nothing', it will include the full
 -- length hash.
-referent2toshorthash1 :: Maybe Int -> V2.Referent -> V1.ShortHash.ShortHash
+referent2toshorthash1 :: Maybe Int -> V2.Referent -> ShortHash
 referent2toshorthash1 hashLength ref =
-  maybe id V1.ShortHash.take hashLength $ case ref of
+  maybe id ShortHash.shortenTo hashLength $ case ref of
     V2.Referent.Ref r -> reference2toshorthash1 hashLength r
     V2.Referent.Con r conId ->
       case reference2toshorthash1 hashLength r of
-        V1.ShortHash.ShortHash h p _con -> V1.ShortHash.ShortHash h p (Just $ tShow conId)
-        sh@(V1.ShortHash.Builtin {}) -> sh
+        ShortHash.ShortHash h p _con -> ShortHash.ShortHash h p (Just conId)
+        sh@(ShortHash.Builtin {}) -> sh
 
 -- | Generates a v1 short hash from a v2 reference.
 -- Also shortens the hash to the provided length. If 'Nothing', it will include the full
 -- length hash.
-reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> V1.ShortHash.ShortHash
-reference2toshorthash1 hashLength ref = maybe id V1.ShortHash.take hashLength $ case ref of
-  (V2.Reference.ReferenceBuiltin b) -> V1.ShortHash.Builtin b
-  (V2.Reference.ReferenceDerived (V2.Reference.Id h i)) -> V1.ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
+reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> ShortHash
+reference2toshorthash1 hashLength ref = maybe id ShortHash.shortenTo hashLength $ case ref of
+  V2.Reference.ReferenceBuiltin b -> ShortHash.Builtin b
+  V2.Reference.ReferenceDerived (V2.Reference.Id h i) -> ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
   where
-    showComponentPos :: V2.Reference.Pos -> Maybe Text
+    showComponentPos :: V2.Reference.Pos -> Maybe Word64
     showComponentPos 0 = Nothing
-    showComponentPos n = Just (tShow n)
+    showComponentPos n = Just n

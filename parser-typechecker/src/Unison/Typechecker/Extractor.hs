@@ -278,7 +278,7 @@ unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do
       let k = Var.Inference Var.Ability
-          cleanup = Type.cleanup . Type.removePureEffects . Type.generalize' k
+          cleanup = Type.cleanup . Type.removePureEffects False . Type.generalize' k
       pure (loc, v, suggestions, cleanup expectedType)
     _ -> mzero
 

@@ -11,7 +11,7 @@ This transcript verifies that the pretty-printer produces code that can be succe
 .a1> add
 ```
 
-```unison /private/tmp/roundtrip.u 
+```unison /private/tmp/roundtrip.u
 x = ()
 ```
 
@@ -22,11 +22,11 @@ x = ()
 So we can see the pretty-printed output:
 
 ```ucm
-.a1> edit 1-1000 
+.a1> edit 1-1000
 ```
 
 ```ucm:hide
-.a1> delete.namespace.force lib.builtin 
+.a1> delete.namespace.force lib.builtin
 ```
 
 ```ucm:hide
@@ -59,7 +59,7 @@ Now check that definitions in 'reparses.u' at least parse on round trip:
 
 This just makes 'roundtrip.u' the latest scratch file.
 
-```unison:hide /private/tmp/roundtrip.u 
+```unison:hide /private/tmp/roundtrip.u
 x = ()
 ```
 
@@ -72,17 +72,18 @@ x = ()
 ```
 
 ```ucm:hide
-.> delete.namespace.force a3
+.> move.namespace a3 a3_old
 .a3> copy.namespace .builtin lib.builtin
 .a3> load /private/tmp/roundtrip.u
 .a3> add
 .a3> delete.namespace.force lib.builtin
+.a3_old> delete.namespace.force lib.builtin
 ```
 
-These are currently all expected to have different hashes on round trip, though we'd prefer if they round tripped with the same hash.
+These are currently all expected to have different hashes on round trip.
 
 ```ucm
-.> diff.namespace a1 a3
+.> diff.namespace a3 a3_old
 ```
 
 ## Other regression tests not covered by above

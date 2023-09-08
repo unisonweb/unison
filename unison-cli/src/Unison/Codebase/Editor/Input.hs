@@ -45,7 +45,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectBranchNameOrLatestRelease, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty qualified as P
 
@@ -268,8 +268,8 @@ data GistInput = GistInput
 -- | Pull source and target: either neither is specified, or only a source, or both.
 data PullSourceTarget
   = PullSourceTarget0
-  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchName)) LooseCodeOrProject
+  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) LooseCodeOrProject
   deriving stock (Eq, Show)
 
 data PushSource

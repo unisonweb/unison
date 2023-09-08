@@ -2,6 +2,8 @@
 
 set -e
 
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 if [[ "$1" = "--status" ]]; then
     gh workflow view release --repo unisonweb/unison
     gh workflow view release --repo unisonweb/homebrew-unison
@@ -34,7 +36,7 @@ if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
 fi
 
 version="${1}"
-prev_version=$(./scripts/previous-tag.sh "$version")
+prev_version=$("${script_dir}/previous-tag.sh" "$version")
 target=${2:-trunk}
 tag="release/${version}"
 

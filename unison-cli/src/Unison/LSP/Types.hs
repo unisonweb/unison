@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
@@ -16,7 +17,6 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Key qualified as Aeson.Key
 import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.ByteString.Lazy.Char8 qualified as BSC
-import Data.HashMap.Strict qualified as HM
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
@@ -24,10 +24,11 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message (MessageDirection (..), MessageKind (..), Method, TMessage, TNotificationMessage, fromServerNot)
+import Language.LSP.Protocol.Types
 import Language.LSP.Server
 import Language.LSP.Server qualified as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Path qualified as Path
@@ -89,7 +90,7 @@ data Env = Env
     checkedFilesVar :: TVar (Map Uri (TMVar FileAnalysis)),
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
-    cancellationMapVar :: TVar (Map SomeLspId (IO ())),
+    cancellationMapVar :: TVar (Map (Int32 |? Text) (IO ())),
     -- A lazily computed map of all valid completion suffixes from the current path.
     completionsVar :: TVar CompletionTree,
     scope :: Ki.Scope
@@ -212,10 +213,10 @@ defaultLSPConfig = Config {..}
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
 
-sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~ NotificationMessage m) => NotificationMessage m -> Lsp ()
+sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
 sendNotification notif = do
   sendServerMessage <- asks (resSendMessage . lspContext)
-  liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)
+  liftIO $ sendServerMessage $ fromServerNot notif -- (notif ^. method) notif
 
 data RangedCodeAction = RangedCodeAction
   { -- All the ranges the code action applies
@@ -225,7 +226,7 @@ data RangedCodeAction = RangedCodeAction
   deriving stock (Eq, Show)
 
 instance HasCodeAction RangedCodeAction CodeAction where
-  codeAction = lens _codeAction (\rca ca -> rca {_codeAction = ca})
+  codeAction = lens (\RangedCodeAction {_codeAction} -> _codeAction) (\rca ca -> RangedCodeAction {_codeActionRanges = _codeActionRanges rca, _codeAction = ca})
 
 rangedCodeAction :: Text -> [Diagnostic] -> [Range] -> RangedCodeAction
 rangedCodeAction title diags ranges =
@@ -233,12 +234,12 @@ rangedCodeAction title diags ranges =
     CodeAction
       { _title = title,
         _kind = Nothing,
-        _diagnostics = Just . List $ diags,
+        _diagnostics = Just diags,
         _isPreferred = Nothing,
         _disabled = Nothing,
         _edit = Nothing,
         _command = Nothing,
-        _xdata = Nothing
+        _data_ = Nothing
       }
 
 -- | Provided ranges must not intersect.
@@ -249,7 +250,7 @@ includeEdits uri replacement ranges rca =
         pure $ TextEdit r replacement
       workspaceEdit =
         WorkspaceEdit
-          { _changes = Just $ HM.singleton uri (List edits),
+          { _changes = Just $ Map.singleton uri edits,
             _documentChanges = Nothing,
             _changeAnnotations = Nothing
           }

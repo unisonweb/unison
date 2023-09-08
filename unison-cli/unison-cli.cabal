@@ -64,6 +64,7 @@ library
       Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.TermResolution
+      Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
@@ -136,6 +137,7 @@ library
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -184,8 +186,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -208,6 +210,7 @@ library
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -266,6 +269,7 @@ executable cli-integration-tests
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -318,8 +322,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -343,6 +347,7 @@ executable cli-integration-tests
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -396,6 +401,7 @@ executable transcripts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -446,8 +452,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -472,6 +478,7 @@ executable transcripts
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -531,6 +538,7 @@ executable unison
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -580,8 +588,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -608,6 +616,7 @@ executable unison
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -670,6 +679,7 @@ test-suite cli-tests
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -721,8 +731,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=1.5.0.0
-    , lsp-types >=1.5.0.0
+    , lsp >=2.0.0.0
+    , lsp-types >=2.0.0.0
     , megaparsec
     , memory
     , mtl
@@ -747,6 +757,7 @@ test-suite cli-tests
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli

@@ -1,10 +1,9 @@
 module Unison.Codebase.Editor.UriParser
-  ( repoPath,
+  ( readRemoteNamespaceParser,
     writeGitRepo,
     deprecatedWriteGitRemoteNamespace,
     writeRemoteNamespace,
     writeRemoteNamespaceWith,
-    parseReadRemoteNamespace,
     parseReadShareLooseCode,
   )
 where
@@ -34,7 +33,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName, projectAndBranchNamesParser)
+import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty.MegaParsec qualified as P
@@ -59,28 +58,22 @@ type P = P.Parsec Void Text.Text
 
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
 
-repoPath :: P (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-repoPath =
+readRemoteNamespaceParser :: ProjectBranchSpecifier branch -> P (ReadRemoteNamespace (These ProjectName branch))
+readRemoteNamespaceParser specifier =
   P.label "generic repo" $
     ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths
+      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
       <|> ReadShare'LooseCode <$> readShareLooseCode
 
-projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths :: P (These ProjectName ProjectBranchName)
-projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths =
+projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ::
+  ProjectBranchSpecifier branch ->
+  P (These ProjectName branch)
+projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier =
   P.try do
-    projectAndBranch <- projectAndBranchNamesParser
+    projectAndBranch <- projectAndBranchNamesParser specifier
     -- we don't want to succeed parsing the 'foo' off of 'foo.bar', leaving '.bar' behind
     P.notFollowedBy (C.char '.')
     pure projectAndBranch
-
-parseReadRemoteNamespace ::
-  String ->
-  String ->
-  Either (P.Pretty P.ColorText) (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-parseReadRemoteNamespace label input =
-  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", P.prettyPrintParseError input err]
-   in first printError (P.parse repoPath label (Text.pack input))
 
 parseReadShareLooseCode :: String -> String -> Either (P.Pretty P.ColorText) ReadShareLooseCode
 parseReadShareLooseCode label input =
@@ -93,7 +86,8 @@ parseReadShareLooseCode label input =
 -- Just (WriteRemoteNamespaceGit (WriteGitRemoteNamespace {repo = WriteGitRepo {url = "git@github.com:unisonweb/base", branch = Just "v3"}, path = _releases.M3}))
 writeRemoteNamespace :: P (WriteRemoteNamespace (These ProjectName ProjectBranchName))
 writeRemoteNamespace =
-  writeRemoteNamespaceWith projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths
+  writeRemoteNamespaceWith
+    (projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ProjectBranchSpecifier'Name)
 
 writeRemoteNamespaceWith :: P a -> P (WriteRemoteNamespace a)
 writeRemoteNamespaceWith projectBranchParser =

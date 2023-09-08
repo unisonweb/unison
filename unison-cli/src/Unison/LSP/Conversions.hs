@@ -2,7 +2,7 @@ module Unison.LSP.Conversions where
 
 import Control.Lens
 import Data.IntervalMap.Interval qualified as Interval
-import Language.LSP.Types
+import Language.LSP.Protocol.Types
 import Unison.LSP.Orphans ()
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
@@ -24,10 +24,10 @@ uToLspPos uPos =
     }
 
 lspToUPos :: Position -> Lex.Pos
-lspToUPos lspPos =
+lspToUPos Position {_line = line, _character = char} =
   Lex.Pos
-    (fromIntegral $ _line lspPos + 1) -- 1 indexed vs 0 indexed
-    (fromIntegral $ _character lspPos + 1)
+    (fromIntegral $ line + 1) -- 1 indexed vs 0 indexed
+    (fromIntegral $ char + 1)
 
 uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)

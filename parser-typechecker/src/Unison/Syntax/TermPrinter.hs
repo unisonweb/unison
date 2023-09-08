@@ -1002,6 +1002,12 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
                     styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
                     fmt S.Var $ PP.text (Var.name y)
                   ]
+              [x] ->
+                PP.sep
+                  " "
+                  [ renderName v,
+                    fmt S.Var $ PP.text (Var.name x)
+                  ]
               _ -> l "error"
           | null vs = renderName v
           | otherwise = renderName v `PP.hang` args vs
@@ -1925,7 +1931,7 @@ toDocVerbatim ppe (App' (Ref' r) (toDocWord ppe -> Just txt))
 toDocVerbatim _ _ = Nothing
 
 toDocEval :: (Var v) => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEval ppe (App' (Ref' r) (Delay' tm))
+toDocEval ppe (App' (Ref' r) (DDelay' tm))
   | nameEndsWith ppe ".docEval" r = Just tm
   | r == _oldDocEval = Just tm
 toDocEval _ _ = Nothing

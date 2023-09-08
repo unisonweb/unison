@@ -5,6 +5,7 @@ module Unison.Cli.ProjectUtils
     expectCurrentProject,
     getCurrentProjectIds,
     getCurrentProjectBranch,
+    getProjectBranchForPath,
     expectCurrentProjectBranch,
     projectPath,
     projectBranchesPath,
@@ -33,10 +34,7 @@ module Unison.Cli.ProjectUtils
 where
 
 import Control.Lens
-import Data.Text qualified as Text
 import Data.These (These (..))
-import Data.UUID (UUID)
-import Data.UUID qualified as UUID
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -44,15 +42,16 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Share.Projects (IncludeSquashedHead)
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase.Editor.Input (LooseCodeOrProject)
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project.Util
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
@@ -81,6 +80,10 @@ getCurrentProjectIds =
 getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
+  getProjectBranchForPath path
+
+getProjectBranchForPath :: Path.Absolute -> Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
+getProjectBranchForPath path = do
   case preview projectBranchPathPrism path of
     Nothing -> pure Nothing
     Just (ProjectAndBranch projectId branchId, restPath) ->
@@ -190,10 +193,11 @@ expectRemoteProjectByName remoteProjectName = do
     Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
 
 expectRemoteProjectBranchById ::
+  IncludeSquashedHead ->
   ProjectAndBranch (RemoteProjectId, ProjectName) (RemoteProjectBranchId, ProjectBranchName) ->
   Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchById projectAndBranch = do
-  Share.getProjectBranchById projectAndBranchIds >>= \case
+expectRemoteProjectBranchById includeSquashed projectAndBranch = do
+  Share.getProjectBranchById includeSquashed projectAndBranchIds >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist projectAndBranchNames
     Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist projectAndBranchNames
     Share.GetProjectBranchResponseSuccess branch -> pure branch
@@ -202,19 +206,21 @@ expectRemoteProjectBranchById projectAndBranch = do
     projectAndBranchNames = projectAndBranch & over #project snd & over #branch snd
 
 loadRemoteProjectBranchByName ::
+  IncludeSquashedHead ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Maybe Share.RemoteProjectBranch)
-loadRemoteProjectBranchByName projectAndBranch =
-  Share.getProjectBranchByName projectAndBranch <&> \case
+loadRemoteProjectBranchByName includeSquashed projectAndBranch =
+  Share.getProjectBranchByName includeSquashed projectAndBranch <&> \case
     Share.GetProjectBranchResponseBranchNotFound -> Nothing
     Share.GetProjectBranchResponseProjectNotFound -> Nothing
     Share.GetProjectBranchResponseSuccess branch -> Just branch
 
 expectRemoteProjectBranchByName ::
+  IncludeSquashedHead ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByName projectAndBranch =
-  Share.getProjectBranchByName (projectAndBranch & over #project fst) >>= \case
+expectRemoteProjectBranchByName includeSquashed projectAndBranch =
+  Share.getProjectBranchByName includeSquashed (projectAndBranch & over #project fst) >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> doesntExist
     Share.GetProjectBranchResponseProjectNotFound -> doesntExist
     Share.GetProjectBranchResponseSuccess branch -> pure branch
@@ -223,19 +229,21 @@ expectRemoteProjectBranchByName projectAndBranch =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
 
 loadRemoteProjectBranchByNames ::
+  IncludeSquashedHead ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli (Maybe Share.RemoteProjectBranch)
-loadRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) =
+loadRemoteProjectBranchByNames includeSquashed (ProjectAndBranch projectName branchName) =
   runMaybeT do
     project <- MaybeT (Share.getProjectByName projectName)
-    MaybeT (loadRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId) branchName))
+    MaybeT (loadRemoteProjectBranchByName includeSquashed (ProjectAndBranch (project ^. #projectId) branchName))
 
 expectRemoteProjectBranchByNames ::
+  IncludeSquashedHead ->
   ProjectAndBranch ProjectName ProjectBranchName ->
   Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) = do
+expectRemoteProjectBranchByNames includeSquashed (ProjectAndBranch projectName branchName) = do
   project <- expectRemoteProjectByName projectName
-  expectRemoteProjectBranchByName (ProjectAndBranch (project ^. #projectId, project ^. #projectName) branchName)
+  expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (project ^. #projectId, project ^. #projectName) branchName)
 
 -- Expect a remote project branch by a "these names".
 --
@@ -245,13 +253,13 @@ expectRemoteProjectBranchByNames (ProjectAndBranch projectName branchName) = do
 --
 --   If only a branch name is provided, use the current branch's remote mapping (falling back to its parent, etc) to get
 --   the project.
-expectRemoteProjectBranchByTheseNames :: These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByTheseNames = \case
+expectRemoteProjectBranchByTheseNames :: IncludeSquashedHead -> These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
+expectRemoteProjectBranchByTheseNames includeSquashed = \case
   This remoteProjectName -> do
     remoteProject <- expectRemoteProjectByName remoteProjectName
     let remoteProjectId = remoteProject ^. #projectId
     let remoteBranchName = unsafeFrom @Text "main"
-    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
+    expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   That branchName -> do
     (ProjectAndBranch localProject localBranch, _restPath) <- expectCurrentProjectBranch
     let localProjectId = localProject ^. #projectId
@@ -259,7 +267,7 @@ expectRemoteProjectBranchByTheseNames = \case
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, remoteProjectName) branchName)
+        expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) branchName)
       Nothing -> do
         Cli.returnEarly $
           Output.NoAssociatedRemoteProject
@@ -268,111 +276,8 @@ expectRemoteProjectBranchByTheseNames = \case
   These projectName branchName -> do
     remoteProject <- expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject ^. #projectId
-    expectRemoteProjectBranchByName (ProjectAndBranch (remoteProjectId, projectName) branchName)
+    expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, projectName) branchName)
 
 remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
 remoteProjectBranchDoesntExist projectAndBranch =
   Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri projectAndBranch)
-
-------------------------------------------------------------------------------------------------------------------------
-
--- | Get the path that a project is stored at. Users aren't supposed to go here.
---
--- >>> projectPath "ABCD"
--- .__projects._ABCD
-projectPath :: ProjectId -> Path.Absolute
-projectPath projectId =
-  review projectPathPrism projectId
-
--- | Get the path that a project's branches are stored at. Users aren't supposed to go here.
---
--- >>> projectBranchesPath "ABCD"
--- .__projects._ABCD.branches
-projectBranchesPath :: ProjectId -> Path.Absolute
-projectBranchesPath projectId =
-  snoc (projectPath projectId) "branches"
-
--- | Get the path that a branch is stored at. Users aren't supposed to go here.
---
--- >>> projectBranchPath ProjectAndBranch { project = "ABCD", branch = "DEFG" }
--- .__projects._ABCD.branches._DEFG
-projectBranchPath :: ProjectAndBranch ProjectId ProjectBranchId -> Path.Absolute
-projectBranchPath projectAndBranch =
-  review projectBranchPathPrism (projectAndBranch, Path.empty)
-
--- | Get the name segment that a branch is stored at.
---
--- >>> projectBranchSegment "DEFG"
--- "_DEFG"
-projectBranchSegment :: ProjectBranchId -> NameSegment
-projectBranchSegment (ProjectBranchId branchId) =
-  UUIDNameSegment branchId
-
-pattern UUIDNameSegment :: UUID -> NameSegment
-pattern UUIDNameSegment uuid <-
-  NameSegment (Text.uncons -> Just ('_', UUID.fromText . Text.map (\c -> if c == '_' then '-' else c) -> Just uuid))
-  where
-    UUIDNameSegment uuid = NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
-
--- | The prism between paths like
---
--- @
--- .__projects._XX_XX
--- @
---
--- and the project id
---
--- @
--- XX-XX
--- @
-projectPathPrism :: Prism' Path.Absolute ProjectId
-projectPathPrism =
-  prism' toPath toId
-  where
-    toPath :: ProjectId -> Path.Absolute
-    toPath projectId =
-      Path.Absolute $
-        Path.fromList
-          [ "__projects",
-            UUIDNameSegment (unProjectId projectId)
-          ]
-
-    toId :: Path.Absolute -> Maybe ProjectId
-    toId path =
-      case Path.toList (Path.unabsolute path) of
-        ["__projects", UUIDNameSegment projectId] -> Just (ProjectId projectId)
-        _ -> Nothing
-
--- | The prism between paths like
---
--- @
--- .__projects._XX_XX.branches._YY_YY.foo.bar
--- @
---
--- and the @(project id, branch id, path)@ triple
---
--- @
--- (XX-XX, YY-YY, foo.bar)
--- @
-projectBranchPathPrism :: Prism' Path.Absolute (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
-projectBranchPathPrism =
-  prism' toPath toIds
-  where
-    toPath :: (ProjectAndBranch ProjectId ProjectBranchId, Path.Path) -> Path.Absolute
-    toPath (ProjectAndBranch {project = projectId, branch = branchId}, restPath) =
-      Path.Absolute $
-        Path.fromList
-          ( [ "__projects",
-              UUIDNameSegment (unProjectId projectId),
-              "branches",
-              UUIDNameSegment (unProjectBranchId branchId)
-            ]
-              ++ Path.toList restPath
-          )
-
-    toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
-    toIds path =
-      case Path.toList (Path.unabsolute path) of
-        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : restPath ->
-          Just (ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}, Path.fromList restPath)
-        _ -> Nothing

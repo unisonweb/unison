@@ -4,8 +4,8 @@ checkBytesII src larr rarr i =
   if l == r
     then if i > 0 then checkBytesII src larr rarr (l-1) else pass src
     else let
-      tl = Debug.toText l
-      tr = Debug.toText r
+      tl = Debug.evalToText l
+      tr = Debug.evalToText r
       fail src ("`" ++ tl ++ "` is not equal to `" ++ tr ++ "`")
 
 checkBytesMI src marr iarr i =
@@ -14,8 +14,8 @@ checkBytesMI src marr iarr i =
   if l == r
     then if i > 0 then checkBytesMI src marr iarr (l-1) else pass src
     else let
-      tl = Debug.toText l
-      tr = Debug.toText r
+      tl = Debug.evalToText l
+      tr = Debug.evalToText r
       fail src ("`" ++ tl ++ "` is not equal to `" ++ tr ++ "`")
 
 checkBytesMM src larr rarr i =
@@ -24,8 +24,8 @@ checkBytesMM src larr rarr i =
   if l == r
     then if i > 0 then checkBytesMM src larr rarr (l-1) else pass src
     else let
-      tl = Debug.toText l
-      tr = Debug.toText r
+      tl = Debug.evalToText l
+      tr = Debug.evalToText r
       fail src ("`" ++ tl ++ "` is not equal to `" ++ tr ++ "`")
 
 boxarrTests : '{IO,Exception,Tests} ()

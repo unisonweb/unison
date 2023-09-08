@@ -26,12 +26,14 @@ library
       Unison.Server.Errors
       Unison.Server.Local
       Unison.Server.Local.Definitions
+      Unison.Server.Local.Endpoints.Current
       Unison.Server.Local.Endpoints.DefinitionSummary
       Unison.Server.Local.Endpoints.FuzzyFind
       Unison.Server.Local.Endpoints.GetDefinitions
       Unison.Server.Local.Endpoints.NamespaceDetails
       Unison.Server.Local.Endpoints.NamespaceListing
       Unison.Server.Local.Endpoints.Projects
+      Unison.Server.Local.Endpoints.UCM
       Unison.Server.NameSearch
       Unison.Server.NameSearch.FromNames
       Unison.Server.NameSearch.Sqlite
@@ -39,11 +41,6 @@ library
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
-      Unison.Server.Share
-      Unison.Server.Share.Definitions
-      Unison.Server.Share.FuzzyFind
-      Unison.Server.Share.NamespaceDetails
-      Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API

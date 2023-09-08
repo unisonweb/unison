@@ -8,10 +8,9 @@ import Control.Lens hiding (List)
 import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
-import Language.LSP.Types (Range (..))
-import Language.LSP.Types hiding (Range (..))
-import Language.LSP.Types qualified as LSP
-import Language.LSP.Types.Lens hiding (to)
+import Language.LSP.Protocol.Lens qualified as LSP
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types as LSP
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
@@ -25,13 +24,13 @@ import Unison.Prelude
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Range qualified as URange
 
-selectionRangeHandler :: RequestMessage 'TextDocumentSelectionRange -> (Either ResponseError (ResponseResult 'TextDocumentSelectionRange) -> Lsp ()) -> Lsp ()
+selectionRangeHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentSelectionRange -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentSelectionRange) -> Lsp ()) -> Lsp ()
 selectionRangeHandler m respond =
-  respond . Right . fromMaybe mempty =<< runMaybeT do
-    ranges <- rangesForFile (m ^. params . textDocument . uri)
+  respond . Right . InL . fromMaybe mempty =<< runMaybeT do
+    ranges <- rangesForFile (m ^. LSP.params . LSP.textDocument . LSP.uri)
     Debug.debugM Debug.LSP "selection ranges in file" ranges
     let results =
-          (m ^. params . positions) & fmap \position ->
+          (m ^. LSP.params . LSP.positions) & fmap \position ->
             fromMaybe emptyRange $ toSelectionRange (lspToUPos position) ranges
     Debug.debugM Debug.LSP "selection range results" ranges
     pure results

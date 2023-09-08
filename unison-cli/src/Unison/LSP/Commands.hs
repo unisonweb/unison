@@ -1,16 +1,18 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Unison.LSP.Commands where
 
 import Control.Lens hiding (List)
 import Control.Monad.Except
 import Data.Aeson qualified as Aeson
-import Data.HashMap.Strict qualified as HM
+import Data.Map qualified as Map
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Language.LSP.Server (sendRequest)
-import Language.LSP.Types
-import Language.LSP.Types.Lens
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
@@ -23,7 +25,7 @@ replaceText ::
   Text ->
   TextReplacement ->
   Command
-replaceText title tr = Command title "replaceText" (Just (List [Aeson.toJSON tr]))
+replaceText title tr = Command title "replaceText" (Just [Aeson.toJSON tr])
 
 data TextReplacement = TextReplacement
   { range :: Range,
@@ -55,24 +57,24 @@ instance Aeson.FromJSON TextReplacement where
         Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
-executeCommandHandler :: RequestMessage 'WorkspaceExecuteCommand -> (Either ResponseError Aeson.Value -> Lsp ()) -> Lsp ()
+executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either Msg.ResponseError (Aeson.Value |? Null) -> Lsp ()) -> Lsp ()
 executeCommandHandler m respond =
   respond =<< runExceptT do
     let cmd = m ^. params . command
     let args = m ^. params . arguments
-    let invalidCmdErr = throwError $ ResponseError InvalidParams "Invalid command" Nothing
+    let invalidCmdErr = throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
     case cmd of
       "replaceText" -> case args of
-        Just (List [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)]) -> do
+        Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do
           let params =
                 ApplyWorkspaceEditParams
                   (Just description)
-                  (WorkspaceEdit (Just ((HM.singleton fileUri (List [TextEdit range replacementText])))) Nothing Nothing)
+                  (WorkspaceEdit (Just ((Map.singleton fileUri [TextEdit range replacementText]))) Nothing Nothing)
           lift
-            ( sendRequest SWorkspaceApplyEdit params $ \case
+            ( sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
                 Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
                 Right _ -> pure ()
             )
         _ -> invalidCmdErr
       _ -> invalidCmdErr
-    pure Aeson.Null
+    pure $ InL Aeson.Null

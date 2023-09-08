@@ -16,9 +16,10 @@ import Data.Text qualified as Text
 import Data.Text.Utf16.Rope qualified as Rope
 import Data.Tuple (swap)
 import Language.LSP.Logging qualified as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
-import Language.LSP.Types.Lens qualified as LSP
+import Language.LSP.Protocol.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
+import Language.LSP.Protocol.Lens qualified as LSP
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
@@ -97,16 +98,16 @@ completionPrefix uri pos = do
 
 --- Handlers for tracking file changes.
 
-lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
+lspOpenFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidOpen -> Lsp ()
 lspOpenFile msg = do
   usingVFS . openVFS vfsLogger $ msg
   markFilesDirty [msg ^. params . textDocument]
 
-lspCloseFile :: NotificationMessage 'TextDocumentDidClose -> Lsp ()
+lspCloseFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidClose -> Lsp ()
 lspCloseFile msg =
   usingVFS . closeVFS vfsLogger $ msg
 
-lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
+lspChangeFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidChange -> Lsp ()
 lspChangeFile msg = do
   usingVFS . changeFromClientVFS vfsLogger $ msg
   markFilesDirty [msg ^. params . textDocument]

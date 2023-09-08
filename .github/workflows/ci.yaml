@@ -20,6 +20,10 @@ jobs:
 
   ormolu:
     runs-on: ubuntu-20.04
+    # Only run formatting on trunk commits
+    # This is because the job won't have permission to push back to
+    # contributor forks on contributor PRs.
+    if: github.ref_name == 'trunk'
     steps:
       - uses: actions/checkout@v2
       - name: Get changed files
@@ -45,6 +49,8 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # The 'always()' causes this to build even if the ormolu job is skipped.
+    if: ${{ always() }}
     needs: ormolu
     defaults:
       run:

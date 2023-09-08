@@ -4,6 +4,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2TypeD,
     h2ToV2Reference,
     v2ToH2Branch,
+    hashBranchFormatToH2Branch,
   )
 where
 
@@ -12,11 +13,12 @@ import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as Causal
-import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
+import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2Reference
 import U.Codebase.Referent qualified as V2Referent
+import U.Codebase.Sqlite.Branch.Full qualified as Memory.BranchFull
 import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Type qualified as V2.Type
 import U.Core.ABT qualified as ABT
@@ -93,3 +95,26 @@ v2ToH2MdValues (V2Branch.MdValues mdMap) =
     & Map.keysSet
     & Set.map v2ToH2Reference
     & H2.MdValues
+
+hashBranchFormatToH2Branch :: Memory.BranchFull.HashBranch -> H2.Branch
+hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, children} =
+  H2.Branch
+    { terms =
+        terms
+          & Map.bimap H2.NameSegment (Map.bimap cvreferent cvMdValues),
+      types =
+        types
+          & Map.bimap H2.NameSegment (Map.bimap cvreference cvMdValues),
+      patches = patches & Map.bimap H2.NameSegment unPatchHash,
+      children = children & Map.bimap H2.NameSegment (unCausalHash . snd)
+    }
+  where
+    cvMdValues :: Memory.BranchFull.MetadataSetFormat' Text ComponentHash -> H2.MdValues
+    cvMdValues (Memory.BranchFull.Inline refSet) = H2.MdValues $ Set.map cvreference refSet
+    cvreference :: V2Reference.Reference' Text ComponentHash -> H2.Reference
+    cvreference = v2ToH2Reference . second unComponentHash
+    cvreferent :: Memory.BranchFull.Referent'' Text ComponentHash -> H2.Referent
+    cvreferent = \case
+      V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second unComponentHash ref))
+      V2Referent.Con typeRef conId -> do
+        (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)

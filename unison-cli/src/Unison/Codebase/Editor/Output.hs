@@ -382,6 +382,7 @@ data Output
   | FetchingLatestReleaseOfBase
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
+  | ProjectHasNoReleases ProjectName
 
 -- | What did we create a project branch from?
 --
@@ -416,6 +417,7 @@ data ShareError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
   | ShareErrorUploadEntities Share.UploadEntitiesError
+  | ShareExpectedSquashedHead
 
 data HistoryTail
   = EndOfLog CausalHash
@@ -603,6 +605,7 @@ isFailure o = case o of
   FetchingLatestReleaseOfBase {} -> False
   FailedToFetchLatestReleaseOfBase {} -> True
   HappyCoding {} -> False
+  ProjectHasNoReleases {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

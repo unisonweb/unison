@@ -12,6 +12,8 @@ module Unison.Project
     projectBranchNameUserSlug,
     ProjectBranchNameKind (..),
     classifyProjectBranchName,
+    ProjectBranchNameOrLatestRelease (..),
+    ProjectBranchSpecifier (..),
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
     ProjectAndBranchNames (..),
@@ -23,6 +25,7 @@ module Unison.Project
 where
 
 import Data.Char qualified as Char
+import Data.Kind (Type)
 import Data.Text qualified as Text
 import Data.Text.Read qualified as Text (decimal)
 import Data.These (These (..))
@@ -271,6 +274,19 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
 
+-- | A project branch name, or the latest release of its project.
+data ProjectBranchNameOrLatestRelease
+  = ProjectBranchNameOrLatestRelease'LatestRelease
+  | ProjectBranchNameOrLatestRelease'Name !ProjectBranchName
+  deriving stock (Eq, Show)
+
+-- | How a project branch can be specified.
+data ProjectBranchSpecifier :: Type -> Type where
+  -- | By name.
+  ProjectBranchSpecifier'Name :: ProjectBranchSpecifier ProjectBranchName
+  -- | By name, or "the latest release"
+  ProjectBranchSpecifier'NameOrLatestRelease :: ProjectBranchSpecifier ProjectBranchNameOrLatestRelease
+
 instance From (ProjectAndBranch ProjectName ProjectBranchName) Text where
   from (ProjectAndBranch project branch) =
     Text.Builder.run $
@@ -343,7 +359,7 @@ instance From (These ProjectName ProjectBranchName) Text where
 
 instance TryFrom Text (These ProjectName ProjectBranchName) where
   tryFrom =
-    maybeTryFrom (Megaparsec.parseMaybe projectAndBranchNamesParser)
+    maybeTryFrom (Megaparsec.parseMaybe (projectAndBranchNamesParser ProjectBranchSpecifier'Name))
 
 -- Valid things:
 --
@@ -351,20 +367,33 @@ instance TryFrom Text (These ProjectName ProjectBranchName) where
 --   2. project/
 --   3. project/branch
 --   4. /branch
-projectAndBranchNamesParser :: Megaparsec.Parsec Void Text (These ProjectName ProjectBranchName)
-projectAndBranchNamesParser = do
+projectAndBranchNamesParser ::
+  forall branch.
+  ProjectBranchSpecifier branch ->
+  Megaparsec.Parsec Void Text (These ProjectName branch)
+projectAndBranchNamesParser specifier = do
   optional projectNameParser >>= \case
     Nothing -> do
       _ <- Megaparsec.char '/'
-      branch <- projectBranchNameParser False
+      branch <- branchParser
       pure (That branch)
     Just (project, hasTrailingSlash) ->
       if hasTrailingSlash
         then do
-          optional (projectBranchNameParser False) <&> \case
+          optional branchParser <&> \case
             Nothing -> This project
             Just branch -> These project branch
         else pure (This project)
+  where
+    branchParser :: Megaparsec.Parsec Void Text branch
+    branchParser =
+      case specifier of
+        ProjectBranchSpecifier'Name -> projectBranchNameParser False
+        ProjectBranchSpecifier'NameOrLatestRelease ->
+          asum
+            [ ProjectBranchNameOrLatestRelease'LatestRelease <$ "releases/latest",
+              ProjectBranchNameOrLatestRelease'Name <$> projectBranchNameParser False
+            ]
 
 -- | @project/branch@ syntax, where the branch is optional.
 instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text where
@@ -379,6 +408,13 @@ instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text wher
 instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe projectWithOptionalBranchParser)
+
+-- | Attempt to parse a project and branch name from a string where both are required.
+instance TryFrom Text (ProjectAndBranch ProjectName ProjectBranchName) where
+  tryFrom =
+    maybeTryFrom $ \txt -> do
+      ProjectAndBranch projectName mayBranchName <- Megaparsec.parseMaybe projectWithOptionalBranchParser txt
+      ProjectAndBranch projectName <$> mayBranchName
 
 -- Valid things:
 --

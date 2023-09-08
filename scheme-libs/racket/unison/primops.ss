@@ -47,6 +47,7 @@
     builtin-Int.trailingZeros
     builtin-Int.popCount
     builtin-Nat.increment
+    builtin-Nat.popCount
     builtin-Nat.toFloat
     builtin-Text.indexOf
     builtin-Bytes.indexOf
@@ -56,6 +57,8 @@
     builtin-Value.fromBuiltin
     builtin-Code.fromGroup
     builtin-Code.toGroup
+    builtin-TermLink.fromReferent
+    builtin-TermLink.toReferent
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -72,12 +75,26 @@
     builtin-IO.setBuffering.impl.v3
     builtin-IO.getBuffering.impl.v3
     builtin-IO.setEcho.impl.v1
+    builtin-IO.isFileOpen.impl.v3
+    builtin-IO.ready.impl.v1
     builtin-IO.process.call
     builtin-IO.getEcho.impl.v1
     builtin-IO.getArgs.impl.v1
     builtin-IO.getEnv.impl.v1
     builtin-IO.getChar.impl.v1
+    builtin-IO.ready.impl.v1
     builtin-IO.getCurrentDirectory.impl.v3
+    builtin-IO.removeDirectory.impl.v3
+    builtin-IO.renameFile.impl.v3
+    builtin-IO.createTempDirectory.impl.v3
+    builtin-IO.createDirectory.impl.v3
+    builtin-IO.setCurrentDirectory.impl.v3
+    builtin-IO.renameDirectory.impl.v3
+    builtin-IO.isDirectory.impl.v3
+    builtin-IO.isSeekable.impl.v3
+    builtin-IO.handlePosition.impl.v3
+    builtin-IO.systemTime.impl.v3
+    builtin-IO.systemTimeMicroseconds.impl.v3
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -411,7 +428,10 @@
           (unison arithmetic)
           (unison bytevector)
           (unison core)
-          (only (unison boot) define-unison)
+          (only (unison boot)
+                define-unison
+                referent->termlink
+                termlink->referent)
           (unison data)
           (unison data-info)
           (unison math)
@@ -436,6 +456,10 @@
   (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
   (define-unison (builtin-Code.toGroup co)
     (unison-code-rep co))
+  (define-unison (builtin-TermLink.fromReferent rf)
+    (referent->termlink rf))
+  (define-unison (builtin-TermLink.toReferent tl)
+    (termlink->referent tl))
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
@@ -460,7 +484,7 @@
 
   ; Core implemented primops, upon which primops-in-unison can be built.
   (define (unison-POp-ADDN m n) (fx+ m n))
-  (define (unison-POp-ANDN m n) (fxand m n))
+  (define (unison-POp-ANDN m n) (bitwise-and m n))
   (define unison-POp-BLDS
     (lambda args-list
       (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))

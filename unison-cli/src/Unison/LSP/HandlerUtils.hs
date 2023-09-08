@@ -1,12 +1,14 @@
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Unison.LSP.HandlerUtils where
 
 import Control.Lens
 import Control.Monad.Reader
 import Data.Map qualified as Map
-import Language.LSP.Types
-import Language.LSP.Types.Lens as LSP
+import Language.LSP.Protocol.Lens as LSP
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
@@ -18,12 +20,12 @@ import UnliftIO.STM
 import UnliftIO.Timeout (timeout)
 
 -- | Cancels an in-flight request
-cancelRequest :: SomeLspId -> Lsp ()
+cancelRequest :: (Int32 |? Text) -> Lsp ()
 cancelRequest lspId = do
   cancelMapVar <- asks cancellationMapVar
   cancel <- atomically $ do
     cancellers <- readTVar cancelMapVar
-    let (mayCancel, newMap) = Map.updateLookupWithKey (\_k _io -> Nothing) (lspId) cancellers
+    let (mayCancel, newMap) = Map.updateLookupWithKey (\_k _io -> Nothing) lspId cancellers
     case mayCancel of
       Nothing -> pure (pure ())
       Just cancel -> do
@@ -32,10 +34,10 @@ cancelRequest lspId = do
   liftIO cancel
 
 withDebugging ::
-  (Show (RequestMessage message), Show (ResponseResult message)) =>
-  (RequestMessage message -> (Either ResponseError (ResponseResult message) -> Lsp ()) -> Lsp ()) ->
-  RequestMessage message ->
-  (Either ResponseError (ResponseResult message) -> Lsp ()) ->
+  (Show (Msg.TRequestMessage message), Show (Msg.MessageResult message)) =>
+  (Msg.TRequestMessage message -> (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
+  Msg.TRequestMessage message ->
+  (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) ->
   Lsp ()
 withDebugging handler message respond = do
   Debug.debugM Debug.LSP "Request" message
@@ -47,12 +49,14 @@ withDebugging handler message respond = do
 withCancellation ::
   forall message.
   Maybe Int ->
-  (RequestMessage message -> (Either ResponseError (ResponseResult message) -> Lsp ()) -> Lsp ()) ->
-  RequestMessage message ->
-  (Either ResponseError (ResponseResult message) -> Lsp ()) ->
+  (Msg.TRequestMessage message -> (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->
+  Msg.TRequestMessage message ->
+  (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) ->
   Lsp ()
 withCancellation mayTimeoutMillis handler message respond = do
-  let reqId = SomeLspId $ message ^. LSP.id
+  let reqId = case message ^. LSP.id of
+        Msg.IdInt i -> InL i
+        Msg.IdString s -> InR s
   -- The server itself seems to be single-threaded, so we need to fork in order to be able to
   -- process cancellation requests while still computing some other response
   void . forkIO $ flip finally (removeFromMap reqId) do
@@ -67,16 +71,18 @@ withCancellation mayTimeoutMillis handler message respond = do
         Nothing -> action
         Just t -> do
           (timeout (t * 1000) action) >>= \case
-            Nothing -> respond $ cancelErr "Timeout"
+            Nothing -> respond $ serverCancelErr "Timeout"
             Just () -> pure ()
-    cancelErr :: Text -> Either ResponseError b
-    cancelErr msg = Left $ ResponseError RequestCancelled msg Nothing
+    clientCancelErr :: Text -> Either Msg.ResponseError b
+    clientCancelErr msg = Left $ Msg.ResponseError (InL LSPErrorCodes_RequestCancelled) msg Nothing
+    serverCancelErr :: Text -> Either Msg.ResponseError b
+    serverCancelErr msg = Left $ Msg.ResponseError (InL LSPErrorCodes_ServerCancelled) msg Nothing
     -- I intentionally defer adding the canceller until after we've started the request,
     -- No matter what it's possible for a message to be cancelled before the
     -- canceller has been added, but this means we're not blocking the request waiting for
     -- contention on the cancellation map on every request.
     -- The the majority of requests should be fast enough to complete "instantly" anyways.
-    waitForCancel :: SomeLspId -> Lsp ()
+    waitForCancel :: (Int32 |? Text) -> Lsp ()
     waitForCancel reqId = do
       barrier <- newEmptyMVar
       let canceller = void $ tryPutMVar barrier ()
@@ -86,4 +92,4 @@ withCancellation mayTimeoutMillis handler message respond = do
       readMVar barrier
       let msg = "Request Cancelled by client"
       Debug.debugLogM Debug.LSP msg
-      respond (cancelErr "Request cancelled by client")
+      respond (clientCancelErr "Request cancelled by client")
