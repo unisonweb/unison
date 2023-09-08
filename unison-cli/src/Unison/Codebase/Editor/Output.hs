@@ -382,6 +382,7 @@ data Output
   | FetchingLatestReleaseOfBase
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
+  | ProjectHasNoReleases ProjectName
 
 -- | What did we create a project branch from?
 --
@@ -603,6 +604,7 @@ isFailure o = case o of
   FetchingLatestReleaseOfBase {} -> False
   FailedToFetchLatestReleaseOfBase {} -> True
   HappyCoding {} -> False
+  ProjectHasNoReleases {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

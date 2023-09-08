@@ -21,6 +21,7 @@ module Unison.Prelude
     maybeToEither,
     altSum,
     altMap,
+    hoistMaybe,
 
     -- * @Either@ control flow
     onLeft,
@@ -77,8 +78,12 @@ import System.IO qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import UnliftIO qualified
-import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
+import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto, unsafeInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
+
+-- | Can be removed when we upgrade transformers to a more recent version.
+hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe = MaybeT . pure
 
 -- | Like 'fold' but for Alternative.
 altSum :: (Alternative f, Foldable t) => t (f a) -> f a

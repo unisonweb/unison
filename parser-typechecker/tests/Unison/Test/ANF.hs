@@ -55,8 +55,8 @@ testLift s = case cs of !_ -> ok
     cs =
       emitCombs (RN (const 0) (const 0)) (Builtin "Test") 0
         . superNormalize
-        . (\(ll, _, _) -> ll)
-        . lamLift
+        . (\(ll, _, _, _) -> ll)
+        . lamLift mempty
         $ tm s
 
 denormalize :: (Var v) => ANormal v -> Term.Term0 v

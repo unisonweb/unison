@@ -23,7 +23,6 @@ library
       U.Codebase.Reference
       U.Codebase.Referent
       U.Codebase.Reflog
-      U.Codebase.ShortHash
       U.Codebase.Term
       U.Codebase.TermEdit
       U.Codebase.Type

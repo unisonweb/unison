@@ -28,7 +28,7 @@ main _ =
 ```ucm
 .> find unsafe.coerceAbilities
 
-  1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   
 
 .> add

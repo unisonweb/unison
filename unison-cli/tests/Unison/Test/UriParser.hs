@@ -12,13 +12,14 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.NameSegment (NameSegment (..))
+import Unison.Project (ProjectBranchSpecifier (..))
 
 test :: Test ()
 test =
   scope "uriparser" . tests $
     [ parserTests
         "repoPath"
-        (UriParser.repoPath <* P.eof)
+        (UriParser.readRemoteNamespaceParser ProjectBranchSpecifier'Name <* P.eof)
         [ ("unisonweb.base._releases.M4", looseR "unisonweb" ["base", "_releases", "M4"]),
           ("project", branchR (This "project")),
           ("/branch", branchR (That "branch")),

@@ -5,13 +5,13 @@ module Unison.Codebase.Editor.HandleInput.Merge
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (mapped, over, traverseOf, (^.), (^?), _1)
+import Control.Lens (Lens', mapped, over, traverseOf, (.~), (^.), (^?), _1)
 import Control.Monad.Trans.Writer.CPS (execWriter)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bitraversable (bitraverse)
-import Data.Functor.Compose (Compose (Compose))
+import Data.Functor.Compose (Compose (..))
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
@@ -19,10 +19,13 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
+import Data.Tuple.Strict
+import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
+import Text.Printf (printf)
 import U.Codebase.Branch (Branch, CausalBranch)
 import U.Codebase.Branch qualified as Branch
-import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff))
+import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..), TreeDiff (TreeDiff), pattern DiffIsAdd)
 import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.Decl (Decl)
@@ -32,8 +35,6 @@ import U.Codebase.Reference (Reference, Reference' (..), TermReference, TypeRefe
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as ShortHash
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.Symbol (Symbol)
@@ -57,6 +58,8 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
@@ -69,12 +72,26 @@ import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
 
+-- Temporary simple way to time a transaction
+step :: Text -> Transaction a -> Transaction a
+step name action = do
+  t0 <- Sqlite.unsafeIO getMonotonicTime
+  result <- action
+  Sqlite.unsafeIO do
+    t1 <- getMonotonicTime
+    Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
+  pure result
+
 handleMerge :: Path' -> Path' -> Path' -> Cli ()
 handleMerge alicePath0 bobPath0 _resultPath = do
   -- FIXME we want to cache some of these, right?
   let mergeDatabase =
         Merge.Database
-          { loadConstructorTypeSignature = wundefined,
+          { loadConstructorTypeSignature =
+              -- FIXME would be smarter to fetch entire component, and cache them all
+              \typeRef conId -> do
+                decl <- Operations.expectDeclByReference typeRef
+                pure (Decl.constructorType decl conId),
             loadConstructorType = SqliteCodebase.Operations.getDeclType,
             loadTerm = Operations.expectTermByReference,
             loadType = Operations.expectDeclByReference
@@ -84,65 +101,69 @@ handleMerge alicePath0 bobPath0 _resultPath = do
   bobPath <- Cli.resolvePath' bobPath0
 
   Cli.runTransaction do
-    aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
-    bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+    aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
+    bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
 
     let aliceCausalHash = Causal.causalHash aliceCausal
     let bobCausalHash = Causal.causalHash bobCausal
-    maybeLcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
+    maybeLcaCausalHash <- step "compute lca" $ Operations.lca aliceCausalHash bobCausalHash
 
-    Sqlite.unsafeIO do
-      Text.putStrLn "===== hashes ====="
-      Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
-      Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
-      Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
-      Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
-      case maybeLcaCausalHash of
-        Nothing -> Text.putStrLn "lca causal hash ="
-        Just lcaCausalHash -> Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
-      Text.putStrLn ""
+    -- Read the (shallow) branches out of the database
+    aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
+    bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
+
+    -- TODO assert somehow that these branches don't have any conflicted names anywhere, as we'd rather like to not
+    -- deal with some of the annoying complexity those cases bring, wrt. classifying things as conflicted adds/updates.
+
+    T3 aliceTypeNames aliceDataconNames aliceTermNames <- step "load alice names" $ loadBranchDefinitionNames aliceBranch
+    T3 bobTypeNames bobDataconNames bobTermNames <- step "load bob names" $ loadBranchDefinitionNames bobBranch
 
     case maybeLcaCausalHash of
       -- TODO: go down 2-way merge code paths
       Nothing -> pure ()
       Just lcaCausalHash -> do
-        lcaCausal <- Operations.expectCausalBranchByCausalHash lcaCausalHash
-        lcaBranch <- Causal.value lcaCausal
-        (lcaTypeNames, lcaDataconNames, lcaTermNames) <- loadBranchDefinitionNames lcaBranch
+        lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
+        lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
+        T3 lcaTypeNames lcaDataconNames lcaTermNames <- step "load lca names" $ loadBranchDefinitionNames lcaBranch
 
-        aliceBranch <- Causal.value aliceCausal
-        bobBranch <- Causal.value bobCausal
+        -- Compute and load the (deep) definition diffs (everything but lib.*)
+        aliceDefinitionsDiff <- step "load alice definitions diff" do
+          aliceBranchDiff <- Diff.diffBranches lcaBranch aliceBranch
+          loadDefinitionsDiff aliceBranchDiff
+        bobDefinitionsDiff <- step "load bob definitions diff" do
+          bobBranchDiff <- Diff.diffBranches lcaBranch bobBranch
+          loadDefinitionsDiff bobBranchDiff
 
-        (aliceTypeNames, aliceDataconNames, aliceTermNames) <- loadBranchDefinitionNames aliceBranch
-        (bobTypeNames, bobDataconNames, bobTermNames) <- loadBranchDefinitionNames bobBranch
+        -- Special diff for `lib`
+        aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
+        bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
 
-        -- diff everything except lib
-        aliceDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch aliceBranch)
-        bobDefinitionsDiff <- loadDefinitionsDiff (Diff.diffBranches lcaBranch bobBranch)
+        -- Collect all the conflicted adds and updates
+        let (typeChanges, termChanges) = definitionsDiffsToChanges aliceDefinitionsDiff bobDefinitionsDiff
+        let aliceTypeUpdates = typeChanges ^. #aliceUpdates
+        let aliceTermUpdates = termChanges ^. #aliceUpdates
+        let bobTypeUpdates = typeChanges ^. #bobUpdates
+        let bobTermUpdates = termChanges ^. #bobUpdates
 
-        -- special diff for `lib`
-        aliceDependenciesDiff <- loadDependenciesDiff lcaBranch aliceBranch
-        bobDependenciesDiff <- loadDependenciesDiff lcaBranch bobBranch
-
-        -- collect all the updates
-        let (aliceTypeUpdates, aliceTermUpdates) = definitionsDiffToUpdates aliceDefinitionsDiff
-        let (bobTypeUpdates, bobTermUpdates) = definitionsDiffToUpdates bobDefinitionsDiff
+        -- FIXME actually use these somewhere around here
+        let typeConflictedAdds = typeChanges ^. #conflictedAdds
+        let termConflictedAdds = termChanges ^. #conflictedAdds
 
         let typeUpdates = aliceTypeUpdates <> bobTypeUpdates
         let termUpdates = aliceTermUpdates <> bobTermUpdates
 
-        -- the canonicalizer is just an implementation detail of the isUser{Type,Term}Update classifiers
+        -- The canonicalizer is just an implementation detail of the isUser{Type,Term}Update classifiers
         let canonicalizer = Merge.makeCanonicalizer v2HashHandle mergeDatabase typeUpdates termUpdates
 
-        -- classify the updates
-        aliceUserTypeUpdates <- do
+        -- Classify the updates
+        aliceUserTypeUpdates <- step "classify alice user type updates" do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
                   mergeDatabase
                   canonicalizer
                   (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 aliceDataconNames ref2 decl2)
           Relation.filterM isUserTypeUpdate aliceTypeUpdates
-        bobUserTypeUpdates <- do
+        bobUserTypeUpdates <- step "classify bob user type updates" do
           let isUserTypeUpdate =
                 Merge.isUserTypeUpdate
                   mergeDatabase
@@ -151,7 +172,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Relation.filterM isUserTypeUpdate bobTypeUpdates
         let userTypeUpdates = aliceUserTypeUpdates <> bobUserTypeUpdates
 
-        userTermUpdates <- do
+        userTermUpdates <- step "classify user term updates" do
           let isUserTermUpdate = Merge.isUserTermUpdate mergeDatabase canonicalizer
           Relation.filterM isUserTermUpdate termUpdates
 
@@ -164,7 +185,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   userTypes = userTypeUpdates
                 }
 
-        -- build the core ecs from the updates
+        -- Build the core ecs from the updates
         let coreEcs = Merge.makeCoreEcs updates
 
         let getTypeConstructorTerms :: TypeReference -> Transaction [Referent]
@@ -199,7 +220,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               Referent.Con typeRef _conId ->
                 pure (Set.singleton (Left typeRef))
 
-        coreEcDependencies <-
+        coreEcDependencies <- step "compute core EC dependencies" do
           Merge.makeCoreEcDependencies
             getTypeConstructorTerms
             typeDependsOn
@@ -208,6 +229,14 @@ handleMerge alicePath0 bobPath0 _resultPath = do
             coreEcs
 
         Sqlite.unsafeIO do
+          Text.putStrLn ""
+          Text.putStrLn "===== hashes ====="
+          Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
+          Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
+          Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
+          Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
+          Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
+          Text.putStrLn ""
           Text.putStrLn "===== lca->alice diff ====="
           printDefinitionsDiff Nothing aliceDefinitionsDiff
           printDependenciesDiff aliceDependenciesDiff
@@ -215,6 +244,10 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Text.putStrLn "===== lca->bob diff ====="
           printDefinitionsDiff Nothing bobDefinitionsDiff
           printDependenciesDiff bobDependenciesDiff
+          Text.putStrLn ""
+          Text.putStrLn "===== conflicted adds ====="
+          printTypeConflictedAdds typeConflictedAdds
+          printTermConflictedAdds termConflictedAdds
           Text.putStrLn ""
           Text.putStrLn "===== updates ====="
           printTypeUpdates typeUpdates userTypeUpdates
@@ -276,15 +309,126 @@ computeConstructorMapping allNames1 ref1 decl1 allNames2 ref2 decl2 = do
 
   Just reorder
 
+-- lol bad name
+-- where/when do we care about normal unconflicted adds? may make sense to include them here too?
+data TwoSetsOfChanges ref = TwoSetsOfChanges
+  { -- All of the (alice, bob) conflicts due to the same name being used for two different refs.
+    -- Invariant: irreflexive (i.e. no x is related to itself)
+    conflictedAdds :: !(Relation ref ref),
+    -- All of the (old, new) updates from each set of changes.
+    -- Invariant: irreflexive (i.e. no x is related to itself)
+    aliceUpdates :: !(Relation ref ref),
+    bobUpdates :: !(Relation ref ref)
+  }
+  deriving stock (Generic)
+
+instance Ord ref => Monoid (TwoSetsOfChanges ref) where
+  mempty = TwoSetsOfChanges Relation.empty Relation.empty Relation.empty
+  mappend = (<>)
+
+instance Ord ref => Semigroup (TwoSetsOfChanges ref) where
+  TwoSetsOfChanges a0 b0 c0 <> TwoSetsOfChanges a1 b1 c1 =
+    TwoSetsOfChanges (a0 <> a1) (b0 <> b1) (c0 <> c1)
+
+makeTwoSetsOfChanges :: Ord ref => These (Diff ref) (Diff ref) -> TwoSetsOfChanges ref
+makeTwoSetsOfChanges = \case
+  This aliceDiff ->
+    TwoSetsOfChanges
+      { conflictedAdds = Relation.empty,
+        aliceUpdates = diffToUpdates aliceDiff,
+        bobUpdates = Relation.empty
+      }
+  That bobDiff ->
+    TwoSetsOfChanges
+      { conflictedAdds = Relation.empty,
+        aliceUpdates = Relation.empty,
+        bobUpdates = diffToUpdates bobDiff
+      }
+  These aliceDiff bobDiff ->
+    -- Two cases to handle:
+    case (aliceDiff, bobDiff) of
+      -- 1. Neither Alice nor Bob have any deletions on this name. That means both Alice and Bob have added
+      --    a new definition; it's conflicted if the refs are different.
+      (DiffIsAdd aliceRef, DiffIsAdd bobRef) ->
+        TwoSetsOfChanges
+          { conflictedAdds =
+              if aliceRef == bobRef
+                then Relation.empty
+                else Relation.singleton aliceRef bobRef,
+            aliceUpdates = Relation.empty,
+            bobUpdates = Relation.empty
+          }
+      -- 2. Alice inclusive-or bob have a deletion on this name. That means this definitely *isn't* a
+      --    "conflicted add", as there was at least one reference associated with this name in the LCA.
+      _ ->
+        TwoSetsOfChanges
+          { conflictedAdds = Relation.empty,
+            aliceUpdates = diffToUpdates aliceDiff,
+            bobUpdates = diffToUpdates bobDiff
+          }
+
+definitionsDiffsToChanges ::
+  Cofree (Map NameSegment) DefinitionDiffs ->
+  Cofree (Map NameSegment) DefinitionDiffs ->
+  ( TwoSetsOfChanges Reference,
+    TwoSetsOfChanges Referent
+  )
+definitionsDiffsToChanges
+  (DefinitionDiffs aliceTermDiffs aliceTypeDiffs :< aliceChildren)
+  (DefinitionDiffs bobTermDiffs bobTypeDiffs :< bobChildren) =
+    (typeChanges, termChanges) <> childrenChanges
+    where
+      typeChanges :: TwoSetsOfChanges Reference
+      typeChanges =
+        fold (alignWith makeTwoSetsOfChanges aliceTypeDiffs bobTypeDiffs)
+
+      termChanges :: TwoSetsOfChanges Referent
+      termChanges =
+        fold (alignWith makeTwoSetsOfChanges aliceTermDiffs bobTermDiffs)
+
+      childrenChanges :: (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
+      childrenChanges =
+        fold (alignWith f aliceChildren bobChildren)
+        where
+          f ::
+            These (Cofree (Map NameSegment) DefinitionDiffs) (Cofree (Map NameSegment) DefinitionDiffs) ->
+            (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
+          f = \case
+            This aliceDiff -> oneSided #aliceUpdates aliceDiff
+            That bobDiff -> oneSided #bobUpdates bobDiff
+            These aliceDiff bobDiff -> definitionsDiffsToChanges aliceDiff bobDiff
+            where
+              oneSided ::
+                (forall ref. Lens' (TwoSetsOfChanges ref) (Relation ref ref)) ->
+                Cofree (Map NameSegment) DefinitionDiffs ->
+                (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
+              oneSided updatesLens diff =
+                let (typeUpdates, termUpdates) = definitionsDiffToUpdates diff
+                 in ( mempty & updatesLens .~ typeUpdates,
+                      mempty & updatesLens .~ termUpdates
+                    )
+
 definitionsDiffToUpdates ::
   Cofree (Map NameSegment) DefinitionDiffs ->
   (Relation Reference Reference, Relation Referent Referent)
 definitionsDiffToUpdates (DefinitionDiffs {termDiffs, typeDiffs} :< children) =
-  (diffToUpdates typeDiffs, diffToUpdates termDiffs) <> foldMap definitionsDiffToUpdates children
+  (typeUpdates, termUpdates) <> childrenUpdates
+  where
+    typeUpdates = diffsToUpdates typeDiffs
+    termUpdates = diffsToUpdates termDiffs
+    childrenUpdates = foldMap definitionsDiffToUpdates children
 
-diffToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
-diffToUpdates =
-  foldMap \Diff {adds, removals} -> Relation.fromSet (Set.cartesianProduct removals adds)
+diffsToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
+diffsToUpdates =
+  foldMap diffToUpdates
+
+diffToUpdates :: Ord ref => Diff ref -> Relation ref ref
+diffToUpdates Diff {adds, removals} =
+  -- Per the invariant that neither Alice nor Bob's namespace may contain a conflicted name, we know that
+  -- `length adds` is at most 1.
+  case Set.lookupMin adds of
+    Nothing -> Relation.empty
+    Just ref -> Relation.swap (Relation.fromMultimap (Map.singleton ref removals))
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 loadBranchDefinitionNames ::
@@ -292,9 +436,10 @@ loadBranchDefinitionNames ::
   Monad m =>
   Branch m ->
   m
-    ( Relation Name TypeReference,
-      Relation3 Name TypeReference ConstructorId,
-      Relation Name TermReference
+    ( T3
+        (Relation Name TypeReference)
+        (Relation3 Name TypeReference ConstructorId)
+        (Relation Name TermReference)
     )
 loadBranchDefinitionNames =
   go []
@@ -303,9 +448,10 @@ loadBranchDefinitionNames =
       [NameSegment] ->
       Branch m ->
       m
-        ( Relation Name TypeReference,
-          Relation3 Name TypeReference ConstructorId,
-          Relation Name TermReference
+        ( T3
+            (Relation Name TypeReference)
+            (Relation3 Name TypeReference ConstructorId)
+            (Relation Name TermReference)
         )
     go reversePrefix branch = do
       let types :: Relation Name TypeReference
@@ -317,38 +463,35 @@ loadBranchDefinitionNames =
 
       let datacons :: Relation3 Name TypeReference ConstructorId
           terms :: Relation Name TermReference
-          (datacons, terms) =
+          T2 datacons terms =
             Branch.terms branch
               & Map.toList
-              & foldl' f (Relation3.empty, Relation.empty)
+              & foldl' f (T2 Relation3.empty Relation.empty)
             where
               f ::
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference) ->
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
                 (NameSegment, Map Referent metadata) ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference)
-              f acc (!segment, !refs) =
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+              f acc (segment, refs) =
                 foldl' (g (Name.fromReverseSegments (segment :| reversePrefix))) acc (Map.keys refs)
 
               g ::
                 Name ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference) ->
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
                 Referent ->
-                (Relation3 Name TypeReference ConstructorId, Relation Name TermReference)
-              g name (!accDatacons, !accTerms) = \case
-                Referent.Ref ref -> (accDatacons, Relation.insert name ref accTerms)
-                Referent.Con ref cid -> (Relation3.insert name ref cid accDatacons, accTerms)
+                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+              g name (T2 accDatacons accTerms) = \case
+                Referent.Ref ref -> T2 accDatacons (Relation.insert name ref accTerms)
+                Referent.Con ref cid -> T2 (Relation3.insert name ref cid accDatacons) accTerms
 
-      (childrenTypes, childrenDatacons, childrenTerms) <-
+      childrenNames <-
         Branch.children branch
           & Map.toList
           & foldMapM \(childName, childCausal) -> do
             childBranch <- Causal.value childCausal
             go (childName : reversePrefix) childBranch
 
-      let !allTypes = types <> childrenTypes
-      let !allDatacons = datacons <> childrenDatacons
-      let !allTerms = terms <> childrenTerms
-      pure (allTypes, allDatacons, allTerms)
+      pure (T3 types datacons terms <> childrenNames)
 
 data DependencyDiff
   = AddDependency !CausalHash
@@ -377,34 +520,27 @@ namespaceDependencies branch =
     Nothing -> pure Map.empty
     Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
 
-loadDefinitionsDiff ::
-  TreeDiff Transaction ->
-  Transaction (Cofree (Map NameSegment) DefinitionDiffs)
-loadDefinitionsDiff (TreeDiff diff) =
-  loadDefinitionsDiff1 diff
-
-loadDefinitionsDiff1 ::
-  Cofree (Compose (Map NameSegment) Transaction) DefinitionDiffs ->
-  Transaction (Cofree (Map NameSegment) DefinitionDiffs)
-loadDefinitionsDiff1 (diff :< Compose children0) = do
+loadDefinitionsDiff :: TreeDiff Transaction -> Transaction (Cofree (Map NameSegment) DefinitionDiffs)
+loadDefinitionsDiff (TreeDiff (diff :< Compose children0)) = do
   children <-
-    Map.traverseWithKey
-      ( \name action ->
-          if name == Name.libSegment
-            then do
-              weirdDefinitionsInLib :< _dependencies <- action
-              loadDefinitionsDiff2 (weirdDefinitionsInLib :< Compose Map.empty)
-            else action >>= loadDefinitionsDiff2
-      )
-      children0
+    children0 & Map.traverseWithKey \name loadChildDiff -> do
+      childDiff :< grandchildren0 <- loadChildDiff
+      -- Weird stuff: we don't want to consider lib.* (e.g. lib.base.*, lib.http.*) as part of this "definitions diff",
+      -- because lib is supposed to contain only dependencies. However, it is of course possible that there is some
+      -- non-namespace type-or-term in lib, such as lib.SomeType. We've decided (for now) we do indeed want to treat
+      -- these like ordinary definitions defined in the non-lib part of the namespace. Therefore, we load the child
+      -- diff regardless of its name, but if its name is "lib", then we throw away its grandchildren (e.g. lib.base,
+      -- lib.http, etc), leaving behind only the weirdo lib.SomeType things (which we hope is empty).
+      let grandchildren =
+            if name == Name.libSegment
+              then Compose Map.empty
+              else grandchildren0
+      hoistM getCompose (childDiff :< grandchildren)
   pure (diff :< children)
 
-loadDefinitionsDiff2 ::
-  Cofree (Compose (Map NameSegment) Transaction) DefinitionDiffs ->
-  Transaction (Cofree (Map NameSegment) DefinitionDiffs)
-loadDefinitionsDiff2 (diff :< Compose children0) = do
-  children <- Map.traverseWithKey (\_name action -> action >>= loadDefinitionsDiff1) children0
-  pure (diff :< children)
+hoistM :: (Traversable g, Monad m) => (forall x. f x -> g (m x)) -> Cofree f a -> m (Cofree g a)
+hoistM f (x :< xs) =
+  (x :<) <$> traverse (>>= hoistM f) (f xs)
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Term dependencies
@@ -551,6 +687,20 @@ printEcs =
       "(" <> tShow ec <> ") " <> case node of
         Merge.NodeTms tms -> "{" <> Text.intercalate ", " (map showReferent (Set.toList tms)) <> "}"
         Merge.NodeTys tys -> "{" <> Text.intercalate ", " (map showReference (Set.toList tys)) <> "}"
+
+printTypeConflictedAdds :: Relation Reference Reference -> IO ()
+printTypeConflictedAdds =
+  Text.putStr . Text.unlines . map f . Relation.toList
+  where
+    f (alice, bob) =
+      Text.magenta (showReference alice <> " " <> showReference bob)
+
+printTermConflictedAdds :: Relation Referent Referent -> IO ()
+printTermConflictedAdds =
+  Text.putStr . Text.unlines . map f . Relation.toList
+  where
+    f (alice, bob) =
+      Text.magenta (showReferent alice <> " " <> showReferent bob)
 
 printTypeUpdates :: Relation Reference Reference -> Relation Reference Reference -> IO ()
 printTypeUpdates allUpdates userUpdates =

@@ -6,6 +6,7 @@ module Unison.CommandLine.InputPatterns where
 import Control.Lens (preview, (^.))
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
@@ -30,9 +31,9 @@ import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
-import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
 import Unison.Codebase.Editor.SlurpResult qualified as SR
-import Unison.Codebase.Editor.UriParser (parseReadRemoteNamespace)
+import Unison.Codebase.Editor.UriParser (readRemoteNamespaceParser)
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -50,7 +51,7 @@ import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, Semver)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
 import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
 import Unison.Util.ColorText qualified as CT
@@ -452,7 +453,7 @@ ui =
     { patternName = "ui",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes = [(Optional, namespaceOrDefinitionArg)],
       help = P.wrap "`ui` opens the Local UI in the default browser.",
       parse = \case
         [] -> pure $ Input.UiI Path.relativeEmpty'
@@ -685,13 +686,20 @@ deleteGen :: Maybe String -> String -> ([Path.HQSplit'] -> DeleteTarget) -> Inpu
 deleteGen suffix target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
-        P.sep
+        P.wrapColumn2 [
+          (P.sep
           " "
           [ backtick (P.sep " " [P.string cmd, "foo"]),
             "removes the",
             P.string target,
             "name `foo` from the namespace."
-          ]
+          ], ""),
+          (P.sep
+            " "
+            [ backtick (P.sep " " [P.string cmd, "foo bar"]),
+            "removes the",
+            P.string target,
+            "name `foo` and `bar` from the namespace." ], "")]
       warn =
         P.sep
           " "
@@ -1233,10 +1241,10 @@ pullImpl name aliases verbosity pullMode addendum = do
             maybeToEither (I.help self) . \case
               [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
               [sourceString] -> do
-                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                source <- parsePullSource (Text.pack sourceString)
                 Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
               [sourceString, targetString] -> do
-                source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+                source <- parsePullSource (Text.pack sourceString)
                 target <- parseLooseCodeOrProject targetString
                 Just $
                   Input.PullRemoteBranchI
@@ -1274,7 +1282,7 @@ pullExhaustive =
               Input.PullWithHistory
               Verbosity.Verbose
         [sourceString] -> do
-          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          source <- parsePullSource (Text.pack sourceString)
           Just $
             Input.PullRemoteBranchI
               (Input.PullSourceTarget1 source)
@@ -1282,7 +1290,7 @@ pullExhaustive =
               Input.PullWithHistory
               Verbosity.Verbose
         [sourceString, targetString] -> do
-          source <- eitherToMaybe (parseReadRemoteNamespace "remote-namespace" sourceString)
+          source <- parsePullSource (Text.pack sourceString)
           target <- parseLooseCodeOrProject targetString
           Just $
             Input.PullRemoteBranchI
@@ -2982,6 +2990,17 @@ namespaceArg =
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
+namespaceOrDefinitionArg :: ArgumentType
+namespaceOrDefinitionArg =
+  ArgumentType
+    { typeName = "term, type, or namespace",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb do
+        namespaces <- prefixCompleteNamespace q p
+        termsTypes <- prefixCompleteTermOrType q p
+        pure (List.nubOrd $ namespaces <> termsTypes),
+      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type]
+    }
+
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
 childNamespaceNames :: Branch.Branch0 m -> [Text]
 childNamespaceNames b = NameSegment.toText <$> Map.keys (Branch.nonEmptyChildren b)
@@ -3071,7 +3090,7 @@ projectAndBranchNamesArg includeCurrentBranch =
                       Just project -> do
                         let projectId = project ^. #projectId
                         fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId Text.empty
+                          Queries.loadAllProjectBranchesBeginningWith projectId Nothing
                 pure (map (projectBranchToCompletion projectName) branches)
               -- This branch is probably dead due to intercepting inputs that begin with "/" above
               Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
@@ -3084,7 +3103,7 @@ projectAndBranchNamesArg includeCurrentBranch =
                       Just project -> do
                         let projectId = project ^. #projectId
                         fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId (into @Text branchName)
+                          Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
                 pure (map (projectBranchToCompletion projectName) branches),
       globTargets = Set.empty
     }
@@ -3103,8 +3122,8 @@ projectAndBranchNamesArg includeCurrentBranch =
               Nothing -> pure []
               Just (ProjectAndBranch currentProjectId _, _) ->
                 fmap (filterOutCurrentBranch path currentProjectId) do
-                  Queries.loadAllProjectBranchesBeginningWith currentProjectId input
-          projects <- Queries.loadAllProjectsBeginningWith input
+                  Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
+          projects <- Queries.loadAllProjectsBeginningWith (Just input)
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
       let projectCompletions = map projectToCompletion projects
@@ -3185,7 +3204,7 @@ projectAndBranchNamesArg includeCurrentBranch =
           Just (ProjectAndBranch currentProjectId _, _) ->
             Codebase.runTransaction codebase do
               fmap (filterOutCurrentBranch path currentProjectId) do
-                Queries.loadAllProjectBranchesBeginningWith currentProjectId branchName
+                Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
 
     filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
@@ -3247,7 +3266,7 @@ projectNameArg =
       suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient _path -> do
         projects <-
           Codebase.runTransaction codebase do
-            Queries.loadAllProjectsBeginningWith input
+            Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
       globTargets = Set.empty
     }
@@ -3259,6 +3278,10 @@ projectNameArg =
           display = P.toAnsiUnbroken (prettyProjectName (project ^. #name)),
           isFinished = False
         }
+
+parsePullSource :: Text -> Maybe (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
+parsePullSource =
+  P.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource

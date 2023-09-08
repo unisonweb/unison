@@ -6,6 +6,8 @@ where
 import U.Codebase.Branch.Type (Branch)
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
+import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
+import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term (ClosedTerm)
 import U.Codebase.Term qualified as C.Term
@@ -29,5 +31,9 @@ data HashHandle = HashHandle
       BranchHash ->
       -- The causal's parents
       Set CausalHash ->
-      CausalHash
+      CausalHash,
+    hashBranchFormatFull ::
+      HashBranchLocalIds ->
+      LocalBranch ->
+      BranchHash
   }

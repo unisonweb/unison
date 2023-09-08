@@ -43,8 +43,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp >= 1.5.0.0
-  - lsp-types >= 1.5.0.0
+  - lsp >= 2.0.0.0
+  - lsp-types >= 2.0.0.0
   - megaparsec
   - memory
   - mtl
@@ -65,11 +65,13 @@ dependencies:
   - servant
   - servant-client
   - stm
+  - strict-tuple
   - text
   - text-ansi
   - text-builder
   - text-rope
   - these
+  - these-lens
   - time
   - transformers
   - unison-codebase
@@ -191,6 +193,7 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - InstanceSigs
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - MultiWayIf

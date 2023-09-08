@@ -3,6 +3,7 @@ module U.Codebase.Decl
     Type,
     Modifier (..),
     DeclR (..),
+    constructorType,
 
     -- * Hashing stuff
     V (..),
@@ -11,10 +12,12 @@ module U.Codebase.Decl
   )
 where
 
+import Control.Lens (ix, (^?))
 import U.Codebase.Reference (TypeRReference)
 import U.Codebase.Type (TypeD, TypeR)
 import U.Codebase.Type qualified as Type
 import Unison.ConstructorType (ConstructorType)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude
 
 type Decl v = DeclR TypeRReference v
@@ -30,7 +33,23 @@ data DeclR r v = DataDeclaration
     bound :: [v],
     constructorTypes :: [TypeR r v]
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
+
+-- | Get a single constructor's type.
+--
+-- Calls `error` if the constructor id is out of bounds.
+constructorType :: (HasCallStack, Show r, Show v) => DeclR r v -> ConstructorId -> TypeR r v
+constructorType decl@DataDeclaration {constructorTypes} conId =
+  case constructorTypes ^? ix (unsafeInto @Int conId) of
+    Nothing ->
+      error $
+        reportBug "E668346" $
+          unlines
+            [ "Decl does not have constructor id",
+              "Decl: " ++ show decl,
+              "Constructor id: " ++ show conId
+            ]
+    Just ty -> ty
 
 -- * Hashing stuff
 

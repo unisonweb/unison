@@ -145,7 +145,6 @@ import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch.Diff
 import U.Codebase.Sqlite.Branch.Diff qualified as S.BranchDiff
@@ -197,6 +196,7 @@ import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map

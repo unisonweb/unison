@@ -111,7 +111,7 @@ data ReadRemoteNamespace a
   | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
     -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
     ReadShare'ProjectBranch !a
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Functor, Show, Generic)
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   { repo :: !ReadGitRepo,

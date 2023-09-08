@@ -40,7 +40,9 @@ module Unison.Runtime.ANF
     close,
     saturate,
     float,
+    floatGroup,
     lamLift,
+    lamLiftGroup,
     inlineAlias,
     addDefaultCases,
     ANormalF (.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp),
@@ -65,7 +67,9 @@ module Unison.Runtime.ANF
     valueTermLinks,
     valueLinks,
     groupTermLinks,
-    groupLinks,
+    foldGroupLinks,
+    overGroupLinks,
+    traverseGroupLinks,
     normalLinks,
     prettyGroup,
     prettySuperNormal,
@@ -78,6 +82,7 @@ import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..))
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
@@ -95,8 +100,8 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Reference (..))
-import Unison.Referent (Referent)
+import Unison.Reference (Id, Reference (..))
+import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
 import Unison.Type qualified as Ty
@@ -373,13 +378,12 @@ freshFloat avoid (Var.freshIn avoid -> v0) =
   where
     w = Data.Text.pack . show $ Var.freshId v0
 
-letFloater ::
+groupFloater ::
   (Var v, Monoid a) =>
   (Term v a -> FloatM v a (Term v a)) ->
   [(v, Term v a)] ->
-  Term v a ->
-  FloatM v a (Term v a)
-letFloater rec vbs e = do
+  FloatM v a (Map v v)
+groupFloater rec vbs = do
   cvs <- gets (\(vs, _, _) -> vs)
   let shadows =
         [ (v, freshFloat cvs v)
@@ -389,10 +393,11 @@ letFloater rec vbs e = do
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn . fst) vbs
-  modify (\(cvs, ctx, dcmp) -> (cvs <> shvs, ctx, dcmp))
+  modify $ \(cvs, ctx, dcmp) -> (cvs <> shvs, ctx, dcmp)
   fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.renames shadowMap b)) vbs
-  modify (\(vs, ctx, dcmp) -> (vs, ctx ++ fvbs, dcmp))
-  pure $ ABT.renames shadowMap e
+  let dvbs = fmap (\(v, b) -> (rn v, deannotate b)) vbs
+  modify $ \(vs, ctx, dcmp) -> (vs, ctx ++ fvbs, dcmp <> dvbs)
+  pure shadowMap
   where
     rec' b
       | Just (vs0, mty, vs1, bd) <- unLamsAnnot b =
@@ -400,6 +405,16 @@ letFloater rec vbs e = do
       where
         a = ABT.annotation b
     rec' b = rec b
+
+letFloater ::
+  (Var v, Monoid a) =>
+  (Term v a -> FloatM v a (Term v a)) ->
+  [(v, Term v a)] ->
+  Term v a ->
+  FloatM v a (Term v a)
+letFloater rec vbs e = do
+  shadowMap <- groupFloater rec vbs
+  pure $ ABT.renames shadowMap e
 
 lamFloater ::
   (Var v, Monoid a) =>
@@ -465,27 +480,69 @@ floater top rec tm@(LamsNamed' vs bd)
     a = ABT.annotation tm
 floater _ _ _ = Nothing
 
+postFloat ::
+  (Var v) =>
+  (Monoid a) =>
+  Map v Reference ->
+  (Set v, [(v, Term v a)], [(v, Term v a)]) ->
+  ( [(v, Term v a)],
+    [(v, Id)],
+    [(Reference, Term v a)],
+    [(Reference, Term v a)]
+  )
+postFloat orig (_, bs, dcmp) =
+  ( subs,
+    subvs,
+    fmap (first DerivedId) tops,
+    dcmp >>= \(v, tm) ->
+      let stm = open $ ABT.substs dsubs tm
+       in (subm Map.! v, stm) : [(r, stm) | Just r <- [Map.lookup v orig]]
+  )
+  where
+    m =
+      fmap (fmap deannotate)
+        . hashTermComponentsWithoutTypes
+        . Map.fromList
+        $ bs
+    trips = Map.toList m
+    f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
+      where
+        idtm = ref (ABT.annotation tm) (DerivedId id)
+    (subvs, subs, tops) = unzip3 $ map f trips
+    subm = fmap DerivedId (Map.fromList subvs)
+    dsubs = Map.toList $ Map.map (ref mempty) orig <> Map.fromList subs
+
 float ::
   (Var v) =>
   (Monoid a) =>
+  Map v Reference ->
   Term v a ->
-  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
-float tm = case runState go0 (Set.empty, [], []) of
-  (bd, (_, ctx, dcmp)) ->
-    let m = hashTermComponentsWithoutTypes . Map.fromList $ fmap deannotate <$> ctx
-        trips = Map.toList m
-        f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
-          where
-            idtm = ref (ABT.annotation tm) (DerivedId id)
-        (subvs, subs, tops) = unzip3 $ map f trips
-        subm = Map.fromList subvs
-     in ( letRec' True [] . ABT.substs subs . deannotate $ bd,
-          fmap (first DerivedId) tops,
-          dcmp <&> \(v, tm) -> (DerivedId $ subm Map.! v, open tm)
-        )
+  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
+float orig tm = case runState go0 (Set.empty, [], []) of
+  (bd, st) -> case postFloat orig st of
+    (subs, subvs, tops, dcmp) ->
+      ( letRec' True [] . ABT.substs subs . deannotate $ bd,
+        Map.fromList . mapMaybe f $ subvs,
+        tops,
+        dcmp
+      )
   where
+    f (v, i) = (,DerivedId i) <$> Map.lookup v orig
     go0 = fromMaybe (go tm) (floater True go tm)
     go = ABT.visit $ floater False go
+
+floatGroup ::
+  (Var v) =>
+  (Monoid a) =>
+  Map v Reference ->
+  [(v, Term v a)] ->
+  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
+floatGroup orig grp = case runState go0 (Set.empty, [], []) of
+  (_, st) -> case postFloat orig st of
+    (_, subvs, tops, dcmp) -> (subvs, tops, dcmp)
+  where
+    go = ABT.visit $ floater False go
+    go0 = groupFloater go grp
 
 unAnn :: Term v a -> Term v a
 unAnn (Ann' tm _) = tm
@@ -514,9 +571,20 @@ deannotate = ABT.visitPure $ \case
 lamLift ::
   (Var v) =>
   (Monoid a) =>
+  Map v Reference ->
   Term v a ->
-  (Term v a, [(Reference, Term v a)], [(Reference, Term v a)])
-lamLift = float . close Set.empty
+  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
+lamLift orig = float orig . close Set.empty
+
+lamLiftGroup ::
+  (Var v) =>
+  (Monoid a) =>
+  Map v Reference ->
+  [(v, Term v a)] ->
+  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
+lamLiftGroup orig gr = floatGroup orig . (fmap . fmap) (close keep) $ gr
+  where
+    keep = Set.fromList $ map fst gr
 
 saturate ::
   (Var v, Monoid a) =>
@@ -1858,7 +1926,7 @@ valueLinks f (Data dr _ _ bs) =
   f True dr <> foldMap (valueLinks f) bs
 valueLinks f (Cont _ bs k) =
   foldMap (valueLinks f) bs <> contLinks f k
-valueLinks f (BLit l) = litLinks f l
+valueLinks f (BLit l) = blitLinks f l
 
 contLinks :: (Monoid a) => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ _ _ (GR cr _) k) =
@@ -1869,65 +1937,115 @@ contLinks f (Mark _ _ ps de k) =
     <> contLinks f k
 contLinks _ KE = mempty
 
-litLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
-litLinks f (List s) = foldMap (valueLinks f) s
-litLinks _ _ = mempty
+blitLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
+blitLinks f (List s) = foldMap (valueLinks f) s
+blitLinks _ _ = mempty
 
-groupTermLinks :: SuperGroup v -> [Reference]
-groupTermLinks = Set.toList . groupLinks f
+groupTermLinks :: Var v => SuperGroup v -> [Reference]
+groupTermLinks = Set.toList . foldGroupLinks f
   where
     f False r = Set.singleton r
     f _ _ = Set.empty
 
-groupLinks :: (Monoid a) => (Bool -> Reference -> a) -> SuperGroup v -> a
-groupLinks f (Rec bs e) =
-  foldMap (foldMap (normalLinks f)) bs <> normalLinks f e
+overGroupLinks ::
+  (Var v) =>
+  (Bool -> Reference -> Reference) ->
+  SuperGroup v ->
+  SuperGroup v
+overGroupLinks f =
+  runIdentity . traverseGroupLinks (\b -> Identity . f b)
+
+traverseGroupLinks ::
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  SuperGroup v ->
+  f (SuperGroup v)
+traverseGroupLinks f (Rec bs e) =
+  Rec <$> (traverse . traverse) (normalLinks f) bs <*> normalLinks f e
+
+foldGroupLinks ::
+  (Monoid r, Var v) =>
+  (Bool -> Reference -> r) ->
+  SuperGroup v ->
+  r
+foldGroupLinks f = getConst . traverseGroupLinks (\b -> Const . f b)
 
 normalLinks ::
-  (Monoid a) => (Bool -> Reference -> a) -> SuperNormal v -> a
-normalLinks f (Lambda _ e) = anfLinks f e
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  SuperNormal v ->
+  f (SuperNormal v)
+normalLinks f (Lambda ccs e) = Lambda ccs <$> anfLinks f e
 
-anfLinks :: (Monoid a) => (Bool -> Reference -> a) -> ANormal v -> a
-anfLinks f (ABTN.Term _ (ABTN.Abs _ e)) = anfLinks f e
-anfLinks f (ABTN.Term _ (ABTN.Tm e)) = anfFLinks f (anfLinks f) e
+anfLinks ::
+  (Applicative f, Var v) =>
+  (Bool -> Reference -> f Reference) ->
+  ANormal v ->
+  f (ANormal v)
+anfLinks f (ABTN.Term _ (ABTN.Abs v e)) =
+  ABTN.TAbs v <$> anfLinks f e
+anfLinks f (ABTN.Term _ (ABTN.Tm e)) =
+  ABTN.TTm <$> anfFLinks f (anfLinks f) e
 
 anfFLinks ::
-  (Monoid a) =>
-  (Bool -> Reference -> a) ->
-  (e -> a) ->
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  (e -> f e) ->
   ANormalF v e ->
-  a
-anfFLinks _ g (ALet _ _ b e) = g b <> g e
-anfFLinks f g (AName er _ e) =
-  bifoldMap (f False) (const mempty) er <> g e
-anfFLinks f g (AMatch _ bs) = branchLinks (f True) g bs
-anfFLinks f g (AShift r e) = f True r <> g e
-anfFLinks f g (AHnd rs _ e) = foldMap (f True) rs <> g e
-anfFLinks f _ (AApp fu _) = funcLinks f fu
-anfFLinks _ _ _ = mempty
+  f (ANormalF v e)
+anfFLinks _ g (ALet d ccs b e) = ALet d ccs <$> g b <*> g e
+anfFLinks f g (AName er vs e) =
+  flip AName vs <$> bitraverse (f False) pure er <*> g e
+anfFLinks f g (AMatch v bs) =
+  AMatch v <$> branchLinks (f True) g bs
+anfFLinks f g (AShift r e) =
+  AShift <$> f True r <*> g e
+anfFLinks f g (AHnd rs v e) =
+  flip AHnd v <$> traverse (f True) rs <*> g e
+anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
+anfFLinks f _ (ALit l) = ALit <$> litLinks f l
+anfFLinks _ _ v = pure v
+
+litLinks ::
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  Lit ->
+  f Lit
+litLinks f (LY r) = LY <$> f True r
+litLinks f (LM (Con (ConstructorReference r i) t)) =
+  LM . flip Con t . flip ConstructorReference i <$> f True r
+litLinks f (LM (Ref r)) = LM . Ref <$> f False r
+litLinks _ v = pure v
 
 branchLinks ::
-  (Monoid a) =>
-  (Reference -> a) ->
-  (e -> a) ->
+  (Applicative f) =>
+  (Reference -> f Reference) ->
+  (e -> f e) ->
   Branched e ->
-  a
-branchLinks f g bs = tyRefs f bs <> foldMap g bs
-
-tyRefs :: (Monoid a) => (Reference -> a) -> Branched e -> a
-tyRefs f (MatchRequest m _) = foldMap f (Map.keys m)
-tyRefs f (MatchData r _ _) = f r
-tyRefs _ _ = mempty
+  f (Branched e)
+branchLinks f g (MatchRequest m e) =
+  MatchRequest . Map.fromList
+    <$> traverse (bitraverse f $ (traverse . traverse) g) (Map.toList m)
+    <*> g e
+branchLinks f g (MatchData r m e) =
+  MatchData <$> f r <*> (traverse . traverse) g m <*> traverse g e
+branchLinks _ g (MatchText m e) =
+  MatchText <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchIntegral m e) =
+  MatchIntegral <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchSum m) =
+  MatchSum <$> (traverse . traverse) g m
+branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::
-  (Monoid a) =>
-  (Bool -> Reference -> a) ->
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
   Func v ->
-  a
-funcLinks f (FComb r) = f False r
-funcLinks f (FCon r _) = f True r
-funcLinks f (FReq r _) = f True r
-funcLinks _ _ = mempty
+  f (Func v)
+funcLinks f (FComb r) = FComb <$> f False r
+funcLinks f (FCon r t) = flip FCon t <$> f True r
+funcLinks f (FReq r t) = flip FReq t <$> f True r
+funcLinks _ ff = pure ff
 
 expandBindings' ::
   (Var v) =>
