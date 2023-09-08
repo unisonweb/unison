@@ -26,5 +26,5 @@ foo/main> release.draft 1.2.3
 It's an error to try to create a `releases/drafts/x.y.z` branch that already exists.
 
 ```ucm:error
-foo/main> release.draft 1.2.3 already exists you can switch to it with `switch /release/drafts/1.2.3`
+foo/main> release.draft 1.2.3
 ```
