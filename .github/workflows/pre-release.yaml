@@ -108,7 +108,16 @@ jobs:
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        # Run up to 5 times in a row before giving up.
+        # Builds sometimes fail due to a race condition on the Windows
+        # file-system API that stack runs into. Since any successful packages are
+        # cached within a single build, it should get further along on each re-start
+        # and should hopefully finish.
+        run: |
+          tries=5
+          for (( i = 0; i < $tries; i++ )); do
+              stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
+          done
 
       - name: fetch latest codebase-ui and package with ucm
         env:
