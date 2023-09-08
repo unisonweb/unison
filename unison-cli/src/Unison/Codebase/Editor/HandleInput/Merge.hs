@@ -18,6 +18,10 @@ import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Text.Lazy qualified as Text.Lazy
+import Data.Text.Lazy.Builder qualified as Text (Builder)
+import Data.Text.Lazy.Builder qualified as Text.Builder
+import Data.Text.Lazy.Builder.Int qualified as Text.Builder
 import Data.These (These (..))
 import Data.Tuple.Strict
 import GHC.Clock (getMonotonicTime)
@@ -63,7 +67,7 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Monoid (foldMapM, intercalateMap)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
@@ -71,6 +75,7 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
+import qualified System.Process as Process
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -266,6 +271,20 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           printEcDependencies coreEcDependencies
 
           Text.putStrLn ""
+
+          Text.writeFile
+            "ec-graph.dot"
+            ( ecDependenciesToDot
+                (aliceTypeNames <> bobTypeNames)
+                (aliceDataconNames <> bobDataconNames)
+                (aliceTermNames <> bobTermNames)
+                (Relation.ran typeUserUpdates)
+                (Relation.ran termUserUpdates)
+                coreEcs
+                coreEcDependencies
+            )
+          Process.callCommand "dot -Tpdf ec-graph.dot > ec-graph.pdf && open ec-graph.pdf && rm ec-graph.dot"
+
 
 computeConstructorMapping ::
   Relation3 Name TypeReference ConstructorId ->
@@ -635,6 +654,90 @@ showReferent =
 showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
+
+ecDependenciesToDot ::
+  Relation Name TypeReference ->
+  Relation3 Name TypeReference ConstructorId ->
+  Relation Name TermReference ->
+  Set TypeReference ->
+  Set Referent ->
+  Bimap Merge.EC (Merge.Node Referent TypeReference) ->
+  Relation Merge.EC Merge.EC ->
+  Text
+ecDependenciesToDot typeNames constructorNames termNames typeUserUpdates termUserUpdates coreEcs coreEcDependencies =
+  Text.Lazy.toStrict . Text.Builder.toLazyText $
+    fold
+      [ "digraph {",
+        newline,
+        "edge [arrowhead = vee; arrowsize = 0.5]",
+        newline,
+        coreEcs
+          & Bimap.toList
+          & intercalateMap
+            newline
+            ( \(Merge.EC ec, node) ->
+                fold
+                  [ "  ",
+                    Text.Builder.decimal ec,
+                    " [color = ",
+                    case node of
+                      Merge.Node'Term _ -> "blue"
+                      Merge.Node'Terms _ -> "blue"
+                      Merge.Node'Type _ -> "green"
+                      Merge.Node'Types _ -> "green",
+                    "; label = <",
+                    nodeToTable node,
+                    ">]"
+                  ]
+            ),
+        newline,
+        coreEcDependencies
+          & Relation.toList
+          & intercalateMap
+            newline
+            ( \(Merge.EC ec0, Merge.EC ec1) ->
+                fold
+                  [ "  ",
+                    Text.Builder.decimal ec0,
+                    " -> ",
+                    Text.Builder.decimal ec1
+                  ]
+            ),
+        newline,
+        "}"
+      ]
+  where
+    nodeToTable :: Merge.Node Referent TypeReference -> Text.Builder
+    nodeToTable node =
+      "<table>" <> nodeToRows node <> "</table>"
+
+    nodeToRows :: Merge.Node Referent TypeReference -> Text.Builder
+    nodeToRows = \case
+      Merge.NodeTms tms ->
+        tms & foldMap \ref ->
+          let name =
+                fromMaybe "" . Set.lookupMin $
+                  case ref of
+                    Referent.Con typeRef conId -> Relation3.lookupD23 typeRef conId constructorNames
+                    Referent.Ref termRef -> Relation.lookupRan termRef termNames
+           in refToRow (Name.toText name <> showReferent ref) (Set.member ref termUserUpdates)
+      Merge.NodeTys tys ->
+        tys & foldMap \ref ->
+          let name = fromMaybe "" (Set.lookupMin (Relation.lookupRan ref typeNames))
+           in refToRow (Name.toText name <> showReference ref) (Set.member ref typeUserUpdates)
+
+    refToRow :: Text -> Bool -> Text.Builder
+    refToRow ref isUserUpdate =
+      fold
+        [ "<tr><td>",
+          if isUserUpdate then "<b>" else "",
+          Text.Builder.fromText ref,
+          if isUserUpdate then "</b>" else "",
+          "</td></tr>"
+        ]
+
+    newline :: Text.Builder
+    newline = "\n"
 
 printDiff :: Maybe Name -> DefinitionDiffs -> IO ()
 printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
