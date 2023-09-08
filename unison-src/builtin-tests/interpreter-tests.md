@@ -1,9 +1,3 @@
-Run base tests. Hidden due to excessive output.
-
-```ucm:hide
-.base> debug.clear-cache
-.base> test
-```
 
 Note: This should be forked off of the codebase created by base.md
 
