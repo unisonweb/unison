@@ -724,7 +724,7 @@ delete :: InputPattern
 delete = deleteGen Nothing exactDefinitionTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
 
 deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteVerbose = deleteGen (Just "verbose") exactDefinitionArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
 deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
