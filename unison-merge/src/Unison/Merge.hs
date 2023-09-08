@@ -498,9 +498,9 @@ makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDepend
     -- Get the set of ECs that a type depends on
     getTypeDependencyEcs :: ty -> m (Set EC)
     getTypeDependencyEcs ty = do
+      constructorTerms <- getTypeConstructorTerms ty
       deps <- getTypeDependencies ty
-      -- FIXME add dependencies on constructors' ECs
-      pure (Set.mapMaybe lookupTypeEc deps)
+      pure (Set.fromList (mapMaybe lookupTermEc constructorTerms) <> Set.mapMaybe lookupTypeEc deps)
 
     -- Get the set of ECs that a term depends on
     getTermDependencyEcs :: tm -> m (Set EC)

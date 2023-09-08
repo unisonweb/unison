@@ -195,8 +195,12 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               case ref of
                 ReferenceBuiltin _ -> pure []
                 ReferenceDerived refId -> do
-                  cycleLen <- Operations.expectCycleLen (refId ^. Reference.idH)
-                  pure (map (Referent.Con ref) [0 .. cycleLen - 1])
+                  decl <- Operations.expectDeclByReference refId
+                  decl
+                    & Decl.constructorTypes
+                    & zip [0 ..]
+                    & map (\(i, _constructor) -> Referent.Con ref i)
+                    & pure
 
         -- TODO we probably want to pass down a version of this that caches
         -- FIXME use ConstructorReference when there's only one
