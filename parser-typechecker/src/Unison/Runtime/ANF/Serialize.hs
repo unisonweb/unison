@@ -782,6 +782,27 @@ putGroupRef (GR r i) =
 getGroupRef :: (MonadGet m) => m GroupRef
 getGroupRef = GR <$> getReference <*> getWord64be
 
+-- Notes
+--
+-- Starting with version 4 of the value format, it is expected that
+-- unboxed data does not actually occur in the values being sent. For
+-- most values this was not a problem:
+--
+--   - Partial applications had no way of directly including unboxed
+--     values, because they all result from surface level unison
+--     applications
+--   - Unboxed values in Data only occurred to represent certain
+--     builtin types. Those have been replaced by BLits.
+--
+-- However, some work was required to make sure no unboxed data ended
+-- up in Cont. The runtime has been modified to avoid using the
+-- unboxed stack in generated code, so now only builtins use it,
+-- effectively. Since continuations are never captured inside builtins
+-- (and even if we wanted to do that, we could arrange for a clean
+-- unboxed stack), this is no longer a problem, either.
+--
+-- So, unboxed data is completely absent from the format. We are now
+-- exchanging unison surface values, effectively.
 putValue :: (MonadPut m) => Value -> m ()
 putValue (Partial gr [] vs) =
   putTag PartialT
