@@ -50,6 +50,14 @@ boxarrTests = do
 
   checkEqual "boxed immutable copied" (Raw.read iarr2 0) "hello"
 
+  bs = Value.serialize (Value.value iarr2)
+  match Value.deserialize bs with
+    Left err -> fail "boxed serial" err
+    Right v -> match Value.load v with
+      Left missing -> fail "boxed serial" "missing deps"
+      Right ia -> checkEqual "boxed serial" iarr2 ia
+
+
 bytearrTests : '{IO,Exception,Tests} ()
 bytearrTests = do
   iarr = ByteArray.Raw.new! 32 (marr -> let

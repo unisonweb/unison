@@ -1527,6 +1527,7 @@ data BLit
   | Neg Word64
   | Char Char
   | Float Double
+  | Arr (PA.Array Value)
   deriving (Show)
 
 groupVars :: ANFM v (Set v)

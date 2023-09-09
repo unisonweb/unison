@@ -220,6 +220,7 @@
        [(= t unison-vlit-neg:tag) (- l)]
        [(= t unison-vlit-quote:tag) (unison-quote l)]
        [(= t unison-vlit-code:tag) (unison-code l)]
+       [(= t unison-vlit-array:tag) (vector-map reify-value l)]
        [(= t unison-vlit-seq:tag)
         ; TODO: better map over chunked list
         (vector->chunked-list
@@ -289,6 +290,10 @@
      (unison-value-vlit (unison-vlit-bytes v))]
     [(? bytes?)
      (unison-value-vlit (unison-vlit-bytearray v))]
+    [(? vector?)
+     (unison-value-vlit
+       (unison-vlit-array
+         (vector-map reflect-value v)))]
     [(? chunked-string?)
      (unison-value-vlit (unison-vlit-text v))]
     ; TODO: better map over chunked lists

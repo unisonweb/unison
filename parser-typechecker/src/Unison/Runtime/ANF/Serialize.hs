@@ -22,6 +22,7 @@ import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference (Builtin), pattern Derived)
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
@@ -86,6 +87,7 @@ data BLTag
   | NegT
   | CharT
   | FloatT
+  | ArrT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -194,6 +196,7 @@ instance Tag BLTag where
     NegT -> 9
     CharT -> 10
     FloatT -> 11
+    ArrT -> 12
 
   word2tag = \case
     0 -> pure TextT
@@ -208,6 +211,7 @@ instance Tag BLTag where
     9 -> pure NegT
     10 -> pure CharT
     11 -> pure FloatT
+    12 -> pure ArrT
     t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
@@ -659,6 +663,7 @@ putBLit (Pos n) = putTag PosT *> putPositive n
 putBLit (Neg n) = putTag NegT *> putPositive n
 putBLit (Char c) = putTag CharT *> putChar c
 putBLit (Float d) = putTag FloatT *> putFloat d
+putBLit (Arr a) = putTag ArrT *> putFoldable putValue a
 
 getBLit :: (MonadGet m) => Version -> m BLit
 getBLit v =
@@ -675,6 +680,7 @@ getBLit v =
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
+    ArrT -> Arr . PA.fromList <$> getList (getValue v)
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs

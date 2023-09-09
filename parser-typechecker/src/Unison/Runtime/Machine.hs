@@ -2121,6 +2121,8 @@ reflectValue rty = goV
           pure (ANF.Code g)
       | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
           pure (ANF.BArr a)
+      | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
+          ANF.Arr <$> traverse goV a
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
     reflectUData :: Word64 -> Int -> IO ANF.BLit
@@ -2212,6 +2214,7 @@ reifyValue0 (rty, rtm) = goV
       pure $ DataU1 Rf.intRef intTag (-fromIntegral w)
     goL (ANF.Float d) =
       pure $ DataU1 Rf.floatRef floatTag (doubleToInt d)
+    goL (ANF.Arr a) = Foreign . Wrap Rf.iarrayRef <$> traverse goV a
 
 doubleToInt :: Double -> Int
 doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
