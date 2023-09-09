@@ -721,22 +721,117 @@ deleteGen suffix target mkTarget =
         )
 
 delete :: InputPattern
-delete = deleteGen Nothing "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete = 
+  InputPattern
+    { patternName = "delete",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete foo`", "removes the term or type name `foo` from the namespace"),
+            ("`delete foo bar`", "removes the term or type name `foo` and `bar` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'TermOrType DeleteOutput'Diff paths)
+    }
+
+ 
 
 deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteVerbose =
+  InputPattern
+    { patternName = "delete.verbose",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.verbose foo`", "removes the term or type name `foo` from the namespace"),
+            ("`delete.verbose foo bar`", "removes the term or type name `foo` and `bar` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'TermOrType DeleteOutput'Diff paths)
+    }
+
 
 deleteTerm :: InputPattern
-deleteTerm = deleteGen (Just "term") "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+deleteTerm =
+  InputPattern
+    { patternName = "delete.term",
+      aliases = ["term.delete"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.term foo`", "removes the term name `foo` from the namespace"),
+            ("`delete.term foo bar`", "removes the term name `foo` and `bar` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'Term DeleteOutput'NoDiff paths)
+    }
 
 deleteTermVerbose :: InputPattern
-deleteTermVerbose = deleteGen (Just "term.verbose") "term" (DeleteTarget'Term DeleteOutput'Diff)
+deleteTermVerbose =
+  InputPattern
+    { patternName = "delete.term.verbose",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTypeQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.term.verbose foo`", "removes the term name `foo` from the namespace"),
+            ("`delete.term.verbose foo bar`", "removes the term name `foo` and `bar` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'Type DeleteOutput'Diff paths)
+    }
+
+
 
 deleteType :: InputPattern
-deleteType = deleteGen (Just "type") "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+deleteType =
+  InputPattern
+    { patternName = "delete.type",
+      aliases = ["type.delete"],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTypeQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.type foo`", "removes the type name `foo` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'Type DeleteOutput'NoDiff paths)
+    }
 
 deleteTypeVerbose :: InputPattern
-deleteTypeVerbose = deleteGen (Just "type.verbose") "type" (DeleteTarget'Type DeleteOutput'Diff)
+deleteTypeVerbose =
+  InputPattern
+    { patternName = "delete.type.verbose",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(Required, exactDefinitionTypeQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ("`delete.type.verbose foo`", "removes the type name `foo` from the namespace"),
+            ("`delete.type.verbose foo bar`", "removes the type name `foo` and `bar` from the namespace")
+          ],
+      parse = \case
+        queries -> first fromString $ do
+              paths <- traverse Path.parseHQSplit' queries
+              pure $ Input.DeleteI (DeleteTarget'Type DeleteOutput'Diff paths)
+    }
+
 
 deleteTermReplacementCommand :: String
 deleteTermReplacementCommand = "delete.term-replacement"
