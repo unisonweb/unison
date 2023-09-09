@@ -726,7 +726,7 @@ delete =
     { patternName = "delete",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      argTypes = [(Required, exactDefinitionArg)],
       help =
         P.wrapColumn2
           [ ("`delete foo`", "removes the term or type name `foo` from the namespace"),
@@ -746,7 +746,7 @@ deleteVerbose =
     { patternName = "delete.verbose",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, exactDefinitionTermQueryArg)],
+      argTypes = [(Required, exactDefinitionArg)],
       help =
         P.wrapColumn2
           [ ("`delete.verbose foo`", "removes the term or type name `foo` from the namespace"),
@@ -783,7 +783,7 @@ deleteTermVerbose =
     { patternName = "delete.term.verbose",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Required, exactDefinitionTypeQueryArg)],
+      argTypes = [(Required, exactDefinitionTermQueryArg)],
       help =
         P.wrapColumn2
           [ ("`delete.term.verbose foo`", "removes the term name `foo` from the namespace"),
