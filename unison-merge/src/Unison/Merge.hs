@@ -477,8 +477,6 @@ makeCoreEcs changes =
 --   changes: the add conflicts and updates
 --
 --   core: the core equivalence classes computed from the updates
---
--- FIXME use term/typeAddConflicts here (or think a little and realize they are irrelevant)
 makeCoreEcDependencies ::
   forall m tm ty.
   (Monad m, Ord tm, Ord ty) =>
@@ -509,25 +507,50 @@ makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDepend
 
     getNodeDependencyEcs :: Node tm ty -> m (Set EC)
     getNodeDependencyEcs = \case
-      NodeTms tms -> go getTermDependencyEcs (changes ^. #termUpdates) (changes ^. #termUserUpdates) tms
-      NodeTys tys -> go getTypeDependencyEcs (changes ^. #typeUpdates) (changes ^. #typeUserUpdates) tys
+      NodeTms tms -> go getTermDependencyEcs termConflictedAdds termUpdatesLhs termUserUpdatesLhs termUserUpdatesRhs tms
+      NodeTys tys -> go getTypeDependencyEcs typeConflictedAdds typeUpdatesLhs typeUserUpdatesLhs typeUserUpdatesRhs tys
       where
         go ::
-          forall ref.
+          forall ref x y.
           Ord ref =>
           (ref -> m (Set EC)) ->
-          Relation ref ref ->
-          Relation ref ref ->
+          Map ref x ->
+          Map ref x ->
+          Map ref y ->
+          Map ref y ->
           Set ref ->
           m (Set EC)
-        go getDependencyEcs updates userUpdates tys = do
-          let dependenciesIn :: Map ref x -> m (Set EC)
+        go getDependencyEcs conflictedAdds updatesLhs userUpdatesLhs userUpdatesRhs tys = do
+          let dependenciesIn :: Map ref z -> m (Set EC)
               dependenciesIn =
                 (`Set.intersectKeys` tys) >>> foldMapM getDependencyEcs
-          lcaDeps <- dependenciesIn (Relation.domain updates)
-          userUpdatesLhsDeps <- dependenciesIn (Relation.domain userUpdates)
-          userUpdatesRhsDeps <- dependenciesIn (Relation.range userUpdates)
-          pure (userUpdatesRhsDeps `Set.union` (lcaDeps `Set.difference` userUpdatesLhsDeps))
+          lcaDeps <- dependenciesIn updatesLhs
+          conflictedAddsDeps <- dependenciesIn conflictedAdds
+          userUpdatesLhsDeps <- dependenciesIn userUpdatesLhs
+          userUpdatesRhsDeps <- dependenciesIn userUpdatesRhs
+          pure $
+            Set.unions
+              [ conflictedAddsDeps,
+                userUpdatesRhsDeps,
+                lcaDeps `Set.difference` userUpdatesLhsDeps
+              ]
+
+    -- Only the keys matter in all of these sets, we just don't compute actual sets here, since we only need to
+    -- intersect the keys with another set, and it's more efficient to use Set.intersectKeys
+    termConflictedAdds =
+      LazyMap.union
+        (Relation.domain (changes ^. #termConflictedAdds))
+        (Relation.range (changes ^. #termConflictedAdds))
+    typeConflictedAdds =
+      LazyMap.union
+        (Relation.domain (changes ^. #typeConflictedAdds))
+        (Relation.range (changes ^. #typeConflictedAdds))
+    termUpdatesLhs = Relation.domain (changes ^. #termUpdates)
+    typeUpdatesLhs = Relation.domain (changes ^. #typeUpdates)
+    termUserUpdatesLhs = Relation.domain (changes ^. #termUserUpdates)
+    typeUserUpdatesLhs = Relation.domain (changes ^. #typeUserUpdates)
+    termUserUpdatesRhs = Relation.range (changes ^. #termUserUpdates)
+    typeUserUpdatesRhs = Relation.range (changes ^. #typeUserUpdates)
 
 makeEcLookupFunctions :: forall tm ty. (Ord tm, Ord ty) => Bimap EC (Node tm ty) -> (ty -> Maybe EC, tm -> Maybe EC)
 makeEcLookupFunctions coreEcs =
