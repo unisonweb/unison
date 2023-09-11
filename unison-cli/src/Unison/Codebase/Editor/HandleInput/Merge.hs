@@ -176,7 +176,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
 
         -- Collect all the conflicted adds and updates
-        let (typeChanges, termChanges) = definitionsDiffsToChanges aliceDefinitionsDiff bobDefinitionsDiff
+        let T2 typeChanges termChanges = definitionsDiffsToChanges aliceDefinitionsDiff bobDefinitionsDiff
         let aliceTypeUpdates = typeChanges ^. #aliceUpdates
         let aliceTermUpdates = termChanges ^. #aliceUpdates
         let bobTypeUpdates = typeChanges ^. #bobUpdates
@@ -431,57 +431,47 @@ makeTwoSetsOfChanges = \case
 definitionsDiffsToChanges ::
   Cofree (Map NameSegment) DefinitionDiffs ->
   Cofree (Map NameSegment) DefinitionDiffs ->
-  ( TwoSetsOfChanges Reference,
-    TwoSetsOfChanges Referent
-  )
-definitionsDiffsToChanges
-  (DefinitionDiffs aliceTermDiffs aliceTypeDiffs :< aliceChildren)
-  (DefinitionDiffs bobTermDiffs bobTypeDiffs :< bobChildren) =
-    (typeChanges, termChanges) <> childrenChanges
-    where
-      typeChanges :: TwoSetsOfChanges Reference
-      typeChanges =
-        fold (alignWith makeTwoSetsOfChanges aliceTypeDiffs bobTypeDiffs)
+  (T2 (TwoSetsOfChanges Reference) (TwoSetsOfChanges Referent))
+definitionsDiffsToChanges aliceDiffs bobDiffs =
+  T2 typeChanges termChanges <> childrenChanges
+  where
+    DefinitionDiffs aliceTermDiffs aliceTypeDiffs :< aliceChildren = aliceDiffs
+    DefinitionDiffs bobTermDiffs bobTypeDiffs :< bobChildren = bobDiffs
 
-      termChanges :: TwoSetsOfChanges Referent
-      termChanges =
-        fold (alignWith makeTwoSetsOfChanges aliceTermDiffs bobTermDiffs)
+    typeChanges :: TwoSetsOfChanges Reference
+    typeChanges =
+      fold (alignWith makeTwoSetsOfChanges aliceTypeDiffs bobTypeDiffs)
 
-      childrenChanges :: (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
-      childrenChanges =
-        fold (alignWith f aliceChildren bobChildren)
-        where
-          f ::
-            These (Cofree (Map NameSegment) DefinitionDiffs) (Cofree (Map NameSegment) DefinitionDiffs) ->
-            (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
-          f = \case
-            This aliceDiff -> oneSided #aliceUpdates aliceDiff
-            That bobDiff -> oneSided #bobUpdates bobDiff
-            These aliceDiff bobDiff -> definitionsDiffsToChanges aliceDiff bobDiff
-            where
-              oneSided ::
-                (forall ref. Lens' (TwoSetsOfChanges ref) (Relation ref ref)) ->
-                Cofree (Map NameSegment) DefinitionDiffs ->
-                (TwoSetsOfChanges Reference, TwoSetsOfChanges Referent)
-              oneSided updatesLens diff =
-                let (typeUpdates, termUpdates) = definitionsDiffToUpdates diff
-                 in ( mempty & updatesLens .~ typeUpdates,
-                      mempty & updatesLens .~ termUpdates
-                    )
+    termChanges :: TwoSetsOfChanges Referent
+    termChanges =
+      fold (alignWith makeTwoSetsOfChanges aliceTermDiffs bobTermDiffs)
+
+    childrenChanges :: T2 (TwoSetsOfChanges Reference) (TwoSetsOfChanges Referent)
+    childrenChanges =
+      fold (alignWith f aliceChildren bobChildren)
+      where
+        f ::
+          These (Cofree (Map NameSegment) DefinitionDiffs) (Cofree (Map NameSegment) DefinitionDiffs) ->
+          T2 (TwoSetsOfChanges Reference) (TwoSetsOfChanges Referent)
+        f = \case
+          This aliceDiff -> oneSided #aliceUpdates aliceDiff
+          That bobDiff -> oneSided #bobUpdates bobDiff
+          These aliceDiff bobDiff -> definitionsDiffsToChanges aliceDiff bobDiff
+          where
+            oneSided ::
+              (forall ref. Lens' (TwoSetsOfChanges ref) (Relation ref ref)) ->
+              Cofree (Map NameSegment) DefinitionDiffs ->
+              T2 (TwoSetsOfChanges Reference) (TwoSetsOfChanges Referent)
+            oneSided updatesLens diff =
+              T2 (mempty & updatesLens .~ typeUpdates) (mempty & updatesLens .~ termUpdates)
+              where
+                T2 typeUpdates termUpdates = definitionsDiffToUpdates diff
 
 definitionsDiffToUpdates ::
   Cofree (Map NameSegment) DefinitionDiffs ->
-  (Relation Reference Reference, Relation Referent Referent)
+  T2 (Relation Reference Reference) (Relation Referent Referent)
 definitionsDiffToUpdates (DefinitionDiffs {termDiffs, typeDiffs} :< children) =
-  (typeUpdates, termUpdates) <> childrenUpdates
-  where
-    typeUpdates = diffsToUpdates typeDiffs
-    termUpdates = diffsToUpdates termDiffs
-    childrenUpdates = foldMap definitionsDiffToUpdates children
-
-diffsToUpdates :: Ord ref => Map NameSegment (Diff ref) -> Relation ref ref
-diffsToUpdates =
-  foldMap diffToUpdates
+  T2 (foldMap diffToUpdates typeDiffs) (foldMap diffToUpdates termDiffs) <> foldMap definitionsDiffToUpdates children
 
 diffToUpdates :: Ord ref => Diff ref -> Relation ref ref
 diffToUpdates Diff {adds, removals} =

@@ -23,6 +23,7 @@ import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
 
+-- | A left-unique relation.
 data BiMultimap a b = BiMultimap
   { toMultimap :: Map a (NESet b),
     toMapR :: Map b a
