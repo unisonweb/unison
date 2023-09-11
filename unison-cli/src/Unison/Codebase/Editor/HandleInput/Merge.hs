@@ -127,19 +127,19 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     -- of the annoying complexity those cases bring, wrt. classifying things as conflicted adds/updates.
 
     aliceTypeNames :: BiMultimap TypeReference Name <-
-      relationToInjectiveRelation (Relation.swap aliceTypeNames0) & onLeft \names ->
+      relationToLuniqRelation (Relation.swap aliceTypeNames0) & onLeft \names ->
         werror ("can't merge; conflicted type names in first namespace: " ++ show names)
 
     bobTypeNames :: BiMultimap TypeReference Name <-
-      relationToInjectiveRelation (Relation.swap bobTypeNames0) & onLeft \names ->
+      relationToLuniqRelation (Relation.swap bobTypeNames0) & onLeft \names ->
         werror ("can't merge; conflicted type names in second namespace: " ++ show names)
 
     aliceTermNames :: BiMultimap TermReference Name <-
-      relationToInjectiveRelation (Relation.swap aliceTermNames0) & onLeft \names ->
+      relationToLuniqRelation (Relation.swap aliceTermNames0) & onLeft \names ->
         werror ("can't merge; conflicted term names in first namespace: " ++ show names)
 
     bobTermNames :: BiMultimap TermReference Name <-
-      relationToInjectiveRelation (Relation.swap bobTermNames0) & onLeft \names ->
+      relationToLuniqRelation (Relation.swap bobTermNames0) & onLeft \names ->
         werror ("can't merge; conflicted term names in second namespace: " ++ show names)
 
     let conflictedDataconNames :: Relation3 a b c -> Set a
@@ -260,9 +260,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Text.writeFile
             "ec-graph.dot"
             ( ecDependenciesToDot
-                (injectiveRelationToRelation aliceTypeNames <> injectiveRelationToRelation bobTypeNames)
+                (luniqRelationToRelation aliceTypeNames <> luniqRelationToRelation bobTypeNames)
                 (aliceDataconNames <> bobDataconNames)
-                (injectiveRelationToRelation aliceTermNames <> injectiveRelationToRelation bobTermNames)
+                (luniqRelationToRelation aliceTermNames <> luniqRelationToRelation bobTermNames)
                 (Relation.ran typeUserUpdates)
                 (Relation.ran termUserUpdates)
                 coreEcs
@@ -663,14 +663,14 @@ termPatternDependencies = \case
   Term.PUnbound {} -> Set.empty
   Term.PVar {} -> Set.empty
 
--- | Try to view a relation as an injective relation.
+-- | Try to view a relation as a left-unique relation.
 --
--- If the relation is not injective, returns the set of elements of the range that were each related to more than
+-- If the relation is not left-unique, returns the set of elements of the range that were each related to more than
 -- element in the domain.
 --
 -- TODO move this helper to some other module
-relationToInjectiveRelation :: forall a b. (Ord a, Ord b) => Relation a b -> Either (Set b) (BiMultimap a b)
-relationToInjectiveRelation relation =
+relationToLuniqRelation :: forall a b. (Ord a, Ord b) => Relation a b -> Either (Set b) (BiMultimap a b)
+relationToLuniqRelation relation =
   domain
     & Map.toList
     & foldr f (Just (T2 BiMultimap.empty Set.empty))
@@ -682,7 +682,7 @@ relationToInjectiveRelation relation =
     domain =
       Relation.domain relation
 
-    -- Accumulator: the injective relation, and its range. Its range is kept separately because it can't be derived
+    -- Accumulator: the left-unique relation and its range. Its range is kept separately because it can't be derived
     -- from the relation in O(1)
     f ::
       (a, Set b) ->
@@ -698,11 +698,11 @@ relationToInjectiveRelation relation =
              in Just $! T2 rel1 range1
           else Nothing
 
--- | View an injective relation as a relation.
+-- | View a left-unique relation as a relation.
 --
 -- TODO move this helper to some other module
-injectiveRelationToRelation :: forall a b. (Ord a, Ord b) => BiMultimap a b -> Relation a b
-injectiveRelationToRelation relation =
+luniqRelationToRelation :: forall a b. (Ord a, Ord b) => BiMultimap a b -> Relation a b
+luniqRelationToRelation relation =
   Relation.fromMultimap (BiMultimap.toMultimap relation)
 
 -- | Return the set of elements that appear in at least two of the given sets.
