@@ -520,10 +520,10 @@ makeCoreEcDependencies getTypeConstructorTerms getTypeDependencies getTermDepend
           Map ref y ->
           Set ref ->
           m (Set EC)
-        go getDependencyEcs conflictedAdds updatesLhs userUpdatesLhs userUpdatesRhs tys = do
+        go getDependencyEcs conflictedAdds updatesLhs userUpdatesLhs userUpdatesRhs refs = do
           let dependenciesIn :: Map ref z -> m (Set EC)
               dependenciesIn =
-                (`Set.intersectKeys` tys) >>> foldMapM getDependencyEcs
+                (`Set.intersectKeys` refs) >>> foldMapM getDependencyEcs
           lcaDeps <- dependenciesIn updatesLhs
           conflictedAddsDeps <- dependenciesIn conflictedAdds
           userUpdatesLhsDeps <- dependenciesIn userUpdatesLhs

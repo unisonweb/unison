@@ -89,6 +89,7 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-bimultimap
   - unison-util-relation
   - unliftio
   - unordered-containers

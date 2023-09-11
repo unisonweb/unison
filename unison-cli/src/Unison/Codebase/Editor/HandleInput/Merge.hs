@@ -68,6 +68,8 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (foldMapM, intercalateMap)
 import Unison.Util.Relation (Relation)
@@ -114,15 +116,43 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     let bobCausalHash = Causal.causalHash bobCausal
     maybeLcaCausalHash <- step "compute lca" $ Operations.lca aliceCausalHash bobCausalHash
 
-    -- Read the (shallow) branches out of the database
+    -- Read the (shallow) branches out of the database.
     aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
     bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-    -- TODO assert somehow that these branches don't have any conflicted names anywhere, as we'd rather like to not
-    -- deal with some of the annoying complexity those cases bring, wrt. classifying things as conflicted adds/updates.
+    T3 aliceTypeNames0 aliceDataconNames aliceTermNames0 <- step "load alice names" $ loadBranchDefinitionNames aliceBranch
+    T3 bobTypeNames0 bobDataconNames bobTermNames0 <- step "load bob names" $ loadBranchDefinitionNames bobBranch
 
-    T3 aliceTypeNames aliceDataconNames aliceTermNames <- step "load alice names" $ loadBranchDefinitionNames aliceBranch
-    T3 bobTypeNames bobDataconNames bobTermNames <- step "load bob names" $ loadBranchDefinitionNames bobBranch
+    -- Assert that these branches don't have any conflicted names anywhere, as we'd rather like to not deal with some
+    -- of the annoying complexity those cases bring, wrt. classifying things as conflicted adds/updates.
+
+    aliceTypeNames :: BiMultimap TypeReference Name <-
+      relationToInjectiveRelation (Relation.swap aliceTypeNames0) & onLeft \names ->
+        werror ("can't merge; conflicted type names in first namespace: " ++ show names)
+
+    bobTypeNames :: BiMultimap TypeReference Name <-
+      relationToInjectiveRelation (Relation.swap bobTypeNames0) & onLeft \names ->
+        werror ("can't merge; conflicted type names in second namespace: " ++ show names)
+
+    aliceTermNames :: BiMultimap TermReference Name <-
+      relationToInjectiveRelation (Relation.swap aliceTermNames0) & onLeft \names ->
+        werror ("can't merge; conflicted term names in first namespace: " ++ show names)
+
+    bobTermNames :: BiMultimap TermReference Name <-
+      relationToInjectiveRelation (Relation.swap bobTermNames0) & onLeft \names ->
+        werror ("can't merge; conflicted term names in second namespace: " ++ show names)
+
+    let conflictedDataconNames :: Relation3 a b c -> Set a
+        conflictedDataconNames =
+          Relation3.d1 >>> Map.filter (\r -> Relation.size r > 1) >>> Map.keysSet
+
+    let conflictedAliceDataconNames = conflictedDataconNames aliceDataconNames
+    when (not (Set.null conflictedAliceDataconNames)) do
+      werror ("can't merge; conflicted constructor names in first namespace: " ++ show conflictedAliceDataconNames)
+
+    let conflictedBobDataconNames = conflictedDataconNames bobDataconNames
+    when (not (Set.null conflictedBobDataconNames)) do
+      werror ("can't merge; conflicted constructor names in second namespace: " ++ show conflictedBobDataconNames)
 
     case maybeLcaCausalHash of
       -- TODO: go down 2-way merge code paths
@@ -230,9 +260,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           Text.writeFile
             "ec-graph.dot"
             ( ecDependenciesToDot
-                (aliceTypeNames <> bobTypeNames)
+                (injectiveRelationToRelation aliceTypeNames <> injectiveRelationToRelation bobTypeNames)
                 (aliceDataconNames <> bobDataconNames)
-                (aliceTermNames <> bobTermNames)
+                (injectiveRelationToRelation aliceTermNames <> injectiveRelationToRelation bobTermNames)
                 (Relation.ran typeUserUpdates)
                 (Relation.ran termUserUpdates)
                 coreEcs
@@ -293,16 +323,26 @@ computeConstructorMapping allNames1 ref1 decl1 allNames2 ref2 decl2 = do
   let numConstructors = length (Decl.constructorTypes decl1)
   guard (numConstructors == length (Decl.constructorTypes decl2))
 
-  let oink1 = Relation3.lookupD2 (ReferenceDerived ref1) allNames1
-  let oink2 = Relation3.lookupD2 (ReferenceDerived ref2) allNames2
+  let constructorNames1 = Relation3.lookupD2 (ReferenceDerived ref1) allNames1
+  let constructorNames2 = Relation3.lookupD2 (ReferenceDerived ref2) allNames2
 
-  let constructorIdsInOrder = map (unsafeFrom @Int) [0 .. numConstructors - 1]
+  let constructorName1 :: ConstructorId -> Maybe Name
+      constructorName1 i =
+        Set.asSingleton (Relation.lookupRan i constructorNames1)
+
+  let constructorId2 :: Name -> Maybe ConstructorId
+      constructorId2 name =
+        Set.asSingleton (Relation.lookupDom name constructorNames2)
+
+  let constructorIdsInOrder :: [ConstructorId]
+      constructorIdsInOrder =
+        map (unsafeFrom @Int) [0 .. numConstructors - 1]
 
   let step :: Maybe (Map ConstructorId ConstructorId) -> ConstructorId -> Maybe (Map ConstructorId ConstructorId)
       step maybeAcc i = do
         acc <- maybeAcc
-        name <- Set.asSingleton (Relation.lookupRan i oink1)
-        j <- Set.asSingleton (Relation.lookupDom name oink2)
+        name <- constructorName1 i
+        j <- constructorId2 name
         Just (Map.insert j i acc)
 
   -- It all looks good so far; let's see if the data constructors' names match.
@@ -474,35 +514,8 @@ loadBranchDefinitionNames =
             (Relation Name TermReference)
         )
     go reversePrefix branch = do
-      let types :: Relation Name TypeReference
-          types =
-            Relation.fromMultimap (Map.fromList (map f (Map.toList (Branch.types branch))))
-            where
-              f (segment, xs) =
-                (Name.fromReverseSegments (segment :| reversePrefix), Map.keysSet xs)
-
-      let datacons :: Relation3 Name TypeReference ConstructorId
-          terms :: Relation Name TermReference
-          T2 datacons terms =
-            Branch.terms branch
-              & Map.toList
-              & foldl' f (T2 Relation3.empty Relation.empty)
-            where
-              f ::
-                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
-                (NameSegment, Map Referent metadata) ->
-                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
-              f acc (segment, refs) =
-                foldl' (g (Name.fromReverseSegments (segment :| reversePrefix))) acc (Map.keys refs)
-
-              g ::
-                Name ->
-                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
-                Referent ->
-                T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
-              g name (T2 accDatacons accTerms) = \case
-                Referent.Ref ref -> T2 accDatacons (Relation.insert name ref accTerms)
-                Referent.Con ref cid -> T2 (Relation3.insert name ref cid accDatacons) accTerms
+      let types = branchTypeNames reversePrefix branch
+          T2 datacons terms = branchTermNames reversePrefix branch
 
       childrenNames <-
         Branch.children branch
@@ -512,6 +525,33 @@ loadBranchDefinitionNames =
             go (childName : reversePrefix) childBranch
 
       pure (T3 types datacons terms <> childrenNames)
+
+    branchTypeNames :: [NameSegment] -> Branch m -> Relation Name TypeReference
+    branchTypeNames reversePrefix =
+      Branch.types >>> Map.toList >>> map f >>> Map.fromList >>> Relation.fromMultimap
+      where
+        f (segment, xs) =
+          (Name.fromReverseSegments (segment :| reversePrefix), Map.keysSet xs)
+
+    branchTermNames :: [NameSegment] -> Branch m -> T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+    branchTermNames reversePrefix =
+      Branch.terms >>> Map.toList >>> foldl' f (T2 Relation3.empty Relation.empty)
+      where
+        f ::
+          T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
+          (NameSegment, Map Referent metadata) ->
+          T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+        f acc (segment, refs) =
+          foldl' (g (Name.fromReverseSegments (segment :| reversePrefix))) acc (Map.keys refs)
+
+        g ::
+          Name ->
+          T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference) ->
+          Referent ->
+          T2 (Relation3 Name TypeReference ConstructorId) (Relation Name TermReference)
+        g name (T2 accDatacons accTerms) = \case
+          Referent.Ref ref -> T2 accDatacons (Relation.insert name ref accTerms)
+          Referent.Con ref cid -> T2 (Relation3.insert name ref cid accDatacons) accTerms
 
 data DependencyDiff
   = AddDependency !CausalHash
@@ -623,6 +663,57 @@ termPatternDependencies = \case
   Term.PUnbound {} -> Set.empty
   Term.PVar {} -> Set.empty
 
+-- | Try to view a relation as an injective relation.
+--
+-- If the relation is not injective, returns the set of elements of the range that were each related to more than
+-- element in the domain.
+--
+-- TODO move this helper to some other module
+relationToInjectiveRelation :: forall a b. (Ord a, Ord b) => Relation a b -> Either (Set b) (BiMultimap a b)
+relationToInjectiveRelation relation =
+  domain
+    & Map.toList
+    & foldr f (Just (T2 BiMultimap.empty Set.empty))
+    & \case
+      Nothing -> Left (duplicates (Map.elems domain))
+      Just (T2 rel _range) -> Right rel
+  where
+    domain :: Map a (Set b)
+    domain =
+      Relation.domain relation
+
+    -- Accumulator: the injective relation, and its range. Its range is kept separately because it can't be derived
+    -- from the relation in O(1)
+    f ::
+      (a, Set b) ->
+      Maybe (T2 (BiMultimap a b) (Set b)) ->
+      Maybe (T2 (BiMultimap a b) (Set b))
+    f (x, ys) = \case
+      Nothing -> Nothing
+      Just (T2 rel0 range0) ->
+        if Set.disjoint ys range0
+          then
+            let rel1 = foldl' (\rel1 name -> BiMultimap.unsafeInsert x name rel1) rel0 ys
+                range1 = Set.union ys range0
+             in Just $! T2 rel1 range1
+          else Nothing
+
+-- | View an injective relation as a relation.
+--
+-- TODO move this helper to some other module
+injectiveRelationToRelation :: forall a b. (Ord a, Ord b) => BiMultimap a b -> Relation a b
+injectiveRelationToRelation relation =
+  Relation.fromMultimap (BiMultimap.toMultimap relation)
+
+-- | Return the set of elements that appear in at least two of the given sets.
+duplicates :: forall a. Ord a => [Set a] -> Set a
+duplicates =
+  foldl' f (T2 Set.empty Set.empty) >>> (\(T2 _ xs) -> xs)
+  where
+    f :: T2 (Set a) (Set a) -> Set a -> T2 (Set a) (Set a)
+    f (T2 everything dupes) xs =
+      T2 (Set.union xs everything) (Set.union (Set.intersection xs everything) dupes)
+
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils
 
@@ -647,9 +738,9 @@ showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
 
 ecDependenciesToDot ::
-  Relation Name TypeReference ->
+  Relation TypeReference Name ->
   Relation3 Name TypeReference ConstructorId ->
-  Relation Name TermReference ->
+  Relation TermReference Name ->
   Set TypeReference ->
   Set Referent ->
   Bimap Merge.EC (Merge.Node Referent TypeReference) ->
@@ -710,11 +801,11 @@ ecDependenciesToDot typeNames constructorNames termNames typeUserUpdates termUse
                 fromMaybe "" . Set.lookupMin $
                   case ref of
                     Referent.Con typeRef conId -> Relation3.lookupD23 typeRef conId constructorNames
-                    Referent.Ref termRef -> Relation.lookupRan termRef termNames
+                    Referent.Ref termRef -> Relation.lookupDom termRef termNames
            in refToRow (Name.toText name <> showReferent ref) (Set.member ref termUserUpdates)
       Merge.NodeTys tys ->
         tys & foldMap \ref ->
-          let name = fromMaybe "" (Set.lookupMin (Relation.lookupRan ref typeNames))
+          let name = fromMaybe "" (Set.lookupMin (Relation.lookupDom ref typeNames))
            in refToRow (Name.toText name <> showReference ref) (Set.member ref typeUserUpdates)
 
     refToRow :: Text -> Bool -> Text.Builder
