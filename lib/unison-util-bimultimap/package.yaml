@@ -11,6 +11,7 @@ library:
 dependencies:
   - base
   - containers
+  - nonempty-containers
   - unison-prelude
 
 ghc-options:
@@ -18,17 +19,29 @@ ghc-options:
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

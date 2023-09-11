@@ -16,6 +16,7 @@ import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
@@ -702,8 +703,8 @@ relationToLuniqRelation relation =
 --
 -- TODO move this helper to some other module
 luniqRelationToRelation :: forall a b. (Ord a, Ord b) => BiMultimap a b -> Relation a b
-luniqRelationToRelation relation =
-  Relation.fromMultimap (BiMultimap.toMultimap relation)
+luniqRelationToRelation =
+  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . BiMultimap.toMultimap
 
 -- | Return the set of elements that appear in at least two of the given sets.
 duplicates :: forall a. Ord a => [Set a] -> Set a
