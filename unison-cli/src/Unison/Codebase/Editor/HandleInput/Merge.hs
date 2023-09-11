@@ -25,6 +25,7 @@ import Data.Text.Lazy.Builder.Int qualified as Text.Builder
 import Data.These (These (..))
 import Data.Tuple.Strict
 import GHC.Clock (getMonotonicTime)
+import System.Process qualified as Process
 import Text.ANSI qualified as Text
 import Text.Printf (printf)
 import U.Codebase.Branch (Branch, CausalBranch)
@@ -67,6 +68,7 @@ import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (foldMapM, intercalateMap)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -75,7 +77,6 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
-import qualified System.Process as Process
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -149,37 +150,27 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         let aliceTermUpdates = termChanges ^. #aliceUpdates
         let bobTypeUpdates = typeChanges ^. #bobUpdates
         let bobTermUpdates = termChanges ^. #bobUpdates
-
-        -- FIXME actually use these somewhere around here
         let typeConflictedAdds = typeChanges ^. #conflictedAdds
         let termConflictedAdds = termChanges ^. #conflictedAdds
-
         let typeUpdates = aliceTypeUpdates <> bobTypeUpdates
         let termUpdates = aliceTermUpdates <> bobTermUpdates
 
         -- The canonicalizer is just an implementation detail of the isUser{Type,Term}Update classifiers
         let canonicalizer = Merge.makeCanonicalizer v2HashHandle mergeDatabase typeUpdates termUpdates
 
-        -- Classify the updates
-        aliceTypeUserUpdates <- step "classify alice user type updates" do
-          let isUserTypeUpdate =
-                Merge.isUserTypeUpdate
-                  mergeDatabase
-                  canonicalizer
-                  (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 aliceDataconNames ref2 decl2)
-          Relation.filterM isUserTypeUpdate aliceTypeUpdates
-        bobTypeUserUpdates <- step "classify bob user type updates" do
-          let isUserTypeUpdate =
-                Merge.isUserTypeUpdate
-                  mergeDatabase
-                  canonicalizer
-                  (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 bobDataconNames ref2 decl2)
-          Relation.filterM isUserTypeUpdate bobTypeUpdates
+        -- Classify the type updates
+        let isUserTypeUpdate dataconNames =
+              Merge.isUserTypeUpdate
+                mergeDatabase
+                canonicalizer
+                (\ref1 decl1 ref2 decl2 -> computeConstructorMapping lcaDataconNames ref1 decl1 dataconNames ref2 decl2)
+        aliceTypeUserUpdates <- step "classify alice user type updates" $ Relation.filterM (isUserTypeUpdate aliceDataconNames) aliceTypeUpdates
+        bobTypeUserUpdates <- step "classify bob user type updates" $ Relation.filterM (isUserTypeUpdate bobDataconNames) bobTypeUpdates
         let typeUserUpdates = aliceTypeUserUpdates <> bobTypeUserUpdates
 
-        termUserUpdates <- step "classify user term updates" do
-          let isUserTermUpdate = Merge.isUserTermUpdate mergeDatabase canonicalizer
-          Relation.filterM isUserTermUpdate termUpdates
+        -- Classify the term updates
+        let isUserTermUpdate = Merge.isUserTermUpdate mergeDatabase canonicalizer
+        termUserUpdates <- step "classify user term updates" $ Relation.filterM isUserTermUpdate termUpdates
 
         let changes :: Merge.Changes TypeReference Referent
             changes =
@@ -195,47 +186,11 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         -- Build the core ecs from the changes
         let coreEcs = Merge.makeCoreEcs changes
 
-        let getTypeConstructorTerms :: TypeReference -> Transaction [Referent]
-            getTypeConstructorTerms ref =
-              case ref of
-                ReferenceBuiltin _ -> pure []
-                ReferenceDerived refId -> do
-                  decl <- Operations.expectDeclByReference refId
-                  decl
-                    & Decl.constructorTypes
-                    & zip [0 ..]
-                    & map (\(i, _constructor) -> Referent.Con ref i)
-                    & pure
-
-        -- TODO we probably want to pass down a version of this that caches
-        -- FIXME use ConstructorReference when there's only one
-        let typeDependsOn :: TypeReference -> Transaction (Set TypeReference)
-            typeDependsOn = \case
-              ReferenceBuiltin _ -> pure Set.empty
-              ReferenceDerived typeRefId0 -> do
-                typeRefId1 <- traverseOf Reference.idH Queries.expectObjectIdForPrimaryHash typeRefId0
-                dependencies0 <- Queries.getDependenciesForDependent typeRefId1
-                dependencies1 <-
-                  traverse
-                    (bitraverse Queries.expectText Queries.expectPrimaryHashByObjectId)
-                    dependencies0
-                pure (Set.fromList dependencies1)
-
-        -- TODO we probably want to pass down a version of this that caches
-        let termDependsOn :: Referent -> Transaction (Set (Either TypeReference Referent))
-            termDependsOn = \case
-              Referent.Ref (ReferenceBuiltin _) -> pure Set.empty
-              Referent.Ref (ReferenceDerived termRef0) -> do
-                term <- Operations.expectTermByReference termRef0
-                pure (termDependencies term)
-              Referent.Con typeRef _conId ->
-                pure (Set.singleton (Left typeRef))
-
         coreEcDependencies <- step "compute core EC dependencies" do
           Merge.makeCoreEcDependencies
-            getTypeConstructorTerms
-            typeDependsOn
-            termDependsOn
+            loadTypeConstructorTerms
+            loadTypeDependencies
+            loadTermDependencies
             changes
             coreEcs
 
@@ -285,6 +240,42 @@ handleMerge alicePath0 bobPath0 _resultPath = do
             )
           Process.callCommand "dot -Tpdf ec-graph.dot > ec-graph.pdf && open ec-graph.pdf && rm ec-graph.dot"
 
+-- Given a type reference, load its constructors' referents.
+--
+-- For example,
+--
+--   loadTypeConstructorTerms #Maybe = [Con #Maybe 0, Con #Maybe 1]
+loadTypeConstructorTerms :: TypeReference -> Transaction [Referent]
+loadTypeConstructorTerms ref =
+  case ref of
+    ReferenceBuiltin _ -> pure []
+    ReferenceDerived refId -> do
+      decl <- Operations.expectDeclByReference refId
+      pure (List.imap (\i _ -> Referent.Con ref (unsafeFrom @Int i)) (Decl.constructorTypes decl))
+
+-- TODO we probably want to pass down a version of this that caches
+-- FIXME use ConstructorReference when there's only one
+loadTypeDependencies :: TypeReference -> Transaction (Set TypeReference)
+loadTypeDependencies = \case
+  ReferenceBuiltin _ -> pure Set.empty
+  ReferenceDerived ref0 -> do
+    ref1 <- traverseOf Reference.idH Queries.expectObjectIdForPrimaryHash ref0
+    dependencies0 <- Queries.getDependenciesForDependent ref1
+    dependencies1 <-
+      traverse
+        (bitraverse Queries.expectText Queries.expectPrimaryHashByObjectId)
+        dependencies0
+    pure (Set.fromList dependencies1)
+
+-- TODO we probably want to pass down a version of this that caches
+loadTermDependencies :: Referent -> Transaction (Set (Either TypeReference Referent))
+loadTermDependencies = \case
+  Referent.Ref (ReferenceBuiltin _) -> pure Set.empty
+  Referent.Ref (ReferenceDerived ref) -> do
+    term <- Operations.expectTermByReference ref
+    pure (termDependencies term)
+  Referent.Con typeRef _conId ->
+    pure (Set.singleton (Left typeRef))
 
 computeConstructorMapping ::
   Relation3 Name TypeReference ConstructorId ->

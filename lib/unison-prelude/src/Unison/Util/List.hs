@@ -6,6 +6,11 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Prelude
 
+-- | Map over a list with access to each element's index (0-based).
+imap :: (Int -> a -> b) -> [a] -> [b]
+imap f =
+  zipWith f [0..]
+
 multimap :: (Foldable f) => (Ord k) => f (k, v) -> Map k [v]
 multimap kvs =
   -- preserve the order of the values from the original list
