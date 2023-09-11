@@ -12,7 +12,7 @@ serial.availableCases _ =
     Text.take (Text.size nm - 4) nm
   -- caseNums = ["00", "01", "02", "03"]
   caseNums = ["00", "02"]
-  files = map (n -> FilePath ("case-" ++ n ++ ".ser")) caseNums
+  files = map (n -> FilePath ("case-" ++ n ++ ".v4.ser")) caseNums
   map slice (filter p files)
 
 serial.gen : Nat -> Nat -> (Nat, Nat)
