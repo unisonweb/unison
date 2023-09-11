@@ -36,9 +36,7 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.DisplayObject
-  ( DisplayObject,
-  )
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ

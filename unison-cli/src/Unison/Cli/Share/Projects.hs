@@ -17,6 +17,7 @@ module Unison.Cli.Share.Projects
     getProjectByName',
     createProject,
     GetProjectBranchResponse (..),
+    IncludeSquashedHead (..),
     getProjectBranchById,
     getProjectBranchByName,
     getProjectBranchByName',
@@ -91,30 +92,39 @@ data GetProjectBranchResponse
   | GetProjectBranchResponseProjectNotFound
   | GetProjectBranchResponseSuccess !RemoteProjectBranch
 
+data IncludeSquashedHead
+  = IncludeSquashedHead
+  | NoSquashedHead
+  deriving (Show, Eq)
+
 -- | Get a project branch by id.
 --
 -- On success, update the `remote_project_branch` table.
-getProjectBranchById :: ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
-getProjectBranchById (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
-  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing) & onLeftM servantClientError
+getProjectBranchById :: IncludeSquashedHead -> ProjectAndBranch RemoteProjectId RemoteProjectBranchId -> Cli GetProjectBranchResponse
+getProjectBranchById includeSquashed (ProjectAndBranch (RemoteProjectId projectId) (RemoteProjectBranchId branchId)) = do
+  let squashed = includeSquashed == IncludeSquashedHead
+  response <- servantClientToCli (getProjectBranch0 projectId (Just branchId) Nothing squashed) & onLeftM servantClientError
   onGetProjectBranchResponse response
 
 -- | Get a project branch by name.
 --
 -- On success, update the `remote_project_branch` table.
-getProjectBranchByName :: ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
-getProjectBranchByName (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+getProjectBranchByName :: IncludeSquashedHead -> ProjectAndBranch RemoteProjectId ProjectBranchName -> Cli GetProjectBranchResponse
+getProjectBranchByName includeSquashed (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  let squashed = includeSquashed == IncludeSquashedHead
   response <-
-    servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)))
+    servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)) squashed)
       & onLeftM servantClientError
   onGetProjectBranchResponse response
 
 -- | Variant of 'getProjectBranchByName' that returns servant client errors.
 getProjectBranchByName' ::
+  IncludeSquashedHead ->
   ProjectAndBranch RemoteProjectId ProjectBranchName ->
   Cli (Either Servant.ClientError GetProjectBranchResponse)
-getProjectBranchByName' (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
-  servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName))) >>= \case
+getProjectBranchByName' includeSquashed (ProjectAndBranch (RemoteProjectId projectId) branchName) = do
+  let squashed = includeSquashed == IncludeSquashedHead
+  servantClientToCli (getProjectBranch0 projectId Nothing (Just (into @Text branchName)) squashed) >>= \case
     Left err -> pure (Left err)
     Right response -> Right <$> onGetProjectBranchResponse response
 
@@ -197,7 +207,8 @@ onGotProjectBranch branch = do
         projectName,
         branchId,
         branchName,
-        branchHead = branch ^. #branchHead
+        branchHead = branch ^. #branchHead,
+        squashedBranchHead = branch ^. #squashedBranchHead
       }
 
 validateProjectName :: Text -> Cli ProjectName
@@ -250,7 +261,7 @@ servantClientToCli action = do
 
 getProject0 :: Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectResponse
 createProject0 :: Share.API.CreateProjectRequest -> ClientM Share.API.CreateProjectResponse
-getProjectBranch0 :: Text -> Maybe Text -> Maybe Text -> ClientM Share.API.GetProjectBranchResponse
+getProjectBranch0 :: Text -> Maybe Text -> Maybe Text -> Bool -> ClientM Share.API.GetProjectBranchResponse
 createProjectBranch0 :: Share.API.CreateProjectBranchRequest -> ClientM Share.API.CreateProjectBranchResponse
 setProjectBranchHead0 :: Share.API.SetProjectBranchHeadRequest -> ClientM Share.API.SetProjectBranchHeadResponse
 ( getProject0

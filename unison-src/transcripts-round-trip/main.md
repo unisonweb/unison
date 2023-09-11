@@ -80,11 +80,9 @@ x = ()
 .a3_old> delete.namespace.force lib.builtin
 ```
 
-These are currently all expected to have different hashes on round trip, though we'd prefer if they round tripped with the same hash.
+These are currently all expected to have different hashes on round trip.
 
-NOTE, since we don't currently have anything that round trips with a different hash, this fails. If you find an example that reparses with a different hash, add it to `reparses.u` and change this stanza to `ucm` rather than `ucm:error`.
-
-```ucm:error
+```ucm
 .> diff.namespace a3 a3_old
 ```
 

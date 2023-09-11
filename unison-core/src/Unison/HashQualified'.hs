@@ -50,7 +50,7 @@ nameLength nameToText = Text.length . toTextWith nameToText
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
   n@(NameOnly _) -> n
-  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
+  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.shortenTo i s)
 
 toNameOnly :: HashQualified n -> HashQualified n
 toNameOnly = fromName . toName

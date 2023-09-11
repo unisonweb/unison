@@ -25,6 +25,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
+import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.Lexer qualified as Lexer
 
@@ -112,7 +113,7 @@ parseSplit' lastSegment p = do
   seg <- lastSegment rem
   pure (p', seg)
 
-parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' :: String -> Either String (Either ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"

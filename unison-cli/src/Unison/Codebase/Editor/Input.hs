@@ -45,7 +45,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver, ProjectBranchNameOrLatestRelease)
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectBranchNameOrLatestRelease, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty qualified as P
 

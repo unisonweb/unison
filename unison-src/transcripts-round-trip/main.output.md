@@ -641,19 +641,34 @@ x = ()
       Put definitions in here that are expected to
       parse with a different hash after pretty-printing.
       """
+    
+    sloppyDocEval : Doc2
+    sloppyDocEval =
+      use Nat +
+      {{
+      Here's an example of an eval block that's technically a
+      lambda but should print as a backticked block (since old
+      docs in the wild still use this format).
+      
+      ```
+      1 + 1
+      ```
+      }}
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
 ```
-These are currently all expected to have different hashes on round trip, though we'd prefer if they round tripped with the same hash.
-
-NOTE, since we don't currently have anything that round trips with a different hash, this fails. If you find an example that reparses with a different hash, add it to `reparses.u` and change this stanza to `ucm` rather than `ucm:error`.
+These are currently all expected to have different hashes on round trip.
 
 ```ucm
 .> diff.namespace a3 a3_old
 
-  The namespaces are identical.
+  Updates:
+  
+    1. sloppyDocEval : Doc2
+       ↓
+    2. sloppyDocEval : Doc2
 
 ```
 ## Other regression tests not covered by above

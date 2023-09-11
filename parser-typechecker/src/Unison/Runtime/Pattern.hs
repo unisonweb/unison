@@ -38,7 +38,7 @@ import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
 import Unison.Pattern qualified as P
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference, Reference' (Builtin, DerivedId))
 import Unison.Runtime.ANF (internalBug)
 import Unison.Term hiding (Term, matchPattern)
 import Unison.Term qualified as Tm

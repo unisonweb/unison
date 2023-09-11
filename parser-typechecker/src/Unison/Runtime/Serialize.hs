@@ -25,7 +25,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Reference (Id (..), Reference (..), pattern Derived)
+import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode

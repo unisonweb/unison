@@ -20,10 +20,8 @@ library
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.Kind
-      U.Codebase.Reference
       U.Codebase.Referent
       U.Codebase.Reflog
-      U.Codebase.ShortHash
       U.Codebase.Term
       U.Codebase.TermEdit
       U.Codebase.Type

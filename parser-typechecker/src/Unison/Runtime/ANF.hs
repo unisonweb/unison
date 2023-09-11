@@ -102,7 +102,7 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Id, Reference (..))
+import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)

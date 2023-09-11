@@ -49,7 +49,6 @@ library
       Unison.Referent
       Unison.Referent'
       Unison.Settings
-      Unison.ShortHash
       Unison.Symbol
       Unison.Term
       Unison.Type
