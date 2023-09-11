@@ -27,7 +27,7 @@ import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Reference (Builtin), toShortHash)
+import Unison.Reference (Reference, Reference' (Builtin), toShortHash)
 import Unison.Referent (pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),

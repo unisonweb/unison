@@ -13,7 +13,7 @@ import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Pattern qualified as P
-import Unison.Reference (Reference (Builtin))
+import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
 import Unison.Term qualified as Term

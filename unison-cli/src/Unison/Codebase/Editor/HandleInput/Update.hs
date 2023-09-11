@@ -49,7 +49,7 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent

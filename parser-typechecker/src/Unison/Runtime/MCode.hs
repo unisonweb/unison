@@ -46,7 +46,7 @@ import Data.Primitive.PrimArray
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF
   ( ANormal,
