@@ -438,12 +438,12 @@ loadSelfContained path =
     Left l -> fail "value missing deps" l
     Right x -> x
 
-saveTestCase : Text -> (a ->{} Text) -> a ->{IO,Exception} ()
-saveTestCase name f i =
+saveTestCase : Text -> Text -> (a ->{} Text) -> a ->{IO,Exception} ()
+saveTestCase name ver f i =
   dir = "unison-src/transcripts-using-base/serialized-cases/"
-  sfile = dir ++ name ++ ".ser"
+  sfile = dir ++ name ++ "." ++ ver ++ ".ser"
   ofile = dir ++ name ++ ".out"
-  hfile = dir ++ name ++ ".hash"
+  hfile = dir ++ name ++ "." ++ ver ++ ".hash"
 
   output = f i
 

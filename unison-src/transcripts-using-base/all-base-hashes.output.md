@@ -2775,8 +2775,9 @@ This transcript is intended to make visible accidental changes to the hashing al
   798. -- #ub9vp3rs8gh7kj9ksq0dbpoj22r61iq179co8tpgsj9m52n36qha52rm5hlht4hesgqfb8917cp1tk8jhgcft6sufgis6bgemmd57ag
        saveSelfContained : a -> Text ->{IO, Exception} ()
        
-  799. -- #utcu5rk68sot520tjcsjhrpipbb0dq3idd81o04ctparap6iusco52v3ojh3r0d6j0nnbfjvtiuo0f0ob7udshasudvlftjo6hnpsjg
+  799. -- #6jriif58nb7gbb576kcabft4k4qaa74prd4dpsomokbqceust7p0gu0jlpar4o70qt987lkki2sj1pknkr0ggoif8fcvu2jg2uenqe8
        saveTestCase : Text
+       -> Text
        -> (a -> Text)
        -> a
        ->{IO, Exception} ()
