@@ -152,7 +152,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
-import Unison.Reference (Reference (..), TermReference)
+import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent

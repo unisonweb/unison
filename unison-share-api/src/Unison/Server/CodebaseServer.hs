@@ -107,6 +107,7 @@ import Unison.Server.Local.Endpoints.GetDefinitions
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
+import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
 import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
@@ -126,9 +127,12 @@ type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type LooseCodeAPI = "non-project-code" :> CodebaseServerAPI
+type LooseCodeAPI = CodebaseServerAPI
 
-type UnisonLocalAPI = ProjectsAPI :<|> LooseCodeAPI
+type UnisonLocalAPI =
+  ("projects" :> ProjectsAPI)
+    :<|> ("non-project-code" :> LooseCodeAPI)
+    :<|> ("ucm" :> UCMAPI)
 
 type CodebaseServerAPI =
   NamespaceListing.NamespaceListingAPI
@@ -139,9 +143,9 @@ type CodebaseServerAPI =
     :<|> TypeSummaryAPI
 
 type ProjectsAPI =
-  ("projects" :> ListProjectsEndpoint)
-    :<|> ("projects" :> Capture "project-name" ProjectName :> "branches" :> ListProjectBranchesEndpoint)
-    :<|> ("projects" :> Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+  ListProjectsEndpoint
+    :<|> (Capture "project-name" ProjectName :> "branches" :> ListProjectBranchesEndpoint)
+    :<|> (Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -568,7 +572,7 @@ serveUnisonLocal ::
   Server UnisonLocalAPI
 serveUnisonLocal env codebase rt =
   hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $
-    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt
+    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt :<|> (setCacheControl <$> ucmServer codebase)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

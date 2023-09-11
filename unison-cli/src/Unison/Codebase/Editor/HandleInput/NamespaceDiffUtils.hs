@@ -24,7 +24,7 @@ import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite qualified as Sqlite

@@ -10,6 +10,7 @@ import Control.Monad.Reader (ask)
 import Data.Graph qualified as Graph
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -42,7 +43,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Reference (Reference (..), TermReference, TypeReference)
+import Unison.Reference (Reference, Reference' (..), TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -295,8 +296,8 @@ propagate patch b = case validatePatch patch of
           collectEdits es@Edits {..} seen todo = case Map.minView todo of
             Nothing -> pure es
             Just (r, todo) -> case r of
-              Reference.Builtin _ -> collectEdits es seen todo
-              Reference.DerivedId _ -> go r todo
+              ReferenceBuiltin _ -> collectEdits es seen todo
+              ReferenceDerived _ -> go r todo
             where
               debugCtors =
                 unlines
@@ -323,7 +324,7 @@ propagate patch b = case validatePatch patch of
                       (Just edits', seen') -> do
                         -- plan to update the dependents of this component too
                         dependents <- case r of
-                          Reference.Builtin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
+                          ReferenceBuiltin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
                           Reference.Derived h _i -> Codebase.dependentsOfComponent h
                         let todo' = todo <> getOrdered dependents
                         collectEdits edits' seen' todo'
@@ -372,7 +373,7 @@ propagate patch b = case validatePatch patch of
                       )
                     seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                     writeTypes = traverse_ $ \case
-                      (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
+                      (ReferenceDerived id, tp) -> Codebase.putTypeDeclaration codebase id tp
                       _ -> error "propagate: Expected DerivedId"
                     !newCtorMappings =
                       let r = propagateCtorMapping componentMap hashedComponents'
@@ -432,7 +433,7 @@ propagate patch b = case validatePatch patch of
                         toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
                         writeTerms =
                           traverse_ \case
-                            (Reference.DerivedId id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
+                            (ReferenceDerived id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
                             _ -> error "propagate: Expected DerivedId"
                     writeTerms
                       [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
@@ -501,7 +502,7 @@ propagate patch b = case validatePatch patch of
       Nothing -> pure mempty
       Just r -> do
         unhashed <- unhashTermComponent' codebase (Reference.idToHash r)
-        pure $ fmap (over _1 Reference.DerivedId) unhashed
+        pure $ fmap (over _1 ReferenceDerived) unhashed
 
     unhashTermComponent' ::
       Codebase m Symbol Ann ->

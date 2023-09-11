@@ -108,14 +108,15 @@ projectCreate tryDownloadingBase maybeProjectName = do
             let baseProjectId = baseProject ^. #projectId
             let baseLatestReleaseBranchName = unsafeFrom @Text ("releases/" <> into @Text ver)
             response <-
-              Share.getProjectBranchByName' (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
+              Share.getProjectBranchByName' Share.NoSquashedHead (ProjectAndBranch baseProjectId baseLatestReleaseBranchName)
                 & onLeftM \_err -> done Nothing
             baseLatestReleaseBranch <-
               case response of
                 Share.GetProjectBranchResponseBranchNotFound -> done Nothing
                 Share.GetProjectBranchResponseProjectNotFound -> done Nothing
                 Share.GetProjectBranchResponseSuccess branch -> pure branch
-            Pull.downloadShareProjectBranch baseLatestReleaseBranch
+            let useSquashed = False
+            Pull.downloadShareProjectBranch useSquashed baseLatestReleaseBranch
             Cli.Env {codebase} <- ask
             baseLatestReleaseBranchObject <-
               liftIO $

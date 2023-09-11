@@ -21,7 +21,7 @@ import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
-import Unison.Reference (Reference (Builtin), pattern Derived)
+import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize

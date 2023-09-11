@@ -17,15 +17,20 @@ module U.Codebase.Reference
     t_,
     h_,
     idH,
+    idToHash,
+    idToShortHash,
     isBuiltin,
-    closeRReference,
     toShortHash,
+    toId,
+    unsafeId,
+    closeRReference,
   )
 where
 
-import Control.Lens (Lens, Prism, Prism', Traversal, lens, prism, (%~))
+import Control.Lens (Lens, Prism, Prism', Traversal, lens, preview, prism, (%~))
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
+import Data.Text qualified as Text
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Prelude
@@ -44,10 +49,10 @@ type TermReference = Reference
 -- | A possibly-self term reference.
 type TermRReference = RReference
 
--- | A type reference.
+-- | A type declaration reference.
 type TypeReference = Reference
 
--- | A possibly-self type reference.
+-- | A possibly-self type declaration reference.
 type TypeRReference = RReference
 
 type Id = Id' Hash
@@ -55,13 +60,14 @@ type Id = Id' Hash
 -- | A term reference id.
 type TermReferenceId = Id
 
--- | A type reference id.
+-- | A type declaration reference id.
 type TypeReferenceId = Id
 
+-- | Either a builtin or a user defined (hashed) top-level declaration. Used for both terms and types.
 data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Generic, Ord, Show)
 
 _RReferenceReference :: Prism' (Reference' t (Maybe h)) (Reference' t h)
 _RReferenceReference = prism embed project
@@ -90,8 +96,9 @@ pattern Derived h i = ReferenceDerived (Id h i)
 
 type Pos = Word64
 
+-- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id' h = Id h Pos
-  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 t_ :: Traversal (Reference' t h) (Reference' t' h) t t'
 t_ f = \case
@@ -106,20 +113,35 @@ h_ f = \case
 idH :: Lens (Id' h) (Id' h') h h'
 idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)
 
+idToHash :: Id -> Hash
+idToHash (Id h _) = h
+
+idToShortHash :: Id -> ShortHash
+idToShortHash = toShortHash . ReferenceDerived
+
 isBuiltin :: Reference -> Bool
-isBuiltin = \case
-  ReferenceBuiltin {} -> True
-  ReferenceDerived {} -> False
+isBuiltin (ReferenceBuiltin _) = True
+isBuiltin _ = False
+
+toId :: Reference -> Maybe Id
+toId =
+  preview _ReferenceDerived
+
+toShortHash :: Reference -> ShortHash
+toShortHash = \case
+  ReferenceBuiltin b -> SH.Builtin b
+  ReferenceDerived (Id h 0) -> SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
+  ReferenceDerived (Id h i) -> SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
+
+unsafeId :: Reference -> Id
+unsafeId = \case
+  ReferenceBuiltin b -> error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
+  ReferenceDerived x -> x
 
 -- | "Close" an RReference to a Reference by replacing all self-references with the given self-hash.
 closeRReference :: Hash -> RReference -> Reference
 closeRReference selfHash =
   h_ %~ fromMaybe selfHash
-
-toShortHash :: Reference -> ShortHash
-toShortHash (ReferenceBuiltin b) = SH.Builtin b
-toShortHash (ReferenceDerived (Id h 0)) = SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
-toShortHash (ReferenceDerived (Id h i)) = SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
 
 instance Bifunctor Reference' where
   bimap f _ (ReferenceBuiltin t) = ReferenceBuiltin (f t)

@@ -3,3 +3,17 @@ explanationOfThisFile = """
   Put definitions in here that are expected to
   parse with a different hash after pretty-printing.
   """
+
+-- This is expected to round trip with the ``` syntax, 
+-- even though the original didn't use that syntax and
+-- defined the eval block with a lambda rather than a delay.
+sloppyDocEval = 
+  docUntitledSection [ 
+    docParagraph [
+      docWord "Here's an example of an eval block that's",
+      docWord "technically a lambda but should print as a",
+      docWord "backticked block (since old docs in the wild",
+      docWord "still use this format)."
+    ],
+    docEval (_ -> 1 Nat.+ 1)
+  ]

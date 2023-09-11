@@ -17,6 +17,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.HashTags
+      U.Codebase.Reference
       U.Core.ABT
       U.Core.ABT.Var
       Unison.ConstructorType
@@ -46,8 +47,8 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedStrings
-      QuantifiedConstraints
       PatternSynonyms
+      QuantifiedConstraints
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
@@ -57,6 +58,7 @@ library
   build-depends:
       base
     , containers
+    , lens
     , recover-rtti
     , rfc5051
     , text

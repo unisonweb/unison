@@ -19,6 +19,7 @@ module Unison.Cli.Pretty
     prettyLabeledDependencies,
     prettyPath',
     prettyProjectAndBranchName,
+    prettyBranchName,
     prettyProjectBranchName,
     prettyProjectName,
     prettyProjectNameSlash,
@@ -220,6 +221,9 @@ prettySlashProjectBranchName branch =
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch project branch) =
   P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
+
+prettyBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
+prettyBranchName (ProjectAndBranch _ branch) = prettySlashProjectBranchName branch
 
 -- produces:
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0

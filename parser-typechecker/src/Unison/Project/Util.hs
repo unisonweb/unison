@@ -5,6 +5,7 @@ module Unison.Project.Util
     projectBranchSegment,
     projectPathPrism,
     projectBranchPathPrism,
+    pattern UUIDNameSegment
   )
 where
 
