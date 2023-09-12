@@ -140,6 +140,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
@@ -834,7 +835,7 @@ definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
       typeDeps =
         typeResults
           & ifoldMap \typeRef ddObj ->
-            foldMap (DD.labeledDeclDependenciesIncludingSelf typeRef) ddObj
+            foldMap (DD.labeledDeclDependenciesIncludingSelfAndFieldAccessors typeRef) ddObj
    in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
 
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
