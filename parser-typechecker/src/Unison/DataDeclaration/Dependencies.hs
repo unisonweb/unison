@@ -1,4 +1,13 @@
-module Unison.DataDeclaration.Dependencies (labeledDeclDependenciesIncludingSelfAndFieldAccessors) where
+module Unison.DataDeclaration.Dependencies
+  ( -- Too many variants of decl dependencies. Read carefully to choose the right one.
+    DD.declTypeDependencies,
+    DD.typeDependencies,
+    DD.labeledTypeDependencies,
+    DD.labeledDeclTypeDependencies,
+    DD.labeledDeclDependenciesIncludingSelf,
+    labeledDeclDependenciesIncludingSelfAndFieldAccessors,
+  )
+where
 
 import Control.Lens
 import Data.Map qualified as Map
