@@ -11,6 +11,7 @@ where
 
 import Control.Lens
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import U.Codebase.Reference qualified as V2Reference
 import Unison.DataDeclaration qualified as DD
@@ -20,6 +21,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Term qualified as Term
@@ -39,50 +41,52 @@ labeledDeclDependenciesIncludingSelfAndFieldAccessors selfRef decl =
   DD.labeledDeclDependenciesIncludingSelf selfRef decl
     <> case decl of
       Left _effect -> mempty
-      Right dataDecl -> accessorDependencies selfRef dataDecl
+      Right dataDecl ->
+        accessorRefs selfRef dataDecl
+          & Set.map LD.TermReferent
 
--- | Generate the Referents for field accessors of a Decl, which may or may not exist in the codebase
--- depending on whether the original type was defined as a Record.
-accessorDependencies :: forall v a. (Var.Var v) => Reference -> DD.DataDeclaration v a -> Set LD.LabeledDependency
-accessorDependencies declRef dd = fromMaybe mempty $ do
-  -- This ppe is only used for typechecking errors.
-  let ppe = PPE.empty
-  typ <- case DD.constructors dd of
-    [(_, typ)] -> Just typ
-    _ -> Nothing
-  -- These names are arbitrary and don't show up anywhere.
-  let vars :: [v]
-      vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  -- This name isn't important, we just need a name to generate field names from.
-  -- The field names are thrown away afterwards.
-  let typeName = Var.named "Type"
-  let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) typeName declRef
-  let typeLookup :: TypeLookup v ()
-      typeLookup =
-        TypeLookup
-          { TypeLookup.typeOfTerms = mempty,
-            TypeLookup.dataDecls = Map.singleton declRef (void dd),
-            TypeLookup.effectDecls = mempty
-          }
-  let typecheckingEnv :: Typechecker.Env v ()
-      typecheckingEnv =
-        Typechecker.Env
-          { Typechecker._ambientAbilities = mempty,
-            Typechecker._typeLookup = typeLookup,
-            Typechecker._termsByShortname = mempty
-          }
-  accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
-    for accessors \(v, _a, trm) ->
-      case Result.result (Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
-        Nothing -> Nothing
-        -- Note: Typechecker.synthesize doesn't normalize the output
-        -- type. We do so here using `Type.cleanup`, mirroring what's
-        -- done when typechecking a whole file and ensuring we get the
-        -- same inferred type.
-        Just typ -> Just (v, trm, Type.cleanup typ)
-  let hashes =
-        Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
-          & Map.elems
-          & setOf (folded . _1 . to (Reference.DerivedId >>> Referent.Ref >>> LD.TermReferent))
-  pure hashes
+-- | Generate Referents for all possible field accessors of a Decl.
+accessorRefs :: forall v a. (Var.Var v) => Reference -> DD.DataDeclaration v a -> Set Referent
+accessorRefs declRef dd =
+  fromMaybe mempty $ do
+    -- This ppe is only used for typechecking errors.
+    let ppe = PPE.empty
+    typ <- case DD.constructors dd of
+      [(_, typ)] -> Just typ
+      _ -> Nothing
+    -- These names are arbitrary and don't show up anywhere.
+    let vars :: [v]
+        vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
+    -- This name isn't important, we just need a name to generate field names from.
+    -- The field names are thrown away afterwards.
+    let typeName = Var.named "Type"
+    let accessors :: [(v, (), Term.Term v ())]
+        accessors = DD.generateRecordAccessors (map (,()) vars) typeName declRef
+    let typeLookup :: TypeLookup v ()
+        typeLookup =
+          TypeLookup
+            { TypeLookup.typeOfTerms = mempty,
+              TypeLookup.dataDecls = Map.singleton declRef (void dd),
+              TypeLookup.effectDecls = mempty
+            }
+    let typecheckingEnv :: Typechecker.Env v ()
+        typecheckingEnv =
+          Typechecker.Env
+            { Typechecker._ambientAbilities = mempty,
+              Typechecker._typeLookup = typeLookup,
+              Typechecker._termsByShortname = mempty
+            }
+    accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
+      for accessors \(v, _a, trm) ->
+        case Result.result (Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
+          Nothing -> Nothing
+          -- Note: Typechecker.synthesize doesn't normalize the output
+          -- type. We do so here using `Type.cleanup`, mirroring what's
+          -- done when typechecking a whole file and ensuring we get the
+          -- same inferred type.
+          Just typ -> Just (v, trm, Type.cleanup typ)
+    let accessorRefs =
+          Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
+            & Map.elems
+            & setOf (folded . _1 . to (Reference.DerivedId >>> Referent.Ref))
+    pure accessorRefs
