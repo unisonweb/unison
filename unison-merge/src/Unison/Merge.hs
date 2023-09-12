@@ -808,8 +808,49 @@ getTransitiveDependents refToDependencies scope query = search Map.empty query (
         isSeen = flip Set.member seen
 
 data Intervention v a
-  = IResolveConflict (NonEmpty DefnRef) (NonEmpty DefnRef) -- old(s) new(s)
-  | IKindCheck
+  = IResolveUpdateConflict (NonEmpty DefnRef) (NonEmpty DefnRef) -- old(s) new(s)
+  | IResolveAddConflict DefnRef DefnRef
+  | {-
+      Alice adds foo = #xxx
+                 bar = #xxx
+                 qux = #xxx
+      Bob   adds foo = #yyy
+                 bar = #zzz
+                 quux = #zzz
+
+      Scratch file:
+      foo = #xxx
+      foo = #yyy
+      -- do I care that #xxx has another name (qux)?
+
+      bar = #xxx
+      bar = #zzz
+      -- do I care that #xxx and #zzz have another name (qux and quux)?
+    -}
+
+    {-
+      What if I have a dependent that has a conflicted dependency with multiple names
+
+      cat#ccc = #ddd + 1 (from lca)
+      dog#ddd = <...> (from lca)
+      pig#ddd = <...> (add from alice)
+      pig#eee = <...> (add from bob)
+
+      What do I put into the scratch file?
+
+      pig = <#ddd>
+      pig = <#eee>
+      -- but do we put in more?
+      dog = <#ddd>
+      cat = ...what?
+        dog + 1
+        pig + 1
+        #ddd + 1
+      if we render cat
+
+    -}
+
+    IKindCheck
   | ITypeCheck
   deriving (Eq, Ord, Show)
 
@@ -868,29 +909,16 @@ data DefnTag = DtLca | DtLatest
 data EcHandle = EcHandle
   { -- any of these should be replaced by the synthesized result
     memberToEc :: DefnRef -> Maybe EC,
-    -- i.e. user update(s) RHS
-    ecUserUpdatedMembers :: EC -> Maybe (NonEmpty DefnRef),
-    -- i.e. LCA version(s)
-    -- note: we only look at original members if there are no user-updated members.
-    --       if there are no user-updated members, then these original members are should be
-    --       equal up to alpha equivalence, and it shouldn't matter which one we choose for anything
-    ecOriginalMembers :: EC -> NonEmpty DefnRef,
+    ecLatestMember :: EC -> LatestMember,
     -- use this for figuring out transitive dependents
     ecDependenciesRelation :: Relation EC EC
   }
 
-data LatestMember = LmLatest DefnRef | LmConflict (NonEmpty DefnRef) (NonEmpty DefnRef) deriving (Show)
-
-latestMember :: EcHandle -> EC -> LatestMember
-latestMember EcHandle {ecUserUpdatedMembers, ecOriginalMembers} ec =
-  case ecUserUpdatedMembers ec of
-    Just (updated :| []) -> LmLatest updated
-    Just updated -> LmConflict (ecOriginalMembers ec) updated
-    -- if there are no user-updated members but more than one original member,
-    -- that means that multiple original definitions were auto-propagated to the same new result
-    -- which means that any of the origianl definitions is an equally good starting point,
-    -- as they should be identical up to EC-canonical alpha-equivalence
-    Nothing -> LmLatest $ NonEmpty.head (ecOriginalMembers ec)
+data LatestMember
+  = LmLatest DefnRef -- normal case of single updateRHS; or arbitrary LCA definition, if all updates are auto-updates
+  | LmUpdateConflict (NonEmpty DefnRef) (NonEmpty DefnRef) -- LCA versions, and branch/updated versions
+  | LmAddConflict DefnRef DefnRef
+  deriving (Show)
 
 ecDependencies, ecDependents :: EcHandle -> EC -> Set EC
 ecDependencies eh ec = Relation.lookupDom ec (ecDependenciesRelation eh)
@@ -940,30 +968,33 @@ processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
               WiTerms ecs -> handleManyTerms typeLookup ecs
       where
         handleOneType :: EC -> m (NEMap EC (Result v a))
-        handleOneType ec = case latestMember ech ec of
+        handleOneType ec = case ecLatestMember ech ec of
           LmLatest (LD.DerivedType r) -> rewriteSingleDecl (memberToEc ech) finished ec <$> (r,) <$> loadDecl r
           LmLatest dr@(LD.BuiltinType {}) -> pure $ NEMap.singleton ec $ RSimple dr
           LmLatest (LD.TermReferent {}) -> error "handleOneType: latest member shouldn't be a term"
-          LmConflict {} -> error "handleOneType: this conflict should have been caught in the previous case block"
+          LmAddConflict {} -> error "handleOneType: this conflict should have been caught in the previous case block"
+          LmUpdateConflict {} -> error "handleOneType: this conflict should have been caught in the previous case block"
 
         checkForConflicts :: EC -> ValidateT (NEMap EC (Intervention v a)) m ()
-        checkForConflicts ec = case latestMember ech ec of
+        checkForConflicts ec = case ecLatestMember ech ec of
           LmLatest {} -> pure ()
-          LmConflict original updated -> Validate.dispute $ NEMap.singleton ec $ IResolveConflict original updated
+          LmAddConflict left right -> Validate.dispute $ NEMap.singleton ec $ IResolveAddConflict left right
+          LmUpdateConflict original updated -> Validate.dispute $ NEMap.singleton ec $ IResolveUpdateConflict original updated
 
-        handleOneTerm typeLookup ec = case latestMember ech ec of
+        handleOneTerm typeLookup ec = case ecLatestMember ech ec of
           LmLatest dr@(LD.BuiltinTerm {}) -> pure . NEMap.singleton ec $ RSimple dr
           LmLatest (LD.DerivedTerm r) -> handleManyTerms typeLookup (NESet.singleton ec) -- todo: single version?
           LmLatest (LD.ConReference {}) -> error "handleOneTerm: constructors should be grouped with their types"
           LmLatest (LD.TypeReference {}) -> error "handleOneTerm: latest member shouldn't be a type"
-          LmConflict original updated -> pure . NEMap.singleton ec $ RNeedsIntervention (IResolveConflict original updated)
+          LmAddConflict left right -> pure . NEMap.singleton ec . RNeedsIntervention $ IResolveAddConflict left right
+          LmUpdateConflict original updated -> pure . NEMap.singleton ec . RNeedsIntervention $ IResolveUpdateConflict original updated
 
         handleManyTerms :: TypeLookup v a -> NESet EC -> m (NEMap EC (Result v a))
         handleManyTerms typeLookup ecs = rewriteTermComponent typeLookup (memberToEc ech) finished <$> latestTerms
           where
             latestTerms = NEMap.fromSetM loadLatestMember ecs
             loadLatestMember :: EC -> m (V1.Term v a)
-            loadLatestMember ec = case latestMember ech ec of
+            loadLatestMember ec = case ecLatestMember ech ec of
               LmLatest (LD.DerivedType r) -> loadTerm r
               e -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show e
 
@@ -972,7 +1003,7 @@ processWorkItems loadTerm loadDecl ech = go Map.empty TL.empty
           where
             latestDecls = NEMap.fromSetA loadLatestDecl typeEcs
             loadLatestDecl :: EC -> m (V1.TypeReferenceId, V1.Decl v a)
-            loadLatestDecl ec = case latestMember ech ec of
+            loadLatestDecl ec = case ecLatestMember ech ec of
               LmLatest (LD.DerivedType r) -> fmap (r,) $ loadDecl r
               e -> error $ "handleManyTypes: we should only see loadable decls here, not " ++ show e
 

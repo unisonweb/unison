@@ -18,6 +18,7 @@ dependencies:
   - unison-core
   - unison-core1
   - unison-prelude
+  - unison-sqlite
   - unison-util-bimultimap
   - unison-util-relation
   - unison-codebase

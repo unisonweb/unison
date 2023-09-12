@@ -106,6 +106,7 @@ fromSetA f = \case
   Set.Tip -> pure Map.Tip
   Set.Bin sz x l r -> Map.Bin sz x <$> f x <*> fromSetA f l <*> fromSetA f r
 
+-- | \(O(n)\), strict
 fromSetM :: Monad f => (k -> f a) -> Set k -> f (Map k a)
 fromSetM f = \case
   Set.Tip -> pure Map.Tip
