@@ -4,6 +4,7 @@ import Data.Char (ord)
 import Data.Foldable (toList)
 import Data.Functor
 import Unison.ABT qualified as ABT
+import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
@@ -13,6 +14,7 @@ import Unison.Hashable qualified as H
 import Unison.Kind qualified as K
 import Unison.Pattern qualified as Pattern
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term (Term)
@@ -41,13 +43,13 @@ hashTerm ppe t = H.accumulate $ hashTermTokens ppe t
 -- the same sort of decl (both are data decls or both are effect decls),
 -- the unique type guid is the same, and the constructors appear in the
 -- same order and their types have the same syntactic hash.
-hashDecl :: Var v => PPE.PrettyPrintEnv -> Decl v a -> Hash
-hashDecl ppe t = H.accumulate $ hashDeclTokens ppe t
+hashDecl :: Var v => PPE.PrettyPrintEnv -> Reference -> Decl v a -> Hash
+hashDecl ppe r t = H.accumulate $ hashDeclTokens ppe r t
 
-hashDeclTokens :: Var v => PPE.PrettyPrintEnv -> Decl v a -> [Token]
-hashDeclTokens ppe = \case
-  Left (DD.EffectDeclaration dd) -> H.Tag 0 : go dd
-  Right dd -> H.Tag 1 : go dd
+hashDeclTokens :: Var v => PPE.PrettyPrintEnv -> Reference -> Decl v a -> [Token]
+hashDeclTokens ppe r = \case
+  Left (DD.EffectDeclaration dd) -> H.Tag 0 : go CT.Effect dd
+  Right dd -> H.Tag 1 : go CT.Data dd
   where
     goMod = \case
       DD.Structural -> [H.Tag 0]
@@ -55,9 +57,12 @@ hashDeclTokens ppe = \case
     goVs vs =
       H.Nat (fromIntegral (length vs)) : (H.Text . Var.name <$> vs)
     -- separating constructor types with tag of 99, which isn't used elsewhere
-    goCtor (_, _, ty) = H.Tag 99 : hashTypeTokens ppe ty
-    go (DD.DataDeclaration mod _ vs ctors) =
-      goMod mod <> goVs vs <> (ctors >>= goCtor)
+    goCtor ct ((_, _, ty), i) = H.Tag 99 : ctorName ct i : hashTypeTokens ppe ty
+    ctorName ct i =
+      let cr = ConstructorReference r i
+       in H.Text (HQ.toTextWith Name.toText $ PPE.termNameOrHashOnlyFq ppe (Referent.Con cr ct))
+    go ct (DD.DataDeclaration mod _ vs ctors) =
+      goMod mod <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
 
 hashKindTokens :: K.Kind -> [Token]
 hashKindTokens k = case k of
