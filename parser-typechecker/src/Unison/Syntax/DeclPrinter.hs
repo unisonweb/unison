@@ -154,7 +154,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  hashes <- DD.hashFieldAccessors env vars r dd
+  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes

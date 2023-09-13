@@ -57,10 +57,13 @@ fieldAccessorRefs declRef dd = do
   typ <- case DD.constructors dd of
     [(_, typ)] -> Just typ
     _ -> Nothing
+  -- This name isn't important, we just need a name to generate field names from.
+  -- The field names are thrown away afterwards.
+  let typeName = Var.named "Type"
   -- These names are arbitrary and don't show up anywhere.
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  hashFieldAccessors ppe vars declRef dd
+  hashFieldAccessors ppe typeName vars declRef dd
     <&> \accs ->
       Map.elems accs
         & setOf (folded . _1 . to (Reference.DerivedId >>> Referent.Ref))
@@ -71,18 +74,16 @@ hashFieldAccessors ::
   forall v a.
   (Var.Var v) =>
   PrettyPrintEnv ->
+  v ->
   [v] ->
   Reference ->
   DD.DataDeclaration v a ->
   ( Maybe
       (Map v (Reference.Id, Term.Term v (), Type.Type v ()))
   )
-hashFieldAccessors ppe vars declRef dd = do
-  -- This name isn't important, we just need a name to generate field names from.
-  -- The field names are thrown away afterwards.
-  let typeName = Var.named "Type"
+hashFieldAccessors ppe declName vars declRef dd = do
   let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) typeName declRef
+      accessors = DD.generateRecordAccessors (map (,()) vars) declName declRef
   let typeLookup :: TypeLookup v ()
       typeLookup =
         TypeLookup
