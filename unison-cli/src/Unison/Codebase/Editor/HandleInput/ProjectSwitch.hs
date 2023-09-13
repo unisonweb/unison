@@ -97,7 +97,11 @@ fuzzySelectProjectBranch = do
         Just (ProjectAndBranch p b, _path) -> Just (ProjectAndBranch (SqliteProject.projectId p) (SqliteProjectBranch.branchId b))
   allBranches <-
     Cli.runTransaction Queries.loadAllProjectBranchNamePairs
-      <&> filter \(_names, ids) -> Just ids /= mayCurrentPB
+      <&> \xs ->
+        xs
+          & filter (\(_names, ids) -> Just ids /= mayCurrentPB)
+          -- Put branches in our current project near the cursor for easy access.
+          & sortOn (\(_names, ProjectAndBranch {project = projectId}) -> Just projectId /= (project <$> mayCurrentPB))
   result <-
     liftIO $
       Fuzzy.fuzzySelect
