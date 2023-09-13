@@ -295,7 +295,13 @@ instance ToCapture (Capture "namespace" Path.Path) where
 instance ToJSON Path.Path where
   toJSON p = Aeson.String (tShow p)
 
+instance ToJSON Path.Absolute where
+  toJSON p = Aeson.String (tShow p)
+
 instance ToSchema Path.Path where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToSchema Path.Absolute where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance ToJSON (HQ.HashQualified Name) where

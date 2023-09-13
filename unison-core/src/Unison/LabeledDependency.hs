@@ -21,7 +21,7 @@ import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType (ConstructorType (Data, Effect))
 import Unison.Prelude hiding (fold)
-import Unison.Reference (Id, Reference (DerivedId))
+import Unison.Reference (Id, Reference, Reference' (DerivedId))
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 

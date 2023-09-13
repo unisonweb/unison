@@ -26,6 +26,8 @@ data RemoteProjectBranch = RemoteProjectBranch
     projectName :: ProjectName,
     branchId :: RemoteProjectBranchId,
     branchName :: ProjectBranchName,
-    branchHead :: Share.API.HashJWT
+    branchHead :: Share.API.HashJWT,
+    -- The hash of the squashed version of the branch head, if it was requested.
+    squashedBranchHead :: Maybe Share.API.HashJWT
   }
   deriving stock (Eq, Show, Generic)

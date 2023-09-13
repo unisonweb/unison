@@ -18,7 +18,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference (DerivedId))
+import Unison.Reference (Reference, Reference' (DerivedId))
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
@@ -76,7 +76,7 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
+          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -130,7 +130,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
           <> fmt S.TypeAscriptionColon " :"
-          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
