@@ -210,12 +210,17 @@
     [(unison-data _ t (list l))
      (cond
        [(= t unison-vlit-bytes:tag) l]
+       [(= t unison-vlit-char:tag) l]
        [(= t unison-vlit-bytearray:tag) l]
        [(= t unison-vlit-text:tag) l]
-       [(= t unison-vlit-typelink:tag) (reference->typelink l)]
        [(= t unison-vlit-termlink:tag) (referent->termlink l)]
-       [(= t unison-vlit-code:tag) (unison-code l)]
+       [(= t unison-vlit-typelink:tag) (reference->typelink l)]
+       [(= t unison-vlit-float:tag) l]
+       [(= t unison-vlit-pos:tag) l]
+       [(= t unison-vlit-neg:tag) (- l)]
        [(= t unison-vlit-quote:tag) (unison-quote l)]
+       [(= t unison-vlit-code:tag) (unison-code l)]
+       [(= t unison-vlit-array:tag) (vector-map reify-value l)]
        [(= t unison-vlit-seq:tag)
         ; TODO: better map over chunked list
         (vector->chunked-list
@@ -225,33 +230,19 @@
 
 (define (reify-value v)
   (match v
-    [(unison-data _ t (list rf rt us0 bs0))
+    [(unison-data _ t (list rf rt bs0))
      #:when (= t unison-value-data:tag)
-     (let ([us (chunked-list->list us0)]
-           [bs (map reify-value (chunked-list->list bs0))])
-       (cond
-         [(null? us) (make-data (reference->typelink rf) rt bs)]
-         [(and (null? bs) (= 1 (length us))) (car us)]
-         [else
-           (raise
-             (format
-               "reify-value: unimplemented data case: ~a"
-               (describe-value v)))]))]
-    [(unison-data _ t (list gr us0 bs0))
+     (let ([bs (map reify-value (chunked-list->list bs0))])
+       (make-data (reference->typelink rf) rt bs))]
+    [(unison-data _ t (list gr bs0))
      #:when (= t unison-value-partial:tag)
-     (let ([us (chunked-list->list us0)]
-           [bs (map reify-value (chunked-list->list bs0))])
-       (cond
-         [(null? us)
-          (let ([proc (resolve-proc gr)])
-            (apply proc bs))]
-         [else
-           (raise
-             "reify-value: unimplemented partial application case")]))]
+     (let ([bs (map reify-value (chunked-list->list bs0))]
+           [proc (resolve-proc gr)])
+       (apply proc bs))]
     [(unison-data _ t (list vl))
      #:when (= t unison-value-vlit:tag)
      (reify-vlit vl)]
-    [(unison-data _ t (list us0 bs0 k))
+    [(unison-data _ t (list bs0 k))
      #:when (= t unison-value-cont:tag)
      (raise "reify-value: unimplemented cont case")]
     [(unison-data r t fs)
@@ -287,16 +278,22 @@
 
 (define (reflect-value v)
   (match v
-    [(? number?)
-     (unison-value-data
-       (number-reference v)
-       0
-       (list->chunked-list (list v))
-       empty-chunked-list)]
+    [(? exact-nonnegative-integer?)
+     (unison-value-vlit (unison-vlit-pos v))]
+    [(? exact-integer?)
+     (unison-value-vlit (unison-vlit-neg (- v)))]
+    [(? inexact-real?)
+     (unison-value-vlit (unison-vlit-float v))]
+    [(? char?)
+     (unison-value-vlit (unison-vlit-char v))]
     [(? chunked-bytes?)
      (unison-value-vlit (unison-vlit-bytes v))]
     [(? bytes?)
      (unison-value-vlit (unison-vlit-bytearray v))]
+    [(? vector?)
+     (unison-value-vlit
+       (unison-vlit-array
+         (vector-map reflect-value v)))]
     [(? chunked-string?)
      (unison-value-vlit (unison-vlit-text v))]
     ; TODO: better map over chunked lists
@@ -314,18 +311,15 @@
     [(unison-closure f as)
      (unison-value-partial
        (function->groupref f)
-       empty-chunked-list
        (list->chunked-list (map reflect-value as)))]
     [(? procedure?)
      (unison-value-partial
        (function->groupref v)
-       empty-chunked-list
        empty-chunked-list)]
     [(unison-data rf t fs)
      (unison-value-data
        (reflect-typelink rf)
        t
-       empty-chunked-list
        (list->chunked-list (map reflect-value fs)))]))
 
 ; replacment for Value.unsafeValue : a -> Value
