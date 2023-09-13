@@ -344,7 +344,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                       pure
                         if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                           then Nothing
-                          else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                          else Just (ProjectSwitchI (Just $ ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
                     atomically $ Q.undequeue cmdQueue (Just p)

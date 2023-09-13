@@ -126,6 +126,7 @@ module U.Codebase.Sqlite.Queries
     loadAllProjectBranchesBeginningWith,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
+    loadAllProjectBranchNamePairs,
     loadProjectBranch,
     insertProjectBranch,
     renameProjectBranch,
@@ -376,7 +377,7 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
 import U.Util.Term qualified as TermUtil
-import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
@@ -3407,6 +3408,27 @@ loadAllProjectBranchesBeginningWith projectId mayPrefix =
           AND project_branch.name GLOB :prefixGlob
         ORDER BY project_branch.name ASC
       |]
+
+-- | Load ALL project/branch name pairs
+-- Useful for autocomplete/fuzzy-finding
+loadAllProjectBranchNamePairs :: Transaction [(ProjectAndBranch ProjectName ProjectBranchName, ProjectAndBranch ProjectId ProjectBranchId)]
+loadAllProjectBranchNamePairs =
+  queryListRow
+    [sql|
+      SELECT
+        project.name,
+        project_branch.name,
+        project.id,
+        project_branch.branch_id
+      FROM
+        project
+        JOIN project_branch ON project.id = project_branch.project_id
+      ORDER BY project.name ASC, project_branch.name ASC
+    |]
+    <&> fmap \(projectName, branchName, projectId, branchId) ->
+      ( ProjectAndBranch projectName branchName,
+        ProjectAndBranch projectId branchId
+      )
 
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --
