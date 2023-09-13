@@ -94,5 +94,3 @@ prepare = do
 .> load unison-src/transcripts-manual/benchmarks/array-sort.u
 .> run main
 ```
-
--- something with arrays
