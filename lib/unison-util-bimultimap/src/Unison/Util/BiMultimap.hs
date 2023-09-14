@@ -1,11 +1,15 @@
 -- | A left-unique relation.
 module Unison.Util.BiMultimap
-  ( BiMultimap (..),
+  ( BiMultimap,
     Unison.Util.BiMultimap.empty,
 
     -- ** Lookup
     lookupDom,
     lookupRan,
+
+    -- ** Maps
+    domain,
+    range,
 
     -- ** Sets
     ran,
@@ -53,7 +57,13 @@ lookupRan :: Ord b => b -> BiMultimap a b -> Maybe a
 lookupRan b (BiMultimap _ r) =
   Map.lookup b r
 
--- | Returns the domain in the relation, as a Set, in its entirety.
+domain :: BiMultimap a b -> Map a (NESet b)
+domain = toMultimap
+
+range :: BiMultimap a b -> Map b a
+range = toMapR
+
+-- | Returns the range in the relation, as a Set, in its entirety.
 --
 -- /O(a)/.
 ran :: BiMultimap a b -> Set b

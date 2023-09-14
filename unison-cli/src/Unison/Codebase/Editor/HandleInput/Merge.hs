@@ -57,14 +57,18 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
+import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import Unison.Referent qualified as V1
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
@@ -613,6 +617,31 @@ loadBranchDefinitionNames2 =
           where
             name = Name.fromReverseSegments (segment :| reversePrefix)
 
+deepnessToPpe :: BiMultimap TypeReference Name -> BiMultimap Referent Name -> PrettyPrintEnv
+deepnessToPpe typeNames termNames =
+  PrettyPrintEnv
+    ( \ref ->
+        BiMultimap.lookupDom (referent1to2 ref) termNames
+          & Set.lookupMin
+          & maybe [] nameToPpeEntry
+    )
+    ( \ref ->
+        BiMultimap.lookupDom ref typeNames
+          & Set.lookupMin
+          & maybe [] nameToPpeEntry
+    )
+  where
+    -- Our pretty-print env takes V1 referents, which have constructor types, but we can safely throw those constructor
+    -- types away, because the constructor reference is all we need to look up in our map.
+    referent1to2 :: V1.Referent -> Referent
+    referent1to2 = \case
+      V1.Con (ConstructorReference typeRef conId) _conTy -> Referent.Con typeRef conId
+      V1.Ref termRef -> Referent.Ref termRef
+
+    nameToPpeEntry :: Name -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+    nameToPpeEntry name =
+      [(HQ'.NameOnly name, HQ'.NameOnly name)]
+
 data DependencyDiff
   = AddDependency !CausalHash
   | DeleteDependency !CausalHash
@@ -763,7 +792,7 @@ relationToLuniqRelation relation =
 -- TODO move this helper to some other module
 luniqRelationToRelation :: forall a b. (Ord a, Ord b) => BiMultimap a b -> Relation a b
 luniqRelationToRelation =
-  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . BiMultimap.toMultimap
+  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . BiMultimap.domain
 
 -- | Return the set of elements that appear in at least two of the given sets.
 duplicates :: forall a. Ord a => [Set a] -> Set a
