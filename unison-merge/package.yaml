@@ -25,6 +25,7 @@ dependencies:
   - unison-codebase-sqlite-hashing-v2
   - unison-codebase-sqlite
   - unison-parser-typechecker
+  - unison-syntax
   - unison-hash
   - vector
 

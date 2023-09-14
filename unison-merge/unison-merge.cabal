@@ -19,6 +19,7 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge2
+      Unison.SyntacticHash
   hs-source-dirs:
       src
   default-extensions:
@@ -74,6 +75,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-sqlite
+    , unison-syntax
     , unison-util-bimultimap
     , unison-util-relation
     , vector

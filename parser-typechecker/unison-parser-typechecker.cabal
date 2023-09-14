@@ -144,7 +144,6 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
-      Unison.SyntacticHash
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
