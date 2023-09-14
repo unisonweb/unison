@@ -13,14 +13,17 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Name qualified as Name
+import Unison.Syntax.Name qualified as Name
 import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
 toNames :: (Var v) => UnisonFile v a -> Names
@@ -80,6 +83,30 @@ bindNames names (UnisonFileId d e ts ws) = do
   ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
+-- | Given the set of fully-qualified variable names, this computes
+-- a Map from unique suffixes to the fully qualified name.
+-- 
+-- Example, given [foo.bar, qux.bar, baz.quaffle], this returns:
+--
+-- Map [ foo.bar -> foo.bar
+--     , qux.bar -> qux.bar
+--     , baz.quaffle -> baz.quaffle
+--     , quaffle -> baz.quaffle 
+--     ] 
+-- 
+-- This is used to replace variable references in data decl signatures
+-- with their canonical fully qualified variables before hashing. 
+-- See usage below in `environmentFor`.
+variableCanonicalizer :: forall v . Var v => [v] -> Map v v
+variableCanonicalizer vs =
+  done $ List.multimap do
+    v <- vs
+    let n = Name.unsafeFromVar v
+    suffix <- Name.suffixes n
+    pure (Var.named (Name.toText suffix), v)
+  where
+    done xs = Map.fromList [ (k, v) | (k, [v]) <- Map.toList xs ]
+
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
@@ -94,7 +121,7 @@ environmentFor ::
   Map v (EffectDeclaration v a) ->
   Names.ResolutionResult v a (Either [Error v a] (Env v a))
 environmentFor names dataDecls0 effectDecls0 = do
-  let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
+  let locallyBoundTypes = variableCanonicalizer (Map.keys dataDecls0 <> Map.keys effectDecls0)
   -- data decls and hash decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration v a) <-
     traverse (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names) dataDecls0
