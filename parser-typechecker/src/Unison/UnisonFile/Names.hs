@@ -1,6 +1,7 @@
 module Unison.UnisonFile.Names where
 
 import Control.Lens
+import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
@@ -94,9 +95,11 @@ bindNames names (UnisonFileId d e ts ws) = do
 --     , quaffle -> baz.quaffle 
 --     ] 
 -- 
--- This is used to replace variable references in data decl signatures
--- with their canonical fully qualified variables before hashing. 
--- See usage below in `environmentFor`.
+-- This is used to replace variable references with their canonical 
+-- fully qualified variables.
+-- 
+-- It's used below in `environmentFor` and also during the term resolution
+-- process.
 variableCanonicalizer :: forall v . Var v => [v] -> Map v v
 variableCanonicalizer vs =
   done $ List.multimap do
@@ -105,7 +108,7 @@ variableCanonicalizer vs =
     suffix <- Name.suffixes n
     pure (Var.named (Name.toText suffix), v)
   where
-    done xs = Map.fromList [ (k, v) | (k, [v]) <- Map.toList xs ]
+    done xs = Map.fromList [ (k, v) | (k, nubOrd -> [v]) <- Map.toList xs ]
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
