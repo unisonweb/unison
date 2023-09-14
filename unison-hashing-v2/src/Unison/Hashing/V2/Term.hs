@@ -4,6 +4,7 @@ module Unison.Hashing.V2.Term
     MatchCase (..),
     hashClosedTerm,
     hashTermComponents,
+    hashTermComponentsSimple,
     hashTermComponentsWithoutTypes,
   )
 where
@@ -88,6 +89,18 @@ ref a r = ABT.tm' a (TermRef r)
 
 refId :: (Ord v) => a -> ReferenceId -> Term2 vt at ap v a
 refId a = ref a . ReferenceDerivedId
+
+-- | Like hashTermComponents but without any extra data.
+hashTermComponentsSimple ::
+  forall v a.
+  (Var v) =>
+  Map v (Term v a, Type v a) ->
+  Map v (ReferenceId, Term v a, Type v a)
+hashTermComponentsSimple terms =
+  terms
+    & fmap (\(trm, typ) -> (trm, typ, ()))
+    & hashTermComponents
+    & fmap (\(refId, trm, typ, ()) -> (refId, trm, typ))
 
 hashTermComponents ::
   forall v a extra.

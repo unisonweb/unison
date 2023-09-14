@@ -447,6 +447,7 @@ loadTermComponent :: H.Hash -> MaybeT Transaction [(C.Term Symbol, C.Term.Type S
 loadTermComponent h = do
   oid <- MaybeT (Q.loadObjectIdForAnyHash h)
   S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObject oid decodeTermFormat)
+
   lift . traverse (uncurry3 Q.s2cTermWithType) $ Foldable.toList elements
 
 loadTermWithTypeByReference :: C.Reference.Id -> MaybeT Transaction (C.Term Symbol, C.Term.Type Symbol)

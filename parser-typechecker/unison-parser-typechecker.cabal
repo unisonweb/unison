@@ -94,7 +94,8 @@ library
       Unison.Codebase.Verbosity
       Unison.CodebasePath
       Unison.FileParsers
-      Unison.Hashing.V2.Convert
+      Unison.Hashing.V2.Convert.Memory
+      Unison.Hashing.V2.Convert.Sqlite
       Unison.Parsers
       Unison.PatternMatchCoverage
       Unison.PatternMatchCoverage.Class

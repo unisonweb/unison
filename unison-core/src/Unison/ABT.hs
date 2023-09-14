@@ -680,7 +680,7 @@ find' ::
   [Term f v a]
 find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
-components :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components :: Ord v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
 -- Converts to strongly connected components while preserving the

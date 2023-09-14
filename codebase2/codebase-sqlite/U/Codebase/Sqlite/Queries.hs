@@ -389,6 +389,7 @@ import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
+import UnliftIO qualified
 
 debug :: Bool
 debug = False
@@ -2792,7 +2793,7 @@ saveSyncEntity hh hash entity = do
     Entity.TC stf -> do
       lic :: TermFormat.LocallyIndexedComponent <- do
         let TermFormat.SyncTerm x = stf
-        unsafeIO (unsyncTermComponent x)
+        unsafeIO $ either UnliftIO.throwIO pure (unsyncTermComponent x)
 
       tc :: [(C.Term Symbol, C.Term.Type Symbol)] <-
         traverse
@@ -2804,7 +2805,7 @@ saveSyncEntity hh hash entity = do
     Entity.DC sdf -> do
       lic :: S.Decl.LocallyIndexedComponent <- do
         let S.Decl.SyncDecl xs = sdf
-        unsafeIO (unsyncDeclComponent xs)
+        unsafeIO $ either UnliftIO.throwIO pure (unsyncDeclComponent xs)
 
       dc :: [C.Decl.Decl Symbol] <-
         traverse

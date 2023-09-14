@@ -1,7 +1,6 @@
-{-# LANGUAGE PartialTypeSignatures #-}
 
--- | Description: Converts V1 types to the V2 hashing types
-module Unison.Hashing.V2.Convert
+-- | Description: Converts Sqlite sotrage types to the V2 hashing types
+module Unison.Hashing.V2.Convert.Sqlite
   ( ResolutionResult,
     hashBranch0,
     hashCausal,

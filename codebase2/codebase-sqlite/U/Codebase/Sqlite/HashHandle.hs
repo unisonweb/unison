@@ -30,8 +30,12 @@ data HashHandle = HashHandle
       -- The causal's parents
       Set CausalHash ->
       CausalHash,
+    -- Helpers for hashing definitions with hash references
+    -- that may or may not have their dependencies in the codebase yet.
     hashBranchFormatFull ::
       HashBranchLocalIds ->
       LocalBranch ->
       BranchHash
+    -- hashTermFormat :: 
+      
   }
