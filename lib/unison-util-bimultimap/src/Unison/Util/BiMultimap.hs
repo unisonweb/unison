@@ -7,6 +7,9 @@ module Unison.Util.BiMultimap
     lookupDom,
     lookupRan,
 
+    -- ** Traverse
+    unsafeTraverseDom,
+
     -- ** Maps
     domain,
     range,
@@ -29,13 +32,14 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 
 -- | A left-unique relation.
 --
 -- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
-  { toMultimap :: Map a (NESet b),
-    toMapR :: Map b a
+  { toMultimap :: !(Map a (NESet b)),
+    toMapR :: !(Map b a)
   }
   deriving (Eq, Ord, Show)
 
@@ -56,6 +60,18 @@ lookupDom a (BiMultimap l _) =
 lookupRan :: Ord b => b -> BiMultimap a b -> Maybe a
 lookupRan b (BiMultimap _ r) =
   Map.lookup b r
+
+-- | Traverse over the domain a left-unique relation.
+--
+-- The caller is responsible for maintaining left-uniqueness.
+unsafeTraverseDom :: forall a b m x. (Monad m, Ord b, Ord x) => (a -> m b) -> BiMultimap a x -> m (BiMultimap b x)
+unsafeTraverseDom f m =
+  foldr g pure (Map.toList (domain m)) Unison.Util.BiMultimap.empty
+  where
+    g :: (a, NESet x) -> (BiMultimap b x -> m (BiMultimap b x)) -> (BiMultimap b x -> m (BiMultimap b x))
+    g (a, xs) acc (BiMultimap domain0 range0) = do
+      !b <- f a
+      acc $! BiMultimap (Map.insert b xs domain0) (deriveRangeFromDomain b xs range0)
 
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
@@ -99,18 +115,26 @@ data UpsertResult old
   | Inserted -- Inserted something new
   | Replaced old -- Replaced what was there, here's the old thing
 
--- | Like @insert x y@, except the caller is responsible for ensuring that @y@ is not already related to a different
--- @x@.
+-- | Like @insert x y@, but the caller is responsible maintaining left-uniqueness.
 unsafeInsert :: (Ord a, Ord b) => a -> b -> BiMultimap a b -> BiMultimap a b
 unsafeInsert x y (BiMultimap xs ys) =
   BiMultimap
     (Map.upsert (maybe (Set.NonEmpty.singleton y) (Set.NonEmpty.insert y)) x xs)
     (Map.insert y x ys)
 
--- | Union two left-unique relations together. The caller is responsible for ensuring that for all @(x, y)@ in either
--- input relation, @y@ is only associated with only @x@ across both relations, i.e. the result is left-unique as well.
+-- | Union two left-unique relations together.
+--
+-- The caller is responsible for maintaining left-uniqueness.
 unsafeUnion :: (Ord a, Ord b) => BiMultimap a b -> BiMultimap a b -> BiMultimap a b
 unsafeUnion xs ys =
   BiMultimap
     (Map.unionWith Set.NonEmpty.union (toMultimap xs) (toMultimap ys))
     (Map.union (toMapR xs) (toMapR ys))
+
+------------------------------------------------------------------------------------------------------------------------
+
+-- @deriveRangeFromDomain x ys range@ is a helper that inserts @(x, y1)@, @(x, y2)@, ... into range @r@.
+deriveRangeFromDomain :: Ord b => a -> NESet b -> Map b a -> Map b a
+deriveRangeFromDomain x ys acc =
+  foldr (flip Map.insert x) acc ys
+{-# INLINE deriveRangeFromDomain #-}

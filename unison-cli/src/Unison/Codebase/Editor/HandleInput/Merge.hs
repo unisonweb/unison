@@ -59,6 +59,8 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Core.ConstructorId (ConstructorId)
+import Unison.DataDeclaration qualified as V1 (Decl)
+import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
@@ -68,12 +70,16 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import Unison.Referent qualified as V1
+import Unison.Referent qualified as V1 (Referent)
+import Unison.Referent qualified as V1.Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
+import Unison.SyntacticHash qualified as SyntacticHash
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Term qualified as V1 (Term)
+import Unison.Type qualified as V1 (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.List qualified as List
@@ -83,6 +89,7 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
 import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
+import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
 
@@ -635,12 +642,34 @@ deepnessToPpe typeNames termNames =
     -- types away, because the constructor reference is all we need to look up in our map.
     referent1to2 :: V1.Referent -> Referent
     referent1to2 = \case
-      V1.Con (ConstructorReference typeRef conId) _conTy -> Referent.Con typeRef conId
-      V1.Ref termRef -> Referent.Ref termRef
+      V1.Referent.Con (ConstructorReference typeRef conId) _conTy -> Referent.Con typeRef conId
+      V1.Referent.Ref termRef -> Referent.Ref termRef
 
     nameToPpeEntry :: Name -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
     nameToPpeEntry name =
       [(HQ'.NameOnly name, HQ'.NameOnly name)]
+
+syntacticallyHashDecls ::
+  (Monad m, Var v) =>
+  (TypeReference -> m (V1.Decl v a)) ->
+  PrettyPrintEnv ->
+  BiMultimap TypeReference Name ->
+  m (BiMultimap Hash Name)
+syntacticallyHashDecls loadDecl ppe =
+  BiMultimap.unsafeTraverseDom \ref -> do
+    decl <- loadDecl ref
+    pure (SyntacticHash.hashDecl ppe ref decl)
+
+syntacticallyHashTerms ::
+  (Monad m, Var v) =>
+  (TermReference -> m (V1.Term v a)) ->
+  PrettyPrintEnv ->
+  BiMultimap TypeReference Name ->
+  m (BiMultimap Hash Name)
+syntacticallyHashTerms loadTerm ppe =
+  BiMultimap.unsafeTraverseDom \ref -> do
+    term <- loadTerm ref
+    pure (SyntacticHash.hashTerm ppe term)
 
 data DependencyDiff
   = AddDependency !CausalHash
