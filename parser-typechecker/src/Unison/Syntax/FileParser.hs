@@ -40,7 +40,6 @@ file = do
   -- The file may optionally contain top-level imports,
   -- which are parsed and applied to the type decls and term stanzas
   (namesStart, imports) <- TermParser.imports <* optional semi
-  -- todo: I'm guessing parsedAccessors isn't making it into the suffixified names resolution process
   (dataDecls, effectDecls, parsedAccessors) <- declarations
   env <- case UFN.environmentFor (NamesWithHistory.currentNames namesStart) dataDecls effectDecls of
     Right (Right env) -> pure env
