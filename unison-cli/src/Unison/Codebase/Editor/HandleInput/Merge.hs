@@ -671,6 +671,18 @@ syntacticallyHashTerms loadTerm ppe =
     term <- loadTerm ref
     pure (SyntacticHash.hashTerm ppe term)
 
+data Op a = Added !a | UpdatedTo !a | Deleted
+
+diffish :: Ord name => BiMultimap hash name -> BiMultimap hash name -> Map name (Op hash)
+diffish old new =
+  alignWith f (BiMultimap.range old) (BiMultimap.range new)
+  where
+    f :: These hash hash -> Op hash
+    f = \case
+      This x -> Deleted
+      That x -> Added x
+      These _ x -> UpdatedTo x
+
 data DependencyDiff
   = AddDependency !CausalHash
   | DeleteDependency !CausalHash
