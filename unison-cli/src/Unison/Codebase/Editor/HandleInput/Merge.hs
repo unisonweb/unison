@@ -6,6 +6,7 @@ where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Lens (Lens', mapped, over, traverseOf, (.~), (^.), (^?), _1)
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Writer.CPS (execWriter)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bimap (Bimap)
@@ -543,6 +544,74 @@ loadBranchDefinitionNames =
         g name (T2 accDatacons accTerms) = \case
           Referent.Ref ref -> T2 accDatacons (Relation.insert name ref accTerms)
           Referent.Con ref cid -> T2 (Relation3.insert name ref cid accDatacons) accTerms
+
+-- | Load all term and type names from a branch (excluding dependencies) into memory.
+--
+-- Fails if:
+--   * One name is associated with more than one reference.
+loadBranchDefinitionNames2 ::
+  forall m.
+  Monad m =>
+  Branch m ->
+  -- TODO better failure type than text
+  m (Either Text (T2 (BiMultimap TypeReference Name) (BiMultimap Referent Name)))
+loadBranchDefinitionNames2 =
+  runExceptT . go []
+  where
+    go ::
+      [NameSegment] ->
+      Branch m ->
+      ExceptT Text m (T2 (BiMultimap TypeReference Name) (BiMultimap Referent Name))
+    go reversePrefix branch = do
+      types <- ExceptT (pure (branchTypeNames reversePrefix branch))
+      terms <- ExceptT (pure (branchTermNames reversePrefix branch))
+
+      T2 childrenTypes childrenTerms <- do
+        childrenNames <-
+          for (Map.toList (Branch.children branch)) \(childName, childCausal) -> do
+            childBranch <- lift (Causal.value childCausal)
+            go (childName : reversePrefix) childBranch
+        -- These unions are safe because names of one child (e.g. "child1.foo.bar") can't equal the names of any other
+        -- child (e.g. "child2.baz.qux").
+        let combine (T2 xs0 ys0) (T2 xs1 ys1) =
+              T2 (BiMultimap.unsafeUnion xs0 xs1) (BiMultimap.unsafeUnion ys0 ys1)
+        pure (foldr combine (T2 BiMultimap.empty BiMultimap.empty) childrenNames)
+
+      -- These unions are safe because the names at this level (e.g. "foo.bar.baz") can't equal the names at deeper
+      -- levels (e.g. "foo.bar.baz.qux")
+      let allTypes = BiMultimap.unsafeUnion types childrenTypes
+      let allTerms = BiMultimap.unsafeUnion terms childrenTerms
+      pure (T2 allTypes allTerms)
+
+    branchTypeNames :: [NameSegment] -> Branch m -> Either Text (BiMultimap TypeReference Name)
+    branchTypeNames reversePrefix branch =
+      branchDefnNames reversePrefix (Branch.types branch)
+
+    branchTermNames :: [NameSegment] -> Branch m -> Either Text (BiMultimap Referent Name)
+    branchTermNames reversePrefix branch =
+      branchDefnNames reversePrefix (Branch.terms branch)
+
+    branchDefnNames ::
+      forall metadata ref.
+      Ord ref =>
+      [NameSegment] ->
+      Map NameSegment (Map ref metadata) ->
+      Either Text (BiMultimap ref Name)
+    branchDefnNames reversePrefix =
+      foldr f (Right BiMultimap.empty) . Map.toList
+      where
+        f ::
+          (NameSegment, Map ref metadata) ->
+          Either Text (BiMultimap ref Name) ->
+          Either Text (BiMultimap ref Name)
+        f (segment, refs) = \case
+          Left err -> Left err
+          Right acc ->
+            case Set.asSingleton (Map.keysSet refs) of
+              Nothing -> Left ("multiple refs with name " <> Name.toText name)
+              Just ref -> Right (BiMultimap.insert ref name acc)
+          where
+            name = Name.fromReverseSegments (segment :| reversePrefix)
 
 data DependencyDiff
   = AddDependency !CausalHash

@@ -13,6 +13,9 @@ module Unison.Util.BiMultimap
     -- ** Insert
     insert,
     unsafeInsert,
+
+    -- ** Union
+    unsafeUnion,
   )
 where
 
@@ -24,6 +27,8 @@ import Unison.Prelude
 import Unison.Util.Map qualified as Map
 
 -- | A left-unique relation.
+--
+-- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
   { toMultimap :: Map a (NESet b),
     toMapR :: Map b a
@@ -85,9 +90,17 @@ data UpsertResult old
   | Replaced old -- Replaced what was there, here's the old thing
 
 -- | Like @insert x y@, except the caller is responsible for ensuring that @y@ is not already related to a different
--- @x@. If it is, the resulting relation will have an internal structural violation.
+-- @x@.
 unsafeInsert :: (Ord a, Ord b) => a -> b -> BiMultimap a b -> BiMultimap a b
 unsafeInsert x y (BiMultimap xs ys) =
   BiMultimap
     (Map.upsert (maybe (Set.NonEmpty.singleton y) (Set.NonEmpty.insert y)) x xs)
     (Map.insert y x ys)
+
+-- | Union two left-unique relations together. The caller is responsible for ensuring that for all @(x, y)@ in either
+-- input relation, @y@ is only associated with only @x@ across both relations, i.e. the result is left-unique as well.
+unsafeUnion :: (Ord a, Ord b) => BiMultimap a b -> BiMultimap a b -> BiMultimap a b
+unsafeUnion xs ys =
+  BiMultimap
+    (Map.unionWith Set.NonEmpty.union (toMultimap xs) (toMultimap ys))
+    (Map.union (toMapR xs) (toMapR ys))
