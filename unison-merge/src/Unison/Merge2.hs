@@ -81,43 +81,32 @@ import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.Var qualified as V1.Var
 
-data Diff = Diff
-  { terms :: Map Name (Maybe Termy),
-    types :: Map Name (Maybe Typey)
+newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
+
+data DeepStuff = DeepStuff
+  { dsTerms :: Map Name Referent,
+    dsTypes :: Map Name TypeReference
   }
-  deriving (Show)
 
-instance Semigroup Diff where
-  l <> r = Diff (terms l <> terms r) (types l <> types r)
+data SynHashes = SynHashes
+  { shTerms :: Map Name SynHash,
+    shTypes :: Map Name SynHash
+  }
 
-instance Monoid Diff where
-  mempty = Diff mempty mempty
-  mappend = (<>)
+data DiffOp
+  = DoAdded SynHash
+  | DoUpdated SynHash
+  | DoDeleted
 
-data Termy
-  = TmTerm (V1.Term Symbol ())
-  | TmCtor V1.ConstructorReferenceId ConstructorType
-  | TmBuiltin Text
-  deriving (Eq, Show)
+data Diff = Diff
+  { diffTerms :: Map Name DiffOp,
+    diffTypes :: Map Name DiffOp
+  }
 
-data Typey
-  = TyDecl (V1.Decl Symbol ())
-  | TyBuiltin Text
-  deriving (Eq, Show)
+data DiffConflicts = DiffConflicts
+  { dcTerms :: Set Name,
+    dcTypes :: Set Name
+  }
 
-diffBranches :: V2.Branch Sqlite.Transaction -> V2.Branch Sqlite.Transaction -> Sqlite.Transaction Diff
-diffBranches old new = go old new Nothing
-  where
-    go old new prefix = wundefined
-
-findConflicts :: Diff -> Diff -> (Set Name, Set Name)
-findConflicts a b = (termConflicts, typeConflicts)
-  where
-    termConflicts = findConflicts' (terms a) (terms b)
-    typeConflicts = findConflicts' (types a) (types b)
-
-    findConflicts' :: Eq a => Map Name (Maybe a) -> Map Name (Maybe a) -> Set Name
-    findConflicts' a b = Map.keysSet $ Map.intersectionWithKey f a b
-
-    f :: Eq a => Name -> Maybe a -> Maybe a -> Maybe Name
-    f k l r = if l /= r then Just k else Nothing
+data MaterializedThing
+  = MaterializedType
