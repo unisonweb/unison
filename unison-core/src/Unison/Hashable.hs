@@ -1,4 +1,4 @@
-module Unison.Hashable (accumulate', hash, toBytes) where
+module Unison.Hashable (accumulate', accumulate, hash, toBytes, tokens, Token (..)) where
 
 import Crypto.Hash qualified as CH
 import Data.ByteArray qualified as BA
