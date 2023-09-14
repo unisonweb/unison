@@ -83,7 +83,7 @@ import Unison.Var qualified as V1.Var
 
 newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
 
-data DeepStuff = DeepStuff
+data DeepRefs = DeepRefs
   { dsTerms :: Map Name Referent,
     dsTypes :: Map Name TypeReference
   }
