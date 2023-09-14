@@ -673,15 +673,29 @@ syntacticallyHashTerms loadTerm ppe =
 
 data Op a = Added !a | UpdatedTo !a | Deleted
 
-diffish :: Ord name => BiMultimap hash name -> BiMultimap hash name -> Map name (Op hash)
+-- diffish(lca, alice)
+diffish :: forall hash name. (Eq hash, Ord name) => BiMultimap hash name -> BiMultimap hash name -> Map name (Op hash)
 diffish old new =
-  alignWith f (BiMultimap.range old) (BiMultimap.range new)
+  Map.mapMaybe id (alignWith f (BiMultimap.range old) (BiMultimap.range new))
   where
-    f :: These hash hash -> Op hash
+    f :: These hash hash -> Maybe (Op hash)
     f = \case
-      This x -> Deleted
-      That x -> Added x
-      These _ x -> UpdatedTo x
+      This x -> Just Deleted
+      That x -> Just (Added x)
+      These x y
+        | x == y -> Nothing
+        | otherwise -> Just (UpdatedTo x)
+
+-- conflictsish(diffish(lca, alice), diffish(lca, bob))
+conflictsish :: forall hash name. (Eq hash, Ord name) => Map name (Op hash) -> Map name (Op hash) -> Set name
+conflictsish aliceDiff bobDiff =
+  Map.keysSet (Map.mapMaybe id (alignWith f aliceDiff bobDiff))
+  where
+    f :: These (Op hash) (Op hash) -> Maybe ()
+    f = \case
+      These (Added x) (Added y) | x /= y -> Just ()
+      These (UpdatedTo x) (UpdatedTo y) | x /= y -> Just ()
+      _ -> Nothing
 
 data DependencyDiff
   = AddDependency !CausalHash
