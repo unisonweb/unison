@@ -10,26 +10,20 @@ import Unison.DataDeclaration
     toDataDecl,
   )
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
-import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference, Reference' (DerivedId))
 import Unison.Referent qualified as Referent
-import Unison.Result qualified as Result
 import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
-import Unison.Term qualified as Term
 import Unison.Type qualified as Type
-import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
@@ -160,35 +154,10 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-  let typeLookup :: TypeLookup v ()
-      typeLookup =
-        TypeLookup
-          { TypeLookup.typeOfTerms = mempty,
-            TypeLookup.dataDecls = Map.singleton r (void dd),
-            TypeLookup.effectDecls = mempty
-          }
-  let typecheckingEnv :: Typechecker.Env v ()
-      typecheckingEnv =
-        Typechecker.Env
-          { Typechecker._ambientAbilities = mempty,
-            Typechecker._typeLookup = typeLookup,
-            Typechecker._termsByShortname = mempty
-          }
-  accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
-    for accessors \(v, _a, trm) ->
-      case Result.result (Typechecker.synthesize env Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
-        Nothing -> Nothing
-        -- Note: Typechecker.synthesize doesn't normalize the output
-        -- type. We do so here using `Type.cleanup`, mirroring what's
-        -- done when typechecking a whole file and ensuring we get the
-        -- same inferred type.
-        Just typ -> Just (v, trm, Type.cleanup typ)
-  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ, ()))) $ accessorsWithTypes)
+  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-          | r <- (\(refId, _trm, _typ, _ann) -> refId) <$> Map.elems hashes
+          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
         ]
   let fieldNames =
         Map.fromList
@@ -200,7 +169,7 @@ fieldNames env r name dd = do
       Just
         [ HQ.unsafeFromString name
           | v <- vars,
-            Just (ref, _, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
+            Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
             Just name <- [Map.lookup ref fieldNames]
         ]
     else Nothing
