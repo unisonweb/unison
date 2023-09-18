@@ -45,6 +45,7 @@ import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
+import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.FileParsers qualified as FP
@@ -56,6 +57,7 @@ import Unison.Name (Name)
 import Unison.PatternMatchCoverage.UFMap (UFMap)
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference qualified as V1
 import Unison.Reference qualified as V1.Reference
 import Unison.Referent qualified as V1.Referent
@@ -103,10 +105,88 @@ data Diff = Diff
     diffTypes :: Map Name DiffOp
   }
 
+-- for updated definitions, we want to know which branch to find the updated version in
+-- for transitive dependents of updates (which are not updates themselves), we don't care which version we get
+-- for conflicted definitions, we need to print both versions, but we don't typecheck anything
+
 data DiffConflicts = DiffConflicts
   { dcTerms :: Set Name,
     dcTypes :: Set Name
   }
 
-data MaterializedThing
-  = MaterializedType
+-- termDependencies :: (Reference.Id -> m (Term Symbol ()) -> PrettyPrintEnv -> Handle__
+-- termDependencies
+-- dependencies :: Relation Name (Either Name LabeledDependency)
+
+deepRefsToPPE :: DeepRefs -> PrettyPrintEnv = wundefined
+
+type LoadTerm m = TermReferenceId -> m ()
+
+type LoadDecl m = TypeReferenceId -> m ()
+
+computeSyntacticHashes :: Applicative m => LoadTerm m -> LoadDecl m -> DeepRefs -> PrettyPrintEnv -> m SynHashes
+computeSyntacticHashes loadTerm loadDecl deepRefs ppe = pure wundefined
+
+computeDiff :: SynHashes -> SynHashes -> Diff
+computeDiff old new = wundefined
+
+computeConflicts :: Diff -> Diff -> DiffConflicts
+computeConflicts a b = wundefined
+
+-- merge :: Applicative m => DeepRefs -> DeepRefs -> DeepRefs -> m DeepRefs
+-- merge ppe lca a b =
+--   pure wundefined
+
+-- typecheckStuff = wundefined
+-- writeStuffToScratchFile = wundefined
+-- writeStuffToNamespace
+
+-- we're either going to find the name in alice's deeprefs or bob's
+-- (or LCA?)
+
+-- figure
+
+-- if no conflicts:
+---- figure out what we want to typecheck
+
+-- | e.g. all updates, and their transitive dependents
+data ToTypecheckIn = ToTypecheckIn
+  { ttiTerms :: _,
+    ttiTypes :: _
+  }
+
+data ToTypecheckOut = ToTypecheckOut
+  { ttoTerms :: _,
+    ttoTypes :: _
+  }
+
+data BranchHandle m = BranchHandle
+  { bhTransitiveDependents :: LabeledDependency -> m (Set LabeledDependency),
+    bhUpdates :: Map Name Hash,
+    bhNameToTypeRef :: Name -> Maybe TypeReference,
+    bhNameToTermRef :: Name -> Maybe Referent,
+    bhTypeRefToName :: TypeReference -> Maybe Name,
+    bhTermRefToName :: Referent -> Maybe Name
+  }
+
+data WhichBranch = Alice | Bob
+
+whatToTypecheck :: (BranchHandle m, ToTypecheckIn) -> (BranchHandle m, ToTypecheckIn) -> m ToTypecheckOut
+whatToTypecheck (bhAlice, ttiAlice) (bhBob, ttiBob) = do
+  for ()
+  wundefined
+
+--
+---- load what we want to typecheck in a suitable form for typechecking
+------ synthesizeFile :: Env v a -> UnisonFile v a -> ResultT (Seq (Note v a)) m (UF.TypecheckedUnisonFile v a)
+---- conditionally construct a new namespace and/or scratch file
+------ namespace
+-------- create name mapping for result
+------ scratch file
+-------- create a PPE suitable for scratch-filing if different from the one we used for typechecking
+--
+---- thingsWeNeedToTweakAndTypecheck :: (DeepRefs, Diff) -> (DeepRefs, Diff) -> DeepRefs
+---- thingsWeNeedToTweakAndTypecheck (aRefs, aDiff) (bRefs, bDiff) = wundefined
+
+-- if yes conflicts:
+----
