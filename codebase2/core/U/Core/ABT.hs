@@ -2,7 +2,8 @@
 
 module U.Core.ABT where
 
-import Control.Monad (join)
+import Control.Lens (Lens', use, (.=))
+import Control.Monad.State
 import Data.Foldable qualified as Foldable
 import Data.Functor.Identity (Identity (runIdentity))
 import Data.Maybe (fromMaybe)
@@ -302,3 +303,24 @@ rename old new t0@(Term fvs ann t) =
               else -- nothing special, just rename inside body of Abs
                 abs ann v (rename old new body)
       Tm v -> tm ann (fmap (rename old new) v)
+
+allVars :: (Foldable f) => Term f v a -> [v]
+allVars t = case out t of
+  Var v -> [v]
+  Cycle body -> allVars body
+  Abs v body -> v : allVars body
+  Tm v -> Foldable.toList v >>= allVars
+
+-- | Freshens the given variable wrt. the set of used variables
+-- tracked by state. Adds the result to the set of used variables.
+freshenS :: (Var v, MonadState (Set v) m) => v -> m v
+freshenS = freshenS' id
+
+-- | A more general version of `freshenS` that uses a lens
+-- to focus on used variables inside state.
+freshenS' :: (Var v, MonadState s m) => Lens' s (Set v) -> v -> m v
+freshenS' uvLens v = do
+  usedVars <- use uvLens
+  let v' = freshIn usedVars v
+  uvLens .= Set.insert v' usedVars
+  pure v'

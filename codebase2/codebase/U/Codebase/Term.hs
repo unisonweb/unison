@@ -1,6 +1,5 @@
 module U.Codebase.Term where
 
-import Control.Lens hiding (List)
 import Control.Monad.State
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
@@ -9,6 +8,7 @@ import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
@@ -218,39 +218,38 @@ dependencies =
     termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
     typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
 
--- -- | Fills in all 'Nothing' hashes with the provided hash.
--- reifySelfReferences :: forall v. Hash -> Term v -> HashableTerm v
--- reifySelfReferences h =
---   extraMap id (over h_ (fromMaybe h)) id id id id
-
 -- | Given the pieces of a single term component,
--- replaces all 'Nothing' self-referential hashes with a user variable reference
+-- replaces all 'Nothing' self-referential hashes with a variable reference
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
   forall v.
   ABT.Var v =>
   -- | The hash of the component, this is used to fill in self-references.
   Hash ->
+  -- | A function to convert a reference to a variable. The actual var names aren't important.
   (Reference.Id -> v) ->
+  -- A SINGLE term component. Self references should have a 'Nothing' hash in term
+  -- references/term links
   Map Reference.Id (Term v) ->
+  -- | The component with all self-references replaced with variable references.
   Map Reference.Id (v, HashableTerm v)
 unhashComponent componentHash refToVar m =
-  second unhash1 <$> m'
+  second fillSelfReferences <$> withGeneratedVars
   where
     usedVars :: Set v
     usedVars = foldMap (Set.fromList . ABT.allVars) m
-    m' :: Map Reference.Id (v, Term v)
-    m' = evalState (Map.traverseWithKey assignVar m) usedVars
+    withGeneratedVars :: Map Reference.Id (v, Term v)
+    withGeneratedVars = evalState (Map.traverseWithKey assignVar m) usedVars
       where
         assignVar r t = (,t) <$> ABT.freshenS (refToVar r)
-    unhash1 :: Term v -> HashableTerm v
-    unhash1 = ABT.cata alg
+    fillSelfReferences :: Term v -> HashableTerm v
+    fillSelfReferences = ABT.cata alg
       where
         rewriteTermReference :: Reference.Id' (Maybe Hash) -> HashableTerm v
         rewriteTermReference rid@(Reference.Id mayH pos) =
           case mayH of
             Just h ->
-              case Map.lookup (Reference.Id h pos) m' of
+              case Map.lookup (Reference.Id h pos) withGeneratedVars of
                 -- No entry in the component map, so this is NOT a self-reference, keep it but
                 -- replace the 'Maybe Hash' with a 'Hash'.
                 Nothing -> ABT.tm () $ Ref (Reference.ReferenceDerived (Reference.Id h pos))
@@ -259,7 +258,7 @@ unhashComponent componentHash refToVar m =
                 Just (v, _) -> ABT.var () v
             Nothing ->
               -- This is a self-reference, so we expect to find it in the component map.
-              case Map.lookup (fromMaybe componentHash <$> rid) m' of
+              case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
                 Nothing -> error "unhashComponent: self-reference not found in component map"
                 Just (v, _) -> ABT.var () v
         alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
@@ -272,7 +271,35 @@ unhashComponent componentHash refToVar m =
             -- vars if they do.
             (Ref (Reference.ReferenceDerived rid)) ->
               rewriteTermReference rid
-            _ -> _
+            (Ref (Reference.ReferenceBuiltin t)) ->
+              ABT.tm () $ Ref (Reference.ReferenceBuiltin t)
+            TermLink referent -> case referent of
+              Referent.Ref (Reference.ReferenceDerived rid) -> rewriteTermReference rid
+              Referent.Ref (Reference.ReferenceBuiltin t) ->
+                ABT.tm () $ TermLink (Referent.Ref (Reference.ReferenceBuiltin t))
+              Referent.Con typeRef conId -> ABT.tm () $ TermLink (Referent.Con typeRef conId)
+            -- All other cases are unchanged, but we need to manually reconstruct them to
+            -- safely coerce the term types.
+            Int i -> ABT.tm () $ Int i
+            Nat n -> ABT.tm () $ Nat n
+            Float d -> ABT.tm () $ Float d
+            Boolean b -> ABT.tm () $ Boolean b
+            Text t -> ABT.tm () $ Text t
+            Char c -> ABT.tm () $ Char c
+            Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
+            Request typeRef conId -> ABT.tm () $ Request typeRef conId
+            Handle e h -> ABT.tm () $ Handle e h
+            App f a -> ABT.tm () $ App f a
+            Ann a typ -> ABT.tm () $ Ann a typ
+            List s -> ABT.tm () $ List s
+            If c t f -> ABT.tm () $ If c t f
+            And p q -> ABT.tm () $ And p q
+            Or p q -> ABT.tm () $ Or p q
+            Lam b -> ABT.tm () $ Lam b
+            LetRec bs b -> ABT.tm () $ LetRec bs b
+            Let a b -> ABT.tm () $ Let a b
+            Match s cases -> ABT.tm () $ Match s cases
+            TypeLink r -> ABT.tm () $ TypeLink r
 
 -- -- Turns a cycle of references into a term with free vars that we can edit
 -- -- and hash again.
