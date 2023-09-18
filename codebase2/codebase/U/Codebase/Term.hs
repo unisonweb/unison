@@ -1,19 +1,29 @@
 module U.Codebase.Term where
 
+import Control.Lens hiding (List)
+import Control.Monad.State
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
+import U.Core.ABT.Var qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
 
 type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()
+
+-- | A version of 'Term' but where TermRefs never have a 'Nothing' Hash, but instead self references
+-- are either filled with hash of the component, or are filled with User Variable references
+-- to the relevant piece of the component in a component map.
+type HashableTerm v = ABT.Term (F' Text (Reference' Text Hash) TypeRef TermLink TypeLink v) v ()
 
 type Type v = TypeR TypeRef v
 
@@ -207,3 +217,91 @@ dependencies =
     typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
     termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
     typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
+
+-- -- | Fills in all 'Nothing' hashes with the provided hash.
+-- reifySelfReferences :: forall v. Hash -> Term v -> HashableTerm v
+-- reifySelfReferences h =
+--   extraMap id (over h_ (fromMaybe h)) id id id id
+
+-- | Given the pieces of a single term component,
+-- replaces all 'Nothing' self-referential hashes with a user variable reference
+-- to the relevant piece of the component in the component map.
+unhashComponent ::
+  forall v.
+  ABT.Var v =>
+  -- | The hash of the component, this is used to fill in self-references.
+  Hash ->
+  (Reference.Id -> v) ->
+  Map Reference.Id (Term v) ->
+  Map Reference.Id (v, HashableTerm v)
+unhashComponent componentHash refToVar m =
+  second unhash1 <$> m'
+  where
+    usedVars :: Set v
+    usedVars = foldMap (Set.fromList . ABT.allVars) m
+    m' :: Map Reference.Id (v, Term v)
+    m' = evalState (Map.traverseWithKey assignVar m) usedVars
+      where
+        assignVar r t = (,t) <$> ABT.freshenS (refToVar r)
+    unhash1 :: Term v -> HashableTerm v
+    unhash1 = ABT.cata alg
+      where
+        rewriteTermReference :: Reference.Id' (Maybe Hash) -> HashableTerm v
+        rewriteTermReference rid@(Reference.Id mayH pos) =
+          case mayH of
+            Just h ->
+              case Map.lookup (Reference.Id h pos) m' of
+                -- No entry in the component map, so this is NOT a self-reference, keep it but
+                -- replace the 'Maybe Hash' with a 'Hash'.
+                Nothing -> ABT.tm () $ Ref (Reference.ReferenceDerived (Reference.Id h pos))
+                -- Entry in the component map, so this is a self-reference, replace it with a
+                -- Var.
+                Just (v, _) -> ABT.var () v
+            Nothing ->
+              -- This is a self-reference, so we expect to find it in the component map.
+              case Map.lookup (fromMaybe componentHash <$> rid) m' of
+                Nothing -> error "unhashComponent: self-reference not found in component map"
+                Just (v, _) -> ABT.var () v
+        alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
+        alg () = \case
+          ABT.Var v -> ABT.var () v
+          ABT.Cycle body -> ABT.cycle () body
+          ABT.Abs v body -> ABT.abs () v body
+          ABT.Tm t -> case t of
+            -- Check refs to see if they refer to the current component, replace them with
+            -- vars if they do.
+            (Ref (Reference.ReferenceDerived rid)) ->
+              rewriteTermReference rid
+            _ -> _
+
+-- -- Turns a cycle of references into a term with free vars that we can edit
+-- -- and hash again.
+-- -- todo: Maybe this an others can be moved to HandleCommand, in the
+-- --  Free (Command m i v) monad, passing in the actions that are needed.
+-- -- However, if we want this to be parametric in the annotation type, then
+-- -- Command would have to be made parametric in the annotation type too.
+-- unhashTermComponent ::
+--   Reference ->
+--   Sqlite.Transaction (Map Symbol (Reference, Term Symbol Ann, Type Symbol Ann))
+-- unhashTermComponent r = case Reference.toId r of
+--   Nothing -> pure mempty
+--   Just r -> do
+--     unhashed <- unhashTermComponent' (Reference.idToHash r)
+--     pure $ fmap (over _1 ReferenceDerived) unhashed
+
+-- unhashTermComponent' ::
+--   Codebase m Symbol Ann ->
+--   Hash ->
+--   Sqlite.Transaction (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
+-- unhashTermComponent' h = do
+--   maybeTermsWithTypes <- Codebase.getTermComponentWithTypes codebase h
+--   pure do
+--     foldMap (\termsWithTypes -> unhash $ Map.fromList (Reference.componentFor h termsWithTypes)) maybeTermsWithTypes
+--   where
+--     unhash m =
+--       -- this grabs the corresponding input map values (with types)
+--       -- and arranges them with the newly unhashed terms.
+--       let f (_oldTm, typ) (v, newTm) = (v, newTm, typ)
+--           m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+--         in Map.fromList
+--             [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
