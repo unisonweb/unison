@@ -680,6 +680,27 @@ viewrs = unop0 3 $ \[s, u, i, l] ->
         (1, ([BX, BX], TAbss [i, l] $ seqViewElem i l))
       ]
 
+splitls, splitrs :: (Var v) => SuperNormal v
+splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLL [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
+splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLR [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
 eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
 eqt = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm EQLT [x, y]) $
@@ -906,21 +927,16 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 4 $ \[r, f, n, j, k] ->
-    TMatch r . flip (MatchData Ty.exceptionRef) Nothing $
-      mapFromList
-        [ (0, ([BX], TAbs f $ TVar f)),
-          ( i,
-            ( [UN, BX],
-              TAbss [j, f]
-                . TShift Ty.exceptionRef k
-                . TLetD n BX (TLit $ T "builtin.raise")
-                $ TPrm EROR [n, f]
-            )
+  unop0 3 $ \[r, f, n, k] ->
+    TMatch r . flip MatchRequest (TAbs f $ TVar f)
+      . Map.singleton Ty.exceptionRef
+      $ mapSingleton 0
+          ( [BX],
+            TAbs f
+              . TShift Ty.exceptionRef k
+              . TLetD n BX (TLit $ T "builtin.raise")
+              $ TPrm EROR [n, f]
           )
-        ]
-  where
-    i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
@@ -2126,6 +2142,8 @@ builtinLookup =
         ("List.empty", (Untracked, emptys)),
         ("List.viewl", (Untracked, viewls)),
         ("List.viewr", (Untracked, viewrs)),
+        ("List.splitLeft", (Untracked, splitls)),
+        ("List.splitRight", (Untracked, splitrs)),
         --
         --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
         ("Universal.==", (Untracked, equ)),
@@ -2444,10 +2462,10 @@ declareForeigns = do
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
     $ \(n :: Int) -> case n of
-      0 -> pure (Just SYS.stdin)
-      1 -> pure (Just SYS.stdout)
-      2 -> pure (Just SYS.stderr)
-      _ -> pure Nothing
+      0 -> pure SYS.stdin
+      1 -> pure SYS.stdout
+      2 -> pure SYS.stderr
+      _ -> die "IO.stdHandle: invalid input."
 
   let exitDecode ExitSuccess = 0
       exitDecode (ExitFailure n) = n

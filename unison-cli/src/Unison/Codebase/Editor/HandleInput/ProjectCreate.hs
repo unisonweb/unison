@@ -80,12 +80,12 @@ projectCreate tryDownloadingBase maybeProjectName = do
                     True -> loop projectNames
           loop randomProjectNames
       Just projectName -> do
-        Cli.runEitherTransaction do
+        Cli.runTransactionWithRollback \rollback -> do
           Queries.projectExistsByName projectName >>= \case
             False -> do
               insertProjectAndBranch projectId projectName branchId branchName
-              pure (Right projectName)
-            True -> pure (Left (Output.ProjectNameAlreadyExists projectName))
+              pure projectName
+            True -> rollback (Output.ProjectNameAlreadyExists projectName)
 
   let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)

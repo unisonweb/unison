@@ -10,6 +10,7 @@ module Unison.Runtime.ANF
   ( minimizeCyclesOrCrash,
     pattern TVar,
     pattern TLit,
+    pattern TBLit,
     pattern TApp,
     pattern TApv,
     pattern TCom,
@@ -43,6 +44,7 @@ module Unison.Runtime.ANF
     floatGroup,
     lamLift,
     lamLiftGroup,
+    litRef,
     inlineAlias,
     addDefaultCases,
     ANormalF (.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp),
@@ -668,6 +670,7 @@ data ANormalF v e
   = ALet (Direction Word16) [Mem] e e
   | AName (Either Reference v) [v] e
   | ALit Lit
+  | ABLit Lit -- direct boxed literal
   | AMatch v (Branched e)
   | AShift Reference e
   | AHnd [Reference] v e
@@ -745,6 +748,7 @@ instance Num CTag where
 instance Functor (ANormalF v) where
   fmap _ (AVar v) = AVar v
   fmap _ (ALit l) = ALit l
+  fmap _ (ABLit l) = ABLit l
   fmap f (ALet d m bn bo) = ALet d m (f bn) (f bo)
   fmap f (AName n as bo) = AName n as $ f bo
   fmap f (AMatch v br) = AMatch v $ f <$> br
@@ -756,6 +760,7 @@ instance Functor (ANormalF v) where
 instance Bifunctor ANormalF where
   bimap f _ (AVar v) = AVar (f v)
   bimap _ _ (ALit l) = ALit l
+  bimap _ _ (ABLit l) = ABLit l
   bimap _ g (ALet d m bn bo) = ALet d m (g bn) (g bo)
   bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
@@ -767,6 +772,7 @@ instance Bifunctor ANormalF where
 instance Bifoldable ANormalF where
   bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
+  bifoldMap _ _ (ABLit _) = mempty
   bifoldMap _ g (ALet _ _ b e) = g b <> g e
   bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
@@ -779,6 +785,8 @@ instance ABTN.Align ANormalF where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
   align _ _ (ALit l) (ALit r)
     | l == r = Just $ pure (ALit l)
+  align _ _ (ABLit l) (ABLit r)
+    | l == r = Just $ pure (ABLit l)
   align _ g (ALet dl ccl bl el) (ALet dr ccr br er)
     | dl == dr,
       ccl == ccr =
@@ -886,6 +894,14 @@ alignBranch f (MatchSum bl) (MatchSum br)
   | keysSet bl == keysSet br,
     all (\w -> fst (bl ! w) == fst (br ! w)) (keys bl) =
       Just $ MatchSum <$> interverse (alignCCs f) bl br
+alignBranch f (MatchNumeric rl bl dl) (MatchNumeric rr br dr)
+  | rl == rr,
+    keysSet bl == keysSet br,
+    Just ds <- alignMaybe f dl dr =
+      Just $
+        MatchNumeric rl
+          <$> interverse f bl br
+          <*> ds
 alignBranch _ _ _ = Nothing
 
 alignCCs :: (Functor f) => (l -> r -> f s) -> (a, l) -> (a, r) -> f (a, s)
@@ -945,6 +961,12 @@ pattern TLit ::
   Lit ->
   ABTN.Term ANormalF v
 pattern TLit l = ABTN.TTm (ALit l)
+
+pattern TBLit ::
+  (ABT.Var v) =>
+  Lit ->
+  ABTN.Term ANormalF v
+pattern TBLit l = ABTN.TTm (ABLit l)
 
 pattern TApp ::
   (ABT.Var v) =>
@@ -1110,6 +1132,10 @@ pattern TBinds ctx bd <-
 data SeqEnd = SLeft | SRight
   deriving (Eq, Ord, Enum, Show)
 
+-- Note: MatchNumeric is a new form for matching directly on boxed
+-- numeric data. This leaves MatchIntegral around so that builtins can
+-- continue to use it. But interchanged code can be free of unboxed
+-- details.
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Util.Text.Text e) (Maybe e)
@@ -1117,6 +1143,7 @@ data Branched e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
+  | MatchNumeric Reference (EnumMap Word64 e) (Maybe e)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- Data cases expected to cover all constructors
@@ -1496,6 +1523,11 @@ data BLit
   | Quote Value
   | Code (SuperGroup Symbol)
   | BArr PA.ByteArray
+  | Pos Word64
+  | Neg Word64
+  | Char Char
+  | Float Double
+  | Arr (PA.Array Value)
   deriving (Show)
 
 groupVars :: ANFM v (Set v)
@@ -1711,14 +1743,8 @@ anfBlock (Match' scrut cas) = do
         )
     AccumText df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
-    AccumIntegral r df cs -> do
-      i <- fresh
-      let dcs =
-            MatchDataCover
-              r
-              (EC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
-          ics = TMatch i $ MatchIntegral cs df
-      pure (sctx <> cx, pure $ TMatch v dcs)
+    AccumIntegral r df cs ->
+      pure (sctx <> cx, pure $ TMatch v $ MatchNumeric r cs df)
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
@@ -1747,21 +1773,22 @@ anfBlock (Match' scrut cas) = do
     AccumSeqSplit en n mdf bd -> do
       i <- fresh
       r <- fresh
-      n <- fresh
+      s <- fresh
+      b <- binder
+      let split = ST1 (Indirect b) r BX (TCom op [i, v])
       pure
-        ( sctx <> cx <> directed [lit i, split i r],
-          pure . TMatch r . MatchSum $
+        ( sctx <> cx <> directed [lit i, split],
+          pure . TMatch r . MatchDataCover Ty.seqViewRef $
             mapFromList
-              [ (0, ([], df n)),
-                (1, ([BX, BX], bd))
+              [ (fromIntegral Ty.seqViewEmpty, ([], df s)),
+                (fromIntegral Ty.seqViewElem, ([BX, BX], bd))
               ]
         )
       where
         op
-          | SLeft <- en = SPLL
-          | otherwise = SPLR
-        lit i = ST1 Direct i UN (TLit . N $ fromIntegral n)
-        split i r = ST1 Direct r UN (TPrm op [i, v])
+          | SLeft <- en = Builtin "List.splitLeft"
+          | otherwise = Builtin "List.splitRight"
+        lit i = ST1 Direct i BX (TBLit . N $ fromIntegral n)
         df n =
           fromMaybe
             ( TLet Direct n BX (TLit (T "pattern match failure")) $
@@ -1802,12 +1829,8 @@ anfBlock (Boolean' b) =
   pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
   pure (mempty, pure $ TLit l)
-anfBlock (Lit' l) = do
-  lv <- fresh
-  pure
-    ( directed [ST1 Direct lv UN $ TLit l],
-      pure $ TCon (litRef l) 0 [lv]
-    )
+anfBlock (Lit' l) =
+  pure (mempty, pure $ TBLit l)
 anfBlock (Ref' r) = pure (mempty, (Indirect (), TCom r []))
 anfBlock (Blank' b) = do
   nm <- fresh
@@ -2033,6 +2056,8 @@ branchLinks _ g (MatchText m e) =
   MatchText <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchIntegral m e) =
   MatchIntegral <$> traverse g m <*> traverse g e
+branchLinks _ g (MatchNumeric r m e) =
+  MatchNumeric r <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
   MatchSum <$> (traverse . traverse) g m
 branchLinks _ _ MatchEmpty = pure MatchEmpty
@@ -2252,6 +2277,9 @@ prettyBranches ind bs = case bs of
       (uncurry $ prettyCase ind . shows)
       id
       (mapToList $ snd <$> bs)
+  MatchNumeric _ bs df ->
+    maybe id (\e -> prettyCase ind (showString "_") e id) df
+      . foldr (uncurry $ prettyCase ind . shows) id (mapToList bs)
       -- _ -> error "prettyBranches: todo"
   where
     -- prettyReq :: Reference -> CTag -> ShowS

@@ -230,7 +230,7 @@ data Input
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
-  | ProjectSwitchI ProjectAndBranchNames
+  | ProjectSwitchI (Maybe ProjectAndBranchNames {- Nothing triggers fuzzy-finder -})
   | ProjectsI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchRenameI ProjectBranchName

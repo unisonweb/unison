@@ -85,6 +85,10 @@ labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
 
 -- | Compute the dependencies of a data declaration,
 -- including the type itself and references for each of its constructors.
+--
+-- NOTE: You may prefer labeledDeclDependenciesIncludingSelfAndFieldAccessors in
+-- Unison.DataDeclaration.Dependencies, it also includes Referents for accessors of record
+-- fields.
 labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
 labeledDeclDependenciesIncludingSelf selfRef decl =
   labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
@@ -281,8 +285,10 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
   pure $ DataDeclaration m a bound constructors
 
 -- | All references to types mentioned in the given data declaration's fields/constructors
--- Note: does not include references to the constructors or the decl itself
+-- Note: Does not include references to the constructors or the decl itself
 -- (unless the decl is self-referential)
+-- Note: Does NOT include the referents for fields and field accessors.
+-- Those must be computed separately because we need access to the typechecker to do so.
 typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)

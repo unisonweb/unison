@@ -59,16 +59,19 @@ testLift s = case cs of !_ -> ok
         . lamLift mempty
         $ tm s
 
+denormalizeLit :: (Var v) => Lit -> Term.Term0 v
+denormalizeLit (I i) = Term.int () i
+denormalizeLit (N n) = Term.nat () n
+denormalizeLit (F f) = Term.float () f
+denormalizeLit (T t) = Term.text () (Util.Text.toText t)
+denormalizeLit (C c) = Term.char () c
+denormalizeLit (LM r) = Term.termLink () r
+denormalizeLit (LY r) = Term.typeLink () r
+
 denormalize :: (Var v) => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
-denormalize (TLit l) = case l of
-  I i -> Term.int () i
-  N n -> Term.nat () n
-  F f -> Term.float () f
-  T t -> Term.text () (Util.Text.toText t)
-  C c -> Term.char () c
-  LM r -> Term.termLink () r
-  LY r -> Term.typeLink () r
+denormalize (TLit l) = denormalizeLit l
+denormalize (TBLit l) = denormalizeLit l
 denormalize (THnd _ _ _) =
   error "denormalize handler"
 -- = Term.match () (denormalize b) $ denormalizeHandler h
@@ -131,6 +134,8 @@ denormalizeMatch b
   | MatchData r m df <- b =
       (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
+  | MatchNumeric _ cs df <- b =
+      (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList cs) ++ dfcase df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
     dfcase (Just d) =

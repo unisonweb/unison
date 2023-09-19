@@ -12,6 +12,7 @@ import Unison.Prelude
 import Unison.Term (Term')
 import Unison.Term qualified as Term
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 
 unordered :: (Var v) => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
 unordered = ABT.components
@@ -45,7 +46,10 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
           . sortBy
             (compare `on` fst)
       grouped = group bindings
-      dupes = filter ((> 1) . length . snd) grouped
+      dupes = filter ok grouped
+        where 
+          ok (v, as) | Var.name v == "_" = False
+                     | otherwise         = length as > 1
    in if not $ null dupes
         then Left $ Nel.fromList dupes
         else
