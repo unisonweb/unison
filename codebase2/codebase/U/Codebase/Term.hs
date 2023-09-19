@@ -1,5 +1,6 @@
 module U.Codebase.Term where
 
+import Control.Lens hiding (List)
 import Control.Monad.State
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
@@ -222,7 +223,7 @@ dependencies =
 -- replaces all 'Nothing' self-referential hashes with a variable reference
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
-  forall v.
+  forall v extra.
   ABT.Var v =>
   -- | The hash of the component, this is used to fill in self-references.
   Hash ->
@@ -230,20 +231,21 @@ unhashComponent ::
   (Reference.Id -> v) ->
   -- A SINGLE term component. Self references should have a 'Nothing' hash in term
   -- references/term links
-  Map Reference.Id (Term v) ->
+  Map Reference.Id (Term v, extra) ->
   -- | The component with all self-references replaced with variable references.
-  Map Reference.Id (v, HashableTerm v)
+  Map Reference.Id (v, HashableTerm v, extra)
 unhashComponent componentHash refToVar m =
-  second fillSelfReferences <$> withGeneratedVars
+  withGeneratedVars
+    & traversed . _2 %~ fillSelfReferences
   where
     usedVars :: Set v
-    usedVars = foldMap (Set.fromList . ABT.allVars) m
-    withGeneratedVars :: Map Reference.Id (v, Term v)
+    usedVars = foldMap (Set.fromList . ABT.allVars . fst) m
+    withGeneratedVars :: Map Reference.Id (v, Term v, extra)
     withGeneratedVars = evalState (Map.traverseWithKey assignVar m) usedVars
-      where
-        assignVar r t = (,t) <$> ABT.freshenS (refToVar r)
+    assignVar :: Reference.Id -> (trm, extra) -> StateT (Set v) Identity (v, trm, extra)
+    assignVar r (trm, extra) = (,trm,extra) <$> ABT.freshenS (refToVar r)
     fillSelfReferences :: Term v -> HashableTerm v
-    fillSelfReferences = ABT.cata alg
+    fillSelfReferences = (ABT.cata alg)
       where
         rewriteTermReference :: Reference.Id' (Maybe Hash) -> HashableTerm v
         rewriteTermReference rid@(Reference.Id mayH pos) =
@@ -255,12 +257,12 @@ unhashComponent componentHash refToVar m =
                 Nothing -> ABT.tm () $ Ref (Reference.ReferenceDerived (Reference.Id h pos))
                 -- Entry in the component map, so this is a self-reference, replace it with a
                 -- Var.
-                Just (v, _) -> ABT.var () v
+                Just (v, _, _) -> ABT.var () v
             Nothing ->
               -- This is a self-reference, so we expect to find it in the component map.
               case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
                 Nothing -> error "unhashComponent: self-reference not found in component map"
-                Just (v, _) -> ABT.var () v
+                Just (v, _, _) -> ABT.var () v
         alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
         alg () = \case
           ABT.Var v -> ABT.var () v

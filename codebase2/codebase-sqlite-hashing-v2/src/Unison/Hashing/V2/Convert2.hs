@@ -4,6 +4,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2TypeD,
     h2ToV2Reference,
     v2ToH2Branch,
+    v2ToH2Term,
     hashBranchFormatToH2Branch,
   )
 where
@@ -20,6 +21,7 @@ import U.Codebase.Reference qualified as V2Reference
 import U.Codebase.Referent qualified as V2Referent
 import U.Codebase.Sqlite.Branch.Full qualified as Memory.BranchFull
 import U.Codebase.Term qualified as V2 (TypeRef)
+import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
@@ -118,3 +120,6 @@ hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, chil
       V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second unComponentHash ref))
       V2Referent.Con typeRef conId -> do
         (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
+
+v2ToH2Term :: V2.Term.HashableTerm v -> H2.Term v ()
+v2ToH2Term = undefined
