@@ -121,5 +121,99 @@ hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, chil
       V2Referent.Con typeRef conId -> do
         (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
 
-v2ToH2Term :: V2.Term.HashableTerm v -> H2.Term v ()
-v2ToH2Term = undefined
+v2ToH2Term :: forall v. Ord v => V2.Term.HashableTerm v -> H2.Term v ()
+v2ToH2Term = ABT.transform convertF
+  where
+    convertF :: V2.Term.F' Text (V2Reference.Reference' Text Hash) V2.Term.TypeRef V2.Term.TermLink V2.Term.TypeLink v x -> H2.TermF v () () x
+    convertF = \case
+      V2.Term.Int i -> H2.TermInt i
+      V2.Term.Nat i -> H2.TermNat i
+      V2.Term.Float n -> H2.TermFloat n
+      V2.Term.Boolean b -> H2.TermBoolean b
+      V2.Term.Text t -> H2.TermText t
+      V2.Term.Char c -> H2.TermChar c
+      V2.Term.Ref r -> H2.TermRef (v2ToH2Reference r)
+      V2.Term.Constructor r cid -> H2.TermConstructor (v2ToH2Reference r) cid
+      V2.Term.Request r cid -> H2.TermRequest (v2ToH2Reference r) cid
+      V2.Term.Handle a b -> H2.TermHandle a b
+      V2.Term.App a b -> H2.TermApp a b
+      V2.Term.Ann a k -> H2.TermAnn a (v2ToH2Type k)
+      V2.Term.List a -> H2.TermList a
+      V2.Term.If a b c -> H2.TermIf a b c
+      V2.Term.And a b -> H2.TermAnd a b
+      V2.Term.Or a b -> H2.TermOr a b
+      V2.Term.Lam a -> H2.TermLam a
+      V2.Term.LetRec as b -> H2.TermLetRec as b
+      V2.Term.Let a b -> H2.TermLet a b
+      V2.Term.Match a b -> H2.TermMatch a (fmap convertMatchCase b)
+      V2.Term.TermLink a -> H2.TermTermLink (v2ToH2Referent a)
+      V2.Term.TypeLink a -> H2.TermTypeLink a
+
+    convertMatchCase :: forall x. V2.Term.MatchCase Text V2.Term.TypeRef x -> H2.MatchCase () x
+    convertMatchCase (V2.Term.MatchCase pat guard body) =
+      H2.MatchCase (convertPattern pat) guard body
+
+    convertPattern :: V2.Term.Pattern Text V2.Term.TypeRef -> H2.Pattern ()
+    convertPattern = \case
+      V2.Term.PUnbound -> H2.PatternUnbound ()
+      V2.Term.PVar -> H2.PatternVar ()
+      V2.Term.PBoolean b -> H2.PatternBoolean () b
+      V2.Term.PInt i -> H2.PatternInt () i
+      V2.Term.PNat i -> H2.PatternNat () i
+      V2.Term.PFloat n -> H2.PatternFloat () n
+      V2.Term.PText t -> H2.PatternText () t
+      V2.Term.PChar c -> H2.PatternChar () c
+      V2.Term.PConstructor r cid ps -> H2.PatternConstructor () (v2ToH2Reference r) cid ps
+      V2.Term.PAs pat -> H2.PatternAs () (convertPattern pat)
+      V2.Term.PEffectPure pat -> H2.PatternEffectPure () (convertPattern pat)
+      V2.Term.PEffectBind r conId pats pat -> H2.PatternEffectBind () (v2ToH2Reference r) conId (convertPattern <$> pats) (convertPattern pat)
+      V2.Term.PSequenceLiteral pats -> H2.PatternSequenceLiteral () (convertPattern <$> pats)
+      V2.Term.PSequenceOp l op r -> H2.PatternSequenceOp () (convertPattern l) (convertSequenceOp op) (convertPattern r)
+
+    convertSequenceOp :: V2.Term.SeqOp -> H2.SeqOp
+    convertSequenceOp = \case
+      V2.Term.PCons -> H2.Cons
+      V2.Term.PSnoc -> H2.Snoc
+      V2.Term.PConcat -> H2.Concat
+
+-- convertPattern :: V2.Term.Pattern Text V2.Term.TypeRef -> H2.Pattern v
+-- convertPattern = _
+
+-- Int Int64
+-- Nat Word64
+-- Float Double
+-- Boolean Bool
+-- Text text
+-- Char Char
+-- Ref termRef
+---- First argument identifies the data type,
+---- second argument identifies the constructor
+-- Constructor typeRef ConstructorId
+-- Request typeRef ConstructorId
+-- Handle a a
+-- App a a
+-- Ann a (TypeR typeRef vt)
+-- List (Seq a)
+-- If a a a
+-- And a a
+-- Or a a
+-- Lam a
+---- Note: let rec blocks have an outer ABT.Cycle which introduces as many
+---- variables as there are bindings
+-- LetRec [a] a
+---- Note: first parameter is the binding, second is the expression which may refer
+---- to this let bound variable. Constructed as `Let b (abs v e)`
+-- Let a a
+---- Pattern matching / eliminating data types, example:
+----  case x of
+----    Just n -> rhs1
+----    Nothing -> rhs2
+----
+---- translates to
+----
+----   Match x
+----     [ (Constructor 0 [Var], ABT.abs n rhs1)
+----     , (Constructor 1 [], rhs2) ]
+-- Match a [MatchCase text typeRef a]
+-- TermLink termLink
+-- TypeLink typeLink

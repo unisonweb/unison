@@ -24,15 +24,19 @@ type Term v = ABT.Term (F v) v ()
 -- | A version of 'Term' but where TermRefs never have a 'Nothing' Hash, but instead self references
 -- are either filled with hash of the component, or are filled with User Variable references
 -- to the relevant piece of the component in a component map.
-type HashableTerm v = ABT.Term (F' Text (Reference' Text Hash) TypeRef TermLink TypeLink v) v ()
+type HashableTerm v = ABT.Term (F' Text HashableTermRef TypeRef HashableTermLink TypeLink v) v ()
 
 type Type v = TypeR TypeRef v
 
 type TermRef = Reference' Text (Maybe Hash)
 
+type HashableTermRef = Reference' Text Hash
+
 type TypeRef = Reference
 
 type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+
+type HashableTermLink = Referent' (Reference' Text Hash) (Reference' Text Hash)
 
 type TypeLink = Reference
 
