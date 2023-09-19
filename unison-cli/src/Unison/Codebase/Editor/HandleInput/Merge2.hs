@@ -93,7 +93,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
   alicePath <- Cli.resolvePath' alicePath0
   bobPath <- Cli.resolvePath' bobPath0
 
-  Cli.runTransaction do
+  Cli.runTransactionWithRollback \rollback -> do
     aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
     bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
 
@@ -113,11 +113,15 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           -- The order isn't important here for syntactic hashing
           deepnessToPpe aliceDeclNames aliceTermNames `Ppe.addFallback` deepnessToPpe bobDeclNames bobTermNames
 
-    aliceDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe aliceDeclNames
-    aliceTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe aliceTermNames
+    aliceDeclSynhashes <- step "compute alice decl syntactic hashes" do
+      syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe aliceDeclNames
+    aliceTermSynhashes <- step "compute alice term syntactic hashes" do
+      syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe aliceTermNames
 
-    bobDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe bobDeclNames
-    bobTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
+    bobDeclSynhashes <- step "compute bob decl syntactic hashes" do
+      syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe bobDeclNames
+    bobTermSynhashes <- step "compute bob term syntactic hashes" do
+      syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
 
     (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff) <-
       case maybeLcaCausalHash of
@@ -125,8 +129,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           let synhashesToAdds :: BiMultimap hash name -> Map name (Op hash)
               synhashesToAdds =
                 Map.map Added . BiMultimap.range
-          aliceDependenciesDiff <- loadDependenciesAdds aliceBranch
-          bobDependenciesDiff <- loadDependenciesAdds bobBranch
+          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesAdds aliceBranch
+          bobDependenciesDiff <- step "load bob dependencies diff" $ loadDependenciesAdds bobBranch
           pure
             ( synhashesToAdds aliceDeclSynhashes,
               synhashesToAdds aliceTermSynhashes,
@@ -140,16 +144,26 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
           ~(Right (T2 lcaDeclNames lcaTermNames)) <- step "load lca names" $ loadBranchDefinitionNames2 lcaBranch
 
-          lcaDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
-          lcaTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe lcaTermNames
+          lcaDeclSynhashes <- step "compute lca decl syntactic hashes" do
+            syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
+          lcaTermSynhashes <- step "compute lca term syntactic hashes" do
+            syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe lcaTermNames
 
           let aliceDeclDiff = diffish lcaDeclSynhashes aliceDeclSynhashes
+          findConflictedAlias aliceDeclNames aliceDeclDiff & onJust \(name1, name2) ->
+            rollback wundefined
+
           let aliceTermDiff = diffish lcaTermSynhashes aliceTermSynhashes
+          findConflictedAlias aliceTermNames aliceTermDiff & onJust \(name1, name2) ->
+            rollback wundefined
 
           let bobDeclDiff = diffish lcaDeclSynhashes bobDeclSynhashes
-          let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
+          findConflictedAlias bobDeclNames bobDeclDiff & onJust \(name1, name2) ->
+            rollback wundefined
 
-          -- TODO: look at diffs, bail out if either bob or alice updated some-but-not-all names for any particular thing
+          let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
+          findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
+            rollback wundefined
 
           aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
           bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
@@ -160,14 +174,6 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
 
     Sqlite.unsafeIO do
-      -- Text.putStrLn ""
-      -- Text.putStrLn "===== hashes ====="
-      -- Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
-      -- Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
-      -- Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
-      -- Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
-      -- Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
-      Text.putStrLn ""
       Text.putStrLn "===== lca->alice diff ====="
       printDeclsDiff aliceDeclNames aliceDeclDiff
       printTermsDiff aliceTermNames aliceTermDiff
@@ -182,21 +188,6 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       printDeclConflicts conflictedDecls
       printTermConflicts conflictedTerms
       Text.putStrLn ""
-
-      -- Text.writeFile
-      --   "ec-graph.dot"
-      --   ( ecDependenciesToDot
-      --       (luniqRelationToRelation aliceTypeNames <> luniqRelationToRelation bobTypeNames)
-      --       (aliceDataconNames <> bobDataconNames)
-      --       (luniqRelationToRelation aliceTermNames <> luniqRelationToRelation bobTermNames)
-      --       (Relation.ran typeUserUpdates)
-      --       (Relation.ran termUserUpdates)
-      --       coreEcs
-      --       coreEcDependencies
-      --   )
-      -- Process.callCommand "dot -Tpdf ec-graph.dot > ec-graph.pdf && open ec-graph.pdf && rm ec-graph.dot"
-
-      pure ()
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -269,6 +260,47 @@ loadBranchDefinitionNames2 =
               Just ref -> Right (BiMultimap.insert ref name acc)
           where
             name = Name.fromReverseSegments (segment :| reversePrefix)
+
+-- @findConflictedAlias namespace diff@, given a namespace and a diff from an old namespace, will return the first
+-- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
+-- thing in the old namespace, but different things in the new one.
+--
+-- For example, if the old namespace was
+--
+--   foo = #foo
+--   bar = #foo
+--
+-- and the new namespace is
+--
+--   foo = #baz
+--   bar = #qux
+--
+-- then (foo, bar) is a conflicted alias.
+findConflictedAlias ::
+  forall hash name ref.
+  (Eq hash, Ord name, Ord ref) =>
+  BiMultimap ref name ->
+  Map name (Op hash) ->
+  Maybe (name, name)
+findConflictedAlias namespace diff =
+  asum (map f (Map.toList diff))
+  where
+    f :: (name, Op hash) -> Maybe (name, name)
+    f (name, op) =
+      case op of
+        Added _ -> Nothing
+        Deleted _ -> Nothing
+        Updated _ hash ->
+          BiMultimap.lookupPreimage name namespace
+            & Set.delete name
+            & Set.toList
+            & map (g hash)
+            & asum
+      where
+        g hash alias =
+          case Map.lookup alias diff of
+            Just (Updated _ hash2) | hash == hash2 -> Nothing
+            _ -> Just (name, alias)
 
 deepnessToPpe :: BiMultimap TypeReference Name -> BiMultimap Referent Name -> PrettyPrintEnv
 deepnessToPpe typeNames termNames =

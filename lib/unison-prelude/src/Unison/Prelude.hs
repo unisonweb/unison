@@ -11,6 +11,8 @@ module Unison.Prelude
     wundefined,
 
     -- * @Maybe@ control flow
+    onJust,
+    onJustM,
     onNothing,
     onNothingM,
     whenNothing,
@@ -93,19 +95,18 @@ altSum = foldl' (<|>) empty
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
 
--- | E.g.
---
--- @@
--- onNothing (throwIO MissingPerson) $ mayThing
--- @@
+onJust :: Applicative m => (a -> m ()) -> Maybe a -> m ()
+onJust = flip whenJust
+
+onJustM :: Monad m => (a -> m ()) -> m (Maybe a) -> m ()
+onJustM = flip whenJustM
+
 onNothing :: (Applicative m) => m a -> Maybe a -> m a
-onNothing m may = maybe m pure may
+onNothing m = maybe m pure
 
 onNothingM :: (Monad m) => m a -> m (Maybe a) -> m a
-onNothingM =
-  flip whenNothingM
+onNothingM = flip whenNothingM
 
--- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: (Applicative m) => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
 
