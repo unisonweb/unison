@@ -1,8 +1,13 @@
-module Unison.SyntacticHash (hashType, hashTerm, hashDecl) where
+module Unison.SyntacticHash
+  ( hashType,
+    hashTerm,
+    hashBuiltinTerm,
+    hashDecl,
+    hashBuiltinDecl,
+  )
+where
 
 import Data.Char (ord)
-import Data.Foldable (toList)
-import Data.Functor
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.ConstructorType qualified as CT
@@ -13,8 +18,9 @@ import Unison.HashQualified as HQ
 import Unison.Hashable qualified as H
 import Unison.Kind qualified as K
 import Unison.Pattern qualified as Pattern
+import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (Reference' (..), TypeReferenceId)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term (Term)
@@ -26,6 +32,16 @@ import Unison.Var qualified as Var
 
 type Token = H.Token Hash
 
+-- A few tags for readability
+
+isBuiltinTag, isNotBuiltinTag :: H.Token Hash
+isBuiltinTag = H.Tag 0
+isNotBuiltinTag = H.Tag 1
+
+isDeclTag, isTermTag :: H.Token Hash
+isDeclTag = H.Tag 0
+isTermTag = H.Tag 1
+
 -- | Syntactically hash a type, using reference names rather than hashes.
 -- Two types will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
@@ -36,17 +52,25 @@ hashType ppe t = H.accumulate $ hashTypeTokens ppe t
 -- Two terms will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
 hashTerm :: Var v => PPE.PrettyPrintEnv -> Term v a -> Hash
-hashTerm ppe t = H.accumulate $ hashTermTokens ppe t
+hashTerm ppe t = H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
+
+hashBuiltinTerm :: Text -> Hash
+hashBuiltinTerm name =
+  H.accumulate [isBuiltinTag, isTermTag, H.Text name]
 
 -- | Syntactically hash a decl, using reference names rather than hashes.
 -- Two decls will have the same syntactic hash if they they are
 -- the same sort of decl (both are data decls or both are effect decls),
 -- the unique type guid is the same, and the constructors appear in the
 -- same order and their types have the same syntactic hash.
-hashDecl :: Var v => PPE.PrettyPrintEnv -> Reference -> Decl v a -> Hash
-hashDecl ppe r t = H.accumulate $ hashDeclTokens ppe r t
+hashDecl :: Var v => PPE.PrettyPrintEnv -> TypeReferenceId -> Decl v a -> Hash
+hashDecl ppe r t = H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe r t
 
-hashDeclTokens :: Var v => PPE.PrettyPrintEnv -> Reference -> Decl v a -> [Token]
+hashBuiltinDecl :: Text -> Hash
+hashBuiltinDecl name =
+  H.accumulate [isBuiltinTag, isDeclTag, H.Text name]
+
+hashDeclTokens :: Var v => PPE.PrettyPrintEnv -> TypeReferenceId -> Decl v a -> [Token]
 hashDeclTokens ppe r = \case
   Left (DD.EffectDeclaration dd) -> H.Tag 0 : go CT.Effect dd
   Right dd -> H.Tag 1 : go CT.Data dd
@@ -59,7 +83,7 @@ hashDeclTokens ppe r = \case
     -- separating constructor types with tag of 99, which isn't used elsewhere
     goCtor ct ((_, _, ty), i) = H.Tag 99 : ctorName ct i : hashTypeTokens ppe ty
     ctorName ct i =
-      let cr = ConstructorReference r i
+      let cr = ConstructorReference (ReferenceDerived r) i
        in H.Text (HQ.toTextWith Name.toText $ PPE.termNameOrHashOnlyFq ppe (Referent.Con cr ct))
     go ct (DD.DataDeclaration mod _ vs ctors) =
       goMod mod <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
@@ -96,7 +120,7 @@ hashCaseTokens ppe (Term.MatchCase pat Nothing _) = H.Tag 0 : hashPatternTokens 
 hashCaseTokens ppe (Term.MatchCase pat (Just _) _) = H.Tag 1 : hashPatternTokens ppe pat
 
 hashPatternTokens :: PPE.PrettyPrintEnv -> Pattern.Pattern loc -> [Token]
-hashPatternTokens ppe p = case p of
+hashPatternTokens ppe = \case
   Pattern.Unbound {} -> [H.Tag 0]
   Pattern.Var {} -> [H.Tag 1]
   Pattern.Boolean _ b -> [H.Tag 2, if b then H.Tag 0 else H.Tag 1]
