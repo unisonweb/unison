@@ -251,14 +251,14 @@ unhashComponent componentHash refToVar m =
     fillSelfReferences :: Term v -> HashableTerm v
     fillSelfReferences = (ABT.cata alg)
       where
-        rewriteTermReference :: Reference.Id' (Maybe Hash) -> HashableTerm v
+        rewriteTermReference :: Reference.Id' (Maybe Hash) -> Either v Reference.Reference
         rewriteTermReference rid@(Reference.Id mayH pos) =
           case mayH of
             Just h ->
               case Map.lookup (Reference.Id h pos) withGeneratedVars of
                 -- No entry in the component map, so this is NOT a self-reference, keep it but
                 -- replace the 'Maybe Hash' with a 'Hash'.
-                Nothing -> ABT.tm () $ Ref (Reference.ReferenceDerived (Reference.Id h pos))
+                Nothing -> Right (Reference.ReferenceDerived (Reference.Id h pos))
                 -- Entry in the component map, so this is a self-reference, replace it with a
                 -- Var.
                 Just (_v, _, _) -> error "unhashComponent: non-Nothing self-reference found in component map"
@@ -266,7 +266,7 @@ unhashComponent componentHash refToVar m =
               -- This is a self-reference, so we expect to find it in the component map.
               case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
                 Nothing -> error "unhashComponent: self-reference not found in component map"
-                Just (v, _, _) -> ABT.var () v
+                Just (v, _, _) -> Left v
         alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
         alg () = \case
           ABT.Var v -> ABT.var () v
@@ -277,10 +277,13 @@ unhashComponent componentHash refToVar m =
             -- vars if they do.
             (Ref (Reference.ReferenceDerived rid)) ->
               rewriteTermReference rid
+                & either (ABT.var ()) (ABT.tm () . Ref)
             (Ref (Reference.ReferenceBuiltin t)) ->
               ABT.tm () $ Ref (Reference.ReferenceBuiltin t)
             TermLink referent -> case referent of
-              Referent.Ref (Reference.ReferenceDerived rid) -> rewriteTermReference rid
+              Referent.Ref (Reference.ReferenceDerived rid) ->
+                rewriteTermReference rid
+                  & either (ABT.var ()) (ABT.tm () . TermLink . Referent.Ref)
               Referent.Ref (Reference.ReferenceBuiltin t) ->
                 ABT.tm () $ TermLink (Referent.Ref (Reference.ReferenceBuiltin t))
               Referent.Con typeRef conId -> ABT.tm () $ TermLink (Referent.Con typeRef conId)
