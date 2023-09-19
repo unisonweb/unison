@@ -21,8 +21,9 @@ definitionHashCheck = do
     S.Term.Term lic <- fromMaybe (error $ "Failed to load term object: " <> show oid) <$> Q.loadTermObject oid decodeTermFormat
     lic' <- bitraverse Q.expectText (fmap Hash32.fromHash . Q.expectPrimaryHashByObjectId) lic
     let success = verifyTermFormatHash v2HashHandle (ComponentHash componentHash) (S.Term.Term lic')
-    when (not success) $ do
-      Sqlite.unsafeIO . print $ "Definition hash check failed for " <> show (oid, componentHash)
+    if success
+      then Sqlite.unsafeIO . print $ "Definition hash check succeeded for " <> show (oid, componentHash)
+      else Sqlite.unsafeIO . print $ "Definition hash check failed for " <> show (oid, componentHash)
     pure success
   if (and results)
     then Sqlite.unsafeIO $ putStrLn "Definition hash check passed"
