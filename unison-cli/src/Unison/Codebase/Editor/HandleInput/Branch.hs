@@ -79,11 +79,10 @@ handleBranch sourceI projectAndBranchNames0 = do
               ProjectAndBranch (Just p) b -> These p b
 
   project <-
-    Cli.runEitherTransaction do
-      Queries.loadProjectByName projectName <&> \case
+    Cli.runTransactionWithRollback \rollback -> do
+      Queries.loadProjectByName projectName & onNothingM do
         -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
-        Nothing -> Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-        Just project -> Right project
+        rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
 
   doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
@@ -111,29 +110,27 @@ doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> C
 doCreateBranch createFrom project newBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
-    Cli.runEitherTransaction do
+    Cli.runTransactionWithRollback \rollback -> do
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
-        True ->
-          pure (Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName)))
-        False ->
+        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
+        False -> do
           -- Here, we are forking to `foo/bar`, where project `foo` does exist, and it does not have a branch named
           -- `bar`, so the fork will succeed.
-          fmap Right do
-            newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-            Queries.insertProjectBranch
-              Sqlite.ProjectBranch
-                { projectId,
-                  branchId = newBranchId,
-                  name = newBranchName,
-                  parentBranchId =
-                    -- If we creating the branch from another branch in the same project, mark its parent
-                    case createFrom of
-                      CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-                        | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
-                      _ -> Nothing
-                }
-            Queries.setMostRecentBranch projectId newBranchId
-            pure newBranchId
+          newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
+          Queries.insertProjectBranch
+            Sqlite.ProjectBranch
+              { projectId,
+                branchId = newBranchId,
+                name = newBranchName,
+                parentBranchId =
+                  -- If we creating the branch from another branch in the same project, mark its parent
+                  case createFrom of
+                    CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
+                      | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
+                    _ -> Nothing
+              }
+          Queries.setMostRecentBranch projectId newBranchId
+          pure newBranchId
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
   sourceNamespaceObject <-

@@ -308,10 +308,10 @@ pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch Projec
 pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch = do
   _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
-    Cli.runEitherTransaction do
-      loadCausalHashToPush localPath <&> \case
-        Nothing -> Left (EmptyLooseCodePush (Path.absoluteToPath' localPath))
-        Just hash -> Right hash
+    Cli.runTransactionWithRollback \rollback -> do
+      loadCausalHashToPush localPath >>= \case
+        Nothing -> rollback (EmptyLooseCodePush (Path.absoluteToPath' localPath))
+        Just hash -> pure hash
 
   uploadPlan <- pushToProjectBranch0 force PushingLooseCode localBranchHead remoteProjectAndBranch
   executeUploadPlan uploadPlan
@@ -330,12 +330,12 @@ pushProjectBranchToProjectBranch force localProjectAndBranch maybeRemoteProjectA
 
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchHead) <-
-    Cli.runEitherTransaction do
-      loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) >>= \case
-        Nothing -> pure (Left (EmptyProjectBranchPush localProjectAndBranchNames))
-        Just hash -> do
-          localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
-          pure (Right (localProjectAndBranch, hash))
+    Cli.runTransactionWithRollback \rollback -> do
+      hash <-
+        loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) & onNothingM do
+          rollback (EmptyProjectBranchPush localProjectAndBranchNames)
+      localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
+      pure (localProjectAndBranch, hash)
 
   uploadPlan <-
     case maybeRemoteProjectAndBranchNames of

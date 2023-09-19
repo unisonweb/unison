@@ -228,7 +228,9 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
       go (LocalProjectKey'Name localProjectName) localBranchName
 
     go project branch = do
-      void (Cli.runEitherTransaction (assertLocalProjectBranchDoesntExist (ProjectAndBranch project branch)))
+      void $
+        Cli.runTransactionWithRollback \rollback ->
+          assertLocalProjectBranchDoesntExist rollback (ProjectAndBranch project branch)
       pure (ProjectAndBranch project branch)
 
 -- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
@@ -259,35 +261,33 @@ cloneInto localProjectBranch remoteProjectBranch = do
     Right () -> Cli.respond (Output.DownloadedEntities numDownloaded)
 
   localProjectAndBranch <-
-    Cli.runEitherTransaction do
+    Cli.runTransactionWithRollback \rollback -> do
       -- Repeat the check from before, because (although it's highly unlikely) we could have a name conflict after
       -- downloading the remote branch
-      assertLocalProjectBranchDoesntExist localProjectBranch >>= \case
-        Left err -> pure (Left err)
-        Right maybeLocalProject -> do
-          -- Create the local project (if necessary), and create the local branch
-          (localProjectId, localProjectName) <-
-            case maybeLocalProject of
-              Left localProjectName -> do
-                localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
-                Queries.insertProject localProjectId localProjectName
-                pure (localProjectId, localProjectName)
-              Right localProject -> pure (localProject ^. #projectId, localProject ^. #name)
-          localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-          Queries.insertProjectBranch
-            Sqlite.ProjectBranch
-              { projectId = localProjectId,
-                branchId = localBranchId,
-                name = localProjectBranch ^. #branch,
-                parentBranchId = Nothing
-              }
-          Queries.insertBranchRemoteMapping
-            localProjectId
-            localBranchId
-            (remoteProjectBranch ^. #projectId)
-            Share.hardCodedUri
-            (remoteProjectBranch ^. #branchId)
-          pure (Right (ProjectAndBranch (localProjectId, localProjectName) localBranchId))
+      maybeLocalProject <- assertLocalProjectBranchDoesntExist rollback localProjectBranch
+      -- Create the local project (if necessary), and create the local branch
+      (localProjectId, localProjectName) <-
+        case maybeLocalProject of
+          Left localProjectName -> do
+            localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
+            Queries.insertProject localProjectId localProjectName
+            pure (localProjectId, localProjectName)
+          Right localProject -> pure (localProject ^. #projectId, localProject ^. #name)
+      localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
+      Queries.insertProjectBranch
+        Sqlite.ProjectBranch
+          { projectId = localProjectId,
+            branchId = localBranchId,
+            name = localProjectBranch ^. #branch,
+            parentBranchId = Nothing
+          }
+      Queries.insertBranchRemoteMapping
+        localProjectId
+        localBranchId
+        (remoteProjectBranch ^. #projectId)
+        Share.hardCodedUri
+        (remoteProjectBranch ^. #branchId)
+      pure (ProjectAndBranch (localProjectId, localProjectName) localBranchId)
 
   Cli.respond $
     Output.ClonedProjectBranch
@@ -323,16 +323,17 @@ assertProjectNameHasUserSlug projectName =
 
 -- Assert that a local project+branch with this name doesn't already exist. If it does exist, we can't clone over it.
 assertLocalProjectBranchDoesntExist ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
   ProjectAndBranch LocalProjectKey ProjectBranchName ->
-  Sqlite.Transaction (Either Output.Output (Either ProjectName Sqlite.Project))
-assertLocalProjectBranchDoesntExist = \case
+  Sqlite.Transaction (Either ProjectName Sqlite.Project)
+assertLocalProjectBranchDoesntExist rollback = \case
   ProjectAndBranch (LocalProjectKey'Name projectName) branchName ->
     Queries.loadProjectByName projectName >>= \case
-      Nothing -> pure (Right (Left projectName))
+      Nothing -> pure (Left projectName)
       Just project -> go project branchName
   ProjectAndBranch (LocalProjectKey'Project project) branchName -> go project branchName
   where
     go project branchName =
-      Queries.projectBranchExistsByName (project ^. #projectId) branchName <&> \case
-        False -> Right (Right project)
-        True -> Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
+      Queries.projectBranchExistsByName (project ^. #projectId) branchName >>= \case
+        False -> pure (Right project)
+        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
