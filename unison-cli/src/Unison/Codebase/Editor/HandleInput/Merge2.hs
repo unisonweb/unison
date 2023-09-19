@@ -105,8 +105,12 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
     bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-    ~(Right (T2 aliceDeclNames aliceTermNames)) <- step "load alice names" $ loadBranchDefinitionNames2 aliceBranch
-    ~(Right (T2 bobDeclNames bobTermNames)) <- step "load bob names" $ loadBranchDefinitionNames2 bobBranch
+    T2 aliceDeclNames aliceTermNames <- step "load alice names" do
+      loadBranchDefinitionNames aliceBranch & onLeftM \err ->
+        rollback (werror (Text.unpack err))
+    T2 bobDeclNames bobTermNames <- step "load bob names" do
+      loadBranchDefinitionNames bobBranch & onLeftM \err ->
+        rollback (werror (Text.unpack err))
 
     let syntacticHashPpe :: PrettyPrintEnv
         syntacticHashPpe =
@@ -142,7 +146,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
           lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-          ~(Right (T2 lcaDeclNames lcaTermNames)) <- step "load lca names" $ loadBranchDefinitionNames2 lcaBranch
+          T2 lcaDeclNames lcaTermNames <- step "load lca names" do
+            loadBranchDefinitionNames lcaBranch & onLeftM \err ->
+              rollback (werror (Text.unpack err))
 
           lcaDeclSynhashes <- step "compute lca decl syntactic hashes" do
             syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
@@ -151,19 +157,19 @@ handleMerge alicePath0 bobPath0 _resultPath = do
 
           let aliceDeclDiff = diffish lcaDeclSynhashes aliceDeclSynhashes
           findConflictedAlias aliceDeclNames aliceDeclDiff & onJust \(name1, name2) ->
-            rollback wundefined
+            rollback (werror ("conflicted alice decl aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           let aliceTermDiff = diffish lcaTermSynhashes aliceTermSynhashes
           findConflictedAlias aliceTermNames aliceTermDiff & onJust \(name1, name2) ->
-            rollback wundefined
+            rollback (werror ("conflicted alice term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           let bobDeclDiff = diffish lcaDeclSynhashes bobDeclSynhashes
           findConflictedAlias bobDeclNames bobDeclDiff & onJust \(name1, name2) ->
-            rollback wundefined
+            rollback (werror ("conflicted bob decl aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
           findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
-            rollback wundefined
+            rollback (werror ("conflicted bob term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
           bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
@@ -193,13 +199,13 @@ handleMerge alicePath0 bobPath0 _resultPath = do
 --
 -- Fails if:
 --   * One name is associated with more than one reference.
-loadBranchDefinitionNames2 ::
+loadBranchDefinitionNames ::
   forall m.
   Monad m =>
   Branch m ->
   -- TODO better failure type than text
   m (Either Text (T2 (BiMultimap TypeReference Name) (BiMultimap Referent Name)))
-loadBranchDefinitionNames2 =
+loadBranchDefinitionNames =
   runExceptT . go []
   where
     go ::
