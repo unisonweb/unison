@@ -9,6 +9,7 @@ import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.Symbol (Symbol)
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import Unison.Hash (Hash)
@@ -33,5 +34,8 @@ data HashHandle = HashHandle
     hashBranchFormatFull ::
       HashBranchLocalIds ->
       LocalBranch ->
-      BranchHash
+      BranchHash,
+    -- | Verify that the hash of a term component
+    -- matches the provided hash.
+    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Bool
   }

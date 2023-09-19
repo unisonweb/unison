@@ -7,6 +7,7 @@ import Data.Function ((&))
 import Data.Set qualified as Set
 import U.Codebase.Branch.Hashing qualified as H2
 import U.Codebase.Causal.Hashing qualified as H2
+import U.Codebase.Term.Hashing qualified as H2
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.HashHandle
@@ -27,5 +28,6 @@ v2HashHandle =
         BranchFormat.localToHashBranch localIds localBranch
           & hashBranchFormatToH2Branch
           & H2.contentHash
-          & BranchHash
+          & BranchHash,
+      verifyTermFormatHash = H2.verifyTermFormatHash
     }

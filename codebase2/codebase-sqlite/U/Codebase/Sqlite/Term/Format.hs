@@ -2,6 +2,9 @@
 
 module U.Codebase.Sqlite.Term.Format where
 
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor
+import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -46,6 +49,20 @@ type HashLocallyIndexedComponent = LocallyIndexedComponent' Text Hash32
 newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
   {unLocallyIndexedComponent :: Vector (LocalIds' t d, Term, Type)}
   deriving (Show)
+
+instance Bifunctor LocallyIndexedComponent' where
+  bimap f g (LocallyIndexedComponent v) =
+    LocallyIndexedComponent
+      (fmap (\(ids, t, ty) -> (bimap f g ids, t, ty)) v)
+
+instance Bifoldable LocallyIndexedComponent' where
+  bifoldMap f g (LocallyIndexedComponent v) =
+    foldMap (\(ids, _t, _ty) -> bifoldMap f g ids) v
+
+instance Bitraversable LocallyIndexedComponent' where
+  bitraverse f g (LocallyIndexedComponent v) =
+    LocallyIndexedComponent
+      <$> traverse (\(ids, t, ty) -> (,,) <$> bitraverse f g ids <*> pure t <*> pure ty) v
 
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
