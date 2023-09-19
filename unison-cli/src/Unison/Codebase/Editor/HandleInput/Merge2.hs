@@ -108,82 +108,95 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     ~(Right (T2 aliceDeclNames aliceTermNames)) <- step "load alice names" $ loadBranchDefinitionNames2 aliceBranch
     ~(Right (T2 bobDeclNames bobTermNames)) <- step "load bob names" $ loadBranchDefinitionNames2 bobBranch
 
-    case maybeLcaCausalHash of
-      -- TODO: go down 2-way merge code paths
-      Nothing -> pure ()
-      Just lcaCausalHash -> do
-        lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
-        lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-        ~(Right (T2 lcaDeclNames lcaTermNames)) <- step "load lca names" $ loadBranchDefinitionNames2 lcaBranch
+    let syntacticHashPpe :: PrettyPrintEnv
+        syntacticHashPpe =
+          -- The order isn't important here for syntactic hashing
+          deepnessToPpe aliceDeclNames aliceTermNames `Ppe.addFallback` deepnessToPpe bobDeclNames bobTermNames
 
-        let lcaPpe = deepnessToPpe lcaDeclNames lcaTermNames
-        let alicePpe = deepnessToPpe aliceDeclNames aliceTermNames
-        let bobPpe = deepnessToPpe bobDeclNames bobTermNames
-        -- The order isn't important here for syntactic hashing
-        let syntacticHashPpe = alicePpe `Ppe.addFallback` bobPpe `Ppe.addFallback` lcaPpe
+    aliceDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe aliceDeclNames
+    aliceTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe aliceTermNames
 
-        lcaDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
-        lcaTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe lcaTermNames
+    bobDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe bobDeclNames
+    bobTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
 
-        aliceDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe aliceDeclNames
-        aliceTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe aliceTermNames
+    (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff) <-
+      case maybeLcaCausalHash of
+        Nothing -> do
+          let synhashesToAdds :: BiMultimap hash name -> Map name (Op hash)
+              synhashesToAdds =
+                Map.map Added . BiMultimap.range
+          aliceDependenciesDiff <- loadDependenciesAdds aliceBranch
+          bobDependenciesDiff <- loadDependenciesAdds bobBranch
+          pure
+            ( synhashesToAdds aliceDeclSynhashes,
+              synhashesToAdds aliceTermSynhashes,
+              aliceDependenciesDiff,
+              synhashesToAdds bobDeclSynhashes,
+              synhashesToAdds bobTermSynhashes,
+              bobDependenciesDiff
+            )
+        Just lcaCausalHash -> do
+          lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
+          lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
+          ~(Right (T2 lcaDeclNames lcaTermNames)) <- step "load lca names" $ loadBranchDefinitionNames2 lcaBranch
 
-        bobDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe bobDeclNames
-        bobTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
+          lcaDeclSynhashes <- syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
+          lcaTermSynhashes <- syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe lcaTermNames
 
-        let aliceDeclDiff = diffish lcaDeclSynhashes aliceDeclSynhashes
-        let aliceTermDiff = diffish lcaTermSynhashes aliceTermSynhashes
+          let aliceDeclDiff = diffish lcaDeclSynhashes aliceDeclSynhashes
+          let aliceTermDiff = diffish lcaTermSynhashes aliceTermSynhashes
 
-        let bobDeclDiff = diffish lcaDeclSynhashes bobDeclSynhashes
-        let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
+          let bobDeclDiff = diffish lcaDeclSynhashes bobDeclSynhashes
+          let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
 
-        -- TODO: look at diffs, bail out if either bob or alice updated some-but-not-all names for any particular thing
+          -- TODO: look at diffs, bail out if either bob or alice updated some-but-not-all names for any particular thing
 
-        let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
-        let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
+          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
+          bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
 
-        -- Special diff for `lib`
-        aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
-        bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
+          pure (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff)
 
-        Sqlite.unsafeIO do
-          -- Text.putStrLn ""
-          -- Text.putStrLn "===== hashes ====="
-          -- Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
-          -- Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
-          -- Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
-          -- Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
-          -- Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
-          Text.putStrLn ""
-          Text.putStrLn "===== lca->alice diff ====="
-          printDeclsDiff aliceDeclNames aliceDeclDiff
-          printTermsDiff aliceTermNames aliceTermDiff
-          printDependenciesDiff aliceDependenciesDiff
-          Text.putStrLn ""
-          Text.putStrLn "===== lca->bob diff ====="
-          printDeclsDiff bobDeclNames bobDeclDiff
-          printTermsDiff bobTermNames bobTermDiff
-          printDependenciesDiff bobDependenciesDiff
-          Text.putStrLn ""
-          Text.putStrLn "===== conflicts ====="
-          printDeclConflicts conflictedDecls
-          printTermConflicts conflictedTerms
-          Text.putStrLn ""
+    let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
+    let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
 
-          -- Text.writeFile
-          --   "ec-graph.dot"
-          --   ( ecDependenciesToDot
-          --       (luniqRelationToRelation aliceTypeNames <> luniqRelationToRelation bobTypeNames)
-          --       (aliceDataconNames <> bobDataconNames)
-          --       (luniqRelationToRelation aliceTermNames <> luniqRelationToRelation bobTermNames)
-          --       (Relation.ran typeUserUpdates)
-          --       (Relation.ran termUserUpdates)
-          --       coreEcs
-          --       coreEcDependencies
-          --   )
-          -- Process.callCommand "dot -Tpdf ec-graph.dot > ec-graph.pdf && open ec-graph.pdf && rm ec-graph.dot"
+    Sqlite.unsafeIO do
+      -- Text.putStrLn ""
+      -- Text.putStrLn "===== hashes ====="
+      -- Text.putStrLn ("alice causal hash = " <> showCausalHash aliceCausalHash)
+      -- Text.putStrLn ("alice namespace hash = " <> showNamespaceHash (Causal.valueHash aliceCausal))
+      -- Text.putStrLn ("bob causal hash = " <> showCausalHash bobCausalHash)
+      -- Text.putStrLn ("bob namespace hash = " <> showNamespaceHash (Causal.valueHash bobCausal))
+      -- Text.putStrLn ("lca causal hash = " <> showCausalHash lcaCausalHash)
+      Text.putStrLn ""
+      Text.putStrLn "===== lca->alice diff ====="
+      printDeclsDiff aliceDeclNames aliceDeclDiff
+      printTermsDiff aliceTermNames aliceTermDiff
+      printDependenciesDiff aliceDependenciesDiff
+      Text.putStrLn ""
+      Text.putStrLn "===== lca->bob diff ====="
+      printDeclsDiff bobDeclNames bobDeclDiff
+      printTermsDiff bobTermNames bobTermDiff
+      printDependenciesDiff bobDependenciesDiff
+      Text.putStrLn ""
+      Text.putStrLn "===== conflicts ====="
+      printDeclConflicts conflictedDecls
+      printTermConflicts conflictedTerms
+      Text.putStrLn ""
 
-          pure ()
+      -- Text.writeFile
+      --   "ec-graph.dot"
+      --   ( ecDependenciesToDot
+      --       (luniqRelationToRelation aliceTypeNames <> luniqRelationToRelation bobTypeNames)
+      --       (aliceDataconNames <> bobDataconNames)
+      --       (luniqRelationToRelation aliceTermNames <> luniqRelationToRelation bobTermNames)
+      --       (Relation.ran typeUserUpdates)
+      --       (Relation.ran termUserUpdates)
+      --       coreEcs
+      --       coreEcDependencies
+      --   )
+      -- Process.callCommand "dot -Tpdf ec-graph.dot > ec-graph.pdf && open ec-graph.pdf && rm ec-graph.dot"
+
+      pure ()
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -319,7 +332,7 @@ syntacticallyHashTerms loadTerm ppe =
 
 data Op a
   = Added !a
-  | Deleted
+  | Deleted !a
   | Updated !a !a
 
 -- diffish(lca, alice)
@@ -329,8 +342,8 @@ diffish old new =
   where
     f :: These hash hash -> Maybe (Op hash)
     f = \case
-      This _ -> Just Deleted
-      That x -> Just (Added x)
+      This x -> Just (Deleted x)
+      That y -> Just (Added y)
       These x y
         | x == y -> Nothing
         | otherwise -> Just (Updated x y)
@@ -346,25 +359,27 @@ conflictsish aliceDiff bobDiff =
       These (Updated _ x) (Updated _ y) | x /= y -> Just ()
       _ -> Nothing
 
-data DependencyDiff
-  = AddDependency !CausalHash
-  | DeleteDependency !CausalHash
-  | UpdateDependency !CausalHash !CausalHash
-
 -- | Diff the "dependencies" ("lib" sub-namespace) of two namespaces.
-loadDependenciesDiff :: Branch Transaction -> Branch Transaction -> Transaction (Map NameSegment DependencyDiff)
+loadDependenciesDiff :: Branch Transaction -> Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
 loadDependenciesDiff branch1 branch2 = do
   dependencies1 <- namespaceDependencies branch1
   dependencies2 <- namespaceDependencies branch2
   pure (catMaybes (alignWith f dependencies1 dependencies2))
   where
     f = \case
-      This dep1 -> Just (DeleteDependency (Causal.causalHash dep1))
-      That dep2 -> Just (AddDependency (Causal.causalHash dep2))
-      These (Causal.causalHash -> dep1) (Causal.causalHash -> dep2) ->
-        if dep1 == dep2
+      This x -> Just (Deleted (Causal.causalHash x))
+      That y -> Just (Added (Causal.causalHash y))
+      These (Causal.causalHash -> x) (Causal.causalHash -> y) ->
+        if x == y
           then Nothing
-          else Just (UpdateDependency dep1 dep2)
+          else Just (Updated x y)
+
+-- | Like @loadDependenciesDiff@, but when there isn't an old and new branch to compare (i.e. no LCA), so everything
+-- gets classified as an add.
+loadDependenciesAdds :: Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
+loadDependenciesAdds branch = do
+  dependencies <- namespaceDependencies branch
+  pure (Map.map (Added . Causal.causalHash) dependencies)
 
 -- | Extract just the "dependencies" (sub-namespaces of "lib") of a branch.
 namespaceDependencies :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
@@ -396,119 +411,6 @@ showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
 
-ecDependenciesToDot ::
-  Relation TypeReference Name ->
-  Relation3 Name TypeReference ConstructorId ->
-  Relation TermReference Name ->
-  Set TypeReference ->
-  Set Referent ->
-  Bimap Merge.EC (Merge.Node Referent TypeReference) ->
-  Relation Merge.EC Merge.EC ->
-  Text
-ecDependenciesToDot typeNames constructorNames termNames typeUserUpdates termUserUpdates coreEcs coreEcDependencies =
-  Text.Lazy.toStrict . Text.Builder.toLazyText $
-    fold
-      [ "digraph {",
-        newline,
-        "edge [arrowhead = vee; arrowsize = 0.5]",
-        newline,
-        coreEcs
-          & Bimap.toList
-          & intercalateMap
-            newline
-            ( \(Merge.EC ec, node) ->
-                fold
-                  [ "  ",
-                    Text.Builder.decimal ec,
-                    " [color = ",
-                    case node of
-                      Merge.Node'Term _ -> "blue"
-                      Merge.Node'Terms _ -> "blue"
-                      Merge.Node'Type _ -> "green"
-                      Merge.Node'Types _ -> "green",
-                    "; label = <",
-                    nodeToTable node,
-                    ">]"
-                  ]
-            ),
-        newline,
-        coreEcDependencies
-          & Relation.toList
-          & intercalateMap
-            newline
-            ( \(Merge.EC ec0, Merge.EC ec1) ->
-                fold
-                  [ "  ",
-                    Text.Builder.decimal ec0,
-                    " -> ",
-                    Text.Builder.decimal ec1
-                  ]
-            ),
-        newline,
-        "}"
-      ]
-  where
-    nodeToTable :: Merge.Node Referent TypeReference -> Text.Builder
-    nodeToTable node =
-      "<table>" <> nodeToRows node <> "</table>"
-
-    nodeToRows :: Merge.Node Referent TypeReference -> Text.Builder
-    nodeToRows = \case
-      Merge.NodeTms tms ->
-        tms & foldMap \ref ->
-          let name =
-                fromMaybe "" . Set.lookupMin $
-                  case ref of
-                    Referent.Con typeRef conId -> Relation3.lookupD23 typeRef conId constructorNames
-                    Referent.Ref termRef -> Relation.lookupDom termRef termNames
-           in refToRow (Name.toText name <> showReferent ref) (Set.member ref termUserUpdates)
-      Merge.NodeTys tys ->
-        tys & foldMap \ref ->
-          let name = fromMaybe "" (Set.lookupMin (Relation.lookupDom ref typeNames))
-           in refToRow (Name.toText name <> showReference ref) (Set.member ref typeUserUpdates)
-
-    refToRow :: Text -> Bool -> Text.Builder
-    refToRow ref isUserUpdate =
-      fold
-        [ "<tr><td>",
-          if isUserUpdate then "<b>" else "",
-          Text.Builder.fromText ref,
-          if isUserUpdate then "</b>" else "",
-          "</td></tr>"
-        ]
-
-    newline :: Text.Builder
-    newline = "\n"
-
-printDiff :: Maybe Name -> DefinitionDiffs -> IO ()
-printDiff prefix DefinitionDiffs {termDiffs, typeDiffs} = do
-  for_ (Map.toList termDiffs) \(segment, Diff.Diff {adds, removals}) -> do
-    let name =
-          case prefix of
-            Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.snoc prefix1 segment
-    Text.putStrLn $
-      "term "
-        <> Name.toText name
-        <> " "
-        <> Text.unwords
-          ( map (Text.red . ("-" <>) . showReferent) (Set.toList removals)
-              ++ map (Text.green . ("+" <>) . showReferent) (Set.toList adds)
-          )
-  for_ (Map.toList typeDiffs) \(segment, Diff.Diff {adds, removals}) -> do
-    let name =
-          case prefix of
-            Nothing -> Name.fromSegment segment
-            Just prefix1 -> Name.snoc prefix1 segment
-    Text.putStrLn $
-      "type "
-        <> Name.toText name
-        <> " "
-        <> Text.unwords
-          ( map (Text.red . ("-" <>) . showReference) (Set.toList removals)
-              ++ map (Text.green . ("+" <>) . showReference) (Set.toList adds)
-          )
-
 printDeclsDiff :: BiMultimap TypeReference Name -> Map Name (Op Hash) -> IO ()
 printDeclsDiff declNames = do
   Text.putStr . Text.unlines . map f . Map.toList
@@ -517,7 +419,7 @@ printDeclsDiff declNames = do
     f (name, op) =
       case op of
         Added _ -> Text.green ("decl " <> Name.toText name) <> ref
-        Deleted -> Text.red ("decl " <> Name.toText name) <> ref
+        Deleted _ -> Text.red ("decl " <> Name.toText name) <> ref
         Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
       where
         ref =
@@ -531,23 +433,23 @@ printTermsDiff termNames = do
     f (name, op) =
       case op of
         Added _ -> Text.green ("term " <> Name.toText name) <> ref
-        Deleted -> Text.red ("term " <> Name.toText name) <> ref
+        Deleted _ -> Text.red ("term " <> Name.toText name) <> ref
         Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
       where
         ref =
           Text.brightBlack (showReferent (fromJust (BiMultimap.lookupRan name termNames)))
 
-printDependenciesDiff :: Map NameSegment DependencyDiff -> IO ()
+printDependenciesDiff :: Map NameSegment (Op CausalHash) -> IO ()
 printDependenciesDiff =
   Text.putStr . Text.unlines . map f . Map.toList
   where
     f (name, diff) =
       case diff of
-        AddDependency hash ->
+        Added hash ->
           Text.green ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        DeleteDependency hash ->
+        Deleted hash ->
           Text.red ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        UpdateDependency _oldHash newHash ->
+        Updated _oldHash newHash ->
           Text.magenta ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash newHash)
 
 printDeclConflicts :: Set Name -> IO ()
