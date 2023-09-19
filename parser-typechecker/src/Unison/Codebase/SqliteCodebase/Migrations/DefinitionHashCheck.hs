@@ -22,7 +22,7 @@ definitionHashCheck = do
     lic' <- bitraverse Q.expectText (fmap Hash32.fromHash . Q.expectPrimaryHashByObjectId) lic
     let success = verifyTermFormatHash v2HashHandle (ComponentHash componentHash) (S.Term.Term lic')
     if success
-      then Sqlite.unsafeIO . print $ "Definition hash check succeeded for " <> show (oid, componentHash)
+      then pure () -- Sqlite.unsafeIO . print $ "Definition hash check succeeded for " <> show (oid, componentHash)
       else Sqlite.unsafeIO . print $ "Definition hash check failed for " <> show (oid, componentHash)
     pure success
   if (and results)

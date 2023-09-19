@@ -261,7 +261,7 @@ unhashComponent componentHash refToVar m =
                 Nothing -> ABT.tm () $ Ref (Reference.ReferenceDerived (Reference.Id h pos))
                 -- Entry in the component map, so this is a self-reference, replace it with a
                 -- Var.
-                Just (v, _, _) -> ABT.var () v
+                Just (_v, _, _) -> error "unhashComponent: non-Nothing self-reference found in component map"
             Nothing ->
               -- This is a self-reference, so we expect to find it in the component map.
               case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of

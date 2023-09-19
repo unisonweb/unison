@@ -46,7 +46,7 @@ data TypeF a
   | TypeIntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  deriving (Foldable, Functor, Traversable)
+  deriving (Eq, Show, Foldable, Functor, Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term TypeF v a
