@@ -65,6 +65,7 @@ module U.Codebase.Sqlite.Operations
     -- ** dependents index
     dependents,
     dependentsOfComponent,
+    dependentsWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
@@ -1102,6 +1103,21 @@ dependents selector r = do
       r' <- c2sReference r
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
+
+data ReferenceType = RtTerm | RtDecl
+
+-- | Does a recursive search of the dependency table looking for the subset of `scope` that are dependents ``query`
+dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id ReferenceType)
+dependentsWithinScope scope query = do
+  scope' <- Set.traverse c2sReferenceId scope
+  query' <- Set.traverse c2sReference query
+  Q.getDependentsWithinScope scope' query'
+    >>= Map.bitraverse s2cReferenceId (pure . objectTypeToReferenceType)
+  where
+    objectTypeToReferenceType = \case
+      ObjectType.TermComponent -> RtTerm
+      ObjectType.DeclComponent -> RtDecl
+      _ -> error "Q.getDependentsWithinScope shouldn't return any other types"
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

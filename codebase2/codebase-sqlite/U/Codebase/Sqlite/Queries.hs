@@ -160,6 +160,7 @@ module U.Codebase.Sqlite.Queries
     getDependenciesForDependent,
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
+    getDependentsWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -1789,6 +1790,50 @@ getDependenciesBetweenTerms oid1 oid2 =
       FROM elems
       WHERE path_elem IS NOT null
     |]
+
+-- todo: still need to make this limit to scope
+-- | Does a recursive search of the dependency table looking for the subset of `scope` that are dependents ``query`
+getDependentsWithinScope :: Set Reference.Id -> Set S.Reference -> Transaction (Map Reference.Id ObjectType)
+getDependentsWithinScope scope query = do
+  execute [sql|CREATE TEMPORARY TABLE dependents_search_scope
+                ( dependent_object_id INTEGER NOT NULL CONSTRAINT REFERENCES object(id),
+                  dependent_component_index INTEGER NOT NULL)
+               PRIMARY KEY (dependent_object_id, dependent_component_index)|]
+  execute [sql|CREATE TEMPORARY TABLE dependencies_query
+            dependency_builtin INTEGER NULL CONSTRAINT dependents_index_fk1 REFERENCES text(id),
+            dependency_object_id INTEGER NULL CONSTRAINT dependents_index_fk2 REFERENCES object(id),
+            dependency_component_index INTEGER NULL,
+            CONSTRAINT CHECK (
+              (dependency_builtin IS NULL) =
+              (dependency_object_id IS NOT NULL)
+            ),
+            CONSTRAINT CHECK (
+              (dependency_object_id IS NULL) =
+              (dependency_component_index IS NULL)
+            )|]
+  for_ scope \r ->
+    execute [sql|INSERT INTO dependents_search_scope VALUES (@r, @)|]
+  for_ query \r ->
+    execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+  result :: [Reference.Id :. Only ObjectType] <- queryListRow [sql|
+    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, object.type_id) AS (
+      SELECT (dependency_object_id, dependency_component_index, type_id)
+      FROM dependencies_query INNER JOIN object ON dependency_object_id = object.id
+      WHERE dependency_builtin IS NULL
+      -- use UNION instead of UNION ALL if you don't want to have to dedup outside
+      UNION ALL SELECT (dependency_object_id, dependency_component_index, object.type_id)
+      FROM dependents_index d
+      INNER JOIN transitive_dependents t
+      ON t.dependency_object_id = d.dependent_object_id
+      INNER JOIN object ON dependency_object_id = object.id
+      AND t.dependency_component_index = d.dependency_component_index
+    )
+    SELECT * FROM transitive_dependents
+  |]
+  execute [sql|DROP TABLE dependents_search_scope|]
+  execute [sql|DROP TABLE dependencies_query|]
+  pure . Map.fromList $ [(r, t) | r :. Only t <- result]
+
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
