@@ -12,6 +12,7 @@ module U.Codebase.Reference
     Id,
     Id' (..),
     Pos,
+    ReferenceType (..),
     _ReferenceDerived,
     _RReferenceReference,
     t_,
@@ -62,6 +63,8 @@ type TermReferenceId = Id
 
 -- | A type declaration reference id.
 type TypeReferenceId = Id
+
+data ReferenceType = RtTerm | RtType deriving (Eq, Ord, Show)
 
 -- | Either a builtin or a user defined (hashed) top-level declaration. Used for both terms and types.
 data Reference' t h

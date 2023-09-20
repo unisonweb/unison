@@ -1104,10 +1104,8 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
-data ReferenceType = RtTerm | RtDecl
-
 -- | Does a recursive search of the dependency table looking for the subset of `scope` that are in `query` or dependents of the result
-dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id ReferenceType)
+dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id C.ReferenceType)
 dependentsWithinScope scope query = do
   scope' <- Set.traverse c2sReferenceId scope
   query' <- Set.traverse c2sReference query
@@ -1115,8 +1113,8 @@ dependentsWithinScope scope query = do
     >>= Map.bitraverse s2cReferenceId (pure . objectTypeToReferenceType)
   where
     objectTypeToReferenceType = \case
-      ObjectType.TermComponent -> RtTerm
-      ObjectType.DeclComponent -> RtDecl
+      ObjectType.TermComponent -> C.RtTerm
+      ObjectType.DeclComponent -> C.RtType
       _ -> error "Q.getDependentsWithinScope shouldn't return any other types"
 
 -- | returns a list of known definitions referencing `h`
