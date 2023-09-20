@@ -83,7 +83,7 @@ runTransaction conn (Transaction f) = liftIO do
         pure result
 {-# SPECIALIZE runTransaction :: Connection -> Transaction a -> IO a #-}
 
--- An internal exception type that allows powers `runTransactionWithRollback`
+-- An internal exception type that allows `runTransactionWithRollback`
 data RollingBack
   = forall a. RollingBack !Unique !a
   deriving anyclass (Exception)
