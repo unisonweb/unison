@@ -20,7 +20,7 @@ module Unison.Typechecker.Context
     Type,
     TypeVar,
     Result (..),
-    PatternMatchCoverageCheckSwitch (..),
+    PatternMatchCoverageCheckAndKindInferenceSwitch (..),
     errorTerms,
     innermostErrorTerm,
     lookupAnn,
@@ -218,15 +218,15 @@ mapErrors f r = case r of
   CompilerBug bug es is -> CompilerBug bug (f <$> es) is
   s@(Success _ _) -> s
 
-data PatternMatchCoverageCheckSwitch
-  = PatternMatchCoverageCheckSwitch'Enabled
-  | PatternMatchCoverageCheckSwitch'Disabled
+data PatternMatchCoverageCheckAndKindInferenceSwitch
+  = PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
+  | PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled
 
 newtype MT v loc f a = MT
   { runM ::
       -- for debug output
       PrettyPrintEnv ->
-      PatternMatchCoverageCheckSwitch ->
+      PatternMatchCoverageCheckAndKindInferenceSwitch ->
       -- Data declarations in scope
       DataDeclarations v loc ->
       -- Effect declarations in scope
@@ -775,8 +775,8 @@ getDataDeclarations = MT \_ _ datas _ env -> pure (datas, env)
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
 getEffectDeclarations = MT \_ _ _ effects env -> pure (effects, env)
 
-getPatternMatchCoverageCheckSwitch :: M v loc PatternMatchCoverageCheckSwitch
-getPatternMatchCoverageCheckSwitch = MT \_ pmcSwitch _ _ env -> pure (pmcSwitch, env)
+getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
+getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -1303,9 +1303,9 @@ synthesizeWanted e
       want <- coalesceWanted cwant swant
       ctx <- getContext
       let matchType = apply ctx outputType
-      getPatternMatchCoverageCheckSwitch >>= \case
-        PatternMatchCoverageCheckSwitch'Enabled -> ensurePatternCoverage e matchType scrutinee scrutineeType cases
-        PatternMatchCoverageCheckSwitch'Disabled -> pure ()
+      getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+        PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> ensurePatternCoverage e matchType scrutinee scrutineeType cases
+        PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
       pure $ (matchType, want)
   where
     l = loc e
@@ -3059,7 +3059,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 synthesizeClosed ::
   (BuiltinAnnotation loc, Var v, Ord loc, Show loc) =>
   PrettyPrintEnv ->
-  PatternMatchCoverageCheckSwitch ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
@@ -3076,14 +3076,31 @@ synthesizeClosed ppe pmcSwitch abilities lookupType term0 =
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
               *> verifyClosedTerm term
-          let kindInferRes = do
-                let decls = (Left <$> effects) <> (Right <$> datas)
-                st <- KindInference.inferDecls ppe decls
-                KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
-          case kindInferRes of
-            Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
-            Right () -> pure ()
+          doKindInference ppe datas effects term
           synthesizeClosed' abilities term
+
+doKindInference ::
+  ( Var v,
+    Ord loc,
+    BuiltinAnnotation loc,
+    Show loc
+  ) =>
+  PrettyPrintEnv ->
+  DataDeclarations v loc ->
+  Map Reference (EffectDeclaration v loc) ->
+  Term v loc ->
+  MT v loc (Result v loc) ()
+doKindInference ppe datas effects term = do
+  getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
+      let kindInferRes = do
+            let decls = (Left <$> effects) <> (Right <$> datas)
+            st <- KindInference.inferDecls ppe decls
+            KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
+      case kindInferRes of
+        Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
+        Right () -> pure ()
 
 verifyClosedTerm :: forall v loc. (Ord v) => Term v loc -> Result v loc ()
 verifyClosedTerm t = do
@@ -3118,7 +3135,7 @@ annotateRefs synth = ABT.visit f
 run ::
   (Var v, Ord loc, Functor f) =>
   PrettyPrintEnv ->
-  PatternMatchCoverageCheckSwitch ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
   MT v loc f a ->
@@ -3165,7 +3182,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckSwitch'Enabled Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3206,7 +3223,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run PPE.empty PatternMatchCoverageCheckSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
