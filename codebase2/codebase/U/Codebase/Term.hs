@@ -17,9 +17,6 @@ module U.Codebase.Term
 where
 
 import Control.Lens (Lens)
-import Control.Monad.Writer qualified as Writer
-import Data.Foldable qualified as Foldable
-import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, TermRReference, TermReference, TypeReference)
 import U.Codebase.Referent (Referent, ReferentH)
 import U.Codebase.Type (TypeR)

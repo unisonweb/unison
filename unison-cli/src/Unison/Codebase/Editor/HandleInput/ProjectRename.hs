@@ -18,10 +18,8 @@ handleProjectRename newName = do
   project <- ProjectUtils.expectCurrentProject
   let oldName = project ^. #name
   when (oldName /= newName) do
-    Cli.runEitherTransaction do
+    Cli.runTransactionWithRollback \rollback -> do
       Queries.loadProjectByName newName >>= \case
-        Just _ -> pure (Left (Output.ProjectNameAlreadyExists newName))
-        Nothing -> do
-          Queries.renameProject (project ^. #projectId) newName
-          pure (Right ())
+        Just _ -> rollback (Output.ProjectNameAlreadyExists newName)
+        Nothing -> Queries.renameProject (project ^. #projectId) newName
   Cli.respond (Output.RenamedProject oldName newName)

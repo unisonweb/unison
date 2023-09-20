@@ -2,7 +2,6 @@ module Unison.Syntax.FileParser where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
-import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Text.Megaparsec qualified as P
@@ -17,7 +16,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Term (Term)
@@ -25,7 +24,7 @@ import Unison.Term qualified as Term
 import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env qualified as UF
-import Unison.UnisonFile.Names (environmentFor)
+import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -42,14 +41,21 @@ file = do
   -- which are parsed and applied to the type decls and term stanzas
   (namesStart, imports) <- TermParser.imports <* optional semi
   (dataDecls, effectDecls, parsedAccessors) <- declarations
-  env <- case environmentFor (NamesWithHistory.currentNames namesStart) dataDecls effectDecls of
+  env <- case UFN.environmentFor (NamesWithHistory.currentNames namesStart) dataDecls effectDecls of
     Right (Right env) -> pure env
     Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
     Left es -> resolutionFailures (toList es)
+  let accessors :: [[(v, Ann, Term v Ann)]]
+      accessors =
+          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+            | (typ, fields) <- parsedAccessors,
+              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+          ]
+      toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations. The `Names.push (Names.suffixify0 locals)` here has the effect
+  -- declarations. The `push locals` here has the effect
   -- of making suffix-based name resolution prefer type and constructor names coming
   -- from the local file.
   --
@@ -69,6 +75,10 @@ file = do
           Binding ((spanningAnn, v), at) -> ((v, spanningAnn, Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v, spanningAnn, Term.generalizeTypeSignatures at) | ((spanningAnn, v), at) <- bs] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
+        -- All locally declared term variables, running example:
+        --   [foo.alice, bar.alice, zonk.bob]
+        fqLocalTerms :: [v]
+        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors) 
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
@@ -76,51 +86,27 @@ file = do
             resolveLocals
           )
           where
-            -- All locally declared term variables, running example:
-            --   [foo.alice, bar.alice, zonk.bob]
-            locals0 :: [v]
-            locals0 = stanzas0 >>= getVars
-            -- Groups variables by their suffixes:
-            --   [ (foo.alice, [foo.alice]),
-            --     (bar.alice, [bar.alice])
-            --     (alice, [foo.alice, bar.alice]),
-            --     (zonk.bob, [zonk.bob]),
-            --     (bob, [zonk.bob]) ]
-            varsBySuffix :: Map Name.Name [v]
-            varsBySuffix = List.multimap [(n, v) | v <- locals0, n <- Name.suffixes (Name.unsafeFromVar v)]
-            -- Any unique suffix maps to the corresponding variable. Above, `alice` is not a unique
-            -- suffix, but `bob` is. `foo.alice` and `bob.alice` are both unique suffixes but
-            -- they map to themselves, so we ignore them. In our example, we'll just be left with
-            --   [(bob, Term.var() zonk.bob)]
-            replacements =
-              [ (Name.toVar n, Term.var () v')
-                | (n, nubOrd -> [v']) <- Map.toList varsBySuffix,
-                  Name.toVar n /= v'
-              ]
-            locals = Map.keys varsBySuffix
-            -- This will perform the actual variable replacements for suffixes
-            -- that uniquely identify definitions in the file. It will avoid
-            -- variable capture and respect local shadowing. For example, inside
-            -- `bob -> bob * 42`, `bob` will correctly refer to the lambda parameter.
-            -- and not the `zonk.bob` declared in the file.
+            -- Each unique suffix mapped to its fully qualified name
+            canonicalVars :: Map v v
+            canonicalVars = UFN.variableCanonicalizer fqLocalTerms
+            
+            -- All unique local term name suffixes - these we want to
+            -- avoid resolving to a term that's in the codebase
+            locals :: [Name.Name]
+            locals = (Name.unsafeFromVar <$> Map.keys canonicalVars)
+            
+            -- A function to replace unique local term suffixes with their
+            -- fully qualified name
+            replacements = [ (v, Term.var () v2) | (v,v2) <- Map.toList canonicalVars, v /= v2 ]
             resolveLocals = ABT.substsInheritAnnotation replacements
-    let bindNames = Term.bindSomeNames Name.unsafeFromVar avoid curNames . resolveLocals
-          where
-            avoid = Set.fromList (stanzas0 >>= getVars)
+    let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    let toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
-        accessors :: [[(v, Ann, Term v Ann)]]
-        accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-            | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
-        uf =
+    let uf =
           UnisonFileId
             (UF.datasId env)
             (UF.effectsId env)

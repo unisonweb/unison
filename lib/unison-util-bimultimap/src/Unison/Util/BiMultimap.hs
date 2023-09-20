@@ -6,6 +6,7 @@ module Unison.Util.BiMultimap
     -- ** Lookup
     lookupDom,
     lookupRan,
+    lookupPreimage,
 
     -- ** Traverse
     unsafeTraverseDom,
@@ -32,7 +33,6 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
-import Unison.Util.Set qualified as Set
 
 -- | A left-unique relation.
 --
@@ -51,8 +51,12 @@ empty = BiMultimap mempty mempty
 --
 -- /O(log a)/.
 lookupDom :: Ord a => a -> BiMultimap a b -> Set b
-lookupDom a (BiMultimap l _) =
-  maybe Set.empty Set.NonEmpty.toSet (Map.lookup a l)
+lookupDom a =
+  lookupDom_ a . domain
+
+lookupDom_ :: Ord a => a -> Map a (NESet b) -> Set b
+lookupDom_ x xs =
+  maybe Set.empty Set.NonEmpty.toSet (Map.lookup x xs)
 
 -- | Look up the @a@ related to a @b@.
 --
@@ -60,6 +64,13 @@ lookupDom a (BiMultimap l _) =
 lookupRan :: Ord b => b -> BiMultimap a b -> Maybe a
 lookupRan b (BiMultimap _ r) =
   Map.lookup b r
+
+-- | Look up the preimage of a @b@, that is, the set of @b@ that are related to the same @a@ as the input @b@.
+--
+-- /O(log a + log b)
+lookupPreimage :: (Ord a, Ord b) => b -> BiMultimap a b -> Set b
+lookupPreimage y (BiMultimap domain range) =
+  maybe Set.empty (\x -> lookupDom_ x domain) (Map.lookup y range)
 
 -- | Traverse over the domain a left-unique relation.
 --

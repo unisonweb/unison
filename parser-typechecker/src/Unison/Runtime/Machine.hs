@@ -15,6 +15,7 @@ import Control.Exception
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
+import Data.Primitive.ByteArray qualified as BA
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
@@ -238,6 +239,17 @@ unitValue = Enum Rf.unitRef unitTag
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
+buildLit :: Reference -> MLit -> Closure
+buildLit rf (MI i)
+  | Just n <- M.lookup rf builtinTypeNumbering,
+    rt <- toEnum (fromIntegral n) =
+      DataU1 rf (packTags rt 0) i
+  | otherwise = error "buildLit: unknown reference"
+buildLit _ (MT t) = Foreign (Wrap Rf.textRef t)
+buildLit _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
+buildLit _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
+buildLit _ (MD _) = error "buildLit: double"
+
 exec ::
   CCache ->
   DEnv ->
@@ -453,6 +465,10 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MY r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BLit rf l) = do
+  bstk <- bump bstk
+  poke bstk $ buildLit rf l
+  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Reset ps) = do
   (ustk, ua) <- saveArgs ustk
   (bstk, ba) <- saveArgs bstk
@@ -528,6 +544,14 @@ encodeExn ustk bstk (Left exn) = do
           (Rf.threadKilledFailureRef, disp ie, unitValue)
       | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
+numValue :: Maybe Reference -> Closure -> IO Word64
+numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
+numValue mr clo =
+  die $
+    "numValue: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+
 eval ::
   CCache ->
   DEnv ->
@@ -544,6 +568,22 @@ eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i br) = do
   n <- peekOffN ustk i
   eval env denv activeThreads ustk bstk k r $ selectBranch n br
+eval !env !denv !activeThreads !ustk !bstk !k r (DMatch mr i br) = do
+  (t, ustk, bstk) <- dumpDataNoTag mr ustk bstk =<< peekOff bstk i
+  eval env denv activeThreads ustk bstk k r $
+    selectBranch (maskTags t) br
+eval !env !denv !activeThreads !ustk !bstk !k r (NMatch mr i br) = do
+  n <- numValue mr =<< peekOff bstk i
+  eval env denv activeThreads ustk bstk k r $ selectBranch n br
+eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
+  (t, ustk, bstk) <- dumpDataNoTag Nothing ustk bstk =<< peekOff bstk i
+  if t == 0
+    then eval env denv activeThreads ustk bstk k r pu
+    else case ANF.unpackTags t of
+      (ANF.rawTag -> e, ANF.rawTag -> t)
+        | Just ebs <- EC.lookup e br ->
+            eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
+        | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
   | asize ustk + asize bstk > 0,
     BArg1 i <- args =
@@ -888,6 +928,50 @@ buildData !ustk !bstk !r !t (DArgV ui bi) = do
     ul = fsize ustk - ui
     bl = fsize bstk - bi
 {-# INLINE buildData #-}
+
+-- Dumps a data type closure to the stack without writing its tag.
+-- Instead, the tag is returned for direct case analysis.
+dumpDataNoTag ::
+  Maybe Reference ->
+  Stack 'UN ->
+  Stack 'BX ->
+  Closure ->
+  IO (Word64, Stack 'UN, Stack 'BX)
+dumpDataNoTag !_ !ustk !bstk (Enum _ t) = pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataU1 _ t x) = do
+  ustk <- bump ustk
+  poke ustk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataU2 _ t x y) = do
+  ustk <- bumpn ustk 2
+  pokeOff ustk 1 y
+  poke ustk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataB1 _ t x) = do
+  bstk <- bump bstk
+  poke bstk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataB2 _ t x y) = do
+  bstk <- bumpn bstk 2
+  pokeOff bstk 1 y
+  poke bstk x
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataUB _ t x y) = do
+  ustk <- bump ustk
+  bstk <- bump bstk
+  poke ustk x
+  poke bstk y
+  pure (t, ustk, bstk)
+dumpDataNoTag !_ !ustk !bstk (DataG _ t us bs) = do
+  ustk <- dumpSeg ustk us S
+  bstk <- dumpSeg bstk bs S
+  pure (t, ustk, bstk)
+dumpDataNoTag !mr !_ !_ clo =
+  die $
+    "dumpDataNoTag: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+{-# INLINE dumpDataNoTag #-}
 
 dumpData ::
   Maybe Reference ->
@@ -1805,12 +1889,15 @@ resolve env _ _ (Env n i) =
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
-  Nothing -> readTVarIO (tagRefs env) >>= err
-    where
-      unhandled rs = case EC.lookup i rs of
-        Just r -> show r
-        Nothing -> show i
-      err rs = die $ "resolve: unhandled ability request: " ++ unhandled rs
+  Nothing -> unhandledErr "resolve" env i
+
+unhandledErr :: String -> CCache -> Word64 -> IO a
+unhandledErr fname env i =
+  readTVarIO (tagRefs env) >>= \rs -> case EC.lookup i rs of
+    Just r -> bomb (show r)
+    Nothing -> bomb (show i)
+  where
+    bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
 combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
@@ -1994,6 +2081,7 @@ reflectValue rty = goV
 
     goV (PApV cix ua ba) =
       ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+    goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
     goV (CapV k _ _ us bs) =
@@ -2033,7 +2121,18 @@ reflectValue rty = goV
           pure (ANF.Code g)
       | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
           pure (ANF.BArr a)
+      | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
+          ANF.Arr <$> traverse goV a
       | otherwise = die $ err $ "foreign value: " <> (show f)
+
+    reflectUData :: Word64 -> Int -> IO ANF.BLit
+    reflectUData t v
+      | t == natTag = pure $ ANF.Pos (fromIntegral v)
+      | t == charTag = pure $ ANF.Char (toEnum v)
+      | t == intTag, v >= 0 = pure $ ANF.Pos (fromIntegral v)
+      | t == intTag, v < 0 = pure $ ANF.Neg (fromIntegral (-v))
+      | t == floatTag = pure $ ANF.Float (intToDouble v)
+      | otherwise = die . err $ "unboxed data: " <> show (t, v)
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
@@ -2108,6 +2207,20 @@ reifyValue0 (rty, rtm) = goV
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
     goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
+    goL (ANF.Char c) = pure $ DataU1 Rf.charRef charTag (fromEnum c)
+    goL (ANF.Pos w) =
+      pure $ DataU1 Rf.natRef natTag (fromIntegral w)
+    goL (ANF.Neg w) =
+      pure $ DataU1 Rf.intRef intTag (-fromIntegral w)
+    goL (ANF.Float d) =
+      pure $ DataU1 Rf.floatRef floatTag (doubleToInt d)
+    goL (ANF.Arr a) = Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+
+doubleToInt :: Double -> Int
+doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
+
+intToDouble :: Int -> Double
+intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
 -- Universal comparison functions
 
@@ -2126,6 +2239,8 @@ universalEq ::
 universalEq frn = eqc
   where
     eql cm l r = length l == length r && and (zipWith cm l r)
+    eqc (DataC _ ct1 [w1] []) (DataC _ ct2 [w2] []) =
+      matchTags ct1 ct2 && w1 == w2
     eqc (DataC _ ct1 us1 bs1) (DataC _ ct2 us2 bs2) =
       ct1 == ct2
         && eql (==) us1 us2
@@ -2149,6 +2264,13 @@ universalEq frn = eqc
           length sl == length sr && and (Sq.zipWith eqc sl sr)
       | otherwise = frn fl fr
     eqc c d = closureNum c == closureNum d
+
+    -- serialization doesn't necessarily preserve Int tags, so be
+    -- more accepting for those.
+    matchTags ct1 ct2 =
+      ct1 == ct2
+        || (ct1 == intTag && ct2 == natTag)
+        || (ct1 == natTag && ct2 == intTag)
 
 arrayEq :: (Closure -> Closure -> Bool) -> PA.Array Closure -> PA.Array Closure -> Bool
 arrayEq eqc l r
@@ -2211,6 +2333,13 @@ natTag
       packTags rt 0
   | otherwise = error "internal error: natTag"
 
+intTag :: Word64
+intTag
+  | Just n <- M.lookup Rf.intRef builtinTypeNumbering,
+    rt <- toEnum (fromIntegral n) =
+      packTags rt 0
+  | otherwise = error "internal error: intTag"
+
 charTag :: Word64
 charTag
   | Just n <- M.lookup Rf.charRef builtinTypeNumbering,
@@ -2235,8 +2364,10 @@ universalCompare frn = cmpc False
     cmpl cm l r =
       compare (length l) (length r) <> fold (zipWith cm l r)
     cmpc _ (DataC _ ct1 [i] []) (DataC _ ct2 [j] [])
-      | ct1 == floatTag && ct2 == floatTag = compareAsFloat i j
-      | ct1 == natTag && ct2 == natTag = compareAsNat i j
+      | ct1 == floatTag, ct2 == floatTag = compareAsFloat i j
+      | ct1 == natTag, ct2 == natTag = compareAsNat i j
+      | ct1 == intTag, ct2 == natTag = compare i j
+      | ct1 == natTag, ct2 == intTag = compare i j
     cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2) =
       (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
         <> compare (maskTags ct1) (maskTags ct2)

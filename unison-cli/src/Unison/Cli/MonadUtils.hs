@@ -161,18 +161,19 @@ resolveAbsBranchId = \case
   Right path -> getBranchAt path
 
 -- | V2 version of 'resolveAbsBranchId2'.
-resolveAbsBranchIdV2 :: Input.AbsBranchId -> Sqlite.Transaction (Either Output.Output (V2.Branch Sqlite.Transaction))
-resolveAbsBranchIdV2 = \case
+resolveAbsBranchIdV2 ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  Input.AbsBranchId ->
+  Sqlite.Transaction (V2.Branch Sqlite.Transaction)
+resolveAbsBranchIdV2 rollback = \case
   Left shortHash -> do
-    resolveShortCausalHashToCausalHash shortHash >>= \case
-      Left output -> pure (Left output)
-      Right hash -> succeed (Codebase.expectCausalBranchByCausalHash hash)
+    hash <- resolveShortCausalHashToCausalHash rollback shortHash
+    succeed (Codebase.expectCausalBranchByCausalHash hash)
   Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
   where
     succeed getCausal = do
       causal <- getCausal
-      branch <- V2Causal.value causal
-      pure (Right branch)
+      V2Causal.value causal
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
@@ -191,22 +192,22 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
+    hash <- Cli.runTransactionWithRollback \rollback -> resolveShortCausalHashToCausalHash rollback shortHash
     branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
 
-resolveShortCausalHashToCausalHash :: ShortCausalHash -> Sqlite.Transaction (Either Output.Output CausalHash)
-resolveShortCausalHashToCausalHash shortHash = do
+resolveShortCausalHashToCausalHash ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  ShortCausalHash ->
+  Sqlite.Transaction CausalHash
+resolveShortCausalHashToCausalHash rollback shortHash = do
   hashes <- Codebase.causalHashesByPrefix shortHash
-  case Set.asSingleton hashes of
-    Nothing ->
-      fmap Left do
-        if Set.null hashes
-          then pure (Output.NoBranchWithHash shortHash)
-          else do
-            len <- Codebase.branchHashLength
-            pure (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
-    Just hash -> pure (Right hash)
+  Set.asSingleton hashes & onNothing do
+    if Set.null hashes
+      then rollback (Output.NoBranchWithHash shortHash)
+      else do
+        len <- Codebase.branchHashLength
+        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches
