@@ -90,6 +90,11 @@ data DeepRefs = DeepRefs
     dsTypes :: Map Name TypeReference
   }
 
+data DeepRefs' = DeepRefs'
+  { dsTerms' :: Map Name TermReferenceId,
+    dsTypes' :: Map Name TypeReferenceId
+  }
+
 data SynHashes = SynHashes
   { shTerms :: Map Name SynHash,
     shTypes :: Map Name SynHash
@@ -105,6 +110,13 @@ data Diff = Diff
     diffTypes :: Map Name DiffOp
   }
 
+-- loading for typechecking only requires Ids, so if we need Builtins later,
+-- consider changing this
+data Updates = Updates
+  { updatedTerms :: Map Name TermReferenceId,
+    updatedTypes :: Map Name TypeReferenceId
+  }
+
 -- for updated definitions, we want to know which branch to find the updated version in
 -- for transitive dependents of updates (which are not updates themselves), we don't care which version we get
 -- for conflicted definitions, we need to print both versions, but we don't typecheck anything
@@ -114,9 +126,22 @@ data DiffConflicts = DiffConflicts
     dcTypes :: Set Name
   }
 
--- termDependencies :: (Reference.Id -> m (Term Symbol ()) -> PrettyPrintEnv -> Handle__
--- termDependencies
--- dependencies :: Relation Name (Either Name LabeledDependency)
+-- | Includes the updates and their transitive deps within some namespace / DeepRefs
+data TransitiveDeps = TransitiveDeps
+  { tdTerms :: Map Name TermReferenceId,
+    tdTypes :: Map Name TypeReferenceId
+  }
+
+-- | Added or updated references for these unconflicted names
+data CombinedUpdates = CombinedNewTerms
+  { cntTerms :: Map Name TermReference,
+    cntTypes :: Map Name TypeReference
+  }
+
+data CombinedUpdatesId = CombinedNewTermsId
+  { cntTermsId :: Map Name TermReferenceId,
+    cntTypesId :: Map Name TypeReferenceId
+  }
 
 deepRefsToPPE :: DeepRefs -> PrettyPrintEnv = wundefined
 
@@ -138,6 +163,7 @@ computeConflicts a b = wundefined
 --   pure wundefined
 
 -- typecheckStuff = wundefined
+
 -- writeStuffToScratchFile = wundefined
 -- writeStuffToNamespace
 
@@ -149,32 +175,35 @@ computeConflicts a b = wundefined
 -- if no conflicts:
 ---- figure out what we want to typecheck
 
--- | e.g. all updates, and their transitive dependents
-data ToTypecheckIn = ToTypecheckIn
-  { ttiTerms :: _,
-    ttiTypes :: _
-  }
+-- data BranchHandle m = BranchHandle
+--   { bhTransitiveDependents :: LabeledDependency -> m (Set LabeledDependency),
+--     bhUpdates :: Map Name Hash,
+--     bhNameToTypeRef :: Name -> Maybe TypeReference,
+--     bhNameToTermRef :: Name -> Maybe Referent,
+--     bhTypeRefToName :: TypeReference -> Maybe Name,
+--     bhTermRefToName :: Referent -> Maybe Name
+--   }
 
-data ToTypecheckOut = ToTypecheckOut
-  { ttoTerms :: _,
-    ttoTypes :: _
-  }
+-- data WhichBranch = Alice | Bob
 
-data BranchHandle m = BranchHandle
-  { bhTransitiveDependents :: LabeledDependency -> m (Set LabeledDependency),
-    bhUpdates :: Map Name Hash,
-    bhNameToTypeRef :: Name -> Maybe TypeReference,
-    bhNameToTermRef :: Name -> Maybe Referent,
-    bhTypeRefToName :: TypeReference -> Maybe Name,
-    bhTermRefToName :: Referent -> Maybe Name
-  }
+-- whatToTypecheck :: (BranchHandle m, TransitiveDeps) -> (BranchHandle m, TransitiveDeps) -> m TransitiveDeps
 
-data WhichBranch = Alice | Bob
+-- need the deep* for each branch, for finding dependents
+-- need the updates, to find dependents of
+-- need some access to db
+whatToTypecheck :: Applicative m => DeepRefs -> DeepRefs -> CombinedUpdatesId -> m DeepRefs'
+whatToTypecheck drAlice drBob updates = do
+  let termsToTypecheck :: Map Name TermReferenceId = wundefined
+      typesToTypecheck :: Map Name TypeReferenceId = wundefined
 
-whatToTypecheck :: (BranchHandle m, ToTypecheckIn) -> (BranchHandle m, ToTypecheckIn) -> m ToTypecheckOut
-whatToTypecheck (bhAlice, ttiAlice) (bhBob, ttiBob) = do
-  for ()
-  wundefined
+  pure $ DeepRefs' termsToTypecheck typesToTypecheck
+
+--
+
+-- for each updated name
+-- typecheck the associated defintiion
+-- and the latest versions of the transitive dependents of that name in each branch
+-- Q: What does it mean to check the latest version of the transitive dependen
 
 --
 ---- load what we want to typecheck in a suitable form for typechecking
