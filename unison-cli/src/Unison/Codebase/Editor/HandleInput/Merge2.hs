@@ -9,10 +9,11 @@ import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
+import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
-import Data.Semialign (alignWith)
+import Data.Semialign (align, alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -51,7 +52,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -171,8 +172,17 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
             rollback (werror ("conflicted bob term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
-          bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
+          lcaDependencies <- step "load lca dependencies" $ namespaceDependencies lcaBranch
+          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies aliceBranch
+          bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies bobBranch
+
+          let mergedDependencies =
+                mergeDependencies
+                  ((==) `on` Causal.causalHash)
+                  (getTwoFreshNames)
+                  lcaDependencies
+                  aliceDependenciesDiff
+                  bobDependenciesDiff
 
           pure (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff)
 
@@ -194,6 +204,134 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       printDeclConflicts conflictedDecls
       printTermConflicts conflictedTerms
       Text.putStrLn ""
+
+-- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
+-- clash with any existing dependencies.
+getTwoFreshNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
+getTwoFreshNames names name0 =
+  go2 0
+  where
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go2 4 = ("base__4", "base__7")
+    go2 :: Integer -> (NameSegment, NameSegment)
+    go2 !i
+      | Set.member name names = go2 (i + 1)
+      | otherwise = (name, go1 (i + 1))
+      where
+        name = mangled i
+
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go1 5 = "base__7"
+    go1 :: Integer -> NameSegment
+    go1 !i
+      | Set.member name names = go1 (i + 1)
+      | otherwise = name
+      where
+        name = mangled i
+
+    mangled :: Integer -> NameSegment
+    mangled i =
+      NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
+
+data AliceSays a
+  = AliceSaysAlive !a
+  | AliceSaysDead !a
+
+data DependencyResult a
+  = AddDependency !a
+  | AddConflictingDependencies !a !a -- invariant: not equal
+  | DontAddDependency
+
+-- Merge two lib.* namespaces
+mergeDependencies ::
+  forall name val.
+  (Ord name) =>
+  -- | Equal values?
+  (val -> val -> Bool) ->
+  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5")
+  (Set name -> name -> (name, name)) ->
+  -- | The LCA dependencies
+  Map name val ->
+  -- | LCA->Alice dependencies diff
+  Map name (Op val) ->
+  -- | LCA->Bob dependencies diff
+  Map name (Op val) ->
+  -- | The merged dependencies
+  Map name val
+mergeDependencies eq freshenIn lca alice bob =
+  alignWith whatDoesAliceSay lca alice
+    & alignWith bobsFinalWord bob
+    & Map.foldrWithKey applyDependencyResult Map.empty
+  where
+    whatDoesAliceSay :: These val (Op val) -> AliceSays val
+    whatDoesAliceSay = \case
+      This x -> AliceSaysAlive x
+      That (Added x) -> AliceSaysAlive x
+      These x (Deleted _) -> AliceSaysDead x
+      These _ (Updated _ x) -> AliceSaysAlive x
+      -- Nonsense: Alice couldn't have deleted something that wasn't in the LCA.
+      That (Deleted _) -> wundefined
+      -- Nonsense: Alice couldn't have updated something that wasn't in the LCA.
+      That (Updated _ _) -> wundefined
+      -- Nonsense: Alice couldn't have added something that was already in the LCA.
+      These _ (Added x) -> wundefined
+
+    bobsFinalWord :: These (Op val) (AliceSays val) -> DependencyResult val
+    bobsFinalWord = \case
+      -- Bob added a dependency #x.
+      This (Added x) -> AddDependency x
+      -- One of:
+      --   * Alice added a dependency #x.
+      --   * Alice updated a dependency to #x, and Bob didn't touch it.
+      --   * Neither Alice nor bob touched existing dependency #x.
+      -- In all cases, keep #x.
+      That (AliceSaysAlive x) -> AddDependency x
+      -- Alice deleted a dependency #x, but Bob didn't, so ignore the delete (in case Bob was still using it).
+      That (AliceSaysDead x) -> AddDependency x
+      -- Alice added a dependency #x, and Bob added a dependency #y. Keep both (well, they might be the same).
+      These (Added y) (AliceSaysAlive x)
+        | eq x y -> AddDependency x
+        | otherwise -> AddConflictingDependencies x y
+      -- One of:
+      --   * Alice updated #old to #x, and Bob deleted #old.
+      --   * Alice didn't touch #x, and Bob deleted #x.
+      -- In both cases, keep #x, since Alice may be using it.
+      These (Deleted _) (AliceSaysAlive x) -> AddDependency x
+      -- One of:
+      --   * Alice updated #old to #x, and Bob updated #old to #y.
+      --   * Alice didn't touch #x, and Bob updated #x to #y.
+      -- In both cases, keep both #x and #y.
+      These (Updated _ y) (AliceSaysAlive x)
+        | eq x y -> AddDependency x
+        | otherwise -> AddConflictingDependencies x y
+      -- Alice and Bob both deleted a dependency, so it's safe to delete.
+      These (Deleted _) (AliceSaysDead _) -> DontAddDependency
+      -- Alice deleted #old, and Bob updated #old to #y, so keep #y.
+      These (Updated _ y) (AliceSaysDead _) -> AddDependency y
+      -- Nonsense: Bob couldn't have deleted something that wasn't in the LCA.
+      This (Deleted _) -> wundefined
+      -- Nonsense: Bob couldn't have updated something that wasn't in the LCA.
+      This (Updated _ _) -> wundefined
+      -- Nonsense: Alice couldn't have deleted something that Bob added.
+      These (Added _) (AliceSaysDead _) -> wundefined
+
+    applyDependencyResult :: name -> DependencyResult hash -> Map name hash -> Map name hash
+    applyDependencyResult name = \case
+      AddDependency hash -> Map.insert name hash
+      AddConflictingDependencies hash1 hash2 ->
+        let (name1, name2) = freshen name
+         in Map.insert name2 hash2 . Map.insert name1 hash1
+      DontAddDependency -> id
+
+    freshen :: name -> (name, name)
+    freshen =
+      freshenIn (Map.keysSet lca <> Map.keysSet alice <> Map.keysSet bob)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -398,26 +536,28 @@ conflictsish aliceDiff bobDiff =
       _ -> Nothing
 
 -- | Diff the "dependencies" ("lib" sub-namespace) of two namespaces.
-loadDependenciesDiff :: Branch Transaction -> Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
-loadDependenciesDiff branch1 branch2 = do
-  dependencies1 <- namespaceDependencies branch1
+loadDependenciesDiff ::
+  Map NameSegment (CausalBranch Transaction) ->
+  Branch Transaction ->
+  Transaction (Map NameSegment (Op (CausalBranch Transaction)))
+loadDependenciesDiff dependencies1 branch2 = do
   dependencies2 <- namespaceDependencies branch2
   pure (catMaybes (alignWith f dependencies1 dependencies2))
   where
     f = \case
-      This x -> Just (Deleted (Causal.causalHash x))
-      That y -> Just (Added (Causal.causalHash y))
-      These (Causal.causalHash -> x) (Causal.causalHash -> y) ->
-        if x == y
+      This x -> Just (Deleted x)
+      That y -> Just (Added y)
+      These x y ->
+        if Causal.causalHash x == Causal.causalHash y
           then Nothing
           else Just (Updated x y)
 
 -- | Like @loadDependenciesDiff@, but when there isn't an old and new branch to compare (i.e. no LCA), so everything
 -- gets classified as an add.
-loadDependenciesAdds :: Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
+loadDependenciesAdds :: Branch Transaction -> Transaction (Map NameSegment (Op (CausalBranch Transaction)))
 loadDependenciesAdds branch = do
   dependencies <- namespaceDependencies branch
-  pure (Map.map (Added . Causal.causalHash) dependencies)
+  pure (Map.map Added dependencies)
 
 -- | Extract just the "dependencies" (sub-namespaces of "lib") of a branch.
 namespaceDependencies :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
@@ -477,18 +617,21 @@ printTermsDiff termNames = do
         ref =
           Text.brightBlack (showReferent (fromJust (BiMultimap.lookupRan name termNames)))
 
-printDependenciesDiff :: Map NameSegment (Op CausalHash) -> IO ()
+printDependenciesDiff :: Map NameSegment (Op (CausalBranch Transaction)) -> IO ()
 printDependenciesDiff =
   Text.putStr . Text.unlines . map f . Map.toList
   where
     f (name, diff) =
       case diff of
-        Added hash ->
-          Text.green ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        Deleted hash ->
-          Text.red ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        Updated _oldHash newHash ->
-          Text.magenta ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash newHash)
+        Added causal ->
+          Text.green ("dependency " <> NameSegment.toText name) <> showCausal causal
+        Deleted causal ->
+          Text.red ("dependency " <> NameSegment.toText name) <> showCausal causal
+        Updated _old new ->
+          Text.magenta ("dependency " <> NameSegment.toText name) <> showCausal new
+
+    showCausal =
+      Text.brightBlack . showCausalHash . Causal.causalHash
 
 printDeclConflicts :: Set Name -> IO ()
 printDeclConflicts =
