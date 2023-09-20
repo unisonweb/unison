@@ -2,6 +2,7 @@ module Unison.Sqlite.Transaction
   ( -- * Transaction management
     Transaction,
     runTransaction,
+    runTransactionWithRollback,
     runReadOnlyTransaction,
     runWriteTransaction,
     unsafeUnTransaction,
@@ -42,6 +43,7 @@ import Control.Concurrent (threadDelay)
 import Control.Exception (Exception (fromException), onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Data.Text qualified as Text
+import Data.Unique (Unique, newUnique)
 import Database.SQLite.Simple qualified as Sqlite
 import Database.SQLite.Simple.FromField qualified as Sqlite
 import System.Random qualified as Random
@@ -51,6 +53,7 @@ import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql (Sql)
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
+import Unsafe.Coerce (unsafeCoerce)
 
 newtype Transaction a
   = Transaction (Connection -> IO a)
@@ -79,6 +82,30 @@ runTransaction conn (Transaction f) = liftIO do
         Connection.commit conn
         pure result
 {-# SPECIALIZE runTransaction :: Connection -> Transaction a -> IO a #-}
+
+-- An internal exception type that allows `runTransactionWithRollback`
+data RollingBack
+  = forall a. RollingBack !Unique !a
+  deriving anyclass (Exception)
+
+instance Show RollingBack where
+  show _ = ""
+
+-- | Run a transaction on the given connection, providing a function that can short-circuit (and roll back) the
+-- transaction.
+runTransactionWithRollback ::
+  (MonadIO m) =>
+  Connection ->
+  ((forall void. a -> Transaction void) -> Transaction a) ->
+  m a
+runTransactionWithRollback conn transaction = liftIO do
+  token <- newUnique
+  try (runTransaction conn (transaction \x -> unsafeIO (throwIO (RollingBack token x)))) >>= \case
+    Left exception@(RollingBack token2 x)
+      | token == token2 -> pure (unsafeCoerce x)
+      | otherwise -> throwIO exception
+    Right x -> pure x
+{-# SPECIALIZE runTransactionWithRollback :: Connection -> ((forall void. a -> Transaction void) -> Transaction a) -> IO a #-}
 
 -- | Run a transaction that is known to only perform reads.
 --
