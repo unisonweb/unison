@@ -1106,7 +1106,7 @@ dependents selector r = do
 
 data ReferenceType = RtTerm | RtDecl
 
--- | Does a recursive search of the dependency table looking for the subset of `scope` that are dependents ``query`
+-- | Does a recursive search of the dependency table looking for the subset of `scope` that are in `query` or dependents of the result
 dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id ReferenceType)
 dependentsWithinScope scope query = do
   scope' <- Set.traverse c2sReferenceId scope

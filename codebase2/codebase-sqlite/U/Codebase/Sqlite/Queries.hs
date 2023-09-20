@@ -1792,42 +1792,52 @@ getDependenciesBetweenTerms oid1 oid2 =
       WHERE path_elem IS NOT null
     |]
 
--- todo: still need to make this limit to scope
--- | Does a recursive search of the dependency table looking for the subset of `scope` that are dependents ``query`
+-- | Does a recursive search of the dependency table looking for the subset of `scope` that are in `query` or dependents of the result
 getDependentsWithinScope :: Set Reference.Id -> Set S.Reference -> Transaction (Map Reference.Id ObjectType)
 getDependentsWithinScope scope query = do
   execute [sql|CREATE TEMPORARY TABLE dependents_search_scope
-                ( dependent_object_id INTEGER NOT NULL CONSTRAINT REFERENCES object(id),
-                  dependent_component_index INTEGER NOT NULL)
-               PRIMARY KEY (dependent_object_id, dependent_component_index)|]
+                ( dependent_object_id INTEGER NOT NULL REFERENCES object(id),
+                  dependent_component_index INTEGER NOT NULL,
+                  PRIMARY KEY (dependent_object_id, dependent_component_index) )|]
   execute [sql|CREATE TEMPORARY TABLE dependencies_query
-            dependency_builtin INTEGER NULL CONSTRAINT dependents_index_fk1 REFERENCES text(id),
-            dependency_object_id INTEGER NULL CONSTRAINT dependents_index_fk2 REFERENCES object(id),
+            (dependency_builtin INTEGER NULL REFERENCES text(id),
+            dependency_object_id INTEGER NULL REFERENCES object(id),
             dependency_component_index INTEGER NULL,
-            CONSTRAINT CHECK (
+            CHECK (
               (dependency_builtin IS NULL) =
               (dependency_object_id IS NOT NULL)
             ),
-            CONSTRAINT CHECK (
+            CHECK (
               (dependency_object_id IS NULL) =
               (dependency_component_index IS NULL)
-            )|]
+            ))|]
   for_ scope \r ->
     execute [sql|INSERT INTO dependents_search_scope VALUES (@r, @)|]
   for_ query \r ->
     execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
   result :: [Reference.Id :. Only ObjectType] <- queryListRow [sql|
-    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, object.type_id) AS (
-      SELECT (dependency_object_id, dependency_component_index, type_id)
-      FROM dependencies_query INNER JOIN object ON dependency_object_id = object.id
-      WHERE dependency_builtin IS NULL
-      -- use UNION instead of UNION ALL if you don't want to have to dedup outside
-      UNION ALL SELECT (dependency_object_id, dependency_component_index, object.type_id)
+    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
+      SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
       FROM dependents_index d
-      INNER JOIN transitive_dependents t
-      ON t.dependency_object_id = d.dependent_object_id
-      INNER JOIN object ON dependency_object_id = object.id
-      AND t.dependency_component_index = d.dependency_component_index
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN dependencies_query q
+        ON q.dependency_builtin IS d.dependency_builtin
+        AND q.dependency_object_id IS d.dependency_object_id
+        AND q.dependency_component_index IS d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
+
+      -- use UNION instead of UNION ALL if you don't want to have to dedup outside
+      UNION ALL SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      FROM dependents_index d
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN transitive_dependents t
+        ON t.dependent_object_id = d.dependency_object_id
+        AND t.dependent_component_index = d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
     )
     SELECT * FROM transitive_dependents
   |]
