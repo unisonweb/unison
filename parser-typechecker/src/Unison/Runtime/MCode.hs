@@ -1441,6 +1441,10 @@ sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
 sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
+sectionDeps (DMatch _ _ br) = branchDeps br
+sectionDeps (RMatch _ pu br) =
+  sectionDeps pu ++ foldMap branchDeps br
+sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
   | Name (Env w _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
@@ -1451,6 +1455,10 @@ sectionTypes :: Section -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _) = sectionTypes s
 sectionTypes (Match _ br) = branchTypes br
+sectionTypes (DMatch _ _ br) = branchTypes br
+sectionTypes (NMatch _ _ br) = branchTypes br
+sectionTypes (RMatch _ pu br) =
+  sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
