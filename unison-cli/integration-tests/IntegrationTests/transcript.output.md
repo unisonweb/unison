@@ -3,8 +3,28 @@
 ```unison
 use .builtin
 
+unique type MyBool = MyTrue | MyFalse
+
+structural ability Break where
+  break : ()
+
+resume = cases
+  { x } -> id x
+  { break  -> k } ->
+    void 5
+    handle k () with resume
+
 main : '{IO, Exception} ()
-main = '(printLine "Hello, world!")
+main = do
+  match MyTrue with
+    MyTrue -> match 0 with
+      0 ->
+        handle
+          break
+          printLine "Hello, world!"
+        with resume
+      _ -> ()
+    _ -> ()
 ```
 
 ```ucm
@@ -15,7 +35,10 @@ main = '(printLine "Hello, world!")
   
     ⍟ These new definitions are ok to `add`:
     
-      main : '{IO, Exception} ()
+      structural ability Break
+      unique type MyBool
+      main   : '{IO, Exception} ()
+      resume : Request {g, Break} x -> x
 
 ```
 ```ucm
@@ -23,7 +46,10 @@ main = '(printLine "Hello, world!")
 
   ⍟ I've added these definitions:
   
-    main : '{IO, Exception} ()
+    structural ability Break
+    unique type MyBool
+    main   : '{IO, Exception} ()
+    resume : Request {g, Break} x -> x
 
 .> compile main ./unison-cli/integration-tests/IntegrationTests/main
 
