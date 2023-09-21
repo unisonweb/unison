@@ -115,14 +115,6 @@ fromSetM f = \case
     v <- f x
     v `seq` Map.Bin sz x v <$> fromSetM f l <*> fromSetM f r
 
--- Junk helper monoid with a phantom type variable. Does this exist anywhere else?
-newtype X m a = X m
-  deriving stock (Functor)
-
-instance Monoid m => Applicative (X m) where
-  pure _ = X mempty
-  (<*>) = coerce @(m -> m -> m) (<>)
-
 -- | @mergeMap@ is like a @foldMap@ version of @merge@: summarize the merging of two maps together as a monoidal value.
 mergeMap ::
   forall a b k m.
@@ -137,7 +129,7 @@ mergeMap ::
   Map k b ->
   m
 mergeMap f g h =
-  coerce @(Map k a -> Map k b -> X m (Map k ())) do
+  coerce @(Map k a -> Map k b -> Const m (Map k ())) do
     Map.mergeA
       (Map.traverseMissing (coerce f))
       (Map.traverseMissing (coerce g))

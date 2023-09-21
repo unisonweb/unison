@@ -237,22 +237,6 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
-data AliceSays a
-  = AliceSaysAdd !a
-  | AliceSaysNothing !a
-  | AliceSaysRemove !a
-  | AliceSaysUpdate !a !a
-
--- data DependencyResult a
---   = AddDependency !a
---   | AddConflictingDependencies !a !a -- invariant: not equal
---   | DontAddDependency
-
-data Albob a
-  = AlbobAdd !a
-  | AlbobConflict !a !a
-  | AlbobDelete
-
 data DependencyDiff a
   = AddDependency !a
   | AddBothDependencies !a !a
@@ -288,6 +272,7 @@ mergeDependenciesDiffs eq =
           -- using the old one.
           Updated old new -> Just (AddBothDependencies old new)
 
+    onAliceAndBob :: Map.WhenMatched Identity name (Op val) (Op val) (DependencyDiff val)
     onAliceAndBob =
       Map.zipWithAMatched \_name x y -> Identity (f (x, y))
       where
