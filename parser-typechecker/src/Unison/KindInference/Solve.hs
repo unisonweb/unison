@@ -181,21 +181,21 @@ data OccCheckState v loc = OccCheckState
     kindErrors :: [KindError v loc]
   }
 
-markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) Bool
+markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
 markVisiting x = do
   OccCheckState {visitingSet, visitingStack} <- M.get
   case Set.member x visitingSet of
     True -> do
       let cyclicSlice = foldr (\a b -> if a == x then [a] else a : b) [] visitingStack
       addError (CycleDetected cyclicSlice)
-      pure True
+      pure Cycle
     False -> do
       M.modify \st ->
         st
           { visitingSet = Set.insert x visitingSet,
             visitingStack = x : visitingStack
           }
-      pure False
+      pure NoCycle
 
 unmarkVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) ()
 unmarkVisiting x = M.modify \st ->
@@ -213,13 +213,17 @@ isSolved x = do
   OccCheckState {solvedSet} <- M.get
   pure $ Set.member x solvedSet
 
+data CycleCheck
+  = Cycle
+  | NoCycle
+
 -- occurence check and report any errors
-solve ::
+occCheck ::
   forall v loc.
   Var v =>
   ConstraintMap v loc ->
   Either (NonEmpty (KindError v loc)) (ConstraintMap v loc)
-solve constraints0 =
+occCheck constraints0 =
   let go ::
         [(UVar v loc)] ->
         M.State (OccCheckState v loc) ()
@@ -230,8 +234,8 @@ solve constraints0 =
             True -> go us
             False -> do
               markVisiting u >>= \case
-                True -> pure ()
-                False -> do
+                Cycle -> pure ()
+                NoCycle -> do
                   st@OccCheckState {solvedConstraints} <- M.get
                   let handleNothing = error "impossible"
                       handleJust _canonK ecSize d = case descriptorConstraint d of
@@ -261,7 +265,7 @@ solve constraints0 =
    in case kindErrors of
         [] -> Right solvedConstraints
         e : es -> Left (e :| es)
-{-# SCC solve #-}
+{-# SCC occCheck #-}
 
 -- loop through the constraints, eliminating constraints until we have some set that cannot be reduced
 reduce ::
@@ -472,7 +476,7 @@ finalize ::
   SolveState v loc ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
 finalize st =
-  let solveState = solve (constraints st)
+  let solveState = occCheck (constraints st)
    in case solveState of
         Left e -> Left e
         Right m -> Right st {constraints = m}
