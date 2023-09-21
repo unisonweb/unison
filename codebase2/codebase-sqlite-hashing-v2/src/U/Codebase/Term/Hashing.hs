@@ -5,6 +5,7 @@ import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.HashHandle (HashMismatch (..))
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Symbol qualified as S
@@ -22,7 +23,7 @@ import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
 
-verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Bool
+verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
 verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
   hashLocalComp
     & somethingsomethingLocallyIndexedTermComponent
@@ -34,7 +35,10 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
     & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
     & Map.fromList
     & H2.hashTermComponents
-    & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
+    & altMap \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
+      if hash == hash'
+        then Nothing
+        else Just (HashMismatch hash hash')
   where
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
