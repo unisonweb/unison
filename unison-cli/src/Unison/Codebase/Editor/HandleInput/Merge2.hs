@@ -11,8 +11,10 @@ import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
 import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
+import Data.Monoid (Endo (Endo))
 import Data.Semialign (align, alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -68,6 +70,7 @@ import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -176,13 +179,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies aliceBranch
           bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies bobBranch
 
-          let mergedDependencies =
-                mergeDependencies
-                  ((==) `on` Causal.causalHash)
-                  (getTwoFreshNames)
-                  lcaDependencies
-                  aliceDependenciesDiff
-                  bobDependenciesDiff
+          let mergedDependenciesDiffs = mergeDependenciesDiffs ((==) `on` Causal.causalHash) aliceDependenciesDiff bobDependenciesDiff
+          let mergedDependencies = mergeDependencies getTwoFreshNames lcaDependencies mergedDependenciesDiffs
 
           pure (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff)
 
@@ -240,98 +238,105 @@ getTwoFreshNames names name0 =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
 data AliceSays a
-  = AliceSaysAlive !a
-  | AliceSaysDead !a
+  = AliceSaysAdd !a
+  | AliceSaysNothing !a
+  | AliceSaysRemove !a
+  | AliceSaysUpdate !a !a
 
-data DependencyResult a
+-- data DependencyResult a
+--   = AddDependency !a
+--   | AddConflictingDependencies !a !a -- invariant: not equal
+--   | DontAddDependency
+
+data Albob a
+  = AlbobAdd !a
+  | AlbobConflict !a !a
+  | AlbobDelete
+
+data DependencyDiff a
   = AddDependency !a
-  | AddConflictingDependencies !a !a -- invariant: not equal
-  | DontAddDependency
+  | AddBothDependencies !a !a
+  | DeleteDependency
+
+-- Merge two lib.* diffs together:
+--   * Keep all adds/updates (allowing conflicts as necessary, which will be resolved later)
+--   * Ignore deletes that only one party makes (because the other party may expect the dep to still be there)
+mergeDependenciesDiffs ::
+  forall name val.
+  (Ord name) =>
+  -- | Equal values?
+  (val -> val -> Bool) ->
+  -- | The LCA->Alice dependencies diff
+  Map name (Op val) ->
+  -- | The LCA->Bob dependencies diff
+  Map name (Op val) ->
+  -- | The merged dependencies diff
+  Map name (DependencyDiff val)
+mergeDependenciesDiffs eq =
+  Map.merge onAliceOrBob onAliceOrBob onAliceAndBob
+  where
+    onAliceOrBob :: Map.WhenMissing Identity name (Op val) (DependencyDiff val)
+    onAliceOrBob =
+      Map.traverseMaybeMissing \_name -> Identity . f
+      where
+        f :: Op val -> Maybe (DependencyDiff val)
+        f = \case
+          Added new -> Just (AddDependency new)
+          -- If Alice deletes a dependency and Bob doesn't touch it, ignore the delete, since Bob may be using it.
+          Deleted _ -> Nothing
+          -- If Alice updates a dependency and Bob doesn't touch it, keep the old and new dependencies, since Bob may be
+          -- using the old one.
+          Updated old new -> Just (AddBothDependencies old new)
+
+    onAliceAndBob =
+      Map.zipWithAMatched \_name x y -> Identity (f (x, y))
+      where
+        f :: (Op val, Op val) -> DependencyDiff val
+        f = \case
+          (Added alice, Added bob)
+            | eq alice bob -> AddDependency alice
+            | otherwise -> AddBothDependencies alice bob
+          (Updated _ alice, Updated _ bob)
+            | eq alice bob -> AddDependency alice
+            | otherwise -> AddBothDependencies alice bob
+          -- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's.
+          (Deleted _, Updated _ bob) -> AddDependency bob
+          (Updated _ alice, Deleted _) -> AddDependency alice
+          -- If both parties delete something, delete it.
+          (Deleted {}, Deleted {}) -> DeleteDependency
+          -- These are all nonsense: if one person's change was classified as an add, then it didn't exist in the
+          -- LCA, so the other person's change to the same name couldn't be classified as an update/delete
+          (Added {}, Deleted {}) -> wundefined
+          (Added {}, Updated {}) -> wundefined
+          (Deleted {}, Added {}) -> wundefined
+          (Updated {}, Added {}) -> wundefined
 
 -- Merge two lib.* namespaces
 mergeDependencies ::
   forall name val.
   (Ord name) =>
-  -- | Equal values?
-  (val -> val -> Bool) ->
   -- | Freshen a name, e.g. "base" -> ("base__4", "base__5")
   (Set name -> name -> (name, name)) ->
   -- | The LCA dependencies
   Map name val ->
-  -- | LCA->Alice dependencies diff
-  Map name (Op val) ->
-  -- | LCA->Bob dependencies diff
-  Map name (Op val) ->
+  -- | LCA->Alice+Bob dependencies diff
+  Map name (DependencyDiff val) ->
   -- | The merged dependencies
   Map name val
-mergeDependencies eq freshenIn lca alice bob =
-  alignWith whatDoesAliceSay lca alice
-    & alignWith bobsFinalWord bob
-    & Map.foldrWithKey applyDependencyResult Map.empty
+mergeDependencies freshenIn lca diff =
+  Map.mergeMap Map.singleton f (\name _ -> f name) lca diff
   where
-    whatDoesAliceSay :: These val (Op val) -> AliceSays val
-    whatDoesAliceSay = \case
-      This x -> AliceSaysAlive x
-      That (Added x) -> AliceSaysAlive x
-      These x (Deleted _) -> AliceSaysDead x
-      These _ (Updated _ x) -> AliceSaysAlive x
-      -- Nonsense: Alice couldn't have deleted something that wasn't in the LCA.
-      That (Deleted _) -> wundefined
-      -- Nonsense: Alice couldn't have updated something that wasn't in the LCA.
-      That (Updated _ _) -> wundefined
-      -- Nonsense: Alice couldn't have added something that was already in the LCA.
-      These _ (Added x) -> wundefined
-
-    bobsFinalWord :: These (Op val) (AliceSays val) -> DependencyResult val
-    bobsFinalWord = \case
-      -- Bob added a dependency #x.
-      This (Added x) -> AddDependency x
-      -- One of:
-      --   * Alice added a dependency #x.
-      --   * Alice updated a dependency to #x, and Bob didn't touch it.
-      --   * Neither Alice nor bob touched existing dependency #x.
-      -- In all cases, keep #x.
-      That (AliceSaysAlive x) -> AddDependency x
-      -- Alice deleted a dependency #x, but Bob didn't, so ignore the delete (in case Bob was still using it).
-      That (AliceSaysDead x) -> AddDependency x
-      -- Alice added a dependency #x, and Bob added a dependency #y. Keep both (well, they might be the same).
-      These (Added y) (AliceSaysAlive x)
-        | eq x y -> AddDependency x
-        | otherwise -> AddConflictingDependencies x y
-      -- One of:
-      --   * Alice updated #old to #x, and Bob deleted #old.
-      --   * Alice didn't touch #x, and Bob deleted #x.
-      -- In both cases, keep #x, since Alice may be using it.
-      These (Deleted _) (AliceSaysAlive x) -> AddDependency x
-      -- One of:
-      --   * Alice updated #old to #x, and Bob updated #old to #y.
-      --   * Alice didn't touch #x, and Bob updated #x to #y.
-      -- In both cases, keep both #x and #y.
-      These (Updated _ y) (AliceSaysAlive x)
-        | eq x y -> AddDependency x
-        | otherwise -> AddConflictingDependencies x y
-      -- Alice and Bob both deleted a dependency, so it's safe to delete.
-      These (Deleted _) (AliceSaysDead _) -> DontAddDependency
-      -- Alice deleted #old, and Bob updated #old to #y, so keep #y.
-      These (Updated _ y) (AliceSaysDead _) -> AddDependency y
-      -- Nonsense: Bob couldn't have deleted something that wasn't in the LCA.
-      This (Deleted _) -> wundefined
-      -- Nonsense: Bob couldn't have updated something that wasn't in the LCA.
-      This (Updated _ _) -> wundefined
-      -- Nonsense: Alice couldn't have deleted something that Bob added.
-      These (Added _) (AliceSaysDead _) -> wundefined
-
-    applyDependencyResult :: name -> DependencyResult hash -> Map name hash -> Map name hash
-    applyDependencyResult name = \case
-      AddDependency hash -> Map.insert name hash
-      AddConflictingDependencies hash1 hash2 ->
+    f :: name -> DependencyDiff val -> Map name val
+    f name = \case
+      AddDependency val -> Map.singleton name val
+      AddBothDependencies val1 val2 ->
         let (name1, name2) = freshen name
-         in Map.insert name2 hash2 . Map.insert name1 hash1
-      DontAddDependency -> id
+         in Map.insert name2 val2 (Map.singleton name1 val1)
+      DeleteDependency -> Map.empty
 
     freshen :: name -> (name, name)
     freshen =
-      freshenIn (Map.keysSet lca <> Map.keysSet alice <> Map.keysSet bob)
+      freshenIn (Map.keysSet lca <> Map.keysSet diff)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
