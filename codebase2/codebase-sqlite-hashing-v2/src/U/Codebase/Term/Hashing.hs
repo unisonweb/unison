@@ -42,7 +42,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
         & Map.toList
         & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
         & Map.fromList
-        & H2.hashTermComponents
+        & H2.hashTermComponentsDB
         & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
     validAnn =
       hashLocalComp
@@ -54,7 +54,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
         & Map.toList
         & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
         & Map.fromList
-        & H2.hashTermComponents
+        & H2.hashTermComponentsAnn
         & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
     validWithoutType =
       hashLocalComp
