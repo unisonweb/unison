@@ -52,6 +52,7 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
+import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -131,26 +132,21 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     bobTermSynhashes <- step "compute bob term syntactic hashes" do
       syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
 
-    (aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff, mergedDependencies) <-
+    aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
+    bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
+
+    (maybeLcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff) <-
       case maybeLcaCausalHash of
         Nothing -> do
           let synhashesToAdds :: BiMultimap hash name -> Map name (Op hash)
               synhashesToAdds =
                 Map.map Added . BiMultimap.range
-          aliceDependencies <- step "load alice dependencies" $ loadNamespaceDependencies aliceBranch
-          bobDependencies <- step "load bob dependencies" $ loadNamespaceDependencies bobBranch
-          let mergedDependencies =
-                twoWayDependenciesMerge
-                  ((==) `on` Causal.causalHash)
-                  getTwoFreshNames
-                  aliceDependencies
-                  bobDependencies
           pure
-            ( synhashesToAdds aliceDeclSynhashes,
+            ( Nothing,
+              synhashesToAdds aliceDeclSynhashes,
               synhashesToAdds aliceTermSynhashes,
               synhashesToAdds bobDeclSynhashes,
-              synhashesToAdds bobTermSynhashes,
-              mergedDependencies
+              synhashesToAdds bobTermSynhashes
             )
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
@@ -180,24 +176,23 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
             rollback (werror ("conflicted bob term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          lcaDependencies <- step "load lca dependencies" $ loadNamespaceDependencies lcaBranch
-          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies aliceBranch
-          bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaDependencies bobBranch
+          lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
 
-          let mergedDependencies =
-                threeWayDependenciesMerge
-                  ((==) `on` Causal.causalHash)
-                  getTwoFreshNames
-                  lcaDependencies
-                  aliceDependenciesDiff
-                  bobDependenciesDiff
-
-          pure (aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff, mergedDependencies)
+          pure (Just lcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff)
 
     let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
     let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
 
+    let mergedLibdeps =
+          Merge.mergeLibdeps
+            ((==) `on` Causal.causalHash)
+            getTwoFreshNames
+            maybeLcaLibdeps
+            aliceLibdeps
+            bobLibdeps
+
     Sqlite.unsafeIO do
+      Text.putStrLn ""
       Text.putStrLn "===== lca->alice diff ====="
       printDeclsDiff aliceDeclNames aliceDeclDiff
       printTermsDiff aliceTermNames aliceTermDiff
@@ -206,8 +201,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       printDeclsDiff bobDeclNames bobDeclDiff
       printTermsDiff bobTermNames bobTermDiff
       Text.putStrLn ""
-      Text.putStrLn "===== merged dependencies ====="
-      printDependencies mergedDependencies
+      Text.putStrLn "===== merged libdeps dependencies ====="
+      printLibdeps mergedLibdeps
       Text.putStrLn ""
       Text.putStrLn "===== conflicts ====="
       printDeclConflicts conflictedDecls
@@ -247,136 +242,6 @@ getTwoFreshNames names name0 =
     mangled :: Integer -> NameSegment
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
-
-data DependencyOp a
-  = AddDependency !a
-  | AddBothDependencies !a !a
-  | DeleteDependency
-
-twoWayDependenciesMerge ::
-  forall name val.
-  Ord name =>
-  -- | Equal values?
-  (val -> val -> Bool) ->
-  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
-  (Set name -> name -> (name, name)) ->
-  -- | Alice dependencies.
-  Map name val ->
-  -- | Bob dependencies.
-  Map name val ->
-  -- | Merged dependencies.
-  Map name val
-twoWayDependenciesMerge eq freshenIn alice bob =
-  Map.mergeMap Map.singleton Map.singleton both alice bob
-  where
-    both :: name -> val -> val -> Map name val
-    both name val1 val2
-      | eq val1 val2 = Map.singleton name val1
-      | otherwise =
-          let (name1, name2) = freshen name
-           in Map.insert name2 val2 (Map.singleton name1 val1)
-
-    freshen :: name -> (name, name)
-    freshen =
-      freshenIn (Map.keysSet alice <> Map.keysSet bob)
-
-threeWayDependenciesMerge ::
-  Ord name =>
-  -- | Equal values?
-  (val -> val -> Bool) ->
-  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
-  (Set name -> name -> (name, name)) ->
-  -- | LCA dependencies.
-  Map name val ->
-  -- | The LCA->Alice dependencies diff
-  Map name (Op val) ->
-  -- | The LCA->Bob dependencies diff
-  Map name (Op val) ->
-  -- | Merged dependencies.
-  Map name val
-threeWayDependenciesMerge eq freshenIn lca aliceDiff bobDiff =
-  applyDependenciesDiff freshenIn lca (mergeDependenciesDiffs eq aliceDiff bobDiff)
-
--- Merge two lib.* diffs together:
---   * Keep all adds/updates (allowing conflicts as necessary, which will be resolved later)
---   * Ignore deletes that only one party makes (because the other party may expect the dep to still be there)
-mergeDependenciesDiffs ::
-  forall name val.
-  (Ord name) =>
-  -- | Equal values?
-  (val -> val -> Bool) ->
-  -- | The LCA->Alice dependencies diff
-  Map name (Op val) ->
-  -- | The LCA->Bob dependencies diff
-  Map name (Op val) ->
-  -- | The merged dependencies diff
-  Map name (DependencyOp val)
-mergeDependenciesDiffs eq =
-  Map.merge onAliceOrBob onAliceOrBob onAliceAndBob
-  where
-    onAliceOrBob :: Map.WhenMissing Identity name (Op val) (DependencyOp val)
-    onAliceOrBob =
-      Map.traverseMaybeMissing \_name -> Identity . f
-      where
-        f :: Op val -> Maybe (DependencyOp val)
-        f = \case
-          Added new -> Just (AddDependency new)
-          -- If Alice deletes a dependency and Bob doesn't touch it, ignore the delete, since Bob may be using it.
-          Deleted _ -> Nothing
-          -- If Alice updates a dependency and Bob doesn't touch it, keep the old and new dependencies, since Bob may be
-          -- using the old one.
-          Updated old new -> Just (AddBothDependencies old new)
-
-    onAliceAndBob :: Map.WhenMatched Identity name (Op val) (Op val) (DependencyOp val)
-    onAliceAndBob =
-      Map.zipWithAMatched \_name x y -> Identity (f (x, y))
-      where
-        f :: (Op val, Op val) -> DependencyOp val
-        f = \case
-          (Added alice, Added bob)
-            | eq alice bob -> AddDependency alice
-            | otherwise -> AddBothDependencies alice bob
-          (Updated _ alice, Updated _ bob)
-            | eq alice bob -> AddDependency alice
-            | otherwise -> AddBothDependencies alice bob
-          -- If Alice updates a dependency and Bob deletes the old one, ignore the delete and keep Alice's.
-          (Deleted _, Updated _ bob) -> AddDependency bob
-          (Updated _ alice, Deleted _) -> AddDependency alice
-          -- If both parties delete something, delete it.
-          (Deleted {}, Deleted {}) -> DeleteDependency
-          -- These are all nonsense: if one person's change was classified as an add, then it didn't exist in the
-          -- LCA, so the other person's change to the same name couldn't be classified as an update/delete
-          (Added {}, Deleted {}) -> wundefined
-          (Added {}, Updated {}) -> wundefined
-          (Deleted {}, Added {}) -> wundefined
-          (Updated {}, Added {}) -> wundefined
-
--- Merge two lib.* namespaces
-applyDependenciesDiff ::
-  forall name val.
-  (Ord name) =>
-  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5")
-  (Set name -> name -> (name, name)) ->
-  -- | The LCA dependencies
-  Map name val ->
-  -- | LCA->Alice+Bob dependencies diff
-  Map name (DependencyOp val) ->
-  -- | The merged dependencies
-  Map name val
-applyDependenciesDiff freshenIn lca diff =
-  Map.mergeMap Map.singleton f (\name _ -> f name) lca diff
-  where
-    f :: name -> DependencyOp val -> Map name val
-    f name = \case
-      AddDependency val -> Map.singleton name val
-      AddBothDependencies val1 val2 ->
-        let (name1, name2) = freshen name
-         in Map.insert name2 val2 (Map.singleton name1 val1)
-      DeleteDependency -> Map.empty
-
-    freshen :: name -> (name, name)
-    freshen =
-      freshenIn (Map.keysSet lca <> Map.keysSet diff)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -580,26 +445,9 @@ conflictsish aliceDiff bobDiff =
       These (Updated _ x) (Updated _ y) | x /= y -> Just ()
       _ -> Nothing
 
--- | Diff the "dependencies" ("lib" sub-namespace) of two namespaces.
-loadDependenciesDiff ::
-  Map NameSegment (CausalBranch Transaction) ->
-  Branch Transaction ->
-  Transaction (Map NameSegment (Op (CausalBranch Transaction)))
-loadDependenciesDiff dependencies1 branch2 = do
-  dependencies2 <- loadNamespaceDependencies branch2
-  pure (catMaybes (alignWith f dependencies1 dependencies2))
-  where
-    f = \case
-      This x -> Just (Deleted x)
-      That y -> Just (Added y)
-      These x y ->
-        if Causal.causalHash x == Causal.causalHash y
-          then Nothing
-          else Just (Updated x y)
-
--- | Extract just the "dependencies" (sub-namespaces of "lib") of a branch.
-loadNamespaceDependencies :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
-loadNamespaceDependencies branch =
+-- | Load the library dependencies (lib.*) of a namespace.
+loadLibdeps :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
+loadLibdeps branch =
   case Map.lookup Name.libSegment (Branch.children branch) of
     Nothing -> pure Map.empty
     Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
@@ -659,8 +507,8 @@ printTermsDiff termNames = do
         ref =
           Text.brightBlack (showReferent (fromJust (BiMultimap.lookupRan name termNames)))
 
-printDependencies :: Map NameSegment (CausalBranch Transaction) -> IO ()
-printDependencies =
+printLibdeps :: Map NameSegment (CausalBranch Transaction) -> IO ()
+printLibdeps =
   Text.putStr . Text.unlines . map f . Map.toList
   where
     f (name, causal) =

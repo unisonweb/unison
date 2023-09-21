@@ -30,6 +30,11 @@ dependencies:
   - vector
 
 library:
+  exposed-modules:
+    # TODO probably whittle this down to one
+    - Unison.Merge
+    - Unison.Merge2
+    - Unison.SyntacticHash
   source-dirs: src
   when:
     - condition: '!os(windows)'
