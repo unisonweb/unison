@@ -24,7 +24,7 @@ import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference (ConstraintConflict (..), KindError (..))
 import Unison.KindInference qualified as KindInference
-import Unison.KindInference.Solve (prettyUVarKind)
+import Unison.KindInference.Solve (prettyCyclicUVarKind, prettyUVarKind)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names

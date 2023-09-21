@@ -1,3 +1,5 @@
+{-# LANGUAGE RecursiveDo #-}
+
 module Unison.KindInference.Solve
   ( step,
     finalize,
@@ -6,6 +8,7 @@ module Unison.KindInference.Solve
     ConstraintConflict (..),
     prettySolvedConstraint,
     prettyUVarKind,
+    prettyCyclicUVarKind,
   )
 where
 
@@ -14,6 +17,7 @@ import Control.Monad.Reader (asks)
 import Control.Monad.State.Strict qualified as M
 import Control.Monad.Trans.Except
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Debug (DebugFlag (KindInference), shouldDebug)
@@ -303,11 +307,72 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
 arrPrec :: Int
 arrPrec = 1
 
+prettyCyclicUVarKind ::
+  Var v =>
+  PrettyPrintEnv ->
+  ConstraintMap v loc ->
+  UVar v loc ->
+  (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
+  (P.Pretty P.ColorText, P.Pretty P.ColorText)
+prettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
+  find uvar >>= \case
+    Nothing -> explode
+    Just c -> do
+      rec (pp, cyclicUVars) <- prettyCyclicSolvedConstraint c arrPrec nameMap (Set.singleton uvar)
+          let nameMap = snd $ foldl' phi (0 :: Int, Map.empty) cyclicUVars
+              phi (n, m) a =
+                let name = P.string (if n == 0 then "k" else "k" <> show n)
+                    !newN = n + 1
+                    prettyVar = case a == uvar of
+                      True -> theUVarStyle name
+                      False -> name
+                    !newMap = Map.insert a prettyVar m
+                 in (newN, newMap)
+      case Map.lookup uvar nameMap of
+        Nothing -> explode
+        Just n -> pure (n, P.wrap (n <> "=" <> pp))
+  where
+    explode = error ("[prettyCyclicUVarKind] called with non-cyclic uvar: " <> show uvar)
+
+prettyCyclicSolvedConstraint ::
+  Var v =>
+  Solved.Constraint (UVar v loc) v loc ->
+  Int ->
+  Map (UVar v loc) (P.Pretty P.ColorText) ->
+  Set (UVar v loc) ->
+  Solve v loc (P.Pretty P.ColorText, Set (UVar v loc))
+prettyCyclicSolvedConstraint constraint prec nameMap visitingSet = case constraint of
+  Solved.IsEffect _ -> pure ("Effect", Set.empty)
+  Solved.IsStar _ -> pure ("*", Set.empty)
+  Solved.IsArr _ a b -> do
+    (pa, cyclicLhs) <- case Set.member a visitingSet of
+      True -> pure (nameMap Map.! a, Set.singleton a)
+      False -> prettyCyclicUVarKindWorker (arrPrec + 1) a nameMap visitingSet
+    (pb, cyclicRhs) <- case Set.member b visitingSet of
+      True -> pure (nameMap Map.! b, Set.singleton b)
+      False -> prettyCyclicUVarKindWorker arrPrec b nameMap visitingSet
+    let wrap = if prec > arrPrec then P.parenthesize else id
+    pure (wrap (pa <> " -> " <> pb), cyclicLhs <> cyclicRhs)
+
+prettyCyclicUVarKindWorker ::
+  Var v =>
+  Int ->
+  UVar v loc ->
+  Map (UVar v loc) (P.Pretty P.ColorText) ->
+  Set (UVar v loc) ->
+  Solve v loc (P.Pretty P.ColorText, Set (UVar v loc))
+prettyCyclicUVarKindWorker prec u nameMap visitingSet =
+  find u >>= \case
+    Nothing -> pure ("_", Set.empty)
+    Just c -> do
+      let visitingSet1 = Set.insert u visitingSet
+      prettyCyclicSolvedConstraint c prec nameMap visitingSet1
+
 prettyUVarKind :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
-prettyUVarKind ppe constraints uvar =
-  case ppRunner ppe constraints (find uvar) of
-    Nothing -> "_"
-    Just c -> prettySolvedConstraint ppe constraints c
+prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
+  find uvar >>= \case
+    Nothing -> pure "_"
+    Just c -> prettySolvedConstraint' c
 
 prettySolvedConstraint :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> Solved.Constraint (UVar v loc) v loc -> P.Pretty P.ColorText
 prettySolvedConstraint ppe constraints c =
