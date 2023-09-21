@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
+    VerifyResult (..),
   )
 where
 
@@ -37,5 +38,13 @@ data HashHandle = HashHandle
       BranchHash,
     -- | Verify that the hash of a term component
     -- matches the provided hash.
-    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Bool
+    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> VerifyResult
   }
+
+data VerifyResult
+  = AllValid
+  | ValidOnlyAnn
+  | ValidOnlyDB
+  | ValidOnlyWithoutType
+  | NoneValid
+  deriving (Eq, Show, Ord)

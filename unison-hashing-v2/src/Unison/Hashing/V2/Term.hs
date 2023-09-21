@@ -4,6 +4,8 @@ module Unison.Hashing.V2.Term
     MatchCase (..),
     hashClosedTerm,
     hashTermComponents,
+    hashTermComponentsDB,
+    hashTermComponentsAnn,
     hashTermComponentsWithoutTypes,
   )
 where
@@ -11,7 +13,6 @@ where
 import Data.Sequence qualified as Sequence
 import Data.Text qualified as Text
 import Data.Zip qualified as Zip
-import GHC.IO
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -95,7 +96,14 @@ hashTermComponents ::
   (Var v) =>
   Map v (Term v a, Type v a, extra) ->
   Map v (ReferenceId, Term v a, Type v a, extra)
-hashTermComponents terms =
+hashTermComponents = hashTermComponentsDB
+
+hashTermComponentsDB ::
+  forall v a extra.
+  (Var v) =>
+  Map v (Term v a, Type v a, extra) ->
+  Map v (ReferenceId, Term v a, Type v a, extra)
+hashTermComponentsDB terms =
   Zip.zipWith keepExtra terms (ReferenceUtil.hashComponents (refId ()) terms')
   where
     terms' :: Map v (Term v a)
@@ -105,12 +113,29 @@ hashTermComponents terms =
     keepExtra (_oldTrm, typ, extra) (refId, trm) = (refId, trm, typ, extra)
 
     incorporateType :: (Term v a, Type v a, extra) -> Term v a
-    incorporateType (a@(ABT.out -> ABT.Tm (TermAnn e tp)), typ, _extra) =
-      if tp /= typ
-        then unsafePerformIO $ do
-          appendFile "typeMismatch.txt" ("------------\n" <> show (tp, typ))
-          pure $ ABT.tm' (ABT.annotation a) (TermAnn e typ)
-        else ABT.tm' (ABT.annotation a) (TermAnn e typ)
+    incorporateType (a@(ABT.out -> ABT.Tm (TermAnn e _tp)), typ, _extra) =
+      ABT.tm' (ABT.annotation a) (TermAnn e typ)
+    incorporateType (e, typ, _extra) =
+      -- Debug.debugLog Debug.Temp ("Incorporating missing type" <> show (Map.keys terms)) $
+      ABT.tm' (ABT.annotation e) (TermAnn e typ)
+
+hashTermComponentsAnn ::
+  forall v a extra.
+  (Var v) =>
+  Map v (Term v a, Type v a, extra) ->
+  Map v (ReferenceId, Term v a, Type v a, extra)
+hashTermComponentsAnn terms =
+  Zip.zipWith keepExtra terms (ReferenceUtil.hashComponents (refId ()) terms')
+  where
+    terms' :: Map v (Term v a)
+    terms' = incorporateType <$> terms
+
+    keepExtra :: ((Term v a, Type v a, extra) -> (ReferenceId, Term v a) -> (ReferenceId, Term v a, Type v a, extra))
+    keepExtra (_oldTrm, typ, extra) (refId, trm) = (refId, trm, typ, extra)
+
+    incorporateType :: (Term v a, Type v a, extra) -> Term v a
+    incorporateType (a@(ABT.out -> ABT.Tm (TermAnn e tp)), _typ, _extra) =
+      ABT.tm' (ABT.annotation a) (TermAnn e tp)
     incorporateType (e, typ, _extra) =
       -- Debug.debugLog Debug.Temp ("Incorporating missing type" <> show (Map.keys terms)) $
       ABT.tm' (ABT.annotation e) (TermAnn e typ)

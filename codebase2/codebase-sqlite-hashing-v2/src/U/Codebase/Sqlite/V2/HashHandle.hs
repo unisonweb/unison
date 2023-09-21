@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.V2.HashHandle
   ( v2HashHandle,
+    VerifyResult(..),
   )
 where
 

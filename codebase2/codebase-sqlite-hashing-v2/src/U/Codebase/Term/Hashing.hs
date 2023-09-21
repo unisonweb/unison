@@ -21,21 +21,53 @@ import Unison.Hashing.V2.Convert2 qualified as H2
 import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
+import U.Codebase.Sqlite.HashHandle
 
-verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Bool
+verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> VerifyResult
 verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
-  hashLocalComp
-    & somethingsomethingLocallyIndexedTermComponent
-    & Reference.component hash
-    & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
-    & Map.fromList
-    & C.Term.unhashComponent hash Var.unnamedRef
-    & Map.toList
-    & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
-    & Map.fromList
-    & H2.hashTermComponents
-    & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
+  case (validDB, validAnn, validWithoutType) of
+    (True, True, _) -> AllValid
+    (False, False, True) -> ValidOnlyWithoutType
+    (False, True, _) -> ValidOnlyAnn
+    (True, False, _) -> ValidOnlyDB
+    (False, False, False) -> NoneValid
   where
+    validDB =
+      hashLocalComp
+        & somethingsomethingLocallyIndexedTermComponent
+        & Reference.component hash
+        & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+        & Map.fromList
+        & C.Term.unhashComponent hash Var.unnamedRef
+        & Map.toList
+        & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
+        & Map.fromList
+        & H2.hashTermComponents
+        & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
+    validAnn =
+      hashLocalComp
+        & somethingsomethingLocallyIndexedTermComponent
+        & Reference.component hash
+        & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+        & Map.fromList
+        & C.Term.unhashComponent hash Var.unnamedRef
+        & Map.toList
+        & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
+        & Map.fromList
+        & H2.hashTermComponents
+        & all \(H2.ReferenceId hash' _, _trm, _typ, _extra) -> hash == hash'
+    validWithoutType =
+      hashLocalComp
+        & somethingsomethingLocallyIndexedTermComponent
+        & Reference.component hash
+        & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+        & Map.fromList
+        & C.Term.unhashComponent hash Var.unnamedRef
+        & Map.toList
+        & fmap (\(_refId, (v, trm, _typ)) -> (v, (H2.v2ToH2Term trm)))
+        & Map.fromList
+        & H2.hashTermComponentsWithoutTypes
+        & all \(H2.ReferenceId hash' _, _trm) -> hash == hash'
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' Unison.Symbol) Unison.Symbol a
