@@ -373,22 +373,27 @@ prettyCyclicUVarKindWorker prec u nameMap visitingSet =
 
 prettyUVarKind :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
 prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
-  find uvar >>= \case
+  prettyUVarKind' arrPrec uvar
+
+prettyUVarKind' :: Var v => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
+prettyUVarKind' prec u =
+  find u >>= \case
     Nothing -> pure "_"
-    Just c -> prettySolvedConstraint' c
+    Just c -> prettySolvedConstraint' prec c
 
 prettySolvedConstraint :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> Solved.Constraint (UVar v loc) v loc -> P.Pretty P.ColorText
 prettySolvedConstraint ppe constraints c =
-  ppRunner ppe constraints (prettySolvedConstraint' c)
+  ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
 
-prettySolvedConstraint' :: Var v => Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
-prettySolvedConstraint' = \case
+prettySolvedConstraint' :: Var v => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
+prettySolvedConstraint' prec = \case
   Solved.IsEffect _ -> pure "Effect"
   Solved.IsStar _ -> pure "*"
   Solved.IsArr _ a b -> do
-    a <- prettyConstraintPrec' (arrPrec + 1) a
-    b <- prettyConstraintPrec' arrPrec b
-    pure (P.wrap (a <> "->" <> b))
+    a <- prettyUVarKind' (arrPrec + 1) a
+    b <- prettyUVarKind' arrPrec b
+    let wrap = if prec > arrPrec then P.parenthesize else id
+    pure (wrap (a <> " -> " <> b))
 
 ppRunner :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
 ppRunner ppe constraints =
@@ -401,19 +406,6 @@ ppRunner ppe constraints =
           }
       env = Env ppe
    in \solve -> fst (run env st solve)
-
-prettyConstraintPrec' :: Var v => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
-prettyConstraintPrec' prec u =
-  find u >>= \case
-    Nothing -> pure "_"
-    Just c -> case c of
-      Solved.IsEffect _ -> pure "Effect"
-      Solved.IsStar _ -> pure "*"
-      Solved.IsArr _ a b -> do
-        a <- prettyConstraintPrec' (arrPrec + 1) a
-        b <- prettyConstraintPrec' arrPrec b
-        let wrap = if prec > arrPrec then P.parenthesize else id
-        pure (wrap (a <> " -> " <> b))
 
 addConstraint ::
   forall v loc.
