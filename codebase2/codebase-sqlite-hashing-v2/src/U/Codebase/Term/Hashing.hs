@@ -24,9 +24,9 @@ import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
 
 verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
-verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
-  hashLocalComp
-    & somethingsomethingLocallyIndexedTermComponent
+verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
+  Foldable.toList elements
+    & fmap s2cTermWithType
     & Reference.component hash
     & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
     & Map.fromList
@@ -51,30 +51,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
     symbol2to1 :: S.Symbol -> Unison.Symbol
     symbol2to1 (S.Symbol i t) = Unison.Symbol i (Var.User t)
 
-somethingsomethingLocallyIndexedTermComponent ::
-  TermFormat.HashLocallyIndexedComponent ->
-  [(C.Term S.Symbol, C.Term.Type S.Symbol)]
-somethingsomethingLocallyIndexedTermComponent (TermFormat.LocallyIndexedComponent elements) = do
-  s2cTermWithType <$> (Foldable.toList elements)
-
 s2cTermWithType :: (LocalIds.LocalIds' Text Hash32, S.Term.Term, S.Term.Type) -> (C.Term S.Symbol, C.Term.Type S.Symbol)
 s2cTermWithType (ids, tm, tp) =
   let Identity (substText, substHash) = Q.localIdsToLookups Identity pure (bimap id Hash32.toHash ids)
    in (Q.x2cTerm substText substHash tm, Q.x2cTType substText substHash tp)
-
--- Q.x2cTerm subsText subsHash tm
--- let lookupText = LocalIds.textLookup ids
--- let tm' = C.Term.extraMap id substTermRef substTypeRef substTermLink substTypeLink id tm
--- let tp' = C.Term.extraMap id substTermRef substTypeRef substTermLink substTypeLink id tp
--- pure (tm', tp')
-
--- | implementation detail of {s,w}2c*Term* & s2cDecl
--- localIdsToLookups :: (Monad m) => (t -> m Text) -> (d -> m Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> Hash)
--- localIdsToLookups loadText loadHash localIds = do
---   texts <- traverse loadText $ LocalIds.textLookup localIds
---   hashes <- traverse loadHash $ LocalIds.defnLookup localIds
---   let substText (LocalTextId w) = texts Vector.! fromIntegral w
---       substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
---   pure (substText, substHash)
-
--- -- pure (x2cTerm substText substHash tm, x2cTType substText substHash tp)

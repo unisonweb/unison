@@ -309,35 +309,3 @@ unhashComponent componentHash refToVar m =
             Let a b -> ABT.tm () $ Let a b
             Match s cases -> ABT.tm () $ Match s cases
             TypeLink r -> ABT.tm () $ TypeLink r
-
--- -- Turns a cycle of references into a term with free vars that we can edit
--- -- and hash again.
--- -- todo: Maybe this an others can be moved to HandleCommand, in the
--- --  Free (Command m i v) monad, passing in the actions that are needed.
--- -- However, if we want this to be parametric in the annotation type, then
--- -- Command would have to be made parametric in the annotation type too.
--- unhashTermComponent ::
---   Reference ->
---   Sqlite.Transaction (Map Symbol (Reference, Term Symbol Ann, Type Symbol Ann))
--- unhashTermComponent r = case Reference.toId r of
---   Nothing -> pure mempty
---   Just r -> do
---     unhashed <- unhashTermComponent' (Reference.idToHash r)
---     pure $ fmap (over _1 ReferenceDerived) unhashed
-
--- unhashTermComponent' ::
---   Codebase m Symbol Ann ->
---   Hash ->
---   Sqlite.Transaction (Map Symbol (Reference.Id, Term Symbol Ann, Type Symbol Ann))
--- unhashTermComponent' h = do
---   maybeTermsWithTypes <- Codebase.getTermComponentWithTypes codebase h
---   pure do
---     foldMap (\termsWithTypes -> unhash $ Map.fromList (Reference.componentFor h termsWithTypes)) maybeTermsWithTypes
---   where
---     unhash m =
---       -- this grabs the corresponding input map values (with types)
---       -- and arranges them with the newly unhashed terms.
---       let f (_oldTm, typ) (v, newTm) = (v, newTm, typ)
---           m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
---         in Map.fromList
---             [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
