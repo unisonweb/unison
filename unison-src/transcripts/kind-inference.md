@@ -117,3 +117,12 @@ test _ = ()
 ```unison:error
 unique type T a = T (a a)
 ```
+
+```unison:error
+unique type T a b = T (a b) (b a)
+```
+
+```unison:error
+unique type Ping a = Ping (a Pong)
+unique type Pong a = Pong (a Ping)
+```

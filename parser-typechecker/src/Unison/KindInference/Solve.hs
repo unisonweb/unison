@@ -119,7 +119,7 @@ tracePretty :: P.Pretty P.ColorText -> a -> a
 tracePretty p = trace (P.toAnsiUnbroken p)
 
 data KindError v loc
-  = CycleDetected [UVar v loc]
+  = CycleDetected loc (UVar v loc) (ConstraintMap v loc)
   | UnexpectedArgument
       loc
       -- ^ src span of abs
@@ -190,8 +190,11 @@ markVisiting x = do
   OccCheckState {visitingSet, visitingStack} <- M.get
   case Set.member x visitingSet of
     True -> do
-      let cyclicSlice = foldr (\a b -> if a == x then [a] else a : b) [] visitingStack
-      addError (CycleDetected cyclicSlice)
+      OccCheckState{solvedConstraints} <- M.get
+      let loc = case U.lookupCanon x solvedConstraints of
+            Just (_, _, Descriptor { descriptorConstraint = Just (Solved.IsArr (Provenance _ loc) _ _ )}, _) -> loc
+            _ -> error "cycle without IsArr constraint"
+      addError (CycleDetected loc x solvedConstraints)
       pure Cycle
     False -> do
       M.modify \st ->
