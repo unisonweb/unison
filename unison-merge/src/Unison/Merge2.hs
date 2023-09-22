@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Merge2
-  (
+  ( -- * Library dependencies
+    mergeLibdeps,
   )
 where
 
@@ -70,6 +71,7 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing.Convert
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Name (Name)
 import Unison.PatternMatchCoverage.UFMap (UFMap)
 import Unison.PatternMatchCoverage.UFMap qualified as UFMap

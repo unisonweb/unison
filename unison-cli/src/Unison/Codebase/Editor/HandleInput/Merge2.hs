@@ -9,10 +9,13 @@ import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
+import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
-import Data.Semialign (alignWith)
+import Data.Monoid (Endo (Endo))
+import Data.Semialign (align, alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -49,9 +52,10 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
+import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -67,6 +71,7 @@ import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -127,21 +132,21 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     bobTermSynhashes <- step "compute bob term syntactic hashes" do
       syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
 
-    (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff) <-
+    aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
+    bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
+
+    (maybeLcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff) <-
       case maybeLcaCausalHash of
         Nothing -> do
           let synhashesToAdds :: BiMultimap hash name -> Map name (Op hash)
               synhashesToAdds =
                 Map.map Added . BiMultimap.range
-          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesAdds aliceBranch
-          bobDependenciesDiff <- step "load bob dependencies diff" $ loadDependenciesAdds bobBranch
           pure
-            ( synhashesToAdds aliceDeclSynhashes,
+            ( Nothing,
+              synhashesToAdds aliceDeclSynhashes,
               synhashesToAdds aliceTermSynhashes,
-              aliceDependenciesDiff,
               synhashesToAdds bobDeclSynhashes,
-              synhashesToAdds bobTermSynhashes,
-              bobDependenciesDiff
+              synhashesToAdds bobTermSynhashes
             )
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
@@ -171,29 +176,72 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
             rollback (werror ("conflicted bob term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          aliceDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch aliceBranch
-          bobDependenciesDiff <- step "load alice dependencies diff" $ loadDependenciesDiff lcaBranch bobBranch
+          lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
 
-          pure (aliceDeclDiff, aliceTermDiff, aliceDependenciesDiff, bobDeclDiff, bobTermDiff, bobDependenciesDiff)
+          pure (Just lcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff)
 
     let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
     let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
 
+    let mergedLibdeps =
+          Merge.mergeLibdeps
+            ((==) `on` Causal.causalHash)
+            getTwoFreshNames
+            maybeLcaLibdeps
+            aliceLibdeps
+            bobLibdeps
+
     Sqlite.unsafeIO do
+      Text.putStrLn ""
       Text.putStrLn "===== lca->alice diff ====="
       printDeclsDiff aliceDeclNames aliceDeclDiff
       printTermsDiff aliceTermNames aliceTermDiff
-      printDependenciesDiff aliceDependenciesDiff
       Text.putStrLn ""
       Text.putStrLn "===== lca->bob diff ====="
       printDeclsDiff bobDeclNames bobDeclDiff
       printTermsDiff bobTermNames bobTermDiff
-      printDependenciesDiff bobDependenciesDiff
+      Text.putStrLn ""
+      Text.putStrLn "===== merged libdeps dependencies ====="
+      printLibdeps mergedLibdeps
       Text.putStrLn ""
       Text.putStrLn "===== conflicts ====="
       printDeclConflicts conflictedDecls
       printTermConflicts conflictedTerms
       Text.putStrLn ""
+
+-- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
+-- clash with any existing dependencies.
+getTwoFreshNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
+getTwoFreshNames names name0 =
+  go2 0
+  where
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go2 4 = ("base__4", "base__7")
+    go2 :: Integer -> (NameSegment, NameSegment)
+    go2 !i
+      | Set.member name names = go2 (i + 1)
+      | otherwise = (name, go1 (i + 1))
+      where
+        name = mangled i
+
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go1 5 = "base__7"
+    go1 :: Integer -> NameSegment
+    go1 !i
+      | Set.member name names = go1 (i + 1)
+      | otherwise = name
+      where
+        name = mangled i
+
+    mangled :: Integer -> NameSegment
+    mangled i =
+      NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -397,37 +445,19 @@ conflictsish aliceDiff bobDiff =
       These (Updated _ x) (Updated _ y) | x /= y -> Just ()
       _ -> Nothing
 
--- | Diff the "dependencies" ("lib" sub-namespace) of two namespaces.
-loadDependenciesDiff :: Branch Transaction -> Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
-loadDependenciesDiff branch1 branch2 = do
-  dependencies1 <- namespaceDependencies branch1
-  dependencies2 <- namespaceDependencies branch2
-  pure (catMaybes (alignWith f dependencies1 dependencies2))
-  where
-    f = \case
-      This x -> Just (Deleted (Causal.causalHash x))
-      That y -> Just (Added (Causal.causalHash y))
-      These (Causal.causalHash -> x) (Causal.causalHash -> y) ->
-        if x == y
-          then Nothing
-          else Just (Updated x y)
-
--- | Like @loadDependenciesDiff@, but when there isn't an old and new branch to compare (i.e. no LCA), so everything
--- gets classified as an add.
-loadDependenciesAdds :: Branch Transaction -> Transaction (Map NameSegment (Op CausalHash))
-loadDependenciesAdds branch = do
-  dependencies <- namespaceDependencies branch
-  pure (Map.map (Added . Causal.causalHash) dependencies)
-
--- | Extract just the "dependencies" (sub-namespaces of "lib") of a branch.
-namespaceDependencies :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
-namespaceDependencies branch =
+-- | Load the library dependencies (lib.*) of a namespace.
+loadLibdeps :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
+loadLibdeps branch =
   case Map.lookup Name.libSegment (Branch.children branch) of
     Nothing -> pure Map.empty
     Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils
+
+showCausal :: CausalBranch m -> Text
+showCausal =
+  showCausalHash . Causal.causalHash
 
 showCausalHash :: CausalHash -> Text
 showCausalHash =
@@ -477,18 +507,12 @@ printTermsDiff termNames = do
         ref =
           Text.brightBlack (showReferent (fromJust (BiMultimap.lookupRan name termNames)))
 
-printDependenciesDiff :: Map NameSegment (Op CausalHash) -> IO ()
-printDependenciesDiff =
+printLibdeps :: Map NameSegment (CausalBranch Transaction) -> IO ()
+printLibdeps =
   Text.putStr . Text.unlines . map f . Map.toList
   where
-    f (name, diff) =
-      case diff of
-        Added hash ->
-          Text.green ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        Deleted hash ->
-          Text.red ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash hash)
-        Updated _oldHash newHash ->
-          Text.magenta ("dependency " <> NameSegment.toText name) <> Text.brightBlack (showCausalHash newHash)
+    f (name, causal) =
+      "dependency " <> NameSegment.toText name <> Text.brightBlack (showCausal causal)
 
 printDeclConflicts :: Set Name -> IO ()
 printDeclConflicts =

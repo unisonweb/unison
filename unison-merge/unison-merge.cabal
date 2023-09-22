@@ -20,6 +20,9 @@ library
       Unison.Merge
       Unison.Merge2
       Unison.SyntacticHash
+  other-modules:
+      Unison.Merge.DiffOp
+      Unison.Merge.Libdeps
   hs-source-dirs:
       src
   default-extensions:
