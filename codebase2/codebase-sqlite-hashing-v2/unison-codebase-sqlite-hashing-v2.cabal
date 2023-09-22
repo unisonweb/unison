@@ -53,7 +53,8 @@ library
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      base
+      aeson
+    , base
     , bytes
     , bytestring
     , containers

@@ -5,6 +5,7 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 ghc-options: -Wall
 
 dependencies:
+  - aeson
   - base
   - bytes
   - bytestring

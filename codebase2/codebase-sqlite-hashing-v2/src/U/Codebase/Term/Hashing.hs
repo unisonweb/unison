@@ -1,10 +1,14 @@
 module U.Codebase.Term.Hashing where
 
 import Control.Lens
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as BL
 import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
+import GHC.IO
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Symbol qualified as S
@@ -14,6 +18,7 @@ import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import U.Core.ABT qualified as ABT
+import Unison.Hash
 import Unison.Hash32
 import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as H2
@@ -21,17 +26,54 @@ import Unison.Hashing.V2.Convert2 qualified as H2
 import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
-import U.Codebase.Sqlite.HashHandle
 
-verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> VerifyResult
+verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> (Maybe (Hash, Hash), VerifyResult)
 verifyTermFormatHash (ComponentHash hash) (TermFormat.Term hashLocalComp) =
-  case (validDB, validAnn, validWithoutType) of
-    (True, True, _) -> AllValid
-    (False, False, True) -> ValidOnlyWithoutType
-    (False, True, _) -> ValidOnlyAnn
-    (True, False, _) -> ValidOnlyDB
-    (False, False, False) -> NoneValid
+  let result = case (validDB, validAnn, validWithoutType) of
+        (True, True, _) -> AllValid
+        (False, False, True) -> ValidOnlyWithoutType
+        (False, True, _) -> unsafePerformIO $ do
+          let ln =
+                Aeson.encode $
+                  ( compareTypes <&> \case
+                      (annType, dbTyp) -> do
+                        Aeson.object ["hash" Aeson..= tShow hash, "annType" Aeson..= tShow annType, "dbType" Aeson..= tShow dbTyp]
+                  )
+          BL.appendFile "type-mismatch.json" ln
+          pure ValidOnlyAnn
+        (True, False, _) -> ValidOnlyDB
+        (False, False, False) -> NoneValid
+   in if result /= AllValid
+        then (getMismatch, result)
+        else (Nothing, result)
   where
+    getMismatch =
+      hashLocalComp
+        & somethingsomethingLocallyIndexedTermComponent
+        & Reference.component hash
+        & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+        & Map.fromList
+        & C.Term.unhashComponent hash Var.unnamedRef
+        & Map.toList
+        & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
+        & Map.fromList
+        & H2.hashTermComponentsDB
+        & altMap \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
+          if hash == hash' then Nothing else Just (hash, hash')
+
+    compareTypes =
+      hashLocalComp
+        & somethingsomethingLocallyIndexedTermComponent
+        & Reference.component hash
+        & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+        & Map.fromList
+        & C.Term.unhashComponent hash Var.unnamedRef
+        & Map.toList
+        & fmap (\(_refId, (_v, trm, typ)) -> ((H2.v2ToH2Term trm, H2.v2ToH2Type typ)))
+        & mapMaybe \case
+          ((ABT.out -> ABT.Tm (H2.TermAnn _e annType)), dbTyp) ->
+            Just (annType, dbTyp)
+          _ -> Nothing
     validDB =
       hashLocalComp
         & somethingsomethingLocallyIndexedTermComponent

@@ -38,7 +38,7 @@ data HashHandle = HashHandle
       BranchHash,
     -- | Verify that the hash of a term component
     -- matches the provided hash.
-    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> VerifyResult
+    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> (Maybe (Hash, Hash), VerifyResult)
   }
 
 data VerifyResult
