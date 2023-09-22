@@ -1,27 +1,21 @@
-{-# LANGUAGE RecursiveDo #-}
-
 module Unison.KindInference.Solve
   ( step,
     finalize,
     initialState,
     KindError (..),
     ConstraintConflict (..),
-    prettySolvedConstraint,
-    prettyUVarKind,
-    prettyCyclicUVarKind,
   )
 where
 
+import Unison.KindInference.Error (KindError(..), ConstraintConflict(..), improveError)
 import Control.Lens (Prism', prism', review, (%~), (.=), (^.))
 import Control.Monad.Reader (asks)
 import Control.Monad.State.Strict qualified as M
 import Control.Monad.Trans.Except
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Debug (DebugFlag (KindInference), shouldDebug)
-import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Solved qualified as Solved
 import Unison.KindInference.Constraint.StarProvenance (StarProvenance (..))
@@ -36,7 +30,6 @@ import Unison.KindInference.Solve.Monad
     SolveState (..),
     addUnconstrainedVar,
     emptyState,
-    find,
     genStateL,
     run,
   )
@@ -46,7 +39,6 @@ import Unison.PatternMatchCoverage.UFMap qualified as U
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Syntax.TypePrinter qualified as TP
-import Unison.Type (Type)
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 
@@ -85,7 +77,6 @@ step e st cs =
         (res, finalState) -> case res of
           Left e -> Left e
           Right () -> Right (defaultUnconstrainedVars finalState)
-{-# SCC step #-}
 
 defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
@@ -110,72 +101,12 @@ prettyConstraintD' ppe =
 
 prettyConstraints :: Show loc => Var v => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
 prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
-{-# SCC prettyConstraints #-}
 
 prettyUVar :: Var v => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
 prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 
 tracePretty :: P.Pretty P.ColorText -> a -> a
 tracePretty p = trace (P.toAnsiUnbroken p)
-
-data KindError v loc
-  = CycleDetected loc (UVar v loc) (ConstraintMap v loc)
-  | UnexpectedArgument
-      loc
-      -- ^ src span of abs
-      (UVar v loc)
-      -- ^ abs var
-      (UVar v loc)
-      -- ^ arg var
-      (ConstraintMap v loc)
-      -- ^ context
-  | ArgumentMismatch
-      (UVar v loc)
-      -- ^ abs var
-      (UVar v loc)
-      -- ^ expected var
-      (UVar v loc)
-      -- ^ given var
-      (ConstraintMap v loc)
-      -- ^ context
-  | ArgumentMismatchArrow
-      (loc, Type v loc, Type v loc)
-      -- ^ (The applied arrow range, lhs, rhs)
-      (ConstraintConflict v loc)
-      (ConstraintMap v loc)
-  | EffectListMismatch
-      (ConstraintConflict v loc)
-      (ConstraintMap v loc)
-  | ConstraintConflict
-      (GeneratedConstraint v loc)
-      -- ^ Failed to add this constraint
-      (ConstraintConflict v loc)
-      -- ^ Due to this conflict
-      (ConstraintMap v loc)
-      -- ^ in this context
-
-improveError :: Var v => KindError v loc -> Solve v loc (KindError v loc)
-improveError = \case
-  ConstraintConflict a b c -> improveError' a b c
-  e -> pure e
-
-improveError' ::
-  Var v =>
-  GeneratedConstraint v loc ->
-  ConstraintConflict v loc ->
-  ConstraintMap v loc ->
-  Solve v loc (KindError v loc)
-improveError' generatedConstraint constraintConflict constraintMap =
-  let Provenance ctx loc = generatedConstraint ^. Unsolved.prov
-   in case ctx of
-        AppAbs abs arg -> pure (UnexpectedArgument loc abs arg constraintMap)
-        AppArg abs expected actual -> pure (ArgumentMismatch abs expected actual constraintMap)
-        AppArrow loc dom cod -> pure (ArgumentMismatchArrow (loc, dom, cod) constraintConflict constraintMap)
-        EffectsList -> pure (EffectListMismatch constraintConflict constraintMap)
-        _ -> pure (ConstraintConflict generatedConstraint constraintConflict constraintMap)
-
-instance Show (KindError v loc) where
-  show _ = "kind error"
 
 data OccCheckState v loc = OccCheckState
   { visitingSet :: Set (UVar v loc),
@@ -272,7 +203,6 @@ occCheck constraints0 =
    in case kindErrors of
         [] -> Right solvedConstraints
         e : es -> Left (e :| es)
-{-# SCC occCheck #-}
 
 -- loop through the constraints, eliminating constraints until we have some set that cannot be reduced
 reduce ::
@@ -305,107 +235,6 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
           ppe <- asks prettyPrintEnv
           tracePretty (P.hang (P.bold hdr) (prettyConstraints ppe (map (review _Generated) cs))) (f cs)
         False -> f cs
-{-# SCC reduce #-}
-
-arrPrec :: Int
-arrPrec = 1
-
-prettyCyclicUVarKind ::
-  Var v =>
-  PrettyPrintEnv ->
-  ConstraintMap v loc ->
-  UVar v loc ->
-  (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
-  (P.Pretty P.ColorText, P.Pretty P.ColorText)
-prettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
-  find uvar >>= \case
-    Nothing -> explode
-    Just c -> do
-      rec (pp, cyclicUVars) <- prettyCyclicSolvedConstraint c arrPrec nameMap (Set.singleton uvar)
-          let nameMap = snd $ foldl' phi (0 :: Int, Map.empty) cyclicUVars
-              phi (n, m) a =
-                let name = P.string (if n == 0 then "k" else "k" <> show n)
-                    !newN = n + 1
-                    prettyVar = case a == uvar of
-                      True -> theUVarStyle name
-                      False -> name
-                    !newMap = Map.insert a prettyVar m
-                 in (newN, newMap)
-      case Map.lookup uvar nameMap of
-        Nothing -> explode
-        Just n -> pure (n, P.wrap (n <> "=" <> pp))
-  where
-    explode = error ("[prettyCyclicUVarKind] called with non-cyclic uvar: " <> show uvar)
-
-prettyCyclicSolvedConstraint ::
-  Var v =>
-  Solved.Constraint (UVar v loc) v loc ->
-  Int ->
-  Map (UVar v loc) (P.Pretty P.ColorText) ->
-  Set (UVar v loc) ->
-  Solve v loc (P.Pretty P.ColorText, Set (UVar v loc))
-prettyCyclicSolvedConstraint constraint prec nameMap visitingSet = case constraint of
-  Solved.IsEffect _ -> pure ("Effect", Set.empty)
-  Solved.IsStar _ -> pure ("*", Set.empty)
-  Solved.IsArr _ a b -> do
-    (pa, cyclicLhs) <- case Set.member a visitingSet of
-      True -> pure (nameMap Map.! a, Set.singleton a)
-      False -> prettyCyclicUVarKindWorker (arrPrec + 1) a nameMap visitingSet
-    (pb, cyclicRhs) <- case Set.member b visitingSet of
-      True -> pure (nameMap Map.! b, Set.singleton b)
-      False -> prettyCyclicUVarKindWorker arrPrec b nameMap visitingSet
-    let wrap = if prec > arrPrec then P.parenthesize else id
-    pure (wrap (pa <> " -> " <> pb), cyclicLhs <> cyclicRhs)
-
-prettyCyclicUVarKindWorker ::
-  Var v =>
-  Int ->
-  UVar v loc ->
-  Map (UVar v loc) (P.Pretty P.ColorText) ->
-  Set (UVar v loc) ->
-  Solve v loc (P.Pretty P.ColorText, Set (UVar v loc))
-prettyCyclicUVarKindWorker prec u nameMap visitingSet =
-  find u >>= \case
-    Nothing -> pure ("_", Set.empty)
-    Just c -> do
-      let visitingSet1 = Set.insert u visitingSet
-      prettyCyclicSolvedConstraint c prec nameMap visitingSet1
-
-prettyUVarKind :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
-prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
-  prettyUVarKind' arrPrec uvar
-
-prettyUVarKind' :: Var v => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
-prettyUVarKind' prec u =
-  find u >>= \case
-    Nothing -> pure "_"
-    Just c -> prettySolvedConstraint' prec c
-
-prettySolvedConstraint :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> Solved.Constraint (UVar v loc) v loc -> P.Pretty P.ColorText
-prettySolvedConstraint ppe constraints c =
-  ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
-
-prettySolvedConstraint' :: Var v => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
-prettySolvedConstraint' prec = \case
-  Solved.IsEffect _ -> pure "Effect"
-  Solved.IsStar _ -> pure "*"
-  Solved.IsArr _ a b -> do
-    a <- prettyUVarKind' (arrPrec + 1) a
-    b <- prettyUVarKind' arrPrec b
-    let wrap = if prec > arrPrec then P.parenthesize else id
-    pure (wrap (a <> " -> " <> b))
-
-ppRunner :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
-ppRunner ppe constraints =
-  let st =
-        SolveState
-          { unifVars = Set.empty,
-            newUnifVars = [],
-            constraints = constraints,
-            typeMap = mempty
-          }
-      env = Env ppe
-   in \solve -> fst (run env st solve)
 
 addConstraint ::
   forall v loc.
@@ -436,12 +265,6 @@ addConstraint constraint = do
           -- contradiction.
           processPostAction . fmap concat =<< runExceptT ((traverse (ExceptT . addConstraint') (x : xs)))
   processPostAction =<< addConstraint' (review _Generated constraint)
-
-data ConstraintConflict v loc = ConstraintConflict'
-  { conflictedVar :: UVar v loc,
-    impliedConstraint :: Solved.Constraint (UVar v loc) v loc,
-    conflictedConstraint :: Solved.Constraint (UVar v loc) v loc
-  }
 
 addConstraint' ::
   forall v loc.

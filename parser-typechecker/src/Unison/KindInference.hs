@@ -1,10 +1,7 @@
 module Unison.KindInference
   ( inferDecls,
     kindCheckAnnotations,
-    getUVarType,
-    prettySolvedConstraint,
-    KindError (..),
-    ConstraintConflict(..),
+    KindError,
   )
 where
 
@@ -15,14 +12,12 @@ import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
-import Unison.KindInference.Solve (KindError (..), ConstraintConflict(..), finalize, initialState, step, prettySolvedConstraint)
+import Unison.KindInference.Solve (KindError, finalize, initialState, step)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGenList)
-import Unison.KindInference.UVar
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
 import Unison.Term qualified as Term
-import Unison.Type qualified as Type
 import Unison.Var qualified as Var
 
 kindCheckAnnotations ::
@@ -73,6 +68,3 @@ intoComponents declMap =
   where
     declReferences :: Decl v a -> [Reference]
     declReferences = toList . typeDependencies . asDataDecl
-
-getUVarType :: UVar v loc -> Type.Type v loc
-getUVarType = uvarType

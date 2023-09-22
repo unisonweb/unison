@@ -4,7 +4,7 @@ module Unison.Typechecker.TypeError where
 
 import Data.List.NonEmpty (NonEmpty)
 import Unison.ABT qualified as ABT
-import Unison.KindInference (KindError (..))
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
