@@ -12,6 +12,7 @@ import Control.Monad.Validate qualified as Validate
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
+import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -29,7 +30,18 @@ import Safe (elemIndexJust)
 import U.Codebase.Branch.Type qualified as V2
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (RReference, Reference, Reference' (..), ReferenceType (RtTerm, RtType), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
+import U.Codebase.Reference
+  ( RReference,
+    Reference,
+    Reference' (..),
+    ReferenceType (RtTerm, RtType),
+    TermRReference,
+    TermReference,
+    TermReferenceId,
+    TypeRReference,
+    TypeReference,
+    TypeReferenceId,
+  )
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -45,12 +57,15 @@ import Unison.ABT qualified as ABT
 import Unison.ABT qualified as V1.ABT
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
+import Unison.ConstructorType qualified as CT
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.FileParsers qualified as FP
+import Unison.FileParsers qualified as FileParsers
+import Unison.FileParsers qualified as Unison.Cli
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing.Convert
 import Unison.LabeledDependency (LabeledDependency)
@@ -74,6 +89,8 @@ import Unison.Type qualified as V1.Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile.Env qualified as UFE
+import Unison.UnisonFile.Names qualified as UFN
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Map qualified as Map
@@ -86,6 +103,7 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.Var qualified as V1.Var
+import Unison.WatchKind qualified as V1
 
 newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
 
@@ -202,11 +220,13 @@ computeConflicts a b = wundefined
         - [x] Compute latest terms by Map.unionWith (f combinedUpdates) aliceDepTerms' bobDepTerms'
     - [ ] Later: Compute the set of Safe Deletes that aren't transitive dependencies of Added/Updated things.
         - [ ] Bonus: Warn for suppressed deletes.
-    - [ ] Construct a typechecking Env for the Updated + their dependents, and typecheck.
+    - [in progress] Build UnisonFile to typecheck
         - [ ] Convert from `TermReference` or `TypeReference` to an actual `Term` / `Decl` to typecheck.
             - [ ] todo
             - [ ] Read the term/decl
             - [ ] Any `Map Reference Name` will do, we can get one by reversing `latestTerms`.
+    - [ ] Construct a typechecking Env, and typecheck.
+        - [ ] call Unison.Cli.computeTypecheckingEnvironment
     - If typechecking succeeds:
         - [ ] Some of the results do not exist on either branch. Write resulting definitions to codebase.
         - [ ] Construct an in-memory namespace starting from LCA deep{terms,types}, and applying the adds, updates, and safe deletes.
@@ -222,7 +242,52 @@ computeConflicts a b = wundefined
         - [ ] Populate the scratch file with whatever isn't in the new branch.
 -}
 
--- need the deep* for each branch, for finding dependents
+-- todo: I think we might want to build the terms (or prepare to build the terms)
+--       see what references they have left over
+--       and build the typechecking env around those.
+-- Basically just call `Unison.Cli.computeTypecheckingEnvironment`
+
+computeUnisonFile ::
+  forall v a.
+  (Var v, Monoid a) =>
+  (TermReferenceId -> Transaction (V1.Term v a)) ->
+  (TypeReferenceId -> Transaction (V1.Decl v a)) ->
+  (Name -> v) ->
+  DeepRefs' ->
+  Transaction (UnisonFile v a)
+computeUnisonFile loadTerm loadDecl nameToV dr = do
+  loadedTerms <- traverse loadTerm (dsTerms' dr)
+  loadedTypes <- traverse loadDecl (dsTypes' dr)
+  let effectDeclarations :: Map v (V1.Decl.EffectDeclaration v a)
+      dataDeclarations :: Map v (V1.Decl.DataDeclaration v a)
+      (fmap fromLeft' -> effectDeclarations, fmap fromRight' -> dataDeclarations) =
+        loadedTypes
+          & Map.mapKeys nameToV
+          & Map.partition (\case Left {} -> True; Right {} -> False)
+      terms :: [(v, a {- ann for whole binding -}, V1.Term v a)]
+      terms = fmap (\(n, t) -> (nameToV n, mempty :: a, t)) $ Map.toList loadedTerms
+      envResult = UFN.environmentFor mempty dataDeclarations effectDeclarations
+      env :: UFE.Env v a = wundefined envResult
+      dataDeclarationsId :: Map v (TypeReferenceId, V1.Decl.DataDeclaration v a)
+      dataDeclarationsId = UFE.datasId env
+      effectDeclarationsId :: Map v (TypeReferenceId, V1.Decl.EffectDeclaration v a)
+      effectDeclarationsId = UFE.effectsId env
+      watches :: Map V1.WatchKind [(v, a {- ann for whole watch -}, V1.Term v a)]
+      watches = mempty
+  pure $ UF.UnisonFileId dataDeclarationsId effectDeclarationsId terms watches
+
+-- typecheck :: UnisonFile v a -> Transaction (Either (Seq (Note v a)) (TypecheckedUnisonFile v a))
+-- typecheck uf = do
+--   Unison.Syntax.FileParser.checkForDuplicateTermsAndConstructors' escape uf
+--   env <-
+--     Cli.Typecheck.computeTypecheckingEnvironment
+--       Cli.Typecheck.ShouldUseTndr'No
+--       mempty -- ambient abilities
+--       makeTypeLookup
+--       uf
+--   Except.runExceptT . Result.toEither $ Cli.Typecheck.synthesizeFile env uf
+
+-- Q: Does this return all of the updates? A: suspect no currently
 whatToTypecheck :: DeepRefs' -> DeepRefs' -> CombinedUpdates -> Transaction DeepRefs'
 whatToTypecheck drAlice drBob updates = do
   -- we don't need to typecheck all adds, only the ones that are dependents of updates
@@ -251,13 +316,6 @@ whatToTypecheck drAlice drBob updates = do
           setup dr dependents = (dsTypes' dr, filterDependents RtType dependents)
           updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ cntTerms updates]
   pure $ DeepRefs' latestTermDependents latestTypeDependents
-
--- -- terms can have other terms as dependents
--- -- types can have other types and other terms as dependents
--- Q: Do we have to separate the term dependents from the decl dependents?
--- getDependents :: Set Reference.Id -> Set Reference -> Map Reference.Id
--- getDependents scope query = Ops.dependentsWithinScope
---
 
 -- for each updated name
 -- typecheck the associated defintiion

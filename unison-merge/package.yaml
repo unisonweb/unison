@@ -9,6 +9,7 @@ dependencies:
   - bimap
   - bitvec
   - containers
+  - either
   - generic-lens
   - lens
   - monad-validate
