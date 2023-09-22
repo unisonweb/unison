@@ -9,10 +9,10 @@ serial.availableCases _ =
   use List map
   p = cases (FilePath nm) -> contains ".ser" nm
   slice = cases (FilePath nm) ->
-    Text.take (Text.size nm - 4) nm
+    Text.take (Text.size nm - 7) nm
   -- caseNums = ["00", "01", "02", "03"]
   caseNums = ["00", "02"]
-  files = map (n -> FilePath ("case-" ++ n ++ ".ser")) caseNums
+  files = map (n -> FilePath ("case-" ++ n ++ ".v4.ser")) caseNums
   map slice (filter p files)
 
 serial.gen : Nat -> Nat -> (Nat, Nat)
@@ -94,9 +94,9 @@ serial.loadSelfContained name path =
 
 serial.runTestCase : Text ->{Tests,IO} ()
 serial.runTestCase name =
-  sfile = directory <+> FilePath (name ++ ".ser")
+  sfile = directory <+> FilePath (name ++ ".v4.ser")
   ofile = directory <+> FilePath (name ++ ".out")
-  hfile = directory <+> FilePath (name ++ ".hash")
+  hfile = directory <+> FilePath (name ++ ".v4.hash")
 
   handle
     p@(f, i) = loadSelfContained name sfile

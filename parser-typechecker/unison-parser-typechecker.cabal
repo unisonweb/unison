@@ -93,6 +93,7 @@ library
       Unison.Codebase.UniqueTypeGuidLookup
       Unison.Codebase.Verbosity
       Unison.CodebasePath
+      Unison.DataDeclaration.Dependencies
       Unison.FileParsers
       Unison.Hashing.V2.Convert
       Unison.Parsers

@@ -68,7 +68,7 @@ mkTestCase = do
   f = evaluate balancedSum catenate
   tup = (tree0, tree1, tree2, tree3)
 
-  saveTestCase "case-00" f tup
+  saveTestCase "case-00" "v4" f tup
 ```
 
 ```ucm

@@ -98,6 +98,7 @@ module Unison.Codebase
 
     -- * Direct codebase access
     runTransaction,
+    runTransactionWithRollback,
     withConnection,
     withConnectionIO,
 
@@ -176,6 +177,14 @@ import Unison.WatchKind qualified as WK
 runTransaction :: (MonadIO m) => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
+
+runTransactionWithRollback ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  ((forall void. b -> Sqlite.Transaction void) -> Sqlite.Transaction b) ->
+  m b
+runTransactionWithRollback Codebase {withConnection} action =
+  withConnection \conn -> Sqlite.runTransactionWithRollback conn action
 
 getShallowCausalFromRoot ::
   -- Optional root branch, if Nothing use the codebase's root branch.

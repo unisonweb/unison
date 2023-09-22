@@ -72,6 +72,16 @@ putFloat = serializeBE
 getFloat :: (MonadGet m) => m Double
 getFloat = deserializeBE
 
+putBool :: (MonadPut m) => Bool -> m ()
+putBool b = putWord8 (if b then 1 else 0)
+
+getBool :: (MonadGet m) => m Bool
+getBool = d =<< getWord8
+  where
+    d 0 = pure False
+    d 1 = pure True
+    d n = exn $ "getBool: bad tag: " ++ show n
+
 putNat :: (MonadPut m) => Word64 -> m ()
 putNat = putWord64be
 
@@ -104,6 +114,40 @@ getLength ::
   ) =>
   m n
 getLength = unVarInt <$> deserialize
+
+-- Checks for negatives, in case you put an Integer, which does not
+-- behave properly for negative numbers.
+putPositive ::
+  MonadPut m =>
+  Bits n =>
+  Bits (Unsigned n) =>
+  Integral n =>
+  Integral (Unsigned n) =>
+  n ->
+  m ()
+putPositive n
+  | n < 0 = exn $ "putPositive: negative number: " ++ show (toInteger n)
+  | otherwise = serialize (VarInt n)
+
+-- Reads as an Integer, then checks that the result will fit in the
+-- result type.
+getPositive ::
+  forall m n.
+  Bounded n =>
+  Integral n =>
+  MonadGet m =>
+  m n
+getPositive = validate . unVarInt =<< deserialize
+  where
+    mx0 :: n
+    mx0 = maxBound
+    mx :: Integer
+    mx = fromIntegral mx0
+
+    validate :: Integer -> m n
+    validate n
+      | n <= mx = pure $ fromIntegral n
+      | otherwise = fail $ "getPositive: overflow: " ++ show n
 
 putFoldable ::
   (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()

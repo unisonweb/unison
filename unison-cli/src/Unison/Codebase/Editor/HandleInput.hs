@@ -14,7 +14,6 @@ import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
-import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
@@ -120,7 +119,6 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
@@ -150,7 +148,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectBranchNameOrLatestRelease (..))
+import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -1904,30 +1902,28 @@ handleDiffNamespaceToPatch description input = do
   absBranchId2 <- Cli.resolveBranchIdToAbsBranchId (input ^. #branchId2)
 
   patch <- do
-    Cli.runEitherTransaction do
-      runExceptT do
-        branch1 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId1)
-        branch2 <- ExceptT (Cli.resolveAbsBranchIdV2 absBranchId2)
-        lift do
-          branchDiff <- V2Branch.Diff.diffBranches branch1 branch2 >>= V2Branch.Diff.nameBasedDiff
-          termEdits <-
-            (branchDiff ^. #terms)
-              & Relation.domain
-              & Map.toList
-              & traverse \(oldRef, newRefs) -> makeTermEdit codebase oldRef newRefs
-          pure
-            Patch
-              { _termEdits =
-                  termEdits
-                    & catMaybes
-                    & Relation.fromList,
-                _typeEdits =
-                  (branchDiff ^. #types)
-                    & Relation.domain
-                    & Map.toList
-                    & mapMaybe (\(oldRef, newRefs) -> makeTypeEdit oldRef newRefs)
-                    & Relation.fromList
-              }
+    Cli.runTransactionWithRollback \rollback -> do
+      branch1 <- Cli.resolveAbsBranchIdV2 rollback absBranchId1
+      branch2 <- Cli.resolveAbsBranchIdV2 rollback absBranchId2
+      branchDiff <- V2Branch.Diff.diffBranches branch1 branch2 >>= V2Branch.Diff.nameBasedDiff
+      termEdits <-
+        (branchDiff ^. #terms)
+          & Relation.domain
+          & Map.toList
+          & traverse \(oldRef, newRefs) -> makeTermEdit codebase oldRef newRefs
+      pure
+        Patch
+          { _termEdits =
+              termEdits
+                & catMaybes
+                & Relation.fromList,
+            _typeEdits =
+              (branchDiff ^. #types)
+                & Relation.domain
+                & Map.toList
+                & mapMaybe (\(oldRef, newRefs) -> makeTypeEdit oldRef newRefs)
+                & Relation.fromList
+          }
 
   -- Display the patch that we are about to create.
   ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)

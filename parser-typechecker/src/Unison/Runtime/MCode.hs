@@ -42,6 +42,7 @@ import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.List (partition)
 import Data.Map.Strict qualified as M
+import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -57,7 +58,6 @@ import Unison.Runtime.ANF
     Mem (..),
     SuperGroup (..),
     SuperNormal (..),
-    Tag (..),
     internalBug,
     packTags,
     pattern TApp,
@@ -66,6 +66,7 @@ import Unison.Runtime.ANF
     pattern THnd,
     pattern TLets,
     pattern TLit,
+    pattern TBLit,
     pattern TMatch,
     pattern TName,
     pattern TPrm,
@@ -486,6 +487,8 @@ data Instr
       !Int -- stack index of data to unpack
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
+  | -- Push a particular value directly onto the boxed stack
+    BLit !Reference !MLit
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
   | -- Put a delimiter on the continuation
@@ -539,6 +542,23 @@ data Section
   | -- Immediately stop a thread of interpretation. This is more of
     -- a debugging tool than a proper operation to target.
     Exit
+  | -- Branch on a data type without dumping the tag onto the unboxed
+    -- stack.
+    DMatch
+      !(Maybe Reference) -- expected data type
+      !Int -- index of data item on boxed stack
+      !Branch -- branches
+  | -- Branch on a numeric type without dumping it to the stack
+    NMatch
+      !(Maybe Reference) -- expected data type
+      !Int -- index of data item on boxed stack
+      !Branch -- branches
+  | -- Branch on a request representation without dumping the tag
+    -- portion to the unboxed stack.
+    RMatch
+      !Int -- index of request item on the boxed stack
+      !Section -- pure case
+      !(EnumMap Word64 Branch) -- effect cases
   deriving (Show, Eq, Ord)
 
 data CombIx
@@ -606,6 +626,10 @@ pattern MatchW i d cs = Match i (TestW d cs)
 
 pattern MatchT :: Int -> Section -> M.Map Text Section -> Section
 pattern MatchT i d cs = Match i (TestT d cs)
+
+pattern NMatchW ::
+  Maybe Reference -> Int -> Section -> EnumMap Word64 Section -> Section
+pattern NMatchW r i d cs = NMatch r i (TestW d cs)
 
 -- Representation of the variable context available in the current
 -- frame. This tracks tags that have been dumped to the stack for
@@ -834,20 +858,35 @@ emitSection _ _ _ _ ctx (TLit l) =
       | ANF.LM {} <- l = addCount 0 1
       | ANF.LY {} <- l = addCount 0 1
       | otherwise = addCount 1 0
+emitSection _ _ _ _ ctx (TBLit l) =
+  addCount 0 1 . countCtx ctx . Ins (emitBLit l) .  Yield $ BArg1 0
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
-      Ins (Unpack (Just r) i)
+      DMatch (Just r) i
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
     hs <- mapFromList $ first (dnum rns) <$> M.toList hs0 =
-      Ins (Unpack Nothing i)
+      uncurry (RMatch i)
         <$> emitRequestMatching rns grpr grpn rec ctx hs df
   | Just (i, UN) <- ctxResolve ctx v,
     MatchIntegral cs df <- bs =
       emitLitMatching
         MatchW
+        "missing integral case"
+        rns
+        grpr
+        grpn
+        rec
+        ctx
+        i
+        cs
+        df
+  | Just (i, BX) <- ctxResolve ctx v,
+    MatchNumeric r cs df <- bs =
+      emitLitMatching
+        (NMatchW (Just r))
         "missing integral case"
         rns
         grpr
@@ -933,53 +972,18 @@ emitFunction rns _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
-  Ins (Lit (MI . fromIntegral $ rawTag e))
-    . Ins (Pack r (packTags rt ct) (reqArgs as))
+  Ins (Pack r (packTags rt e) as)
     . App True (Dyn a)
     $ BArg1 0
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-    ct = toEnum . fromIntegral $ a
 emitFunction _ _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug $ "emitFunction: continuations are boxed"
 emitFunction _ _ _ _ (FPrim _) _ =
   internalBug "emitFunction: impossible"
-
--- Modify function arguments for packing into a request
-reqArgs :: Args -> Args
-reqArgs = \case
-  ZArgs -> UArg1 0
-  UArg1 i -> UArg2 0 (i + 1)
-  UArg2 i j
-    | i == 0 && j == 1 -> UArgR 0 3
-    | otherwise -> UArgN (fl [0, i + 1, j + 1])
-  BArg1 i -> DArg2 0 i
-  BArg2 i j
-    | j == i + 1 -> DArgR 0 1 i 2
-    | otherwise -> DArgN (fl [0]) (fl [i, j])
-  DArg2 i j
-    | i == 0 -> DArgR 0 2 j 1
-    | otherwise -> DArgN (fl [0, i + 1]) (fl [j])
-  UArgR i l
-    | i == 0 -> UArgR 0 (l + 1)
-    | otherwise -> UArgN (fl $ [0] ++ Prelude.take l [i + 1 ..])
-  BArgR i l -> DArgR 0 1 i l
-  DArgR ui ul bi bl
-    | ui == 0 -> DArgR 0 (ul + 1) bi bl
-    | otherwise ->
-        DArgN
-          (fl $ [0] ++ Prelude.take ul [ui + 1 ..])
-          (fl $ Prelude.take bl [bi ..])
-  UArgN us -> UArgN (fl $ [0] ++ fmap (+ 1) (tl us))
-  BArgN bs -> DArgN (fl [0]) bs
-  DArgN us bs -> DArgN (fl $ [0] ++ fmap (+ 1) (tl us)) bs
-  DArgV i j -> DArgV i j
-  where
-    fl = primArrayFromList
-    tl = primArrayToList
 
 countBlock :: Ctx v -> (Int, Int)
 countBlock = go 0 0
@@ -996,6 +1000,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchData _ _ _ <- b = "MatchData"
       | MatchEmpty <- b = "MatchEmpty"
       | MatchIntegral _ _ <- b = "MatchIntegral"
+      | MatchNumeric _ _ _ <- b = "MatchNumeric"
       | MatchRequest _ _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
       | MatchText _ _ <- b = "MatchText"
@@ -1033,6 +1038,9 @@ emitLet ::
   Emit Section
 emitLet _ _ _ _ _ _ _ (TLit l) =
   fmap (Ins $ emitLit l)
+emitLet _ _ _ _ _ _ _ (TBLit l) =
+  fmap (Ins $ emitBLit l)
+
 -- emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
 --   -- We should be able to tell if we are making a saturated call
 --   -- or not here. We aren't carrying the information here yet, though.
@@ -1256,9 +1264,9 @@ emitDataMatching ::
   Ctx v ->
   EnumMap CTag ([Mem], ANormal v) ->
   Maybe (ANormal v) ->
-  Emit Section
+  Emit Branch
 emitDataMatching r rns grpr grpn rec ctx cs df =
-  MatchW 0 <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
+  TestW <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
   where
     -- Note: this is not really accurate. A default data case needs
     -- stack space corresponding to the actual data that shows up there.
@@ -1297,14 +1305,12 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
-  Emit Section
-emitRequestMatching rns grpr grpn rec ctx hs df = MatchW 0 edf <$> tops
+  Emit (Section, EnumMap Word64 Branch)
+emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
-    tops =
-      mapInsert 0
-        <$> emitCase rns grpr grpn rec ctx ([BX], df)
-        <*> traverse f (coerce hs)
-    f cs = MatchW 1 edf <$> traverse (emitCase rns grpr grpn rec ctx) cs
+    pur = emitCase rns grpr grpn rec ctx ([BX], df)
+    tops = traverse f (coerce hs)
+    f cs = TestW edf <$> traverse (emitCase rns grpr grpn rec ctx) cs
     edf = Die "unhandled ability"
 
 emitLitMatching ::
@@ -1338,7 +1344,7 @@ emitCase ::
   ([Mem], ANormal v) ->
   Emit Section
 emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
-  emitSection rns grpr grpn rec (Tag $ pushCtx (zip vs ccs) ctx) bo
+  emitSection rns grpr grpn rec (pushCtx (zip vs ccs) ctx) bo
 
 emitSumCase ::
   (Var v) =>
@@ -1353,15 +1359,24 @@ emitSumCase ::
 emitSumCase rns grpr grpn rec ctx v (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (sumCtx ctx v $ zip vs ccs) bo
 
+litToMLit :: ANF.Lit -> MLit
+litToMLit (ANF.I i) = MI $ fromIntegral i
+litToMLit (ANF.N n) = MI $ fromIntegral n
+litToMLit (ANF.C c) = MI $ fromEnum c
+litToMLit (ANF.F d) = MD d
+litToMLit (ANF.T t) = MT t
+litToMLit (ANF.LM r) = MM r
+litToMLit (ANF.LY r) = MY r
+
 emitLit :: ANF.Lit -> Instr
-emitLit l = Lit $ case l of
-  ANF.I i -> MI $ fromIntegral i
-  ANF.N n -> MI $ fromIntegral n
-  ANF.C c -> MI $ fromEnum c
-  ANF.F d -> MD d
-  ANF.T t -> MT t
-  ANF.LM r -> MM r
-  ANF.LY r -> MY r
+emitLit = Lit . litToMLit
+
+doubleToInt :: Double -> Int
+doubleToInt d = indexByteArray (byteArrayFromList [d]) 0
+
+emitBLit :: ANF.Lit -> Instr
+emitBLit l@(ANF.F d) = BLit (ANF.litRef l) (MI $ doubleToInt d)
+emitBLit l = BLit (ANF.litRef l) (litToMLit l)
 
 -- Emits some fix-up code for calling functions. Some of the
 -- variables in scope come from the top-level let rec, but these
@@ -1426,6 +1441,10 @@ sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
 sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
+sectionDeps (DMatch _ _ br) = branchDeps br
+sectionDeps (RMatch _ pu br) =
+  sectionDeps pu ++ foldMap branchDeps br
+sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
   | Name (Env w _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
@@ -1436,6 +1455,10 @@ sectionTypes :: Section -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _) = sectionTypes s
 sectionTypes (Match _ br) = branchTypes br
+sectionTypes (DMatch _ _ br) = branchTypes br
+sectionTypes (NMatch _ _ br) = branchTypes br
+sectionTypes (RMatch _ pu br) =
+  sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
 instrTypes :: Instr -> [Word64]
@@ -1513,6 +1536,28 @@ prettySection ind sec =
         . prettyIx n
     Die s -> showString $ "Die " ++ s
     Exit -> showString "Exit"
+    DMatch _ i bs ->
+      showString "DMatch "
+        . shows i
+        . showString "\n"
+        . prettyBranches (ind + 1) bs
+    NMatch _ i bs ->
+      showString "NMatch "
+        . shows i
+        . showString "\n"
+        . prettyBranches (ind + 1) bs
+    RMatch i pu bs ->
+      showString "RMatch "
+        . shows i
+        . showString "\nPUR ->\n"
+        . prettySection (ind + 1) pu
+        . foldr (\p r -> rqc p . r) id (mapToList bs)
+      where
+        rqc (i , e) =
+          showString "\n"
+            . shows i
+            . showString " ->\n"
+            . prettyBranches (ind + 1) e
 
 prettyIx :: CombIx -> ShowS
 prettyIx (CIx _ c s) =

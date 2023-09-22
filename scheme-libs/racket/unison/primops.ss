@@ -53,6 +53,9 @@
     builtin-Bytes.indexOf
     builtin-IO.randomBytes
 
+    builtin-List.splitLeft
+    builtin-List.splitRight
+
     builtin-Value.toBuiltin
     builtin-Value.fromBuiltin
     builtin-Code.fromGroup
@@ -463,6 +466,16 @@
 
   (define-unison (builtin-IO.randomBytes n)
     (bytes->chunked-bytes (crypto-random-bytes n)))
+
+  (define-unison (builtin-List.splitLeft n s)
+    (match (unison-POp-SPLL n s)
+      [(unison-sum 0 fs) (unison-seqview-empty)]
+      [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+
+  (define-unison (builtin-List.splitRight n s)
+    (match (unison-POp-SPLR n s)
+      [(unison-sum 0 fs) (unison-seqview-empty)]
+      [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list
