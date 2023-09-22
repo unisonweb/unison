@@ -47,10 +47,10 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-            | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
+        [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          | (typ, fields) <- parsedAccessors,
+            Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+        ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
@@ -78,7 +78,7 @@ file = do
         -- All locally declared term variables, running example:
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
-        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors) 
+        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
@@ -89,15 +89,15 @@ file = do
             -- Each unique suffix mapped to its fully qualified name
             canonicalVars :: Map v v
             canonicalVars = UFN.variableCanonicalizer fqLocalTerms
-            
+
             -- All unique local term name suffixes - these we want to
             -- avoid resolving to a term that's in the codebase
             locals :: [Name.Name]
             locals = (Name.unsafeFromVar <$> Map.keys canonicalVars)
-            
+
             -- A function to replace unique local term suffixes with their
             -- fully qualified name
-            replacements = [ (v, Term.var () v2) | (v,v2) <- Map.toList canonicalVars, v /= v2 ]
+            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
             resolveLocals = ABT.substsInheritAnnotation replacements
     let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of

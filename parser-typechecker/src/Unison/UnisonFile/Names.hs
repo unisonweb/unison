@@ -9,20 +9,20 @@ import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Names qualified as DD.Names
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.Name qualified as Name
 import Unison.Names (Names (..))
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.Name qualified as Name
 import Unison.Syntax.Name qualified as Name
 import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
-import Unison.Util.Relation qualified as Relation
 import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
@@ -86,21 +86,21 @@ bindNames names (UnisonFileId d e ts ws) = do
 
 -- | Given the set of fully-qualified variable names, this computes
 -- a Map from unique suffixes to the fully qualified name.
--- 
+--
 -- Example, given [foo.bar, qux.bar, baz.quaffle], this returns:
 --
 -- Map [ foo.bar -> foo.bar
 --     , qux.bar -> qux.bar
 --     , baz.quaffle -> baz.quaffle
---     , quaffle -> baz.quaffle 
---     ] 
--- 
--- This is used to replace variable references with their canonical 
+--     , quaffle -> baz.quaffle
+--     ]
+--
+-- This is used to replace variable references with their canonical
 -- fully qualified variables.
--- 
+--
 -- It's used below in `environmentFor` and also during the term resolution
 -- process.
-variableCanonicalizer :: forall v . Var v => [v] -> Map v v
+variableCanonicalizer :: forall v. Var v => [v] -> Map v v
 variableCanonicalizer vs =
   done $ List.multimap do
     v <- vs
@@ -108,7 +108,7 @@ variableCanonicalizer vs =
     suffix <- Name.suffixes n
     pure (Var.named (Name.toText suffix), v)
   where
-    done xs = Map.fromList [ (k, v) | (k, nubOrd -> [v]) <- Map.toList xs ]
+    done xs = Map.fromList [(k, v) | (k, nubOrd -> [v]) <- Map.toList xs]
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
