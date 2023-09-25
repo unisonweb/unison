@@ -1261,9 +1261,9 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
     f t@(Text _) = Writer.tell [literalType Type.textRef] $> t
     f t@(List _) = Writer.tell [literalType Type.listRef] $> t
     f t@(Constructor (ConstructorReference r cid)) =
-      Writer.tell [dataType r, dataConstructor r cid] $> t
+      Writer.tell [dataConstructor r cid] $> t
     f t@(Request (ConstructorReference r cid)) =
-      Writer.tell [effectType r, effectConstructor r cid] $> t
+      Writer.tell [effectConstructor r cid] $> t
     f t@(Match _ cases) = traverse_ goPat cases $> t
     f t = pure t
     goPat (MatchCase pat _ _) =

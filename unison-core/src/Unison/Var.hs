@@ -164,8 +164,6 @@ data Type
     UnnamedReference Reference.Id
   | -- | An unnamed reference, used for equating versions of a term during a merge.
     EquivalenceClass Int
-  | -- | A named reference, used for equating versions of a term during a merge.
-    EquivalenceClass2 Text
   | -- An unnamed watch expression of the given kind, for instance:
     --
     --  test> Ok "oog"
