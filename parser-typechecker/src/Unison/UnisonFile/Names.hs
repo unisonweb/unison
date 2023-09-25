@@ -1,6 +1,11 @@
-module Unison.UnisonFile.Names where
+module Unison.UnisonFile.Names
+  ( environmentFor,
+    toNames,
+    typecheckedToNames,
+    variableCanonicalizer,
+  )
+where
 
-import Control.Lens
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -16,11 +21,10 @@ import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name
-import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
+import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
@@ -56,33 +60,6 @@ typecheckedToNames uf = Names (terms <> ctors) types
         . fmap (fmap Reference.DerivedId)
         . UF.hashConstructors
         $ uf
-
-typecheckedUnisonFile0 :: (Ord v) => TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty
-
--- Substitutes free type and term variables occurring in the terms of this
--- `UnisonFile` using `externalNames`.
---
--- Hash-qualified names are substituted during parsing, but non-HQ names are
--- substituted at the end of parsing, since they can be locally bound. Example, in
--- `x -> x + math.sqrt 2`, we don't know if `math.sqrt` is locally bound until
--- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
--- as it can't refer to a local definition.
-bindNames ::
-  (Var v) =>
-  Names ->
-  UnisonFile v a ->
-  Names.ResolutionResult v a (UnisonFile v a)
-bindNames names (UnisonFileId d e ts ws) = do
-  -- todo: consider having some kind of binding structure for terms & watches
-  --    so that you don't weirdly have free vars to tiptoe around.
-  --    The free vars should just be the things that need to be bound externally.
-  let termVars = (view _1 <$> ts) ++ (Map.elems ws >>= map (view _1))
-      termVarsSet = Set.fromList termVars
-  -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
-  ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
-  pure $ UnisonFileId d e ts' ws'
 
 -- | Given the set of fully-qualified variable names, this computes
 -- a Map from unique suffixes to the fully qualified name.
@@ -153,7 +130,7 @@ environmentFor names dataDecls0 effectDecls0 = do
            in cts >>= \ct ->
                 [ UnknownType v a | (v, a) <- ABT.freeVarOccurrences mempty ct, not (Set.member v okVars)
                 ]
-  pure $
+  pure
     if null overlaps && null unknownTypeRefs
       then pure $ Env dataDecls' effectDecls' names'
       else Left (unknownTypeRefs ++ overlaps)

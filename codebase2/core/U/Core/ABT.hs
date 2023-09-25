@@ -237,6 +237,7 @@ unabs t = ([], t)
 freshInBoth :: (Var v) => Term f v a -> Term f v a -> v -> v
 freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
+-- | Apply a collection of substitutions to a term, keeping the original variable's annotation.
 substsInheritAnnotation ::
   (Foldable f, Functor f, Var v) =>
   [(v, Term f v b)] ->

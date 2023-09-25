@@ -449,6 +449,8 @@ rebuildMaybeUp f tm@(Term _ ann body) = f $ case body of
     where
       body' = fmap (\tm -> (tm, rebuildMaybeUp f tm)) body
 
+-- | @freeVarOccurrences except term@ returns all of the occurrences of all free variables in @term@ paired with their
+-- annotations, but not including any free variables that appear in the given set @except@.
 freeVarOccurrences :: (Traversable f, Ord v) => Set v -> Term f v a -> [(v, a)]
 freeVarOccurrences except t =
   [(v, a) | (v, a) <- go $ annotateBound t, not (Set.member v except)]
