@@ -17,6 +17,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Branch.Type
+      U.Codebase.BranchV3
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.Kind
