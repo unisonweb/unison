@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
+import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Bimap (Bimap)
@@ -39,6 +40,8 @@ import U.Codebase.Reference (Reference, Reference' (..), TermReference, TermRefe
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.HashHandle (HashHandle)
+import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -81,6 +84,7 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Witherable (catMaybes)
+import U.Codebase.Causal (Causal(Causal))
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -210,49 +214,76 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       printTermConflicts conflictedTerms
       Text.putStrLn ""
 
-makeNamespace :: Map NameSegment (CausalBranch Transaction) -> Map Name TypeReference -> Map Name Referent -> Branch Transaction
-makeNamespace libdeps allDecls allTerms =
-  Branch
-    { children = libdeps,
-      patches = Map.empty,
-      terms = Map.map unconflictedAndWithoutMetadata thisLevelTerms,
-      types = Map.map unconflictedAndWithoutMetadata thisLevelDecls
-    }
-  where
-    Slice thisLevelDecls childrenDecls = defnsToSlice allDecls
-    Slice thisLevelTerms childrenTerms = defnsToSlice allTerms
+makeNamespace ::
+  HashHandle ->
+  Shallow (Set CausalHash) ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Map Name TypeReference ->
+  Map Name Referent ->
+  CausalBranch Transaction
+makeNamespace hashHandle ancestors libdeps allDecls allTerms =
+  -- honker hashHandle ancestors (makeShallowDefinitions allDecls) (makeShallowDefinitions allTerms)
+  undefined
 
+honker ::
+  HashHandle ->
+  Shallow (Set CausalHash) ->
+  Shallow (Map NameSegment TypeReference) ->
+  Shallow (Map NameSegment Referent) ->
+  CausalBranch Transaction
+honker hashHandle (thisLevelAncestors :< childrenAncestors) (thisLevelDecls :< childrenDecls) (thisLevelTerms :< childrenTerms) =
+  let branch =
+        Branch
+          { children = honker2 childrenAncestors childrenDecls childrenTerms,
+            patches = Map.empty,
+            terms = Map.map unconflictedAndWithoutMetadata thisLevelTerms,
+            types = Map.map unconflictedAndWithoutMetadata thisLevelDecls
+          }
+      branchHash = runIdentity (HashHandle.hashBranch hashHandle wundefined)
+      causalHash = HashHandle.hashCausal hashHandle branchHash thisLevelAncestors
+   in Causal {
+        causalHash
+        , valueHash = branchHash
+        , parents = wundefined
+        , value = pure branch
+      }
+  where
     unconflictedAndWithoutMetadata :: ref -> Map ref (Transaction Branch.MdValues)
     unconflictedAndWithoutMetadata ref =
       Map.singleton ref (pure (Branch.MdValues Map.empty))
 
-honker :: Map NameSegment (Slice NameSegment TypeReference) -> Map NameSegment (Slice NameSegment Referent) -> Branch Transaction
-honker decls terms = undefined
+honker2 ::
+  Map NameSegment (Shallow (Set CausalHash)) ->
+  Map NameSegment (Shallow (Map NameSegment TypeReference)) ->
+  Map NameSegment (Shallow (Map NameSegment Referent)) ->
+  Map NameSegment (CausalBranch Transaction)
+honker2 ancestors decls terms = undefined
 
-defnsToSlice :: Map Name ref -> Slice NameSegment ref
-defnsToSlice =
-  makeSlice . Map.mapKeys (List1.reverse . Name.segments)
+type Shallow a =
+  Cofree (Map NameSegment) a
 
-data Slice k v
-  = Slice !(Map k v) !(Map k (Slice k v))
+oneLayerShallow :: a -> Shallow a
+oneLayerShallow =
+  (:< Map.empty)
 
-emptySlice :: Slice k v
-emptySlice =
-  Slice Map.empty Map.empty
-
-makeSlice :: forall k v. Ord k => Map (List1.NonEmpty k) v -> Slice k v
-makeSlice =
-  foldr insert emptySlice . Map.toList
+makeShallowDefinitions :: forall ref. Map Name ref -> Shallow (Map NameSegment ref)
+makeShallowDefinitions =
+  foldr insert (oneLayerShallow Map.empty) . Map.toList . Map.mapKeys (List1.reverse . Name.segments)
   where
-    insert :: (List1.NonEmpty k, v) -> Slice k v -> Slice k v
-    insert (k :| ks, v) (Slice xs ys) =
+    insert :: (List1.NonEmpty NameSegment, ref) -> Shallow (Map NameSegment ref) -> Shallow (Map NameSegment ref)
+    insert (k :| ks, v) (xs :< ys) =
       case List1.nonEmpty ks of
-        Nothing -> Slice (Map.insert k v xs) ys
-        Just ks1 -> Slice xs (merge k ks1 v ys)
+        Nothing -> Map.insert k v xs :< ys
+        Just ks1 -> xs :< merge k ks1 v ys
 
-    merge :: k -> List1.NonEmpty k -> v -> Map k (Slice k v) -> Map k (Slice k v)
+    merge ::
+      NameSegment ->
+      List1.NonEmpty NameSegment ->
+      ref ->
+      Map NameSegment (Shallow (Map NameSegment ref)) ->
+      Map NameSegment (Shallow (Map NameSegment ref))
     merge k ks v =
-      Map.upsert (insert (ks, v) . fromMaybe emptySlice) k
+      Map.upsert (insert (ks, v) . fromMaybe (oneLayerShallow Map.empty)) k
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
