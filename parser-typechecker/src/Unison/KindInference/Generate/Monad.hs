@@ -2,8 +2,7 @@ module Unison.KindInference.Generate.Monad
   ( Gen (..),
     GenState (..),
     GeneratedConstraint,
-    runList,
-    addConstraint,
+    run,
     freshVar,
     insertType,
     deleteType,
@@ -28,76 +27,34 @@ type GeneratedConstraint v loc = Constraint (UVar v loc) v loc Provenance
 
 data GenState v loc = GenState
   { unifVars :: !(Set Symbol),
-    typeMap :: !(Map (T.Type v loc) (UVar v loc))
+    typeMap :: !(Map (T.Type v loc) (UVar v loc)),
+    newVars :: [UVar v loc]
   }
   deriving stock (Generic)
 
 newtype Gen v loc a = Gen
-  { unGen ::
-      forall r.
-      -- Add constraint handler
-      ( GeneratedConstraint v loc ->
-        -- The handler may need the state
-        GenState v loc ->
-        -- the handler may modify the state
-        (GenState v loc -> r) ->
-        r
-      ) ->
-      (UVar v loc -> r -> r) ->
-      GenState v loc ->
-      (a -> GenState v loc -> r) ->
-      r
+  { unGen :: GenState v loc -> (a, GenState v loc)
   }
-
-instance Functor (Gen v loc) where
-  fmap f (Gen m) = Gen \cons initVar st k ->
-    m cons initVar st (k . f)
-
-instance Applicative (Gen v loc) where
-  pure a = Gen \_ _ st k -> k a st
-  Gen mf <*> Gen ma = Gen \cons initVar st k ->
-    mf cons initVar st (\f st -> ma cons initVar st (\a st -> k (f a) st))
-
-instance Monad (Gen v loc) where
-  Gen ma >>= f = Gen \cons initVar st k ->
-    ma cons initVar st (\a st -> unGen (f a) cons initVar st k)
-
-instance MonadState (GenState v loc) (Gen v loc) where
-  get = Gen \_ _ st k -> k st st
-  put st = Gen \_ _ _ k -> k () st
-
--- | Accumulate the constraints in a list and return the final state
-runList :: Gen v loc a -> GenState v loc -> ([GeneratedConstraint v loc], [UVar v loc], GenState v loc)
-runList (Gen ma) st0 =
-  ma handleConstraint handleVar st0 finalK
-  where
-    handleConstraint c st k =
-      let (cs, vs, st') = k st
-       in (c : cs, vs, st')
-
-    handleVar v (cs, vs, st) = (cs, v : vs, st)
-    finalK _ finalState = ([], [], finalState)
-
--- | Add a constraint
-addConstraint :: GeneratedConstraint v loc -> Gen v loc ()
-addConstraint c = Gen \cons _ st k ->
-  cons c st (k ())
+  deriving
+    ( Functor
+    , Applicative
+    , Monad,
+      MonadState (GenState v loc)
+    ) via State (GenState v loc)
 
 
-initializeUVar :: UVar v loc -> Gen v loc ()
-initializeUVar u = Gen \_ initVar st k ->
-  initVar u (k () st)
+run :: Gen v loc a -> GenState v loc -> (a, GenState v loc)
+run (Gen ma) st0 = ma st0
 
 -- | Create a unique @UVar@ associated with @typ@
 freshVar :: Var v => T.Type v loc -> Gen v loc (UVar v loc)
 freshVar typ = do
-  st@GenState{unifVars} <- get
+  st@GenState{unifVars, newVars} <- get
   let var :: Symbol
       var = freshIn unifVars (typed (Inference Other))
       uvar = UVar var typ
       unifVars' = Set.insert var unifVars
-  put st { unifVars = unifVars' }
-  initializeUVar uvar
+  put st { unifVars = unifVars', newVars = uvar : newVars }
   pure uvar
 
 -- | Lookup the @UVar@ associated with @t@, or create one if it

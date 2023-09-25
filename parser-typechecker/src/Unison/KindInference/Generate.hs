@@ -15,7 +15,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen, addConstraint, freshVar, insertType, lookupType, scopedType)
+import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, insertType, lookupType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -23,59 +23,112 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Var
 
--- | Generate kind constraints arising from a given type. The given
--- @UVar@ is constrained to have the kind of the given type.
-typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc ()
-typeConstraints resultVar term@ABT.Term {annotation, out} = do
+data ConstraintTree v loc
+  = Node [ConstraintTree v loc]
+  | Constraint (GeneratedConstraint v loc) (ConstraintTree v loc)
+  | ParentConstraint (GeneratedConstraint v loc) (ConstraintTree v loc)
+  | StrictOrder (ConstraintTree v loc) (ConstraintTree v loc)
+
+newtype TreeWalk = TreeWalk (forall a. ([a] -> [a]) -> [([a] -> [a], [a] -> [a])] -> [a] -> [a])
+
+bottomUp :: TreeWalk
+bottomUp = TreeWalk \down pairs0 -> foldr (\(d,u) b -> d . u . b) id pairs0 . down
+
+flatten :: TreeWalk -> ConstraintTree v loc -> [GeneratedConstraint v loc]
+flatten (TreeWalk f) = ($ []) . flattenTop
+  where
+    flattenTop :: ConstraintTree v loc -> [GeneratedConstraint v loc] -> [GeneratedConstraint v loc]
+    flattenTop t0 =
+      f id [flattenRec id t0]
+
+    flattenRec ::
+      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc]) ->
+      ConstraintTree v loc ->
+      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc], [GeneratedConstraint v loc] -> [GeneratedConstraint v loc])
+    flattenRec down = \case
+      Node cts ->
+        let pairs = map (flattenRec id) cts
+         in (f down pairs, id)
+      Constraint c ct -> flattenRec (down . (c :)) ct
+      ParentConstraint c ct ->
+        let (down', up) = flattenRec down ct
+         in (down', up . (c :))
+      StrictOrder a b ->
+        let as = flattenTop a
+            bs = flattenTop b
+         in (f down [(as . bs, id)], id)
+
+typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
+typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
   case out of
     ABT.Abs _ _ -> error "impossible? Abs" -- todo
     ABT.Var v ->
       lookupType (Type.var annotation v) >>= \case
         Nothing -> error "var nothing"
-        Just x -> addConstraint (Unify (Provenance ContextLookup annotation) resultVar x)
+        Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
     ABT.Cycle _ -> error "Cycle" -- todo
     ABT.Tm t0 -> case t0 of
       Type.Arrow dom cod -> do
         let ctx = AppArrow annotation dom cod
-        addConstraint (IsStar resultVar (Provenance ctx annotation))
         k1 <- freshVar dom
-        typeConstraints k1 dom
-        addConstraint (IsStar k1 (Provenance ctx $ ABT.annotation dom))
+        domConstraints <- typeConstraintTree k1 dom
         k2 <- freshVar cod
-        typeConstraints k2 cod
-        addConstraint (IsStar k2 (Provenance ctx $ ABT.annotation cod))
+        codConstraints <- typeConstraintTree k2 cod
+        pure $
+          Constraint
+            (IsStar resultVar (Provenance ctx annotation))
+            ( Node
+                [ ParentConstraint (IsStar k1 (Provenance ctx $ ABT.annotation dom)) domConstraints,
+                  ParentConstraint (IsStar k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
+                ]
+            )
       Type.App abs arg -> do
         absVar <- freshVar abs
         absArgVar <- freshVar arg
-        typeConstraints absVar abs
+        absConstraints <- typeConstraintTree absVar abs
         argVar <- freshVar arg
-        typeConstraints argVar arg
-        addConstraint (IsArr absVar (Provenance (AppAbs absVar absArgVar) (ABT.annotation abs)) absArgVar resultVar)
-        addConstraint (Unify (Provenance (AppArg absVar absArgVar argVar) (ABT.annotation arg)) absArgVar argVar)
+        argConstraints <- typeConstraintTree argVar arg
+        let wellKindedAbs = IsArr absVar (Provenance (AppAbs absVar absArgVar) (ABT.annotation abs)) absArgVar resultVar
+            applicationUnification = Unify (Provenance (AppArg absVar absArgVar argVar) (ABT.annotation arg)) absArgVar argVar
+        pure $
+          Constraint
+            applicationUnification
+            ( Node
+                [ ParentConstraint wellKindedAbs absConstraints,
+                  argConstraints
+                ]
+            )
       Type.Forall ABT.Term {annotation, out} -> case out of
         ABT.Abs v x ->
           scopedType (Type.var annotation v) \_ -> do
-            typeConstraints resultVar x
+            typeConstraintTree resultVar x
         _ -> error "impossible? Forall wrapping a non-abs"
       Type.IntroOuter ABT.Term {annotation, out} -> case out of
-        ABT.Abs v x -> handleIntroOuter v annotation (typeConstraints resultVar x)
+        ABT.Abs v x -> handleIntroOuter v annotation (\c -> Constraint c <$> typeConstraintTree resultVar x)
         _ -> error "impossible? IntroOuter wrapping a non-abs"
-      Type.Ann x _kind -> typeConstraints resultVar x -- todo
+      Type.Ann x _kind -> typeConstraintTree resultVar x -- todo
       Type.Ref r ->
         lookupType (Type.ref annotation r) >>= \case
           Nothing -> error ("[ref nothing] " <> show term)
-          Just x -> addConstraint (Unify (Provenance ContextLookup annotation) resultVar x)
+          Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
       Type.Effect effTyp b -> do
         effKind <- freshVar effTyp
-        typeConstraints effKind effTyp
-        typeConstraints resultVar b
+        effConstraints <- typeConstraintTree effKind effTyp
+        restConstraints <- typeConstraintTree resultVar b
+        pure $ Node [effConstraints, restConstraints]
       Type.Effects effs -> do
-        for_ effs \eff -> do
+        Node <$> for effs \eff -> do
           effKind <- freshVar eff
-          typeConstraints effKind eff
-          addConstraint (IsEffect effKind (Provenance EffectsList $ ABT.annotation eff))
+          effConstraints <- typeConstraintTree effKind eff
+          pure $ ParentConstraint (IsEffect effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
-handleIntroOuter :: Var v => v -> loc -> Gen v loc r -> Gen v loc r
+-- | Generate kind constraints arising from a given type. The given
+-- @UVar@ is constrained to have the kind of the given type.
+typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
+typeConstraints resultVar typ =
+  flatten bottomUp <$> typeConstraintTree resultVar typ
+
+handleIntroOuter :: Var v => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do
   let typ = Type.var loc v
   new <- freshVar typ
@@ -83,9 +136,7 @@ handleIntroOuter v loc k = do
     lookupType typ >>= \case
       Nothing -> error "[malformed type] IntroOuter not in lexical scope of matching Forall"
       Just a -> pure a
-  res <- k
-  addConstraint (Unify (Provenance ScopeReference loc) new orig)
-  pure res
+  k (Unify (Provenance ScopeReference loc) new orig)
 
 -- | Helper for @termConstraints@ that instantiates the outermost
 -- foralls and keeps the type in scope (in the type map) while
@@ -94,30 +145,35 @@ instantiateType ::
   forall v loc r.
   (Var v, Ord loc) =>
   Type.Type v loc ->
-  (Type.Type v loc -> Gen v loc r) ->
+  (Type.Type v loc -> [GeneratedConstraint v loc] -> Gen v loc r) ->
   Gen v loc r
 instantiateType type0 k =
-  let go = \case
+  let go acc = \case
         ABT.Tm' (Type.Forall ABT.Term {annotation, out = ABT.Abs x t}) -> do
           scopedType (Type.var annotation x) \_ -> do
-            go t
+            go acc t
         ABT.Tm' (Type.IntroOuter ABT.Term {annotation, out = ABT.Abs x t}) -> do
-          handleIntroOuter x annotation (go t)
-        t -> k t
-   in go type0
+          handleIntroOuter x annotation \c -> go (c : acc) t
+        t -> k t (reverse acc)
+   in go [] type0
 
 -- | Check that all annotations in a term are well-kinded
-termConstraints :: (Var v, Ord loc) => Term.Term v loc -> Gen v loc ()
-termConstraints = dfAnns processAnn cons nil
+termConstraints :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc [GeneratedConstraint v loc]
+termConstraints x = flatten bottomUp <$> termConstraintTree x
+
+termConstraintTree :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc (ConstraintTree v loc)
+termConstraintTree = fmap Node . dfAnns processAnn cons nil
   where
-    processAnn ann typ rest = do
-      instantiateType typ \typ -> do
+    processAnn :: loc -> Type.Type v loc -> Gen v loc [ConstraintTree v loc] -> Gen v loc [ConstraintTree v loc]
+    processAnn ann typ mrest = do
+      instantiateType typ \typ gcs -> do
         typKind <- freshVar typ
-        typeConstraints typKind typ
-        addConstraint (IsStar typKind (Provenance TypeAnnotation ann))
-        rest
-    cons = (>>)
-    nil = pure ()
+        annConstraints <- ParentConstraint (IsStar typKind (Provenance TypeAnnotation ann)) <$> typeConstraintTree typKind typ
+        let annConstraints' = foldr Constraint annConstraints gcs
+        rest <- mrest
+        pure (annConstraints' : rest)
+    cons mlhs mrhs = (++) <$> mlhs <*> mrhs
+    nil = pure []
 
 -- | Process type annotations depth-first. Allows processing
 -- annotations with lexical scoping.
@@ -136,13 +192,20 @@ declComponentConstraints ::
   forall v loc.
   (Var v, Ord loc) =>
   [(Reference, Decl v loc)] ->
-  Gen v loc ()
-declComponentConstraints decls = do
+  Gen v loc [GeneratedConstraint v loc]
+declComponentConstraints decls = flatten bottomUp <$> declComponentConstraintTree decls
+
+declComponentConstraintTree ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  [(Reference, Decl v loc)] ->
+  Gen v loc (ConstraintTree v loc)
+declComponentConstraintTree decls = do
   decls <- for decls \(ref, decl) -> do
     -- Add a kind variable for every datatype
     declKind <- insertType (Type.ref (DD.annotation $ asDataDecl decl) ref)
     pure (ref, decl, declKind)
-  for_ decls \(ref, decl, declKind) -> do
+  cts <- for decls \(ref, decl, declKind) -> do
     let declAnn = DD.annotation $ asDataDecl decl
     -- todo: cleanup
     let declType = Type.ref declAnn ref
@@ -156,24 +219,29 @@ declComponentConstraints decls = do
       -- the whole decl annotation.
       k <- freshVar tyVar
       pure (k, tyVar)
-    (fullyAppliedKind, _fullyAppliedType) <-
-      let phi (dk, dt) (ak, at) = do
+
+    let tyvarKindsOnly = map fst tyvarKinds
+    constructorConstraints <-
+      Node <$> for (DD.constructors' $ asDataDecl decl) \(constructorAnn, _, constructorType) -> do
+        withInstantiatedConstructorType declType tyvarKindsOnly constructorType \constructorType -> do
+          constructorKind <- freshVar constructorType
+          ct <- typeConstraintTree constructorKind constructorType
+          pure $ ParentConstraint (IsStar constructorKind (Provenance DeclDefinition constructorAnn)) ct
+
+    (fullyAppliedKind, _fullyAppliedType, declConstraints) <-
+      let phi (dk, dt, cts) (ak, at) = do
             -- introduce a kind uvar for each app node
             let t' = Type.app declAnn dt at
             v <- freshVar t'
-            addConstraint (IsArr dk (Provenance DeclDefinition declAnn) ak v)
-            pure (v, t')
-       in foldlM phi (declKind, declType) tyvarKinds
+            let cts' = Constraint (IsArr dk (Provenance DeclDefinition declAnn) ak v) cts
+            pure (v, t', cts')
+       in foldlM phi (declKind, declType, Node []) tyvarKinds
 
-    case decl of
-      Left _effectDecl -> addConstraint (IsEffect fullyAppliedKind (Provenance DeclDefinition declAnn))
-      Right _dataDecl -> addConstraint (IsStar fullyAppliedKind (Provenance DeclDefinition declAnn))
-
-    for_ (DD.constructors' $ asDataDecl decl) \(constructorAnn, _, constructorType) -> do
-      withInstantiatedConstructorType declType (map fst tyvarKinds) constructorType \constructorType -> do
-        constructorKind <- freshVar constructorType
-        typeConstraints constructorKind constructorType
-        addConstraint (IsStar constructorKind (Provenance DeclDefinition constructorAnn))
+    let finalDeclConstraints = case decl of
+          Left _effectDecl -> Constraint (IsEffect fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+          Right _dataDecl -> Constraint (IsStar fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+    pure (StrictOrder finalDeclConstraints constructorConstraints)
+  pure (Node cts)
 
 -- | This is a helper to unify the kind constraints on type variables
 -- across a decl's constructors.
@@ -198,126 +266,135 @@ declComponentConstraints decls = do
 -- with some kind variable representing the unification of @a@ for
 -- each constructor.
 withInstantiatedConstructorType ::
-  forall v loc r.
+  forall v loc.
   (Var v, Ord loc) =>
   Type.Type v loc ->
   [UVar v loc] ->
   Type.Type v loc ->
-  (Type.Type v loc -> Gen v loc r) ->
-  Gen v loc r
+  (Type.Type v loc -> Gen v loc (ConstraintTree v loc)) ->
+  Gen v loc (ConstraintTree v loc)
 withInstantiatedConstructorType declType tyParams0 constructorType0 k =
   let goForall constructorType = case constructorType of
         ABT.Tm' (Type.Forall ABT.Term {annotation, out = ABT.Abs x t}) -> do
           scopedType (Type.var annotation x) \_ -> do
             goForall t
         _ -> do
-          goArrow constructorType
-          k constructorType
+          cs <- goArrow constructorType
+          rest <- k constructorType
+          pure $ StrictOrder (foldr Constraint (Node []) cs) rest
 
-      goArrow :: Type.Type v loc -> Gen v loc ()
+      goArrow :: Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
       goArrow = \case
         Type.Arrow' _ o -> goArrow o
         Type.Effect' es _ -> goEffs es
         resultTyp@(Type.Apps' f xs)
           | f == declType -> unifyVars resultTyp xs
-        f | f == declType -> pure ()
+        f | f == declType -> pure []
         resultTyp -> error ("[goArrow] unexpected result type: " <> show resultTyp)
 
       goEffs = \case
         [] -> error ("[goEffs] couldn't find the expected ability: " <> show declType)
         e : es
-          | e == declType -> pure ()
+          | e == declType -> pure []
           | Type.Apps' f xs <- e,
             f == declType ->
               unifyVars e xs
           | otherwise -> goEffs es
 
-      unifyVars :: Type.Type v loc -> [Type.Type v loc] -> Gen v loc ()
-      unifyVars typ vs = for_ (zip vs tyParams0) \(v, tp) -> do
+      unifyVars :: Type.Type v loc -> [Type.Type v loc] -> Gen v loc [GeneratedConstraint v loc]
+      unifyVars typ vs = for (zip vs tyParams0) \(v, tp) -> do
         lookupType v >>= \case
           Nothing -> error ("[unifyVars] unknown type in decl result: " <> show v)
-          Just x -> do
-            addConstraint (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
+          Just x ->
+            pure (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
    in goForall constructorType0
 
+builtinConstraints :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) => Gen v loc [GeneratedConstraint v loc]
+builtinConstraints = flatten bottomUp <$> builtinConstraintTree
+
 -- | Kind constraints for builtin types
-builtinConstraints :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) => Gen v loc ()
-builtinConstraints = do
-  traverse_
-    (constrain Star)
-    [ Type.nat,
-      Type.int,
-      Type.float,
-      Type.boolean,
-      Type.text,
-      Type.char,
-      Type.bytes,
-      Type.any,
-      Type.termLink,
-      Type.typeLink,
-      Type.fileHandle,
-      flip Type.ref Type.filePathRef,
-      Type.threadId,
-      Type.socket,
-      Type.processHandle,
-      Type.ibytearrayType,
-      flip Type.ref Type.charClassRef,
-      flip Type.ref Type.tlsRef,
-      flip Type.ref Type.tlsClientConfigRef,
-      flip Type.ref Type.tlsServerConfigRef,
-      flip Type.ref Type.tlsSignedCertRef,
-      flip Type.ref Type.tlsPrivateKeyRef,
-      flip Type.ref Type.tlsCipherRef,
-      flip Type.ref Type.tlsVersionRef,
-      flip Type.ref Type.codeRef,
-      flip Type.ref Type.valueRef,
-      flip Type.ref Type.timeSpecRef,
-      flip Type.ref Type.hashAlgorithmRef
+builtinConstraintTree :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) => Gen v loc (ConstraintTree v loc)
+builtinConstraintTree =
+  mergeTrees
+    [ traverse
+        (constrain Star)
+        [ Type.nat,
+          Type.int,
+          Type.float,
+          Type.boolean,
+          Type.text,
+          Type.char,
+          Type.bytes,
+          Type.any,
+          Type.termLink,
+          Type.typeLink,
+          Type.fileHandle,
+          flip Type.ref Type.filePathRef,
+          Type.threadId,
+          Type.socket,
+          Type.processHandle,
+          Type.ibytearrayType,
+          flip Type.ref Type.charClassRef,
+          flip Type.ref Type.tlsRef,
+          flip Type.ref Type.tlsClientConfigRef,
+          flip Type.ref Type.tlsServerConfigRef,
+          flip Type.ref Type.tlsSignedCertRef,
+          flip Type.ref Type.tlsPrivateKeyRef,
+          flip Type.ref Type.tlsCipherRef,
+          flip Type.ref Type.tlsVersionRef,
+          flip Type.ref Type.codeRef,
+          flip Type.ref Type.valueRef,
+          flip Type.ref Type.timeSpecRef,
+          flip Type.ref Type.hashAlgorithmRef
+        ],
+      traverse
+        (constrain (Star :-> Star))
+        [ Type.list,
+          Type.iarrayType,
+          flip Type.ref Type.mvarRef,
+          flip Type.ref Type.tvarRef,
+          flip Type.ref Type.ticketRef,
+          flip Type.ref Type.promiseRef,
+          flip Type.ref Type.patternRef
+        ],
+      traverse
+        (constrain Effect)
+        [ Type.builtinIO,
+          flip Type.ref Type.stmRef
+        ],
+      traverse
+        (constrain (Star :-> Effect))
+        [flip Type.ref Type.scopeRef],
+      traverse
+        (constrain (Effect :-> Star))
+        [Type.mbytearrayType],
+      traverse
+        (constrain (Effect :-> Star :-> Star))
+        [Type.effectType, Type.marrayType, Type.refType]
     ]
-  traverse_
-    (constrain (Star :-> Star))
-    [ Type.list,
-      Type.iarrayType,
-      flip Type.ref Type.mvarRef,
-      flip Type.ref Type.tvarRef,
-      flip Type.ref Type.ticketRef,
-      flip Type.ref Type.promiseRef,
-      flip Type.ref Type.patternRef
-    ]
-  traverse_
-    (constrain Effect)
-    [ Type.builtinIO,
-      flip Type.ref Type.stmRef
-    ]
-  traverse_
-    (constrain (Star :-> Effect))
-    [flip Type.ref Type.scopeRef]
-  traverse_
-    (constrain (Effect :-> Star))
-    [Type.mbytearrayType]
-  traverse_
-    (constrain (Effect :-> Star :-> Star))
-    [Type.effectType, Type.marrayType, Type.refType]
   where
-    constrain :: Kind -> (loc -> Type.Type v loc) -> Gen v loc ()
+    mergeTrees :: [Gen v loc [ConstraintTree v loc]] -> Gen v loc (ConstraintTree v loc)
+    mergeTrees = fmap (Node . concat) . sequence
+
+    constrain :: Kind -> (loc -> Type.Type v loc) -> Gen v loc (ConstraintTree v loc)
     constrain k t = do
       kindVar <- insertType (t builtinAnnotation)
       constrainToKind kindVar k
 
-constrainToKind :: (BuiltinAnnotation loc, Var v) => UVar v loc -> Kind -> Gen v loc ()
+constrainToKind :: (BuiltinAnnotation loc, Var v) => UVar v loc -> Kind -> Gen v loc (ConstraintTree v loc)
 constrainToKind resultVar = \case
   Star -> do
-    addConstraint (IsStar resultVar (Provenance Builtin builtinAnnotation))
+    pure (Constraint (IsStar resultVar (Provenance Builtin builtinAnnotation)) (Node []))
   Effect -> do
-    addConstraint (IsEffect resultVar (Provenance Builtin builtinAnnotation))
+    pure (Constraint (IsEffect resultVar (Provenance Builtin builtinAnnotation)) (Node []))
   lhs :-> rhs -> do
     let inputTypeVar = Type.var builtinAnnotation (freshIn Set.empty (typed (User "a")))
     let outputTypeVar = Type.var builtinAnnotation (freshIn Set.empty (typed (User "a")))
     input <- freshVar inputTypeVar
     output <- freshVar outputTypeVar
-    constrainToKind input lhs
-    constrainToKind output rhs
-    addConstraint (IsArr resultVar (Provenance Builtin builtinAnnotation) input output)
+    ctl <- constrainToKind input lhs
+    ctr <- constrainToKind output rhs
+    pure (Constraint (IsArr resultVar (Provenance Builtin builtinAnnotation) input output) (Node [ctl, ctr]))
 
 data Kind = Star | Effect | Kind :-> Kind
 

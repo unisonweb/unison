@@ -8,8 +8,9 @@ module Unison.KindInference.Solve
 where
 
 import Unison.KindInference.Error (KindError(..), ConstraintConflict(..), improveError)
-import Control.Lens (Prism', prism', review, (%~), (.=), (^.))
+import Control.Lens (Prism', prism', review, (%~))
 import Control.Monad.Reader (asks)
+import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
 import Control.Monad.Trans.Except
 import Data.List.NonEmpty (NonEmpty (..))
@@ -28,10 +29,9 @@ import Unison.KindInference.Solve.Monad
     Env (..),
     Solve (..),
     SolveState (..),
-    addUnconstrainedVar,
     emptyState,
-    genStateL,
     run,
+    runGen,
   )
 import Unison.KindInference.UVar (UVar (..))
 import Unison.PatternMatchCoverage.Pretty as P
@@ -370,36 +370,25 @@ verify st =
         Left e -> Left e
         Right m -> Right st {constraints = m}
 
-initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Var v) => Solve v loc ()
+initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()
 initializeState = assertGen do
   builtinConstraints
 
 -- | Generate and solve constraints, asserting no conflicts or
 -- decomposition occurs
-assertGen :: (Ord loc, Var v) => Gen v loc a -> Solve v loc ()
-assertGen (Gen gena) = do
+assertGen :: (Ord loc, Show loc, Var v) => Gen v loc [GeneratedConstraint v loc] -> Solve v loc ()
+assertGen gen = do
+  cs <- runGen gen
+  env <- M.ask
   st <- M.get
-  gena handleConstraint handleVar (st ^. genStateL) finalK
-  where
-    handleConstraint c st k = do
-      genStateL .= st
-      assertConstraint c
-      st <- M.get
-      k (st ^. genStateL)
+  let comp = do
+        st <- step env st cs
+        verify st
+  case comp of
+    Left _ -> error "[assertGen]: constraint failure in among builtin constraints"
+    Right st -> M.put st
 
-    handleVar v rest = do
-      addUnconstrainedVar v
-      rest
-
-    finalK _ finalState = genStateL .= finalState
-
-    assertConstraint :: forall v loc. (Ord loc, Var v) => GeneratedConstraint v loc -> Solve v loc ()
-    assertConstraint c =
-      addConstraint c >>= \case
-        Right () -> pure ()
-        _ -> error "impossible: constraint failure in initializeState"
-
-initialState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Var v) => Env -> SolveState v loc
+initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) => Env -> SolveState v loc
 initialState env =
   let ((), finalState) = run env emptyState initializeState
    in finalState

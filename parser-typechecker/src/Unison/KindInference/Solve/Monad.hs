@@ -8,7 +8,7 @@ module Unison.KindInference.Solve.Monad
     emptyState,
     find,
     genStateL,
-    runGenList,
+    runGen,
     addUnconstrainedVar,
   )
 where
@@ -20,7 +20,7 @@ import Data.Functor.Identity
 import Data.Map.Strict qualified as M
 import Data.Set qualified as Set
 import Unison.KindInference.Constraint.Solved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen (..), GeneratedConstraint)
+import Unison.KindInference.Generate.Monad (Gen (..))
 import Unison.KindInference.Generate.Monad qualified as Gen
 import Unison.KindInference.UVar (UVar(..))
 import Unison.PatternMatchCoverage.UFMap qualified as U
@@ -67,13 +67,18 @@ genStateL f st =
     <$> f
       Gen.GenState
         { unifVars = unifVars st,
-          typeMap = typeMap st
+          typeMap = typeMap st,
+          newVars = []
         }
 
-runGenList :: Var v => Gen v loc a -> Solve v loc [GeneratedConstraint v loc]
-runGenList gena = do
+runGen :: Var v => Gen v loc a -> Solve v loc a
+runGen gena = do
   st <- M.get
-  let (cs, vs, st') = st & genStateL %%~ Gen.runList gena
+  let gena' = do
+        res <- gena
+        st <- M.get
+        pure (res, Gen.newVars st)
+  let ((cs, vs), st') = st & genStateL %%~ Gen.run gena'
   M.put st'
   traverse_ addUnconstrainedVar vs
   M.modify \st -> st { newUnifVars = vs ++ newUnifVars st }
