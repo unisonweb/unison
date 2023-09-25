@@ -11,6 +11,7 @@ import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
 import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty qualified as List1
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
@@ -28,7 +29,7 @@ import Data.Tuple.Strict
 import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
 import Text.Printf (printf)
-import U.Codebase.Branch (Branch, CausalBranch)
+import U.Codebase.Branch (Branch (Branch), CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..))
 import U.Codebase.Branch.Diff qualified as Diff
@@ -208,6 +209,50 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       printDeclConflicts conflictedDecls
       printTermConflicts conflictedTerms
       Text.putStrLn ""
+
+makeNamespace :: Map NameSegment (CausalBranch Transaction) -> Map Name TypeReference -> Map Name Referent -> Branch Transaction
+makeNamespace libdeps allDecls allTerms =
+  Branch
+    { children = libdeps,
+      patches = Map.empty,
+      terms = Map.map unconflictedAndWithoutMetadata thisLevelTerms,
+      types = Map.map unconflictedAndWithoutMetadata thisLevelDecls
+    }
+  where
+    Slice thisLevelDecls childrenDecls = defnsToSlice allDecls
+    Slice thisLevelTerms childrenTerms = defnsToSlice allTerms
+
+    unconflictedAndWithoutMetadata :: ref -> Map ref (Transaction Branch.MdValues)
+    unconflictedAndWithoutMetadata ref =
+      Map.singleton ref (pure (Branch.MdValues Map.empty))
+
+honker :: Map NameSegment (Slice NameSegment TypeReference) -> Map NameSegment (Slice NameSegment Referent) -> Branch Transaction
+honker decls terms = undefined
+
+defnsToSlice :: Map Name ref -> Slice NameSegment ref
+defnsToSlice =
+  makeSlice . Map.mapKeys (List1.reverse . Name.segments)
+
+data Slice k v
+  = Slice !(Map k v) !(Map k (Slice k v))
+
+emptySlice :: Slice k v
+emptySlice =
+  Slice Map.empty Map.empty
+
+makeSlice :: forall k v. Ord k => Map (List1.NonEmpty k) v -> Slice k v
+makeSlice =
+  foldr insert emptySlice . Map.toList
+  where
+    insert :: (List1.NonEmpty k, v) -> Slice k v -> Slice k v
+    insert (k :| ks, v) (Slice xs ys) =
+      case List1.nonEmpty ks of
+        Nothing -> Slice (Map.insert k v xs) ys
+        Just ks1 -> Slice xs (merge k ks1 v ys)
+
+    merge :: k -> List1.NonEmpty k -> v -> Map k (Slice k v) -> Map k (Slice k v)
+    merge k ks v =
+      Map.upsert (insert (ks, v) . fromMaybe emptySlice) k
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
