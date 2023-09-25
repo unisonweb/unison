@@ -1,13 +1,16 @@
 {-# LANGUAGE RecursiveDo #-}
 
+-- | Description: Pretty printers for kind inference constraints
 module Unison.KindInference.Constraint.Pretty
-  ( prettyCyclicUVarKind
-  , prettyUVarKind
-  , prettySolvedConstraint
-  ) where
+  ( prettyUVarKind,
+    prettySolvedConstraint,
+    prettyCyclicUVarKind,
+  )
+where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Unison.KindInference.Constraint.Solved qualified as Solved
 import Unison.KindInference.Solve.Monad
   ( ConstraintMap,
     Env (..),
@@ -16,12 +19,14 @@ import Unison.KindInference.Solve.Monad
     find,
     run,
   )
-import Unison.KindInference.Constraint.Solved qualified as Solved
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
+
+arrPrec :: Int
+arrPrec = 1
 
 prettyEffect :: Int -> P.Pretty P.ColorText
 prettyEffect _prec = "Effect"
@@ -35,7 +40,7 @@ prettyUnknown _prec = "_"
 prettyArrow :: Int -> P.Pretty P.ColorText -> P.Pretty P.ColorText -> P.Pretty P.ColorText
 prettyArrow prec lhs rhs =
   let wrap = if prec > arrPrec then P.parenthesize else id
-  in wrap (lhs <> " -> " <> rhs)
+   in wrap (lhs <> " -> " <> rhs)
 
 prettyCyclicSolvedConstraint ::
   Var v =>
@@ -70,6 +75,9 @@ prettyCyclicUVarKindWorker prec u nameMap visitingSet =
       let visitingSet1 = Set.insert u visitingSet
       prettyCyclicSolvedConstraint c prec nameMap visitingSet1
 
+-- | Pretty print the kind constraint on the given @UVar@.
+--
+-- __Precondition:__ The @ConstraintMap@ is acyclic.
 prettyUVarKind :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
 prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
   prettyUVarKind' arrPrec uvar
@@ -80,7 +88,15 @@ prettyUVarKind' prec u =
     Nothing -> pure (prettyUnknown prec)
     Just c -> prettySolvedConstraint' prec c
 
-prettySolvedConstraint :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> Solved.Constraint (UVar v loc) v loc -> P.Pretty P.ColorText
+-- | Pretty print a 'Solved.Constraint'
+--
+-- __Precondition:__ The @ConstraintMap@ is acyclic.
+prettySolvedConstraint ::
+  Var v =>
+  PrettyPrintEnv ->
+  ConstraintMap v loc ->
+  Solved.Constraint (UVar v loc) v loc ->
+  P.Pretty P.ColorText
 prettySolvedConstraint ppe constraints c =
   ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
 
@@ -93,6 +109,10 @@ prettySolvedConstraint' prec = \case
     b <- prettyUVarKind' arrPrec b
     pure (prettyArrow prec a b)
 
+-- | Pretty printers for constraints need to look them up in the
+-- constraint map, but no constraints are added. This runner just
+-- allows running pretty printers outside of the @Solve@ monad by
+-- discarding the resulting state.
 ppRunner :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
 ppRunner ppe constraints =
   let st =
@@ -105,15 +125,18 @@ ppRunner ppe constraints =
       env = Env ppe
    in \solve -> fst (run env st solve)
 
-arrPrec :: Int
-arrPrec = 1
-
+-- | A pretty printer for cyclic kind constraints on a
+-- @UVar@. Expresses the infinite kind by a generating equation.
+--
+-- __Precondition:__ The @UVar@ has a cyclic constraint.
 prettyCyclicUVarKind ::
   Var v =>
   PrettyPrintEnv ->
   ConstraintMap v loc ->
   UVar v loc ->
+  -- | A function to style the cyclic @UVar@'s variable name
   (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
+  -- | (the pretty @UVar@ variable, the generating equation)
   (P.Pretty P.ColorText, P.Pretty P.ColorText)
 prettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
   find uvar >>= \case

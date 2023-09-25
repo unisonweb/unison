@@ -12,9 +12,9 @@ import U.Core.ABT qualified as ABT
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.DataDeclaration (Decl, asDataDecl)
 import Unison.DataDeclaration qualified as DD
-import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
+import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.Generate.Monad (Gen, addConstraint, freshVar, insertType, lookupType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
@@ -23,6 +23,8 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Var
 
+-- | Generate kind constraints arising from a given type. The given
+-- @UVar@ is constrained to have the kind of the given type.
 typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc ()
 typeConstraints resultVar term@ABT.Term {annotation, out} = do
   case out of
@@ -55,8 +57,8 @@ typeConstraints resultVar term@ABT.Term {annotation, out} = do
           scopedType (Type.var annotation v) \_ -> do
             typeConstraints resultVar x
         _ -> error "impossible? Forall wrapping a non-abs"
-      Type.IntroOuter ABT.Term {out} -> case out of
-        ABT.Abs _ x -> typeConstraints resultVar x
+      Type.IntroOuter ABT.Term {annotation, out} -> case out of
+        ABT.Abs v x -> handleIntroOuter v annotation (typeConstraints resultVar x)
         _ -> error "impossible? IntroOuter wrapping a non-abs"
       Type.Ann x _kind -> typeConstraints resultVar x -- todo
       Type.Ref r ->
@@ -73,6 +75,21 @@ typeConstraints resultVar term@ABT.Term {annotation, out} = do
           typeConstraints effKind eff
           addConstraint (IsEffect effKind (Provenance EffectsList $ ABT.annotation eff))
 
+handleIntroOuter :: Var v => v -> loc -> Gen v loc r -> Gen v loc r
+handleIntroOuter v loc k = do
+  let typ = Type.var loc v
+  new <- freshVar typ
+  orig <-
+    lookupType typ >>= \case
+      Nothing -> error "[malformed type] IntroOuter not in lexical scope of matching Forall"
+      Just a -> pure a
+  res <- k
+  addConstraint (Unify (Provenance ScopeReference loc) new orig)
+  pure res
+
+-- | Helper for @termConstraints@ that instantiates the outermost
+-- foralls and keeps the type in scope (in the type map) while
+-- checking lexically nested type annotations.
 instantiateType ::
   forall v loc r.
   (Var v, Ord loc) =>
@@ -85,18 +102,11 @@ instantiateType type0 k =
           scopedType (Type.var annotation x) \_ -> do
             go t
         ABT.Tm' (Type.IntroOuter ABT.Term {annotation, out = ABT.Abs x t}) -> do
-          let typ = Type.var annotation x
-          new <- freshVar typ
-          orig <-
-            lookupType typ >>= \case
-              Nothing -> error "[malformed type] IntroOuter not in lexical scope of matching Forall"
-              Just a -> pure a
-          res <- go t
-          addConstraint (Unify (Provenance ScopeReference annotation) new orig)
-          pure res
+          handleIntroOuter x annotation (go t)
         t -> k t
    in go type0
 
+-- | Check that all annotations in a term are well-kinded
 termConstraints :: (Var v, Ord loc) => Term.Term v loc -> Gen v loc ()
 termConstraints = dfAnns processAnn cons nil
   where
@@ -109,7 +119,8 @@ termConstraints = dfAnns processAnn cons nil
     cons = (>>)
     nil = pure ()
 
--- Process type annotations depth-first. Allows processing annotations with lexical scoping.
+-- | Process type annotations depth-first. Allows processing
+-- annotations with lexical scoping.
 dfAnns :: (loc -> Type.Type v loc -> b -> b) -> (b -> b -> b) -> b -> Term.Term v loc -> b
 dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
   ABT.Var _ -> nil
@@ -119,6 +130,8 @@ dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
     Term.Ann trm typ -> annAlg ann typ trm
     x -> foldr cons nil x
 
+-- | Generate kind constraints for a mutally recursive component of
+-- decls
 declComponentConstraints ::
   forall v loc.
   (Var v, Ord loc) =>
@@ -162,6 +175,28 @@ declComponentConstraints decls = do
         typeConstraints constructorKind constructorType
         addConstraint (IsStar constructorKind (Provenance DeclDefinition constructorAnn))
 
+-- | This is a helper to unify the kind constraints on type variables
+-- across a decl's constructors.
+--
+-- With a decl like
+--
+-- @
+-- unique type T a = C0 Nat a | C1 (a Nat)
+-- @
+--
+-- @C0@ will have type @forall a. Nat -> a -> T a@ and @C1@ will have
+-- type @forall a. (a Nat) -> T a@. We must unify the kind constraints
+-- that the two constructors make on @a@ in order to determine the
+-- kind of @a@ (or observe that there are contradictory
+-- constraints). In this example @C0@ constrains @a@ to be of type *
+-- because it is applied to the arrow type, whereas @C1@ constrains
+-- @a@ to be of kind * -> * since it is applied to a Nat.
+--
+-- We unify these variables by instantiating the outermost foralls
+-- with fresh kind variables, then follow any arrows to find the
+-- result type which must have type @T b@ for some b, then unify @b@
+-- with some kind variable representing the unification of @a@ for
+-- each constructor.
 withInstantiatedConstructorType ::
   forall v loc r.
   (Var v, Ord loc) =>
@@ -172,12 +207,12 @@ withInstantiatedConstructorType ::
   Gen v loc r
 withInstantiatedConstructorType declType tyParams0 constructorType0 k =
   let goForall constructorType = case constructorType of
-          ABT.Tm' (Type.Forall ABT.Term {annotation, out = ABT.Abs x t}) -> do
-            scopedType (Type.var annotation x) \_ -> do
-              goForall t
-          _ -> do
-            goArrow constructorType
-            k constructorType
+        ABT.Tm' (Type.Forall ABT.Term {annotation, out = ABT.Abs x t}) -> do
+          scopedType (Type.var annotation x) \_ -> do
+            goForall t
+        _ -> do
+          goArrow constructorType
+          k constructorType
 
       goArrow :: Type.Type v loc -> Gen v loc ()
       goArrow = \case
@@ -190,20 +225,22 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
 
       goEffs = \case
         [] -> error ("[goEffs] couldn't find the expected ability: " <> show declType)
-        e:es
+        e : es
           | e == declType -> pure ()
-          | Type.Apps' f xs <- e, f == declType ->
-            unifyVars e xs
+          | Type.Apps' f xs <- e,
+            f == declType ->
+              unifyVars e xs
           | otherwise -> goEffs es
 
       unifyVars :: Type.Type v loc -> [Type.Type v loc] -> Gen v loc ()
-      unifyVars typ vs = for_ (zip vs tyParams0) \(v,tp) -> do
+      unifyVars typ vs = for_ (zip vs tyParams0) \(v, tp) -> do
         lookupType v >>= \case
           Nothing -> error ("[unifyVars] unknown type in decl result: " <> show v)
           Just x -> do
             addConstraint (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
    in goForall constructorType0
 
+-- | Kind constraints for builtin types
 builtinConstraints :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) => Gen v loc ()
 builtinConstraints = do
   traverse_

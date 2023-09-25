@@ -15,10 +15,14 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
 
+-- | Pretty print a user-facing @KindError@.
 prettyKindError ::
   Var v =>
+  -- | How to print types
   (Type v loc -> Pretty ColorText) ->
+  -- | How to print source spans
   ([(loc, Color)] -> Pretty ColorText) ->
+  -- | Contrasting colors used in error message output
   Color ->
   Color ->
   PrettyPrintEnv ->

@@ -7,9 +7,10 @@ where
 import Control.Lens (Lens')
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 
--- | A tag for a source span indicating where it came from. This is
--- helpful so that we correctly propagate the problematic source span
--- through the solver.
+-- | A tag for a source span and context indicating where the
+-- generated constraint came from. This is helpful to propagate the
+-- constraint context through the solver for user-facing error
+-- messages.
 data Provenance v loc
   = Provenance !(ConstraintContext v loc) !loc
   deriving stock (Show, Eq, Ord)

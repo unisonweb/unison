@@ -12,6 +12,9 @@ import Unison.KindInference.Constraint.StarProvenance (StarProvenance)
 import Unison.KindInference.Constraint.StarProvenance qualified as SP
 
 -- | Solved constraints
+--
+-- These constraints are associated with unification variables during
+-- kind inference.
 data Constraint uv v loc
   = IsStar (StarProvenance v loc)
   | IsEffect (Provenance v loc)

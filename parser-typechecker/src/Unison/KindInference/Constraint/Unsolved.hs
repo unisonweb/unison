@@ -11,6 +11,9 @@ import Unison.KindInference.Constraint.Provenance (Provenance)
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 
 -- | Unsolved constraints
+--
+-- These are produced during constraint generation and given as input
+-- to the constraint solver.
 data Constraint uv v loc starProv
   = -- | An IsStar constraint may arise from generation or from the
     -- solver. During generation the provenance is always a real

@@ -19,14 +19,18 @@ import Unison.KindInference.UVar (UVar (..))
 import Unison.Type (Type)
 import Unison.Var (Var)
 
+-- | Two incompatible constraints on a @UVar@.
 data ConstraintConflict v loc = ConstraintConflict'
   { conflictedVar :: UVar v loc,
     impliedConstraint :: Solved.Constraint (UVar v loc) v loc,
     conflictedConstraint :: Solved.Constraint (UVar v loc) v loc
   }
 
+-- | Errors that may arise during kind inference
 data KindError v loc
-  = CycleDetected loc (UVar v loc) (ConstraintMap v loc)
+  = -- | A variable is constrained to have an infinite kind
+    CycleDetected loc (UVar v loc) (ConstraintMap v loc)
+  -- | Something of kind * or Effect is applied to an argument
   | UnexpectedArgument
       loc
       -- ^ src span of abs
@@ -36,6 +40,8 @@ data KindError v loc
       -- ^ arg var
       (ConstraintMap v loc)
       -- ^ context
+  -- | An arrow kind is applied to a type, but its kind doesn't match
+  -- the expected argument kind
   | ArgumentMismatch
       (UVar v loc)
       -- ^ abs var
@@ -45,14 +51,18 @@ data KindError v loc
       -- ^ given var
       (ConstraintMap v loc)
       -- ^ context
+  -- | Same as @ArgumentMismatch@, but for applications to the builtin
+  -- @Arrow@ type.
   | ArgumentMismatchArrow
       (loc, Type v loc, Type v loc)
       -- ^ (The applied arrow range, lhs, rhs)
       (ConstraintConflict v loc)
       (ConstraintMap v loc)
+  -- | Something appeared in an effect list that isn't of kind Effect
   | EffectListMismatch
       (ConstraintConflict v loc)
       (ConstraintMap v loc)
+  -- | Generic constraint conflict
   | ConstraintConflict
       (GeneratedConstraint v loc)
       -- ^ Failed to add this constraint
@@ -61,6 +71,8 @@ data KindError v loc
       (ConstraintMap v loc)
       -- ^ in this context
 
+-- | Transform generic constraint conflicts into more specific error
+-- by examining its @ConstraintContext@.
 improveError :: Var v => KindError v loc -> Solve v loc (KindError v loc)
 improveError = \case
   ConstraintConflict a b c -> improveError' a b c

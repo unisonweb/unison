@@ -1,6 +1,6 @@
 module Unison.KindInference.Solve
   ( step,
-    finalize,
+    verify,
     initialState,
     KindError (..),
     ConstraintConflict (..),
@@ -53,6 +53,8 @@ _Generated = prism' (Unsolved.starProv %~ NotDefault) \case
   Unsolved.IsArr s l a b -> Just (Unsolved.IsArr s l a b)
   Unsolved.Unify l a b -> Just (Unsolved.Unify l a b)
 
+-- | Apply some generated constraints to a solve state, returning a
+-- kind error if detected or a new solve state.
 step ::
   (Var v, Ord loc, Show loc) =>
   Env ->
@@ -65,11 +67,9 @@ step e st cs =
           [] -> pure (Right ())
           e : es -> do
             -- We have an error, but do an occ check first to ensure
-            -- we present the most sensible error. Also, our error
-            -- message constructor won't terminate with cyclic
-            -- unifications.
+            -- we present the most sensible error.
             st <- M.get
-            case finalize st of
+            case verify st of
               Left e -> pure (Left e)
               Right _ -> do
                 Left <$> traverse improveError (e :| es)
@@ -78,6 +78,7 @@ step e st cs =
           Left e -> Left e
           Right () -> Right (defaultUnconstrainedVars finalState)
 
+-- | Default any unconstrained vars to *
 defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
   let newConstraints = foldl' phi (constraints st) (newUnifVars st)
@@ -155,7 +156,7 @@ data CycleCheck
   = Cycle
   | NoCycle
 
--- occurence check and report any errors
+-- | occurence check and report any errors
 occCheck ::
   forall v loc.
   Var v =>
@@ -204,7 +205,8 @@ occCheck constraints0 =
         [] -> Right solvedConstraints
         e : es -> Left (e :| es)
 
--- loop through the constraints, eliminating constraints until we have some set that cannot be reduced
+-- | loop through the constraints, eliminating constraints until we
+-- have some set that cannot be reduced
 reduce ::
   forall v loc.
   (Show loc, Var v, Ord loc) =>
@@ -236,6 +238,8 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
           tracePretty (P.hang (P.bold hdr) (prettyConstraints ppe (map (review _Generated) cs))) (f cs)
         False -> f cs
 
+-- | Add a single constraint, returning an error if there is a
+-- contradictory constraint
 addConstraint ::
   forall v loc.
   Ord loc =>
@@ -354,17 +358,18 @@ union _unionLoc a b = do
       M.put st {constraints = m}
       pure []
 
-finalize ::
+-- | Do an occurence check and return an error or the resulting solve
+-- state
+verify ::
   Var v =>
   SolveState v loc ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
-finalize st =
+verify st =
   let solveState = occCheck (constraints st)
    in case solveState of
         Left e -> Left e
         Right m -> Right st {constraints = m}
 
--- todo: fill this out with all builtins
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Var v) => Solve v loc ()
 initializeState = assertGen do
   builtinConstraints

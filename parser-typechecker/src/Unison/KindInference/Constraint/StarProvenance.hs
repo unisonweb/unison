@@ -7,8 +7,10 @@ where
 import Control.Lens (Traversal)
 import Unison.KindInference.Constraint.Provenance (Provenance)
 
--- | Provenance of an @IsStar@ constraint, which can arise by default
--- if a type is unconstrained.
+-- | Provenance of an @IsStar@ constraint. @IsStar@ constraints arise
+-- in constraint generation (in which case it will have a
+-- @Provenance@) and also in the solver through kind-defaulting on
+-- unconstrained unification variables.
 data StarProvenance v loc
   = NotDefault (Provenance v loc)
   | Default

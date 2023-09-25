@@ -1,3 +1,19 @@
+-- | Kind inference for Unison
+--
+-- Unison has *, ->, and Effect kinds
+--
+-- An algorithm sketch: First break all decls into strongly connected
+-- components in reverse topological order. Then, for each component,
+-- generate kind constraints that arise from the constructors in the
+-- decl to discover constraints on the decl vars. These constraints
+-- are then given to a constraint solver that determines a unique kind
+-- for each type variable. Unconstrained variables are defaulted to
+-- kind * (just like Haskell 98). This is done by 'inferDecls'.
+--
+-- Afterwards, the 'SolveState' holds the kinds of all decls and we
+-- can check that type annotations in terms that may mention the
+-- decls are well-kinded with 'kindCheckAnnotations'.
+
 module Unison.KindInference
   ( inferDecls,
     kindCheckAnnotations,
@@ -12,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
-import Unison.KindInference.Solve (KindError, finalize, initialState, step)
+import Unison.KindInference.Solve (KindError, verify, initialState, step)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGenList)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
@@ -20,6 +36,7 @@ import Unison.Reference
 import Unison.Term qualified as Term
 import Unison.Var qualified as Var
 
+-- | Check that all annotations in a term are well-kinded
 kindCheckAnnotations ::
   forall v loc.
   (Var.Var v, Ord loc, Show loc, BuiltinAnnotation loc) =>
@@ -32,6 +49,7 @@ kindCheckAnnotations ppe st t =
       env = Env ppe
    in step env st' cs $> ()
 
+-- | Infer the kinds of all decl vars
 inferDecls ::
   forall v loc.
   (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
@@ -55,11 +73,13 @@ inferDecls ppe declMap =
       handleComponents ::
         [[(Reference, Decl v loc)]] ->
         Either (NonEmpty (KindError v loc)) (SolveState v loc)
-      handleComponents = finalize <=< foldlM phi (initialState env)
+      handleComponents = verify <=< foldlM phi (initialState env)
         where
           phi b a = handleComponent b a
    in handleComponents components
 
+-- | Break the decls into strongly connected components in reverse
+-- topological order
 intoComponents :: forall v a. Ord v => Map Reference (Decl v a) -> [[(Reference, Decl v a)]]
 intoComponents declMap =
   let graphInput :: [(Decl v a, Reference, [Reference])]
