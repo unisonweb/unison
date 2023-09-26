@@ -16,7 +16,7 @@ data Causal m hc he pe e = Causal
     parents :: Map hc (m (Causal m hc he pe pe)),
     value :: m e
   }
-  deriving (Functor)
+  deriving stock (Functor, Generic)
 
 -- | @emap f g@ maps over the values and parents' values with @f@ and @g@.
 emap :: Functor m => (e -> e') -> (pe -> pe') -> Causal m hc he pe e -> Causal m hc he pe' e'
