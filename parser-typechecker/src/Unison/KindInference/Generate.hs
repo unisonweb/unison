@@ -6,6 +6,8 @@ module Unison.KindInference.Generate
   )
 where
 
+import Control.Lens ((^.))
+import Unison.Kind qualified as Unison
 import Unison.ConstructorReference (GConstructorReference (..))
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
@@ -16,6 +18,7 @@ import Unison.DataDeclaration (Decl, asDataDecl)
 import Unison.DataDeclaration qualified as DD
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
+import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, insertType, lookupType, scopedType)
 import Unison.KindInference.UVar (UVar)
@@ -108,7 +111,10 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
       Type.IntroOuter ABT.Term {annotation, out} -> case out of
         ABT.Abs v x -> handleIntroOuter v annotation (\c -> Constraint c <$> typeConstraintTree resultVar x)
         _ -> error "[typeConstraintTree] IntroOuter wrapping a non-abs"
-      Type.Ann x _kind -> typeConstraintTree resultVar x
+      Type.Ann x kind -> do
+        ct <- typeConstraintTree resultVar x
+        gcs <- constrainToKind (Provenance Annotation annotation) resultVar (fromUnisonKind kind)
+        pure (foldr Constraint ct gcs)
       Type.Ref r ->
         lookupType (Type.ref annotation r) >>= \case
           Nothing -> error ("[typeConstraintTree] Ref lookup failure: " <> show term)
@@ -237,7 +243,6 @@ declComponentConstraintTree decls = do
     pure (ref, decl, declKind)
   cts <- for decls \(ref, decl, declKind) -> do
     let declAnn = DD.annotation $ asDataDecl decl
-    -- todo: cleanup
     let declType = Type.ref declAnn ref
     -- Unify the datatype with @k_1 -> ... -> k_n -> *@ where @n@ is
     -- the number of type parameters
@@ -409,23 +414,30 @@ builtinConstraintTree =
     constrain :: Kind -> (loc -> Type.Type v loc) -> Gen v loc (ConstraintTree v loc)
     constrain k t = do
       kindVar <- insertType (t builtinAnnotation)
-      constrainToKind kindVar k
+      foldr Constraint (Node []) <$> constrainToKind (Provenance Builtin builtinAnnotation) kindVar k
 
-constrainToKind :: (BuiltinAnnotation loc, Var v) => UVar v loc -> Kind -> Gen v loc (ConstraintTree v loc)
-constrainToKind resultVar = \case
-  Star -> do
-    pure (Constraint (IsStar resultVar (Provenance Builtin builtinAnnotation)) (Node []))
-  Effect -> do
-    pure (Constraint (IsEffect resultVar (Provenance Builtin builtinAnnotation)) (Node []))
-  lhs :-> rhs -> do
-    let inputTypeVar = Type.var builtinAnnotation (freshIn Set.empty (typed (User "a")))
-    let outputTypeVar = Type.var builtinAnnotation (freshIn Set.empty (typed (User "a")))
-    input <- freshVar inputTypeVar
-    output <- freshVar outputTypeVar
-    ctl <- constrainToKind input lhs
-    ctr <- constrainToKind output rhs
-    pure (Constraint (IsArr resultVar (Provenance Builtin builtinAnnotation) input output) (Node [ctl, ctr]))
+constrainToKind :: (Var v) => Provenance v loc -> UVar v loc -> Kind -> Gen v loc [GeneratedConstraint v loc]
+constrainToKind prov resultVar0 = fmap ($ []) . go resultVar0
+  where
+    go resultVar = \case
+      Star -> do
+        pure (IsStar resultVar prov:)
+      Effect -> do
+        pure (IsEffect resultVar prov:)
+      lhs :-> rhs -> do
+        let inputTypeVar = Type.var (prov ^. Provenance.loc) (freshIn Set.empty (typed (User "a")))
+        let outputTypeVar = Type.var (prov ^. Provenance.loc) (freshIn Set.empty (typed (User "a")))
+        input <- freshVar inputTypeVar
+        output <- freshVar outputTypeVar
+        ctl <- go input lhs
+        ctr <- go output rhs
+        pure ((IsArr resultVar prov input output:) . ctl . ctr)
 
 data Kind = Star | Effect | Kind :-> Kind
 
 infixr 9 :->
+
+fromUnisonKind :: Unison.Kind -> Kind
+fromUnisonKind = \case
+  Unison.Star -> Star
+  Unison.Arrow a b -> fromUnisonKind a :-> fromUnisonKind b

@@ -11,6 +11,7 @@ data ConstraintContext v loc
   = AppAbs !(UVar v loc) !(UVar v loc)
   | AppArg !(UVar v loc) !(UVar v loc) !(UVar v loc)
   | AppArrow loc !(Type v loc) !(Type v loc)
+  | Annotation
   | EffectsList
   | ScopeReference
   | TypeAnnotation
