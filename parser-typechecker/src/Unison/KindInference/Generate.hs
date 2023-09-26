@@ -63,12 +63,12 @@ flatten (TreeWalk f) = ($ []) . flattenTop
 typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
 typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
   case out of
-    ABT.Abs _ _ -> error "impossible? Abs" -- todo
+    ABT.Abs _ _ -> error "[typeConstraintTree] malformed type: Abs without an enclosing Forall or IntroOuter"
     ABT.Var v ->
       lookupType (Type.var annotation v) >>= \case
-        Nothing -> error "var nothing"
+        Nothing -> error ("[typeConstraintTree] bug: encountered var " <> show v <> " missing from context")
         Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
-    ABT.Cycle _ -> error "Cycle" -- todo
+    ABT.Cycle _ -> error "[typeConstraintTree] malformed type: Encountered Cycle in a type?"
     ABT.Tm t0 -> case t0 of
       Type.Arrow dom cod -> do
         let ctx = AppArrow annotation dom cod
@@ -104,14 +104,14 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         ABT.Abs v x ->
           scopedType (Type.var annotation v) \_ -> do
             typeConstraintTree resultVar x
-        _ -> error "impossible? Forall wrapping a non-abs"
+        _ -> error "[typeConstraintTree] Forall wrapping a non-abs"
       Type.IntroOuter ABT.Term {annotation, out} -> case out of
         ABT.Abs v x -> handleIntroOuter v annotation (\c -> Constraint c <$> typeConstraintTree resultVar x)
-        _ -> error "impossible? IntroOuter wrapping a non-abs"
-      Type.Ann x _kind -> typeConstraintTree resultVar x -- todo
+        _ -> error "[typeConstraintTree] IntroOuter wrapping a non-abs"
+      Type.Ann x _kind -> typeConstraintTree resultVar x
       Type.Ref r ->
         lookupType (Type.ref annotation r) >>= \case
-          Nothing -> error ("[ref nothing] " <> show term)
+          Nothing -> error ("[typeConstraintTree] Ref lookup failure: " <> show term)
           Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
       Type.Effect effTyp b -> do
         effKind <- freshVar effTyp
