@@ -1,6 +1,7 @@
 -- | Description: Converts V2 types to the V2 hashing types
 module Unison.Hashing.V2.Convert2
-  ( v2ToH2Type,
+  ( convertBranchV3,
+    v2ToH2Type,
     v2ToH2TypeD,
     h2ToV2Reference,
     v2ToH2Branch,
@@ -8,10 +9,12 @@ module Unison.Hashing.V2.Convert2
   )
 where
 
+import Control.Lens (view)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.BranchV3 (BranchV3 (..))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
@@ -27,6 +30,18 @@ import Unison.Hashing.V2 qualified as H2
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
+
+-- | Convert a V3 branch to a hashing branch.
+convertBranchV3 :: BranchV3 m -> H2.Branch
+convertBranchV3 BranchV3 {children, decls, terms} =
+  H2.Branch
+    { children = children & Map.bimap coerce (unCausalHash . view #causalHash),
+      patches = Map.empty,
+      terms = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Referent ref) emptyMetadata) terms,
+      types = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Reference ref) emptyMetadata) decls
+    }
+  where
+    emptyMetadata = H2.MdValues Set.empty
 
 convertId :: Hash -> V2Reference.Id' (Maybe Hash) -> H2.ReferenceId
 convertId defaultHash = \case
