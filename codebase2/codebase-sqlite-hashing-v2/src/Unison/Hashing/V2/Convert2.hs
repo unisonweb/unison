@@ -9,7 +9,6 @@ module Unison.Hashing.V2.Convert2
   )
 where
 
-import Control.Lens (view)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2
@@ -35,7 +34,7 @@ import Unison.Util.Map qualified as Map
 convertBranchV3 :: BranchV3 m -> H2.Branch
 convertBranchV3 BranchV3 {children, decls, terms} =
   H2.Branch
-    { children = children & Map.bimap coerce (unCausalHash . view #causalHash),
+    { children = children & Map.bimap coerce (unCausalHash . Causal.causalHash),
       patches = Map.empty,
       terms = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Referent ref) emptyMetadata) terms,
       types = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Reference ref) emptyMetadata) decls

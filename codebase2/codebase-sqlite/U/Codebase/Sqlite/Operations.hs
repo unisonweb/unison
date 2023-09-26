@@ -585,7 +585,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
-      Transaction (Map NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
+      Transaction (Map NameSegment (C.Branch.CausalBranch Transaction))
     doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
       C.Causal
         <$> Q.expectCausalHash chId
@@ -593,28 +593,15 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         <*> headParents chId
         <*> pure (expectBranch boId)
       where
-        headParents ::
-          Db.CausalHashId ->
-          Transaction
-            ( Map
-                CausalHash
-                (Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-            )
+        headParents :: Db.CausalHashId -> Transaction (Map CausalHash (Transaction (C.Branch.CausalBranch Transaction)))
         headParents chId = do
           parentsChIds <- Q.loadCausalParents chId
           fmap Map.fromList $ traverse pairParent parentsChIds
-        pairParent ::
-          Db.CausalHashId ->
-          Transaction
-            ( CausalHash,
-              Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
-            )
+        pairParent :: Db.CausalHashId -> Transaction (CausalHash, Transaction (C.Branch.CausalBranch Transaction))
         pairParent chId = do
           h <- Q.expectCausalHash chId
           pure (h, loadCausal chId)
-        loadCausal ::
-          Db.CausalHashId ->
-          Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
+        loadCausal :: Db.CausalHashId -> Transaction (C.Branch.CausalBranch Transaction)
         loadCausal chId = do
           C.Causal
             <$> Q.expectCausalHash chId

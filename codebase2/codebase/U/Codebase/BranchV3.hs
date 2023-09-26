@@ -1,11 +1,12 @@
 -- | V3 branches and causals.
 module U.Codebase.BranchV3
   ( BranchV3 (..),
-    CausalBranchV3 (..),
+    CausalBranchV3,
   )
 where
 
-import U.Codebase.Branch.Type (CausalBranch)
+import U.Codebase.Branch.Type (Branch)
+import U.Codebase.Causal (Causal)
 import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Reference (TypeReference)
 import U.Codebase.Referent (Referent)
@@ -26,10 +27,4 @@ data BranchV3 m = BranchV3
 
 -- | A V3 branch's history has V3 branches everywhere at the latest causal (so, no metadata, no patches, etc. in any
 -- children namespaces), but when we go back in history, we find V2 branches, because that's what we used to have ;)
-data CausalBranchV3 m = CausalV3
-  { causalHash :: !CausalHash,
-    valueHash :: !BranchHash,
-    parents :: !(Map CausalHash (m (CausalBranch m))),
-    value :: m (BranchV3 m)
-  }
-  deriving stock (Generic)
+type CausalBranchV3 m = Causal m CausalHash BranchHash (Branch m) (BranchV3 m)
