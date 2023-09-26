@@ -6,9 +6,11 @@ module Unison.KindInference.Generate
   )
 where
 
+import Unison.ConstructorReference (GConstructorReference (..))
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
+import Unison.Builtin.Decls (rewriteTypeRef)
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.DataDeclaration (Decl, asDataDecl)
 import Unison.DataDeclaration qualified as DD
@@ -162,7 +164,7 @@ termConstraints :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v lo
 termConstraints x = flatten bottomUp <$> termConstraintTree x
 
 termConstraintTree :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc (ConstraintTree v loc)
-termConstraintTree = fmap Node . dfAnns processAnn cons nil
+termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
   where
     processAnn :: loc -> Type.Type v loc -> Gen v loc [ConstraintTree v loc] -> Gen v loc [ConstraintTree v loc]
     processAnn ann typ mrest = do
@@ -185,6 +187,34 @@ dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
   ABT.Tm t -> case t of
     Term.Ann trm typ -> annAlg ann typ trm
     x -> foldr cons nil x
+
+-- Our rewrite signature machinery generates type annotations that are
+-- not well kinded. Work around this for now by stripping those
+-- annotations.
+hackyStripAnns :: Ord v => Term.Term v loc -> Term.Term v loc
+hackyStripAnns =
+  snd . ABT.cata \ann abt0 -> case abt0 of
+    ABT.Var v -> (False, ABT.var ann v)
+    ABT.Cycle (_, x) -> (False, ABT.cycle ann x)
+    ABT.Abs v (_, x) -> (False, ABT.abs ann v x)
+    ABT.Tm tm0 -> case tm0 of
+      Term.App (isHack, abs) (_, arg) ->
+        let argMod = case isHack of
+              True -> stripAnns
+              False -> id
+        in (isHack, Term.app ann abs (argMod arg))
+      Term.Constructor cref@(ConstructorReference r _) ->
+        let isHack = r == rewriteTypeRef
+        in (isHack, Term.constructor ann cref)
+      t -> (False, ABT.tm ann (snd <$> t))
+  where
+    stripAnns = ABT.cata \ann abt0 -> case abt0 of
+      ABT.Var v -> ABT.var ann v
+      ABT.Cycle x -> ABT.cycle ann x
+      ABT.Abs v x -> ABT.abs ann v x
+      ABT.Tm tm0 -> case tm0 of
+        Term.Ann trm _typ -> trm
+        t -> ABT.tm ann t
 
 -- | Generate kind constraints for a mutally recursive component of
 -- decls
