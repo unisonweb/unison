@@ -13,7 +13,6 @@ where
 
 import Control.Monad.Trans.State.Strict qualified as State
 import Data.Char qualified as Char
-import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Text qualified as Text

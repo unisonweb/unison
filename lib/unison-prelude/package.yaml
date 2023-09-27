@@ -15,6 +15,7 @@ dependencies:
   - generic-lens
   - either
   - extra
+  - generic-lens
   - lens
   - mtl
   - pretty-simple

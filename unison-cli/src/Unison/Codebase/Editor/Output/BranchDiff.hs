@@ -3,7 +3,6 @@
 module Unison.Codebase.Editor.Output.BranchDiff where
 
 import Control.Lens
-import Data.Generics.Labels ()
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
