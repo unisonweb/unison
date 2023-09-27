@@ -1,11 +1,13 @@
 module Unison.KindInference.Error
   ( KindError (..),
+    lspLoc,
     ConstraintConflict (..),
     improveError,
   )
 where
 
 import Control.Lens ((^.))
+import Unison.ABT qualified as ABT
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Solved qualified as Solved
@@ -26,12 +28,23 @@ data ConstraintConflict v loc = ConstraintConflict'
     conflictedConstraint :: Solved.Constraint (UVar v loc) v loc
   }
 
+lspLoc :: Semigroup loc => KindError v loc -> loc
+lspLoc = \case
+  CycleDetected loc _ _ -> loc
+  UnexpectedArgument _ abs arg _ -> varLoc abs <> varLoc arg
+  ArgumentMismatch abs _ actual _ -> varLoc abs <> varLoc actual
+  ArgumentMismatchArrow _ ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
+  EffectListMismatch ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
+  ConstraintConflict gen _ _ -> gen ^. Unsolved.loc
+  where
+    varLoc var = ABT.annotation $ uvarType var
+
 -- | Errors that may arise during kind inference
 data KindError v loc
   = -- | A variable is constrained to have an infinite kind
     CycleDetected loc (UVar v loc) (ConstraintMap v loc)
-  -- | Something of kind * or Effect is applied to an argument
-  | UnexpectedArgument
+  | -- | Something of kind * or Effect is applied to an argument
+    UnexpectedArgument
       loc
       -- ^ src span of abs
       (UVar v loc)
@@ -40,8 +53,8 @@ data KindError v loc
       -- ^ arg var
       (ConstraintMap v loc)
       -- ^ context
-  -- | An arrow kind is applied to a type, but its kind doesn't match
-  -- the expected argument kind
+      -- | An arrow kind is applied to a type, but its kind doesn't match
+      -- the expected argument kind
   | ArgumentMismatch
       (UVar v loc)
       -- ^ abs var
@@ -51,19 +64,19 @@ data KindError v loc
       -- ^ given var
       (ConstraintMap v loc)
       -- ^ context
-  -- | Same as @ArgumentMismatch@, but for applications to the builtin
-  -- @Arrow@ type.
+      -- | Same as @ArgumentMismatch@, but for applications to the builtin
+      -- @Arrow@ type.
   | ArgumentMismatchArrow
       (loc, Type v loc, Type v loc)
       -- ^ (The applied arrow range, lhs, rhs)
       (ConstraintConflict v loc)
       (ConstraintMap v loc)
-  -- | Something appeared in an effect list that isn't of kind Effect
-  | EffectListMismatch
+  | -- | Something appeared in an effect list that isn't of kind Effect
+    EffectListMismatch
       (ConstraintConflict v loc)
       (ConstraintMap v loc)
-  -- | Generic constraint conflict
-  | ConstraintConflict
+  | -- | Generic constraint conflict
+    ConstraintConflict
       (GeneratedConstraint v loc)
       -- ^ Failed to add this constraint
       (ConstraintConflict v loc)
