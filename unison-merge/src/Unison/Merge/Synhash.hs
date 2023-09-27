@@ -26,14 +26,12 @@
 module Unison.Merge.Synhash
   ( hashType,
     hashTerm,
-    hashBuiltinTerm,
     hashDecl,
-    hashBuiltinDecl,
   )
 where
 
 import Data.Char (ord)
-import U.Codebase.Reference (TypeReference)
+import U.Codebase.Reference (TermReference, TypeReference)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.ConstructorType qualified as CT
@@ -79,8 +77,15 @@ hashType ppe t = H.accumulate $ hashTypeTokens ppe t
 -- | Syntactically hash a term, using reference names rather than hashes.
 -- Two terms will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
-hashTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
-hashTerm ppe t = H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
+hashTerm :: (Monad m, Var v) => (TypeReferenceId -> m (Term v a)) -> PrettyPrintEnv -> TermReference -> m Hash
+hashTerm loadTerm ppe = \case
+  ReferenceBuiltin name -> pure (hashBuiltinTerm name)
+  ReferenceDerived ref -> do
+    term <- loadTerm ref
+    pure (hashDerivedTerm ppe term)
+
+hashDerivedTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
+hashDerivedTerm ppe t = H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
 
 hashBuiltinTerm :: Text -> Hash
 hashBuiltinTerm name =
@@ -91,8 +96,20 @@ hashBuiltinTerm name =
 -- the same sort of decl (both are data decls or both are effect decls),
 -- the unique type guid is the same, and the constructors appear in the
 -- same order and their types have the same syntactic hash.
-hashDecl :: Var v => PrettyPrintEnv -> TypeReferenceId -> Decl v a -> Hash
-hashDecl ppe r t = H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe r t
+hashDecl ::
+  (Monad m, Var v) =>
+  (TypeReferenceId -> m (Decl v a)) ->
+  PrettyPrintEnv ->
+  TypeReference ->
+  m Hash
+hashDecl loadDecl ppe = \case
+  ReferenceBuiltin name -> pure (hashBuiltinDecl name)
+  ReferenceDerived ref -> do
+    decl <- loadDecl ref
+    pure (hashDerivedDecl ppe ref decl)
+
+hashDerivedDecl :: Var v => PrettyPrintEnv -> TypeReferenceId -> Decl v a -> Hash
+hashDerivedDecl ppe r t = H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe r t
 
 hashBuiltinDecl :: Text -> Hash
 hashBuiltinDecl name =

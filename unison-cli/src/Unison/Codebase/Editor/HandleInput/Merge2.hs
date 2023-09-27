@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Data.Bimap (Bimap)
@@ -34,6 +35,7 @@ import U.Codebase.Branch (Branch (Branch), CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..))
 import U.Codebase.Branch.Diff qualified as Diff
+import U.Codebase.Causal (Causal (Causal))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
@@ -70,7 +72,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
-import Unison.Merge.Synhash qualified as Synhash
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
@@ -84,7 +85,6 @@ import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Witherable (catMaybes)
-import U.Codebase.Causal (Causal(Causal))
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -118,72 +118,51 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     T2 aliceDeclNames aliceTermNames <- step "load alice names" do
       loadBranchDefinitionNames aliceBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
+    let aliceDefns = Merge.NamespaceDefns {decls = aliceDeclNames, terms = aliceTermNames}
+
     T2 bobDeclNames bobTermNames <- step "load bob names" do
       loadBranchDefinitionNames bobBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
-
-    let syntacticHashPpe :: PrettyPrintEnv
-        syntacticHashPpe =
-          -- The order isn't important here for syntactic hashing
-          deepnessToPpe aliceDeclNames aliceTermNames `Ppe.addFallback` deepnessToPpe bobDeclNames bobTermNames
-
-    aliceDeclSynhashes <- step "compute alice decl syntactic hashes" do
-      syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe aliceDeclNames
-    aliceTermSynhashes <- step "compute alice term syntactic hashes" do
-      syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe aliceTermNames
-
-    bobDeclSynhashes <- step "compute bob decl syntactic hashes" do
-      syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe bobDeclNames
-    bobTermSynhashes <- step "compute bob term syntactic hashes" do
-      syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe bobTermNames
+    let bobDefns = Merge.NamespaceDefns {decls = bobDeclNames, terms = bobTermNames}
 
     aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
     bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
 
-    (maybeLcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff) <-
+    (maybeLcaLibdeps, Merge.NamespaceDefns aliceDeclDiff aliceTermDiff, Merge.NamespaceDefns bobDeclDiff bobTermDiff) <-
       case maybeLcaCausalHash of
         Nothing -> do
-          let synhashesToAdds :: BiMultimap hash name -> Map name (Op hash)
-              synhashesToAdds =
-                Map.map Added . BiMultimap.range
-          pure
-            ( Nothing,
-              synhashesToAdds aliceDeclSynhashes,
-              synhashesToAdds aliceTermSynhashes,
-              synhashesToAdds bobDeclSynhashes,
-              synhashesToAdds bobTermSynhashes
-            )
+          (aliceDiff, bobDiff) <-
+            Merge.nameBasedNamespaceDiff
+              (Codebase.unsafeGetTypeDeclaration codebase)
+              (Codebase.unsafeGetTerm codebase)
+              Nothing
+              aliceDefns
+              bobDefns
+          pure (Nothing, aliceDiff, bobDiff)
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
           lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
           T2 lcaDeclNames lcaTermNames <- step "load lca names" do
             loadBranchDefinitionNames lcaBranch & onLeftM \err ->
               rollback (werror (Text.unpack err))
+          let lcaDefns = Merge.NamespaceDefns {decls = lcaDeclNames, terms = lcaTermNames}
+          (aliceDiff, bobDiff) <-
+            Merge.nameBasedNamespaceDiff
+              (Codebase.unsafeGetTypeDeclaration codebase)
+              (Codebase.unsafeGetTerm codebase)
+              (Just lcaDefns)
+              aliceDefns
+              bobDefns
 
-          lcaDeclSynhashes <- step "compute lca decl syntactic hashes" do
-            syntacticallyHashDecls (Codebase.unsafeGetTypeDeclaration codebase) syntacticHashPpe lcaDeclNames
-          lcaTermSynhashes <- step "compute lca term syntactic hashes" do
-            syntacticallyHashTerms (Codebase.unsafeGetTerm codebase) syntacticHashPpe lcaTermNames
+          findConflictedAlias aliceDefns aliceDiff & onJust \(name1, name2) ->
+            rollback (werror ("conflicted alice aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          let aliceDeclDiff = diffish lcaDeclSynhashes aliceDeclSynhashes
-          findConflictedAlias aliceDeclNames aliceDeclDiff & onJust \(name1, name2) ->
-            rollback (werror ("conflicted alice decl aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
-
-          let aliceTermDiff = diffish lcaTermSynhashes aliceTermSynhashes
-          findConflictedAlias aliceTermNames aliceTermDiff & onJust \(name1, name2) ->
-            rollback (werror ("conflicted alice term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
-
-          let bobDeclDiff = diffish lcaDeclSynhashes bobDeclSynhashes
-          findConflictedAlias bobDeclNames bobDeclDiff & onJust \(name1, name2) ->
-            rollback (werror ("conflicted bob decl aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
-
-          let bobTermDiff = diffish lcaTermSynhashes bobTermSynhashes
-          findConflictedAlias bobTermNames bobTermDiff & onJust \(name1, name2) ->
-            rollback (werror ("conflicted bob term aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
+          findConflictedAlias bobDefns bobDiff & onJust \(name1, name2) ->
+            rollback (werror ("conflicted bob aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
 
-          pure (Just lcaLibdeps, aliceDeclDiff, aliceTermDiff, bobDeclDiff, bobTermDiff)
+          pure (Just lcaLibdeps, aliceDiff, bobDiff)
 
     let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
     let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
@@ -241,12 +220,12 @@ honker hashHandle (thisLevelAncestors :< childrenAncestors) (thisLevelDecls :< c
           }
       branchHash = runIdentity (HashHandle.hashBranch hashHandle wundefined)
       causalHash = HashHandle.hashCausal hashHandle branchHash thisLevelAncestors
-   in Causal {
-        causalHash
-        , valueHash = branchHash
-        , parents = wundefined
-        , value = pure branch
-      }
+   in Causal
+        { causalHash,
+          valueHash = branchHash,
+          parents = wundefined,
+          value = pure branch
+        }
   where
     unconflictedAndWithoutMetadata :: ref -> Map ref (Transaction Branch.MdValues)
     unconflictedAndWithoutMetadata ref =
@@ -406,119 +385,55 @@ loadBranchDefinitionNames =
 --   bar = #qux
 --
 -- then (foo, bar) is a conflicted alias.
+--
+-- This function currently doesn't return whether the conflicted alias is a decl or a term, but it could.
 findConflictedAlias ::
-  forall hash name ref.
-  (Eq hash, Ord name, Ord ref) =>
-  BiMultimap ref name ->
-  Map name (Op hash) ->
+  forall hash name.
+  (Eq hash, Ord name) =>
+  Merge.NamespaceDefns BiMultimap TypeReference name Referent name ->
+  Merge.NamespaceDefns Map name (Merge.DiffOp hash) name (Merge.DiffOp hash) ->
   Maybe (name, name)
-findConflictedAlias namespace diff =
-  asum (map f (Map.toList diff))
+findConflictedAlias aliceDefns aliceDiff =
+  asum
+    [ go (aliceDefns ^. #decls) (aliceDiff ^. #decls),
+      go (aliceDefns ^. #terms) (aliceDiff ^. #terms)
+    ]
   where
-    f :: (name, Op hash) -> Maybe (name, name)
-    f (name, op) =
-      case op of
-        Added _ -> Nothing
-        Deleted _ -> Nothing
-        Updated _ hash ->
-          BiMultimap.lookupPreimage name namespace
-            & Set.delete name
-            & Set.toList
-            & map (g hash)
-            & asum
+    go ::
+      forall ref.
+      Ord ref =>
+      BiMultimap ref name ->
+      Map name (Merge.DiffOp hash) ->
+      Maybe (name, name)
+    go namespace diff =
+      asum (map f (Map.toList diff))
       where
-        g hash alias =
-          case Map.lookup alias diff of
-            Just (Updated _ hash2) | hash == hash2 -> Nothing
-            _ -> Just (name, alias)
-
-deepnessToPpe :: BiMultimap TypeReference Name -> BiMultimap Referent Name -> PrettyPrintEnv
-deepnessToPpe typeNames termNames =
-  PrettyPrintEnv
-    ( \ref ->
-        BiMultimap.lookupDom (referent1to2 ref) termNames
-          & Set.lookupMin
-          & maybe [] nameToPpeEntry
-    )
-    ( \ref ->
-        BiMultimap.lookupDom ref typeNames
-          & Set.lookupMin
-          & maybe [] nameToPpeEntry
-    )
-  where
-    -- Our pretty-print env takes V1 referents, which have constructor types, but we can safely throw those constructor
-    -- types away, because the constructor reference is all we need to look up in our map.
-    referent1to2 :: V1.Referent -> Referent
-    referent1to2 = \case
-      V1.Referent.Con (ConstructorReference typeRef conId) _conTy -> Referent.Con typeRef conId
-      V1.Referent.Ref termRef -> Referent.Ref termRef
-
-    nameToPpeEntry :: Name -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
-    nameToPpeEntry name =
-      [(HQ'.NameOnly name, HQ'.NameOnly name)]
-
-syntacticallyHashDecls ::
-  (Monad m, Var v) =>
-  (TypeReferenceId -> m (V1.Decl v a)) ->
-  PrettyPrintEnv ->
-  BiMultimap TypeReference Name ->
-  m (BiMultimap Hash Name)
-syntacticallyHashDecls loadDecl ppe =
-  BiMultimap.unsafeTraverseDom \case
-    ReferenceBuiltin name -> pure (Synhash.hashBuiltinDecl name)
-    ReferenceDerived ref -> do
-      decl <- loadDecl ref
-      pure (Synhash.hashDecl ppe ref decl)
-
-syntacticallyHashTerms ::
-  (Monad m, Var v) =>
-  (TermReferenceId -> m (V1.Term v a)) ->
-  PrettyPrintEnv ->
-  BiMultimap Referent Name ->
-  m (BiMultimap Hash Name)
-syntacticallyHashTerms loadTerm ppe =
-  BiMultimap.unsafeTraverseDom \case
-    Referent.Con _ _ -> pure hashThatIsDistinctFromAllTermHashes
-    Referent.Ref (ReferenceBuiltin name) -> pure (Synhash.hashBuiltinTerm name)
-    Referent.Ref (ReferenceDerived ref) -> do
-      term <- loadTerm ref
-      pure (Synhash.hashTerm ppe term)
-  where
-    -- TODO explain better why it's fine to give all data constructors the same syntactic hash, so long as it's
-    -- different than any term hash. the skinny:
-    --   * want datacon->term or vice versa to look like a conflict
-    --   * datacon->datacon is fine to consider not-conflicted because a conflict, if any, would appear on the decl
-    hashThatIsDistinctFromAllTermHashes :: Hash
-    hashThatIsDistinctFromAllTermHashes =
-      Hash.Hash (mempty :: ShortByteString)
-
-data Op a
-  = Added !a
-  | Deleted !a
-  | Updated !a !a
-
--- diffish(lca, alice)
-diffish :: forall hash name. (Eq hash, Ord name) => BiMultimap hash name -> BiMultimap hash name -> Map name (Op hash)
-diffish old new =
-  Map.mapMaybe id (alignWith f (BiMultimap.range old) (BiMultimap.range new))
-  where
-    f :: These hash hash -> Maybe (Op hash)
-    f = \case
-      This x -> Just (Deleted x)
-      That y -> Just (Added y)
-      These x y
-        | x == y -> Nothing
-        | otherwise -> Just (Updated x y)
+        f :: (name, Merge.DiffOp hash) -> Maybe (name, name)
+        f (name, op) =
+          case op of
+            Merge.Added _ -> Nothing
+            Merge.Deleted _ -> Nothing
+            Merge.Updated _ hash ->
+              BiMultimap.lookupPreimage name namespace
+                & Set.delete name
+                & Set.toList
+                & map (g hash)
+                & asum
+          where
+            g hash alias =
+              case Map.lookup alias diff of
+                Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
+                _ -> Just (name, alias)
 
 -- conflictsish(diffish(lca, alice), diffish(lca, bob))
-conflictsish :: forall hash name. (Eq hash, Ord name) => Map name (Op hash) -> Map name (Op hash) -> Set name
+conflictsish :: forall hash name. (Eq hash, Ord name) => Map name (Merge.DiffOp hash) -> Map name (Merge.DiffOp hash) -> Set name
 conflictsish aliceDiff bobDiff =
   Map.keysSet (Map.mapMaybe id (alignWith f aliceDiff bobDiff))
   where
-    f :: These (Op hash) (Op hash) -> Maybe ()
+    f :: These (Merge.DiffOp hash) (Merge.DiffOp hash) -> Maybe ()
     f = \case
-      These (Added x) (Added y) | x /= y -> Just ()
-      These (Updated _ x) (Updated _ y) | x /= y -> Just ()
+      These (Merge.Added x) (Merge.Added y) | x /= y -> Just ()
+      These (Merge.Updated _ x) (Merge.Updated _ y) | x /= y -> Just ()
       _ -> Nothing
 
 -- | Load the library dependencies (lib.*) of a namespace.
@@ -555,30 +470,30 @@ showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
 
-printDeclsDiff :: BiMultimap TypeReference Name -> Map Name (Op Hash) -> IO ()
+printDeclsDiff :: BiMultimap TypeReference Name -> Map Name (Merge.DiffOp Hash) -> IO ()
 printDeclsDiff declNames = do
   Text.putStr . Text.unlines . map f . Map.toList
   where
-    f :: (Name, Op Hash) -> Text
+    f :: (Name, Merge.DiffOp Hash) -> Text
     f (name, op) =
       case op of
-        Added _ -> Text.green ("decl " <> Name.toText name) <> ref
-        Deleted _ -> Text.red ("decl " <> Name.toText name) <> ref
-        Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
+        Merge.Added _ -> Text.green ("decl " <> Name.toText name) <> ref
+        Merge.Deleted _ -> Text.red ("decl " <> Name.toText name) <> ref
+        Merge.Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
       where
         ref =
           Text.brightBlack (showReference (fromJust (BiMultimap.lookupRan name declNames)))
 
-printTermsDiff :: BiMultimap Referent Name -> Map Name (Op Hash) -> IO ()
+printTermsDiff :: BiMultimap Referent Name -> Map Name (Merge.DiffOp Hash) -> IO ()
 printTermsDiff termNames = do
   Text.putStr . Text.unlines . map f . Map.toList
   where
-    f :: (Name, Op Hash) -> Text
+    f :: (Name, Merge.DiffOp Hash) -> Text
     f (name, op) =
       case op of
-        Added _ -> Text.green ("term " <> Name.toText name) <> ref
-        Deleted _ -> Text.red ("term " <> Name.toText name) <> ref
-        Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
+        Merge.Added _ -> Text.green ("term " <> Name.toText name) <> ref
+        Merge.Deleted _ -> Text.red ("term " <> Name.toText name) <> ref
+        Merge.Updated _ _ -> Text.magenta ("decl " <> Name.toText name) <> ref
       where
         ref =
           Text.brightBlack (showReferent (fromJust (BiMultimap.lookupRan name termNames)))

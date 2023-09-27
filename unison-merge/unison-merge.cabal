@@ -19,10 +19,11 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge2
-      Unison.Merge.Synhash
   other-modules:
+      Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
+      Unison.Merge.Synhash
   hs-source-dirs:
       src
   default-extensions:
@@ -62,6 +63,7 @@ library
       base
     , bimap
     , bitvec
+    , bytestring
     , containers
     , either
     , generic-lens
@@ -70,6 +72,8 @@ library
     , mtl
     , nonempty-containers
     , safe
+    , semialign
+    , these
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2

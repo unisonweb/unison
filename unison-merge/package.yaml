@@ -8,6 +8,7 @@ dependencies:
   - base
   - bimap
   - bitvec
+  - bytestring
   - containers
   - either
   - generic-lens
@@ -16,6 +17,8 @@ dependencies:
   - mtl
   - nonempty-containers
   - safe
+  - semialign
+  - these
   - unison-core
   - unison-core1
   - unison-prelude
@@ -35,7 +38,6 @@ library:
     # TODO probably whittle this down to one
     - Unison.Merge
     - Unison.Merge2
-    - Unison.Merge.Synhash
   source-dirs: src
   when:
     - condition: '!os(windows)'
