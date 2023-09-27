@@ -22,7 +22,7 @@ type ConstructorId = Word64
 type Term v = ABT.Term (F v) v ()
 
 -- | A version of 'Term' but where TermRefs never have a 'Nothing' Hash, but instead self references
--- are either filled with hash of the component, or are filled with User Variable references
+-- are filled with User Variable references
 -- to the relevant piece of the component in a component map.
 type HashableTerm v = ABT.Term (F' Text HashableTermRef TypeRef HashableTermLink TypeLink v) v ()
 
