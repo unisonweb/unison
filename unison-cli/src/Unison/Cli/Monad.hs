@@ -54,7 +54,6 @@ import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
 import Control.Monad.State.Strict qualified as State
 import Data.Configurator.Types qualified as Configurator
-import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)

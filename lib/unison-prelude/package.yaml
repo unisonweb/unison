@@ -14,6 +14,7 @@ dependencies:
   - containers
   - either
   - extra
+  - generic-lens
   - lens
   - mtl
   - pretty-simple
