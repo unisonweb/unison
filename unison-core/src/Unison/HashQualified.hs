@@ -74,8 +74,8 @@ fromNameHash n h = case n of
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
   n@(NameOnly _) -> n
-  HashOnly s -> HashOnly (SH.take i s)
-  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
+  HashOnly s -> HashOnly (SH.shortenTo i s)
+  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.shortenTo i s)
 
 toStringWith :: (n -> String) -> HashQualified n -> String
 toStringWith f = Text.unpack . toTextWith (Text.pack . f)

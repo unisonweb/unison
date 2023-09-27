@@ -1,3 +1,5 @@
+use base.Text toUtf8
+
 tls.tests = do
   check "decoding a cert should work" do isRight (decodeCert (toUtf8 selfSignedCert))
   check "decoding a private key should work" do 1 == List.size (decodePrivateKey (toUtf8 selfSignedKey))

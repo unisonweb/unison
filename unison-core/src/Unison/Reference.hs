@@ -108,7 +108,7 @@ idToShortHash = toShortHash . DerivedId
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
 toShortHash (Derived h 0) = SH.ShortHash (H.toBase32HexText h) Nothing Nothing
-toShortHash (Derived h i) = SH.ShortHash (H.toBase32HexText h) (Just $ showSuffix i) Nothing
+toShortHash (Derived h i) = SH.ShortHash (H.toBase32HexText h) (Just i) Nothing
 
 -- toShortHash . fromJust . fromShortHash == id and
 -- fromJust . fromShortHash . toShortHash == id
@@ -120,9 +120,7 @@ fromShortHash :: ShortHash -> Maybe Reference
 fromShortHash (SH.Builtin b) = Just (Builtin b)
 fromShortHash (SH.ShortHash prefix cycle Nothing) = do
   h <- H.fromBase32HexText prefix
-  case cycle of
-    Nothing -> Just (Derived h 0)
-    Just i -> Derived h <$> readMay (Text.unpack i)
+  Just (Derived h (fromMaybe 0 cycle))
 fromShortHash (SH.ShortHash _prefix _cycle (Just _cid)) = Nothing
 
 showSuffix :: Pos -> Text
@@ -146,7 +144,7 @@ idToText :: Id -> Text
 idToText = toText . DerivedId
 
 showShort :: Int -> Reference -> Text
-showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
+showShort numHashChars = SH.toText . SH.shortenTo numHashChars . toShortHash
 
 type Pos = Word64
 
@@ -237,6 +235,6 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k, r)])])
     done m = sortOn snd <$> toList m
 
-instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
+instance Show Id where show = Text.unpack . SH.toText . SH.shortenTo 5 . toShortHash . DerivedId
 
-instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
+instance Show Reference where show = Text.unpack . SH.toText . SH.shortenTo 5 . toShortHash

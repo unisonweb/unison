@@ -136,6 +136,7 @@ library
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -208,6 +209,7 @@ library
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -266,6 +268,7 @@ executable cli-integration-tests
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -343,6 +346,7 @@ executable cli-integration-tests
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -396,6 +400,7 @@ executable transcripts
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -472,6 +477,7 @@ executable transcripts
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -531,6 +537,7 @@ executable unison
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -608,6 +615,7 @@ executable unison
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -670,6 +678,7 @@ test-suite cli-tests
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       MultiWayIf
@@ -747,6 +756,7 @@ test-suite cli-tests
     , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli

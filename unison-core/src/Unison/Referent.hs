@@ -22,7 +22,7 @@ module Unison.Referent
 
     -- * ShortHash helpers
     isPrefixOf1,
-    -- isPrefixOf2,
+    isPrefixOf2,
     toShortHash,
     toText,
     toString,

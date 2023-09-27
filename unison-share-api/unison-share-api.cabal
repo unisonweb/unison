@@ -39,11 +39,6 @@ library
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
-      Unison.Server.Share
-      Unison.Server.Share.Definitions
-      Unison.Server.Share.FuzzyFind
-      Unison.Server.Share.NamespaceDetails
-      Unison.Server.Share.RenderDoc
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API

@@ -595,7 +595,7 @@ showListEdits patch ppe =
       let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
       case termEdit of
         TermEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])
@@ -620,7 +620,7 @@ showListEdits patch ppe =
       let lhsTypeName = PPE.typeName ppe lhsRef
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
       case typeEdit of
         TypeEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])
@@ -2163,6 +2163,8 @@ notifyUser dir = \case
         <> P.newline
         <> P.newline
         <> P.wrap "🎉 🥳 Happy coding!"
+  ProjectHasNoReleases projectName ->
+    pure . P.wrap $ prettyProjectName projectName <> "has no releases."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

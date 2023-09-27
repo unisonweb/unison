@@ -81,6 +81,12 @@ serial.loadSelfContained name path =
     then pass (name ++ " value roundtrip")
     else fail name "value roundtrip"
 
+    match validateLinks deps with
+      Left [] -> fail name "validateLinks: empty Left"
+      Left _  -> fail name "validateLinks: couldn't rehash"
+      Right [] -> pass (name ++ " links validated")
+      Right _ -> fail name "failed link validation"
+
     _ = cache_ deps
     match Value.load v with
       Left l -> raiseFailure "value missing deps" l
@@ -95,14 +101,14 @@ serial.runTestCase name =
   handle
     p@(f, i) = loadSelfContained name sfile
     o = fromUtf8 (readFile ofile)
-    -- h = readFile hfile
+    h = readFile hfile
+
+    if toBase32 (crypto.hash Sha3_512 p) === h
+    then pass (name ++ " hash matches")
+    else fail name "hash mismatch"
 
     if f i === o
-    then pass name
-      -- todo: check hashes
-      -- if toBase32 (crypto.hash Sha3_512 p) == h
-      --    then pass name
-      --    else fail name "hash mismatch"
+    then pass (name ++ "value matches")
     else fail name "output mismatch"
   with cases
     { x } -> x

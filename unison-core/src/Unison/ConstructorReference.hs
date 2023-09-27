@@ -10,7 +10,6 @@ where
 
 import Control.Lens
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Prelude
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.ShortHash (ShortHash)
@@ -33,5 +32,5 @@ reference_ =
 toShortHash :: ConstructorReferenceId -> ShortHash
 toShortHash (ConstructorReference r i) =
   case Reference.idToShortHash r of
-    ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just $ tShow i)
-    ShortHash.Builtin b -> error $ "toShortHash: impossible constructor reference " ++ show b
+    ShortHash.Builtin b -> ShortHash.Builtin b
+    ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just i)

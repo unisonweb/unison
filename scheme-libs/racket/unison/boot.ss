@@ -41,6 +41,12 @@
   describe-value
   decode-value
 
+  reference->termlink
+  reference->typelink
+  referent->termlink
+  typelink->reference
+  termlink->referent
+
   unison-tuple->list)
 
 (require
@@ -56,8 +62,11 @@
   (only-in racket/control prompt0-at control0-at)
   unison/core
   unison/data
+  unison/data-info
   unison/crypto
-  (only-in unison/chunked-seq string->chunked-string))
+  (only-in unison/chunked-seq
+           string->chunked-string
+           chunked-string->string))
 
 ; Computes a symbol for automatically generated partial application
 ; cases, based on number of arguments applied. The partial
@@ -485,3 +494,57 @@
 ;
 (define (decode-value x) '())
 
+(define (reference->termlink rf)
+  (match rf
+    [(unison-data _ t (list nm))
+     #:when (= t unison-reference-builtin:tag)
+     (unison-termlink-builtin nm)]
+    [(unison-data _ t (list id))
+     #:when (= t unison-reference-derived:tag)
+     (match id
+       [(unison-data _ t (list rf i))
+        #:when (= t unison-id-id:tag)
+        (unison-termlink-derived rf i)])]))
+
+(define (referent->termlink rn)
+  (match rn
+    [(unison-data _ t (list rf i))
+     #:when (= t unison-referent-con:tag)
+     (unison-termlink-con (reference->typelink rf) i)]
+    [(unison-data _ t (list rf))
+     #:when (= t unison-referent-def:tag)
+     (reference->termlink rf)]))
+
+(define (reference->typelink rf)
+  (match rf
+    [(unison-data _ t (list nm))
+     #:when (= t unison-reference-builtin:tag)
+     (unison-typelink-builtin (chunked-string->string nm))]
+    [(unison-data _ t (list id))
+     #:when (= t unison-reference-derived:tag)
+     (match id
+       [(unison-data _ t (list rf i))
+        #:when (= t unison-id-id:tag)
+        (unison-typelink-derived rf i)])]))
+
+(define (typelink->reference tl)
+  (match tl
+    [(unison-typelink-builtin nm)
+     (unison-reference-builtin (string->chunked-string nm))]
+    [(unison-typelink-derived hs i)
+     (unison-reference-derived
+       (unison-id-id hs i))]))
+
+(define (termlink->referent tl)
+  (match tl
+    [(unison-termlink-builtin nm)
+     (unison-referent-def
+       (unison-reference-builtin nm))]
+    [(unison-termlink-derived rf i)
+     (unison-referent-def
+       (unison-reference-derived
+         (unison-id-id rf i)))]
+    [(unison-termlink-con tyl i)
+     (unison-referent-con
+       (typelink->reference tyl)
+       i)]))

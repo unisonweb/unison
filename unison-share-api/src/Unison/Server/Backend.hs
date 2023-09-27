@@ -86,6 +86,7 @@ module Unison.Server.Backend
     evalDocRef,
     mkTermDefinition,
     mkTypeDefinition,
+    displayTerm,
   )
 where
 
@@ -175,7 +176,7 @@ import Unison.Server.SearchResult' qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
 import Unison.Server.Types qualified as ServerTypes
-import Unison.ShortHash
+import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -599,7 +600,7 @@ typeListEntry codebase mayBranch (ExactName nameSegment ref) = do
         typeEntryName = nameSegment,
         typeEntryConflicted = isConflicted,
         typeEntryTag = tag,
-        typeEntryHash = SH.take hashLength $ Reference.toShortHash ref
+        typeEntryHash = SH.shortenTo hashLength $ Reference.toShortHash ref
       }
   where
     isConflicted = case mayBranch of
@@ -876,6 +877,7 @@ mungeSyntaxText ::
 mungeSyntaxText = fmap Syntax.convertElement
 
 mkTypeDefinition ::
+  MonadIO m =>
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   Path.Path ->
@@ -886,7 +888,7 @@ mkTypeDefinition ::
   DisplayObject
     (AnnotatedText (UST.Element Reference))
     (AnnotatedText (UST.Element Reference)) ->
-  Backend IO TypeDefinition
+  m TypeDefinition
 mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
   let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
   tag <-

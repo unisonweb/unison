@@ -60,7 +60,7 @@ promiseSequentialTest = do
   checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
 
 millis = 1000
-sleep_ n = unsafeRun! do sleep n
+sleep_ n = unsafeRun! do sleepMicroseconds n
 
 promiseConcurrentTest = do
   use Nat eq

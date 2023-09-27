@@ -35,6 +35,11 @@
         renameFile.impl.v3
         createDirectory.impl.v3
         removeDirectory.impl.v3
+        setCurrentDirectory.impl.v3
+        renameDirectory.impl.v3
+        isDirectory.impl.v3
+        systemTime.impl.v3
+        systemTimeMicroseconds.impl.v3
         createTempDirectory.impl.v3)))
 
 (define (getFileSize.impl.v3 path)
@@ -62,6 +67,10 @@
 (define (getTempDirectory.impl.v3)
     (right (string->chunked-string (path->string (find-system-path 'temp-dir)))))
 
+(define-unison (setCurrentDirectory.impl.v3 path)
+    (current-directory (chunked-string->string path))
+    (unison-either-right none))
+
 (define-unison (createTempDirectory.impl.v3 prefix)
     (unison-either-right
         (string->chunked-string
@@ -75,13 +84,30 @@
     (unison-either-right none))
 
 (define-unison (removeDirectory.impl.v3 file)
-    (delete-directory (chunked-string->string file))
+    (delete-directory/files (chunked-string->string file))
+    (unison-either-right none))
+
+(define-unison (isDirectory.impl.v3 path)
+    (unison-either-right
+        (if (directory-exists? (chunked-string->string path))
+            unison-boolean-true
+            unison-boolean-false)))
+
+(define-unison (renameDirectory.impl.v3 old new)
+    (rename-file-or-directory (chunked-string->string old)
+        (chunked-string->string new))
     (unison-either-right none))
 
 (define-unison (renameFile.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
     (unison-either-right none))
+
+(define-unison (systemTime.impl.v3 unit)
+    (unison-either-right (current-seconds)))
+
+(define-unison (systemTimeMicroseconds.impl.v3 unit)
+    (unison-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
 
 (define (threadCPUTime.v1)
     (right (current-process-milliseconds (current-thread))))

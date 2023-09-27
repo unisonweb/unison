@@ -144,7 +144,6 @@ import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch.Diff
 import U.Codebase.Sqlite.Branch.Diff qualified as S.BranchDiff
@@ -157,10 +156,7 @@ import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
-import U.Codebase.Sqlite.LocalIds
-  ( LocalIds,
-    WatchLocalIds,
-  )
+import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
@@ -197,6 +193,7 @@ import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
