@@ -70,7 +70,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
-import Unison.SyntacticHash qualified as SyntacticHash
+import Unison.Merge.Synhash qualified as Synhash
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
@@ -465,10 +465,10 @@ syntacticallyHashDecls ::
   m (BiMultimap Hash Name)
 syntacticallyHashDecls loadDecl ppe =
   BiMultimap.unsafeTraverseDom \case
-    ReferenceBuiltin name -> pure (SyntacticHash.hashBuiltinDecl name)
+    ReferenceBuiltin name -> pure (Synhash.hashBuiltinDecl name)
     ReferenceDerived ref -> do
       decl <- loadDecl ref
-      pure (SyntacticHash.hashDecl ppe ref decl)
+      pure (Synhash.hashDecl ppe ref decl)
 
 syntacticallyHashTerms ::
   (Monad m, Var v) =>
@@ -479,10 +479,10 @@ syntacticallyHashTerms ::
 syntacticallyHashTerms loadTerm ppe =
   BiMultimap.unsafeTraverseDom \case
     Referent.Con _ _ -> pure hashThatIsDistinctFromAllTermHashes
-    Referent.Ref (ReferenceBuiltin name) -> pure (SyntacticHash.hashBuiltinTerm name)
+    Referent.Ref (ReferenceBuiltin name) -> pure (Synhash.hashBuiltinTerm name)
     Referent.Ref (ReferenceDerived ref) -> do
       term <- loadTerm ref
-      pure (SyntacticHash.hashTerm ppe term)
+      pure (Synhash.hashTerm ppe term)
   where
     -- TODO explain better why it's fine to give all data constructors the same syntactic hash, so long as it's
     -- different than any term hash. the skinny:

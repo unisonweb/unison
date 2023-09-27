@@ -35,7 +35,7 @@ library:
     # TODO probably whittle this down to one
     - Unison.Merge
     - Unison.Merge2
-    - Unison.SyntacticHash
+    - Unison.Merge.Synhash
   source-dirs: src
   when:
     - condition: '!os(windows)'

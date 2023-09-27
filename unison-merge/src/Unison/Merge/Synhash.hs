@@ -1,4 +1,29 @@
-module Unison.SyntacticHash
+-- | Utilities for computing the "syntactic hash" of a decl or term, which is a hash that is computed after substituting
+-- references to other terms and decls with names from a pretty-print environment.
+--
+-- Thus, syntactic hashes can be compared for equality to answer questions like "would these definitions look the same
+-- when rendered for a human (even if their underlying references are different?".
+--
+-- The merge algorithm currently uses syntactic hashes for determining whether an update was performed by a human, or
+-- was the result of auto-propagation. (Critically, this cannot handle renames very well). For example, consider
+-- comparing two definitions on Alice's branch; one old one from somewhere in its history, and one new:
+--
+--   old namespace        new namespace
+--   ----------------     ---------------
+--   foo = #bar + 3       foo = #bar2 + 3
+--
+-- Either Alice manually updated #bar to #bar2, or else a dependency of #bar was updated, inducing an update to #bar2.
+-- Computing the syntactic hash can help answer that question. Let's combine a pretty-print environment for the old
+-- and new namespaces together, substitute references with it, and look again at the terms:
+--
+--   old namespace        new namespace
+--   ----------------     ----------------
+--   foo = helper + 3     foo = helper + 3
+--
+-- We see now that our pretty-print environment has mapped both #bar and #bar2 to the name "helper", so each version of
+-- "foo" would have the same syntactic hash. This indicates (to our merge algorithm) that this was an auto-propagated
+-- update.
+module Unison.Merge.Synhash
   ( hashType,
     hashTerm,
     hashBuiltinTerm,

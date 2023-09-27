@@ -19,7 +19,7 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge2
-      Unison.SyntacticHash
+      Unison.Merge.Synhash
   other-modules:
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
