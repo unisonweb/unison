@@ -716,9 +716,9 @@ saveNamespace hh bhId me = do
         pure (DbBranchV2 S.Branch {terms, types, patches, children})
       BranchV3 branch -> do
         children <- Map.bitraverse saveNameSegment (saveBranchV3 hh) (branch ^. #children)
-        decls <- Map.bitraverse saveNameSegment c2sReference (branch ^. #decls)
         terms <- Map.bitraverse saveNameSegment c2sReferent (branch ^. #terms)
-        pure (DbBranchV3 S.BranchV3 {children, decls, terms})
+        types <- Map.bitraverse saveNameSegment c2sReference (branch ^. #types)
+        pure (DbBranchV3 S.BranchV3 {children, terms, types})
 
     c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
     c2sMetadata mm = do
@@ -942,13 +942,13 @@ saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats = \case
   DbBranchV2 branch -> saveV2 branch
   -- Here, we elect to serialize V3 branches as V2 branches just before saving them to the database. We could save a
   -- little space instead by actually having a proper serialization format for V3 branches.
-  DbBranchV3 branch ->
+  DbBranchV3 S.BranchV3 {children, terms, types} ->
     saveV2
       S.Branch
-        { children = branch ^. #children,
+        { children,
           patches = Map.empty,
-          terms = Map.map unconflictedAndWithoutMetadata (branch ^. #terms),
-          types = Map.map unconflictedAndWithoutMetadata (branch ^. #decls)
+          terms = Map.map unconflictedAndWithoutMetadata terms,
+          types = Map.map unconflictedAndWithoutMetadata types
         }
     where
       -- Carry a v3 term or type (one ref, no metadata) to a v2 term or type (set of refs, each with metadata)
@@ -1435,11 +1435,11 @@ namespaceStatsForDbBranch = \case
             }
     childrenStats <- getChildrenStats children
     pure (myStats <> childrenStats)
-  DbBranchV3 S.BranchV3 {children, decls, terms} -> do
+  DbBranchV3 S.BranchV3 {children, terms, types} -> do
     let myStats =
           NamespaceStats
             { numContainedTerms = Map.size terms,
-              numContainedTypes = Map.size decls,
+              numContainedTypes = Map.size types,
               numContainedPatches = 0
             }
     childrenStats <- getChildrenStats children

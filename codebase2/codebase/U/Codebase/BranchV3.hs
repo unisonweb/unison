@@ -20,8 +20,8 @@ import Unison.Prelude
 --   * Patches don't exist.
 data BranchV3 m = BranchV3
   { children :: !(Map NameSegment (CausalBranchV3 m)),
-    decls :: !(Map NameSegment TypeReference),
-    terms :: !(Map NameSegment Referent)
+    terms :: !(Map NameSegment Referent),
+    types :: !(Map NameSegment TypeReference)
   }
   deriving stock (Generic)
 

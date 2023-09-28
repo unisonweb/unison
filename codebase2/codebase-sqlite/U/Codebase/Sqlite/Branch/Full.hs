@@ -54,8 +54,8 @@ data Branch' t h p c = Branch
 -- | A V3 branch; see U.Codebase.BranchV3
 data GBranchV3 t h c = BranchV3
   { children :: !(Map t c),
-    decls :: !(Map t (TypeReference' t h)),
-    terms :: !(Map t (Referent'' t h))
+    terms :: !(Map t (Referent'' t h)),
+    types :: !(Map t (TypeReference' t h))
   }
   deriving stock (Generic, Show)
 

@@ -32,12 +32,12 @@ import Unison.Util.Map qualified as Map
 
 -- | Convert a V3 branch to a hashing branch.
 convertBranchV3 :: BranchV3 m -> H2.Branch
-convertBranchV3 BranchV3 {children, decls, terms} =
+convertBranchV3 BranchV3 {children, terms, types} =
   H2.Branch
     { children = children & Map.bimap coerce (unCausalHash . Causal.causalHash),
       patches = Map.empty,
       terms = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Referent ref) emptyMetadata) terms,
-      types = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Reference ref) emptyMetadata) decls
+      types = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Reference ref) emptyMetadata) types
     }
   where
     emptyMetadata = H2.MdValues Set.empty
