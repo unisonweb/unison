@@ -102,7 +102,7 @@ module Unison.ABT
   )
 where
 
-import Control.Lens (Lens', lens, use, (%%~), (.=))
+import Control.Lens (Lens', lens, (%%~))
 import Control.Monad.State (MonadState, evalState, get, put, runState)
 import Data.Foldable qualified as Foldable
 import Data.List hiding (cycle, find)
@@ -111,9 +111,11 @@ import Data.Set qualified as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
+    allVars,
     cata,
     foreachSubterm,
     freshInBoth,
+    freshenS,
     para,
     rename,
     subst',
@@ -350,13 +352,6 @@ changeVars m t = case out t of
 fresh :: (Var v) => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
 
-allVars :: (Foldable f) => Term f v a -> [v]
-allVars t = case out t of
-  Var v -> [v]
-  Cycle body -> allVars body
-  Abs v body -> v : allVars body
-  Tm v -> Foldable.toList v >>= allVars
-
 -- Numbers the free vars by the position where they're first
 -- used within the term. See usage in `Type.normalizeForallOrder`
 numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
@@ -368,20 +363,6 @@ numberedFreeVars t =
       Cycle body -> go bound body
       Abs v body -> go (v : bound) body
       Tm v -> Foldable.toList v >>= go bound
-
--- | Freshens the given variable wrt. the set of used variables
--- tracked by state. Adds the result to the set of used variables.
-freshenS :: (Var v, MonadState (Set v) m) => v -> m v
-freshenS = freshenS' id
-
--- | A more general version of `freshenS` that uses a lens
--- to focus on used variables inside state.
-freshenS' :: (Var v, MonadState s m) => Lens' s (Set v) -> v -> m v
-freshenS' uvLens v = do
-  usedVars <- use uvLens
-  let v' = freshIn usedVars v
-  uvLens .= Set.insert v' usedVars
-  pure v'
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
