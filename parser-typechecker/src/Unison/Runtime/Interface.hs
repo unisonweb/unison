@@ -505,7 +505,7 @@ evalInContext ::
   EvalCtx ->
   ActiveThreads ->
   Word64 ->
-  IO (Either Error (Term Symbol))
+  IO (Either Error ([Error], Term Symbol))
 evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
@@ -520,22 +520,30 @@ evalInContext ppe ctx activeThreads w = do
               (decompTm ctx)
           )
 
+      finish = fmap (first listErrors . decom)
+
       prettyError (PE _ p) = p
       prettyError (BU tr0 nm c) =
-        either id (bugMsg ppe tr nm) $ decom c
+        bugMsg ppe tr nm $ decom c
         where
           tr = first (backmapRef ctx) <$> tr0
 
       debugText fancy c = case decom c of
-        Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty ppe dv
-        Left _ -> MsgTrace ("Couldn't decompile value") (show c)
+        (errs, dv)
+          | null errs ->
+              SimpleTrace . debugTextFormat fancy $ pretty ppe dv
+          | otherwise ->
+              MsgTrace
+                (debugTextFormat fancy $ tabulateErrors errs)
+                (show c)
+                (debugTextFormat fancy $ pretty ppe dv)
 
   result <-
     traverse (const $ readIORef r)
       . first prettyError
       <=< try
       $ apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
-  pure $ decom =<< result
+  pure $ finish result
 
 executeMainComb ::
   Word64 ->
@@ -564,15 +572,15 @@ executeMainComb init cc = do
                   (intermedRemap ctx)
                   (decompTm ctx)
               )
-      pure . either id (bugMsg PPE.empty tr nm) $ decom c
+      pure . bugMsg PPE.empty tr nm $ decom c
 
 bugMsg ::
   PrettyPrintEnv ->
   [(Reference, Int)] ->
   Text ->
-  Term Symbol ->
+  (Set DecompError, Term Symbol) ->
   Pretty ColorText
-bugMsg ppe tr name tm
+bugMsg ppe tr name (errs, tm)
   | name == "blank expression" =
       P.callout icon . P.lines $
         [ P.wrap
@@ -582,7 +590,7 @@ bugMsg ppe tr name tm
             ),
           "",
           P.indentN 2 $ pretty ppe tm,
-          "\n",
+          tabulateErrors errs,
           stackTrace ppe tr
         ]
   | "pattern match failure" `isPrefixOf` name =
@@ -597,7 +605,7 @@ bugMsg ppe tr name tm
           "",
           "This happens when calling a function that doesn't handle all \
           \possible inputs",
-          "\n",
+          tabulateErrors errs,
           stackTrace ppe tr
         ]
   | name == "builtin.raise" =
@@ -605,7 +613,7 @@ bugMsg ppe tr name tm
         [ P.wrap ("The program halted with an unhandled exception:"),
           "",
           P.indentN 2 $ pretty ppe tm,
-          "\n",
+          tabulateErrors errs,
           stackTrace ppe tr
         ]
   | name == "builtin.bug",
@@ -622,10 +630,10 @@ bugMsg ppe tr name tm
           "",
           "This happens when calling a function that doesn't handle all \
           \possible inputs",
-          "\n",
+          tabulateErrors errs,
           stackTrace ppe tr
         ]
-bugMsg ppe tr name tm =
+bugMsg ppe tr name (errs, tm) =
   P.callout icon . P.lines $
     [ P.wrap
         ( "I've encountered a call to"
@@ -634,7 +642,7 @@ bugMsg ppe tr name tm =
         ),
       "",
       P.indentN 2 $ pretty ppe tm,
-      "\n",
+      tabulateErrors errs,
       stackTrace ppe tr
     ]
 
@@ -780,6 +788,16 @@ debugTextFormat fancy =
   where
     render = if fancy then toANSI else toPlain
 
+listErrors :: Set DecompError -> [Error]
+listErrors = fmap (P.indentN 2 . renderDecompError) . toList
+
+tabulateErrors :: Set DecompError -> Error
+tabulateErrors errs | null errs = "\n"
+tabulateErrors errs =
+  P.indentN 2 . P.lines $
+    P.wrap "The following errors occured while decompiling:" :
+      (listErrors errs)
+
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
   CCache builtinForeigns False debugText
@@ -798,8 +816,14 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
-      Right dv -> SimpleTrace . (debugTextFormat fancy) $ pretty PPE.empty dv
-      Left _ -> MsgTrace ("Couldn't decompile value") (show c)
+      (errs, dv)
+        | null errs ->
+            SimpleTrace . debugTextFormat fancy $ pretty PPE.empty dv
+        | otherwise ->
+            MsgTrace
+              (debugTextFormat fancy $ tabulateErrors errs)
+              (show c)
+              (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
     combs =

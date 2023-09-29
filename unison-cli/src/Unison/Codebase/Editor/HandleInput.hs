@@ -3201,14 +3201,16 @@ evalUnisonFile sandbox ppe unisonFile args = do
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   Cli.with_ (withArgs args) do
-    rs@(_, map) <-
+    (nts, errs, map) <-
       Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
         Cli.returnEarly (EvaluationFailure err)
-    for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) ->
-      when (not isHit) do
+    when (not $ null errs) (displayDecompileErrors errs)
+    for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
+      -- only update the watch cache when there are no errors
+      when (not isHit && null errs) do
         let value' = Term.amap (\() -> Ann.External) value
         Cli.runTransaction (Codebase.putWatch kind hash value')
-    pure rs
+    pure (nts, map)
 
 evalPureUnison ::
   PPE.PrettyPrintEnv ->
@@ -3226,6 +3228,15 @@ evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
     a = ABT.annotation tm
     allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
     msg = "pure code can't perform I/O"
+
+displayDecompileErrors :: [Runtime.Error] -> Cli ()
+displayDecompileErrors errs = Cli.respond (PrintMessage msg)
+  where
+  msg = P.lines $
+    [ "I had trouble decompiling some results."
+    , ""
+    , "The following errors were encountered:"
+    ] ++ fmap (P.indentN 2) errs
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
@@ -3247,14 +3258,17 @@ evalUnisonTermE sandbox ppe useCache tm = do
   r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe theRuntime tm)
   when useCache do
     case r of
-      Right tmr ->
-        Cli.runTransaction do
-          Codebase.putWatch
-            WK.RegularWatch
-            (Hashing.hashClosedTerm tm)
-            (Term.amap (const Ann.External) tmr)
+      Right (errs, tmr)
+        -- don't cache when there were errors
+        | null errs ->
+            Cli.runTransaction do
+              Codebase.putWatch
+                WK.RegularWatch
+                (Hashing.hashClosedTerm tm)
+                (Term.amap (const Ann.External) tmr)
+        | otherwise -> displayDecompileErrors errs
       Left _ -> pure ()
-  pure $ r <&> Term.amap (\() -> Ann.External)
+  pure $ r <&> Term.amap (\() -> Ann.External) . snd
 
 -- | Evaluate a single closed definition.
 evalUnisonTerm ::
