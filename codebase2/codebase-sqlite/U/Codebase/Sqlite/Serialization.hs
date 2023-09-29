@@ -34,6 +34,9 @@ module U.Codebase.Sqlite.Serialization
     recomposePatchFormat,
     recomposeTermFormat,
     recomposeWatchFormat,
+
+    -- * Exported for Share
+    putTermAndType,
   )
 where
 
@@ -197,9 +200,12 @@ putTermComponent t | debug && trace ("putTermComponent " ++ show t) False = unde
 putTermComponent (TermFormat.LocallyIndexedComponent v) =
   putFramedArray
     ( \(localIds, term, typ) ->
-        putLocalIds localIds >> putFramed putTerm term >> putTType typ
+        putLocalIds localIds >> putTermAndType (term, typ)
     )
     v
+
+putTermAndType :: (MonadPut m) => (TermFormat.Term, TermFormat.Type) -> m ()
+putTermAndType (term, typ) = putFramed putTerm term >> putTType typ
 
 putTerm :: (MonadPut m) => TermFormat.Term -> m ()
 putTerm _t | debug && trace "putTerm" False = undefined
