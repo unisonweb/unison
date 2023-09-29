@@ -8,7 +8,7 @@ module Unison.Util.BiMultimap
     lookupRan,
     lookupPreimage,
 
-    -- ** Traverse
+    -- ** Mapping / traversing
     unsafeTraverseDom,
 
     -- ** Maps
