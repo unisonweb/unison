@@ -3233,7 +3233,7 @@ displayDecompileErrors :: [Runtime.Error] -> Cli ()
 displayDecompileErrors errs = Cli.respond (PrintMessage msg)
   where
   msg = P.lines $
-    [ "I had trouble decompiling some results."
+    [ P.warnCallout "I had trouble decompiling some results."
     , ""
     , "The following errors were encountered:"
     ] ++ fmap (P.indentN 2) errs

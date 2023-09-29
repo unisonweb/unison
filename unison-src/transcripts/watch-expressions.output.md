@@ -82,6 +82,8 @@ test> pass = [Ok "Passed"]
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
+  ⚠️
+  
   I had trouble decompiling some results.
   
   The following errors were encountered:
