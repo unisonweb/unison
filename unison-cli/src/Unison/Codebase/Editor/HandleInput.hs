@@ -3232,11 +3232,13 @@ evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
 displayDecompileErrors :: [Runtime.Error] -> Cli ()
 displayDecompileErrors errs = Cli.respond (PrintMessage msg)
   where
-  msg = P.lines $
-    [ P.warnCallout "I had trouble decompiling some results."
-    , ""
-    , "The following errors were encountered:"
-    ] ++ fmap (P.indentN 2) errs
+    msg =
+      P.lines $
+        [ P.warnCallout "I had trouble decompiling some results.",
+          "",
+          "The following errors were encountered:"
+        ]
+          ++ fmap (P.indentN 2) errs
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
