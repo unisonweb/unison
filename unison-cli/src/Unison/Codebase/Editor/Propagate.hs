@@ -524,11 +524,11 @@ propagate patch b = case validatePatch patch of
     -- Gets the types to which this term contains references via patterns and
     -- data constructors.
     termConstructorDependencies ::
-      (Ord v, Ord vt) => Term2 vt at ap v a -> Set TypeReference
+      Ord v => Term v a -> Set TypeReference
     termConstructorDependencies =
       Set.unions
-        . generalizedDependencies
-          GdHandler
+        . Term.generalizedDependencies
+          Term.GdHandler
             { gdTermRef = const mempty,
               gdTypeRef = const mempty,
               gdLiteralType = Set.singleton,

@@ -46,6 +46,7 @@ data Branch m = Branch
     patches :: Map NameSegment (PatchHash, m Patch),
     children :: Map NameSegment (CausalBranch m)
   }
+  deriving stock (Generic)
 
 empty :: Branch m
 empty = Branch mempty mempty mempty mempty

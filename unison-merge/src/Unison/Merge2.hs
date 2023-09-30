@@ -4,8 +4,15 @@ module Unison.Merge2
   ( -- * Library dependencies
     mergeLibdeps,
 
+    -- * Namespace diff
+    nameBasedNamespaceDiff,
+
     -- * Typechecking
     computeUnisonFile,
+
+    -- * Misc / organize these later
+    DiffOp (..),
+    NamespaceDefns (..),
   )
 where
 
@@ -74,6 +81,8 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing.Convert
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Merge.Diff (NamespaceDefns (..), nameBasedNamespaceDiff)
+import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -159,16 +168,6 @@ data SynHashes = SynHashes
     shTypes :: Map Name SynHash
   }
 
-data DiffOp
-  = DoAdded SynHash
-  | DoUpdated SynHash
-  | DoDeleted
-
-data Diff = Diff
-  { diffTerms :: Map Name DiffOp,
-    diffTypes :: Map Name DiffOp
-  }
-
 data DiffConflicts = DiffConflicts
   { dcTerms :: Set Name,
     dcTypes :: Set Name
@@ -212,12 +211,6 @@ type LoadDecl m = TypeReferenceId -> m ()
 
 computeSyntacticHashes :: Applicative m => LoadTerm m -> LoadDecl m -> DeepRefs -> PrettyPrintEnv -> m SynHashes
 computeSyntacticHashes loadTerm loadDecl deepRefs ppe = pure wundefined
-
-computeDiff :: SynHashes -> SynHashes -> Diff
-computeDiff old new = wundefined
-
-computeConflicts :: Diff -> Diff -> DiffConflicts
-computeConflicts a b = wundefined
 
 -- merge :: Applicative m => DeepRefs -> DeepRefs -> DeepRefs -> m DeepRefs
 -- merge ppe lca a b =

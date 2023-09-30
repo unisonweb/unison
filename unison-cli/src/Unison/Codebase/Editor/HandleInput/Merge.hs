@@ -76,7 +76,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
-import Unison.SyntacticHash qualified as SyntacticHash
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
 import Unison.Type qualified as V1 (Type)
