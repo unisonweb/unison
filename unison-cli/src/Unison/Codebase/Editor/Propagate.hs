@@ -521,6 +521,25 @@ propagate patch b = case validatePatch patch of
            in Map.fromList
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
+    -- Gets the types to which this term contains references via patterns and
+    -- data constructors.
+    termConstructorDependencies ::
+      (Ord v, Ord vt) => Term2 vt at ap v a -> Set TypeReference
+    termConstructorDependencies =
+      Set.unions
+        . generalizedDependencies
+          GdHandler
+            { gdTermRef = const mempty,
+              gdTypeRef = const mempty,
+              gdLiteralType = Set.singleton,
+              gdDataCtor = const . Set.singleton,
+              gdDataCtorType = Set.singleton,
+              gdEffectCtor = const . Set.singleton,
+              gdEffectCtorType = Set.singleton,
+              gdTermLink = const mempty,
+              gdTypeLink = const mempty
+            }
+
     verifyTermComponent ::
       Codebase IO Symbol Ann ->
       Map Symbol (Reference, Term Symbol Ann, a) ->
@@ -539,7 +558,7 @@ propagate patch b = case validatePatch patch of
           oldTypes = Map.keysSet typeEdits
       if not . Set.null $
         Set.intersection
-          (foldMap Term.constructorDependencies terms)
+          (foldMap termConstructorDependencies terms)
           oldTypes
         then pure Nothing
         else do

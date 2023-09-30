@@ -50,7 +50,7 @@ import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
@@ -289,7 +289,7 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
 -- (unless the decl is self-referential)
 -- Note: Does NOT include the referents for fields and field accessors.
 -- Those must be computed separately because we need access to the typechecker to do so.
-typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
+typeDependencies :: (Ord v) => DataDeclaration v a -> Set TypeReference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 

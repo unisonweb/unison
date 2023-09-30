@@ -397,7 +397,6 @@ data TwoSetsOfChanges ref = TwoSetsOfChanges
 
 instance Ord ref => Monoid (TwoSetsOfChanges ref) where
   mempty = TwoSetsOfChanges Relation.empty Relation.empty Relation.empty
-  mappend = (<>)
 
 instance Ord ref => Semigroup (TwoSetsOfChanges ref) where
   TwoSetsOfChanges a0 b0 c0 <> TwoSetsOfChanges a1 b1 c1 =
