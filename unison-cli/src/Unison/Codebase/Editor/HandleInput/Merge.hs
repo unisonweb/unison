@@ -6,7 +6,6 @@ where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Lens (Lens', mapped, over, traverseOf, (.~), (^.), (^?), _1)
-import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Writer.CPS (execWriter)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bimap (Bimap)
