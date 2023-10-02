@@ -12,6 +12,7 @@ dependencies:
   - base
   - bytestring
   - containers
+  - generic-lens
   - either
   - extra
   - generic-lens
