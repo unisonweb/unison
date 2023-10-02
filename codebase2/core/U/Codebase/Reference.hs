@@ -8,6 +8,8 @@ module U.Codebase.Reference
     TypeRReference,
     TypeReferenceId,
     Reference' (..),
+    TermReference',
+    TypeReference',
     pattern Derived,
     Id,
     Id' (..),
@@ -71,6 +73,12 @@ data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
   deriving stock (Eq, Generic, Ord, Show)
+
+-- | A type declaration reference.
+type TermReference' t h = Reference' t h
+
+-- | A term declaration reference.
+type TypeReference' t h = Reference' t h
 
 _RReferenceReference :: Prism' (Reference' t (Maybe h)) (Reference' t h)
 _RReferenceReference = prism embed project

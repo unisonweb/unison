@@ -969,14 +969,15 @@ evalDocRef rt codebase r = do
         Just (_ : _) -> pure ()
         _ -> do
           case r of
-            Just tmr ->
+            -- don't cache when there were decompile errors
+            Just (errs, tmr) | null errs ->
               Codebase.runTransaction codebase do
                 Codebase.putWatch
                   WK.RegularWatch
                   (Hashing.hashClosedTerm tm)
                   (Term.amap (const mempty) tmr)
-            Nothing -> pure ()
-      pure $ r <&> Term.amap (const mempty)
+            _ -> pure ()
+      pure $ r <&> Term.amap (const mempty) . snd
 
     decls (Reference.DerivedId r) =
       fmap (DD.amap (const ())) <$> Codebase.runTransaction codebase (Codebase.getTypeDeclaration codebase r)

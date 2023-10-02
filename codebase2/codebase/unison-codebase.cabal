@@ -17,6 +17,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Branch.Type
+      U.Codebase.BranchV3
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.Kind
@@ -30,25 +31,9 @@ library
   hs-source-dirs:
       ./
   default-extensions:
-      ApplicativeDo
       BlockArguments
-      DeriveFoldable
-      DeriveFunctor
-      DeriveGeneric
-      DeriveTraversable
       DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      ImportQualifiedPost
       LambdaCase
-      MultiParamTypeClasses
-      NamedFieldPuns
-      OverloadedStrings
-      PatternSynonyms
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
   build-depends:
       base
     , containers
@@ -61,4 +46,4 @@ library
     , unison-hash
     , unison-prelude
     , unison-util-base32hex
-  default-language: Haskell2010
+  default-language: GHC2021

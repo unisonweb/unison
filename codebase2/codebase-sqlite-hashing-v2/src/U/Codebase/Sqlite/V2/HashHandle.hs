@@ -6,6 +6,7 @@ where
 import Data.Set qualified as Set
 import U.Codebase.Branch (Branch)
 import U.Codebase.Branch.Hashing qualified as H2
+import U.Codebase.BranchV3 (BranchV3)
 import U.Codebase.Causal.Hashing qualified as H2
 import U.Codebase.HashTags (BranchHash (..), CausalHash)
 import U.Codebase.Reference (Reference)
@@ -29,6 +30,7 @@ v2HashHandle :: HashHandle
 v2HashHandle =
   HashHandle
     { hashBranch,
+      hashBranchV3,
       hashBranchFormatFull,
       hashCausal,
       hashClosedTerm,
@@ -41,6 +43,10 @@ v2HashHandle =
 hashBranch :: Monad m => Branch m -> m BranchHash
 hashBranch =
   H2.hashBranch
+
+hashBranchV3 :: BranchV3 m -> BranchHash
+hashBranchV3 =
+  H2.hashBranchV3
 
 hashBranchFormatFull :: HashBranchLocalIds -> LocalBranch -> BranchHash
 hashBranchFormatFull = \localIds localBranch ->

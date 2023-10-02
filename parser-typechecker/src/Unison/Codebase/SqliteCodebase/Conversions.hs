@@ -396,7 +396,7 @@ causalbranch1to2 :: forall m. (Monad m) => V1.Branch.Branch m -> V2.Branch.Causa
 causalbranch1to2 (V1.Branch.Branch c) =
   causal1to2 branchHash1to2 branch1to2 c
   where
-    causal1to2 :: forall m h2e e e2. (Monad m) => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2
+    causal1to2 :: forall m h2e e e2. (Monad m) => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2 e2
     causal1to2 eh1to2 e1to2 = \case
       V1.Causal.One hc eh e -> V2.Causal hc (eh1to2 eh) Map.empty (e1to2 e)
       V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal hc (eh1to2 eh) (Map.singleton ht (causal1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)

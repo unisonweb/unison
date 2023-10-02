@@ -72,7 +72,7 @@ type DEnv = EnumMap Word64 Closure
 
 data Tracer
   = NoTrace
-  | MsgTrace String String
+  | MsgTrace String String String
   | SimpleTrace String
 
 -- code caching environment
@@ -379,7 +379,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 DBTX i)
       ustk <- bump ustk
       bstk <- case tracer env False clo of
         NoTrace -> bstk <$ poke ustk 0
-        MsgTrace _ tx -> do
+        MsgTrace _ tx _ -> do
           poke ustk 1
           bstk <- bump bstk
           bstk <$ pokeBi bstk (Util.Text.pack tx)
@@ -425,10 +425,14 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 TRCE i j)
         SimpleTrace str -> do
           putStrLn $ "trace: " ++ Util.Text.unpack tx
           putStrLn str
-        MsgTrace msg str -> do
+        MsgTrace msg ugl pre -> do
           putStrLn $ "trace: " ++ Util.Text.unpack tx
+          putStrLn ""
           putStrLn msg
-          putStrLn str
+          putStrLn "\nraw structure:\n"
+          putStrLn ugl
+          putStrLn "partial decompilation:\n"
+          putStrLn pre
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_trackThreads !ustk !bstk !k _ (BPrim2 op i j) = do
   (ustk, bstk) <- bprim2 ustk bstk op i j

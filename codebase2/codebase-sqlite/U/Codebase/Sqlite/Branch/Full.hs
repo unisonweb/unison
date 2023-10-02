@@ -1,17 +1,12 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module U.Codebase.Sqlite.Branch.Full where
 
 import Control.Lens
-import Data.Map qualified as Map
+import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.HashTags
-import U.Codebase.Reference (Reference')
+import U.Codebase.Reference (Reference', TermReference', TypeReference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
@@ -42,17 +37,27 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 -- @
 type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
+type DbBranchV3 = GBranchV3 TextId ObjectId (BranchObjectId, CausalHashId)
+
 type HashBranch = Branch' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (TermReference' t h) (TypeReference' t h)
 
 data Branch' t h p c = Branch
-  { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
-    types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
-    patches :: Map t p,
-    children :: Map t c
+  { terms :: !(Map t (Map (Referent'' t h) (MetadataSetFormat' t h))),
+    types :: !(Map t (Map (TypeReference' t h) (MetadataSetFormat' t h))),
+    patches :: !(Map t p),
+    children :: !(Map t c)
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
+
+-- | A V3 branch; see U.Codebase.BranchV3
+data GBranchV3 t h c = BranchV3
+  { children :: !(Map t c),
+    terms :: !(Map t (Referent'' t h)),
+    types :: !(Map t (TypeReference' t h))
+  }
+  deriving stock (Generic, Show)
 
 emptyBranch :: Branch' t h p c
 emptyBranch = Branch Map.empty Map.empty Map.empty Map.empty
