@@ -379,37 +379,31 @@ loadBranchDefinitionNames =
           where
             name = Name.fromReverseSegments (segment :| reversePrefix)
 
-data Oink terms types = Oink
-  { terms :: terms,
-    types :: types
-  }
+type NamespaceTree a =
+  Cofree (Map NameSegment) a
 
-type StepOne =
-  Cofree
-    (Map NameSegment)
-    (Oink (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
+type NamespaceDefns0 =
+  NamespaceTree (T2 (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
 
-loadStepOne :: forall m. Monad m => Branch m -> m StepOne
-loadStepOne branch = do
+loadNamespaceDefns0 :: forall m. Monad m => Branch m -> m NamespaceDefns0
+loadNamespaceDefns0 branch = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadStepOne childBranch
-  pure (Oink {terms, types} :< children)
+      loadNamespaceDefns0 childBranch
+  pure (T2 terms types :< children)
 
-type StepTwo =
-  Cofree
-    (Map NameSegment)
-    (Oink (Map NameSegment Referent) (Map NameSegment TypeReference))
+type NamespaceDefns1 =
+  NamespaceTree (T2 (Map NameSegment Referent) (Map NameSegment TypeReference))
 
-doStepTwo :: StepOne -> Either Text StepTwo
-doStepTwo =
-  traverse \Oink {terms, types} -> do
+makeNamespaceDefns1 :: NamespaceDefns0 -> Either Text NamespaceDefns1
+makeNamespaceDefns1 =
+  traverse \(T2 terms types) -> do
     terms <- traverse assertUnconflicted terms
     types <- traverse assertUnconflicted types
-    pure Oink {terms, types}
+    pure (T2 terms types)
   where
     assertUnconflicted :: Set ref -> Either Text ref
     assertUnconflicted refs =
@@ -417,12 +411,86 @@ doStepTwo =
         Nothing -> Left (werror "conflicted ref")
         Just ref -> Right ref
 
-doStepThree :: forall m. Monad m => (TypeReferenceId -> m Int) -> StepTwo -> m (Either Text ())
-doStepThree loadNumConstructors =
+-- The "decl coherency check": a type declaration in a namespace is "coherent" if it satisfies both of the following
+-- criteria.
+--
+--   1. For each naming of the type decl (say "Foo"#foohash), there exists exactly one name for each of its constructors
+--      arbitrarily deep in the corresponding namespace ("Foo" in this example).
+--
+--      This allows us to render the decl naturally, as in
+--
+--        structural type Foo
+--          = Bar Nat Int
+--          | internal.hello.Bonk Nat
+--
+--      which corresponds to the three names
+--
+--        "Foo"                     => #foohash
+--        "Foo.Bar"                 => #foohash#0
+--        "Foo.internal.hello.Bonk" => #foohash#1
+--
+--      We could not do if there was at least one constructor whose full name does not contain the full name of the type
+--      decl itself as a prefix.
+--
+--      A notable consequence of this requirement is that a second naming of a decl (i.e. an alias) cannot be embedded
+--      within the first naming, as in:
+--
+--        type Foo = ...
+--        type Foo.some.inner.namespace = ... -- an alias of Foo
+--
+--   2. No constructor has a "stray" name that does not have a prefix that equals the type declaration's name. For
+--      example, in the namespace
+--
+--        "Foo"                 => #foohash
+--        "Foo.Bar"             => #foohash#0
+--        "Deep.What.SomeAlias" => #foohash#0
+--
+--      the constructor "What.SomeAlias" is "stray", as the type decl #foohash has no name that matches any prefix
+--      (i.e. "Deep.What" nor "Deep").
+--
+-- On to the implementation. We keep a stateful mapping between decl reference and the set of constructors we haven't
+-- yet seen names for.
+--
+-- When processing a namespace, we first process all terms. Each naming of each constructor will fall into one of three
+-- cases:
+--
+--   +-------------------------------------------------------------------------------------------------+
+--   | Case         | Mapping before    | Constructor | Mapping after                                  |
+--   +-------------------------------------------------------------------------------------------------+
+--   | Happy path   | #foo => {0, 1, 2} | #foo#1      | #foo => {0, 2}                                 |
+--   | Already seen | #foo => {0, 1, 2} | #foo#5      | Error: duplicate naming for constructor #foo#5 |
+--   | Never seen   | #foo => {0, 1, 2} | #bar#2      | Error: stray constructor #bar#2                |
+--   +-------------------------------------------------------------------------------------------------+
+--
+-- In "happy path", we see a naming of a constructor that we're expecting, and check it off.
+-- In "already seen", we see another naming of a constructor that we're no longer expecting, and fail.
+-- In "never seen", we see a naming of a constructor that we were not expecting, and fail.
+--
+-- Next, we process all type declaration. Each will again fall into one of three cases:
+--
+--   +-------------------------------------------------------------------------------------------------+
+--   | Case         | Mapping before    | Declaration | Num constructors | Mapping after               |
+--   +-------------------------------------------------------------------------------------------------+
+--   | No-op        |                   | #foo        | 0                |                             |
+--   | Normal case  |                   | #foo        | 1 or more        | #foo => {0, ..., n-1}       |
+--   | Already seen | #foo => {0, 1, 2} | #foo        | Irrelevant       | Error: embedded alias       |
+--   +-------------------------------------------------------------------------------------------------+
+--
+-- In "no-op", we find a constructor with no constructors, so there is
+--
+-- FIXME pick up here
+--
+-- Note: This check could be moved into SQLite (with sufficient schema support) some day, but for now, because the merge
+-- algorithm needs to pull lots of stuff into memory anyway, we just do this in memory, too.
+--
+-- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
+-- machinery was invented.
+checkDeclCoherency :: forall m. Monad m => (TypeReferenceId -> m Int) -> NamespaceDefns1 -> m (Either Text ())
+checkDeclCoherency loadNumConstructors =
   runExceptT . (`State.evalStateT` Map.empty) . go
   where
-    go :: StepTwo -> StateT (Map TypeReferenceId IntSet) (ExceptT Text m) ()
-    go (Oink {terms, types} :< children) = do
+    go :: NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT Text m) ()
+    go (T2 terms types :< children) = do
       for_ terms \case
         Referent.Ref _ -> pure ()
         Referent.Con (ReferenceBuiltin _) _ -> pure ()
@@ -468,6 +536,9 @@ doStepThree loadNumConstructors =
                   let (Just x, s1) = Map.deleteLookup typeRef s0
                   when (not (IntSet.null x)) (werror "missing name for constructor")
                   State.put s1
+
+      -- FIXME descend into the rest of the children
+      pure ()
 
 data Honk a
   = HonkEmbeddedAlias
@@ -548,154 +619,8 @@ loadLibdeps branch =
     Nothing -> pure Map.empty
     Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
 
-------------------------------------------------------------------------------------------------------------------------
--- The "decl coherency tracker" is a small data structure and API for implmenenting a check on the shape of decls in
--- a namespace.
---
--- It could be moved into SQLite (with sufficient schema support) some day, but for now, because the merge algorithm
--- needs to pull lots of stuff into memory anyway, we just do this in memory, too.
---
--- A historical note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent".
--- Thus, this machinery was invented.
---
--- Now, onto the definition: a type declaration is "coherent" if it satisfies both of the following criteria.
---
---   1. For each naming of a type decl (say Foo#foohash), there exists exactly one name for each constructor of #foohash
---      arbitrarily deep in namespace Foo.
---
---      This means we can render the decl naturally, as in
---
---        structural type Foo
---          = Bar Nat Int
---          | internal.hello.Bonk Nat
---
---      which we could not do if there was at least one constructor whose full name does not contain the full name of
---      the type decl itself as a prefix.
---
---      A notable consequence of this requirement is that a second naming of a decl (i.e. an alias) cannot be embedded
---      within the first naming, as in:
---
---        type Foo = ...
---        type Foo.some.inner.namespace = ... -- an alias of Foo
---
---   2. For each naming of a constructor (say Foo.internal.Bar#foohash#2), there exists exactly one naming of its type
---      declaration #foohash that is a prefix of the constructor's name.
---
---      This means that we won't have any "stray" aliases for constructors, as in the namespace:
---
---        "Foo"       => #foohash
---        "Foo.Bar"   => #foohash#0
---        "SomeAlias" => #foohash#0
---
--- On to the implementation: we keep a stateful mapping between type reference and the set of constructors we expect to
--- see beneath it.
---
--- When processing a namespace, for each type declaration, we add an entry to the map that contains a set of every
--- constructor id. (If a type declaration already exists in the map, that means we're looking at one alias embedded
--- within another, so we bail.)
---
--- For example, if a namespace has a decl #foohash with two constructors, we would add the following key/value pair:
---
---   #foohash => {0, 1}
---
--- Whenever we encounter a constructor reference in a namespace, we delete the corresponding entry from the map. For
--- example, were we to encounter #foohash#0, we would adjust the mapping to contain:
---
---   #foohash => {1}
---
--- Were we to delete the last constructor id in the value of the map, we would leave behind the empty set:
---
---   #foohash => {}
---
--- The key #foohash in this example is still needed, even with an empty set of unseen constructor ids, to support the
--- check for condition (2) above, that there are no "stray" decls. Because if we come across a constructor reference
--- such as #barhash#2, with no corresponding key in our map, that means we are not underneath any namespace whose name
--- is shared by a naming for the type declaration #barhash.
---
--- Thus, at the end of fully processing each of a namespace's children with this stateful mapping, we will be in one of
--- three cases:
---
---   1. The processing short-circuited at some point because a "stray" naming of a constructor was discovered somewhere
---      in a child namespace.
---   2. The mapping at the end of the processing contains at least one constructor id underneath at least one key, which
---      means that decl is not "coherent" (as it doesn't have a name for that constructor underneath it in the
---      namespace).
---   3. The mapping at the end of the processing has no constructor ids under any keys, which means the decl is
---      "coherent".
 type DeclCoherencyTracker =
   Map TypeReferenceId IntSet
-
--- a namespace has:
---
---   terms :: Map NameSegment Referent
---   types :: Map NameSegment TypeReference
---
---     "Foo" => #foohash
---     "Bar" => #foohash
---
---   children :: Map NameSegment Child
---
---     "Foo" =>
---       terms = {
---         "Bar" => #foohash#1
---       }
---
--- 1. Process each constructor in `terms`, each of which can:
---      1. Check off that we've seen it
---      2. Blow up because it's a stray
---
--- 2. Process each decl in `types`:
---      1. If key doesn't exist, if n == 0, do JACK SHIT
---
---      2. If key doesn't exist, if n > 0, add it with value = {0,1,...,n-1}
---
---         Process child:
---           1. Recurse
---           2. Post-process the state
---               1. Delete+lookup that key/value pair from map
---               2. If value is not {}, error: missing name for constructor
---
---      3. If key does exist, bad, bail (one alias embedded within another, so constructor name check will surely fail)
---
-
-data Something
-
--- `helloDecl loadNumConstructors ref tracker` updates `tracker` to start tracking decl `ref`.
-helloDecl ::
-  forall m.
-  Monad m =>
-  (TypeReferenceId -> m Int) ->
-  TypeReferenceId ->
-  Maybe Something ->
-  DeclCoherencyTracker ->
-  m (Either Text DeclCoherencyTracker)
-helloDecl loadNumConstructors ref child tracker =
-  runExceptT (Map.alterF f ref tracker)
-  where
-    f :: Maybe IntSet -> ExceptT Text m (Maybe IntSet)
-    f = \case
-      Just _ -> Except.throwE (werror "one alias embedded within another")
-      Nothing ->
-        lift do
-          loadNumConstructors ref <&> \case
-            0 -> Nothing
-            n -> Just (IntSet.fromAscList [0 .. n - 1])
-
--- `helloConstructor ref tracker` updates `tracker` to record that `ref` was observed.
-helloConstructor :: ConstructorReferenceId -> DeclCoherencyTracker -> Either Text DeclCoherencyTracker
-helloConstructor (ConstructorReference ref cid) =
-  Map.upsertF f ref
-  where
-    f :: Maybe IntSet -> Either Text IntSet
-    f = \case
-      Nothing -> Left (werror ("stray constructor " ++ show (ConstructorReference ref cid)))
-      Just expected0 ->
-        IntSet.alterF g (unsafeFrom @Word64 cid) expected0
-        where
-          g :: Bool -> Either Text Bool
-          g = \case
-            False -> Left (werror ("duplicate constructor " ++ show (ConstructorReference ref cid)))
-            True -> Right False
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils
