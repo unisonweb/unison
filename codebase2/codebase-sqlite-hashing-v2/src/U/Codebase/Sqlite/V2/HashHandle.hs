@@ -10,6 +10,7 @@ import U.Codebase.Causal.Hashing qualified as H2
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.HashHandle
+import U.Codebase.Term.Hashing as H2
 import U.Util.Type (removeAllEffectVars)
 import Unison.Hashing.V2 qualified as H2
 import Unison.Hashing.V2.Convert2 (h2ToV2Reference, hashBranchFormatToH2Branch, v2ToH2Type, v2ToH2TypeD)
@@ -28,5 +29,6 @@ v2HashHandle =
         BranchFormat.localToHashBranch localIds localBranch
           & hashBranchFormatToH2Branch
           & H2.contentHash
-          & BranchHash
+          & BranchHash,
+      verifyTermFormatHash = H2.verifyTermFormatHash
     }

@@ -1,13 +1,19 @@
 module U.Codebase.Term where
 
+import Control.Lens hiding (List)
+import Control.Monad.State
 import Control.Monad.Writer qualified as Writer
 import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
+import U.Core.ABT.Var qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
 
@@ -15,13 +21,22 @@ type ConstructorId = Word64
 
 type Term v = ABT.Term (F v) v ()
 
+-- | A version of 'Term' but where TermRefs never have a 'Nothing' Hash, but instead self references
+-- are filled with User Variable references
+-- to the relevant piece of the component in a component map.
+type HashableTerm v = ABT.Term (F' Text HashableTermRef TypeRef HashableTermLink TypeLink v) v ()
+
 type Type v = TypeR TypeRef v
 
 type TermRef = Reference' Text (Maybe Hash)
 
+type HashableTermRef = Reference' Text Hash
+
 type TypeRef = Reference
 
 type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+
+type HashableTermLink = Referent' (Reference' Text Hash) (Reference' Text Hash)
 
 type TypeLink = Reference
 
@@ -207,3 +222,90 @@ dependencies =
     typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
     termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
     typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
+
+-- | Given the pieces of a single term component,
+-- replaces all 'Nothing' self-referential hashes with a variable reference
+-- to the relevant piece of the component in the component map.
+unhashComponent ::
+  forall v extra.
+  ABT.Var v =>
+  -- | The hash of the component, this is used to fill in self-references.
+  Hash ->
+  -- | A function to convert a reference to a variable. The actual var names aren't important.
+  (Reference.Id -> v) ->
+  -- A SINGLE term component. Self references should have a 'Nothing' hash in term
+  -- references/term links
+  Map Reference.Id (Term v, extra) ->
+  -- | The component with all self-references replaced with variable references.
+  Map Reference.Id (v, HashableTerm v, extra)
+unhashComponent componentHash refToVar m =
+  withGeneratedVars
+    & traversed . _2 %~ fillSelfReferences
+  where
+    usedVars :: Set v
+    usedVars = foldMap (Set.fromList . ABT.allVars . fst) m
+    withGeneratedVars :: Map Reference.Id (v, Term v, extra)
+    withGeneratedVars = evalState (Map.traverseWithKey assignVar m) usedVars
+    assignVar :: Reference.Id -> (trm, extra) -> StateT (Set v) Identity (v, trm, extra)
+    assignVar r (trm, extra) = (,trm,extra) <$> ABT.freshenS (refToVar r)
+    fillSelfReferences :: Term v -> HashableTerm v
+    fillSelfReferences = (ABT.cata alg)
+      where
+        rewriteTermReference :: Reference.Id' (Maybe Hash) -> Either v Reference.Reference
+        rewriteTermReference rid@(Reference.Id mayH pos) =
+          case mayH of
+            Just h ->
+              case Map.lookup (Reference.Id h pos) withGeneratedVars of
+                -- No entry in the component map, so this is NOT a self-reference, keep it but
+                -- replace the 'Maybe Hash' with a 'Hash'.
+                Nothing -> Right (Reference.ReferenceDerived (Reference.Id h pos))
+                -- Entry in the component map, so this is a self-reference, replace it with a
+                -- Var.
+                Just (v, _, _) -> Left v
+            Nothing ->
+              -- This is a self-reference, so we expect to find it in the component map.
+              case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
+                Nothing -> error "unhashComponent: self-reference not found in component map"
+                Just (v, _, _) -> Left v
+        alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
+        alg () = \case
+          ABT.Var v -> ABT.var () v
+          ABT.Cycle body -> ABT.cycle () body
+          ABT.Abs v body -> ABT.abs () v body
+          ABT.Tm t -> case t of
+            -- Check refs to see if they refer to the current component, replace them with
+            -- vars if they do.
+            (Ref (Reference.ReferenceDerived rid)) ->
+              rewriteTermReference rid
+                & either (ABT.var ()) (ABT.tm () . Ref)
+            (Ref (Reference.ReferenceBuiltin t)) ->
+              ABT.tm () $ Ref (Reference.ReferenceBuiltin t)
+            TermLink referent -> case referent of
+              Referent.Ref (Reference.ReferenceDerived rid) ->
+                rewriteTermReference rid
+                  & either (ABT.var ()) (ABT.tm () . TermLink . Referent.Ref)
+              Referent.Ref (Reference.ReferenceBuiltin t) ->
+                ABT.tm () $ TermLink (Referent.Ref (Reference.ReferenceBuiltin t))
+              Referent.Con typeRef conId -> ABT.tm () $ TermLink (Referent.Con typeRef conId)
+            -- All other cases are unchanged, but we need to manually reconstruct them to
+            -- safely coerce the term types.
+            Int i -> ABT.tm () $ Int i
+            Nat n -> ABT.tm () $ Nat n
+            Float d -> ABT.tm () $ Float d
+            Boolean b -> ABT.tm () $ Boolean b
+            Text t -> ABT.tm () $ Text t
+            Char c -> ABT.tm () $ Char c
+            Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
+            Request typeRef conId -> ABT.tm () $ Request typeRef conId
+            Handle e h -> ABT.tm () $ Handle e h
+            App f a -> ABT.tm () $ App f a
+            Ann a typ -> ABT.tm () $ Ann a typ
+            List s -> ABT.tm () $ List s
+            If c t f -> ABT.tm () $ If c t f
+            And p q -> ABT.tm () $ And p q
+            Or p q -> ABT.tm () $ Or p q
+            Lam b -> ABT.tm () $ Lam b
+            LetRec bs b -> ABT.tm () $ LetRec bs b
+            Let a b -> ABT.tm () $ Let a b
+            Match s cases -> ABT.tm () $ Match s cases
+            TypeLink r -> ABT.tm () $ TypeLink r
