@@ -448,37 +448,44 @@ makeNamespaceDefns1 =
 --      the constructor "What.SomeAlias" is "stray", as the type decl #foohash has no name that matches any prefix
 --      (i.e. "Deep.What" nor "Deep").
 --
--- On to the implementation. We keep a stateful mapping between decl reference and the set of constructors we haven't
--- yet seen names for.
+-- On to the implementation. We are going to traverse the namespace depth-first. As we go, we have a stateful mapping
+-- between decl reference that we *have* seen a name for in one of our parent namespace, and its corresponding set of
+-- constructors that we *haven't* yet seen names for, but expect to, before fully searching the corresponding
+-- sub-namespace (e.g. the child namespace named "Foo" of the namepace that declares a decl "Foo").
 --
--- When processing a namespace, we first process all terms. Each naming of each constructor will fall into one of three
--- cases:
+-- When processing a namespace, we first process all terms. Each constructor will fall into one of three cases:
 --
---   +-------------------------------------------------------------------------------------------------+
---   | Case         | Mapping before    | Constructor | Mapping after                                  |
---   +-------------------------------------------------------------------------------------------------+
---   | Happy path   | #foo => {0, 1, 2} | #foo#1      | #foo => {0, 2}                                 |
---   | Already seen | #foo => {0, 1, 2} | #foo#5      | Error: duplicate naming for constructor #foo#5 |
---   | Never seen   | #foo => {0, 1, 2} | #bar#2      | Error: stray constructor #bar#2                |
---   +-------------------------------------------------------------------------------------------------+
+--   +----------------------------------------------------------------------------------------------------------------+
+--   | Case         | Mapping before       | Encountered constructor | Mapping after                                  |
+--   +----------------------------------------------------------------------------------------------------------------+
+--   | Happy path   | { #foo : {0, 1, 2} } | #foo#1                  | { #foo : {0, 2} }                              |
+--   | Already seen | { #foo : {0, 1, 2} } | #foo#5                  | Error: duplicate naming for constructor #foo#5 |
+--   | Never seen   | { #foo : {0, 1, 2} } | #bar#2                  | Error: stray constructor #bar#2                |
+--   +----------------------------------------------------------------------------------------------------------------+
 --
 -- In "happy path", we see a naming of a constructor that we're expecting, and check it off.
--- In "already seen", we see another naming of a constructor that we're no longer expecting, and fail.
--- In "never seen", we see a naming of a constructor that we were not expecting, and fail.
+-- In "already seen", we see a second naming of a constructor that we're no longer expecting, and fail.
+-- In "never seen", we see a naming of a constructor before any naming of its decl, so we fail.
 --
--- Next, we process all type declaration. Each will again fall into one of three cases:
+-- Next, we process all type decls. Each will again fall into one of three cases:
 --
---   +-------------------------------------------------------------------------------------------------+
---   | Case         | Mapping before    | Declaration | Num constructors | Mapping after               |
---   +-------------------------------------------------------------------------------------------------+
---   | No-op        |                   | #foo        | 0                |                             |
---   | Normal case  |                   | #foo        | 1 or more        | #foo => {0, ..., n-1}       |
---   | Already seen | #foo => {0, 1, 2} | #foo        | Irrelevant       | Error: embedded alias       |
---   +-------------------------------------------------------------------------------------------------+
+--   +-----------------------------------------------------------------------------------------------------+
+--   | Case             | Mapping before       | Declaration | Num constructors | New mapping              |
+--   +-----------------------------------------------------------------------------------------------------+
+--   | Uninhabited decl |                      | #foo        | 0                |                          |
+--   | Inhabited decl   |                      | #foo        | 1 or more        | { #foo : {0, ..., n-1} } |
+--   | Already seen     | { foo : {0, 1, 2}  } | #foo        | Irrelevant       | Error: nested decl alias |
+--   +-----------------------------------------------------------------------------------------------------+
 --
--- In "no-op", we find a constructor with no constructors, so there is
+-- In "uninhabited decl", we find a decl with no constructors, so we don't expect anything new.
+-- In "already seen", we find a second naming of a decl, whose constructors will necessarily violate coherency condition
+--   (1) above.
 --
--- FIXME pick up here
+-- In "inhabited decl", we find a decl with N constructors, and handle it by:
+--   1. Adding to our state that we expect a name for each.
+--   2. Recursing into the child namespace whose name matches the decl.
+--   3. (If we return from the recursion without short-circuiting) remove the mapping added in step (1) and assert that
+--      its value is the empty set (meaning we encountered a name for every constructor).
 --
 -- Note: This check could be moved into SQLite (with sufficient schema support) some day, but for now, because the merge
 -- algorithm needs to pull lots of stuff into memory anyway, we just do this in memory, too.
@@ -510,40 +517,42 @@ checkDeclCoherency loadNumConstructors =
                     False -> Left (werror ("duplicate constructor " ++ show (ConstructorReference typeRef conId)))
                     True -> Right False
 
-      for_ (Map.toList types) \case
-        (_, ReferenceBuiltin _) -> pure ()
-        (name, ReferenceDerived typeRef) -> do
-          s0 <- State.get
-          honk <- do
-            let f :: Maybe IntSet -> Compose m Honk IntSet
-                f =
-                  Compose . \case
-                    Just _ -> pure HonkEmbeddedAlias
-                    Nothing ->
-                      loadNumConstructors typeRef <&> \case
-                        0 -> HonkVoidBoy
-                        n -> HonkWoohoo (IntSet.fromAscList [0 .. n - 1])
-            lift (lift (getCompose (Map.upsertF f typeRef s0)))
-          case honk of
-            HonkEmbeddedAlias -> Except.throwError (werror "embedded alias")
-            HonkVoidBoy -> pure ()
-            HonkWoohoo s1 ->
-              case Map.lookup name children of
-                Nothing -> Except.throwError (werror "no names for constructors")
-                Just child -> do
-                  go child
-                  s0 <- State.get
-                  let (Just x, s1) = Map.deleteLookup typeRef s0
-                  when (not (IntSet.null x)) (werror "missing name for constructor")
-                  State.put s1
+      childrenWeWentInto <-
+        forMaybe (Map.toList types) \case
+          (_, ReferenceBuiltin _) -> pure Nothing
+          (name, ReferenceDerived typeRef) -> do
+            s0 <- State.get
+            honk <- do
+              let f :: Maybe IntSet -> Compose m Honk IntSet
+                  f =
+                    Compose . \case
+                      Just _ -> pure NestedDeclAlias
+                      Nothing ->
+                        loadNumConstructors typeRef <&> \case
+                          0 -> UninhabitedDecl
+                          n -> InhabitedDecl (IntSet.fromAscList [0 .. n - 1])
+              lift (lift (getCompose (Map.upsertF f typeRef s0)))
+            case honk of
+              NestedDeclAlias -> Except.throwError (werror "embedded alias")
+              UninhabitedDecl -> pure Nothing
+              InhabitedDecl s1 ->
+                case Map.lookup name children of
+                  Nothing -> Except.throwError (werror "no names for constructors")
+                  Just child -> do
+                    go child
+                    s0 <- State.get
+                    let (Just x, s1) = Map.deleteLookup typeRef s0
+                    when (not (IntSet.null x)) (werror "missing name for constructor")
+                    State.put s1
+                    pure (Just name)
 
-      -- FIXME descend into the rest of the children
-      pure ()
+      let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
+      traverse_ go childrenWeHaventGoneInto
 
 data Honk a
-  = HonkEmbeddedAlias
-  | HonkVoidBoy
-  | HonkWoohoo !a
+  = NestedDeclAlias
+  | UninhabitedDecl
+  | InhabitedDecl !a
   deriving stock (Functor)
 
 -- @findConflictedAlias namespace diff@, given a namespace and a diff from an old namespace, will return the first
@@ -610,6 +619,14 @@ conflictsish aliceDiff bobDiff =
     f = \case
       These (Merge.Added x) (Merge.Added y) | x /= y -> Just ()
       These (Merge.Updated _ x) (Merge.Updated _ y) | x /= y -> Just ()
+      -- Not a conflict:
+      --   delete/delete
+      -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
+      --   delete/update
+      --   update/delete
+      -- Impossible cases:
+      --   add/delete
+      --   add/update
       _ -> Nothing
 
 -- | Load the library dependencies (lib.*) of a namespace.
