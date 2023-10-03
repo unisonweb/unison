@@ -43,6 +43,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RecordWildCards
@@ -57,6 +58,7 @@ library
     , bytes
     , bytestring
     , containers
+    , generic-lens
     , lens
     , text
     , unison-codebase

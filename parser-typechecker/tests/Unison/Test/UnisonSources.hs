@@ -135,7 +135,7 @@ resultTest rt uf filepath = do
       values <- io $ unpack <$> readUtf8 valueFile
       let term = runIdentity (Parsers.parseTerm values parsingEnv)
       let report e = throwIO (userError $ toPlain 10000 e)
-      (bindings, watches) <-
+      (bindings, _, watches) <-
         io $
           either report pure
             =<< evaluateWatches

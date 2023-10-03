@@ -23,6 +23,7 @@ v2HashHandle =
       toReferenceDecl = \h -> h2ToV2Reference . H2.typeToReference . v2ToH2TypeD h . removeAllEffectVars,
       toReferenceDeclMentions = \h -> Set.map h2ToV2Reference . H2.typeToReferenceMentions . v2ToH2TypeD h . removeAllEffectVars,
       hashBranch = H2.hashBranch,
+      hashBranchV3 = H2.hashBranchV3,
       hashCausal = H2.hashCausal,
       hashBranchFormatFull = \localIds localBranch ->
         BranchFormat.localToHashBranch localIds localBranch

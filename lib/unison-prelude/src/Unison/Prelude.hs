@@ -53,6 +53,7 @@ import Data.Foldable as X (fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Functor.Identity as X
+import Data.Generics.Labels () -- #labelSyntax for generics-derived lenses
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)

@@ -5,6 +5,7 @@ module U.Codebase.Sqlite.HashHandle
 where
 
 import U.Codebase.Branch.Type (Branch)
+import U.Codebase.BranchV3 (BranchV3)
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
@@ -31,6 +32,7 @@ data HashHandle = HashHandle
     -- | Hash decl's mentions
     toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference,
     hashBranch :: forall m. Monad m => Branch m -> m BranchHash,
+    hashBranchV3 :: forall m. BranchV3 m -> BranchHash,
     hashCausal ::
       -- The causal's namespace hash
       BranchHash ->
