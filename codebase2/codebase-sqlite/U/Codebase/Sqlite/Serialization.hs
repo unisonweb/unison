@@ -37,6 +37,7 @@ module U.Codebase.Sqlite.Serialization
 
     -- * Exported for Share
     putTermAndType,
+    putDeclElement,
   )
 where
 
@@ -431,16 +432,18 @@ putDeclFormat = \case
     putDeclComponent t | debug && trace ("putDeclComponent " ++ show t) False = undefined
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
-      where
-        putDeclElement Decl.DataDeclaration {..} = do
-          putDeclType declType
-          putModifier modifier
-          putFoldable putSymbol bound
-          putFoldable putDType constructorTypes
-        putDeclType Decl.Data = putWord8 0
-        putDeclType Decl.Effect = putWord8 1
-        putModifier Decl.Structural = putWord8 0
-        putModifier (Decl.Unique t) = putWord8 1 *> putText t
+
+putDeclElement :: MonadPut m => Decl.DeclR DeclFormat.TypeRef Symbol -> m ()
+putDeclElement Decl.DataDeclaration {..} = do
+  putDeclType declType
+  putModifier modifier
+  putFoldable putSymbol bound
+  putFoldable putDType constructorTypes
+  where
+    putDeclType Decl.Data = putWord8 0
+    putDeclType Decl.Effect = putWord8 1
+    putModifier Decl.Structural = putWord8 0
+    putModifier (Decl.Unique t) = putWord8 1 *> putText t
 
 getDeclFormat :: (MonadGet m) => m DeclFormat.DeclFormat
 getDeclFormat =
