@@ -12,7 +12,12 @@ module Unison.Merge2
 
     -- * Misc / organize these later
     DiffOp (..),
-    NamespaceDefns (..),
+    Defns (..),
+    DefnsA,
+    DefnsB,
+    NamespaceTree,
+    TwoWay (..),
+    TwoOrThreeWay (..),
   )
 where
 
@@ -41,9 +46,10 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
-import Unison.Merge.Diff (NamespaceDefns (..), nameBasedNamespaceDiff)
+import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
+import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Prelude

@@ -124,57 +124,61 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
     bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-    T2 aliceDeclNames aliceTermNames <- step "load alice names" do
+    T2 aliceTypeNames aliceTermNames <- step "load alice names" do
       loadBranchDefinitionNames aliceBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
-    let aliceDefns = Merge.NamespaceDefns {decls = aliceDeclNames, terms = aliceTermNames}
+    let aliceDefns = Merge.Defns {terms = aliceTermNames, types = aliceTypeNames}
 
-    T2 bobDeclNames bobTermNames <- step "load bob names" do
+    T2 bobTypeNames bobTermNames <- step "load bob names" do
       loadBranchDefinitionNames bobBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
-    let bobDefns = Merge.NamespaceDefns {decls = bobDeclNames, terms = bobTermNames}
+    let bobDefns = Merge.Defns {terms = bobTermNames, types = bobTypeNames}
 
     aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
     bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
 
-    (maybeLcaLibdeps, Merge.NamespaceDefns aliceDeclDiff aliceTermDiff, Merge.NamespaceDefns bobDeclDiff bobTermDiff) <-
+    (maybeLcaLibdeps, diffs) <-
       case maybeLcaCausalHash of
         Nothing -> do
-          (aliceDiff, bobDiff) <-
+          diffs <-
             Merge.nameBasedNamespaceDiff
               (Codebase.unsafeGetTypeDeclaration codebase)
               (Codebase.unsafeGetTerm codebase)
-              Nothing
-              aliceDefns
-              bobDefns
-          pure (Nothing, aliceDiff, bobDiff)
+              Merge.TwoOrThreeWay
+                { lca = Nothing,
+                  alice = aliceDefns,
+                  bob = bobDefns
+                }
+          pure (Nothing, diffs)
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
           lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-          T2 lcaDeclNames lcaTermNames <- step "load lca names" do
+          T2 lcaTypeNames lcaTermNames <- step "load lca names" do
             loadBranchDefinitionNames lcaBranch & onLeftM \err ->
               rollback (werror (Text.unpack err))
-          let lcaDefns = Merge.NamespaceDefns {decls = lcaDeclNames, terms = lcaTermNames}
-          (aliceDiff, bobDiff) <-
+          let lcaDefns = Merge.Defns {terms = lcaTermNames, types = lcaTypeNames}
+          diffs <-
             Merge.nameBasedNamespaceDiff
               (Codebase.unsafeGetTypeDeclaration codebase)
               (Codebase.unsafeGetTerm codebase)
-              (Just lcaDefns)
-              aliceDefns
-              bobDefns
+              Merge.TwoOrThreeWay
+                { lca = Just lcaDefns,
+                  alice = aliceDefns,
+                  bob = bobDefns
+                }
 
-          findConflictedAlias aliceDefns aliceDiff & onJust \(name1, name2) ->
+          findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
             rollback (werror ("conflicted alice aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          findConflictedAlias bobDefns bobDiff & onJust \(name1, name2) ->
+          findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
             rollback (werror ("conflicted bob aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
           lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
 
-          pure (Just lcaLibdeps, aliceDiff, bobDiff)
+          pure (Just lcaLibdeps, diffs)
 
-    let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
-    let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
+    let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
+    let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
 
     let mergedLibdeps =
           Merge.mergeLibdeps
@@ -187,18 +191,18 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     Sqlite.unsafeIO do
       Text.putStrLn ""
       Text.putStrLn "===== lca->alice diff ====="
-      printDeclsDiff aliceDeclNames aliceDeclDiff
-      printTermsDiff aliceTermNames aliceTermDiff
+      printDeclsDiff aliceTypeNames (diffs ^. #alice . #types)
+      printTermsDiff aliceTermNames (diffs ^. #alice . #terms)
       Text.putStrLn ""
       Text.putStrLn "===== lca->bob diff ====="
-      printDeclsDiff bobDeclNames bobDeclDiff
-      printTermsDiff bobTermNames bobTermDiff
+      printDeclsDiff bobTypeNames (diffs ^. #bob . #types)
+      printTermsDiff bobTermNames (diffs ^. #bob . #terms)
       Text.putStrLn ""
       Text.putStrLn "===== merged libdeps dependencies ====="
       printLibdeps mergedLibdeps
       Text.putStrLn ""
       Text.putStrLn "===== conflicts ====="
-      printDeclConflicts conflictedDecls
+      printDeclConflicts conflictedTypes
       printTermConflicts conflictedTerms
       Text.putStrLn ""
 
@@ -385,6 +389,7 @@ type NamespaceTree a =
 type NamespaceDefns0 =
   NamespaceTree (T2 (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
 
+-- | Load all namespace definitions of a branch.
 loadNamespaceDefns0 :: forall m. Monad m => Branch m -> m NamespaceDefns0
 loadNamespaceDefns0 branch = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
@@ -398,6 +403,7 @@ loadNamespaceDefns0 branch = do
 type NamespaceDefns1 =
   NamespaceTree (T2 (Map NameSegment Referent) (Map NameSegment TypeReference))
 
+-- | Assert that there are no unconflicted names in a namespace.
 makeNamespaceDefns1 :: NamespaceDefns0 -> Either Text NamespaceDefns1
 makeNamespaceDefns1 =
   traverse \(T2 terms types) -> do
@@ -523,7 +529,7 @@ checkDeclCoherency loadNumConstructors =
           (name, ReferenceDerived typeRef) -> do
             s0 <- State.get
             honk <- do
-              let f :: Maybe IntSet -> Compose m Honk IntSet
+              let f :: Maybe IntSet -> Compose m WhatHappened IntSet
                   f =
                     Compose . \case
                       Just _ -> pure NestedDeclAlias
@@ -549,7 +555,7 @@ checkDeclCoherency loadNumConstructors =
       let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
       traverse_ go childrenWeHaventGoneInto
 
-data Honk a
+data WhatHappened a
   = NestedDeclAlias
   | UninhabitedDecl
   | InhabitedDecl !a
@@ -573,27 +579,25 @@ data Honk a
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it could.
 findConflictedAlias ::
-  forall hash name.
-  (Eq hash, Ord name) =>
-  Merge.NamespaceDefns BiMultimap TypeReference name Referent name ->
-  Merge.NamespaceDefns Map name (Merge.DiffOp hash) name (Merge.DiffOp hash) ->
-  Maybe (name, name)
+  Merge.DefnsA Referent TypeReference ->
+  Merge.DefnsB (Merge.DiffOp Hash) (Merge.DiffOp Hash) ->
+  Maybe (Name, Name)
 findConflictedAlias aliceDefns aliceDiff =
   asum
-    [ go (aliceDefns ^. #decls) (aliceDiff ^. #decls),
-      go (aliceDefns ^. #terms) (aliceDiff ^. #terms)
+    [ go (aliceDefns ^. #terms) (aliceDiff ^. #terms),
+      go (aliceDefns ^. #types) (aliceDiff ^. #types)
     ]
   where
     go ::
       forall ref.
       Ord ref =>
-      BiMultimap ref name ->
-      Map name (Merge.DiffOp hash) ->
-      Maybe (name, name)
+      BiMultimap ref Name ->
+      Map Name (Merge.DiffOp Hash) ->
+      Maybe (Name, Name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
-        f :: (name, Merge.DiffOp hash) -> Maybe (name, name)
+        f :: (Name, Merge.DiffOp Hash) -> Maybe (Name, Name)
         f (name, op) =
           case op of
             Merge.Added _ -> Nothing
@@ -605,6 +609,7 @@ findConflictedAlias aliceDefns aliceDiff =
                 & map (g hash)
                 & asum
           where
+            g :: Hash -> Name -> Maybe (Name, Name)
             g hash alias =
               case Map.lookup alias diff of
                 Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
@@ -635,9 +640,6 @@ loadLibdeps branch =
   case Map.lookup Name.libSegment (Branch.children branch) of
     Nothing -> pure Map.empty
     Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
-
-type DeclCoherencyTracker =
-  Map TypeReferenceId IntSet
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils

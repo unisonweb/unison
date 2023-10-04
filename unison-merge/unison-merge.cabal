@@ -23,6 +23,7 @@ library
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
+      Unison.Merge.NamespaceTypes
       Unison.Merge.Synhash
   hs-source-dirs:
       src
@@ -66,6 +67,7 @@ library
     , bytestring
     , containers
     , either
+    , free
     , generic-lens
     , lens
     , monad-validate
