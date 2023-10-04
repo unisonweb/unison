@@ -1,6 +1,6 @@
 -- | Kind inference for Unison
 --
--- Unison has *, ->, and Effect kinds
+-- Unison has Type, ->, and Ability kinds
 --
 -- An algorithm sketch: First break all decls into strongly connected
 -- components in reverse topological order. Then, for each component,

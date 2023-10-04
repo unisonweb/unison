@@ -16,8 +16,8 @@ import Unison.KindInference.Constraint.StarProvenance qualified as SP
 -- These constraints are associated with unification variables during
 -- kind inference.
 data Constraint uv v loc
-  = IsStar (StarProvenance v loc)
-  | IsEffect (Provenance v loc)
+  = IsType (StarProvenance v loc)
+  | IsAbility (Provenance v loc)
   | IsArr (Provenance v loc) uv uv
   deriving stock (Show, Eq, Ord)
 
@@ -28,8 +28,8 @@ prov ::
     (Provenance v loc)
     (Provenance v loc')
 prov f = \case
-  IsStar x -> IsStar <$> SP.prov f x
-  IsEffect x -> IsEffect <$> f x
+  IsType x -> IsType <$> SP.prov f x
+  IsAbility x -> IsAbility <$> f x
   IsArr l a b -> (\x -> IsArr x a b) <$> f l
 {-# INLINE prov #-}
 

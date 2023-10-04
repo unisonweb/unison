@@ -18,3 +18,4 @@ data Provenance v loc
 loc :: Lens' (Provenance v loc) loc
 loc f = \case
   Provenance ctx x -> Provenance ctx <$> f x
+{-# INLINE loc #-}

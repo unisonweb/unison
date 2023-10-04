@@ -7,7 +7,7 @@ where
 import Control.Lens (Traversal)
 import Unison.KindInference.Constraint.Provenance (Provenance)
 
--- | Provenance of an @IsStar@ constraint. @IsStar@ constraints arise
+-- | Provenance of an @IsType@ constraint. @IsType@ constraints arise
 -- in constraint generation (in which case it will have a
 -- @Provenance@) and also in the solver through kind-defaulting on
 -- unconstrained unification variables.

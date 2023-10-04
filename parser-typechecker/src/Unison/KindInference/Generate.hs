@@ -7,15 +7,15 @@ module Unison.KindInference.Generate
 where
 
 import Control.Lens ((^.))
-import Unison.Kind qualified as Unison
-import Unison.ConstructorReference (GConstructorReference (..))
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
 import Unison.Builtin.Decls (rewriteTypeRef)
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl, asDataDecl)
 import Unison.DataDeclaration qualified as DD
+import Unison.Kind qualified as Unison
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
@@ -26,7 +26,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
-import Unison.Var
+import Unison.Var (Type (User), Var (typed), freshIn)
 
 data ConstraintTree v loc
   = Node [ConstraintTree v loc]
@@ -37,7 +37,7 @@ data ConstraintTree v loc
 newtype TreeWalk = TreeWalk (forall a. ([a] -> [a]) -> [([a] -> [a], [a] -> [a])] -> [a] -> [a])
 
 bottomUp :: TreeWalk
-bottomUp = TreeWalk \down pairs0 -> foldr (\(d,u) b -> d . u . b) id pairs0 . down
+bottomUp = TreeWalk \down pairs0 -> foldr (\(d, u) b -> d . u . b) id pairs0 . down
 
 flatten :: TreeWalk -> ConstraintTree v loc -> [GeneratedConstraint v loc]
 flatten (TreeWalk f) = ($ []) . flattenTop
@@ -81,10 +81,10 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         codConstraints <- typeConstraintTree k2 cod
         pure $
           Constraint
-            (IsStar resultVar (Provenance ctx annotation))
+            (IsType resultVar (Provenance ctx annotation))
             ( Node
-                [ ParentConstraint (IsStar k1 (Provenance ctx $ ABT.annotation dom)) domConstraints,
-                  ParentConstraint (IsStar k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
+                [ ParentConstraint (IsType k1 (Provenance ctx $ ABT.annotation dom)) domConstraints,
+                  ParentConstraint (IsType k2 (Provenance ctx $ ABT.annotation cod)) codConstraints
                 ]
             )
       Type.App abs arg -> do
@@ -128,7 +128,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         Node <$> for effs \eff -> do
           effKind <- freshVar eff
           effConstraints <- typeConstraintTree effKind eff
-          pure $ ParentConstraint (IsEffect effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
+          pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
 -- | Generate kind constraints arising from a given type. The given
 -- @UVar@ is constrained to have the kind of the given type.
@@ -176,7 +176,7 @@ termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
     processAnn ann typ mrest = do
       instantiateType typ \typ gcs -> do
         typKind <- freshVar typ
-        annConstraints <- ParentConstraint (IsStar typKind (Provenance TypeAnnotation ann)) <$> typeConstraintTree typKind typ
+        annConstraints <- ParentConstraint (IsType typKind (Provenance TypeAnnotation ann)) <$> typeConstraintTree typKind typ
         let annConstraints' = foldr Constraint annConstraints gcs
         rest <- mrest
         pure (annConstraints' : rest)
@@ -208,10 +208,10 @@ hackyStripAnns =
         let argMod = case isHack of
               True -> stripAnns
               False -> id
-        in (isHack, Term.app ann abs (argMod arg))
+         in (isHack, Term.app ann abs (argMod arg))
       Term.Constructor cref@(ConstructorReference r _) ->
         let isHack = r == rewriteTypeRef
-        in (isHack, Term.constructor ann cref)
+         in (isHack, Term.constructor ann cref)
       t -> (False, ABT.tm ann (snd <$> t))
   where
     stripAnns = ABT.cata \ann abt0 -> case abt0 of
@@ -261,7 +261,7 @@ declComponentConstraintTree decls = do
         withInstantiatedConstructorType declType tyvarKindsOnly constructorType \constructorType -> do
           constructorKind <- freshVar constructorType
           ct <- typeConstraintTree constructorKind constructorType
-          pure $ ParentConstraint (IsStar constructorKind (Provenance DeclDefinition constructorAnn)) ct
+          pure $ ParentConstraint (IsType constructorKind (Provenance DeclDefinition constructorAnn)) ct
 
     (fullyAppliedKind, _fullyAppliedType, declConstraints) <-
       let phi (dk, dt, cts) (ak, at) = do
@@ -273,8 +273,8 @@ declComponentConstraintTree decls = do
        in foldlM phi (declKind, declType, Node []) tyvarKinds
 
     let finalDeclConstraints = case decl of
-          Left _effectDecl -> Constraint (IsEffect fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
-          Right _dataDecl -> Constraint (IsStar fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+          Left _effectDecl -> Constraint (IsAbility fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+          Right _dataDecl -> Constraint (IsType fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
     pure (StrictOrder finalDeclConstraints constructorConstraints)
   pure (Node cts)
 
@@ -352,7 +352,7 @@ builtinConstraintTree :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) =
 builtinConstraintTree =
   mergeTrees
     [ traverse
-        (constrain Star)
+        (constrain Type)
         [ Type.nat,
           Type.int,
           Type.float,
@@ -383,7 +383,7 @@ builtinConstraintTree =
           flip Type.ref Type.hashAlgorithmRef
         ],
       traverse
-        (constrain (Star :-> Star))
+        (constrain (Type :-> Type))
         [ Type.list,
           Type.iarrayType,
           flip Type.ref Type.mvarRef,
@@ -393,18 +393,18 @@ builtinConstraintTree =
           flip Type.ref Type.patternRef
         ],
       traverse
-        (constrain Effect)
+        (constrain Ability)
         [ Type.builtinIO,
           flip Type.ref Type.stmRef
         ],
       traverse
-        (constrain (Star :-> Effect))
+        (constrain (Type :-> Ability))
         [flip Type.ref Type.scopeRef],
       traverse
-        (constrain (Effect :-> Star))
+        (constrain (Ability :-> Type))
         [Type.mbytearrayType],
       traverse
-        (constrain (Effect :-> Star :-> Star))
+        (constrain (Ability :-> Type :-> Type))
         [Type.effectType, Type.marrayType, Type.refType]
     ]
   where
@@ -420,10 +420,10 @@ constrainToKind :: (Var v) => Provenance v loc -> UVar v loc -> Kind -> Gen v lo
 constrainToKind prov resultVar0 = fmap ($ []) . go resultVar0
   where
     go resultVar = \case
-      Star -> do
-        pure (IsStar resultVar prov:)
-      Effect -> do
-        pure (IsEffect resultVar prov:)
+      Type -> do
+        pure (IsType resultVar prov :)
+      Ability -> do
+        pure (IsAbility resultVar prov :)
       lhs :-> rhs -> do
         let inputTypeVar = Type.var (prov ^. Provenance.loc) (freshIn Set.empty (typed (User "a")))
         let outputTypeVar = Type.var (prov ^. Provenance.loc) (freshIn Set.empty (typed (User "a")))
@@ -431,13 +431,13 @@ constrainToKind prov resultVar0 = fmap ($ []) . go resultVar0
         output <- freshVar outputTypeVar
         ctl <- go input lhs
         ctr <- go output rhs
-        pure ((IsArr resultVar prov input output:) . ctl . ctr)
+        pure ((IsArr resultVar prov input output :) . ctl . ctr)
 
-data Kind = Star | Effect | Kind :-> Kind
+data Kind = Type | Ability | Kind :-> Kind
 
 infixr 9 :->
 
 fromUnisonKind :: Unison.Kind -> Kind
 fromUnisonKind = \case
-  Unison.Star -> Star
+  Unison.Star -> Type
   Unison.Arrow a b -> fromUnisonKind a :-> fromUnisonKind b

@@ -46,10 +46,10 @@ type UnsolvedConstraint v loc = Unsolved.Constraint (UVar v loc) v loc StarProve
 
 _Generated :: forall v loc. Prism' (UnsolvedConstraint v loc) (GeneratedConstraint v loc)
 _Generated = prism' (Unsolved.starProv %~ NotDefault) \case
-  Unsolved.IsStar s l -> case l of
+  Unsolved.IsType s l -> case l of
     Default -> Nothing
-    NotDefault l -> Just (Unsolved.IsStar s l)
-  Unsolved.IsEffect s l -> Just (Unsolved.IsEffect s l)
+    NotDefault l -> Just (Unsolved.IsType s l)
+  Unsolved.IsAbility s l -> Just (Unsolved.IsAbility s l)
   Unsolved.IsArr s l a b -> Just (Unsolved.IsArr s l a b)
   Unsolved.Unify l a b -> Just (Unsolved.Unify l a b)
 
@@ -85,15 +85,15 @@ defaultUnconstrainedVars st =
       phi b a = U.alter a handleNothing handleJust b
       handleNothing = error "impossible"
       handleJust _canonK ecSize d = case descriptorConstraint d of
-        Nothing -> U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsStar Default}
+        Nothing -> U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsType Default}
         Just _ -> U.Canonical ecSize d
    in st {constraints = newConstraints, newUnifVars = []}
 
 prettyConstraintD' :: Show loc => Var v => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
 prettyConstraintD' ppe =
   P.wrap . \case
-    Unsolved.IsStar v p -> prettyUVar ppe v <> " ~ *" <> prettyProv p
-    Unsolved.IsEffect v p -> prettyUVar ppe v <> " ~ Effect" <> prettyProv p
+    Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
+    Unsolved.IsAbility v p -> prettyUVar ppe v <> " ~ Ability" <> prettyProv p
     Unsolved.IsArr v p a b -> prettyUVar ppe v <> " ~ " <> prettyUVar ppe a <> " -> " <> prettyUVar ppe b <> prettyProv p
     Unsolved.Unify p a b -> prettyUVar ppe a <> " ~ " <> prettyUVar ppe b <> prettyProv p
   where
@@ -178,11 +178,11 @@ occCheck constraints0 =
                   st@OccCheckState {solvedConstraints} <- M.get
                   let handleNothing = error "impossible"
                       handleJust _canonK ecSize d = case descriptorConstraint d of
-                        Nothing -> ([], U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsStar Default})
+                        Nothing -> ([], U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsType Default})
                         Just v ->
                           let descendants = case v of
-                                Solved.IsStar _ -> []
-                                Solved.IsEffect _ -> []
+                                Solved.IsType _ -> []
+                                Solved.IsAbility _ -> []
                                 Solved.IsArr _ a b -> [a, b]
                            in (descendants, U.Canonical ecSize d)
                   let (descendants, solvedConstraints') = U.alterF u handleNothing handleJust solvedConstraints
@@ -277,9 +277,9 @@ addConstraint' ::
   UnsolvedConstraint v loc ->
   Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
 addConstraint' = \case
-  Unsolved.IsEffect s p0 -> do
-    handleConstraint s (Solved.IsEffect p0) \case
-      Solved.IsEffect _ -> Just (Solved.IsEffect p0, [])
+  Unsolved.IsAbility s p0 -> do
+    handleConstraint s (Solved.IsAbility p0) \case
+      Solved.IsAbility _ -> Just (Solved.IsAbility p0, [])
       _ -> Nothing
   Unsolved.IsArr s p0 a b -> do
     handleConstraint s (Solved.IsArr p0 a b) \case
@@ -291,9 +291,9 @@ addConstraint' = \case
             prov = p0
          in Just (Solved.IsArr prov a b, implied)
       _ -> Nothing
-  Unsolved.IsStar s p0 -> do
-    handleConstraint s (Solved.IsStar p0) \case
-      Solved.IsStar _ -> Just (Solved.IsStar p0, [])
+  Unsolved.IsType s p0 -> do
+    handleConstraint s (Solved.IsType p0) \case
+      Solved.IsType _ -> Just (Solved.IsType p0, [])
       _ -> Nothing
   Unsolved.Unify l a b -> Right <$> union l a b
   where
@@ -341,11 +341,11 @@ union _unionLoc a b = do
           Nothing -> []
           Just c ->
             let cd = case c of
-                  Solved.IsStar loc -> Unsolved.IsStar a case loc of
+                  Solved.IsType loc -> Unsolved.IsType a case loc of
                     Default -> Default
                     NotDefault loc -> NotDefault loc
                   Solved.IsArr loc l r -> Unsolved.IsArr a loc l r
-                  Solved.IsEffect loc -> Unsolved.IsEffect a loc
+                  Solved.IsAbility loc -> Unsolved.IsAbility a loc
              in [cd]
     pure (Just impliedConstraints)
 

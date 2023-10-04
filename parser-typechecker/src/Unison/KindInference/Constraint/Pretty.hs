@@ -28,11 +28,11 @@ import Unison.Var (Var)
 arrPrec :: Int
 arrPrec = 1
 
-prettyEffect :: Int -> P.Pretty P.ColorText
-prettyEffect _prec = "Effect"
+prettyAbility :: Int -> P.Pretty P.ColorText
+prettyAbility _prec = "Ability"
 
-prettyStar :: Int -> P.Pretty P.ColorText
-prettyStar _prec = "*"
+prettyType :: Int -> P.Pretty P.ColorText
+prettyType _prec = "Type"
 
 prettyUnknown :: Int -> P.Pretty P.ColorText
 prettyUnknown _prec = "_"
@@ -50,8 +50,8 @@ prettyCyclicSolvedConstraint ::
   Set (UVar v loc) ->
   Solve v loc (P.Pretty P.ColorText, Set (UVar v loc))
 prettyCyclicSolvedConstraint constraint prec nameMap visitingSet = case constraint of
-  Solved.IsEffect _ -> pure (prettyEffect prec, Set.empty)
-  Solved.IsStar _ -> pure (prettyStar prec, Set.empty)
+  Solved.IsAbility _ -> pure (prettyAbility prec, Set.empty)
+  Solved.IsType _ -> pure (prettyType prec, Set.empty)
   Solved.IsArr _ a b -> do
     (pa, cyclicLhs) <- case Set.member a visitingSet of
       True -> pure (nameMap Map.! a, Set.singleton a)
@@ -102,8 +102,8 @@ prettySolvedConstraint ppe constraints c =
 
 prettySolvedConstraint' :: Var v => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
 prettySolvedConstraint' prec = \case
-  Solved.IsEffect _ -> pure (prettyEffect prec)
-  Solved.IsStar _ -> pure (prettyStar prec)
+  Solved.IsAbility _ -> pure (prettyAbility prec)
+  Solved.IsType _ -> pure (prettyType prec)
   Solved.IsArr _ a b -> do
     a <- prettyUVarKind' (arrPrec + 1) a
     b <- prettyUVarKind' arrPrec b
