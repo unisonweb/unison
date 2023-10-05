@@ -170,12 +170,6 @@
                        (string-append txt ":termlink")))])
        #`(define #,dname
            (unison-termlink-builtin #,(datum->syntax stx txt))))]))
-    ; [(_ _)
-    ;   (raise-syntax-error #f
-    ;     "define-builtin-link called with non-identifier")]
-    ; [_
-    ;   (raise-syntax-error #f
-    ;     "define-builtin link called with wrong arguments")]))
 
 (define (partial-app f . args) (unison-closure f args))
 
