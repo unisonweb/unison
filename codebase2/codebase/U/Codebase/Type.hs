@@ -38,9 +38,16 @@ type TypeD v = ABT.Term FD v ()
 type TypeR r v = ABT.Term (F' r) v ()
 
 rmap :: (Ord v) => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
-rmap f = ABT.transform \case
-  Ref r -> Ref (f r)
-  x -> unsafeCoerce x
+rmap f = runIdentity . rmapM (Identity . f)
+
+rmapM ::
+  (Ord v, Monad f) =>
+  (r -> f r') ->
+  ABT.Term (F' r) v a ->
+  f (ABT.Term (F' r') v a)
+rmapM f = ABT.transformM \case
+  Ref r -> Ref <$> f r
+  x -> pure $ unsafeCoerce x
 
 typeD2T :: (Ord v) => Hash -> TypeD v -> TypeT v
 typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
