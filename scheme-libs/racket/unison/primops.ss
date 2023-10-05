@@ -88,6 +88,9 @@
     builtin-List.splitRight
     builtin-List.splitRight:termlink
 
+    builtin-Link.Term.toText
+    builtin-Link.Term.toText:termlink
+
     builtin-Value.toBuiltin
     builtin-Value.toBuiltin:termlink
     builtin-Value.fromBuiltin
@@ -601,6 +604,38 @@
     (match (unison-POp-SPLR n s)
       [(unison-sum 0 fs) unison-seqview-empty]
       [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+
+  (define (hash-string hs)
+    (string-append "#" (bytevector->base32-string b32h hs)))
+
+  (define (ix-string i)
+    (if (= i 0)
+      ""
+      (string-append "." (number->string i))))
+
+  (define (typelink->string ln)
+    (match ln
+      [(unison-typelink-builtin name)
+       (string-append "##" name)]
+      [(unison-typelink-derived hs i)
+       (string-append (hash-string hs) (ix-string i))]))
+
+  (define-builtin-link builtin-Link.Type.toText)
+  (define-unison (builtin-Link.Type.toText ln)
+    (string->chunked-string (typelink->string ln)))
+
+  (define (termlink->string ln)
+    (match ln
+      [(unison-termlink-builtin name)
+       (string-append "##" name)]
+      [(unison-termlink-derived hs i)
+       (string-append (hash-string hs) (ix-string i))]
+      [(unison-termlink-con rf t)
+       (string-append (typelink->string rf) "#" (number->string t))]))
+
+  (define-builtin-link builtin-Link.Term.toText)
+  (define-unison (builtin-Link.Term.toText ln)
+    (string->chunked-string (termlink->string ln)))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list

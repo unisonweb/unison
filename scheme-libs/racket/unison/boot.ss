@@ -29,6 +29,7 @@
   (struct-out unison-typelink-builtin)
   (struct-out unison-typelink-derived)
   declare-function-link
+  declare-code
 
   request
   request-case
