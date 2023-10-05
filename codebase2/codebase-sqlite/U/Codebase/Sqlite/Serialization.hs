@@ -9,6 +9,7 @@ module U.Codebase.Sqlite.Serialization
     getBranchFormat,
     getLocalBranch,
     getDeclElement,
+    getDeclElementNumConstructors,
     getDeclFormat,
     getPatchFormat,
     getTempCausalFormat,
@@ -20,6 +21,7 @@ module U.Codebase.Sqlite.Serialization
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
+    lookupDeclElementNumConstructors,
     lookupTermElement,
     lookupTermElementDiscardingTerm,
     lookupTermElementDiscardingType,
@@ -57,6 +59,7 @@ import U.Codebase.Sqlite.Branch.Diff qualified as BranchDiff
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.Branch.Full qualified as BranchFull
 import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
@@ -153,12 +156,20 @@ putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
 getLocalIds :: (MonadGet m) => m LocalIds
 getLocalIds = getLocalIdsWith getVarInt getVarInt
 
+skipLocalIds :: (MonadGet m) => m ()
+skipLocalIds = skipLocalIdsWith @TextId @ObjectId getVarInt getVarInt
+
 getWatchLocalIds :: (MonadGet m) => m WatchLocalIds
 getWatchLocalIds = getLocalIdsWith getVarInt getVarInt
 
 getLocalIdsWith :: (MonadGet m) => m t -> m d -> m (LocalIds' t d)
 getLocalIdsWith getText getDefn =
   LocalIds <$> getVector getText <*> getVector getDefn
+
+skipLocalIdsWith :: forall t d m. (MonadGet m) => m t -> m d -> m ()
+skipLocalIdsWith skipText skipDefn = do
+  skipVector skipText
+  skipVector skipDefn
 
 putUnit :: (Applicative m) => () -> m ()
 putUnit _ = pure ()
@@ -466,12 +477,32 @@ getDeclElement =
         1 -> Decl.Unique <$> getText
         other -> unknownTag "DeclModifier" other
 
+-- | Get the number of constructors in a decl element.
+getDeclElementNumConstructors :: (MonadGet m) => m Int
+getDeclElementNumConstructors = do
+  skipDeclType
+  skipDeclModifier
+  skipDeclTypeVariables
+  getListLength
+  where
+    skipDeclType = void getWord8
+    skipDeclModifier = void getWord8
+    skipDeclTypeVariables = void (getList skipSymbol)
+
 lookupDeclElement ::
   (MonadGet m) => Reference.Pos -> m (LocalIds, DeclFormat.Decl Symbol)
 lookupDeclElement i =
+  lookupDeclElementWith i (getPair getLocalIds getDeclElement)
+
+lookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
+lookupDeclElementNumConstructors i =
+  lookupDeclElementWith i (skipLocalIds *> getDeclElementNumConstructors)
+
+lookupDeclElementWith :: (MonadGet m) => Reference.Pos -> m a -> m a
+lookupDeclElementWith i get =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) $ fromIntegral i
-    other -> unknownTag "lookupDeclElement" other
+    0 -> unsafeFramedArrayLookup get $ fromIntegral @Reference.Pos @Int i
+    other -> unknownTag "lookupDeclElementWith" other
 
 putBranchFormat :: (MonadPut m) => BranchFormat.BranchFormat -> m ()
 putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
@@ -905,6 +936,11 @@ getTempCausalFormat =
 
 getSymbol :: (MonadGet m) => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
+
+skipSymbol :: (MonadGet m) => m ()
+skipSymbol = do
+  _ :: Word64 <- getVarInt
+  skipText
 
 putSymbol :: (MonadPut m) => Symbol -> m ()
 putSymbol (Symbol n t) = putVarInt n >> putText t
