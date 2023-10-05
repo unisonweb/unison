@@ -7,6 +7,8 @@
   data-number->hash
   declare-function-link
   lookup-function-link
+  declare-code
+  lookup-code
 
   (struct-out unison-data)
   (struct-out unison-sum)
@@ -22,6 +24,8 @@
   (struct-out unison-typelink-derived)
   (struct-out unison-code)
   (struct-out unison-quote)
+
+  define-builtin-link
 
   data
   sum
@@ -64,7 +68,7 @@
   unison-tuple->list)
 
 (require
-  racket/base
+  racket
   racket/fixnum
   (only-in "vector-trie.rkt" ->fx/wraparound))
 
@@ -154,6 +158,18 @@
     [(clo . rest)
      (apply (unison-closure-code clo)
             (append (unison-closure-env clo) rest))]))
+
+(define-syntax (define-builtin-link stx)
+  (syntax-case stx ()
+    [(_ name)
+     (identifier? #'name)
+     (let* ([sym (syntax-e #'name)]
+            [txt (symbol->string sym)]
+            [dname (datum->syntax stx
+                     (string->symbol
+                       (string-append txt ":termlink")))])
+       #`(define #,dname
+           (unison-termlink-builtin #,(datum->syntax stx txt))))]))
 
 (define (partial-app f . args) (unison-closure f args))
 
@@ -252,7 +268,7 @@
 (define data-number-hashes (make-hash))
 
 ; Adds a hash to the known set of data types, allocating an
-; internal numbe for it.
+; internal number for it.
 (define (declare-unison-data-hash bs)
   (let ([n (fresh-data-number)])
     (hash-set! data-hash-numberings bs n)
@@ -271,6 +287,17 @@
 
 (define (lookup-function-link f)
   (hash-ref function-associations f))
+
+(define code-associations (make-hash))
+
+(define (declare-code hs co)
+  (hash-set! code-associations hs co))
+
+(define (lookup-code hs)
+  (let ([mco (hash-ref code-associations hs #f)])
+    (if (eq? mco #f)
+      (sum 0)
+      (sum 1 mco))))
 
 (define (unison-tuple->list t)
   (let ([fs (unison-data-fields t)])

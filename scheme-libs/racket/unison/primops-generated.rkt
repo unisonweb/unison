@@ -17,9 +17,35 @@
 
 (provide
   builtin-Value.value
+  builtin-Value.value:termlink
   builtin-Value.reflect
+  builtin-Value.reflect:termlink
+  builtin-Code.lookup
+  builtin-Code.lookup:termlink
+
+  builtin-Code.deserialize:termlink
+  builtin-Code.serialize:termlink
+  builtin-Code.validateLinks:termlink
+  builtin-Value.deserialize:termlink
+  builtin-Value.serialize:termlink
+  builtin-crypto.hash:termlink
+  builtin-crypto.hmac:termlink
+
   unison-POp-CACH
-  unison-POp-LOAD)
+  unison-POp-LOAD
+  unison-POp-LKUP)
+
+(define-builtin-link builtin-Value.value)
+(define-builtin-link builtin-Value.reflect)
+(define-builtin-link builtin-Code.lookup)
+
+(define-builtin-link builtin-Code.deserialize)
+(define-builtin-link builtin-Code.serialize)
+(define-builtin-link builtin-Code.validateLinks)
+(define-builtin-link builtin-Value.deserialize)
+(define-builtin-link builtin-Value.serialize)
+(define-builtin-link builtin-crypto.hash)
+(define-builtin-link builtin-crypto.hmac)
 
 (define (chunked-list->list cl)
   (vector->list (chunked-list->vector cl)))
@@ -387,6 +413,13 @@
         (generate-module-name (cdr links))
         (string->symbol ebs)))))
 
+(define (register-code udefs)
+  (for-each
+    (lambda (p)
+      (let-values ([(ln co) (splat-upair p)])
+        (declare-code ln co)))
+    udefs))
+
 (define (add-module-associations links mname)
   (for-each
     (lambda (link)
@@ -452,6 +485,7 @@
          (if (null? rdeps)
            (let ([sdefs (flatten (map gen-code udefs))]
                  [mname (generate-module-name links)])
+             (register-code udefs)
              (add-module-associations links mname)
              (add-runtime-module mname links sdefs)
              (sum 0 '()))
@@ -466,3 +500,10 @@
     (if (null? fdeps)
       (sum 1 (reify-value val))
         (sum 0 (list->chunked-list fdeps)))))
+
+(define (unison-POp-LKUP tl) (lookup-code tl))
+
+(define-unison (builtin-Code.lookup tl)
+  (match (lookup-code tl)
+    [(unison-sum 0 (list)) unison-optional-none]
+    [(unison-sum 1 (list co)) (unison-optional-some co)]))
