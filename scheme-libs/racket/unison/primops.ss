@@ -74,6 +74,8 @@
     builtin-Nat.popCount:termlink
     builtin-Nat.toFloat
     builtin-Nat.toFloat:termlink
+    builtin-Nat.trailingZeros
+    builtin-Nat.trailingZeros:termlink
     builtin-Text.indexOf
     builtin-Text.indexOf:termlink
     builtin-Bytes.indexOf
@@ -538,6 +540,7 @@
   (define-builtin-link builtin-Nat.increment)
   (define-builtin-link builtin-Nat.popCount)
   (define-builtin-link builtin-Nat.toFloat)
+  (define-builtin-link builtin-Nat.trailingZeros)
   (define-builtin-link builtin-Text.indexOf)
   (define-builtin-link builtin-Bytes.indexOf)
   (define-builtin-link builtin-IO.randomBytes)
