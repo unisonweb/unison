@@ -124,15 +124,12 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
     bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-    T2 aliceTypeNames aliceTermNames <- step "load alice names" do
-      loadBranchDefinitionNames aliceBranch & onLeftM \err ->
+    aliceDefns <- step "load alice definitions" do
+      loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
-    let aliceDefns = Merge.Defns {terms = aliceTermNames, types = aliceTypeNames}
-
-    T2 bobTypeNames bobTermNames <- step "load bob names" do
-      loadBranchDefinitionNames bobBranch & onLeftM \err ->
+    bobDefns <- step "load bob definitions" do
+      loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM \err ->
         rollback (werror (Text.unpack err))
-    let bobDefns = Merge.Defns {terms = bobTermNames, types = bobTypeNames}
 
     aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
     bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
@@ -153,10 +150,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         Just lcaCausalHash -> do
           lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
           lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-          T2 lcaTypeNames lcaTermNames <- step "load lca names" do
-            loadBranchDefinitionNames lcaBranch & onLeftM \err ->
+          lcaDefns <- step "load lca definitions" do
+            loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM \err ->
               rollback (werror (Text.unpack err))
-          let lcaDefns = Merge.Defns {terms = lcaTermNames, types = lcaTypeNames}
           diffs <-
             Merge.nameBasedNamespaceDiff
               (Codebase.unsafeGetTypeDeclaration codebase)
@@ -191,12 +187,12 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     Sqlite.unsafeIO do
       Text.putStrLn ""
       Text.putStrLn "===== lca->alice diff ====="
-      printDeclsDiff aliceTypeNames (diffs ^. #alice . #types)
-      printTermsDiff aliceTermNames (diffs ^. #alice . #terms)
+      printDeclsDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
+      printTermsDiff (aliceDefns ^. #terms) (diffs ^. #alice . #terms)
       Text.putStrLn ""
       Text.putStrLn "===== lca->bob diff ====="
-      printDeclsDiff bobTypeNames (diffs ^. #bob . #types)
-      printTermsDiff bobTermNames (diffs ^. #bob . #terms)
+      printDeclsDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
+      printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
       Text.putStrLn ""
       Text.putStrLn "===== merged libdeps dependencies ====="
       printLibdeps mergedLibdeps
@@ -310,78 +306,6 @@ getTwoFreshNames names name0 =
     mangled :: Integer -> NameSegment
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
-
--- | Load all term and type names from a branch (excluding dependencies) into memory.
---
--- Fails if:
---   * One name is associated with more than one reference.
-loadBranchDefinitionNames ::
-  forall m.
-  Monad m =>
-  Branch m ->
-  -- TODO better failure type than text
-  m (Either Text (T2 (BiMultimap TypeReference Name) (BiMultimap Referent Name)))
-loadBranchDefinitionNames =
-  runExceptT . go []
-  where
-    go ::
-      [NameSegment] ->
-      Branch m ->
-      ExceptT Text m (T2 (BiMultimap TypeReference Name) (BiMultimap Referent Name))
-    go reversePrefix branch = do
-      types <- ExceptT (pure (branchTypeNames reversePrefix branch))
-      terms <- ExceptT (pure (branchTermNames reversePrefix branch))
-
-      T2 childrenTypes childrenTerms <-
-        -- Ignore children namespaces of `lib`
-        if reversePrefix == [Name.libSegment]
-          then pure (T2 BiMultimap.empty BiMultimap.empty)
-          else do
-            childrenNames <-
-              for (Map.toList (Branch.children branch)) \(childName, childCausal) -> do
-                childBranch <- lift (Causal.value childCausal)
-                go (childName : reversePrefix) childBranch
-            -- These unions are safe because names of one child (e.g. "child1.foo.bar") can't equal the names of any other
-            -- child (e.g. "child2.baz.qux").
-            let combine (T2 xs0 ys0) (T2 xs1 ys1) =
-                  T2 (BiMultimap.unsafeUnion xs0 xs1) (BiMultimap.unsafeUnion ys0 ys1)
-            pure (foldr combine (T2 BiMultimap.empty BiMultimap.empty) childrenNames)
-
-      -- These unions are safe because the names at this level (e.g. "foo.bar.baz") can't equal the names at deeper
-      -- levels (e.g. "foo.bar.baz.qux")
-      let allTypes = BiMultimap.unsafeUnion types childrenTypes
-      let allTerms = BiMultimap.unsafeUnion terms childrenTerms
-      pure (T2 allTypes allTerms)
-
-    branchTypeNames :: [NameSegment] -> Branch m -> Either Text (BiMultimap TypeReference Name)
-    branchTypeNames reversePrefix branch =
-      branchDefnNames reversePrefix (Branch.types branch)
-
-    branchTermNames :: [NameSegment] -> Branch m -> Either Text (BiMultimap Referent Name)
-    branchTermNames reversePrefix branch =
-      branchDefnNames reversePrefix (Branch.terms branch)
-
-    branchDefnNames ::
-      forall metadata ref.
-      Ord ref =>
-      [NameSegment] ->
-      Map NameSegment (Map ref metadata) ->
-      Either Text (BiMultimap ref Name)
-    branchDefnNames reversePrefix =
-      foldr f (Right BiMultimap.empty) . Map.toList
-      where
-        f ::
-          (NameSegment, Map ref metadata) ->
-          Either Text (BiMultimap ref Name) ->
-          Either Text (BiMultimap ref Name)
-        f (segment, refs) = \case
-          Left err -> Left err
-          Right acc ->
-            case Set.asSingleton (Map.keysSet refs) of
-              Nothing -> Left ("multiple refs with name " <> Name.toText name)
-              Just ref -> Right (BiMultimap.insert ref name acc)
-          where
-            name = Name.fromReverseSegments (segment :| reversePrefix)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
