@@ -498,6 +498,8 @@ lookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
 lookupDeclElementNumConstructors i =
   lookupDeclElementWith i (skipLocalIds *> getDeclElementNumConstructors)
 
+-- Note: the caller is responsible for either consuming the whole decl, or not
+-- parsing anything after a partially-parsed decl
 lookupDeclElementWith :: (MonadGet m) => Reference.Pos -> m a -> m a
 lookupDeclElementWith i get =
   getWord8 >>= \case
