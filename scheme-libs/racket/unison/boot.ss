@@ -20,6 +20,7 @@
   data
   data-case
 
+  (struct-out unison-data)
   (struct-out unison-termlink)
   (struct-out unison-termlink-con)
   (struct-out unison-termlink-builtin)
@@ -28,6 +29,7 @@
   (struct-out unison-typelink-builtin)
   (struct-out unison-typelink-derived)
   declare-function-link
+  declare-code
 
   request
   request-case
@@ -35,6 +37,7 @@
   sum-case
   unison-force
   string->chunked-string
+  empty-chunked-list
 
   identity
 
@@ -47,7 +50,10 @@
   typelink->reference
   termlink->referent
 
-  unison-tuple->list)
+  unison-tuple->list
+  list->unison-tuple
+  unison-tuple
+  unison-seq)
 
 (require
   (for-syntax
@@ -66,7 +72,9 @@
   unison/crypto
   (only-in unison/chunked-seq
            string->chunked-string
-           chunked-string->string))
+           chunked-string->string
+           vector->chunked-list
+           empty-chunked-list))
 
 ; Computes a symbol for automatically generated partial application
 ; cases, based on number of arguments applied. The partial
@@ -548,3 +556,11 @@
      (unison-referent-con
        (typelink->reference tyl)
        i)]))
+
+(define (list->unison-tuple l)
+  (foldr unison-tuple-pair unison-unit-unit l))
+
+(define (unison-tuple . l) (list->unison-tuple l))
+
+(define (unison-seq . l)
+  (vector->chunked-list (list->vector l)))
