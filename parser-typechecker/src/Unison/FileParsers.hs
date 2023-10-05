@@ -16,6 +16,7 @@ import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
+import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
@@ -129,7 +130,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
 
 synthesizeFile ::
   forall m v a.
-  (Monad m, Var v, Monoid a, Ord a) =>
+  (Monad m, Var v, BuiltinAnnotation a, Monoid a, Ord a, Show a) =>
   Typechecker.Env v a ->
   UF.UnisonFile v a ->
   ResultT (Seq (Note v a)) m (UF.TypecheckedUnisonFile v a)

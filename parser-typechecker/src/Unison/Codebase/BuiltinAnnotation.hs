@@ -11,3 +11,6 @@ class BuiltinAnnotation a where
 
 instance BuiltinAnnotation Ann where
   builtinAnnotation = Ann.Intrinsic
+
+instance BuiltinAnnotation () where
+  builtinAnnotation = ()

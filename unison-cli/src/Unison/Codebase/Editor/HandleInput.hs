@@ -3153,7 +3153,7 @@ synthesizeForce typeOfFunc = do
   case Result.runResultT
     ( Typechecker.synthesize
         PPE.empty
-        Typechecker.PatternMatchCoverageCheckSwitch'Enabled
+        Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
         env
         (DD.forceTerm External External term)
     ) of

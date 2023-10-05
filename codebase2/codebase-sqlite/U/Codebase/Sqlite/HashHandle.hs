@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
+    HashMismatch (..),
   )
 where
 
@@ -10,11 +11,17 @@ import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.Symbol (Symbol)
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Term (ClosedTerm)
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import Unison.Hash (Hash)
 import Unison.Prelude
+
+data HashMismatch = HashMismatch
+  { expectedHash :: Hash,
+    actualHash :: Hash
+  }
 
 data HashHandle = HashHandle
   { -- | Hash type
@@ -37,5 +44,6 @@ data HashHandle = HashHandle
     hashBranchFormatFull ::
       HashBranchLocalIds ->
       LocalBranch ->
-      BranchHash
+      BranchHash,
+    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
   }

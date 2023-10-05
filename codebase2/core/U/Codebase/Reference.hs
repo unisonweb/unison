@@ -27,6 +27,7 @@ module U.Codebase.Reference
     toId,
     unsafeId,
     closeRReference,
+    component,
   )
 where
 
@@ -39,6 +40,7 @@ import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Hash qualified as H
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -165,3 +167,9 @@ instance Bifoldable Reference' where
 instance Bitraversable Reference' where
   bitraverse f _ (ReferenceBuiltin t) = ReferenceBuiltin <$> f t
   bitraverse _ g (ReferenceDerived id) = ReferenceDerived <$> traverse g id
+
+component :: H.Hash -> [k] -> [(k, Id)]
+component h ks =
+  let
+   in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
+

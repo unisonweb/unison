@@ -18,6 +18,7 @@ import U.Codebase.Sqlite.HashHandle (HashHandle (HashHandle))
 import U.Codebase.Sqlite.HashHandle qualified
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term (ClosedTerm)
+import U.Codebase.Term.Hashing as H2
 import U.Codebase.Type (TypeD, TypeT)
 import U.Core.ABT.Var (Var)
 import U.Util.Type (removeAllEffectVars)
@@ -37,7 +38,8 @@ v2HashHandle =
       toReference,
       toReferenceDecl,
       toReferenceDeclMentions,
-      toReferenceMentions
+      toReferenceMentions,
+      verifyTermFormatHash = H2.verifyTermFormatHash
     }
 
 hashBranch :: Monad m => Branch m -> m BranchHash
