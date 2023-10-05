@@ -14,6 +14,7 @@ module Unison.Util.BiMultimap
     -- ** Maps
     domain,
     range,
+    fromRange,
 
     -- ** Sets
     ran,
@@ -89,6 +90,13 @@ domain = toMultimap
 
 range :: BiMultimap a b -> Map b a
 range = toMapR
+
+fromRange :: (Ord a, Ord b) => Map b a -> BiMultimap a b
+fromRange m =
+  BiMultimap (Map.foldlWithKey' f Map.empty m) m
+  where
+    f acc k v =
+      Map.insertWith Set.NonEmpty.union v (Set.NonEmpty.singleton k) acc
 
 -- | Returns the range in the relation, as a Set, in its entirety.
 --

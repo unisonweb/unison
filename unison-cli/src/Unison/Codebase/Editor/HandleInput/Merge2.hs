@@ -383,33 +383,70 @@ loadBranchDefinitionNames =
           where
             name = Name.fromReverseSegments (segment :| reversePrefix)
 
-type NamespaceTree a =
-  Cofree (Map NameSegment) a
+-- | Load all term and type names from a branch (excluding dependencies) into memory.
+--
+-- Fails if:
+--   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
+--   * One name is associated with more than one reference.
+--   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
+loadNamespaceDefns ::
+  Monad m =>
+  (TypeReferenceId -> m Int) ->
+  Branch m ->
+  m (Either Text (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
+loadNamespaceDefns loadNumConstructors branch = do
+  libdepsHasTopLevelDefns <-
+    case Map.lookup Name.libSegment (branch ^. #children) of
+      Nothing -> pure False
+      Just libdepsCausal -> do
+        libdepsBranch <- Causal.value libdepsCausal
+        pure (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types)))
+  if libdepsHasTopLevelDefns
+    then pure (Left (werror "bad"))
+    else do
+      defns0 <- loadNamespaceDefns0 branch
+      case makeNamespaceDefns1 defns0 of
+        Left err -> pure (Left err)
+        Right defns1 ->
+          checkDeclCoherency loadNumConstructors defns1 <&> \case
+            Left err -> Left err
+            Right () -> Right (Merge.flattenNamespaceTree defns1)
 
 type NamespaceDefns0 =
-  NamespaceTree (T2 (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
 
--- | Load all namespace definitions of a branch.
+-- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
+-- in the "lib" namespace.
 loadNamespaceDefns0 :: forall m. Monad m => Branch m -> m NamespaceDefns0
 loadNamespaceDefns0 branch = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
+    for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
+      childBranch <- Causal.value childCausal
+      loadNamespaceDefns0_ childBranch
+  pure (Merge.Defns {terms, types} :< children)
+
+loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> m NamespaceDefns0
+loadNamespaceDefns0_ branch = do
+  let terms = Map.map Map.keysSet (branch ^. #terms)
+  let types = Map.map Map.keysSet (branch ^. #types)
+  children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0 childBranch
-  pure (T2 terms types :< children)
+      loadNamespaceDefns0_ childBranch
+  pure (Merge.Defns {terms, types} :< children)
 
 type NamespaceDefns1 =
-  NamespaceTree (T2 (Map NameSegment Referent) (Map NameSegment TypeReference))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
 
 -- | Assert that there are no unconflicted names in a namespace.
 makeNamespaceDefns1 :: NamespaceDefns0 -> Either Text NamespaceDefns1
 makeNamespaceDefns1 =
-  traverse \(T2 terms types) -> do
+  traverse \Merge.Defns {terms, types} -> do
     terms <- traverse assertUnconflicted terms
     types <- traverse assertUnconflicted types
-    pure (T2 terms types)
+    pure (Merge.Defns terms types)
   where
     assertUnconflicted :: Set ref -> Either Text ref
     assertUnconflicted refs =
@@ -503,7 +540,7 @@ checkDeclCoherency loadNumConstructors =
   runExceptT . (`State.evalStateT` Map.empty) . go
   where
     go :: NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT Text m) ()
-    go (T2 terms types :< children) = do
+    go (Merge.Defns {terms, types} :< children) = do
       for_ terms \case
         Referent.Ref _ -> pure ()
         Referent.Con (ReferenceBuiltin _) _ -> pure ()
