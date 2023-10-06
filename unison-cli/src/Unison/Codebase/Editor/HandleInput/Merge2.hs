@@ -137,7 +137,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
     aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
     bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
 
-    (maybeLcaLibdeps, Merge.NamespaceDefns aliceDeclDiff aliceTermDiff, Merge.NamespaceDefns bobDeclDiff bobTermDiff) <-
+    (maybeLcaLibdeps, aliceDiff@(Merge.NamespaceDefns aliceDeclDiff aliceTermDiff), bobDiff@(Merge.NamespaceDefns bobDeclDiff bobTermDiff)) <-
       case maybeLcaCausalHash of
         Nothing -> do
           (aliceDiff, bobDiff) <-
@@ -175,6 +175,35 @@ handleMerge alicePath0 bobPath0 _resultPath = do
 
     let conflictedDecls = conflictsish aliceDeclDiff bobDeclDiff
     let conflictedTerms = conflictsish aliceTermDiff bobDeclDiff
+
+    if null conflictedDecls && null conflictedTerms
+      then do
+        -- no conflicts, typecheck
+        -- let whatToTypecheck = Merge.whatToTypecheckV2 (drAlice, aliceUpdates) (drBob, bobUpdates)
+        --       where
+        --         drAlice = namespaceDefnsToDeepRefsId' aliceDefns
+        --         drBob = namespaceDefnsToDeepRefsId' bobDefns
+        --         aliceUpdates = diffToUpdates aliceDiff
+        --         bobUpdates = diffToUpdates bobDiff
+        --         diffToUpdates :: Merge.NamespaceDefns Map Name (Merge.DiffOp Hash) Name (Merge.DiffOp Hash) -> Merge.Updates
+        --         diffToUpdates = wundefined
+        --         namespaceDefnsToDeepRefsId' :: Merge.NamespaceDefns BiMultimap TypeReference Name Referent Name -> Merge.DeepRefsId'
+        --         namespaceDefnsToDeepRefsId' Merge.NamespaceDefns {decls, terms} = Merge.DeepRefsId' tm ty
+        --           where
+        --             tm = Map.mapMaybe dropCtors $ BiMultimap.toMapR $ wundefined terms
+        --             dropCtors = \case
+        --               V1.Referent.RefId r -> Just r
+        --               _ -> Nothing
+        --             dropBuiltins = \case
+        --               Reference.ReferenceDerived r -> Just r
+        --               _ -> Nothing
+        --             ty = Map.mapMaybe dropBuiltins $ BiMultimap.toMapR decls
+        wundefined
+      else -- conflicts, so we create a namespace with just the merged libdeps
+
+        wundefined
+          -- then put the merged stuff into a scratch file
+          wundefined
 
     let mergedLibdeps =
           Merge.mergeLibdeps

@@ -8,18 +8,23 @@ module Unison.Merge2
     nameBasedNamespaceDiff,
 
     -- * Typechecking
+    whatToTypecheckV2,
     computeUnisonFile,
 
     -- * Misc / organize these later
     DiffOp (..),
     NamespaceDefns (..),
+    Updates (..),
+    DeepRefsId' (..),
   )
 where
 
 import Control.Lens (over, _3)
+import Control.Monad.Except qualified as Except
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
@@ -35,11 +40,15 @@ import U.Codebase.Reference
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Type (Codebase)
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
+import Unison.FileParsers (ShouldUseTndr)
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Merge.Diff (NamespaceDefns (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -54,6 +63,7 @@ import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
 import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.FileParser qualified
 import Unison.Syntax.Name qualified as Name
 import Unison.Term qualified as V1
 import Unison.Term qualified as V1.Term
@@ -129,6 +139,18 @@ data UpdatesId = UpdatesId
   { updatedTermsId :: Map Name TermReferenceId,
     updatedTypesId :: Map Name TypeReferenceId
   }
+
+data UpdatesRefnt = UpdatesRefnt
+  { updatedTermsRt :: Map Name V1.Referent,
+    updatedTypesRt :: Map Name TypeReference
+  }
+
+data UpdatesRefntId = UpdatesRefntId
+  { updatedTermsRtId :: Map Name V1.Referent,
+    updatedTypesRtId :: Map Name TypeReferenceId
+  }
+
+type Updates2 = Oink (Map Name V1.Referent.Referent) (Map Name TypeReferenceId)
 
 -- for updated definitions, we want to know which branch to find the updated version in
 -- for transitive dependents of updates (which are not updates themselves), we don't care which version we get
@@ -251,14 +273,14 @@ computeUnisonFile ::
   (TermReferenceId -> Transaction (V1.Term v a)) ->
   (TypeReferenceId -> Transaction (V1.Decl v a)) ->
   WhatToTypecheck ->
-  Updates ->
+  UpdatesRefnt ->
   Transaction (UnisonFile v a)
 computeUnisonFile
   ppes
   loadTerm
   loadDecl
   (unWhatToTypecheck -> DeepRefsId' {drTermsId' = termsToTypecheck, drTypesId' = declsToTypecheck})
-  Updates {updatedTerms = combinedTermUpdates, updatedTypes = combinedTypeUpdates} = do
+  UpdatesRefnt {updatedTermsRt = combinedTermUpdates, updatedTypesRt = combinedTypeUpdates} = do
     updatedDecls <-
       let setupDecl = fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadDecl
             where
@@ -275,26 +297,13 @@ computeUnisonFile
                 & Map.mapKeys Name.toVar
                 & Map.partition (\case Left {} -> True; Right {} -> False)
     updatedTerms <-
-      let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes updatedConstructors combinedTermUpdates) . loadTerm
+      let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadTerm
             where
               termNeedsUpdate = flip Map.member termsToTypecheck
               updatedTypes :: Map Name TypeReference =
                 Map.mapKeysMonotonic Name.unsafeFromVar $
                   fmap (Reference.ReferenceDerived . fst) (UFE.datasId env)
                     <> fmap (Reference.ReferenceDerived . fst) (UFE.effectsId env)
-              declsId :: Map v (Reference.Id, V1.Decl v a)
-              declsId = fmap (second Left) (UFE.effectsId env) <> fmap (second Right) (UFE.datasId env)
-              updatedConstructors :: Map Name V1.Referent.Referent =
-                Map.fromList
-                  [ (Name.joinDot declName ctorName, V1.Referent.Con (V1.ConstructorReference r ctorId) ct)
-                    | (vDecl, (id, decl)) <- Map.toList declsId,
-                      let declName = Name.unsafeFromVar vDecl,
-                      let ct = V1.Decl.constructorType decl,
-                      let r = Reference.ReferenceDerived id,
-                      (ctorId, vCtor) <- zip [0 ..] (V1.Decl.constructorVars (V1.Decl.asDataDecl decl)),
-                      let ctorName = Name.unsafeFromVar vCtor
-                  ]
-                  <> Map.fromList []
        in traverse setupTerm termsToTypecheck
     let uf = UF.UnisonFileId (UFE.datasId env) (UFE.effectsId env) terms watches
           where
@@ -316,14 +325,12 @@ computeUnisonFile
         (Name -> Bool) ->
         Map Name TypeReference ->
         Map Name V1.Referent ->
-        Map Name TermReference ->
         (V1.Term v a) ->
         (V1.Term v a)
       substForTerm
         RefToName {rtnTerms = ppeTerms, rtnTypes = ppeTypes}
         termNeedsUpdate
         updatedTypes
-        updatedConstructors
         updatedTerms
         term =
           updatesTerm term
@@ -331,7 +338,6 @@ computeUnisonFile
             updatesTerm =
               flip (foldl' updateTermDeps) rtsTermRefs
                 . flip (foldl' updatePatterns) allCtors
-                . flip (foldl' updateConstructors) allCtors
                 . flip (foldl' updateSignatures) rtsTypeAnnRefs
                 . flip (foldl' updateTypeLinks) rtsTypeLinks
                 . flip (foldl' updateTermLinks) rtsTermLinks
@@ -353,71 +359,61 @@ computeUnisonFile
                         }
                       term
 
-                updateConstructors :: V1.Term v a -> (V1.ConstructorReference, ConstructorType) -> V1.Term v a
-                updateConstructors term (cr, ct) = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
-                  where
-                    ctor = V1.Referent.Con cr ct
-                    old = V1.Term.fromReferent mempty ctor
-                    name :: Name = fromJust $ Map.lookup ctor ppeTerms
-                    var :: v = Name.toVar name
-                    new :: Maybe (V1.Term v a)
-                    new = case (termNeedsUpdate name, Map.lookup name updatedTerms, Map.lookup name updatedConstructors) of
-                      (True, _, _) -> Just $ V1.Term.var mempty var
-                      (False, Just u, _) -> Just $ V1.Term.ref mempty u
-                      (False, Nothing, Just r) -> Just $ V1.Term.fromReferent mempty r
-                      (False, Nothing, Nothing) -> Nothing
-
                 updatePatterns :: V1.Term v a -> (V1.ConstructorReference, ConstructorType) -> V1.Term v a
                 updatePatterns term (cr, ct) = Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
                   where
                     ctor = V1.Referent.Con cr ct
                     old = V1.Term.fromReferent mempty ctor
-                    name :: Name = fromJust $ Map.lookup ctor ppeTerms
                     new :: Maybe (V1.Term v a)
-                    new = case (termNeedsUpdate name, Map.lookup name updatedTerms, Map.lookup name updatedConstructors) of
-                      (True, _, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
-                      (False, Just {}, _) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
-                      (False, Nothing, Just r) -> Just $ V1.Term.fromReferent mempty r
-                      (False, Nothing, Nothing) -> Nothing
+                    new = do
+                      name <- Map.lookup ctor ppeTerms
+                      case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
+                        (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
+                        (False, Just r@V1.Referent.Con {}) -> Just $ V1.Term.fromReferent mempty r
+                        (False, Nothing) -> Nothing
 
                 updateTypeLinks :: V1.Term v a -> TypeReference -> V1.Term v a
                 updateTypeLinks term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
                   where
                     old = V1.Term.typeLink mempty ref
-                    name :: Name = fromJust $ Map.lookup ref ppeTypes
-                    new = case Map.lookup name updatedTypes of
-                      Just u -> Just $ V1.Term.typeLink mempty u
-                      Nothing -> Nothing
+                    new = do
+                      name <- Map.lookup ref ppeTypes
+                      case Map.lookup name updatedTypes of
+                        Just u -> Just $ V1.Term.typeLink mempty u
+                        Nothing -> Nothing
 
                 updateSignatures :: V1.Term v a -> TypeReference -> V1.Term v a
                 updateSignatures term ref = Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteSignatures old new term) term
                   where
-                    name :: Name = fromJust $ Map.lookup ref ppeTypes
                     old = Type.ref mempty ref
-                    new = case Map.lookup name updatedTypes of
-                      Just u -> Just $ Type.ref mempty u
-                      Nothing -> Nothing
+                    new = do
+                      name <- Map.lookup ref ppeTypes
+                      case Map.lookup name updatedTypes of
+                        Just u -> Just $ Type.ref mempty u
+                        Nothing -> Nothing
 
                 updateTermDeps :: V1.Term v a -> Reference -> V1.Term v a
                 updateTermDeps term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
                   where
-                    name :: Name = fromJust $ Map.lookup (V1.Referent.Ref ref) ppeTerms
-                    var = Name.toVar name
                     old = V1.Term.ref mempty ref
-                    new = case (termNeedsUpdate name, Map.lookup name updatedTerms) of
-                      (True, _) -> Just $ V1.Term.var mempty var
-                      (_, Just u) -> Just $ V1.Term.ref mempty u
-                      (False, Nothing) -> Nothing
+                    new = do
+                      name <- Map.lookup (V1.Referent.Ref ref) ppeTerms
+                      case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> Just $ V1.Term.var mempty (Name.toVar name)
+                        (_, Just u) -> Just $ V1.Term.fromReferent mempty u
+                        (False, Nothing) -> Nothing
 
                 updateTermLinks :: V1.Term v a -> V1.Referent -> V1.Term v a
                 updateTermLinks term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
                   where
-                    name :: Name = fromJust $ Map.lookup ref (error "substForTerm:updateTermLinks: unimplemented" ppeTerms)
+                    name :: Maybe Name = Map.lookup ref (error "substForTerm:updateTermLinks: unimplemented" ppeTerms)
                     old = V1.Term.termLink mempty ref
-                    new = case (termNeedsUpdate name, Map.lookup name updatedTerms) of
-                      (True, _) -> error $ "substForTerm: We can't set up a var for the termLink " ++ show name
-                      (_, Just u) -> Just $ V1.Term.typeLink mempty u
-                      (False, Nothing) -> Nothing
+                    new =
+                      name >>= \name -> case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> error $ "substForTerm: We can't set up a var for the termLink " ++ show name
+                        (_, Just u) -> Just $ V1.Term.termLink mempty u
+                        (False, Nothing) -> Nothing
 
       -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
       -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
@@ -433,20 +429,18 @@ computeUnisonFile
           updateType :: V1.Type v a -> Reference -> V1.Type v a
           updateType typ ref = Maybe.rewrite (\typ -> new >>= \new -> ABT.rewriteExpression old new typ) typ
             where
-              name :: Name
-              name = fromJust $ Map.lookup ref ppe
-              var :: v
-              var = Name.toVar name
               old :: V1.Type v a
               old = Type.ref mempty ref
               -- A "dependent" is gonna be part of the typechecking, so it gets replaced with a var.
               -- An update that isn't also a dependent just gets replaced with the latest ref.
               -- A ref that corresponds to neither doesn't need to be replaced.
               new :: Maybe (V1.Type v a)
-              new = case (declNeedsUpdate name, Map.lookup name updatedTypes) of
-                (True, _) -> Just $ Type.var mempty var
-                (False, Just u) -> Just $ Type.ref mempty u
-                (False, Nothing) -> Nothing
+              new = do
+                name <- Map.lookup ref ppe
+                case (declNeedsUpdate name, Map.lookup name updatedTypes) of
+                  (True, _) -> Just $ Type.var mempty (Name.toVar name)
+                  (False, Just u) -> Just $ Type.ref mempty u
+                  (False, Nothing) -> Nothing
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
@@ -465,33 +459,67 @@ instance Semigroup RefsToSubst where
 instance Monoid RefsToSubst where
   mempty = RefsToSubst mempty mempty mempty mempty mempty mempty
 
-typecheck :: UnisonFile v a -> Transaction (Either (Seq (Result.Note v a)) (TypecheckedUnisonFile v a))
-typecheck = wundefined
-
--- typecheck uf = do
---   Unison.Syntax.FileParser.checkForDuplicateTermsAndConstructors' escape uf
+-- typecheck :: Codebase IO v a -> UnisonFile v a -> Transaction (Either (Seq (Result.Note v a)) (TypecheckedUnisonFile v a))
+-- typecheck codebase uf = do
+--   Unison.Syntax.FileParser.checkForDuplicateTermsAndConstructors' err uf
 --   env <-
---     Cli.Typecheck.computeTypecheckingEnvironment
---       Cli.Typecheck.ShouldUseTndr'No
+--     FileParsers.computeTypecheckingEnvironment
+--       FileParsers.ShouldUseTndr'No
 --       mempty -- ambient abilities
---       makeTypeLookup
+--       (Codebase.typeLookupForDependencies codebase)
 --       uf
---   Except.runExceptT . Result.toEither $ Cli.Typecheck.synthesizeFile env uf
+--   Except.runExceptT . Result.toEither $ synthesizeFile env uf
+--   where
+--     err _ = error ""
 
 -- Q: Does this return all of the updates? A: suspect no currently
 newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 
--- How does this function fit in now?
-
 -- | We look at the transitive dependents of the <things with a <name that received an update>>.
 -- We choose a latest version of each of those transitive dependents, and return the sets.
+-- Q: Why doesn't updates include constructors?
+-- clue: we're looking in the DB for dependents of updates. does the DB include dependents of constructors?
+-- lca:
+-- Maybe.Some x = "Some"
+-- Maybe.None = "None"
+-- alice branch:
+-- type Maybe a = Some a | None
+-- drAlice:
+--  Maybe.Some -> #maybe#0
+--  Maybe.None -> #maybe#1
+-- drBob:
+--  Maybe.Some -> #some
+--  Maybe.None -> #none
+-- combinedUpdates:
+--  terms:
+--   Maybe.Some -> #maybe#0 xxxx
+--   Maybe.None -> #maybe#1 xxxx
+-- Q: Does this return the right type? Map Name Term/TypeReferenceId vs Set Name vs Set Term/TypeReferenceId
 whatToTypecheck :: DeepRefsId' -> DeepRefsId' -> Updates -> Transaction WhatToTypecheck
 whatToTypecheck drAlice drBob combinedUpdates = do
+  -- For each updated name, we want the associated definition
+  -- and the latest version of the transitive dependents of that name in each branch.
+
+  -- When Alice updates a definition, we want to transitively substitute it into the "latest" version of its dependents.
+  -- So we look in Alice's branch for whatever she thinks are the transitive dependents of her update are.
+  -- We want to know about her new defn's dependents, and about any new dependents Bob's introduced for the old defn.
+
+  -- if bob updates something to #foo,
+  -- do we want to typecheck the transitive dependents of #foo on Alice's branch?
+  -- if "no", then we don't actually want combined updates, don't want to look at alice's dependents of bob's updated hashes
+
+  -- if alice updates foo#foo -> foo#bar
+  -- earlier we said: we get alice's transitive dependents of #bar
+  --                + we get bob's transitive dependents of whatever he calls "foo"
+
+  -- oct 3: arya saying:
+  -- if alice updates a name, we only need to typecheck the latest versions of bob's transitive dependents of those
+
   -- we don't need to typecheck all adds, only the ones that are dependents of updates
   let deepRefsToReferenceIds dr = Set.fromList $ Map.elems (drTermsId' dr) <> Map.elems (drTypesId' dr)
   let updatesToReferences u = Set.fromList $ Map.elems (updatedTerms u) <> Map.elems (updatedTypes u)
   aliceDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drAlice) (updatesToReferences combinedUpdates)
-  bobDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drAlice) (updatesToReferences combinedUpdates)
+  bobDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drBob) (updatesToReferences combinedUpdates)
   let chooseLatest updates name a _b = case Map.lookup name updates of Just c -> c; Nothing -> a
   let latestDependents :: forall r. Ord r => Map Name r -> (Map Name r, Set r) -> (Map Name r, Set r) -> Map Name r
       latestDependents updates (drAlice', aliceDependents') (drBob', bobDependents') =
@@ -514,33 +542,132 @@ whatToTypecheck drAlice drBob combinedUpdates = do
           updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTypes combinedUpdates]
   pure . WhatToTypecheck $ DeepRefsId' latestTermDependents latestTypeDependents
 
--- not sure if this is actually going to be used now
-data PartitionedUpdates = PartitionedUpdates {puBuiltins :: Updates, puDerived :: UpdatesId}
+-- todo: search dependents of updated constructors too
+whatToTypecheckV2 :: (DeepRefsId', UpdatesRefnt) -> (DeepRefsId', UpdatesRefnt) -> Transaction WhatToTypecheck
+whatToTypecheckV2 (drAlice, aliceUpdates) (drBob, bobUpdates) = do
+  wundefined
 
-partitionUpdates :: Updates -> PartitionedUpdates
-partitionUpdates updates = PartitionedUpdates puBuiltins puDerived
-  where
-    puBuiltins :: Updates = Updates builtinTerms builtinTypes
-    puDerived :: UpdatesId = UpdatesId derivedTerms derivedTypes
-    (builtinTerms, fmap Reference.unsafeId -> derivedTerms) = Map.partition Reference.isBuiltin (updatedTerms updates)
-    (builtinTypes, fmap Reference.unsafeId -> derivedTypes) = Map.partition Reference.isBuiltin (updatedTypes updates)
+-- -- get the relevant dependents
+-- let deepRefsToReferenceIds dr = Set.fromList $ Map.elems (drTermsId' dr) <> Map.elems (drTypesId' dr)
+-- let updatesToReferences :: UpdatesRefnt -> Set Reference
+--     updatesToReferences u = Set.fromList $ Map.elems (V1.Referent.toReference <$> updatedTermsRt u) <> Map.elems (updatedTypesRt u)
+-- aliceDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drAlice) (updatesToReferences bobUpdates)
+-- bobDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drBob) (updatesToReferences aliceUpdates)
 
--- for each updated name
--- typecheck the associated defintiion
--- and the latest versions of the transitive dependents of that name in each branch
--- Q: What does it mean to check the latest version of the transitive dependen
+-- -- we want the latest versions of things to be typechecked
+-- let chooseLatest updates name a _b = case Map.lookup name updates of Just c -> c; Nothing -> a
+-- let latestDependents :: forall r. Ord r => Map Name r -> (Map Name r, Set r) -> (Map Name r, Set r) -> Map Name r
+--     latestDependents updates (drAlice', aliceDependents') (drBob', bobDependents') =
+--       Map.unionWithKey (chooseLatest updates) aliceNamedDefs bobNamedDefs
+--       where
+--         aliceNamedDefs :: Map Name r = filterDeepRefs drAlice' aliceDependents'
+--         bobNamedDefs :: Map Name r = filterDeepRefs drBob' bobDependents'
+--         filterDeepRefs :: Map Name r -> Set r -> Map Name r
+--         filterDeepRefs dr deps = Map.filter (flip Set.member deps) dr
+--     filterDependents rt m = Set.fromList [r | (r, t) <- Map.toList m, t == rt]
+-- let combinedUpdates =
+--       UpdatesRefnt
+--         { updatedTermsRt = updatedTermsRt aliceUpdates <> updatedTermsRt bobUpdates,
+--           updatedTypesRt = updatedTypesRt aliceUpdates <> updatedTypesRt bobUpdates
+--         }
+-- let latestTermDependents :: Map Name TermReferenceId
+--     latestTermDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
+--       where
+--         setup dr dependents = (drTermsId' dr, filterDependents RtTerm dependents)
+--         updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTermsRt combinedUpdates]
+-- let latestTypeDependents :: Map Name TypeReferenceId
+--     latestTypeDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
+--       where
+--         setup dr dependents = (drTypesId' dr, filterDependents RtType dependents)
+--         updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTypes combinedUpdates]
+-- pure . WhatToTypecheck $ DeepRefsId' latestTermDependents latestTypeDependents
 
---
----- load what we want to typecheck in a suitable form for typechecking
------- synthesizeFile :: Env v a -> UnisonFile v a -> ResultT (Seq (Note v a)) m (UF.TypecheckedUnisonFile v a)
----- conditionally construct a new namespace and/or scratch file
------- namespace
--------- create name mapping for result
------- scratch file
--------- create a PPE suitable for scratch-filing if different from the one we used for typechecking
---
----- thingsWeNeedToTweakAndTypecheck :: (DeepRefs, Diff) -> (DeepRefs, Diff) -> DeepRefs
----- thingsWeNeedToTweakAndTypecheck (aRefs, aDiff) (bRefs, bDiff) = wundefined
+-- data MergeOutput v a = MergeProblem
+--   { definitions :: Oink (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
+--   }
 
--- if yes conflicts:
-----
+-- type Pretty = Text
+
+-- type Defn v a = Either (V1.Term v a) (V1.Decl v a) -- could also be a builtin alias
+
+-- pseudoOutput :: (Name -> Defn v a -> Pretty) -> MergeOutput v a -> Pretty
+-- pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDeps
+--   where
+--     (conflicted, transitiveDeps) = foldl' partitionConflicts mempty (terms $ definitions merge)
+--     partitionConflicts (conflicted, transitiveDeps) (name, cog) = case cog of
+--       Left conflict -> (Map.insert name conflict conflicted, transitiveDeps)
+--       Right unconflicted -> (conflicted, Map.insert name unconflicted transitiveDeps)
+--     prettyTransitiveDeps = foldMap prettyTransitiveDep (Map.toList transitiveDeps)
+--     prettyTransitiveDep = uncurry printDefn
+--     prettyConflicts = foldMap prettyConflict (Map.toList conflicted)
+--     prettyConflict = \case
+--       (name, ConflictAddAdd b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- added in " <> b1,
+--             printDefn name d1,
+--             "-- added in " <> b2,
+--             printDefn name d2
+--           ]
+--       (name, ConflictUpdateUpdate b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- updated in " <> b1,
+--             printDefn name d1,
+--             "-- updated in " <> b2,
+--             printDefn name d2
+--           ]
+--       (name, ConflictDeleteAddDependent b1 b2 d) ->
+--         mintercalate
+--           "\n"
+--           [ "-- deleted in " <> b1,
+--             printDeletedDefn name d,
+--             "-- original definition still in use by " <> b2,
+--             printDefn name d
+--           ]
+--       (name, ConflictDeleteUpdate b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- deleted in " <> b1,
+--             printDefn name d1,
+--             "-- updated in " <> b2,
+--             printDefn name d2
+--           ]
+--     printDeletedDefn :: Name -> Defn v a -> Pretty
+--     printDeletedDefn name = \case
+--       _term@Left {} -> Name.toText name <> " = " <> "<<<deleted>>>"
+--       Right (Left (V1.EffectDeclaration _effect)) -> case V1.Decl.modifier _effect of
+--         V1.Decl.Structural -> "structural ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
+--         V1.Decl.Unique {} -> "unique ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
+--       (Right (Right _data)) -> case V1.Decl.modifier _data of
+--         V1.Decl.Structural -> "structural type " <> Name.toText name <> " = " <> "<<<>>>"
+--         V1.Decl.Unique {} -> "unique type " <> Name.toText name <> " = " <> "<<<>>>"
+--     newline = "\n"
+
+-- mintercalate :: Monoid a => a -> [a] -> a
+-- mintercalate x ys = x <> go ys
+--   where
+--     go [] = mempty
+--     go (y : ys) = y <> x <> go ys
+
+-- sintercalate :: Semigroup a => a -> NonEmpty a -> a
+-- sintercalate x ys = go $ toList ys
+--   where
+--     go [y] = y
+--     go (y : ys) = y <> x <> go ys
+--     go [] = error "impossible"
+
+-- type BranchName = Text
+
+-- type ConflictOrGood a = Either (Conflict BranchName a) a
+
+-- data Conflict branch a
+--   = ConflictAddAdd !branch !branch !a !a
+--   | ConflictUpdateUpdate !branch !branch !a !a
+--   | ConflictDeleteAddDependent !branch !branch !a
+--   | ConflictDeleteUpdate !branch !branch !a !a
+
+data Oink terms types = Oink
+  { _terms :: terms,
+    _types :: types
+  }
