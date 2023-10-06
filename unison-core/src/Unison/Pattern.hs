@@ -15,7 +15,7 @@ import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type qualified as Type

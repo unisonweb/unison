@@ -58,7 +58,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1 (Decl)
@@ -112,95 +112,99 @@ handleMerge alicePath0 bobPath0 _resultPath = do
   alicePath <- Cli.resolvePath' alicePath0
   bobPath <- Cli.resolvePath' bobPath0
 
-  Cli.runTransactionWithRollback \rollback -> do
-    aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
-    bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+  result <-
+    Cli.runTransactionWithRollback2 \rollback -> do
+      aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
+      bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
 
-    let aliceCausalHash = Causal.causalHash aliceCausal
-    let bobCausalHash = Causal.causalHash bobCausal
-    maybeLcaCausalHash <- step "compute lca" $ Operations.lca aliceCausalHash bobCausalHash
+      let aliceCausalHash = Causal.causalHash aliceCausal
+      let bobCausalHash = Causal.causalHash bobCausal
+      maybeLcaCausalHash <- step "compute lca" $ Operations.lca aliceCausalHash bobCausalHash
 
-    -- Read the (shallow) branches out of the database.
-    aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
-    bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
+      -- Read the (shallow) branches out of the database.
+      aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
+      bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-    aliceDefns <- step "load alice definitions" do
-      loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM \err ->
-        rollback (werror (Text.unpack err))
-    bobDefns <- step "load bob definitions" do
-      loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM \err ->
-        rollback (werror (Text.unpack err))
+      aliceDefns <- step "load alice definitions" do
+        loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM (rollback . Left)
+      bobDefns <- step "load bob definitions" do
+        loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM (rollback . Left)
 
-    aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
-    bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
+      aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
+      bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
 
-    (maybeLcaLibdeps, diffs) <-
-      case maybeLcaCausalHash of
-        Nothing -> do
-          diffs <-
-            Merge.nameBasedNamespaceDiff
-              (Codebase.unsafeGetTypeDeclaration codebase)
-              (Codebase.unsafeGetTerm codebase)
-              Merge.TwoOrThreeWay
-                { lca = Nothing,
-                  alice = aliceDefns,
-                  bob = bobDefns
-                }
-          pure (Nothing, diffs)
-        Just lcaCausalHash -> do
-          lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
-          lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-          lcaDefns <- step "load lca definitions" do
-            loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM \err ->
-              rollback (werror (Text.unpack err))
-          diffs <-
-            Merge.nameBasedNamespaceDiff
-              (Codebase.unsafeGetTypeDeclaration codebase)
-              (Codebase.unsafeGetTerm codebase)
-              Merge.TwoOrThreeWay
-                { lca = Just lcaDefns,
-                  alice = aliceDefns,
-                  bob = bobDefns
-                }
+      (maybeLcaLibdeps, diffs) <-
+        case maybeLcaCausalHash of
+          Nothing -> do
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                (Codebase.unsafeGetTypeDeclaration codebase)
+                (Codebase.unsafeGetTerm codebase)
+                Merge.TwoOrThreeWay
+                  { lca = Nothing,
+                    alice = aliceDefns,
+                    bob = bobDefns
+                  }
+            pure (Nothing, diffs)
+          Just lcaCausalHash -> do
+            lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
+            lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
+            lcaDefns <- step "load lca definitions" do
+              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM (rollback . Left)
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                (Codebase.unsafeGetTypeDeclaration codebase)
+                (Codebase.unsafeGetTerm codebase)
+                Merge.TwoOrThreeWay
+                  { lca = Just lcaDefns,
+                    alice = aliceDefns,
+                    bob = bobDefns
+                  }
 
-          findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
-            rollback (werror ("conflicted alice aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
+            findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
+              rollback (werror ("conflicted alice aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
-            rollback (werror ("conflicted bob aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
+            findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
+              rollback (werror ("conflicted bob aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
 
-          lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
+            lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
 
-          pure (Just lcaLibdeps, diffs)
+            pure (Just lcaLibdeps, diffs)
 
-    let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
-    let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
+      let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
+      let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
 
-    let mergedLibdeps =
-          Merge.mergeLibdeps
-            ((==) `on` Causal.causalHash)
-            getTwoFreshNames
-            maybeLcaLibdeps
-            aliceLibdeps
-            bobLibdeps
+      let mergedLibdeps =
+            Merge.mergeLibdeps
+              ((==) `on` Causal.causalHash)
+              getTwoFreshNames
+              maybeLcaLibdeps
+              aliceLibdeps
+              bobLibdeps
 
-    Sqlite.unsafeIO do
-      Text.putStrLn ""
-      Text.putStrLn "===== lca->alice diff ====="
-      printDeclsDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
-      printTermsDiff (aliceDefns ^. #terms) (diffs ^. #alice . #terms)
-      Text.putStrLn ""
-      Text.putStrLn "===== lca->bob diff ====="
-      printDeclsDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
-      printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
-      Text.putStrLn ""
-      Text.putStrLn "===== merged libdeps dependencies ====="
-      printLibdeps mergedLibdeps
-      Text.putStrLn ""
-      Text.putStrLn "===== conflicts ====="
-      printDeclConflicts conflictedTypes
-      printTermConflicts conflictedTerms
-      Text.putStrLn ""
+      Sqlite.unsafeIO do
+        Text.putStrLn ""
+        Text.putStrLn "===== lca->alice diff ====="
+        printDeclsDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
+        printTermsDiff (aliceDefns ^. #terms) (diffs ^. #alice . #terms)
+        Text.putStrLn ""
+        Text.putStrLn "===== lca->bob diff ====="
+        printDeclsDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
+        printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
+        Text.putStrLn ""
+        Text.putStrLn "===== merged libdeps dependencies ====="
+        printLibdeps mergedLibdeps
+        Text.putStrLn ""
+        Text.putStrLn "===== conflicts ====="
+        printDeclConflicts conflictedTypes
+        printTermConflicts conflictedTerms
+        Text.putStrLn ""
+
+      pure (Right ())
+
+  case result of
+    Left err -> liftIO (print err)
+    Right () -> pure ()
 
 makeNamespace ::
   HashHandle ->
@@ -307,6 +311,10 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
+data MergePreconditionViolation
+  = StrayConstructor !Name
+  deriving stock (Show)
+
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
 -- Fails if:
@@ -317,7 +325,7 @@ loadNamespaceDefns ::
   Monad m =>
   (TypeReferenceId -> m Int) ->
   Branch m ->
-  m (Either Text (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
+  m (Either MergePreconditionViolation (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
 loadNamespaceDefns loadNumConstructors branch = do
   libdepsHasTopLevelDefns <-
     case Map.lookup Name.libSegment (branch ^. #children) of
@@ -365,14 +373,14 @@ type NamespaceDefns1 =
   Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
 
 -- | Assert that there are no unconflicted names in a namespace.
-makeNamespaceDefns1 :: NamespaceDefns0 -> Either Text NamespaceDefns1
+makeNamespaceDefns1 :: NamespaceDefns0 -> Either MergePreconditionViolation NamespaceDefns1
 makeNamespaceDefns1 =
   traverse \Merge.Defns {terms, types} -> do
     terms <- traverse assertUnconflicted terms
     types <- traverse assertUnconflicted types
     pure (Merge.Defns terms types)
   where
-    assertUnconflicted :: Set ref -> Either Text ref
+    assertUnconflicted :: Set ref -> Either MergePreconditionViolation ref
     assertUnconflicted refs =
       case Set.asSingleton refs of
         Nothing -> Left (werror "conflicted ref")
@@ -459,27 +467,27 @@ makeNamespaceDefns1 =
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-checkDeclCoherency :: forall m. Monad m => (TypeReferenceId -> m Int) -> NamespaceDefns1 -> m (Either Text ())
+checkDeclCoherency :: forall m. Monad m => (TypeReferenceId -> m Int) -> NamespaceDefns1 -> m (Either MergePreconditionViolation ())
 checkDeclCoherency loadNumConstructors =
-  runExceptT . (`State.evalStateT` Map.empty) . go
+  runExceptT . (`State.evalStateT` Map.empty) . go []
   where
-    go :: NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT Text m) ()
-    go (Merge.Defns {terms, types} :< children) = do
-      for_ terms \case
-        Referent.Ref _ -> pure ()
-        Referent.Con (ReferenceBuiltin _) _ -> pure ()
-        Referent.Con (ReferenceDerived typeRef) conId -> do
+    go :: [NameSegment] -> NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT MergePreconditionViolation m) ()
+    go prefix (Merge.Defns {terms, types} :< children) = do
+      for_ (Map.toList terms) \case
+        (_, Referent.Ref _) -> pure ()
+        (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
+        (name, Referent.Con (ReferenceDerived typeRef) conId) -> do
           -- could use modifyM on newer tranformers
           s0 <- State.get
           s1 <- lift (Except.except (Map.upsertF f typeRef s0))
           State.put s1
           where
-            f :: Maybe IntSet -> Either Text IntSet
+            f :: Maybe IntSet -> Either MergePreconditionViolation IntSet
             f = \case
-              Nothing -> Left (werror "stray constructor")
+              Nothing -> Left (StrayConstructor (Name.fromReverseSegments (name :| prefix)))
               Just expected -> IntSet.alterF g (unsafeFrom @Word64 conId) expected
                 where
-                  g :: Bool -> Either Text Bool
+                  g :: Bool -> Either MergePreconditionViolation Bool
                   g = \case
                     False -> Left (werror ("duplicate constructor " ++ show (ConstructorReference typeRef conId)))
                     True -> Right False
@@ -489,7 +497,7 @@ checkDeclCoherency loadNumConstructors =
           (_, ReferenceBuiltin _) -> pure Nothing
           (name, ReferenceDerived typeRef) -> do
             s0 <- State.get
-            honk <- do
+            whatHappened <- do
               let f :: Maybe IntSet -> Compose m WhatHappened IntSet
                   f =
                     Compose . \case
@@ -499,28 +507,29 @@ checkDeclCoherency loadNumConstructors =
                           0 -> UninhabitedDecl
                           n -> InhabitedDecl (IntSet.fromAscList [0 .. n - 1])
               lift (lift (getCompose (Map.upsertF f typeRef s0)))
-            case honk of
+            case whatHappened of
               NestedDeclAlias -> Except.throwError (werror "embedded alias")
               UninhabitedDecl -> pure Nothing
               InhabitedDecl s1 ->
                 case Map.lookup name children of
                   Nothing -> Except.throwError (werror "no names for constructors")
                   Just child -> do
-                    go child
-                    s0 <- State.get
-                    let (Just x, s1) = Map.deleteLookup typeRef s0
-                    when (not (IntSet.null x)) (werror "missing name for constructor")
                     State.put s1
+                    go (name : prefix) child
+                    s2 <- State.get
+                    let (Just x, s3) = Map.deleteLookup typeRef s2
+                    when (not (IntSet.null x)) (werror "missing name for constructor")
+                    State.put s3
                     pure (Just name)
 
       let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
-      traverse_ go childrenWeHaventGoneInto
+      for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
 
 data WhatHappened a
   = NestedDeclAlias
   | UninhabitedDecl
   | InhabitedDecl !a
-  deriving stock (Functor)
+  deriving stock (Functor, Show)
 
 -- @findConflictedAlias namespace diff@, given a namespace and a diff from an old namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
