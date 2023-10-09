@@ -139,15 +139,16 @@ computeEquivalenceClasses updates =
       nodesOnly :: UFMap x x
       nodesOnly = foldl' (\b a -> UFMap.insert a a b) UFMap.empty nodes
 
-      addEdge :: UFMap x x -> (x, x) -> UFMap x x
-      addEdge m0 (a, b) = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonK nonCanonV m -> do
-        let m' =
-              UFMap.alter
-                canonK
-                (error "impossible")
-                (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
-                m
-        Identity (Just m')
+      -- addEdge :: UFMap x x -> (x, x) -> UFMap x x
+      addEdge = wundefined
+      -- addEdge m0 (a, b) = fromMaybe m0 $ runIdentity $ UFMap.union a b m0 \canonK nonCanonV m -> do
+      --   let m' =
+      --         UFMap.alter
+      --           canonK
+      --           (error "impossible")
+      --           (\_ equivClassSize canonV -> UFMap.Canonical equivClassSize (min canonV nonCanonV))
+      --           m
+      --   Identity (Just m')
    in foldl' addEdge nodesOnly edges
 
 -- Post-condition: sets have 2+ elements
@@ -1274,7 +1275,7 @@ rewriteTermComponent typeLookup ecForRef finished component =
   if NEMap.size component < 2
     then error "Merge.rewriteTermComponent: this function is only for components with mutual recursion"
     else -- TODO: validateUnisonFile here?
-    case Result.result $ FP.synthesizeFile typecheckingEnv uf of
+    case Result.result $ wundefined {-FP.synthesizeFile-} typecheckingEnv uf of
       Just tuf -> formatResults (typecheckedComponent tuf)
       Nothing -> errorResults
   where

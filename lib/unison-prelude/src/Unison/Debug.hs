@@ -43,6 +43,7 @@ data DebugFlag
     Server
   | PatternCoverage
   | PatternCoverageConstraintSolver
+  | KindInference
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -68,6 +69,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "SERVER" -> pure Server
       "PATTERN_COVERAGE" -> pure PatternCoverage
       "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
+      "KIND_INFERENCE" -> pure KindInference
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -118,6 +120,10 @@ debugAnnotations = Annotations `Set.member` debugFlags
 debugServer :: Bool
 debugServer = Server `Set.member` debugFlags
 {-# NOINLINE debugServer #-}
+
+debugKindInference :: Bool
+debugKindInference = KindInference `Set.member` debugFlags
+{-# NOINLINE debugKindInference #-}
 
 debugPatternCoverage :: Bool
 debugPatternCoverage = PatternCoverage `Set.member` debugFlags
@@ -181,3 +187,4 @@ shouldDebug = \case
   Server -> debugServer
   PatternCoverage -> debugPatternCoverage
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver
+  KindInference -> debugKindInference

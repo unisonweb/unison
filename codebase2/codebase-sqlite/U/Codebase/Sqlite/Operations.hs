@@ -32,6 +32,7 @@ module U.Codebase.Sqlite.Operations
     loadDeclComponent,
     loadDeclByReference,
     expectDeclByReference,
+    expectDeclNumConstructors,
     expectDeclTypeById,
 
     -- * terms/decls
@@ -543,6 +544,12 @@ expectDeclByReference r@(C.Reference.Id h i) = do
   Q.expectObjectIdForPrimaryHash h
     >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
     >>= uncurry Q.s2cDecl
+
+expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
+expectDeclNumConstructors (C.Reference.Id h i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
+
 
 -- * Branch transformation
 

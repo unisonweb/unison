@@ -9,7 +9,7 @@
 module U.Util.Serialization where
 
 import Control.Applicative (Applicative (liftA2), liftA3)
-import Control.Monad (foldM, replicateM, when)
+import Control.Monad (foldM, replicateM, when, replicateM_)
 import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
@@ -142,13 +142,22 @@ putFoldable putA as = do
 
 getList :: (MonadGet m) => m a -> m [a]
 getList getA = do
-  length <- getVarInt
+  length <- getListLength
   replicateM length getA
+
+getListLength :: (MonadGet m) => m Int
+getListLength =
+  getVarInt
 
 getVector :: (MonadGet m) => m a -> m (Vector a)
 getVector getA = do
   length <- getVarInt
   Vector.replicateM length getA
+
+skipVector :: MonadGet m => m a -> m ()
+skipVector getA = do
+  length <- getVarInt
+  replicateM_ length getA
 
 getSequence :: (MonadGet m) => m a -> m (Seq a)
 getSequence getA = do

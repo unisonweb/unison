@@ -11,6 +11,7 @@ dependencies:
   - bytestring
   - containers
   - either
+  - free
   - generic-lens
   - lens
   - monad-validate

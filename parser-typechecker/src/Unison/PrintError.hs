@@ -22,6 +22,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
+import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
@@ -609,6 +610,10 @@ renderTypeError e env src curPath = case e of
     Pr.hang
       "This case would be ignored because it's already covered by the preceding case(s):"
       (annotatedAsErrorSite src loc)
+  KindInferenceFailure ke ->
+    let prettyTyp t = Pr.bold (renderType' env t)
+        showSource = showSourceMaybes src . map (\(loc, color) -> (,color) <$> rangeForAnnotated loc)
+     in prettyKindError prettyTyp showSource Type1 Type2 env ke
   UnknownTerm {..}
     | Var.typeOf unknownTermV == Var.MissingResult ->
         Pr.lines
@@ -943,6 +948,7 @@ renderTypeError e env src curPath = case e of
             fromString (show args),
             "\n"
           ]
+      C.KindInferenceFailure _ -> "kind inference failure"
       C.DuplicateDefinitions vs ->
         let go :: (v, [loc]) -> Pretty (AnnotatedText a)
             go (v, locs) =

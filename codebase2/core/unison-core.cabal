@@ -59,6 +59,7 @@ library
       base
     , containers
     , lens
+    , mtl
     , recover-rtti
     , rfc5051
     , text

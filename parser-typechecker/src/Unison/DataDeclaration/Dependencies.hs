@@ -100,7 +100,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, _a, trm) ->
-      case Result.result (Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckSwitch'Disabled typecheckingEnv trm) of
+      case Result.result (Typechecker.synthesize ppe Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled typecheckingEnv trm) of
         Nothing -> Nothing
         -- Note: Typechecker.synthesize doesn't normalize the output
         -- type. We do so here using `Type.cleanup`, mirroring what's

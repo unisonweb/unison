@@ -8,25 +8,28 @@ module Unison.Merge2
     nameBasedNamespaceDiff,
 
     -- * Typechecking
-    whatToTypecheckV2,
+    whatToTypecheck,
     computeUnisonFile,
 
     -- * Misc / organize these later
     DiffOp (..),
-    NamespaceDefns (..),
     Updates (..),
     DeepRefsId' (..),
+    Defns (..),
+    DefnsA,
+    DefnsB,
+    NamespaceTree,
+    flattenNamespaceTree,
+    TwoWay (..),
+    TwoOrThreeWay (..),
   )
 where
 
 import Control.Lens (over, _3)
-import Control.Monad.Except qualified as Except
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Tuple qualified as Tuple
 import U.Codebase.Reference
@@ -40,30 +43,23 @@ import U.Codebase.Reference
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
-import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Type (Codebase)
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.FileParsers (ShouldUseTndr)
-import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.Merge.Diff (NamespaceDefns (..), nameBasedNamespaceDiff)
+import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
+import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree)
 import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.Reference qualified as C
 import Unison.Reference qualified as V1
 import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
-import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
-import Unison.Syntax.FileParser qualified
 import Unison.Syntax.Name qualified as Name
 import Unison.Term qualified as V1
 import Unison.Term qualified as V1.Term
@@ -72,7 +68,7 @@ import Unison.Type qualified as V1
 import Unison.Type qualified as V1.Type
 import Unison.UnisonFile.Env qualified as UFE
 import Unison.UnisonFile.Names qualified as UFN
-import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
@@ -146,7 +142,7 @@ data UpdatesRefnt = UpdatesRefnt
   }
 
 data UpdatesRefntId = UpdatesRefntId
-  { updatedTermsRtId :: Map Name V1.Referent,
+  { updatedTermsRtId :: Map Name V1.Referent.Id,
     updatedTypesRtId :: Map Name TypeReferenceId
   }
 
@@ -475,112 +471,95 @@ instance Monoid RefsToSubst where
 -- Q: Does this return all of the updates? A: suspect no currently
 newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 
--- | We look at the transitive dependents of the <things with a <name that received an update>>.
--- We choose a latest version of each of those transitive dependents, and return the sets.
--- Q: Why doesn't updates include constructors?
--- clue: we're looking in the DB for dependents of updates. does the DB include dependents of constructors?
--- lca:
--- Maybe.Some x = "Some"
--- Maybe.None = "None"
--- alice branch:
--- type Maybe a = Some a | None
--- drAlice:
---  Maybe.Some -> #maybe#0
---  Maybe.None -> #maybe#1
--- drBob:
---  Maybe.Some -> #some
---  Maybe.None -> #none
--- combinedUpdates:
---  terms:
---   Maybe.Some -> #maybe#0 xxxx
---   Maybe.None -> #maybe#1 xxxx
--- Q: Does this return the right type? Map Name Term/TypeReferenceId vs Set Name vs Set Term/TypeReferenceId
-whatToTypecheck :: DeepRefsId' -> DeepRefsId' -> Updates -> Transaction WhatToTypecheck
-whatToTypecheck drAlice drBob combinedUpdates = do
-  -- For each updated name, we want the associated definition
-  -- and the latest version of the transitive dependents of that name in each branch.
+-- drAlice and drBob could be `DeepRefs` because that's what the diff gives us,
+-- or they could be `DeepRefsId` because they're also the set of possibilities for typechecking, and we wouldn't be needing to typecheck any builtins
+-- it CAN'T be `DeepRefsId` because they're also the set of dependencies for looking up dependents, and if someone replaced a term with a ctor,
+-- we need to find that ctor by name and look up its dependents.
 
-  -- When Alice updates a definition, we want to transitively substitute it into the "latest" version of its dependents.
-  -- So we look in Alice's branch for whatever she thinks are the transitive dependents of her update are.
-  -- We want to know about her new defn's dependents, and about any new dependents Bob's introduced for the old defn.
+-- Hypothesis: This implementation would be much simpler if we had a richer dependency lookup.
+-- As it stands, we can't look up the dependents of a constructor or pattern; we instead look up the dependents of the decl they came from (which is weird?)
+-- Similarly, when we ask "which <thing we can look up can lookup dependents for> is named <x>", and we want to look up constructors, that's weird.
 
-  -- if bob updates something to #foo,
-  -- do we want to typecheck the transitive dependents of #foo on Alice's branch?
-  -- if "no", then we don't actually want combined updates, don't want to look at alice's dependents of bob's updated hashes
-
-  -- if alice updates foo#foo -> foo#bar
-  -- earlier we said: we get alice's transitive dependents of #bar
-  --                + we get bob's transitive dependents of whatever he calls "foo"
-
-  -- oct 3: arya saying:
-  -- if alice updates a name, we only need to typecheck the latest versions of bob's transitive dependents of those
-
-  -- we don't need to typecheck all adds, only the ones that are dependents of updates
-  let deepRefsToReferenceIds dr = Set.fromList $ Map.elems (drTermsId' dr) <> Map.elems (drTypesId' dr)
-  let updatesToReferences u = Set.fromList $ Map.elems (updatedTerms u) <> Map.elems (updatedTypes u)
-  aliceDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drAlice) (updatesToReferences combinedUpdates)
-  bobDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drBob) (updatesToReferences combinedUpdates)
-  let chooseLatest updates name a _b = case Map.lookup name updates of Just c -> c; Nothing -> a
-  let latestDependents :: forall r. Ord r => Map Name r -> (Map Name r, Set r) -> (Map Name r, Set r) -> Map Name r
-      latestDependents updates (drAlice', aliceDependents') (drBob', bobDependents') =
-        Map.unionWithKey (chooseLatest updates) aliceNamedDefs bobNamedDefs
+-- Question: What happens if I update a ctor?
+whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction WhatToTypecheck
+whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
+  -- 1. for each update, determine the corresponding old dependent
+  let -- \| Find the `Reference.Id`s that comprise a namespace. Constructors show up as decl Ids.
+      makeScope dr = Set.fromList $ doTerms (drTerms dr) <> doTypes (drTypes dr)
         where
-          aliceNamedDefs :: Map Name r = filterDeepRefs drAlice' aliceDependents'
-          bobNamedDefs :: Map Name r = filterDeepRefs drBob' bobDependents'
+          doTerms :: Map Name V1.Referent.Referent -> [Reference.Id]
+          doTerms = mapMaybe V1.Referent.toReferenceId . Map.elems
+          doTypes :: Map Name TypeReference -> [Reference.Id]
+          doTypes = mapMaybe Reference.toId . Map.elems
+
+  let -- \| Returns things from `scope` that have the same names as things in `updates` updates
+      -- the return type should be "things that can be dependencies in the db".
+      -- This implementation returns a decl reference in place of a constructor reference.
+      getByCorrespondingName :: DeepRefs -> UpdatesRefnt -> Set Reference
+      getByCorrespondingName scope updates = Set.fromList $ doTerms (updatedTermsRt updates) <> doTypes (updatedTypesRt updates)
+        where
+          -- \| doTerms will return a TypeReference from a Constructor
+          doTerms :: Map Name V1.Referent -> [Reference]
+          doTerms = map f . Map.keys
+          f :: Name -> Reference
+          f name = fromMaybe err $ V1.Referent.toReference <$> Map.lookup name (drTerms scope)
+            where
+              err = error $ "delete / update conflict on term " ++ Name.toString name
+          doTypes :: Map Name TypeReference -> [Reference]
+          doTypes = map g . Map.keys
+          g :: Name -> Reference
+          g name = fromMaybe err $ Map.lookup name (drTypes scope)
+            where
+              err = error $ "delete / update conflict on type " ++ Name.toString name
+
+  -- these dependents are just term/decl ids
+  aliceDependents <- Ops.dependentsWithinScope (makeScope drAlice) (getByCorrespondingName drAlice bobUpdates)
+  bobDependents <- Ops.dependentsWithinScope (makeScope drBob) (getByCorrespondingName drBob aliceUpdates)
+
+  -- we want the latest versions of things to be typechecked.
+  -- we're assuming aliceDependents / bobDependents includes everything that we want to typecheck (currently this means terms and decls)
+  -- but where do constructors enter into this? and if we leave constructors out (which we do, below), where do we get constructor names for printing the decls?
+  let prefer primary name secondary _ignored = case Map.lookup name primary of Just c -> c; Nothing -> secondary
+  let latestDefn :: forall r. Ord r => Map Name r -> (Map Name r, Set r) -> (Map Name r, Set r) -> Map Name r
+      latestDefn updates (aliceNames, aliceDefs) (bobNames, bobDefs) =
+        Map.unionWithKey (prefer updates) aliceNamedDefs bobNamedDefs
+        where
+          -- we'll collect names for just the dependents, and then make sure we have the latest of each
+          aliceNamedDefs :: Map Name r = filterDeepRefs aliceNames aliceDefs
+          bobNamedDefs :: Map Name r = filterDeepRefs bobNames bobDefs
           filterDeepRefs :: Map Name r -> Set r -> Map Name r
           filterDeepRefs dr deps = Map.filter (flip Set.member deps) dr
       filterDependents rt m = Set.fromList [r | (r, t) <- Map.toList m, t == rt]
-  let latestTermDependents :: Map Name TermReferenceId
-      latestTermDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
+
+  let -- combinedUpdates — stuff can be updated to a constructor
+      -- however, we're looking for the latest version of the thing to typecheck, and we can't typecheck a constructor
+      --  can we typecheck a constructor? we just have to put its decl in instead? / too?
+      combinedUpdates =
+        UpdatesRefnt
+          { updatedTermsRt = updatedTermsRt aliceUpdates <> updatedTermsRt bobUpdates,
+            updatedTypesRt = updatedTypesRt aliceUpdates <> updatedTypesRt bobUpdates
+          }
+
+  -- todo: there's something confusing here about constructor names.
+  --       the names should come from the diffs and the updates
+  let -- \| terms to typecheck. they'll be Ids because that's all we have in the database as dependents.
+      latestTermDependents :: Map Name TermReferenceId
+      latestTermDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
-          setup dr dependents = (drTermsId' dr, filterDependents RtTerm dependents)
-          updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTerms combinedUpdates]
-  let latestTypeDependents :: Map Name TypeReferenceId
-      latestTypeDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
+          setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TermReferenceId, Set TermReferenceId)
+          setup dr dependents = (dropCtorsAndBuiltins $ drTerms dr, filterDependents RtTerm dependents)
+          dropCtorsAndBuiltins = Map.mapMaybe \case V1.Referent.Ref (Reference.ReferenceDerived r) -> Just r; _ -> Nothing
+          updates' = dropCtorsAndBuiltins $ updatedTermsRt combinedUpdates
+
+  let -- \| decls to typecheck
+      latestTypeDependents :: Map Name TypeReferenceId
+      latestTypeDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
-          setup dr dependents = (drTypesId' dr, filterDependents RtType dependents)
-          updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTypes combinedUpdates]
+          setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TypeReferenceId, Set TypeReferenceId)
+          setup dr dependents = (dropBuiltins $ drTypes dr, filterDependents RtType dependents)
+          dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
+          updates' = dropBuiltins $ updatedTypesRt combinedUpdates
   pure . WhatToTypecheck $ DeepRefsId' latestTermDependents latestTypeDependents
-
--- todo: search dependents of updated constructors too
-whatToTypecheckV2 :: (DeepRefsId', UpdatesRefnt) -> (DeepRefsId', UpdatesRefnt) -> Transaction WhatToTypecheck
-whatToTypecheckV2 (drAlice, aliceUpdates) (drBob, bobUpdates) = do
-  wundefined
-
--- -- get the relevant dependents
--- let deepRefsToReferenceIds dr = Set.fromList $ Map.elems (drTermsId' dr) <> Map.elems (drTypesId' dr)
--- let updatesToReferences :: UpdatesRefnt -> Set Reference
---     updatesToReferences u = Set.fromList $ Map.elems (V1.Referent.toReference <$> updatedTermsRt u) <> Map.elems (updatedTypesRt u)
--- aliceDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drAlice) (updatesToReferences bobUpdates)
--- bobDependents <- Ops.dependentsWithinScope (deepRefsToReferenceIds drBob) (updatesToReferences aliceUpdates)
-
--- -- we want the latest versions of things to be typechecked
--- let chooseLatest updates name a _b = case Map.lookup name updates of Just c -> c; Nothing -> a
--- let latestDependents :: forall r. Ord r => Map Name r -> (Map Name r, Set r) -> (Map Name r, Set r) -> Map Name r
---     latestDependents updates (drAlice', aliceDependents') (drBob', bobDependents') =
---       Map.unionWithKey (chooseLatest updates) aliceNamedDefs bobNamedDefs
---       where
---         aliceNamedDefs :: Map Name r = filterDeepRefs drAlice' aliceDependents'
---         bobNamedDefs :: Map Name r = filterDeepRefs drBob' bobDependents'
---         filterDeepRefs :: Map Name r -> Set r -> Map Name r
---         filterDeepRefs dr deps = Map.filter (flip Set.member deps) dr
---     filterDependents rt m = Set.fromList [r | (r, t) <- Map.toList m, t == rt]
--- let combinedUpdates =
---       UpdatesRefnt
---         { updatedTermsRt = updatedTermsRt aliceUpdates <> updatedTermsRt bobUpdates,
---           updatedTypesRt = updatedTypesRt aliceUpdates <> updatedTypesRt bobUpdates
---         }
--- let latestTermDependents :: Map Name TermReferenceId
---     latestTermDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
---       where
---         setup dr dependents = (drTermsId' dr, filterDependents RtTerm dependents)
---         updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTermsRt combinedUpdates]
--- let latestTypeDependents :: Map Name TypeReferenceId
---     latestTypeDependents = latestDependents updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
---       where
---         setup dr dependents = (drTypesId' dr, filterDependents RtType dependents)
---         updates' = Map.fromList [(n, r) | (n, C.ReferenceDerived r) <- Map.toList $ updatedTypes combinedUpdates]
--- pure . WhatToTypecheck $ DeepRefsId' latestTermDependents latestTypeDependents
 
 -- data MergeOutput v a = MergeProblem
 --   { definitions :: Oink (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
