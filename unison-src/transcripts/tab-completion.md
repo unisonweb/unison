@@ -1,8 +1,6 @@
 # Tab Completion
 
-
 Test that tab completion works as expected.
-
 
 ## Tab Complete Command Names
 
@@ -52,4 +50,18 @@ unique type subnamespace.AType = A | B
 .> debug.tab-complete io.test sub
 .> debug.tab-complete io.test subnamespace
 .> debug.tab-complete io.test subnamespace.
+```
+
+Tab Complete Delete Subcommands
+
+```unison
+unique type Foo = A | B
+add : a -> a
+add b = b
+```
+
+```ucm
+.> update
+.> debug.tab-complete delete.type Foo
+.> debug.tab-complete delete.type add
 ```
