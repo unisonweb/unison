@@ -727,7 +727,7 @@ deleteGen suffix queryCompletionArg target mkTarget =
         )
 
 delete :: InputPattern
-delete = deleteGen Nothing exactDefinitionTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
 
 deleteVerbose :: InputPattern
 deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
