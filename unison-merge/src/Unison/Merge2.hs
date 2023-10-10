@@ -18,7 +18,7 @@ module Unison.Merge2
     Updates (..),
     DeepRefs (..),
     -- DeepRefsId' (..),
-    RefToName (..),
+    RefToName,
     Defns (..),
     DefnsA,
     DefnsB,
@@ -47,6 +47,7 @@ import U.Codebase.Reference
   )
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -80,7 +81,6 @@ import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
-import qualified U.Codebase.Referent as Referent
 
 newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
 
@@ -110,10 +110,8 @@ data DeepRefsId' = DeepRefsId'
     drTypesId' :: Map Name TypeReferenceId
   }
 
-data RefToName = RefToName
-  { rtnTerms :: Map Referent Name,
-    rtnTypes :: Map TypeReference Name
-  }
+type RefToName =
+  Defns (Map Referent Name) (Map TypeReference Name)
 
 data RefIdToName = RefIdToName
   { rtnTermsId :: Map TermReferenceId Name,
@@ -332,7 +330,7 @@ computeUnisonFile
         (V1.Term v a) ->
         (V1.Term v a)
       substForTerm
-        RefToName {rtnTerms = ppeTerms, rtnTypes = ppeTypes}
+        Defns {terms = ppeTerms, types = ppeTypes}
         termNeedsUpdate
         updatedTypes
         updatedTerms
@@ -425,7 +423,7 @@ computeUnisonFile
       -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
       -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
       substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> (V1.Decl v a) -> (V1.Decl v a)
-      substForDecl RefToName {rtnTypes = ppe} declNeedsUpdate updatedTypes decl =
+      substForDecl Defns {types = ppe} declNeedsUpdate updatedTypes decl =
         V1.Decl.modifyAsDataDecl updateDecl decl
         where
           updateDecl decl = decl {V1.Decl.constructors' = map (over _3 updateCtorDependencies) $ V1.Decl.constructors' decl}
