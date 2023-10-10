@@ -192,6 +192,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           let typecheck = wundefined
               loadTerm = Codebase.unsafeGetTerm codebase
               loadDecl = Codebase.unsafeGetTypeDeclaration codebase
+              loadDeclType = Codebase.getDeclType codebase
               namelookup :: Merge.RefToName = wundefined
               aliceNames :: Merge.DeepRefs = wundefined
               bobNames :: Merge.DeepRefs = wundefined
@@ -199,7 +200,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               bobUpdates :: Merge.UpdatesRefnt = wundefined
               combinedUpdates :: Merge.UpdatesRefnt = wundefined
           whatToTypecheck :: Merge.WhatToTypecheck <- Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
-          unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl whatToTypecheck combinedUpdates
+          unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
           typecheck unisonfile >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
               let saveToCodebase = wundefined
