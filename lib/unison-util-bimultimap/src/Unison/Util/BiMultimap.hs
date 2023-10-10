@@ -17,6 +17,7 @@ module Unison.Util.BiMultimap
     fromRange,
 
     -- ** Sets
+    dom,
     ran,
 
     -- ** Insert
@@ -102,7 +103,14 @@ fromRange m =
     f acc k v =
       Map.insertWith Set.NonEmpty.union v (Set.NonEmpty.singleton k) acc
 
--- | Returns the range in the relation, as a Set, in its entirety.
+-- | Returns the domain of the relation, as a Set, in its entirety.
+--
+-- /O(a)/.
+dom :: BiMultimap a b -> Set a
+dom =
+  Map.keysSet . toMultimap
+
+-- | Returns the range of the relation, as a Set, in its entirety.
 --
 -- /O(a)/.
 ran :: BiMultimap a b -> Set b
