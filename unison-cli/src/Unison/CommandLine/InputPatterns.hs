@@ -3105,7 +3105,7 @@ projectAndBranchNamesArg includeCurrentBranch =
     }
   where
     handleAmbiguousComplete ::
-      (MonadIO m) =>
+      MonadIO m =>
       Text ->
       Codebase m v a ->
       Path.Absolute ->
@@ -3192,7 +3192,7 @@ projectAndBranchNamesArg includeCurrentBranch =
           then projectCompletions
           else branchCompletions ++ projectCompletions
 
-    handleBranchesComplete :: (MonadIO m) => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
+    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
     handleBranchesComplete branchName codebase path = do
       branches <-
         case preview ProjectUtils.projectBranchPathPrism path of
