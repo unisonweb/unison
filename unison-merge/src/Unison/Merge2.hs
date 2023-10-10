@@ -13,10 +13,9 @@ module Unison.Merge2
     computeUnisonFile,
 
     -- * Misc / organize these later
-    UpdatesRefnt (..),
+    UpdatesRefnt,
     DiffOp (..),
-    Updates (..),
-    DeepRefs (..),
+    DeepRefs,
     -- DeepRefsId' (..),
     RefToName,
     Defns (..),
@@ -36,11 +35,9 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Tuple qualified as Tuple
 import U.Codebase.Reference
   ( Reference,
     ReferenceType (RtTerm, RtType),
-    TermReference,
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
@@ -56,14 +53,12 @@ import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.Hash (Hash)
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree)
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference qualified as V1
 import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
@@ -82,20 +77,11 @@ import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
 
-newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
-
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
 -- It can represent the input or output namespace.
 -- It includes constructors, which many other contexts here don't.
 type DeepRefs =
   Defns (Map Name Referent) (Map Name TypeReference)
-
-type DeepRefsId =
-  Defns (Map Name V1.Referent.Id) (Map Name TypeReferenceId)
-
--- | DeepRefs' maps names to just Terms and Types but not individual constructors
-type DeepRefs' =
-  Defns (Map Name TermReference) (Map Name TypeReference)
 
 -- | DeepRefsId' is like DeepRefs', but maps to Ids instead of References.
 -- It could be used, for example, to represent a set of Derived definitions to typecheck
@@ -105,66 +91,12 @@ type DeepRefsId' =
 type RefToName =
   Defns (Map Referent Name) (Map TypeReference Name)
 
-type RefIdToName =
-  Defns (Map TermReferenceId Name) (Map TypeReferenceId Name)
-
--- | SynHashes are computed and used to detect add/update conflicts
-data SynHashes = SynHashes
-  { shTerms :: Map Name SynHash,
-    shTypes :: Map Name SynHash
-  }
-
-data DiffConflicts = DiffConflicts
-  { dcTerms :: Set Name,
-    dcTypes :: Set Name
-  }
-
--- | Updates include whatever a branch updated
--- Or it can represent the union of branches, if there are no conflicts.
--- Updates can't rely on only Ids, because you can update something to a builtin!
-data Updates = Updates
-  { updatedTerms :: Map Name TermReference,
-    updatedTypes :: Map Name TypeReference
-  }
-
-data UpdatesId = UpdatesId
-  { updatedTermsId :: Map Name TermReferenceId,
-    updatedTypesId :: Map Name TypeReferenceId
-  }
-
 type UpdatesRefnt =
   Defns (Map Name Referent) (Map Name TypeReference)
-
-type UpdatesRefntId =
-  Defns (Map Name V1.Referent.Id) (Map Name TypeReferenceId)
-
-type Updates2 = Oink (Map Name V1.Referent.Referent) (Map Name TypeReferenceId)
 
 -- for updated definitions, we want to know which branch to find the updated version in
 -- for transitive dependents of updates (which are not updates themselves), we don't care which version we get
 -- for conflicted definitions, we need to print both versions, but we don't typecheck anything
-
--- | Includes the transitive deps within some namespace / DeepRefs
-data TransitiveDeps = TransitiveDeps
-  { tdTerms :: Map Name TermReferenceId,
-    tdTypes :: Map Name TypeReferenceId
-  }
-
-deepRefsToPPE :: DeepRefsId' -> RefIdToName
-deepRefsToPPE Defns {terms, types} =
-  Defns
-    { terms = swapMap terms,
-      types = swapMap types
-    }
-  where
-    swapMap = Map.fromList . map Tuple.swap . Map.toList
-
-type LoadTerm m = TermReferenceId -> m ()
-
-type LoadDecl m = TypeReferenceId -> m ()
-
-computeSyntacticHashes :: Applicative m => LoadTerm m -> LoadDecl m -> DeepRefs -> PrettyPrintEnv -> m SynHashes
-computeSyntacticHashes loadTerm loadDecl deepRefs ppe = pure wundefined
 
 -- merge :: Applicative m => DeepRefs -> DeepRefs -> DeepRefs -> m DeepRefs
 -- merge ppe lca a b =
@@ -570,7 +502,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
   pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
-  { definitions :: Oink (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
+  { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
   }
 
 type Pretty = Text
@@ -654,8 +586,3 @@ data Conflict branch a
   | ConflictUpdateUpdate !branch !branch !a !a
   | ConflictDeleteAddDependent !branch !branch !a
   | ConflictDeleteUpdate !branch !branch !a !a
-
-data Oink terms types = Oink
-  { _terms :: terms,
-    _types :: types
-  }
