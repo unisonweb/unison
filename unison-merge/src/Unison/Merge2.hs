@@ -113,10 +113,8 @@ data DeepRefsId' = DeepRefsId'
 type RefToName =
   Defns (Map Referent Name) (Map TypeReference Name)
 
-data RefIdToName = RefIdToName
-  { rtnTermsId :: Map TermReferenceId Name,
-    rtnTypesId :: Map TypeReferenceId Name
-  }
+type RefIdToName =
+  Defns (Map TermReferenceId Name) (Map TypeReferenceId Name)
 
 -- | SynHashes are computed and used to detect add/update conflicts
 data SynHashes = SynHashes
@@ -167,7 +165,7 @@ data TransitiveDeps = TransitiveDeps
 deepRefsToPPE :: DeepRefsId' -> RefIdToName
 deepRefsToPPE
   DeepRefsId' {drTermsId', drTypesId'} =
-    RefIdToName
+    Defns
       (swapMap drTermsId')
       (swapMap drTypesId')
     where
