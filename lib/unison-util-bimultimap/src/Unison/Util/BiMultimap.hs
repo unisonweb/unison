@@ -11,9 +11,15 @@ module Unison.Util.BiMultimap
     -- ** Mapping / traversing
     unsafeTraverseDom,
 
+    -- ** Filtering
+    filterDom,
+    restrictDom,
+    withoutDom,
+
     -- ** Maps
     domain,
     range,
+    unsafeFromDomain,
     fromRange,
 
     -- ** Sets
@@ -90,11 +96,44 @@ unsafeTraverseDom f m =
       !b <- f a
       acc $! BiMultimap (Map.insert b xs domain0) (deriveRangeFromDomain b xs range0)
 
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is in the given set.
+filterDom :: (Ord a, Ord b) => (a -> Bool) -> BiMultimap a b -> BiMultimap a b
+filterDom f m =
+  unsafeFromDomain (Map.filterWithKey (\x _ -> f x) (domain m))
+
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is in the given set.
+restrictDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
+restrictDom xs m =
+  unsafeFromDomain (Map.restrictKeys (domain m) xs)
+
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is not in the given set.
+withoutDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
+withoutDom xs m =
+  unsafeFromDomain (Map.withoutKeys (domain m) xs)
+
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
 
 range :: BiMultimap a b -> Map b a
 range = toMapR
+
+-- | Construct a left-unique relation from a mapping from its left-elements to set-of-right-elements. The caller is
+-- responsible for ensuring that no right-element is mapped to by two different left-elements.
+unsafeFromDomain :: Ord b => Map a (NESet b) -> BiMultimap a b
+unsafeFromDomain domain =
+  BiMultimap domain (invertDomain domain)
+
+invertDomain :: forall a b. Ord b => Map a (NESet b) -> Map b a
+invertDomain =
+  Map.foldlWithKey' f Map.empty
+  where
+    f :: Map b a -> a -> NESet b -> Map b a
+    f acc x ys =
+      Set.NonEmpty.foldl' (g x) acc ys
+
+    g :: a -> Map b a -> b -> Map b a
+    g x acc y =
+      Map.insert y x acc
 
 fromRange :: (Ord a, Ord b) => Map b a -> BiMultimap a b
 fromRange m =

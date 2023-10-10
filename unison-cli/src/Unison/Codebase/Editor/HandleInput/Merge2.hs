@@ -188,6 +188,13 @@ handleMerge alicePath0 bobPath0 _resultPath = do
             aliceLibdeps
             bobLibdeps
 
+      -- For some things below we only care about the `Map Name ref` direction of our `BiMultimap ref Name` definitions
+      let aliceNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          aliceNames = aliceDefns & over #terms BiMultimap.range & over #types BiMultimap.range
+
+      let bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
+
       -- If there are no conflicts, then proceed to typechecking
       if null conflictedTerms && null conflictedTypes
         then do
@@ -197,18 +204,6 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               loadDeclType = Codebase.getDeclType codebase
 
               namelookup :: Merge.RefToName = wundefined
-
-              aliceNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-              aliceNames =
-                aliceDefns
-                  & over #terms BiMultimap.range
-                  & over #types BiMultimap.range
-
-              bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-              bobNames =
-                bobDefns
-                  & over #terms BiMultimap.range
-                  & over #types BiMultimap.range
 
               aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
               aliceUpdates =
@@ -282,6 +277,26 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                 Merge.Defns
                   { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
                     types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
+                  }
+
+          -- All of Alice's definitions, minus those that are conflicted
+          let aliceUnconflicted :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+              aliceUnconflicted =
+                Merge.Defns
+                  { terms =
+                      (aliceDefns ^. #terms) & BiMultimap.filterDom \case
+                        -- Consider a constructor term "unconflicted" if its decl is unconflicted.
+                        Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (aliceConflicted ^. #types))
+                        -- Keep builtin terms (since they can't be conflicted, per a precondition)
+                        Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (aliceConflicted ^. #terms))
+                        -- Keep builtin constructors (which don't even exist) and builtin terms (since they can't be
+                        -- conflicted, per a precondition)
+                        Referent.Con (ReferenceBuiltin _) _ -> True
+                        Referent.Ref (ReferenceBuiltin _) -> True,
+                    types =
+                      BiMultimap.withoutDom
+                        (Set.map ReferenceDerived (aliceConflicted ^. #types))
+                        (aliceDefns ^. #types)
                   }
 
           mergeOutput <- wundefined "create MergeOutput"
