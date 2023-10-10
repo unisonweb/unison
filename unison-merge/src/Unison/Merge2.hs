@@ -132,15 +132,11 @@ data UpdatesId = UpdatesId
     updatedTypesId :: Map Name TypeReferenceId
   }
 
-data UpdatesRefnt = UpdatesRefnt
-  { updatedTermsRt :: Map Name Referent,
-    updatedTypesRt :: Map Name TypeReference
-  }
+type UpdatesRefnt =
+  Defns (Map Name Referent) (Map Name TypeReference)
 
-data UpdatesRefntId = UpdatesRefntId
-  { updatedTermsRtId :: Map Name V1.Referent.Id,
-    updatedTypesRtId :: Map Name TypeReferenceId
-  }
+type UpdatesRefntId =
+  Defns (Map Name V1.Referent.Id) (Map Name TypeReferenceId)
 
 type Updates2 = Oink (Map Name V1.Referent.Referent) (Map Name TypeReferenceId)
 
@@ -274,7 +270,7 @@ computeUnisonFile
   loadDecl
   loadDeclType
   (unWhatToTypecheck -> Defns {terms = termsToTypecheck, types = declsToTypecheck})
-  UpdatesRefnt {updatedTermsRt = combinedTermUpdates0, updatedTypesRt = combinedTypeUpdates} = do
+  Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
     combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
 
     updatedDecls <-
@@ -508,7 +504,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
       -- the return type should be "things that can be dependencies in the db".
       -- This implementation returns a decl reference in place of a constructor reference.
       getByCorrespondingName :: DeepRefs -> UpdatesRefnt -> Set Reference
-      getByCorrespondingName scope updates = Set.fromList $ doTerms (updatedTermsRt updates) <> doTypes (updatedTypesRt updates)
+      getByCorrespondingName scope updates = Set.fromList $ doTerms (updates ^. #terms) <> doTypes (updates ^. #types)
         where
           -- \| doTerms will return a TypeReference from a Constructor
           doTerms :: Map Name Referent -> [Reference]
@@ -547,9 +543,9 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
       -- however, we're looking for the latest version of the thing to typecheck, and we can't typecheck a constructor
       --  can we typecheck a constructor? we just have to put its decl in instead? / too?
       combinedUpdates =
-        UpdatesRefnt
-          { updatedTermsRt = updatedTermsRt aliceUpdates <> updatedTermsRt bobUpdates,
-            updatedTypesRt = updatedTypesRt aliceUpdates <> updatedTypesRt bobUpdates
+        Defns
+          { terms = (aliceUpdates ^. #terms) <> (bobUpdates ^. #terms),
+            types = (aliceUpdates ^. #types) <> (bobUpdates ^. #types)
           }
 
   -- todo: there's something confusing here about constructor names.
@@ -561,7 +557,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TermReferenceId, Set TermReferenceId)
           setup dr dependents = (dropCtorsAndBuiltins (dr ^. #terms), filterDependents RtTerm dependents)
           dropCtorsAndBuiltins = Map.mapMaybe Referent.toReferenceId
-          updates' = dropCtorsAndBuiltins $ updatedTermsRt combinedUpdates
+          updates' = dropCtorsAndBuiltins $ combinedUpdates ^. #terms
 
   let -- \| decls to typecheck
       latestTypeDependents :: Map Name TypeReferenceId
@@ -570,7 +566,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TypeReferenceId, Set TypeReferenceId)
           setup dr dependents = (dropBuiltins (dr ^. #types), filterDependents RtType dependents)
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
-          updates' = dropBuiltins $ updatedTypesRt combinedUpdates
+          updates' = dropBuiltins $ combinedUpdates ^. #types
   pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem

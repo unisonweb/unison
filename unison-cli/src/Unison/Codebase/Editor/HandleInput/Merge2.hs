@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (preview, (^.))
+import Control.Lens (over, preview, (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -193,12 +193,31 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               loadTerm = Codebase.unsafeGetTerm codebase
               loadDecl = Codebase.unsafeGetTypeDeclaration codebase
               loadDeclType = Codebase.getDeclType codebase
+
               namelookup :: Merge.RefToName = wundefined
-              aliceNames :: Merge.DeepRefs = wundefined
-              bobNames :: Merge.DeepRefs = wundefined
-              aliceUpdates :: Merge.UpdatesRefnt = wundefined
-              bobUpdates :: Merge.UpdatesRefnt = wundefined
+
+              aliceNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              aliceNames =
+                aliceDefns
+                  & over #terms BiMultimap.range
+                  & over #types BiMultimap.range
+
+              bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              bobNames =
+                bobDefns
+                  & over #terms BiMultimap.range
+                  & over #types BiMultimap.range
+
+              aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              aliceUpdates =
+                filterUpdates aliceNames (diffs ^. #alice)
+
+              bobUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              bobUpdates =
+                filterUpdates bobNames (diffs ^. #bob)
+
               combinedUpdates :: Merge.UpdatesRefnt = wundefined
+
           whatToTypecheck :: Merge.WhatToTypecheck <- Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
           unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
           typecheck unisonfile >>= \case
@@ -239,6 +258,22 @@ handleMerge alicePath0 bobPath0 _resultPath = do
   case result of
     Left err -> liftIO (print err)
     Right () -> pure ()
+
+-- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
+filterUpdates ::
+  Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
+  Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
+  Merge.Defns (Map Name Referent) (Map Name TypeReference)
+filterUpdates defns diff =
+  defns
+    & over #terms (`Map.intersection` (Map.filter isUpdate (diff ^. #terms)))
+    & over #types (`Map.intersection` (Map.filter isUpdate (diff ^. #types)))
+  where
+    isUpdate :: Merge.DiffOp Hash -> Bool
+    isUpdate = \case
+      Merge.Added {} -> False
+      Merge.Deleted {} -> False
+      Merge.Updated {} -> True
 
 -- Convert a flattened namespace of terms/types to the set of untagged reference ids contained within.
 defnsToScope :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference.Id
