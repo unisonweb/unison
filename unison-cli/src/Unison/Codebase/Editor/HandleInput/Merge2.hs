@@ -196,7 +196,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           -- If there are conflicts, then create a MergeOutput
           mergeOutput <- wundefined "create MergeOutput" -- Arya Task 1
           wundefined "dump MergeOutput to scratchfile" mergeOutput
-
+          wundefined "create and save appropriate namespace" -- Mitchell
       let mergedLibdeps =
             Merge.mergeLibdeps
               ((==) `on` Causal.causalHash)
