@@ -216,10 +216,19 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               bobUpdates =
                 filterUpdates bobNames (diffs ^. #bob)
 
-              combinedUpdates :: Merge.UpdatesRefnt = wundefined
+          whatToTypecheck :: Merge.WhatToTypecheck <-
+            Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
 
-          whatToTypecheck :: Merge.WhatToTypecheck <- Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
-          unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
+          unisonfile <- do
+            let combinedUpdates :: Merge.UpdatesRefnt
+                combinedUpdates =
+                  -- These left-biased unions are fine; at this point we know Alice's and Bob's updates
+                  Merge.Defns
+                    { terms = Map.union (aliceUpdates ^. #terms) (bobUpdates ^. #terms),
+                      types = Map.union (aliceUpdates ^. #types) (bobUpdates ^. #types)
+                    }
+            Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
+
           typecheck unisonfile >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
               let saveToCodebase = wundefined
@@ -275,13 +284,16 @@ filterUpdates defns diff =
       Merge.Deleted {} -> False
       Merge.Updated {} -> True
 
--- Convert a flattened namespace of terms/types to the set of untagged reference ids contained within.
+-- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
+-- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
 defnsToScope :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference.Id
 defnsToScope (Merge.Defns terms types) =
   Set.union
-    (Set.mapMaybe (preview (Referent._Ref . _ReferenceDerived)) (BiMultimap.dom terms))
-    (Set.mapMaybe (preview _ReferenceDerived) (BiMultimap.dom types))
+    (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
+    (Set.mapMaybe Reference.toId (BiMultimap.dom types))
 
+-- `defnsToQuery defns conflicts` computes the set of conflicted references, for the purpose of searching for their
+-- transitive dependents.
 defnsToQuery ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set Name) (Set Name) ->
