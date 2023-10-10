@@ -487,6 +487,7 @@ newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 -- Similarly, when we ask "which <thing we can look up can lookup dependents for> is named <x>", and we want to look up constructors, that's weird.
 -- - term replaced with ctor: look up dependents of term in the opposing branch (ok)
 -- - ctor replaced with term: look up dependents of ctor in the opposing branch (we'll look up dependents of the decl instead, getting excess results, but it's ok)
+-- This seems okay. So disregard.
 
 -- Question: What happens if I update a ctor?
 whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction WhatToTypecheck
