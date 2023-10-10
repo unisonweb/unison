@@ -167,35 +167,16 @@ handleMerge alicePath0 bobPath0 _resultPath = do
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
             pure (Just lcaLibdeps, diffs)
 
-    -- (maybeLcaLibdeps, aliceDiff@(Merge.NamespaceDefns aliceDeclDiff aliceTermDiff), bobDiff@(Merge.NamespaceDefns bobDeclDiff bobTermDiff)) <-
-    --   case maybeLcaCausalHash of
-    --     Nothing -> do
-    --       (aliceDiff, bobDiff) <-
-    --         Merge.nameBasedNamespaceDiff
-    --           (Codebase.unsafeGetTypeDeclaration codebase)
-    --           (Codebase.unsafeGetTerm codebase)
-    --           Nothing
-    --           aliceDefns
-    --           bobDefns
-    --       pure (Nothing, aliceDiff, bobDiff)
-    --     Just lcaCausalHash -> do
-    --       lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
-    --       lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-    --       T2 lcaDeclNames lcaTermNames <- step "load lca names" do
-    --         loadBranchDefinitionNames lcaBranch & onLeftM \err ->
-    --           rollback (werror (Text.unpack err))
-    --       let lcaDefns = Merge.NamespaceDefns {decls = lcaDeclNames, terms = lcaTermNames}
-    --       (aliceDiff, bobDiff) <-
-    --         Merge.nameBasedNamespaceDiff
-    --           (Codebase.unsafeGetTypeDeclaration codebase)
-    --           (Codebase.unsafeGetTerm codebase)
-    --           (Just lcaDefns)
-    --           aliceDefns
-    --           bobDefns
-
-
       let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
       let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
+
+      -- If there are no conflicts, then proceed to typechecking
+      if (null conflictedTerms && null conflictedTypes)
+        then do
+          wundefined
+        else do
+          -- If there are conflicts, then create a MergeOutput
+          wundefined
 
       let mergedLibdeps =
             Merge.mergeLibdeps
@@ -204,8 +185,6 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               maybeLcaLibdeps
               aliceLibdeps
               bobLibdeps
-
-
 
       Sqlite.unsafeIO do
         Text.putStrLn ""
@@ -224,7 +203,6 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         printDeclConflicts conflictedTypes
         printTermConflicts conflictedTerms
         Text.putStrLn ""
-
 
       pure (Right ())
 
