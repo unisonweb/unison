@@ -15,6 +15,7 @@ import Control.Monad.Trans.Except qualified as Except
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
+import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntSet (IntSet)
@@ -240,15 +241,13 @@ handleMerge alicePath0 bobPath0 _resultPath = do
         else do
           -- There are conflicts.
 
-          let aliceConflicts :: Merge.Defns (Set TermReference) (Set TypeReference)
-              aliceConflicts = filterConflicts aliceDefns conflicts
-          let bobConflicts :: Merge.Defns (Set TermReference) (Set TypeReference)
-              bobConflicts = filterConflicts bobDefns conflicts
+          aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
+          bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
 
           (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
             let getDependents ::
                   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-                  Merge.Defns (Set TermReference) (Set TypeReference) ->
+                  Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
                   Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
                 getDependents defns conflicts =
                   -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
@@ -256,7 +255,7 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                   fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
                     Operations.dependentsWithinScope
                       (defnsToScope defns)
-                      (Set.union (conflicts ^. #terms) (conflicts ^. #types))
+                      (Set.map ReferenceDerived (Set.union (conflicts ^. #terms) (conflicts ^. #types)))
                   where
                     f ::
                       Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
@@ -268,6 +267,22 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                       Reference.RtType -> acc & over #types (Set.insert ref)
 
             (,) <$> getDependents aliceDefns aliceConflicts <*> getDependents bobDefns bobConflicts
+
+          -- Alice's conflicts + transitive dependents
+          let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+              aliceConflicted =
+                Merge.Defns
+                  { terms = Set.union (aliceConflicts ^. #terms) (aliceDependentsOfConflicts ^. #terms),
+                    types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
+                  }
+
+          -- Bob's conflicts + transitive dependents
+          let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+              bobConflicted =
+                Merge.Defns
+                  { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
+                    types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
+                  }
 
           mergeOutput <- wundefined "create MergeOutput"
           wundefined "dump MergeOutput to scratchfile" mergeOutput
@@ -313,19 +328,31 @@ filterUpdates defns diff =
       Merge.Updated {} -> True
 
 -- `filterConflicts defns conflicts` filters `defns` down to just the conflicted type and term references.
+--
+-- It fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
 filterConflicts ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set Name) (Set Name) ->
-  Merge.Defns (Set TermReference) (Set TypeReference)
-filterConflicts (Merge.Defns terms types) (Merge.Defns conflictedTerms conflictedTypes) =
-  Merge.Defns
-    { terms = Set.mapMaybe Referent.toTermReference (onlyConflicted conflictedTerms terms),
-      types = onlyConflicted conflictedTypes types
-    }
+  Either MergePreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+filterConflicts defns conflicts = do
+  terms <- foldlM doTerm Set.empty (onlyConflicted (conflicts ^. #terms) (defns ^. #terms))
+  types <- foldlM doType Set.empty (onlyConflicted (conflicts ^. #types) (defns ^. #types))
+  pure Merge.Defns {terms, types}
   where
     onlyConflicted :: Ord ref => Set Name -> BiMultimap ref Name -> Set ref
     onlyConflicted keys =
       Set.fromList . Map.elems . (`Map.restrictKeys` keys) . BiMultimap.range
+
+    doTerm :: Set TermReferenceId -> Referent -> Either MergePreconditionViolation (Set TermReferenceId)
+    doTerm refs = \case
+      Referent.Con {} -> Right refs
+      Referent.Ref (ReferenceBuiltin _) -> Left ConflictInvolvingBuiltin
+      Referent.Ref (ReferenceDerived ref) -> Right $! Set.insert ref refs
+
+    doType :: Set TypeReferenceId -> TypeReference -> Either MergePreconditionViolation (Set TypeReferenceId)
+    doType refs = \case
+      ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
+      ReferenceDerived ref -> Right $! Set.insert ref refs
 
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
@@ -441,7 +468,9 @@ getTwoFreshNames names name0 =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
 data MergePreconditionViolation
-  = StrayConstructor !Name
+  = -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
+    ConflictInvolvingBuiltin
+  | StrayConstructor !Name
   deriving stock (Show)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
