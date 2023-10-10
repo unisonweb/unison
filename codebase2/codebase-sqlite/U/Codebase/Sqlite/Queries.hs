@@ -1837,7 +1837,7 @@ getDependentsWithinScope scope query = do
   --            ^^^^
   --            direct deps of { #foo, #bar } are: { #baz, #qux }
   --
-  -- Then, every iteration of the query expands to that set's dependencies (#honk and onwards), until there are no more.
+  -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
 
