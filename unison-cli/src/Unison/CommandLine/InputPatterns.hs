@@ -730,7 +730,7 @@ delete :: InputPattern
 delete = deleteGen Nothing exactDefinitionTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
 
 deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
 deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
@@ -2954,6 +2954,14 @@ exactDefinitionTypeQueryArg =
       globTargets = Set.fromList [Globbing.Type]
     }
 
+exactDefinitionTypeOrTermQueryArg :: ArgumentType
+exactDefinitionTypeOrTermQueryArg =
+  ArgumentType
+    { typeName = "type or term definition query",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
+      globTargets = Set.fromList [Globbing.Term]
+    }
+
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType
@@ -3097,7 +3105,7 @@ projectAndBranchNamesArg includeCurrentBranch =
     }
   where
     handleAmbiguousComplete ::
-      MonadIO m =>
+      (MonadIO m) =>
       Text ->
       Codebase m v a ->
       Path.Absolute ->
@@ -3184,7 +3192,7 @@ projectAndBranchNamesArg includeCurrentBranch =
           then projectCompletions
           else branchCompletions ++ projectCompletions
 
-    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
+    handleBranchesComplete :: (MonadIO m) => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
     handleBranchesComplete branchName codebase path = do
       branches <-
         case preview ProjectUtils.projectBranchPathPrism path of
