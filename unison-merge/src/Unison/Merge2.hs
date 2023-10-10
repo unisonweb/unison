@@ -8,13 +8,17 @@ module Unison.Merge2
     nameBasedNamespaceDiff,
 
     -- * Typechecking
+    WhatToTypecheck (..),
     whatToTypecheck,
     computeUnisonFile,
 
     -- * Misc / organize these later
+    UpdatesRefnt (..),
     DiffOp (..),
     Updates (..),
-    DeepRefsId' (..),
+    DeepRefs (..),
+    -- DeepRefsId' (..),
+    RefToName (..),
     Defns (..),
     DefnsA,
     DefnsB,
@@ -472,6 +476,7 @@ instance Monoid RefsToSubst where
 -- Q: Does this return all of the updates? A: suspect no currently
 newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 
+-- Question: What should these input types be?
 -- drAlice and drBob could be `DeepRefs` because that's what the diff gives us,
 -- or they could be `DeepRefsId` because they're also the set of possibilities for typechecking, and we wouldn't be needing to typecheck any builtins
 -- it CAN'T be `DeepRefsId` because they're also the set of dependencies for looking up dependents, and if someone replaced a term with a ctor,
@@ -480,6 +485,8 @@ newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 -- Hypothesis: This implementation would be much simpler if we had a richer dependency lookup.
 -- As it stands, we can't look up the dependents of a constructor or pattern; we instead look up the dependents of the decl they came from (which is weird?)
 -- Similarly, when we ask "which <thing we can look up can lookup dependents for> is named <x>", and we want to look up constructors, that's weird.
+-- - term replaced with ctor: look up dependents of term in the opposing branch (ok)
+-- - ctor replaced with term: look up dependents of ctor in the opposing branch (we'll look up dependents of the decl instead, getting excess results, but it's ok)
 
 -- Question: What happens if I update a ctor?
 whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction WhatToTypecheck
@@ -570,59 +577,60 @@ type Pretty = Text
 
 type Defn v a = Either (V1.Term v a) (V1.Decl v a) -- could also be a builtin alias
 
-pseudoOutput :: (Name -> Defn v a -> Pretty) -> MergeOutput v a -> Pretty
-pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDeps
-  where
-    (conflicted, transitiveDeps) = foldl' partitionConflicts mempty (terms $ definitions merge)
-    partitionConflicts (conflicted, transitiveDeps) (name, cog) = case cog of
-      Left conflict -> (Map.insert name conflict conflicted, transitiveDeps)
-      Right unconflicted -> (conflicted, Map.insert name unconflicted transitiveDeps)
-    prettyTransitiveDeps = foldMap prettyTransitiveDep (Map.toList transitiveDeps)
-    prettyTransitiveDep = uncurry printDefn
-    prettyConflicts = foldMap prettyConflict (Map.toList conflicted)
-    prettyConflict = \case
-      (name, ConflictAddAdd b1 b2 d1 d2) ->
-        mintercalate
-          "\n"
-          [ "-- added in " <> b1,
-            printDefn name d1,
-            "-- added in " <> b2,
-            printDefn name d2
-          ]
-      (name, ConflictUpdateUpdate b1 b2 d1 d2) ->
-        mintercalate
-          "\n"
-          [ "-- updated in " <> b1,
-            printDefn name d1,
-            "-- updated in " <> b2,
-            printDefn name d2
-          ]
-      (name, ConflictDeleteAddDependent b1 b2 d) ->
-        mintercalate
-          "\n"
-          [ "-- deleted in " <> b1,
-            printDeletedDefn name d,
-            "-- original definition still in use by " <> b2,
-            printDefn name d
-          ]
-      (name, ConflictDeleteUpdate b1 b2 d1 d2) ->
-        mintercalate
-          "\n"
-          [ "-- deleted in " <> b1,
-            printDefn name d1,
-            "-- updated in " <> b2,
-            printDefn name d2
-          ]
-    printDeletedDefn :: Name -> Defn v a -> Pretty
-    printDeletedDefn name = \case
-      _term@Left {} -> Name.toText name <> " = " <> "<<<deleted>>>"
-      Right (Left (V1.EffectDeclaration _effect)) -> case V1.Decl.modifier _effect of
-        V1.Decl.Structural -> "structural ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
-        V1.Decl.Unique {} -> "unique ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
-      (Right (Right _data)) -> case V1.Decl.modifier _data of
-        V1.Decl.Structural -> "structural type " <> Name.toText name <> " = " <> "<<<>>>"
-        V1.Decl.Unique {} -> "unique type " <> Name.toText name <> " = " <> "<<<>>>"
-    newline = "\n"
+-- pseudoOutput :: (Name -> Defn v a -> Pretty) -> MergeOutput v a -> Pretty
+-- pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDeps
+--   where
+--     (conflicted, transitiveDeps) = foldl' partitionConflicts mempty (_terms $ definitions merge)
+--     -- partitionConflicts :: (Map k a, Map k a1) -> (k, Either a a1) -> (Map k a, Map k a1)
+--     partitionConflicts (conflicted, transitiveDeps) (name, cog) = case cog of
+--       Left conflict -> (Map.insert name conflict conflicted, transitiveDeps)
+--       Right unconflicted -> (conflicted, Map.insert name unconflicted transitiveDeps)
+--     prettyTransitiveDeps = foldMap prettyTransitiveDep (Map.toList transitiveDeps)
+--     prettyTransitiveDep = uncurry printDefn
+--     prettyConflicts = foldMap prettyConflict (Map.toList conflicted)
+--     prettyConflict = \case
+--       (name, ConflictAddAdd b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- added in " <> b1,
+--             printDefn name d1,
+--             "-- added in " <> b2,
+--             printDefn name d2
+--           ]
+--       (name, ConflictUpdateUpdate b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- updated in " <> b1,
+--             printDefn name d1,
+--             "-- updated in " <> b2,
+--             printDefn name d2
+--           ]
+--       (name, ConflictDeleteAddDependent b1 b2 d) ->
+--         mintercalate
+--           "\n"
+--           [ "-- deleted in " <> b1,
+--             printDeletedDefn name d,
+--             "-- original definition still in use by " <> b2,
+--             printDefn name d
+--           ]
+--       (name, ConflictDeleteUpdate b1 b2 d1 d2) ->
+--         mintercalate
+--           "\n"
+--           [ "-- deleted in " <> b1,
+--             printDefn name d1,
+--             "-- updated in " <> b2,
+--             printDefn name d2
+--           ]
+--     printDeletedDefn :: Name -> Defn v a -> Pretty
+--     printDeletedDefn name = \case
+--       _term@Left {} -> Name.toText name <> " = " <> "<<<deleted>>>"
+--       Right (Left (V1.EffectDeclaration _effect)) -> case V1.Decl.modifier _effect of
+--         V1.Decl.Structural -> "structural ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
+--         V1.Decl.Unique {} -> "unique ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
+--       (Right (Right _data)) -> case V1.Decl.modifier _data of
+--         V1.Decl.Structural -> "structural type " <> Name.toText name <> " = " <> "<<<>>>"
+--         V1.Decl.Unique {} -> "unique type " <> Name.toText name <> " = " <> "<<<>>>"
+--     newline = "\n"
 
 mintercalate :: Monoid a => a -> [a] -> a
 mintercalate x ys = x <> go ys
@@ -639,7 +647,7 @@ sintercalate x ys = go $ toList ys
 
 type BranchName = Text
 
-type ConflictOrGood a = Either (Conflict BranchName a) a
+data ConflictOrGood a = Conflict (Conflict BranchName a) | Good a
 
 data Conflict branch a
   = ConflictAddAdd !branch !branch !a !a

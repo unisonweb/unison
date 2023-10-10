@@ -82,6 +82,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId))
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Map qualified as Map
@@ -173,10 +174,28 @@ handleMerge alicePath0 bobPath0 _resultPath = do
       -- If there are no conflicts, then proceed to typechecking
       if (null conflictedTerms && null conflictedTypes)
         then do
-          wundefined
+          let typecheck = wundefined
+              loadTerm = Codebase.unsafeGetTerm codebase
+              loadDecl = Codebase.unsafeGetTypeDeclaration codebase
+              namelookup :: Merge.RefToName = wundefined
+              aliceNames :: Merge.DeepRefs = wundefined
+              bobNames :: Merge.DeepRefs = wundefined
+              aliceUpdates :: Merge.UpdatesRefnt = wundefined
+              bobUpdates :: Merge.UpdatesRefnt = wundefined
+              combinedUpdates :: Merge.UpdatesRefnt = wundefined
+          whatToTypecheck :: Merge.WhatToTypecheck <- Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
+          unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl whatToTypecheck combinedUpdates
+          typecheck unisonfile >>= \case
+            Just tuf@(TypecheckedUnisonFileId {}) -> do
+              let saveToCodebase = wundefined
+              let consAndSaveNamespace = wundefined
+              saveToCodebase tuf
+              consAndSaveNamespace tuf
+            Nothing -> wundefined "dump to scratch file"
         else do
           -- If there are conflicts, then create a MergeOutput
-          wundefined
+          mergeOutput <- wundefined "create MergeOutput"
+          wundefined "dump MergeOutput to scratchfile" mergeOutput
 
       let mergedLibdeps =
             Merge.mergeLibdeps
