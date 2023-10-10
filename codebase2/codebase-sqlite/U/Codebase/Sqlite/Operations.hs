@@ -1147,7 +1147,8 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
--- | Does a recursive search of the dependency table looking for the subset of `scope` that are in `query` or dependents of the result
+-- | `dependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
 dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id C.ReferenceType)
 dependentsWithinScope scope query = do
   scope' <- Set.traverse c2sReferenceId scope
