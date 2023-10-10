@@ -46,8 +46,10 @@ import U.Codebase.Reference
     TypeReferenceId,
   )
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Referent (Referent)
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
@@ -78,6 +80,7 @@ import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
+import qualified U.Codebase.Referent as Referent
 
 newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
 
@@ -108,7 +111,7 @@ data DeepRefsId' = DeepRefsId'
   }
 
 data RefToName = RefToName
-  { rtnTerms :: Map V1.Referent Name,
+  { rtnTerms :: Map Referent Name,
     rtnTypes :: Map TypeReference Name
   }
 
@@ -361,13 +364,13 @@ computeUnisonFile
                       term
 
                 updatePatterns :: V1.Term v a -> (V1.ConstructorReference, ConstructorType) -> V1.Term v a
-                updatePatterns term (cr, ct) = Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
+                updatePatterns term (cr@(ConstructorReference typeRef conId), ct) =
+                  Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
                   where
-                    ctor = V1.Referent.Con cr ct
-                    old = V1.Term.fromReferent mempty ctor
+                    old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
                     new :: Maybe (V1.Term v a)
                     new = do
-                      name <- Map.lookup ctor ppeTerms
+                      name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
                       case (termNeedsUpdate name, Map.lookup name updatedTerms) of
                         (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
                         (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
@@ -399,7 +402,7 @@ computeUnisonFile
                   where
                     old = V1.Term.ref mempty ref
                     new = do
-                      name <- Map.lookup (V1.Referent.Ref ref) ppeTerms
+                      name <- Map.lookup (Referent.Ref ref) ppeTerms
                       case (termNeedsUpdate name, Map.lookup name updatedTerms) of
                         (True, _) -> Just $ V1.Term.var mempty (Name.toVar name)
                         (_, Just u) -> Just $ V1.Term.fromReferent mempty u
