@@ -98,6 +98,7 @@ import Unison.Term qualified as V1 (Term)
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId))
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Cache qualified as Cache
 import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Relation (Relation)
@@ -119,6 +120,13 @@ step name action = do
     Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
   pure result
 
+data MergePreconditionViolation
+  = ConflictedAliases !ProjectBranchName !Name !Name
+  | -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
+    ConflictInvolvingBuiltin
+  | StrayConstructor !Name
+  deriving stock (Show)
+
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
@@ -128,6 +136,10 @@ handleMerge bobBranchName = do
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
 
   Cli.Env {codebase} <- ask
+  termCache <- Cache.semispaceCache 1024
+  declCache <- Cache.semispaceCache 1024
+  let loadTerm = cacheTransaction termCache (Codebase.unsafeGetTerm codebase)
+  let loadDecl = cacheTransaction declCache (Codebase.unsafeGetTypeDeclaration codebase)
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -148,13 +160,9 @@ handleMerge bobBranchName = do
           Nothing -> do
             diffs <-
               Merge.nameBasedNamespaceDiff
-                (Codebase.unsafeGetTypeDeclaration codebase)
-                (Codebase.unsafeGetTerm codebase)
-                Merge.TwoOrThreeWay
-                  { lca = Nothing,
-                    alice = aliceDefns,
-                    bob = bobDefns
-                  }
+                loadDecl
+                loadTerm
+                Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
             pure (Nothing, diffs)
           Just lcaCausalHash -> do
             lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
@@ -163,23 +171,23 @@ handleMerge bobBranchName = do
               loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM (rollback . Left)
             diffs <-
               Merge.nameBasedNamespaceDiff
-                (Codebase.unsafeGetTypeDeclaration codebase)
-                (Codebase.unsafeGetTerm codebase)
-                Merge.TwoOrThreeWay
-                  { lca = Just lcaDefns,
-                    alice = aliceDefns,
-                    bob = bobDefns
-                  }
-            findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
-              rollback (werror ("conflicted alice aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
-            findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
-              rollback (werror ("conflicted bob aliases: " ++ Text.unpack (Name.toText name1) ++ ", " ++ Text.unpack (Name.toText name2)))
+                loadDecl
+                loadTerm
+                Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
+            step "look for alice conflicted aliases" do
+              findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
+                rollback (Left (ConflictedAliases (aliceProjectBranch ^. #name) name1 name2))
+            step "look for bob conflicted aliases" do
+              findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
+                rollback (Left (ConflictedAliases (bobProjectBranch ^. #name) name1 name2))
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
             pure (Just lcaLibdeps, diffs)
 
-      let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
-      let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
-      let conflicts = Merge.Defns {terms = conflictedTerms, types = conflictedTypes}
+      let conflicts =
+            Merge.Defns
+              { terms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms),
+                types = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
+              }
 
       -- Load and merge libdeps
       mergedLibdeps <- do
@@ -201,11 +209,10 @@ handleMerge bobBranchName = do
           bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
 
       -- If there are no conflicts, then proceed to typechecking
-      if null conflictedTerms && null conflictedTypes
+      if null (conflicts ^. #terms) && null (conflicts ^. #types)
         then do
           let typecheck = wundefined
-              loadTerm = Codebase.unsafeGetTerm codebase
-              loadDecl = Codebase.unsafeGetTypeDeclaration codebase
+
               loadDeclType = Codebase.getDeclType codebase
 
               namelookup :: Merge.RefToName = wundefined
@@ -296,19 +303,19 @@ handleMerge bobBranchName = do
       Sqlite.unsafeIO do
         Text.putStrLn ""
         Text.putStrLn "===== lca->alice diff ====="
-        printDeclsDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
+        printTypesDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
         printTermsDiff (aliceDefns ^. #terms) (diffs ^. #alice . #terms)
         Text.putStrLn ""
         Text.putStrLn "===== lca->bob diff ====="
-        printDeclsDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
+        printTypesDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
         printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
         Text.putStrLn ""
         Text.putStrLn "===== merged libdeps dependencies ====="
         printLibdeps mergedLibdeps
         Text.putStrLn ""
         Text.putStrLn "===== conflicts ====="
-        printDeclConflicts conflictedTypes
-        printTermConflicts conflictedTerms
+        printTypeConflicts (conflicts ^. #types)
+        printTermConflicts (conflicts ^. #terms)
         Text.putStrLn ""
 
       pure (Right ())
@@ -494,12 +501,6 @@ getTwoFreshNames names name0 =
     mangled :: Integer -> NameSegment
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
-
-data MergePreconditionViolation
-  = -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
-    ConflictInvolvingBuiltin
-  | StrayConstructor !Name
-  deriving stock (Show)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
@@ -824,8 +825,8 @@ showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
 
-printDeclsDiff :: BiMultimap TypeReference Name -> Map Name (Merge.DiffOp Hash) -> IO ()
-printDeclsDiff declNames = do
+printTypesDiff :: BiMultimap TypeReference Name -> Map Name (Merge.DiffOp Hash) -> IO ()
+printTypesDiff declNames = do
   Text.putStr . Text.unlines . map f . Map.toList
   where
     f :: (Name, Merge.DiffOp Hash) -> Text
@@ -859,8 +860,8 @@ printLibdeps =
     f (name, causal) =
       "dependency " <> NameSegment.toText name <> Text.brightBlack (showCausal causal)
 
-printDeclConflicts :: Set Name -> IO ()
-printDeclConflicts =
+printTypeConflicts :: Set Name -> IO ()
+printTypeConflicts =
   Text.putStrLn . Text.unwords . map (("decl " <>) . Name.toText) . Set.toList
 
 printTermConflicts :: Set Name -> IO ()
@@ -868,6 +869,21 @@ printTermConflicts =
   Text.putStrLn . Text.unwords . map (("term " <>) . Name.toText) . Set.toList
 
 -----------------------------------------------------------------------------------------------------------------------
--- Pretty-print definitions
+-- Utilities for caching transaction calls
+--
+-- These ought to be in a more general-puprose location, but defining here for now
 
------------------------------------------------------------------------------------------------------------------------
+cacheTransaction :: forall k v. Cache.Cache k v -> (k -> Transaction v) -> (k -> Transaction v)
+cacheTransaction cache f k =
+  unTransactionWithMonadIO (Cache.apply cache (TransactionWithMonadIO . f) k)
+
+newtype TransactionWithMonadIO a
+  = TransactionWithMonadIO (Transaction a)
+  deriving newtype (Applicative, Functor, Monad)
+
+unTransactionWithMonadIO :: TransactionWithMonadIO a -> Transaction a
+unTransactionWithMonadIO (TransactionWithMonadIO m) = m
+
+instance MonadIO TransactionWithMonadIO where
+  liftIO :: forall a. IO a -> TransactionWithMonadIO a
+  liftIO = coerce @(IO a -> Transaction a) Sqlite.unsafeIO
