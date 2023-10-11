@@ -65,6 +65,7 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Path (Path')
@@ -85,6 +86,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
 import Unison.ShortHash (ShortHash)
@@ -117,12 +119,15 @@ step name action = do
     Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
   pure result
 
-handleMerge :: Path' -> Path' -> Path' -> Cli ()
-handleMerge alicePath0 bobPath0 _resultPath = do
-  Cli.Env {codebase} <- ask
+handleMerge :: ProjectBranchName -> Cli ()
+handleMerge bobBranchName = do
+  -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
+  (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
+  bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
+  let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
+  let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
 
-  alicePath <- Cli.resolvePath' alicePath0
-  bobPath <- Cli.resolvePath' bobPath0
+  Cli.Env {codebase} <- ask
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do

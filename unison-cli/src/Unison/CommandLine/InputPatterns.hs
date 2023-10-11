@@ -1560,15 +1560,13 @@ mergeInputPattern =
       aliases = [],
       visibility = I.Visible,
       argTypes = [],
-      help = "`merge alice bob result` merges `alice` and `bob` into `result` with the cool new algorithm",
+      help = "`merge branch` merges `branch` into the current branch",
       parse =
         \args ->
-          maybeToEither (I.help mergeLocal) do
-            [alice0, bob0, result0] <- Just args
-            Right alice <- Just (Path.parsePath' alice0)
-            Right bob <- Just (Path.parsePath' bob0)
-            Right result <- Just (Path.parsePath' result0)
-            pure (Input.MergeI alice bob result)
+          maybeToEither (I.help mergeInputPattern) do
+            [branchString] <- Just args
+            branch <- eitherToMaybe (tryInto @ProjectBranchName (Text.pack branchString))
+            pure (Input.MergeI branch)
     }
 
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
