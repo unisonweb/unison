@@ -279,25 +279,9 @@ handleMerge alicePath0 bobPath0 _resultPath = do
                     types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
                   }
 
-          -- All of Alice's definitions, minus those that are conflicted
-          let aliceUnconflicted :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-              aliceUnconflicted =
-                Merge.Defns
-                  { terms =
-                      (aliceDefns ^. #terms) & BiMultimap.filterDom \case
-                        -- Consider a constructor term "unconflicted" if its decl is unconflicted.
-                        Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (aliceConflicted ^. #types))
-                        -- Keep builtin terms (since they can't be conflicted, per a precondition)
-                        Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (aliceConflicted ^. #terms))
-                        -- Keep builtin constructors (which don't even exist) and builtin terms (since they can't be
-                        -- conflicted, per a precondition)
-                        Referent.Con (ReferenceBuiltin _) _ -> True
-                        Referent.Ref (ReferenceBuiltin _) -> True,
-                    types =
-                      BiMultimap.withoutDom
-                        (Set.map ReferenceDerived (aliceConflicted ^. #types))
-                        (aliceDefns ^. #types)
-                  }
+          -- unconflicted = all definitions minus conflicted
+          let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
+          let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
 
           -- If there are conflicts, then create a MergeOutput
           mergeOutput <- wundefined "create MergeOutput"
@@ -370,6 +354,28 @@ filterConflicts defns conflicts = do
     doType refs = \case
       ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
       ReferenceDerived ref -> Right $! Set.insert ref refs
+
+filterUnconflicted ::
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+filterUnconflicted defns conflicted =
+  Merge.Defns
+    { terms =
+        (defns ^. #terms) & BiMultimap.filterDom \case
+          -- Consider a constructor term "unconflicted" if its decl is unconflicted.
+          Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (conflicted ^. #types))
+          -- Keep builtin terms (since they can't be conflicted, per a precondition)
+          Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (conflicted ^. #terms))
+          -- Keep builtin constructors (which don't even exist) and builtin terms (since they can't be
+          -- conflicted, per a precondition)
+          Referent.Con (ReferenceBuiltin _) _ -> True
+          Referent.Ref (ReferenceBuiltin _) -> True,
+      types =
+        BiMultimap.withoutDom
+          (Set.map ReferenceDerived (conflicted ^. #types))
+          (defns ^. #types)
+    }
 
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
