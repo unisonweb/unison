@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens ((^.))
+import Control.Lens (over, preview, (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -15,6 +15,7 @@ import Control.Monad.Trans.Except qualified as Except
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.ByteString.Short (ShortByteString)
+import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntSet (IntSet)
@@ -45,7 +46,16 @@ import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.Causal (Causal (Causal))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
-import U.Codebase.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference
+  ( Reference,
+    Reference' (..),
+    ReferenceType,
+    TermReference,
+    TermReferenceId,
+    TypeReference,
+    TypeReferenceId,
+    _ReferenceDerived,
+  )
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -56,6 +66,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -115,27 +126,20 @@ handleMerge alicePath0 bobPath0 _resultPath = do
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
+      -- Load causals
       aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
       bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
 
-      let aliceCausalHash = Causal.causalHash aliceCausal
-      let bobCausalHash = Causal.causalHash bobCausal
-      maybeLcaCausalHash <- step "compute lca" $ Operations.lca aliceCausalHash bobCausalHash
-
-      -- Read the (shallow) branches out of the database.
+      -- Load shallow branches
       aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
       bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
-      aliceDefns <- step "load alice definitions" do
-        loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM (rollback . Left)
-      bobDefns <- step "load bob definitions" do
-        loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM (rollback . Left)
+      -- Load deep definitions
+      aliceDefns <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM (rollback . Left)
+      bobDefns <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM (rollback . Left)
 
-      aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
-      bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
-
-      (maybeLcaLibdeps, diffs) <-
-        case maybeLcaCausalHash of
+      (maybeLcaLibdeps, diffs) <- do
+        step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
           Nothing -> do
             diffs <-
               Merge.nameBasedNamespaceDiff
@@ -170,21 +174,58 @@ handleMerge alicePath0 bobPath0 _resultPath = do
 
       let conflictedTerms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms)
       let conflictedTypes = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
+      let conflicts = Merge.Defns {terms = conflictedTerms, types = conflictedTypes}
+
+      -- Load and merge libdeps
+      mergedLibdeps <- do
+        aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
+        bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
+        pure $
+          Merge.mergeLibdeps
+            ((==) `on` Causal.causalHash)
+            getTwoFreshNames
+            maybeLcaLibdeps
+            aliceLibdeps
+            bobLibdeps
+
+      -- For some things below we only care about the `Map Name ref` direction of our `BiMultimap ref Name` definitions
+      let aliceNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          aliceNames = aliceDefns & over #terms BiMultimap.range & over #types BiMultimap.range
+
+      let bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
 
       -- If there are no conflicts, then proceed to typechecking
-      if (null conflictedTerms && null conflictedTypes)
+      if null conflictedTerms && null conflictedTypes
         then do
           let typecheck = wundefined
               loadTerm = Codebase.unsafeGetTerm codebase
               loadDecl = Codebase.unsafeGetTypeDeclaration codebase
+              loadDeclType = Codebase.getDeclType codebase
+
               namelookup :: Merge.RefToName = wundefined
-              aliceNames :: Merge.DeepRefs = wundefined
-              bobNames :: Merge.DeepRefs = wundefined
-              aliceUpdates :: Merge.UpdatesRefnt = wundefined
-              bobUpdates :: Merge.UpdatesRefnt = wundefined
-              combinedUpdates :: Merge.UpdatesRefnt = wundefined
-          whatToTypecheck :: Merge.WhatToTypecheck <- Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
-          unisonfile <- Merge.computeUnisonFile namelookup loadTerm loadDecl whatToTypecheck combinedUpdates
+
+              aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              aliceUpdates =
+                filterUpdates aliceNames (diffs ^. #alice)
+
+              bobUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+              bobUpdates =
+                filterUpdates bobNames (diffs ^. #bob)
+
+          whatToTypecheck :: Merge.WhatToTypecheck <-
+            Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
+
+          unisonfile <- do
+            let combinedUpdates :: Merge.UpdatesRefnt
+                combinedUpdates =
+                  -- These left-biased unions are fine; at this point we know Alice's and Bob's updates
+                  Merge.Defns
+                    { terms = Map.union (aliceUpdates ^. #terms) (bobUpdates ^. #terms),
+                      types = Map.union (aliceUpdates ^. #types) (bobUpdates ^. #types)
+                    }
+            Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
+
           typecheck unisonfile >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
               let saveToCodebase = wundefined
@@ -193,19 +234,76 @@ handleMerge alicePath0 bobPath0 _resultPath = do
               consAndSaveNamespace tuf
             Nothing -> wundefined "dump unisonFile to scratch file" -- Arya Overflow Task
         else do
+          -- There are conflicts.
+
+          aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
+          bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
+
+          (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
+            let getDependents ::
+                  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+                  Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+                  Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+                getDependents defns conflicts =
+                  -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
+                  -- have two different maps, so we twiddle.
+                  fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
+                    Operations.dependentsWithinScope
+                      (defnsToScope defns)
+                      (Set.map ReferenceDerived (Set.union (conflicts ^. #terms) (conflicts ^. #types)))
+                  where
+                    f ::
+                      Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+                      Reference.Id ->
+                      ReferenceType ->
+                      Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+                    f acc ref = \case
+                      Reference.RtTerm -> acc & over #terms (Set.insert ref)
+                      Reference.RtType -> acc & over #types (Set.insert ref)
+
+            (,) <$> getDependents aliceDefns aliceConflicts <*> getDependents bobDefns bobConflicts
+
+          -- Alice's conflicts + transitive dependents
+          let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+              aliceConflicted =
+                Merge.Defns
+                  { terms = Set.union (aliceConflicts ^. #terms) (aliceDependentsOfConflicts ^. #terms),
+                    types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
+                  }
+
+          -- Bob's conflicts + transitive dependents
+          let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+              bobConflicted =
+                Merge.Defns
+                  { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
+                    types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
+                  }
+
+          -- All of Alice's definitions, minus those that are conflicted
+          let aliceUnconflicted :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+              aliceUnconflicted =
+                Merge.Defns
+                  { terms =
+                      (aliceDefns ^. #terms) & BiMultimap.filterDom \case
+                        -- Consider a constructor term "unconflicted" if its decl is unconflicted.
+                        Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (aliceConflicted ^. #types))
+                        -- Keep builtin terms (since they can't be conflicted, per a precondition)
+                        Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (aliceConflicted ^. #terms))
+                        -- Keep builtin constructors (which don't even exist) and builtin terms (since they can't be
+                        -- conflicted, per a precondition)
+                        Referent.Con (ReferenceBuiltin _) _ -> True
+                        Referent.Ref (ReferenceBuiltin _) -> True,
+                    types =
+                      BiMultimap.withoutDom
+                        (Set.map ReferenceDerived (aliceConflicted ^. #types))
+                        (aliceDefns ^. #types)
+                  }
+
           -- If there are conflicts, then create a MergeOutput
-          mergeOutput <- wundefined "create MergeOutput" -- Arya Task 1
+          mergeOutput <- wundefined "create MergeOutput"
           wundefined "dump MergeOutput to scratchfile" mergeOutput
           wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
           -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
-      let mergedLibdeps =
-            Merge.mergeLibdeps
-              ((==) `on` Causal.causalHash)
-              getTwoFreshNames
-              maybeLcaLibdeps
-              aliceLibdeps
-              bobLibdeps
-
       Sqlite.unsafeIO do
         Text.putStrLn ""
         Text.putStrLn "===== lca->alice diff ====="
@@ -229,6 +327,57 @@ handleMerge alicePath0 bobPath0 _resultPath = do
   case result of
     Left err -> liftIO (print err)
     Right () -> pure ()
+
+-- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
+filterUpdates ::
+  Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
+  Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
+  Merge.Defns (Map Name Referent) (Map Name TypeReference)
+filterUpdates defns diff =
+  defns
+    & over #terms (`Map.intersection` (Map.filter isUpdate (diff ^. #terms)))
+    & over #types (`Map.intersection` (Map.filter isUpdate (diff ^. #types)))
+  where
+    isUpdate :: Merge.DiffOp Hash -> Bool
+    isUpdate = \case
+      Merge.Added {} -> False
+      Merge.Deleted {} -> False
+      Merge.Updated {} -> True
+
+-- `filterConflicts defns conflicts` filters `defns` down to just the conflicted type and term references.
+--
+-- It fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
+filterConflicts ::
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (Set Name) (Set Name) ->
+  Either MergePreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+filterConflicts defns conflicts = do
+  terms <- foldlM doTerm Set.empty (onlyConflicted (conflicts ^. #terms) (defns ^. #terms))
+  types <- foldlM doType Set.empty (onlyConflicted (conflicts ^. #types) (defns ^. #types))
+  pure Merge.Defns {terms, types}
+  where
+    onlyConflicted :: Ord ref => Set Name -> BiMultimap ref Name -> Set ref
+    onlyConflicted keys =
+      Set.fromList . Map.elems . (`Map.restrictKeys` keys) . BiMultimap.range
+
+    doTerm :: Set TermReferenceId -> Referent -> Either MergePreconditionViolation (Set TermReferenceId)
+    doTerm refs = \case
+      Referent.Con {} -> Right refs
+      Referent.Ref (ReferenceBuiltin _) -> Left ConflictInvolvingBuiltin
+      Referent.Ref (ReferenceDerived ref) -> Right $! Set.insert ref refs
+
+    doType :: Set TypeReferenceId -> TypeReference -> Either MergePreconditionViolation (Set TypeReferenceId)
+    doType refs = \case
+      ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
+      ReferenceDerived ref -> Right $! Set.insert ref refs
+
+-- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
+-- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
+defnsToScope :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference.Id
+defnsToScope (Merge.Defns terms types) =
+  Set.union
+    (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
+    (Set.mapMaybe Reference.toId (BiMultimap.dom types))
 
 makeNamespace ::
   HashHandle ->
@@ -336,7 +485,9 @@ getTwoFreshNames names name0 =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
 data MergePreconditionViolation
-  = StrayConstructor !Name
+  = -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
+    ConflictInvolvingBuiltin
+  | StrayConstructor !Name
   deriving stock (Show)
 
 -- | Load all term and type names from a branch (excluding dependencies) into memory.

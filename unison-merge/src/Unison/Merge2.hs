@@ -13,12 +13,11 @@ module Unison.Merge2
     computeUnisonFile,
 
     -- * Misc / organize these later
-    UpdatesRefnt (..),
+    UpdatesRefnt,
     DiffOp (..),
-    Updates (..),
-    DeepRefs (..),
+    DeepRefs,
     -- DeepRefsId' (..),
-    RefToName (..),
+    RefToName,
     Defns (..),
     DefnsA,
     DefnsB,
@@ -29,38 +28,37 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (over, _3)
+import Control.Lens (over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Tuple qualified as Tuple
 import U.Codebase.Reference
   ( Reference,
     ReferenceType (RtTerm, RtType),
-    TermReference,
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
   )
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Referent (Referent)
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.Hash (Hash)
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree)
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Reference qualified as V1
 import Unison.Referent qualified as V1
 import Unison.Referent qualified as V1.Referent
@@ -79,105 +77,26 @@ import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
 
-newtype SynHash = SynHash Hash deriving (Eq, Ord, Show) via SynHash
-
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
 -- It can represent the input or output namespace.
 -- It includes constructors, which many other contexts here don't.
-data DeepRefs = DeepRefs
-  { drTerms :: Map Name V1.Referent,
-    drTypes :: Map Name TypeReference
-  }
-
-data DeepRefsId = DeepRefsId
-  { drTermsId :: Map Name V1.Referent.Id,
-    drTypesId :: Map Name TypeReferenceId
-  }
-
--- | DeepRefs' maps names to just Terms and Types but not individual constructors
-data DeepRefs' = DeepRefs'
-  { drTerms' :: Map Name TermReference,
-    drTypes' :: Map Name TypeReference
-  }
+type DeepRefs =
+  Defns (Map Name Referent) (Map Name TypeReference)
 
 -- | DeepRefsId' is like DeepRefs', but maps to Ids instead of References.
 -- It could be used, for example, to represent a set of Derived definitions to typecheck
-data DeepRefsId' = DeepRefsId'
-  { drTermsId' :: Map Name TermReferenceId,
-    drTypesId' :: Map Name TypeReferenceId
-  }
+type DeepRefsId' =
+  Defns (Map Name TermReferenceId) (Map Name TypeReferenceId)
 
-data RefToName = RefToName
-  { rtnTerms :: Map V1.Referent Name,
-    rtnTypes :: Map TypeReference Name
-  }
+type RefToName =
+  Defns (Map Referent Name) (Map TypeReference Name)
 
-data RefIdToName = RefIdToName
-  { rtnTermsId :: Map TermReferenceId Name,
-    rtnTypesId :: Map TypeReferenceId Name
-  }
-
--- | SynHashes are computed and used to detect add/update conflicts
-data SynHashes = SynHashes
-  { shTerms :: Map Name SynHash,
-    shTypes :: Map Name SynHash
-  }
-
-data DiffConflicts = DiffConflicts
-  { dcTerms :: Set Name,
-    dcTypes :: Set Name
-  }
-
--- | Updates include whatever a branch updated
--- Or it can represent the union of branches, if there are no conflicts.
--- Updates can't rely on only Ids, because you can update something to a builtin!
-data Updates = Updates
-  { updatedTerms :: Map Name TermReference,
-    updatedTypes :: Map Name TypeReference
-  }
-
-data UpdatesId = UpdatesId
-  { updatedTermsId :: Map Name TermReferenceId,
-    updatedTypesId :: Map Name TypeReferenceId
-  }
-
-data UpdatesRefnt = UpdatesRefnt
-  { updatedTermsRt :: Map Name V1.Referent,
-    updatedTypesRt :: Map Name TypeReference
-  }
-
-data UpdatesRefntId = UpdatesRefntId
-  { updatedTermsRtId :: Map Name V1.Referent.Id,
-    updatedTypesRtId :: Map Name TypeReferenceId
-  }
-
-type Updates2 = Oink (Map Name V1.Referent.Referent) (Map Name TypeReferenceId)
+type UpdatesRefnt =
+  Defns (Map Name Referent) (Map Name TypeReference)
 
 -- for updated definitions, we want to know which branch to find the updated version in
 -- for transitive dependents of updates (which are not updates themselves), we don't care which version we get
 -- for conflicted definitions, we need to print both versions, but we don't typecheck anything
-
--- | Includes the transitive deps within some namespace / DeepRefs
-data TransitiveDeps = TransitiveDeps
-  { tdTerms :: Map Name TermReferenceId,
-    tdTypes :: Map Name TypeReferenceId
-  }
-
-deepRefsToPPE :: DeepRefsId' -> RefIdToName
-deepRefsToPPE
-  DeepRefsId' {drTermsId', drTypesId'} =
-    RefIdToName
-      (swapMap drTermsId')
-      (swapMap drTypesId')
-    where
-      swapMap = Map.fromList . map Tuple.swap . Map.toList
-
-type LoadTerm m = TermReferenceId -> m ()
-
-type LoadDecl m = TypeReferenceId -> m ()
-
-computeSyntacticHashes :: Applicative m => LoadTerm m -> LoadDecl m -> DeepRefs -> PrettyPrintEnv -> m SynHashes
-computeSyntacticHashes loadTerm loadDecl deepRefs ppe = pure wundefined
 
 -- merge :: Applicative m => DeepRefs -> DeepRefs -> DeepRefs -> m DeepRefs
 -- merge ppe lca a b =
@@ -273,6 +192,7 @@ computeUnisonFile ::
   RefToName ->
   (TermReferenceId -> Transaction (V1.Term v a)) ->
   (TypeReferenceId -> Transaction (V1.Decl v a)) ->
+  (TypeReference -> Transaction ConstructorType) ->
   WhatToTypecheck ->
   UpdatesRefnt ->
   Transaction (UnisonFile v a)
@@ -280,8 +200,11 @@ computeUnisonFile
   ppes
   loadTerm
   loadDecl
-  (unWhatToTypecheck -> DeepRefsId' {drTermsId' = termsToTypecheck, drTypesId' = declsToTypecheck})
-  UpdatesRefnt {updatedTermsRt = combinedTermUpdates, updatedTypesRt = combinedTypeUpdates} = do
+  loadDeclType
+  (unWhatToTypecheck -> Defns {terms = termsToTypecheck, types = declsToTypecheck})
+  Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
+    combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
+
     updatedDecls <-
       let setupDecl = fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadDecl
             where
@@ -314,6 +237,14 @@ computeUnisonFile
             watches = mempty
     pure uf
     where
+      -- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
+      referent2to1 :: Referent -> Transaction V1.Referent
+      referent2to1 = \case
+        Referent.Con typeRef conId -> do
+          declTy <- loadDeclType typeRef
+          pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
+        Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
+
       -- \| Perform substitions in a term for all the direct and indirect updates
       -- RefToName gives us our var names. It only needs to contain things that appear in typechecking.
       -- `dependents` and `updates` just give us the latest input version for term definitions.
@@ -329,7 +260,7 @@ computeUnisonFile
         (V1.Term v a) ->
         (V1.Term v a)
       substForTerm
-        RefToName {rtnTerms = ppeTerms, rtnTypes = ppeTypes}
+        Defns {terms = ppeTerms, types = ppeTypes}
         termNeedsUpdate
         updatedTypes
         updatedTerms
@@ -360,14 +291,14 @@ computeUnisonFile
                         }
                       term
 
-                updatePatterns :: V1.Term v a -> (V1.ConstructorReference, ConstructorType) -> V1.Term v a
-                updatePatterns term (cr, ct) = Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
+                updatePatterns :: V1.Term v a -> (ConstructorReference, ConstructorType) -> V1.Term v a
+                updatePatterns term (cr@(ConstructorReference typeRef conId), ct) =
+                  Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
                   where
-                    ctor = V1.Referent.Con cr ct
-                    old = V1.Term.fromReferent mempty ctor
+                    old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
                     new :: Maybe (V1.Term v a)
                     new = do
-                      name <- Map.lookup ctor ppeTerms
+                      name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
                       case (termNeedsUpdate name, Map.lookup name updatedTerms) of
                         (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
                         (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
@@ -399,7 +330,7 @@ computeUnisonFile
                   where
                     old = V1.Term.ref mempty ref
                     new = do
-                      name <- Map.lookup (V1.Referent.Ref ref) ppeTerms
+                      name <- Map.lookup (Referent.Ref ref) ppeTerms
                       case (termNeedsUpdate name, Map.lookup name updatedTerms) of
                         (True, _) -> Just $ V1.Term.var mempty (Name.toVar name)
                         (_, Just u) -> Just $ V1.Term.fromReferent mempty u
@@ -422,7 +353,7 @@ computeUnisonFile
       -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
       -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
       substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> (V1.Decl v a) -> (V1.Decl v a)
-      substForDecl RefToName {rtnTypes = ppe} declNeedsUpdate updatedTypes decl =
+      substForDecl Defns {types = ppe} declNeedsUpdate updatedTypes decl =
         V1.Decl.modifyAsDataDecl updateDecl decl
         where
           updateDecl decl = decl {V1.Decl.constructors' = map (over _3 updateCtorDependencies) $ V1.Decl.constructors' decl}
@@ -494,10 +425,10 @@ whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Trans
 whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
   -- 1. for each update, determine the corresponding old dependent
   let -- \| Find the `Reference.Id`s that comprise a namespace. Constructors show up as decl Ids.
-      makeScope dr = Set.fromList $ doTerms (drTerms dr) <> doTypes (drTypes dr)
+      makeScope dr = Set.fromList $ doTerms (dr ^. #terms) <> doTypes (dr ^. #types)
         where
-          doTerms :: Map Name V1.Referent.Referent -> [Reference.Id]
-          doTerms = mapMaybe V1.Referent.toReferenceId . Map.elems
+          doTerms :: Map Name Referent -> [Reference.Id]
+          doTerms = mapMaybe Referent.toReferenceId . Map.elems
           doTypes :: Map Name TypeReference -> [Reference.Id]
           doTypes = mapMaybe Reference.toId . Map.elems
 
@@ -505,19 +436,19 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
       -- the return type should be "things that can be dependencies in the db".
       -- This implementation returns a decl reference in place of a constructor reference.
       getByCorrespondingName :: DeepRefs -> UpdatesRefnt -> Set Reference
-      getByCorrespondingName scope updates = Set.fromList $ doTerms (updatedTermsRt updates) <> doTypes (updatedTypesRt updates)
+      getByCorrespondingName scope updates = Set.fromList $ doTerms (updates ^. #terms) <> doTypes (updates ^. #types)
         where
           -- \| doTerms will return a TypeReference from a Constructor
-          doTerms :: Map Name V1.Referent -> [Reference]
+          doTerms :: Map Name Referent -> [Reference]
           doTerms = map f . Map.keys
           f :: Name -> Reference
-          f name = fromMaybe err $ V1.Referent.toReference <$> Map.lookup name (drTerms scope)
+          f name = fromMaybe err $ Referent.toReference <$> Map.lookup name (scope ^. #terms)
             where
               err = error $ "delete / update conflict on term " ++ Name.toString name
           doTypes :: Map Name TypeReference -> [Reference]
           doTypes = map g . Map.keys
           g :: Name -> Reference
-          g name = fromMaybe err $ Map.lookup name (drTypes scope)
+          g name = fromMaybe err $ Map.lookup name (scope ^. #types)
             where
               err = error $ "delete / update conflict on type " ++ Name.toString name
 
@@ -544,9 +475,9 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
       -- however, we're looking for the latest version of the thing to typecheck, and we can't typecheck a constructor
       --  can we typecheck a constructor? we just have to put its decl in instead? / too?
       combinedUpdates =
-        UpdatesRefnt
-          { updatedTermsRt = updatedTermsRt aliceUpdates <> updatedTermsRt bobUpdates,
-            updatedTypesRt = updatedTypesRt aliceUpdates <> updatedTypesRt bobUpdates
+        Defns
+          { terms = (aliceUpdates ^. #terms) <> (bobUpdates ^. #terms),
+            types = (aliceUpdates ^. #types) <> (bobUpdates ^. #types)
           }
 
   -- todo: there's something confusing here about constructor names.
@@ -556,22 +487,22 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
       latestTermDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
           setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TermReferenceId, Set TermReferenceId)
-          setup dr dependents = (dropCtorsAndBuiltins $ drTerms dr, filterDependents RtTerm dependents)
-          dropCtorsAndBuiltins = Map.mapMaybe \case V1.Referent.Ref (Reference.ReferenceDerived r) -> Just r; _ -> Nothing
-          updates' = dropCtorsAndBuiltins $ updatedTermsRt combinedUpdates
+          setup dr dependents = (dropCtorsAndBuiltins (dr ^. #terms), filterDependents RtTerm dependents)
+          dropCtorsAndBuiltins = Map.mapMaybe Referent.toReferenceId
+          updates' = dropCtorsAndBuiltins $ combinedUpdates ^. #terms
 
   let -- \| decls to typecheck
       latestTypeDependents :: Map Name TypeReferenceId
       latestTypeDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
           setup :: DeepRefs -> Map Reference.Id ReferenceType -> (Map Name TypeReferenceId, Set TypeReferenceId)
-          setup dr dependents = (dropBuiltins $ drTypes dr, filterDependents RtType dependents)
+          setup dr dependents = (dropBuiltins (dr ^. #types), filterDependents RtType dependents)
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
-          updates' = dropBuiltins $ updatedTypesRt combinedUpdates
-  pure . WhatToTypecheck $ DeepRefsId' latestTermDependents latestTypeDependents
+          updates' = dropBuiltins $ combinedUpdates ^. #types
+  pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
-  { definitions :: Oink (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
+  { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
   }
 
 type Pretty = Text
@@ -655,8 +586,3 @@ data Conflict branch a
   | ConflictUpdateUpdate !branch !branch !a !a
   | ConflictDeleteAddDependent !branch !branch !a
   | ConflictDeleteUpdate !branch !branch !a !a
-
-data Oink terms types = Oink
-  { _terms :: terms,
-    _types :: types
-  }

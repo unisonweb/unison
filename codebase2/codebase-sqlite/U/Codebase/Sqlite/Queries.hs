@@ -1793,29 +1793,54 @@ getDependenciesBetweenTerms oid1 oid2 =
       WHERE path_elem IS NOT null
     |]
 
--- | Does a recursive search of the dependency table looking for the subset of `scope` that are in `query` or dependents of the result
+-- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
 getDependentsWithinScope :: Set Reference.Id -> Set S.Reference -> Transaction (Map Reference.Id ObjectType)
 getDependentsWithinScope scope query = do
-  execute [sql|CREATE TEMPORARY TABLE dependents_search_scope
-                ( dependent_object_id INTEGER NOT NULL REFERENCES object(id),
-                  dependent_component_index INTEGER NOT NULL,
-                  PRIMARY KEY (dependent_object_id, dependent_component_index) )|]
-  execute [sql|CREATE TEMPORARY TABLE dependencies_query
-            (dependency_builtin INTEGER NULL REFERENCES text(id),
-            dependency_object_id INTEGER NULL REFERENCES object(id),
-            dependency_component_index INTEGER NULL,
-            CHECK (
-              (dependency_builtin IS NULL) =
-              (dependency_object_id IS NOT NULL)
-            ),
-            CHECK (
-              (dependency_object_id IS NULL) =
-              (dependency_component_index IS NULL)
-            ))|]
+  -- Populate a temporary table with all of the references in `scope`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependents_search_scope (
+        dependent_object_id INTEGER NOT NULL REFERENCES object(id),
+        dependent_component_index INTEGER NOT NULL,
+        PRIMARY KEY (dependent_object_id, dependent_component_index)
+      )
+    |]
   for_ scope \r ->
     execute [sql|INSERT INTO dependents_search_scope VALUES (@r, @)|]
+
+  -- Populate a temporary table with all of the references in `query`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependencies_query (
+        dependency_builtin INTEGER NULL REFERENCES text(id),
+        dependency_object_id INTEGER NULL REFERENCES object(id),
+        dependency_component_index INTEGER NULL,
+        CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
+        CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
+      )
+    |]
   for_ query \r ->
     execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+
+  -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
+  --
+  -- Furthermore, say the dependencies are as follows, where `x -> y` means "x depends on y".
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --
+  -- The recursive query below is seeded with direct dependents of the `query` set that are in `scope`, namely:
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --            ^^^^
+  --            direct deps of { #foo, #bar } are: { #baz, #qux }
+  --
+  -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
+  -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
+  -- reference more than once.
+
   result :: [Reference.Id :. Only ObjectType] <- queryListRow [sql|
     WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
       SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
@@ -1829,8 +1854,7 @@ getDependentsWithinScope scope query = do
         ON s.dependent_object_id = d.dependent_object_id
         AND s.dependent_component_index = d.dependent_component_index
 
-      -- use UNION instead of UNION ALL if you don't want to have to dedup outside
-      UNION ALL SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
       FROM dependents_index d
       JOIN object ON d.dependent_object_id = object.id
       JOIN transitive_dependents t
