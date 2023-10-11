@@ -196,7 +196,8 @@ handleMerge alicePath0 bobPath0 _resultPath = do
           -- If there are conflicts, then create a MergeOutput
           mergeOutput <- wundefined "create MergeOutput" -- Arya Task 1
           wundefined "dump MergeOutput to scratchfile" mergeOutput
-          wundefined "create and save appropriate namespace" -- Mitchell
+          wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
+          -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
       let mergedLibdeps =
             Merge.mergeLibdeps
               ((==) `on` Causal.causalHash)
