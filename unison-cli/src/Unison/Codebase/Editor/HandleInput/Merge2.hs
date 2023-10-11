@@ -855,3 +855,8 @@ printDeclConflicts =
 printTermConflicts :: Set Name -> IO ()
 printTermConflicts =
   Text.putStrLn . Text.unwords . map (("term " <>) . Name.toText) . Set.toList
+
+-----------------------------------------------------------------------------------------------------------------------
+-- Pretty-print definitions
+
+-----------------------------------------------------------------------------------------------------------------------
