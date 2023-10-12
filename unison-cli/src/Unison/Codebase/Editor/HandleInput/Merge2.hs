@@ -62,6 +62,7 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Builtin qualified as Builtins
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -74,6 +75,7 @@ import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1 (Decl)
+import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
@@ -140,6 +142,13 @@ handleMerge bobBranchName = do
   declCache <- Cache.semispaceCache 1024
   let loadTerm = cacheTransaction termCache (Codebase.unsafeGetTerm codebase)
   let loadDecl = cacheTransaction declCache (Codebase.unsafeGetTypeDeclaration codebase)
+  -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
+  let loadDeclType ref =
+        case ref of
+          ReferenceBuiltin name ->
+            Map.lookup ref Builtins.builtinConstructorType
+              & maybe (error ("Unknown builtin: " ++ Text.unpack name)) pure
+          ReferenceDerived refId -> V1.Decl.constructorType <$> loadDecl refId
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -212,8 +221,6 @@ handleMerge bobBranchName = do
       if null (conflicts ^. #terms) && null (conflicts ^. #types)
         then do
           let typecheck = wundefined
-
-              loadDeclType = Codebase.getDeclType codebase
 
               namelookup :: Merge.RefToName = wundefined
 
