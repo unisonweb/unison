@@ -1347,7 +1347,7 @@ loop e = do
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
-            MergeI alice bob result -> handleMerge alice bob result
+            MergeI branch -> handleMerge branch
 
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do

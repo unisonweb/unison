@@ -90,6 +90,7 @@ dependencies:
   - unison-syntax
   - unison-util-base32hex
   - unison-util-bimultimap
+  - unison-util-cache
   - unison-util-relation
   - unliftio
   - unordered-containers

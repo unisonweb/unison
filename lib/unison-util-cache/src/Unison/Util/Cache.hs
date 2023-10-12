@@ -71,10 +71,10 @@ semispaceCache maxSize = do
                   Nothing -> pure Nothing
                   Just v -> insert k v $> Just v
             just -> pure just
-      insert k v = atomically $ do
+      insert k v = atomically do
         modifyTVar' gen0 (Map.insert k v)
         m0 <- readTVar gen0
-        when (fromIntegral (Map.size m0) >= maxSize) $ do
+        when (fromIntegral (Map.size m0) >= maxSize) do
           writeTVar gen1 m0
           writeTVar gen0 Map.empty
   pure $ Cache lookup insert
@@ -108,5 +108,5 @@ applyDefined c f k =
     Nothing -> do
       v <- f k
       -- only populate the cache if f returns a non-empty result
-      for_ v $ \v -> insert c k v
+      for_ v (insert c k)
       pure v
