@@ -12,6 +12,12 @@ module Unison.Merge2
     whatToTypecheck,
     computeUnisonFile,
 
+    -- * Pretty printing
+    MergeOutput (..),
+    ScratchDefn (..),
+    Conflict (..),
+    ConflictOrGood (..),
+
     -- * Misc / organize these later
     UpdatesRefnt,
     DiffOp (..),
@@ -51,6 +57,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
+import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
@@ -505,84 +512,14 @@ data MergeOutput v a = MergeProblem
   { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
   }
 
-type Pretty = Text
+data ScratchDefn v a = SdTerm (V1.Term v a) | SdDecl (V1.Decl v a) -- could also be a builtin alias
 
-type Defn v a = Either (V1.Term v a) (V1.Decl v a) -- could also be a builtin alias
-
--- pseudoOutput :: (Name -> Defn v a -> Pretty) -> MergeOutput v a -> Pretty
--- pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDeps
---   where
---     (conflicted, transitiveDeps) = foldl' partitionConflicts mempty (_terms $ definitions merge)
---     -- partitionConflicts :: (Map k a, Map k a1) -> (k, Either a a1) -> (Map k a, Map k a1)
---     partitionConflicts (conflicted, transitiveDeps) (name, cog) = case cog of
---       Left conflict -> (Map.insert name conflict conflicted, transitiveDeps)
---       Right unconflicted -> (conflicted, Map.insert name unconflicted transitiveDeps)
---     prettyTransitiveDeps = foldMap prettyTransitiveDep (Map.toList transitiveDeps)
---     prettyTransitiveDep = uncurry printDefn
---     prettyConflicts = foldMap prettyConflict (Map.toList conflicted)
---     prettyConflict = \case
---       (name, ConflictAddAdd b1 b2 d1 d2) ->
---         mintercalate
---           "\n"
---           [ "-- added in " <> b1,
---             printDefn name d1,
---             "-- added in " <> b2,
---             printDefn name d2
---           ]
---       (name, ConflictUpdateUpdate b1 b2 d1 d2) ->
---         mintercalate
---           "\n"
---           [ "-- updated in " <> b1,
---             printDefn name d1,
---             "-- updated in " <> b2,
---             printDefn name d2
---           ]
---       (name, ConflictDeleteAddDependent b1 b2 d) ->
---         mintercalate
---           "\n"
---           [ "-- deleted in " <> b1,
---             printDeletedDefn name d,
---             "-- original definition still in use by " <> b2,
---             printDefn name d
---           ]
---       (name, ConflictDeleteUpdate b1 b2 d1 d2) ->
---         mintercalate
---           "\n"
---           [ "-- deleted in " <> b1,
---             printDefn name d1,
---             "-- updated in " <> b2,
---             printDefn name d2
---           ]
---     printDeletedDefn :: Name -> Defn v a -> Pretty
---     printDeletedDefn name = \case
---       _term@Left {} -> Name.toText name <> " = " <> "<<<deleted>>>"
---       Right (Left (V1.EffectDeclaration _effect)) -> case V1.Decl.modifier _effect of
---         V1.Decl.Structural -> "structural ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
---         V1.Decl.Unique {} -> "unique ability " <> Name.toText name <> " where " <> "<<<deleted>>>"
---       (Right (Right _data)) -> case V1.Decl.modifier _data of
---         V1.Decl.Structural -> "structural type " <> Name.toText name <> " = " <> "<<<>>>"
---         V1.Decl.Unique {} -> "unique type " <> Name.toText name <> " = " <> "<<<>>>"
---     newline = "\n"
-
-mintercalate :: Monoid a => a -> [a] -> a
-mintercalate x ys = x <> go ys
-  where
-    go [] = mempty
-    go (y : ys) = y <> x <> go ys
-
-sintercalate :: Semigroup a => a -> NonEmpty a -> a
-sintercalate x ys = go $ toList ys
-  where
-    go [y] = y
-    go (y : ys) = y <> x <> go ys
-    go [] = error "impossible"
-
-type BranchName = Text
-
-data ConflictOrGood a = Conflict (Conflict BranchName a) | Good a
+data ConflictOrGood a = Conflict (Conflict ProjectBranchName a) | Good a
+  deriving stock (Functor)
 
 data Conflict branch a
   = ConflictAddAdd !branch !branch !a !a
   | ConflictUpdateUpdate !branch !branch !a !a
   | ConflictDeleteAddDependent !branch !branch !a
   | ConflictDeleteUpdate !branch !branch !a !a
+  deriving stock (Functor)

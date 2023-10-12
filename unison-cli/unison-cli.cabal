@@ -72,6 +72,7 @@ library
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Output.Merge2
       Unison.Codebase.Editor.Output.PushPull
       Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.Slurp
