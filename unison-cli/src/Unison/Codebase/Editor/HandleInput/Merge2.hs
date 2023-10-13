@@ -43,6 +43,7 @@ import U.Codebase.Branch (Branch (Branch), CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..))
 import U.Codebase.Branch.Diff qualified as Diff
+import U.Codebase.BranchV3 (BranchV3 (..), CausalBranchV3)
 import U.Codebase.Causal (Causal (Causal))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
@@ -68,12 +69,17 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as V1 (Branch, Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Causal qualified as V1 (Causal)
+import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Metadata qualified as V1.Metadata
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType (ConstructorType)
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
@@ -109,6 +115,8 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
 import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star3 (Star3)
+import Unison.Util.Star3 qualified as Star3
 import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
@@ -419,6 +427,74 @@ defnsToScope (Merge.Defns terms types) =
   Set.union
     (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
     (Set.mapMaybe Reference.toId (BiMultimap.dom types))
+
+loadV3BranchAsV1Branch0 ::
+  Monad m =>
+  (TypeReference -> m ConstructorType) ->
+  (CausalHash -> m (V1.Branch m)) ->
+  BranchV3 m ->
+  m (V1.Branch0 m)
+loadV3BranchAsV1Branch0 loadDeclType loadBranch BranchV3 {terms, types, children} = do
+  terms1 <- traverse (referent2to1 loadDeclType) terms
+  children1 <- traverse (loadV3CausalAsV1Branch loadDeclType loadBranch) children
+  pure $
+    V1.Branch.branch0
+      (makeStar3 terms1)
+      (makeStar3 types)
+      children1
+      Map.empty
+  where
+    makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
+    makeStar3 =
+      foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
+      where
+        emptyStar3 =
+          Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
+
+loadV3CausalAsV1Branch ::
+  forall m.
+  Monad m =>
+  (TypeReference -> m ConstructorType) ->
+  (CausalHash -> m (V1.Branch m)) ->
+  CausalBranchV3 m ->
+  m (V1.Branch m)
+loadV3CausalAsV1Branch loadDeclType loadBranch causal = do
+  branch <- causal ^. #value
+  head <- loadV3BranchAsV1Branch0 loadDeclType loadBranch branch
+  let currentHash = causal ^. #causalHash
+  let valueHash = coerce @BranchHash @(Hash.HashFor (V1.Branch0 m)) (causal ^. #valueHash)
+  pure $
+    V1.Branch.Branch
+      case Map.toList (causal ^. #parents) of
+        [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+        [(parentHash, parent)] ->
+          V1.Causal.UnsafeCons
+            { currentHash,
+              valueHash,
+              head,
+              tail = (parentHash, convertParent parent)
+            }
+        _ ->
+          V1.Causal.UnsafeMerge
+            { currentHash,
+              valueHash,
+              head,
+              tails = convertParent <$> (causal ^. #parents)
+            }
+  where
+    convertParent :: m (CausalBranch m) -> m (V1.Causal m (V1.Branch0 m))
+    convertParent loadParent = do
+      parent <- loadParent
+      v1Branch <- loadBranch (parent ^. #causalHash)
+      pure (V1.Branch._history v1Branch)
+
+-- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
+referent2to1 :: Applicative m => (TypeReference -> m ConstructorType) -> Referent -> m V1.Referent
+referent2to1 loadDeclType = \case
+  Referent.Con typeRef conId -> do
+    declTy <- loadDeclType typeRef
+    pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
+  Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
