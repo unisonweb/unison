@@ -120,7 +120,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
             Cli.Env {codebase} <- ask
             baseLatestReleaseBranchObject <-
               liftIO $
-                Codebase.expectBranchForHash
+                Codebase.expectBranchForHashIO
                   codebase
                   (Sync.Common.hash32ToCausalHash (Share.API.hashJWTHash (baseLatestReleaseBranch ^. #branchHead)))
             pure (Just baseLatestReleaseBranchObject)

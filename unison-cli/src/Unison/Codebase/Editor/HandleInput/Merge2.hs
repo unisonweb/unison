@@ -5,82 +5,68 @@ module Unison.Codebase.Editor.HandleInput.Merge2
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (over, preview, (^.))
+import Control.Lens (over, (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Except qualified as Except
-import Data.Bimap (Bimap)
-import Data.Bimap qualified as Bimap
-import Data.ByteString.Short (ShortByteString)
 import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty (pattern (:|))
-import Data.List.NonEmpty qualified as List1
-import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
-import Data.Monoid (Endo (Endo))
-import Data.Semialign (align, alignWith)
+import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Data.Text.Lazy qualified as Text.Lazy
-import Data.Text.Lazy.Builder qualified as Text (Builder)
-import Data.Text.Lazy.Builder qualified as Text.Builder
-import Data.Text.Lazy.Builder.Int qualified as Text.Builder
 import Data.These (These (..))
-import Data.Tuple.Strict
 import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
 import Text.Printf (printf)
-import U.Codebase.Branch (Branch (Branch), CausalBranch)
+import U.Codebase.Branch (Branch, CausalBranch)
 import U.Codebase.Branch qualified as Branch
-import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..))
-import U.Codebase.Branch.Diff qualified as Diff
-import U.Codebase.Causal (Causal (Causal))
+import U.Codebase.BranchV3 (BranchV3 (..), CausalBranchV3)
+import U.Codebase.BranchV3 qualified as BranchV3
+import U.Codebase.Causal (Causal)
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
   ( Reference,
     Reference' (..),
     ReferenceType,
-    TermReference,
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
-    _ReferenceDerived,
   )
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
-import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as V1 (Branch, Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Causal qualified as V1 (Causal)
+import Unison.Codebase.Causal qualified as V1.Causal
+import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
-import Unison.ConstructorReference qualified as ConstructorReference
-import Unison.Core.ConstructorId (ConstructorId)
-import Unison.DataDeclaration qualified as V1 (Decl)
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.HashQualified' qualified as HQ'
-import Unison.Merge qualified as Merge
 import Unison.Merge2 (MergeOutput)
 import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
@@ -88,11 +74,9 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
-import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import Unison.PrettyPrintEnv qualified as Ppe
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
 import Unison.ShortHash (ShortHash)
@@ -101,21 +85,16 @@ import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Term qualified as V1 (Term)
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Cache qualified as Cache
 import Unison.Util.Map qualified as Map
-import Unison.Util.Monoid (intercalateMap)
-import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
-import Unison.Var (Var)
+import Unison.Util.Star3 (Star3)
+import Unison.Util.Star3 qualified as Star3
 import Witch (unsafeFrom)
-import Witherable (catMaybes)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -129,8 +108,23 @@ step name action = do
 
 data MergePreconditionViolation
   = ConflictedAliases !ProjectBranchName !Name !Name
+  | -- A name refers to two different terms
+    ConflictedTermName !(Set Referent)
+  | -- A name refers to two different terms
+    ConflictedTypeName !(Set TypeReference)
   | -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
     ConflictInvolvingBuiltin
+  | -- A second naming of a constructor was discovered underneath a decl's name, e.g.
+    --
+    --   Foo#Foo
+    --   Foo.Bar#Foo#0
+    --   Foo.Some.Other.Name.For.Bar#Foo#0
+    ConstructorAlias !Name
+  | -- There were some definitions at the top level of lib.*, which we don't like
+    DefnsInLib
+  | MissingConstructorName !Name
+  | NestedDeclAlias !Name
+  | NoConstructorNames !Name
   | StrayConstructor !Name
   deriving stock (Show)
 
@@ -172,8 +166,8 @@ handleMerge bobBranchName = do
       bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
       -- Load deep definitions
-      aliceDefns <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM (rollback . Left)
-      bobDefns <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM (rollback . Left)
+      (aliceDefns, aliceCausalTree) <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
+      (bobDefns, bobCausalTree) <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
 
       (maybeLcaLibdeps, diffs) <- do
         step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
@@ -187,8 +181,8 @@ handleMerge bobBranchName = do
           Just lcaCausalHash -> do
             lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-            lcaDefns <- step "load lca definitions" do
-              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM (rollback . Left)
+            (lcaDefns, _) <- step "load lca definitions" do
+              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
@@ -316,8 +310,34 @@ handleMerge bobBranchName = do
             let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
             let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
 
+            let unconflictedBranch :: BranchV3 Transaction
+                unconflictedBranch =
+                  let unflattenedTree =
+                        Merge.mergeNamespaceTrees
+                          (\(aliceDefns, aliceCausal) -> (aliceDefns, Left aliceCausal))
+                          (\(bobDefns, bobCausal) -> (bobDefns, Left bobCausal))
+                          ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+                              -- We should maybe say that a left-biased
+                              -- union is fine here because we are merging
+                              -- unconflicted things so there is no bias
+                              (aliceDefns <> bobDefns, Right (aliceCausal, bobCausal))
+                          )
+                          (makeBigTree aliceUnconflicted aliceCausalTree)
+                          (makeBigTree bobUnconflicted bobCausalTree)
+                      makeBigTree defns causals =
+                        Merge.mergeNamespaceTrees
+                          (\_ -> error "impossible")
+                          (\_ -> error "impossible")
+                          (,)
+                          (Merge.unflattenNamespaceTree defns)
+                          causals
+                   in namespaceToBranchV3 unflattenedTree
+
+            unconflictedV1Branch <- loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
+
             -- If there are conflicts, then create a MergeOutput
             mergeOutput :: MergeOutput Symbol () <- wundefined "create MergeOutput"
+            wundefined "dump MergeOutput to scratchfile" mergeOutput
             wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
             -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
             let ppe :: PrettyPrintEnvDecl = wundefined
@@ -358,6 +378,39 @@ handleMerge bobBranchName = do
           (scratchFile, _) <- Cli.expectLatestFile
           Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
+
+namespaceToBranchV3 ::
+  Merge.NamespaceTree
+    ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
+      Either CausalHash (CausalHash, CausalHash)
+    ) ->
+  BranchV3 Transaction
+namespaceToBranchV3 ((Merge.Defns {terms, types}, bonk) :< children) =
+  let v3Children = thinkOfTheChildren <$> children
+   in BranchV3.BranchV3 v3Children terms types
+  where
+    thinkOfTheChildren ::
+      Merge.NamespaceTree
+        ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
+          Either CausalHash (CausalHash, CausalHash)
+        ) ->
+      BranchV3.CausalBranchV3 Transaction
+    thinkOfTheChildren blerg@((_, bonk) :< _) =
+      let gonk :: BranchV3 Transaction
+          gonk = namespaceToBranchV3 blerg
+
+          fonk :: Map CausalHash (Transaction (Causal Transaction CausalHash BranchHash (Branch Transaction) (Branch Transaction)))
+          fonk =
+            let xs :: [CausalHash]
+                xs = case bonk of
+                  Left ch -> [ch]
+                  Right (ach, bch) -> [ach, bch]
+             in Map.fromList
+                  (map (\ch -> (ch, Operations.expectCausalBranchByCausalHash ch)) xs)
+
+          zonk :: BranchHash
+          zonk = HashHandle.hashBranchV3 v2HashHandle gonk
+       in HashHandle.mkCausal v2HashHandle zonk fonk (pure gonk)
 
 -- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
 filterUpdates ::
@@ -432,6 +485,74 @@ defnsToScope (Merge.Defns terms types) =
     (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
     (Set.mapMaybe Reference.toId (BiMultimap.dom types))
 
+loadV3BranchAsV1Branch0 ::
+  Monad m =>
+  (TypeReference -> m ConstructorType) ->
+  (CausalHash -> m (V1.Branch m)) ->
+  BranchV3 m ->
+  m (V1.Branch0 m)
+loadV3BranchAsV1Branch0 loadDeclType loadBranch BranchV3 {terms, types, children} = do
+  terms1 <- traverse (referent2to1 loadDeclType) terms
+  children1 <- traverse (loadV3CausalAsV1Branch loadDeclType loadBranch) children
+  pure $
+    V1.Branch.branch0
+      (makeStar3 terms1)
+      (makeStar3 types)
+      children1
+      Map.empty
+  where
+    makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
+    makeStar3 =
+      foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
+      where
+        emptyStar3 =
+          Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
+
+loadV3CausalAsV1Branch ::
+  forall m.
+  Monad m =>
+  (TypeReference -> m ConstructorType) ->
+  (CausalHash -> m (V1.Branch m)) ->
+  CausalBranchV3 m ->
+  m (V1.Branch m)
+loadV3CausalAsV1Branch loadDeclType loadBranch causal = do
+  branch <- causal ^. #value
+  head <- loadV3BranchAsV1Branch0 loadDeclType loadBranch branch
+  let currentHash = causal ^. #causalHash
+  let valueHash = coerce @BranchHash @(Hash.HashFor (V1.Branch0 m)) (causal ^. #valueHash)
+  pure $
+    V1.Branch.Branch
+      case Map.toList (causal ^. #parents) of
+        [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+        [(parentHash, parent)] ->
+          V1.Causal.UnsafeCons
+            { currentHash,
+              valueHash,
+              head,
+              tail = (parentHash, convertParent parent)
+            }
+        _ ->
+          V1.Causal.UnsafeMerge
+            { currentHash,
+              valueHash,
+              head,
+              tails = convertParent <$> (causal ^. #parents)
+            }
+  where
+    convertParent :: m (CausalBranch m) -> m (V1.Causal m (V1.Branch0 m))
+    convertParent loadParent = do
+      parent <- loadParent
+      v1Branch <- loadBranch (parent ^. #causalHash)
+      pure (V1.Branch._history v1Branch)
+
+-- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
+referent2to1 :: Applicative m => (TypeReference -> m ConstructorType) -> Referent -> m V1.Referent
+referent2to1 loadDeclType = \case
+  Referent.Con typeRef conId -> do
+    declTy <- loadDeclType typeRef
+    pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
+  Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
+
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
 getTwoFreshNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
@@ -476,8 +597,15 @@ loadNamespaceDefns ::
   Monad m =>
   (TypeReferenceId -> m Int) ->
   Branch m ->
-  m (Either MergePreconditionViolation (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
-loadNamespaceDefns loadNumConstructors branch = do
+  CausalHash ->
+  m
+    ( Either
+        MergePreconditionViolation
+        ( Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+          Merge.NamespaceTree CausalHash
+        )
+    )
+loadNamespaceDefns loadNumConstructors branch causalHash = do
   libdepsHasTopLevelDefns <-
     case Map.lookup Name.libSegment (branch ^. #children) of
       Nothing -> pure False
@@ -485,56 +613,56 @@ loadNamespaceDefns loadNumConstructors branch = do
         libdepsBranch <- Causal.value libdepsCausal
         pure (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types)))
   if libdepsHasTopLevelDefns
-    then pure (Left (werror "bad"))
+    then pure (Left DefnsInLib)
     else do
-      defns0 <- loadNamespaceDefns0 branch
+      defns0 <- loadNamespaceDefns0 branch causalHash
       case makeNamespaceDefns1 defns0 of
         Left err -> pure (Left err)
         Right defns1 ->
           checkDeclCoherency loadNumConstructors defns1 <&> \case
             Left err -> Left err
-            Right () -> Right (Merge.flattenNamespaceTree defns1)
+            Right () -> Right (Merge.flattenNamespaceTree (fmap fst defns1), fmap snd defns1)
 
 type NamespaceDefns0 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)), CausalHash)
 
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
-loadNamespaceDefns0 :: forall m. Monad m => Branch m -> m NamespaceDefns0
-loadNamespaceDefns0 branch = do
+loadNamespaceDefns0 :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
+loadNamespaceDefns0 branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch
-  pure (Merge.Defns {terms, types} :< children)
+      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+  pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
-loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> m NamespaceDefns0
-loadNamespaceDefns0_ branch = do
+loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
+loadNamespaceDefns0_ branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch
-  pure (Merge.Defns {terms, types} :< children)
+      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+  pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
 type NamespaceDefns1 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
 
 -- | Assert that there are no unconflicted names in a namespace.
 makeNamespaceDefns1 :: NamespaceDefns0 -> Either MergePreconditionViolation NamespaceDefns1
 makeNamespaceDefns1 =
-  traverse \Merge.Defns {terms, types} -> do
-    terms <- traverse assertUnconflicted terms
-    types <- traverse assertUnconflicted types
-    pure (Merge.Defns terms types)
+  traverse \(Merge.Defns {terms, types}, causalHash) -> do
+    terms <- traverse (assertUnconflicted ConflictedTermName) terms
+    types <- traverse (assertUnconflicted ConflictedTypeName) types
+    pure (Merge.Defns terms types, causalHash)
   where
-    assertUnconflicted :: Set ref -> Either MergePreconditionViolation ref
-    assertUnconflicted refs =
+    assertUnconflicted :: (Set ref -> MergePreconditionViolation) -> Set ref -> Either MergePreconditionViolation ref
+    assertUnconflicted conflicted refs =
       case Set.asSingleton refs of
-        Nothing -> Left (werror "conflicted ref")
+        Nothing -> Left (conflicted refs)
         Just ref -> Right ref
 
 -- The "decl coherency check": a type declaration in a namespace is "coherent" if it satisfies both of the following
@@ -623,7 +751,7 @@ checkDeclCoherency loadNumConstructors =
   runExceptT . (`State.evalStateT` Map.empty) . go []
   where
     go :: [NameSegment] -> NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT MergePreconditionViolation m) ()
-    go prefix (Merge.Defns {terms, types} :< children) = do
+    go prefix ((Merge.Defns {terms, types}, _) :< children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
         (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
@@ -635,12 +763,12 @@ checkDeclCoherency loadNumConstructors =
           where
             f :: Maybe IntSet -> Either MergePreconditionViolation IntSet
             f = \case
-              Nothing -> Left (StrayConstructor (Name.fromReverseSegments (name :| prefix)))
+              Nothing -> Left (StrayConstructor (fullName name))
               Just expected -> IntSet.alterF g (unsafeFrom @Word64 conId) expected
                 where
                   g :: Bool -> Either MergePreconditionViolation Bool
                   g = \case
-                    False -> Left (werror ("duplicate constructor " ++ show (ConstructorReference typeRef conId)))
+                    False -> Left (ConstructorAlias (fullName name))
                     True -> Right False
 
       childrenWeWentInto <-
@@ -649,36 +777,39 @@ checkDeclCoherency loadNumConstructors =
           (name, ReferenceDerived typeRef) -> do
             s0 <- State.get
             whatHappened <- do
-              let f :: Maybe IntSet -> Compose m WhatHappened IntSet
-                  f =
+              let recordNewDecl :: Maybe IntSet -> Compose (ExceptT MergePreconditionViolation m) WhatHappened IntSet
+                  recordNewDecl =
                     Compose . \case
-                      Just _ -> pure NestedDeclAlias
+                      Just _ -> Except.throwError (NestedDeclAlias (fullName name))
                       Nothing ->
-                        loadNumConstructors typeRef <&> \case
+                        lift (loadNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
                           n -> InhabitedDecl (IntSet.fromAscList [0 .. n - 1])
-              lift (lift (getCompose (Map.upsertF f typeRef s0)))
+              lift (getCompose (Map.upsertF recordNewDecl typeRef s0))
             case whatHappened of
-              NestedDeclAlias -> Except.throwError (werror "embedded alias")
               UninhabitedDecl -> pure Nothing
               InhabitedDecl s1 ->
                 case Map.lookup name children of
-                  Nothing -> Except.throwError (werror "no names for constructors")
+                  Nothing -> Except.throwError (NoConstructorNames (fullName name))
                   Just child -> do
                     State.put s1
                     go (name : prefix) child
                     s2 <- State.get
-                    let (Just x, s3) = Map.deleteLookup typeRef s2
-                    when (not (IntSet.null x)) (werror "missing name for constructor")
+                    -- fromJust is safe here because we upserted `typeRef` key above
+                    let (fromJust -> constructorIdsWithoutNames, s3) = Map.deleteLookup typeRef s2
+                    when (not (IntSet.null constructorIdsWithoutNames)) do
+                      Except.throwError (MissingConstructorName (fullName name))
                     State.put s3
                     pure (Just name)
 
       let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
       for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
+      where
+        fullName name =
+          Name.fromReverseSegments (name :| prefix)
 
 data WhatHappened a
-  = NestedDeclAlias
-  | UninhabitedDecl
+  = UninhabitedDecl
   | InhabitedDecl !a
   deriving stock (Functor, Show)
 

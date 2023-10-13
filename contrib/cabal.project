@@ -24,6 +24,7 @@ packages:
   lib/unison-util-relation
   lib/unison-util-rope
   lib/unison-util-file-embed
+  lib/unison-util-bimultimap
 
   parser-typechecker
   unison-core

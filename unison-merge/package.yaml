@@ -19,6 +19,7 @@ dependencies:
   - nonempty-containers
   - safe
   - semialign
+  - semigroups
   - these
   - unison-core
   - unison-core1

@@ -1172,7 +1172,7 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
 
 resolveCausalHash ::
-  (Monad m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
+  (MonadIO m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
 resolveCausalHash h codebase = case h of
   Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do

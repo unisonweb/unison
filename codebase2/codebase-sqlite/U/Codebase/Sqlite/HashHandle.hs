@@ -1,11 +1,14 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
     HashMismatch (..),
+    mkCausal,
   )
 where
 
+import Data.Map qualified as Map
 import U.Codebase.Branch.Type (Branch)
 import U.Codebase.BranchV3 (BranchV3)
+import U.Codebase.Causal (Causal (..))
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
@@ -47,3 +50,17 @@ data HashHandle = HashHandle
       BranchHash,
     verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
   }
+
+mkCausal ::
+  HashHandle ->
+  BranchHash ->
+  Map CausalHash (m (Causal m CausalHash BranchHash pe pe)) ->
+  m e ->
+  Causal m CausalHash BranchHash pe e
+mkCausal hashHandle valueHash parents value =
+  Causal
+    { causalHash = hashCausal hashHandle valueHash (Map.keysSet parents),
+      valueHash = valueHash,
+      parents = parents,
+      value = value
+    }

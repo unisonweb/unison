@@ -300,7 +300,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask
   let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
-  theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
+  theBranch <- liftIO (Codebase.expectBranchForHashIO codebase branchHead)
   let path = projectBranchPath (over #project fst localProjectAndBranch)
   Cli.updateAt ("clone " <> into @Text remoteProjectBranchNames) path (const theBranch)
   Cli.cd path

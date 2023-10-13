@@ -29,6 +29,8 @@ module Unison.Merge2
     DefnsB,
     NamespaceTree,
     flattenNamespaceTree,
+    unflattenNamespaceTree,
+    mergeNamespaceTrees,
     TwoWay (..),
     TwoOrThreeWay (..),
   )
@@ -63,7 +65,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree)
+import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree, unflattenNamespaceTree, mergeNamespaceTrees)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference qualified as V1
