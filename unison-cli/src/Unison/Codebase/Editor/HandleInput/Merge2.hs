@@ -69,6 +69,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -124,8 +125,23 @@ step name action = do
 
 data MergePreconditionViolation
   = ConflictedAliases !ProjectBranchName !Name !Name
+  | -- A name refers to two different terms
+    ConflictedTermName !(Set Referent)
+  | -- A name refers to two different terms
+    ConflictedTypeName !(Set TypeReference)
   | -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
     ConflictInvolvingBuiltin
+  | -- A second naming of a constructor was discovered underneath a decl's name, e.g.
+    --
+    --   Foo#Foo
+    --   Foo.Bar#Foo#0
+    --   Foo.Some.Other.Name.For.Bar#Foo#0
+    ConstructorAlias !Name
+  | -- There were some definitions at the top level of lib.*, which we don't like
+    DefnsInLib
+  | MissingConstructorName !Name
+  | NestedDeclAlias !Name
+  | NoConstructorNames !Name
   | StrayConstructor !Name
   deriving stock (Show)
 
@@ -328,7 +344,7 @@ handleMerge bobBranchName = do
       pure (Right ())
 
   case result of
-    Left err -> liftIO (print err)
+    Left err -> Cli.respond (Output.NotImplementedYet (tShow err))
     Right () -> pure ()
 
 -- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
@@ -457,7 +473,7 @@ loadNamespaceDefns loadNumConstructors branch = do
         libdepsBranch <- Causal.value libdepsCausal
         pure (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types)))
   if libdepsHasTopLevelDefns
-    then pure (Left (werror "bad"))
+    then pure (Left DefnsInLib)
     else do
       defns0 <- loadNamespaceDefns0 branch
       case makeNamespaceDefns1 defns0 of
@@ -499,14 +515,14 @@ type NamespaceDefns1 =
 makeNamespaceDefns1 :: NamespaceDefns0 -> Either MergePreconditionViolation NamespaceDefns1
 makeNamespaceDefns1 =
   traverse \Merge.Defns {terms, types} -> do
-    terms <- traverse assertUnconflicted terms
-    types <- traverse assertUnconflicted types
+    terms <- traverse (assertUnconflicted ConflictedTermName) terms
+    types <- traverse (assertUnconflicted ConflictedTypeName) types
     pure (Merge.Defns terms types)
   where
-    assertUnconflicted :: Set ref -> Either MergePreconditionViolation ref
-    assertUnconflicted refs =
+    assertUnconflicted :: (Set ref -> MergePreconditionViolation) -> Set ref -> Either MergePreconditionViolation ref
+    assertUnconflicted conflicted refs =
       case Set.asSingleton refs of
-        Nothing -> Left (werror "conflicted ref")
+        Nothing -> Left (conflicted refs)
         Just ref -> Right ref
 
 -- The "decl coherency check": a type declaration in a namespace is "coherent" if it satisfies both of the following
@@ -607,12 +623,12 @@ checkDeclCoherency loadNumConstructors =
           where
             f :: Maybe IntSet -> Either MergePreconditionViolation IntSet
             f = \case
-              Nothing -> Left (StrayConstructor (Name.fromReverseSegments (name :| prefix)))
+              Nothing -> Left (StrayConstructor (fullName name))
               Just expected -> IntSet.alterF g (unsafeFrom @Word64 conId) expected
                 where
                   g :: Bool -> Either MergePreconditionViolation Bool
                   g = \case
-                    False -> Left (werror ("duplicate constructor " ++ show (ConstructorReference typeRef conId)))
+                    False -> Left (ConstructorAlias (fullName name))
                     True -> Right False
 
       childrenWeWentInto <-
@@ -621,36 +637,39 @@ checkDeclCoherency loadNumConstructors =
           (name, ReferenceDerived typeRef) -> do
             s0 <- State.get
             whatHappened <- do
-              let f :: Maybe IntSet -> Compose m WhatHappened IntSet
-                  f =
+              let recordNewDecl :: Maybe IntSet -> Compose (ExceptT MergePreconditionViolation m) WhatHappened IntSet
+                  recordNewDecl =
                     Compose . \case
-                      Just _ -> pure NestedDeclAlias
+                      Just _ -> Except.throwError (NestedDeclAlias (fullName name))
                       Nothing ->
-                        loadNumConstructors typeRef <&> \case
+                        lift (loadNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
                           n -> InhabitedDecl (IntSet.fromAscList [0 .. n - 1])
-              lift (lift (getCompose (Map.upsertF f typeRef s0)))
+              lift (getCompose (Map.upsertF recordNewDecl typeRef s0))
             case whatHappened of
-              NestedDeclAlias -> Except.throwError (werror "embedded alias")
               UninhabitedDecl -> pure Nothing
               InhabitedDecl s1 ->
                 case Map.lookup name children of
-                  Nothing -> Except.throwError (werror "no names for constructors")
+                  Nothing -> Except.throwError (NoConstructorNames (fullName name))
                   Just child -> do
                     State.put s1
                     go (name : prefix) child
                     s2 <- State.get
-                    let (Just x, s3) = Map.deleteLookup typeRef s2
-                    when (not (IntSet.null x)) (werror "missing name for constructor")
+                    -- fromJust is safe here because we upserted `typeRef` key above
+                    let (fromJust -> constructorIdsWithoutNames, s3) = Map.deleteLookup typeRef s2
+                    when (not (IntSet.null constructorIdsWithoutNames)) do
+                      Except.throwError (MissingConstructorName (fullName name))
                     State.put s3
                     pure (Just name)
 
       let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
       for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
+      where
+        fullName name =
+          Name.fromReverseSegments (name :| prefix)
 
 data WhatHappened a
-  = NestedDeclAlias
-  | UninhabitedDecl
+  = UninhabitedDecl
   | InhabitedDecl !a
   deriving stock (Functor, Show)
 
