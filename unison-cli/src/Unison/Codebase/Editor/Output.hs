@@ -52,6 +52,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge2 (MergeOutput)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -376,7 +377,9 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol Ann)
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol ())
+  | OutputMergeScratchFile PPE.PrettyPrintEnvDecl FilePath (UF.UnisonFile Symbol ()) -- scratchMsg, ucmMsg :: String
+  | OutputMergeConflictScratchFile PPE.PrettyPrintEnvDecl FilePath (MergeOutput Symbol ()) -- scratchMsg, ucmMsg :: String
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase
@@ -600,6 +603,8 @@ isFailure o = case o of
   CalculatingDiff {} -> False
   RenamedProject {} -> False
   OutputRewrittenFile {} -> False
+  OutputMergeScratchFile {} -> False
+  OutputMergeConflictScratchFile {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
   FetchingLatestReleaseOfBase {} -> False

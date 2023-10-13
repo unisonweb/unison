@@ -88,6 +88,7 @@ import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
+import Unison.Merge2 (MergeOutput)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -760,6 +761,8 @@ notifyUser dir = \case
         ]
   DisplayDefinitions output -> displayDefinitions output
   OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
+  OutputMergeScratchFile ppe dest uf -> displayOutputMergeScratchFile ppe dest uf
+  OutputMergeConflictScratchFile ppe dest uf -> displayOutputMergeConfictScratchFile ppe dest uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2436,6 +2439,17 @@ displayOutputRewrittenFile ppe fp msg (vs, uf) = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
+displayOutputMergeScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> UF.UnisonFile v a -> IO Pretty
+displayOutputMergeScratchFile ppe fp uf = do
+  let scratchMessage = "The merge results didn't typecheck. Please fix them up below, and `update` to save them when you're done."
+  let header = "-- " <> P.string scratchMessage <> "\n"
+  let ucmMessage = "The merge results didn't typecheck. I put them at the top of " <> fromString fp <> "and need your help to fix them up. Use `update` to save them when you're done."
+  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
+  pure $ P.callout "☝️" $ P.lines [P.wrap ucmMessage]
+
+displayOutputMergeConfictScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> MergeOutput v a -> IO Pretty
+displayOutputMergeConfictScratchFile ppe fp uf = wundefined
+
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
@@ -2787,7 +2801,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2802,7 +2816,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

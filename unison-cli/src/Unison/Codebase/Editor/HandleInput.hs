@@ -1744,7 +1744,7 @@ handleStructuredFindReplaceI rule = do
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
-  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
+  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) (second void uf')
 
 handleFindI ::
   Bool ->

@@ -512,6 +512,15 @@ data MergeOutput v a = MergeProblem
   { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
   }
 
+instance Ord v => Functor (MergeOutput v) where
+  fmap f (MergeProblem Defns {terms, types}) =
+    MergeProblem
+      ( Defns
+          { terms = fmap (fmap (V1.Term.amap f)) terms,
+            types = fmap (fmap (V1.Decl.amap f)) types
+          }
+      )
+
 data ScratchDefn v a = SdTerm (V1.Term v a) | SdDecl (V1.Decl v a) -- could also be a builtin alias
 
 data ConflictOrGood a = Conflict (Conflict ProjectBranchName a) | Good a

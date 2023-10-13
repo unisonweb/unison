@@ -69,6 +69,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -80,6 +81,7 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
+import Unison.Merge2 (MergeOutput)
 import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -88,6 +90,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames, ProjectBranchName)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
@@ -95,9 +99,10 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
+import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Term qualified as V1 (Term)
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId))
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Cache qualified as Cache
@@ -128,6 +133,12 @@ data MergePreconditionViolation
     ConflictInvolvingBuiltin
   | StrayConstructor !Name
   deriving stock (Show)
+
+data MergeResult v a
+  = -- PPED is whatever `prettyUnisonFile` accepts
+    MergePropagationNotTypecheck PPED.PrettyPrintEnvDecl (UnisonFile v a)
+  | MergeConflicts PPED.PrettyPrintEnvDecl (MergeOutput v a)
+  | MergeDone
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
@@ -217,96 +228,101 @@ handleMerge bobBranchName = do
       let bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
           bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
 
+      let aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          aliceUpdates = filterUpdates aliceNames (diffs ^. #alice)
+
+      let bobUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+          bobUpdates = filterUpdates bobNames (diffs ^. #bob)
+
+      whatToTypecheck :: Merge.WhatToTypecheck <-
+        step "compute whatToTypecheck" $
+          Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
+
       -- If there are no conflicts, then proceed to typechecking
-      if null (conflicts ^. #terms) && null (conflicts ^. #types)
-        then do
-          let typecheck = wundefined
+      mergeResult <-
+        if null (conflicts ^. #terms) && null (conflicts ^. #types)
+          then do
+            let typecheck = wundefined
 
-              namelookup :: Merge.RefToName = wundefined
+                namelookup :: Merge.RefToName = wundefined
 
-              aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-              aliceUpdates =
-                filterUpdates aliceNames (diffs ^. #alice)
+            uf <- do
+              let combinedUpdates :: Merge.UpdatesRefnt
+                  combinedUpdates =
+                    -- These left-biased unions are fine; at this point we know Alice's and Bob's updates
+                    Merge.Defns
+                      { terms = Map.union (aliceUpdates ^. #terms) (bobUpdates ^. #terms),
+                        types = Map.union (aliceUpdates ^. #types) (bobUpdates ^. #types)
+                      }
+              Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
 
-              bobUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-              bobUpdates =
-                filterUpdates bobNames (diffs ^. #bob)
+            typecheck uf >>= \case
+              Just tuf@(TypecheckedUnisonFileId {}) -> do
+                let saveToCodebase = wundefined
+                let consAndSaveNamespace = wundefined
+                saveToCodebase tuf
+                consAndSaveNamespace tuf
+                pure MergeDone
+              Nothing -> do
+                let ppe :: PrettyPrintEnvDecl = wundefined
+                pure $ MergePropagationNotTypecheck ppe (void uf)
+          else do
+            -- There are conflicts.
 
-          whatToTypecheck :: Merge.WhatToTypecheck <-
-            Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
+            aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
+            bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
 
-          unisonfile <- do
-            let combinedUpdates :: Merge.UpdatesRefnt
-                combinedUpdates =
-                  -- These left-biased unions are fine; at this point we know Alice's and Bob's updates
+            (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
+              let getDependents ::
+                    Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+                    Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+                    Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+                  getDependents defns conflicts =
+                    -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
+                    -- have two different maps, so we twiddle.
+                    fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
+                      Operations.dependentsWithinScope
+                        (defnsToScope defns)
+                        (Set.map ReferenceDerived (Set.union (conflicts ^. #terms) (conflicts ^. #types)))
+                    where
+                      f ::
+                        Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+                        Reference.Id ->
+                        ReferenceType ->
+                        Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+                      f acc ref = \case
+                        Reference.RtTerm -> acc & over #terms (Set.insert ref)
+                        Reference.RtType -> acc & over #types (Set.insert ref)
+
+              (,) <$> getDependents aliceDefns aliceConflicts <*> getDependents bobDefns bobConflicts
+
+            -- Alice's conflicts + transitive dependents
+            let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+                aliceConflicted =
                   Merge.Defns
-                    { terms = Map.union (aliceUpdates ^. #terms) (bobUpdates ^. #terms),
-                      types = Map.union (aliceUpdates ^. #types) (bobUpdates ^. #types)
+                    { terms = Set.union (aliceConflicts ^. #terms) (aliceDependentsOfConflicts ^. #terms),
+                      types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
                     }
-            Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
 
-          typecheck unisonfile >>= \case
-            Just tuf@(TypecheckedUnisonFileId {}) -> do
-              let saveToCodebase = wundefined
-              let consAndSaveNamespace = wundefined
-              saveToCodebase tuf
-              consAndSaveNamespace tuf
-            Nothing -> wundefined "dump unisonFile to scratch file" -- Arya Overflow Task
-        else do
-          -- There are conflicts.
+            -- Bob's conflicts + transitive dependents
+            let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+                bobConflicted =
+                  Merge.Defns
+                    { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
+                      types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
+                    }
 
-          aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
-          bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
+            -- unconflicted = all definitions minus conflicted
+            let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
+            let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
 
-          (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
-            let getDependents ::
-                  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-                  Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
-                  Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
-                getDependents defns conflicts =
-                  -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
-                  -- have two different maps, so we twiddle.
-                  fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
-                    Operations.dependentsWithinScope
-                      (defnsToScope defns)
-                      (Set.map ReferenceDerived (Set.union (conflicts ^. #terms) (conflicts ^. #types)))
-                  where
-                    f ::
-                      Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
-                      Reference.Id ->
-                      ReferenceType ->
-                      Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-                    f acc ref = \case
-                      Reference.RtTerm -> acc & over #terms (Set.insert ref)
-                      Reference.RtType -> acc & over #types (Set.insert ref)
+            -- If there are conflicts, then create a MergeOutput
+            mergeOutput :: MergeOutput Symbol () <- wundefined "create MergeOutput"
+            wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
+            -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
+            let ppe :: PrettyPrintEnvDecl = wundefined
+            pure $ MergeConflicts ppe (void mergeOutput)
 
-            (,) <$> getDependents aliceDefns aliceConflicts <*> getDependents bobDefns bobConflicts
-
-          -- Alice's conflicts + transitive dependents
-          let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-              aliceConflicted =
-                Merge.Defns
-                  { terms = Set.union (aliceConflicts ^. #terms) (aliceDependentsOfConflicts ^. #terms),
-                    types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
-                  }
-
-          -- Bob's conflicts + transitive dependents
-          let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-              bobConflicted =
-                Merge.Defns
-                  { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
-                    types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
-                  }
-
-          -- unconflicted = all definitions minus conflicted
-          let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
-          let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
-
-          -- If there are conflicts, then create a MergeOutput
-          mergeOutput <- wundefined "create MergeOutput"
-          wundefined "dump MergeOutput to scratchfile" mergeOutput
-          wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
-          -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
       Sqlite.unsafeIO do
         Text.putStrLn ""
         Text.putStrLn "===== lca->alice diff ====="
@@ -325,11 +341,23 @@ handleMerge bobBranchName = do
         printTermConflicts (conflicts ^. #terms)
         Text.putStrLn ""
 
-      pure (Right ())
+      pure (Right mergeResult)
 
-  case result of
-    Left err -> liftIO (print err)
-    Right () -> pure ()
+  do
+    scratchFile <-
+      Cli.getLatestFile >>= \case
+        Just (scratchFile, _) -> pure scratchFile
+        Nothing -> pure "merge.u"
+
+    case result of
+      Left err -> liftIO (print err)
+      Right mergeResult -> case mergeResult of
+        MergePropagationNotTypecheck ppe uf -> do
+          Cli.respond $ Output.OutputMergeScratchFile ppe scratchFile (void uf)
+        MergeConflicts ppe mergeOutput -> do
+          (scratchFile, _) <- Cli.expectLatestFile
+          Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
+        MergeDone -> Cli.respond Output.Success
 
 -- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
 filterUpdates ::

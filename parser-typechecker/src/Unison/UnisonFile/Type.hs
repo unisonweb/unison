@@ -72,6 +72,15 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
     wcs
     (fmap (over _2 Reference.DerivedId) -> hts)
 
+instance Ord v => Functor (UnisonFile v) where
+  fmap f UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches} =
+    UnisonFileId
+      { dataDeclarationsId = fmap (second $ fmap f) dataDeclarationsId,
+        effectDeclarationsId = fmap (second $ fmap f) effectDeclarationsId,
+        terms = fmap (\(v, a, t) -> (v, f a, Term.amap f t)) terms,
+        watches = fmap (fmap \(v, a, t) -> (v, f a, Term.amap f t)) watches
+      }
+
 instance (Ord v) => Functor (TypecheckedUnisonFile v) where
   fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
     TypecheckedUnisonFileId ds' es' tlcs' wcs' hashTerms'
