@@ -56,28 +56,19 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Core.ConstructorId (ConstructorId)
-import Unison.DataDeclaration qualified as V1 (Decl)
-import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.HashQualified' qualified as HQ'
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
-import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Term qualified as V1 (Term)
-import Unison.Type qualified as V1 (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.List qualified as List
@@ -87,7 +78,6 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
 import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Set qualified as Set
-import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Witherable (catMaybes)
 

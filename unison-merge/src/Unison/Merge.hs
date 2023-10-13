@@ -4,7 +4,7 @@ module Unison.Merge
   ( Database (..),
     isUserTypeUpdate,
     isUserTermUpdate,
-    DefnRef (..),
+    DefnRef,
 
     -- * Random misc things, temporarily exported
     Canonicalizer (..),
@@ -26,7 +26,7 @@ module Unison.Merge
   )
 where
 
-import Control.Lens (Lens', (%~), (^.))
+import Control.Lens ((%~), (^.))
 import Control.Lens qualified as Lens
 import Control.Monad.Validate (ValidateT, runValidateT)
 import Control.Monad.Validate qualified as Validate
@@ -35,8 +35,7 @@ import Data.Bimap qualified as Bimap
 import Data.Bit (Bit (Bit, unBit))
 import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
-import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Lazy qualified as LazyMap
 import Data.Map.NonEmpty (NEMap)
 import Data.Map.NonEmpty qualified as NEMap
@@ -48,7 +47,7 @@ import Data.Vector.Unboxed qualified as UVector
 import Safe (elemIndexJust)
 import U.Codebase.Decl (Decl)
 import U.Codebase.Decl qualified as Decl
-import U.Codebase.Reference (RReference, Reference, Reference' (..), TermRReference, TermReference, TermReferenceId, TypeRReference, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
@@ -67,7 +66,6 @@ import Unison.ConstructorType qualified as ConstructorType
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.FileParsers qualified as FP
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing.Convert
 import Unison.LabeledDependency (LabeledDependency)
@@ -88,7 +86,6 @@ import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
-import Unison.Util.Map qualified as Map
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.NEMap qualified as NEMap

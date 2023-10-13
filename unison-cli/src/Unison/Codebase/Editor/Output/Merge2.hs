@@ -1,18 +1,16 @@
 module Unison.Codebase.Editor.Output.Merge2 where
 
-import Data.Foldable (Foldable (foldl'))
 import Data.Map qualified as Map
 import Unison.ABT (Var)
 import Unison.Cli.Pretty qualified as P
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.Merge2 (Conflict (..), ConflictOrGood (Conflict, Good), Defns, MergeOutput, ScratchDefn (SdDecl, SdTerm), definitions)
+import Unison.Merge2 (Conflict (..), ConflictOrGood (Conflict, Good), MergeOutput, ScratchDefn (SdDecl, SdTerm), definitions)
 import Unison.Merge2 qualified as NT
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Project (ProjectBranchName)
-import Unison.Server.Syntax (SyntaxText)
 import Unison.Syntax.NamePrinter qualified as NamePrinter
 import Unison.Term (Term)
 import Unison.Util.Pretty qualified as P

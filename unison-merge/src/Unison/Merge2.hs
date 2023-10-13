@@ -40,7 +40,6 @@ import Control.Lens (over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
-import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference
@@ -65,7 +64,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree, unflattenNamespaceTree, mergeNamespaceTrees)
+import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference qualified as V1
