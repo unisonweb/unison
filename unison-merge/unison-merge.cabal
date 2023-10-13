@@ -75,6 +75,7 @@ library
     , nonempty-containers
     , safe
     , semialign
+    , semigroups
     , these
     , unison-codebase
     , unison-codebase-sqlite

@@ -28,6 +28,7 @@ import Data.Maybe (fromJust)
 import Data.Monoid (Endo (Endo))
 import Data.Semialign (align, alignWith)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
@@ -44,6 +45,7 @@ import U.Codebase.Branch qualified as Branch
 import U.Codebase.Branch.Diff (DefinitionDiffs (DefinitionDiffs), Diff (..))
 import U.Codebase.Branch.Diff qualified as Diff
 import U.Codebase.BranchV3 (BranchV3 (..), CausalBranchV3)
+import U.Codebase.BranchV3 qualified as BranchV3
 import U.Codebase.Causal (Causal (Causal))
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
@@ -63,6 +65,7 @@ import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle (HashHandle)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -72,9 +75,9 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1 (Branch, Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
-import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Metadata qualified as V1.Metadata
+import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -185,8 +188,8 @@ handleMerge bobBranchName = do
       bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
       -- Load deep definitions
-      aliceDefns <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch & onLeftM (rollback . Left)
-      bobDefns <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch & onLeftM (rollback . Left)
+      (aliceDefns, aliceCausalTree) <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
+      (bobDefns, bobCausalTree) <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
 
       (maybeLcaLibdeps, diffs) <- do
         step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
@@ -200,8 +203,8 @@ handleMerge bobBranchName = do
           Just lcaCausalHash -> do
             lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-            lcaDefns <- step "load lca definitions" do
-              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch & onLeftM (rollback . Left)
+            (lcaDefns, _) <- step "load lca definitions" do
+              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
@@ -326,6 +329,28 @@ handleMerge bobBranchName = do
           let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
           let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
 
+          let unconflictedBranch :: BranchV3 Transaction
+              unconflictedBranch =
+                let unflattenedTree =
+                        Merge.mergeNamespaceTrees
+                        (\(aliceDefns, aliceCausal) -> (aliceDefns, Left aliceCausal))
+                        (\(bobDefns, bobCausal) -> (bobDefns, Left bobCausal))
+                        (\(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+                           -- We should maybe say that a left-biased
+                           -- union is fine here because we are merging
+                           -- unconflicted things so there is no bias
+                           (aliceDefns <> bobDefns, Right (aliceCausal, bobCausal)))
+                        (makeBigTree aliceUnconflicted aliceCausalTree)
+                        (makeBigTree bobUnconflicted bobCausalTree)
+                    makeBigTree defns causals =
+                      Merge.mergeNamespaceTrees
+                        (\_ -> error "impossible")
+                        (\_ -> error "impossible")
+                        (,)
+                        (Merge.unflattenNamespaceTree defns)
+                        causals
+                 in namespaceToBranchV3 unflattenedTree
+
           -- If there are conflicts, then create a MergeOutput
           mergeOutput <- wundefined "create MergeOutput"
           wundefined "dump MergeOutput to scratchfile" mergeOutput
@@ -354,6 +379,39 @@ handleMerge bobBranchName = do
   case result of
     Left err -> Cli.respond (Output.NotImplementedYet (tShow err))
     Right () -> pure ()
+
+namespaceToBranchV3 ::
+  Merge.NamespaceTree
+    ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
+      Either CausalHash (CausalHash, CausalHash)
+    ) ->
+  BranchV3 Transaction
+namespaceToBranchV3 ((Merge.Defns {terms, types}, bonk) :< children) =
+  let v3Children = thinkOfTheChildren <$> children
+   in BranchV3.BranchV3 v3Children terms types
+  where
+    thinkOfTheChildren ::
+      Merge.NamespaceTree
+        ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
+          Either CausalHash (CausalHash, CausalHash)
+        ) ->
+      BranchV3.CausalBranchV3 Transaction
+    thinkOfTheChildren blerg@((_, bonk) :< _) =
+      let gonk :: BranchV3 Transaction
+          gonk = namespaceToBranchV3 blerg
+
+          fonk :: Map CausalHash (Transaction (Causal Transaction CausalHash BranchHash (Branch Transaction) (Branch Transaction)))
+          fonk =
+            let xs :: [CausalHash]
+                xs = case bonk of
+                  Left ch -> [ch]
+                  Right (ach, bch) -> [ach, bch]
+             in Map.fromList
+                  (map (\ch -> (ch, Operations.expectCausalBranchByCausalHash ch)) xs)
+
+          zonk :: BranchHash
+          zonk = HashHandle.hashBranchV3 v2HashHandle gonk
+       in HashHandle.mkCausal v2HashHandle zonk fonk (pure gonk)
 
 -- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
 filterUpdates ::
@@ -540,8 +598,15 @@ loadNamespaceDefns ::
   Monad m =>
   (TypeReferenceId -> m Int) ->
   Branch m ->
-  m (Either MergePreconditionViolation (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
-loadNamespaceDefns loadNumConstructors branch = do
+  CausalHash ->
+  m
+    ( Either
+        MergePreconditionViolation
+        ( Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+          Merge.NamespaceTree CausalHash
+        )
+    )
+loadNamespaceDefns loadNumConstructors branch causalHash = do
   libdepsHasTopLevelDefns <-
     case Map.lookup Name.libSegment (branch ^. #children) of
       Nothing -> pure False
@@ -551,49 +616,49 @@ loadNamespaceDefns loadNumConstructors branch = do
   if libdepsHasTopLevelDefns
     then pure (Left DefnsInLib)
     else do
-      defns0 <- loadNamespaceDefns0 branch
+      defns0 <- loadNamespaceDefns0 branch causalHash
       case makeNamespaceDefns1 defns0 of
         Left err -> pure (Left err)
         Right defns1 ->
           checkDeclCoherency loadNumConstructors defns1 <&> \case
             Left err -> Left err
-            Right () -> Right (Merge.flattenNamespaceTree defns1)
+            Right () -> Right (Merge.flattenNamespaceTree (fmap fst defns1), fmap snd defns1)
 
 type NamespaceDefns0 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)), CausalHash)
 
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
-loadNamespaceDefns0 :: forall m. Monad m => Branch m -> m NamespaceDefns0
-loadNamespaceDefns0 branch = do
+loadNamespaceDefns0 :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
+loadNamespaceDefns0 branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch
-  pure (Merge.Defns {terms, types} :< children)
+      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+  pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
-loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> m NamespaceDefns0
-loadNamespaceDefns0_ branch = do
+loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
+loadNamespaceDefns0_ branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch
-  pure (Merge.Defns {terms, types} :< children)
+      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+  pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
 type NamespaceDefns1 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
 
 -- | Assert that there are no unconflicted names in a namespace.
 makeNamespaceDefns1 :: NamespaceDefns0 -> Either MergePreconditionViolation NamespaceDefns1
 makeNamespaceDefns1 =
-  traverse \Merge.Defns {terms, types} -> do
+  traverse \(Merge.Defns {terms, types}, causalHash) -> do
     terms <- traverse (assertUnconflicted ConflictedTermName) terms
     types <- traverse (assertUnconflicted ConflictedTypeName) types
-    pure (Merge.Defns terms types)
+    pure (Merge.Defns terms types, causalHash)
   where
     assertUnconflicted :: (Set ref -> MergePreconditionViolation) -> Set ref -> Either MergePreconditionViolation ref
     assertUnconflicted conflicted refs =
@@ -687,7 +752,7 @@ checkDeclCoherency loadNumConstructors =
   runExceptT . (`State.evalStateT` Map.empty) . go []
   where
     go :: [NameSegment] -> NamespaceDefns1 -> StateT (Map TypeReferenceId IntSet) (ExceptT MergePreconditionViolation m) ()
-    go prefix (Merge.Defns {terms, types} :< children) = do
+    go prefix ((Merge.Defns {terms, types}, _) :< children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
         (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
