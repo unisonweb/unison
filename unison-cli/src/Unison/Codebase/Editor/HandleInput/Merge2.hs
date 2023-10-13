@@ -78,6 +78,7 @@ import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Metadata qualified as V1.Metadata
 import Unison.Codebase.Causal qualified as V1.Causal
+import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
