@@ -316,9 +316,9 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
-            getBranchForHash :: CausalHash -> m (Maybe (Branch m))
-            getBranchForHash h =
-              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
+            getBranchForHash :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction))
+            getBranchForHash =
+              CodebaseOps.getBranchForHash branchCache getDeclType
 
             putBranch :: Branch m -> m ()
             putBranch branch =
@@ -607,7 +607,7 @@ viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior act
             case toList branchCompletions of
               [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               [h] ->
-                (Codebase1.getBranchForHash codebase h) >>= \case
+                Codebase1.getBranchForHash codebase h >>= \case
                   Just b -> pure b
                   Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
               _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions

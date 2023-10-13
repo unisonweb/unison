@@ -75,10 +75,10 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1 (Branch, Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
-import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Metadata qualified as V1.Metadata
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Metadata qualified as V1.Metadata
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
@@ -333,14 +333,15 @@ handleMerge bobBranchName = do
           let unconflictedBranch :: BranchV3 Transaction
               unconflictedBranch =
                 let unflattenedTree =
-                        Merge.mergeNamespaceTrees
+                      Merge.mergeNamespaceTrees
                         (\(aliceDefns, aliceCausal) -> (aliceDefns, Left aliceCausal))
                         (\(bobDefns, bobCausal) -> (bobDefns, Left bobCausal))
-                        (\(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
-                           -- We should maybe say that a left-biased
-                           -- union is fine here because we are merging
-                           -- unconflicted things so there is no bias
-                           (aliceDefns <> bobDefns, Right (aliceCausal, bobCausal)))
+                        ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+                            -- We should maybe say that a left-biased
+                            -- union is fine here because we are merging
+                            -- unconflicted things so there is no bias
+                            (aliceDefns <> bobDefns, Right (aliceCausal, bobCausal))
+                        )
                         (makeBigTree aliceUnconflicted aliceCausalTree)
                         (makeBigTree bobUnconflicted bobCausalTree)
                     makeBigTree defns causals =
@@ -351,6 +352,8 @@ handleMerge bobBranchName = do
                         (Merge.unflattenNamespaceTree defns)
                         causals
                  in namespaceToBranchV3 unflattenedTree
+
+          unconflictedV1Branch <- loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
 
           -- If there are conflicts, then create a MergeOutput
           mergeOutput <- wundefined "create MergeOutput"
