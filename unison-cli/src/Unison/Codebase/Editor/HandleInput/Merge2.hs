@@ -17,7 +17,9 @@ import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as IntSet
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Semialign (alignWith)
@@ -328,39 +330,11 @@ handleMerge bobBranchName = do
               Text.putStrLn "===== bob conflicted ====="
               printConflicted bobDefns bobConflicted
 
-            -- unconflicted = all definitions minus conflicted
-            let aliceUnconflicted =
-                  -- If alice unconflicted at this point has:
-                  --
-                  --   "Maybe"                         => #Maybe
-                  --   "Maybe.arbitrary.segments.Just" => #Maybe#0
-                  --
-                  -- But Bob has updated:
-                  --
-                  --   "Maybe"            => #Maybe2
-                  --   "Maybe.heyoh.Just" => #Maybe2#0
-                  --
-                  -- Then we want to throw things away from alice's unconflicted that are like:
-                  --
-                  --   "Maybe" => #Maybe
-                  --   "Maybe.arbitrary.segments.Just" => #Maybe#0
-                  --
-                  -- ================================
-                  --
-                  --   Right now:
-                  --     terms : BiMultimap Referent Name
-                  --     types : BiMultimap TypeReference Name
-                  --
-                  --   What we have / maybe prefer:
-                  --     terms : BiMultimap TermReference Name
-                  --     types : Map Name (TypeReference, Map ConstructorId Name)
-                  --
-                  --   What we have / maybe prefer:
-                  --     terms : BiMultimap TermReference Name
-                  --     types : Map Name (V1.Decl v a)
-                  filterUnconflicted aliceDefns aliceConflicted
-            let bobUnconflicted =
-                  filterUnconflicted bobDefns bobConflicted
+            Sqlite.unsafeIO do
+              print (show bobUpdates)
+
+            let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted bobUpdates
+            let bobUnconflicted = filterUnconflicted bobDefns bobConflicted aliceUpdates
 
             Sqlite.unsafeIO do
               Text.putStrLn ""
@@ -561,27 +535,63 @@ filterConflicts defns conflicts = do
       ReferenceDerived ref -> Right $! Set.insert ref refs
 
 -- `filterUnconflicted defns conflicted` returns the subset of `defns` that are not in `conflicted`.
+-- TODO update comment
 filterUnconflicted ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+  Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-filterUnconflicted defns conflicted =
-  Merge.Defns
-    { terms =
-        (defns ^. #terms) & BiMultimap.filterDom \case
+filterUnconflicted personOneDefns personOneConflicted personTwoUpdates =
+  personOneDefns
+    & over #terms filterUnconflictedTerms
+    & over #types filterUnconflictedTypes
+  where
+    filterUnconflictedTerms :: BiMultimap Referent Name -> BiMultimap Referent Name
+    filterUnconflictedTerms =
+      BiMultimap.filter g . BiMultimap.filterDom f
+      where
+        f :: Referent -> Bool
+        f = \case
           -- Consider a constructor term "unconflicted" if its decl is unconflicted.
-          Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (conflicted ^. #types))
+          Referent.Con (ReferenceDerived typeRef) _conId -> not (Set.member typeRef (personOneConflicted ^. #types))
           -- Keep builtin terms (since they can't be conflicted, per a precondition)
-          Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (conflicted ^. #terms))
+          Referent.Ref (ReferenceDerived termRef) -> not (Set.member termRef (personOneConflicted ^. #terms))
           -- Keep builtin constructors (which don't even exist) and builtin terms (since they can't be
           -- conflicted, per a precondition)
           Referent.Con (ReferenceBuiltin _) _ -> True
-          Referent.Ref (ReferenceBuiltin _) -> True,
-      types =
-        BiMultimap.withoutDom
-          (Set.map ReferenceDerived (conflicted ^. #types))
-          (defns ^. #types)
-    }
+          Referent.Ref (ReferenceBuiltin _) -> True
+
+        g :: Referent -> Name -> Bool
+        g ref name =
+          case ref of
+            Referent.Con typeRef _conId ->
+              Set.disjoint (BiMultimap.lookupDom typeRef personTwoUpdatedTypes) (possibleDeclNames name)
+            Referent.Ref _termRef -> not (Map.member name (personTwoUpdates ^. #terms))
+
+    -- "hey.Maybe.internal.Just" -> {"hey.Maybe.internal", "hey.Maybe", "hey"}
+    possibleDeclNames :: Name -> Set Name
+    possibleDeclNames =
+      Name.reverseSegments
+        -- "Just" :| ["internal", "Maybe", "hey"]
+        >>> List.NonEmpty.toList
+        -- ["Just", "internal", "Maybe", "hey"]
+        >>> List.tails
+        -- [["Just", "internal", "Maybe", "hey"], ["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
+        >>> drop 1
+        -- [["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
+        >>> mapMaybe List.NonEmpty.nonEmpty
+        -- ["internal" :| ["Maybe", "hey"], "Maybe" :| ["hey"], "hey" :| []]
+        >>> map (Name.fromReverseSegments)
+        -- ["hey.Maybe.internal", "hey.Maybe", "hey"]
+        >>> Set.fromList
+
+    personTwoUpdatedTypes :: BiMultimap TypeReference Name
+    personTwoUpdatedTypes =
+      BiMultimap.fromRange (personTwoUpdates ^. #types)
+
+    filterUnconflictedTypes =
+      BiMultimap.withoutDom
+        (Set.map ReferenceDerived (personOneConflicted ^. #types))
 
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
@@ -852,7 +862,12 @@ makeNamespaceDefns1 =
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-checkDeclCoherency :: forall m. Monad m => (TypeReferenceId -> m Int) -> NamespaceDefns1 -> m (Either MergePreconditionViolation ())
+checkDeclCoherency ::
+  forall m.
+  Monad m =>
+  (TypeReferenceId -> m Int) ->
+  NamespaceDefns1 ->
+  m (Either MergePreconditionViolation ())
 checkDeclCoherency loadNumConstructors =
   runExceptT . (`State.evalStateT` Map.empty) . go []
   where
