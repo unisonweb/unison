@@ -47,6 +47,7 @@ dependencies:
   - lsp-types >= 2.0.0.0
   - megaparsec
   - memory
+  - monad-validate
   - mtl
   - network-uri
   - network-simple

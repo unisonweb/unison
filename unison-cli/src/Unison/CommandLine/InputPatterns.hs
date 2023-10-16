@@ -5,12 +5,16 @@ module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
 import Control.Lens.Cons qualified as Cons
+import Control.Monad.Validate (Validate)
+import Control.Monad.Validate qualified as Validate
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Proxy (Proxy (..))
+import Data.Semigroup (Dual)
+import Data.Semigroup qualified as Semigroup
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -53,7 +57,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
-import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Syntax.Name qualified as Name (fromText, fromTextEither, unsafeFromString)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as P
@@ -1568,6 +1572,25 @@ mergeInputPattern =
             branch <- eitherToMaybe (tryInto @ProjectBranchName (Text.pack branchString))
             pure (Input.MergeI branch)
     }
+
+updateInputPattern :: InputPattern
+updateInputPattern =
+  InputPattern
+    { patternName = "update2",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(ZeroPlus, noCompletionsArg)],
+      help = P.wrap (makeExample updateInputPattern []),
+      parse =
+        \args -> case Validate.runValidate $ traverse f args of
+          Left (Semigroup.getDual -> errors) -> Left $ P.lines $ errors
+          Right args -> Right $ Input.Update2I (Set.fromList args)
+    }
+  where
+    f :: String -> Validate (Dual [P.Pretty CT.ColorText]) Name
+    f s = case Name.fromTextEither (fromString s) of
+      Right name -> pure name
+      Left err -> Validate.refute . pure . pure $ P.text err
 
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =

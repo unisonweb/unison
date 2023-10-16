@@ -68,6 +68,7 @@ library
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
+      Unison.Codebase.Editor.HandleInput.Update2
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
@@ -193,6 +194,7 @@ library
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -335,6 +337,7 @@ executable cli-integration-tests
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -471,6 +474,7 @@ executable transcripts
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -613,6 +617,7 @@ executable unison
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -762,6 +767,7 @@ test-suite cli-tests
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
