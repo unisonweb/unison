@@ -77,6 +77,7 @@ import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Reference (TermReference)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
 import Unison.ShortHash (ShortHash)
@@ -268,21 +269,24 @@ handleMerge bobBranchName = do
           else do
             -- There are conflicts.
 
+            -- First, get the conflicted references themselves.
             aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
             bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
 
+            -- Next, look up the transitive dependents of those conflicted references in their respective branches.
+            -- TODO update this comment and variable names
             (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
               let getDependents ::
                     Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-                    Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+                    Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
                     Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
-                  getDependents defns conflicts =
+                  getDependents defns updates =
                     -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
                     -- have two different maps, so we twiddle.
                     fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
                       Operations.dependentsWithinScope
                         (defnsToScope defns)
-                        (Set.map ReferenceDerived (Set.union (conflicts ^. #terms) (conflicts ^. #types)))
+                        (Set.union wawaTerms wawaTypes)
                     where
                       f ::
                         Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
@@ -293,7 +297,11 @@ handleMerge bobBranchName = do
                         Reference.RtTerm -> acc & over #terms (Set.insert ref)
                         Reference.RtType -> acc & over #types (Set.insert ref)
 
-              (,) <$> getDependents aliceDefns aliceConflicts <*> getDependents bobDefns bobConflicts
+                      Merge.Defns wawaTerms wawaTypes = makeWawa2 defns updates
+
+              (,)
+                <$> getDependents aliceDefns bobUpdates
+                <*> getDependents bobDefns aliceUpdates
 
             -- Alice's conflicts + transitive dependents
             let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
@@ -384,6 +392,53 @@ handleMerge bobBranchName = do
           (scratchFile, _) <- Cli.expectLatestFile
           Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
+
+-- "What goes in the scratch file?" (in the case of conflicts *and* in the case of non-typechecking post-merge)
+--
+-- The union of:
+--   For each Alice update ("name", #old, #new),
+--     Transitive dependents of what Bob calls "name"
+--   For each Bob update ("name", #old, #new),
+--     Transitive dependents of what Alice calls "name"
+--   The conflicted things themselves
+--
+-- "What's left over to put in the namespace?"
+--
+--   All of Alice's references + All of Bob's references - that set of references above
+
+makeWawa2 ::
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
+  Merge.Defns (Set TermReference) (Set TypeReference)
+makeWawa2 personOneDefns personTwoUpdates =
+  let personOneDefnsUpdatedByPersonTwo :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
+      personOneDefnsUpdatedByPersonTwo =
+        personOneDefns
+          & over #terms ((`Map.intersection` (personTwoUpdates ^. #terms)) . BiMultimap.range)
+          & over #types ((`Map.intersection` (personTwoUpdates ^. #types)) . BiMultimap.range)
+
+      personOneTypeRefsUpdatedByPersonTwo :: Set TypeReference
+      personOneTypeRefsUpdatedByPersonTwo =
+        Set.fromList (Map.elems (personOneDefnsUpdatedByPersonTwo ^. #types))
+   in (personOneDefnsUpdatedByPersonTwo ^. #terms)
+        & termToReference
+        & over #types (Set.union personOneTypeRefsUpdatedByPersonTwo)
+  where
+    -- Turn each referent into a reference:
+    --
+    --   1. For constructors, just ignore the constructor id and use the type reference.
+    --   2. For terms, use that term reference.
+    termToReference :: Map Name Referent -> Merge.Defns (Set TermReference) (Set TypeReference)
+    termToReference =
+      Map.foldl' f (Merge.Defns Set.empty Set.empty)
+      where
+        f ::
+          Merge.Defns (Set TermReference) (Set TypeReference) ->
+          Referent ->
+          Merge.Defns (Set TermReference) (Set TypeReference)
+        f acc = \case
+          Referent.Con typeRef _conId -> acc & over #types (Set.insert typeRef)
+          Referent.Ref termRef -> acc & over #terms (Set.insert termRef)
 
 namespaceToBranchV3 ::
   Merge.NamespaceTree
