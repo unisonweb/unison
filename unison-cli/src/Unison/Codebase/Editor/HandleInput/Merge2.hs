@@ -143,10 +143,12 @@ handleMerge bobBranchName = do
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
 
   Cli.Env {codebase} <- ask
-  termCache <- Cache.semispaceCache 1024
-  declCache <- Cache.semispaceCache 1024
-  let loadTerm = cacheTransaction termCache (Codebase.unsafeGetTerm codebase)
-  let loadDecl = cacheTransaction declCache (Codebase.unsafeGetTypeDeclaration codebase)
+  loadTerm <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
+  loadDecl <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
   -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
   let loadDeclType ref =
         case ref of
@@ -154,6 +156,9 @@ handleMerge bobBranchName = do
             Map.lookup ref Builtins.builtinConstructorType
               & maybe (error ("Unknown builtin: " ++ Text.unpack name)) pure
           ReferenceDerived refId -> V1.Decl.constructorType <$> loadDecl refId
+  loadDeclNumConstructors <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache Operations.expectDeclNumConstructors)
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -166,8 +171,8 @@ handleMerge bobBranchName = do
       bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
       -- Load deep definitions
-      (aliceDefns, aliceCausalTree) <- step "load alice definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
-      (bobDefns, bobCausalTree) <- step "load bob definitions" $ loadNamespaceDefns Operations.expectDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
+      (aliceDefns, aliceCausalTree) <- step "load alice definitions" $ loadNamespaceDefns loadDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
+      (bobDefns, bobCausalTree) <- step "load bob definitions" $ loadNamespaceDefns loadDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
 
       (maybeLcaLibdeps, diffs) <- do
         step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
@@ -182,7 +187,7 @@ handleMerge bobBranchName = do
             lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
             (lcaDefns, _) <- step "load lca definitions" do
-              loadNamespaceDefns Operations.expectDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
+              loadNamespaceDefns loadDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
@@ -333,7 +338,8 @@ handleMerge bobBranchName = do
                           causals
                    in namespaceToBranchV3 unflattenedTree
 
-            unconflictedV1Branch <- loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
+            unconflictedV1Branch <-
+              loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
 
             -- If there are conflicts, then create a MergeOutput
             mergeOutput :: MergeOutput Symbol () <- wundefined "create MergeOutput"
