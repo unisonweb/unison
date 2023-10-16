@@ -84,7 +84,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
-import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
@@ -311,6 +310,11 @@ handleMerge bobBranchName = do
                       types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
                     }
 
+            Sqlite.unsafeIO do
+              Text.putStrLn ""
+              Text.putStrLn "===== alice conflicted ====="
+              printConflicted aliceDefns aliceConflicted
+
             -- Bob's conflicts + transitive dependents
             let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
                 bobConflicted =
@@ -319,9 +323,22 @@ handleMerge bobBranchName = do
                       types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
                     }
 
+            Sqlite.unsafeIO do
+              Text.putStrLn ""
+              Text.putStrLn "===== bob conflicted ====="
+              printConflicted bobDefns bobConflicted
+
             -- unconflicted = all definitions minus conflicted
             let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
             let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
+
+            Sqlite.unsafeIO do
+              Text.putStrLn ""
+              Text.putStrLn "===== alice unconflicted ====="
+              printNamespace aliceUnconflicted
+              Text.putStrLn ""
+              Text.putStrLn "===== bob unconflicted ====="
+              printNamespace bobUnconflicted
 
             let unconflictedBranch :: BranchV3 Transaction
                 unconflictedBranch =
@@ -349,13 +366,10 @@ handleMerge bobBranchName = do
             unconflictedV1Branch <-
               loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
 
-            -- If there are conflicts, then create a MergeOutput
-            mergeOutput :: MergeOutput Symbol () <- wundefined "create MergeOutput"
-            wundefined "dump MergeOutput to scratchfile" mergeOutput
-            wundefined "create and save appropriate namespace to support conflicted scratch file" -- Mitchell
-            -- todo: modify input handler to take two project branches and not paths -- Mitchell overflow
-            let ppe :: PrettyPrintEnvDecl = wundefined
-            pure $ MergeConflicts ppe (void mergeOutput)
+            -- TODO the rest
+
+            -- that's a lie
+            pure MergeDone
 
       Sqlite.unsafeIO do
         Text.putStrLn ""
@@ -965,6 +979,14 @@ showCausalHash :: CausalHash -> Text
 showCausalHash =
   ("#" <>) . Text.take 4 . Hash.toBase32HexText . unCausalHash
 
+showNamedReference :: Name -> Reference -> Text
+showNamedReference name ref =
+  Name.toText name <> showReference ref
+
+showNamedReferent :: Name -> Referent -> Text
+showNamedReferent name ref =
+  Name.toText name <> showReferent ref
+
 showNamespaceHash :: BranchHash -> Text
 showNamespaceHash =
   ("#" <>) . Text.take 4 . Hash.toBase32HexText . unBranchHash
@@ -980,6 +1002,22 @@ showReferent =
 showShortHash :: ShortHash -> Text
 showShortHash =
   ShortHash.toText . ShortHash.shortenTo 4
+
+printConflicted ::
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+  IO ()
+printConflicted (Merge.Defns terms types) (Merge.Defns conflictedTermRefs conflictedTypeRefs) =
+  printNamespace (Merge.Defns conflictedTerms conflictedTypes)
+  where
+    conflictedTerms = BiMultimap.restrictDom (Set.map (Referent.Ref . ReferenceDerived) conflictedTermRefs) terms
+    conflictedTypes = BiMultimap.restrictDom (Set.map ReferenceDerived conflictedTypeRefs) types
+
+printNamespace :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> IO ()
+printNamespace (Merge.Defns terms types) =
+  Text.putStr . Text.unlines $
+    map (\(name, ref) -> "term " <> showNamedReferent name ref) (Map.toList (BiMultimap.range terms))
+      ++ map (\(name, ref) -> "type " <> showNamedReference name ref) (Map.toList (BiMultimap.range types))
 
 printTypesDiff :: BiMultimap TypeReference Name -> Map Name (Merge.DiffOp Hash) -> IO ()
 printTypesDiff declNames = do
