@@ -329,8 +329,38 @@ handleMerge bobBranchName = do
               printConflicted bobDefns bobConflicted
 
             -- unconflicted = all definitions minus conflicted
-            let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted
-            let bobUnconflicted = filterUnconflicted bobDefns bobConflicted
+            let aliceUnconflicted =
+                  -- If alice unconflicted at this point has:
+                  --
+                  --   "Maybe"                         => #Maybe
+                  --   "Maybe.arbitrary.segments.Just" => #Maybe#0
+                  --
+                  -- But Bob has updated:
+                  --
+                  --   "Maybe"            => #Maybe2
+                  --   "Maybe.heyoh.Just" => #Maybe2#0
+                  --
+                  -- Then we want to throw things away from alice's unconflicted that are like:
+                  --
+                  --   "Maybe" => #Maybe
+                  --   "Maybe.arbitrary.segments.Just" => #Maybe#0
+                  --
+                  -- ================================
+                  --
+                  --   Right now:
+                  --     terms : BiMultimap Referent Name
+                  --     types : BiMultimap TypeReference Name
+                  --
+                  --   What we have / maybe prefer:
+                  --     terms : BiMultimap TermReference Name
+                  --     types : Map Name (TypeReference, Map ConstructorId Name)
+                  --
+                  --   What we have / maybe prefer:
+                  --     terms : BiMultimap TermReference Name
+                  --     types : Map Name (V1.Decl v a)
+                  filterUnconflicted aliceDefns aliceConflicted
+            let bobUnconflicted =
+                  filterUnconflicted bobDefns bobConflicted
 
             Sqlite.unsafeIO do
               Text.putStrLn ""
@@ -530,6 +560,7 @@ filterConflicts defns conflicts = do
       ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
       ReferenceDerived ref -> Right $! Set.insert ref refs
 
+-- `filterUnconflicted defns conflicted` returns the subset of `defns` that are not in `conflicted`.
 filterUnconflicted ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
@@ -906,8 +937,8 @@ data WhatHappened a
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it could.
 findConflictedAlias ::
-  Merge.DefnsA Referent TypeReference ->
-  Merge.DefnsB (Merge.DiffOp Hash) (Merge.DiffOp Hash) ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Maybe (Name, Name)
 findConflictedAlias aliceDefns aliceDiff =
   asum
