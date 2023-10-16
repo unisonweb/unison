@@ -3,8 +3,8 @@
 module U.Codebase.Sqlite.Branch.Full where
 
 import Control.Lens
+import Data.Bitraversable
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import U.Codebase.HashTags
 import U.Codebase.Reference (Reference', TermReference', TypeReference')
 import U.Codebase.Reference qualified as Reference
@@ -91,13 +91,17 @@ metadataSetFormatReferences_ ::
 metadataSetFormatReferences_ f (Inline refs) = Inline <$> Set.traverse f refs
 
 quadmap :: forall t h p c t' h' p' c'. (Ord t', Ord h') => (t -> t') -> (h -> h') -> (p -> p') -> (c -> c') -> Branch' t h p c -> Branch' t' h' p' c'
-quadmap ft fh fp fc (Branch terms types patches children) =
+quadmap ft fh fp fc branch =
+  runIdentity $ quadmapM (Identity . ft) (Identity . fh) (Identity . fp) (Identity . fc) branch
+
+quadmapM :: forall t h p c t' h' p' c' m. (Ord t', Ord h', Monad m) => (t -> m t') -> (h -> m h') -> (p -> m p') -> (c -> m c') -> Branch' t h p c -> m (Branch' t' h' p' c')
+quadmapM ft fh fp fc (Branch terms types patches children) =
   Branch
-    (Map.bimap ft doTerms terms)
-    (Map.bimap ft doTypes types)
-    (Map.bimap ft fp patches)
-    (Map.bimap ft fc children)
+    <$> (Map.bitraverse ft doTerms terms)
+    <*> (Map.bitraverse ft doTypes types)
+    <*> (Map.bitraverse ft fp patches)
+    <*> (Map.bitraverse ft fc children)
   where
-    doTerms = Map.bimap (bimap (bimap ft fh) (bimap ft fh)) doMetadata
-    doTypes = Map.bimap (bimap ft fh) doMetadata
-    doMetadata (Inline s) = Inline . Set.map (bimap ft fh) $ s
+    doTerms = Map.bitraverse (bitraverse (bitraverse ft fh) (bitraverse ft fh)) doMetadata
+    doTypes = Map.bitraverse (bitraverse ft fh) doMetadata
+    doMetadata (Inline s) = Inline <$> Set.traverse (bitraverse ft fh) s
