@@ -8,7 +8,6 @@ module Unison.Merge2
     nameBasedNamespaceDiff,
 
     -- * Typechecking
-    WhatToTypecheck (..),
     whatToTypecheck,
     computeUnisonFile,
 
@@ -22,13 +21,14 @@ module Unison.Merge2
     UpdatesRefnt,
     DiffOp (..),
     DeepRefs,
-    -- DeepRefsId' (..),
+    DeepRefsId',
     RefToName,
     Defns (..),
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
     mergeNamespaceTrees,
+    zipNamespaceTrees,
     TwoWay (..),
     TwoOrThreeWay (..),
   )
@@ -62,7 +62,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree)
+import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree, zipNamespaceTrees)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference qualified as V1
@@ -199,7 +199,7 @@ computeUnisonFile ::
   (TermReferenceId -> Transaction (V1.Term v a)) ->
   (TypeReferenceId -> Transaction (V1.Decl v a)) ->
   (TypeReference -> Transaction ConstructorType) ->
-  WhatToTypecheck ->
+  DeepRefsId' ->
   UpdatesRefnt ->
   Transaction (UnisonFile v a)
 computeUnisonFile
@@ -207,7 +207,7 @@ computeUnisonFile
   loadTerm
   loadDecl
   loadDeclType
-  (unWhatToTypecheck -> Defns {terms = termsToTypecheck, types = declsToTypecheck})
+  (Defns {terms = termsToTypecheck, types = declsToTypecheck})
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
     combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
 
@@ -411,7 +411,6 @@ instance Monoid RefsToSubst where
 --     err _ = error ""
 
 -- Q: Does this return all of the updates? A: suspect no currently
-newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 
 -- Question: What should these input types be?
 -- drAlice and drBob could be `DeepRefs` because that's what the diff gives us,
@@ -427,7 +426,7 @@ newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 -- This seems okay. So disregard.
 
 -- Question: What happens if I update a ctor?
-whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction WhatToTypecheck
+whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction DeepRefsId'
 whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
   -- 1. for each update, determine the corresponding old dependent
   let -- \| Find the `Reference.Id`s that comprise a namespace. Constructors show up as decl Ids.
@@ -505,7 +504,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           setup dr dependents = (dropBuiltins (dr ^. #types), filterDependents RtType dependents)
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
           updates' = dropBuiltins $ combinedUpdates ^. #types
-  pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
+  pure $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
   { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))

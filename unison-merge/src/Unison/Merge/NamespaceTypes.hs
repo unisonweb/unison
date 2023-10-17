@@ -3,15 +3,16 @@ module Unison.Merge.NamespaceTypes
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
-    mergeNamespaceTrees
+    mergeNamespaceTrees,
+    zipNamespaceTrees,
   )
 where
 
-import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty, pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment
@@ -44,6 +45,22 @@ mergeNamespaceTrees ac bc abc =
           :< Map.merge
             (Map.mapMaybeMissing (\_nameSeg cofreeA -> Just (ac <$> cofreeA)))
             (Map.mapMaybeMissing (\_nameSeg cofreeB -> Just (bc <$> cofreeB)))
+            (Map.zipWithMaybeMatched (\_nameSeg cofreeA cofreeB -> Just (go cofreeA cofreeB)))
+            as
+            bs
+   in go
+
+zipNamespaceTrees ::
+  (a -> b -> c) ->
+  NamespaceTree a ->
+  NamespaceTree b ->
+  NamespaceTree c
+zipNamespaceTrees f =
+  let go (a :< as) (b :< bs) =
+        f a b
+          :< Map.merge
+            Map.dropMissing
+            Map.dropMissing
             (Map.zipWithMaybeMatched (\_nameSeg cofreeA cofreeB -> Just (go cofreeA cofreeB)))
             as
             bs
