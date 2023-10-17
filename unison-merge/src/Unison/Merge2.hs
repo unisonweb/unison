@@ -221,6 +221,9 @@ computeUnisonFile
     let -- todo: handle errors better:
         env :: UFE.Env v a = (fromRight' . fromRight') envResult
           where
+            -- This `Names` can be `mempty` because there shouldn't be any free vars in these declarations.
+            -- There will be references that come from the codebase, or there will be vars that we just substed in
+            -- right now for other decls listed here.
             envResult = UFN.environmentFor mempty dataDeclarations effectDeclarations
             effectDeclarations :: Map v (V1.Decl.EffectDeclaration v a)
             dataDeclarations :: Map v (V1.Decl.DataDeclaration v a)
@@ -233,7 +236,7 @@ computeUnisonFile
             where
               termNeedsUpdate = flip Map.member termsToTypecheck
               updatedTypes :: Map Name TypeReference =
-                Map.mapKeysMonotonic Name.unsafeFromVar $
+                Map.mapKeys Name.unsafeFromVar $
                   fmap (Reference.ReferenceDerived . fst) (UFE.datasId env)
                     <> fmap (Reference.ReferenceDerived . fst) (UFE.effectsId env)
        in traverse setupTerm termsToTypecheck
@@ -507,6 +510,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           setup dr dependents = (dropBuiltins (dr ^. #types), filterDependents RtType dependents)
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
           updates' = dropBuiltins $ combinedUpdates ^. #types
+  -- reminder: we're basically only typechecking the dependents; the updates themselves have already been typechecked.
   pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
