@@ -50,6 +50,8 @@ module Unison.Codebase.Branch
     UpdateStrategy (..),
     addTermName,
     addTypeName,
+    addTermName2,
+    addTypeName2,
     deleteTermName,
     deleteTypeName,
     setChildBranch,
@@ -126,6 +128,7 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star3.Deprecate qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -686,6 +689,12 @@ addTypeName ::
   TypeReference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
 addTypeName r new md =
   over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
+
+addTermName2 :: Referent -> NameSegment -> Branch0 m -> Branch0 m
+addTermName2 r new = over terms (Star3.insertD1 (r, new) . Star3.deleteD1RanAndGC new)
+
+addTypeName2 :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
+addTypeName2 r new = over types (Star3.insertD1 (r, new) . Star3.deleteD1RanAndGC new)
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b

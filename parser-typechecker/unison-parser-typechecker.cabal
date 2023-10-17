@@ -189,6 +189,7 @@ library
       Unison.Util.Pretty.MegaParsec
       Unison.Util.RefPromise
       Unison.Util.Star3
+      Unison.Util.Star3.Deprecate
       Unison.Util.Text
       Unison.Util.Text.Pattern
       Unison.Util.TQueue

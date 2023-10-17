@@ -1113,7 +1113,9 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
-            Update2I requestedNames -> handleUpdate2 input requestedNames
+            Update2I requestedNames -> do
+              description <- inputDescription input
+              handleUpdate2 description input requestedNames
             PreviewUpdateI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1538,6 +1540,11 @@ inputDescription input =
           DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
           UsePatch p0 -> (" " <>) <$> ps' p0
       pure ("update" <> p)
+    Update2I selection ->
+      pure
+        if null selection
+          then "update"
+          else "update " <> Monoid.intercalate " " (map Name.toText $ toList selection)
     PropagatePatchI p0 scope0 -> do
       p <- ps' p0
       scope <- p' scope0

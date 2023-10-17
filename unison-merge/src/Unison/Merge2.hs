@@ -213,6 +213,18 @@ computeUnisonFile
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
     combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
 
+    {-
+    dependencies
+    updates
+    dependents
+
+    right now: required: {dependents, required, dependencies optional
+    later need {dependencies, updates, dependents}
+
+    update type Foo = Foo #Bar
+
+    -}
+
     updatedDecls <-
       let setupDecl = fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadDecl
             where
