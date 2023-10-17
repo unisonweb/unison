@@ -4,6 +4,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2Type,
     v2ToH2TypeD,
     h2ToV2Reference,
+    v2ToH2Referent,
     v2ToH2Branch,
     v2ToH2Term,
     hashBranchFormatToH2Branch,

@@ -94,7 +94,7 @@ quadmap :: forall t h p c t' h' p' c'. (Ord t', Ord h') => (t -> t') -> (h -> h'
 quadmap ft fh fp fc branch =
   runIdentity $ quadmapM (Identity . ft) (Identity . fh) (Identity . fp) (Identity . fc) branch
 
-quadmapM :: forall t h p c t' h' p' c' m. (Ord t', Ord h', Monad m) => (t -> m t') -> (h -> m h') -> (p -> m p') -> (c -> m c') -> Branch' t h p c -> m (Branch' t' h' p' c')
+quadmapM :: forall t h p c t' h' p' c' m. (Ord t', Ord h', Applicative m) => (t -> m t') -> (h -> m h') -> (p -> m p') -> (c -> m c') -> Branch' t h p c -> m (Branch' t' h' p' c')
 quadmapM ft fh fp fc (Branch terms types patches children) =
   Branch
     <$> (Map.bitraverse ft doTerms terms)
@@ -105,3 +105,19 @@ quadmapM ft fh fp fc (Branch terms types patches children) =
     doTerms = Map.bitraverse (bitraverse (bitraverse ft fh) (bitraverse ft fh)) doMetadata
     doTypes = Map.bitraverse (bitraverse ft fh) doMetadata
     doMetadata (Inline s) = Inline <$> Set.traverse (bitraverse ft fh) s
+
+-- | Traversal over text references in a branch
+t_ :: (Ord t', Ord h) => Traversal (Branch' t h p c) (Branch' t' h p c) t t'
+t_ f = quadmapM f pure pure pure
+
+-- | Traversal over hash references in a branch
+h_ :: (Ord t, Ord h') => Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+h_ f = quadmapM pure f pure pure
+
+-- | Traversal over patch references in a branch
+p_ :: (Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h p' c) p p'
+p_ f = quadmapM pure pure f pure
+
+-- | Traversal over child references in a branch
+c_ :: (Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h p c') c c'
+c_ f = quadmapM pure pure pure f
