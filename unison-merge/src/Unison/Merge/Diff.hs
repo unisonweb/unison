@@ -47,6 +47,9 @@ data TwoWay a = TwoWay
   }
   deriving stock (Generic)
 
+instance Semigroup a => Semigroup (TwoWay a) where
+  TwoWay ax bx <> TwoWay ay by = TwoWay (ax <> ay) (bx <> by)
+
 data TwoOrThreeWay a = TwoOrThreeWay
   { lca :: !(Maybe a),
     alice :: !a,

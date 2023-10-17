@@ -175,6 +175,8 @@ handleMerge bobBranchName = do
       -- Load deep definitions
       (aliceDefns, aliceCausalTree) <- step "load alice definitions" $ loadNamespaceDefns loadDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
       (bobDefns, bobCausalTree) <- step "load bob definitions" $ loadNamespaceDefns loadDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
+      let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
+      let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
 
       (maybeLcaLibdeps, diffs) <- do
         step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
@@ -204,7 +206,7 @@ handleMerge bobBranchName = do
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
             pure (Just lcaLibdeps, diffs)
 
-      let conflicts =
+      let conflictedNames =
             Merge.Defns
               { terms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms),
                 types = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
@@ -229,19 +231,15 @@ handleMerge bobBranchName = do
       let bobNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
           bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
 
-      let aliceUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-          aliceUpdates = filterUpdates aliceNames (diffs ^. #alice)
-
-      let bobUpdates :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
-          bobUpdates = filterUpdates bobNames (diffs ^. #bob)
+      let updates = filterUpdates defns diffs
 
       whatToTypecheck :: Merge.WhatToTypecheck <-
         step "compute whatToTypecheck" $
-          Merge.whatToTypecheck (aliceNames, aliceUpdates) (bobNames, bobUpdates)
+          Merge.whatToTypecheck (aliceNames, updates ^. #alice) (bobNames, updates ^. #bob)
 
       -- If there are no conflicts, then proceed to typechecking
       mergeResult <-
-        if null (conflicts ^. #terms) && null (conflicts ^. #types)
+        if null (conflictedNames ^. #terms) && null (conflictedNames ^. #types)
           then do
             let typecheck = wundefined
 
@@ -252,8 +250,8 @@ handleMerge bobBranchName = do
                   combinedUpdates =
                     -- These left-biased unions are fine; at this point we know Alice's and Bob's updates
                     Merge.Defns
-                      { terms = Map.union (aliceUpdates ^. #terms) (bobUpdates ^. #terms),
-                        types = Map.union (aliceUpdates ^. #types) (bobUpdates ^. #types)
+                      { terms = Map.union (updates ^. #alice . #terms) (updates ^. #bob . #terms),
+                        types = Map.union (updates ^. #alice . #types) (updates ^. #bob . #types)
                       }
               Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
 
@@ -268,107 +266,31 @@ handleMerge bobBranchName = do
                 let ppe :: PrettyPrintEnvDecl = wundefined
                 pure $ MergePropagationNotTypecheck ppe (void uf)
           else do
-            -- There are conflicts.
-
-            -- First, get the conflicted references themselves.
-            aliceConflicts <- filterConflicts aliceDefns conflicts & onLeft (rollback . Left)
-            bobConflicts <- filterConflicts bobDefns conflicts & onLeft (rollback . Left)
-
-            -- Next, look up the transitive dependents of those conflicted references in their respective branches.
-            -- TODO update this comment and variable names
-            (aliceDependentsOfConflicts, bobDependentsOfConflicts) <- do
-              let getDependents ::
-                    Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-                    Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
-                    Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
-                  getDependents defns updates =
-                    -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
-                    -- have two different maps, so we twiddle.
-                    fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
-                      Operations.dependentsWithinScope
-                        (defnsToScope defns)
-                        (Set.union wawaTerms wawaTypes)
-                    where
-                      f ::
-                        Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
-                        Reference.Id ->
-                        ReferenceType ->
-                        Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-                      f acc ref = \case
-                        Reference.RtTerm -> acc & over #terms (Set.insert ref)
-                        Reference.RtType -> acc & over #types (Set.insert ref)
-
-                      Merge.Defns wawaTerms wawaTypes = makeWawa2 defns updates
-
-              (,)
-                <$> getDependents aliceDefns bobUpdates
-                <*> getDependents bobDefns aliceUpdates
-
-            -- Alice's conflicts + transitive dependents
-            let aliceConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-                aliceConflicted =
-                  Merge.Defns
-                    { terms = Set.union (aliceConflicts ^. #terms) (aliceDependentsOfConflicts ^. #terms),
-                      types = Set.union (aliceConflicts ^. #types) (aliceDependentsOfConflicts ^. #types)
-                    }
+            conflicts <- filterConflicts defns conflictedNames & onLeft (rollback . Left)
+            dependents <- collectDependentsOfInterest defns updates
+            let conflicted = conflicts <> dependents
+            let unconflicted = filterUnconflicted defns updates conflicted
 
             Sqlite.unsafeIO do
               Text.putStrLn ""
               Text.putStrLn "===== alice conflicted ====="
-              printConflicted aliceDefns aliceConflicted
-
-            -- Bob's conflicts + transitive dependents
-            let bobConflicted :: Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
-                bobConflicted =
-                  Merge.Defns
-                    { terms = Set.union (bobConflicts ^. #terms) (bobDependentsOfConflicts ^. #terms),
-                      types = Set.union (bobConflicts ^. #types) (bobDependentsOfConflicts ^. #types)
-                    }
+              printConflicted (defns ^. #alice) (conflicted ^. #alice)
 
             Sqlite.unsafeIO do
               Text.putStrLn ""
               Text.putStrLn "===== bob conflicted ====="
-              printConflicted bobDefns bobConflicted
-
-            Sqlite.unsafeIO do
-              print (show bobUpdates)
-
-            let aliceUnconflicted = filterUnconflicted aliceDefns aliceConflicted bobUpdates
-            let bobUnconflicted = filterUnconflicted bobDefns bobConflicted aliceUpdates
+              printConflicted (defns ^. #bob) (conflicted ^. #bob)
 
             Sqlite.unsafeIO do
               Text.putStrLn ""
               Text.putStrLn "===== alice unconflicted ====="
-              printNamespace aliceUnconflicted
+              printNamespace (unconflicted ^. #alice)
               Text.putStrLn ""
               Text.putStrLn "===== bob unconflicted ====="
-              printNamespace bobUnconflicted
+              printNamespace (unconflicted ^. #bob)
 
-            let unconflictedBranch :: BranchV3 Transaction
-                unconflictedBranch =
-                  let unflattenedTree =
-                        Merge.mergeNamespaceTrees
-                          (\(aliceDefns, aliceCausal) -> (aliceDefns, Left aliceCausal))
-                          (\(bobDefns, bobCausal) -> (bobDefns, Left bobCausal))
-                          ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
-                              -- We should maybe say that a left-biased
-                              -- union is fine here because we are merging
-                              -- unconflicted things so there is no bias
-                              (aliceDefns <> bobDefns, Right (aliceCausal, bobCausal))
-                          )
-                          (makeBigTree aliceUnconflicted aliceCausalTree)
-                          (makeBigTree bobUnconflicted bobCausalTree)
-                      makeBigTree defns causals =
-                        Merge.mergeNamespaceTrees
-                          (\_ -> error "impossible")
-                          (\_ -> error "impossible")
-                          (,)
-                          (Merge.unflattenNamespaceTree defns)
-                          causals
-                   in namespaceToBranchV3 unflattenedTree
-
-            unconflictedV1Branch <-
-              loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) unconflictedBranch
+            let branchV3 = unconflictedToBranchV3 defns causalHashes
+            branchV1 <- loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) branchV3
 
             -- TODO the rest
 
@@ -389,8 +311,8 @@ handleMerge bobBranchName = do
         printLibdeps mergedLibdeps
         Text.putStrLn ""
         Text.putStrLn "===== conflicts ====="
-        printTypeConflicts (conflicts ^. #types)
-        printTermConflicts (conflicts ^. #terms)
+        printTypeConflicts (conflictedNames ^. #types)
+        printTermConflicts (conflictedNames ^. #terms)
         Text.putStrLn ""
 
       pure (Right mergeResult)
@@ -411,19 +333,40 @@ handleMerge bobBranchName = do
           Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
 
--- "What goes in the scratch file?" (in the case of conflicts *and* in the case of non-typechecking post-merge)
---
--- The union of:
---   For each Alice update ("name", #old, #new),
---     Transitive dependents of what Bob calls "name"
---   For each Bob update ("name", #old, #new),
---     Transitive dependents of what Alice calls "name"
---   The conflicted things themselves
---
--- "What's left over to put in the namespace?"
---
---   All of Alice's references + All of Bob's references - that set of references above
+-- TODO document this
+collectDependentsOfInterest ::
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.Defns (Map Name Referent) (Map Name TypeReference)) ->
+  Transaction (Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)))
+collectDependentsOfInterest defns updates = do
+  alice <- getDependents (defns ^. #alice) (updates ^. #bob)
+  bob <- getDependents (defns ^. #bob) (updates ^. #alice)
+  pure Merge.TwoWay {alice, bob}
+  where
+    getDependents ::
+      Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
+      Transaction (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+    getDependents defns updates =
+      -- The `dependentsWithinScope` query hands back a `Map Reference.Id ReferenceType`, but we would rather
+      -- have two different maps, so we twiddle.
+      fmap (Map.foldlWithKey' f (Merge.Defns Set.empty Set.empty)) do
+        Operations.dependentsWithinScope
+          (defnsToScope defns)
+          (Set.union wawaTerms wawaTypes)
+      where
+        f ::
+          Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+          Reference.Id ->
+          ReferenceType ->
+          Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)
+        f acc ref = \case
+          Reference.RtTerm -> acc & over #terms (Set.insert ref)
+          Reference.RtType -> acc & over #types (Set.insert ref)
 
+        Merge.Defns wawaTerms wawaTypes = makeWawa2 defns updates
+
+-- TODO document, rename
 makeWawa2 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
@@ -459,47 +402,48 @@ makeWawa2 personOneDefns personTwoUpdates =
           Referent.Ref termRef -> acc & over #terms (Set.insert termRef)
 
 namespaceToBranchV3 ::
-  Merge.NamespaceTree
-    ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
-      Either CausalHash (CausalHash, CausalHash)
-    ) ->
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3 Transaction
-namespaceToBranchV3 ((Merge.Defns {terms, types}, bonk) :< children) =
-  let v3Children = thinkOfTheChildren <$> children
-   in BranchV3.BranchV3 v3Children terms types
+namespaceToBranchV3 ((Merge.Defns {terms, types}, _causalParents) :< children) =
+  BranchV3.BranchV3
+    { terms,
+      types,
+      children = namespaceToCausalV3 <$> children
+    }
+
+namespaceToCausalV3 ::
+  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
+  BranchV3.CausalBranchV3 Transaction
+namespaceToCausalV3 namespace@((_, causalParentHashes) :< _) =
+  HashHandle.mkCausal
+    v2HashHandle
+    (HashHandle.hashBranchV3 v2HashHandle branchV3)
+    (Map.fromList (map (\ch -> (ch, Operations.expectCausalBranchByCausalHash ch)) causalParentHashes))
+    (pure branchV3)
   where
-    thinkOfTheChildren ::
-      Merge.NamespaceTree
-        ( (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference)),
-          Either CausalHash (CausalHash, CausalHash)
-        ) ->
-      BranchV3.CausalBranchV3 Transaction
-    thinkOfTheChildren blerg@((_, bonk) :< _) =
-      let gonk :: BranchV3 Transaction
-          gonk = namespaceToBranchV3 blerg
+    branchV3 :: BranchV3 Transaction
+    branchV3 =
+      namespaceToBranchV3 namespace
 
-          fonk :: Map CausalHash (Transaction (Causal Transaction CausalHash BranchHash (Branch Transaction) (Branch Transaction)))
-          fonk =
-            let xs :: [CausalHash]
-                xs = case bonk of
-                  Left ch -> [ch]
-                  Right (ach, bch) -> [ach, bch]
-             in Map.fromList
-                  (map (\ch -> (ch, Operations.expectCausalBranchByCausalHash ch)) xs)
-
-          zonk :: BranchHash
-          zonk = HashHandle.hashBranchV3 v2HashHandle gonk
-       in HashHandle.mkCausal v2HashHandle zonk fonk (pure gonk)
-
--- `filterUpdates defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
 filterUpdates ::
-  Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
+  Merge.TwoWay (Merge.Defns (Map Name Referent) (Map Name TypeReference))
+filterUpdates defns diff =
+  Merge.TwoWay
+    { alice = filterUpdates1 (defns ^. #alice) (diff ^. #alice),
+      bob = filterUpdates1 (defns ^. #bob) (diff ^. #bob)
+    }
+
+-- `filterUpdates1 defns diff` returns the subset of `defns` that corresponds to updates (according to `diff`).
+filterUpdates1 ::
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Merge.Defns (Map Name Referent) (Map Name TypeReference)
-filterUpdates defns diff =
+filterUpdates1 defns diff =
   defns
-    & over #terms (`Map.intersection` (Map.filter isUpdate (diff ^. #terms)))
-    & over #types (`Map.intersection` (Map.filter isUpdate (diff ^. #types)))
+    & over #terms ((`Map.intersection` (Map.filter isUpdate (diff ^. #terms))) . BiMultimap.range)
+    & over #types ((`Map.intersection` (Map.filter isUpdate (diff ^. #types))) . BiMultimap.range)
   where
     isUpdate :: Merge.DiffOp Hash -> Bool
     isUpdate = \case
@@ -507,14 +451,23 @@ filterUpdates defns diff =
       Merge.Deleted {} -> False
       Merge.Updated {} -> True
 
--- `filterConflicts defns conflicts` filters `defns` down to just the conflicted type and term references.
+filterConflicts ::
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.Defns (Set Name) (Set Name) ->
+  Either MergePreconditionViolation (Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)))
+filterConflicts defns conflictedNames = do
+  alice <- filterConflicts1 (defns ^. #alice) conflictedNames
+  bob <- filterConflicts1 (defns ^. #bob) conflictedNames
+  pure Merge.TwoWay {alice, bob}
+
+-- `filterConflicts1 defns conflicts` filters `defns` down to just the conflicted type and term references.
 --
 -- It fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
-filterConflicts ::
+filterConflicts1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set Name) (Set Name) ->
   Either MergePreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
-filterConflicts defns conflicts = do
+filterConflicts1 defns conflicts = do
   terms <- foldlM doTerm Set.empty (onlyConflicted (conflicts ^. #terms) (defns ^. #terms))
   types <- foldlM doType Set.empty (onlyConflicted (conflicts ^. #types) (defns ^. #types))
   pure Merge.Defns {terms, types}
@@ -534,14 +487,25 @@ filterConflicts defns conflicts = do
       ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
       ReferenceDerived ref -> Right $! Set.insert ref refs
 
--- `filterUnconflicted defns conflicted` returns the subset of `defns` that are not in `conflicted`.
--- TODO update comment
 filterUnconflicted ::
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.Defns (Map Name Referent) (Map Name TypeReference)) ->
+  Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+filterUnconflicted defns updates conflicted =
+  Merge.TwoWay
+    { alice = filterUnconflicted1 (defns ^. #alice) (conflicted ^. #alice) (updates ^. #bob),
+      bob = filterUnconflicted1 (defns ^. #bob) (conflicted ^. #bob) (updates ^. #alice)
+    }
+
+-- `filterUnconflicted1 defns conflicted` returns the subset of `defns` that are not in `conflicted`.
+-- TODO update comment
+filterUnconflicted1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set TermReferenceId) (Set TypeReferenceId) ->
   Merge.Defns (Map Name Referent) (Map Name TypeReference) ->
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-filterUnconflicted personOneDefns personOneConflicted personTwoUpdates =
+filterUnconflicted1 personOneDefns personOneConflicted personTwoUpdates =
   personOneDefns
     & over #terms filterUnconflictedTerms
     & over #types filterUnconflictedTypes
@@ -568,23 +532,6 @@ filterUnconflicted personOneDefns personOneConflicted personTwoUpdates =
               Set.disjoint (BiMultimap.lookupDom typeRef personTwoUpdatedTypes) (possibleDeclNames name)
             Referent.Ref _termRef -> not (Map.member name (personTwoUpdates ^. #terms))
 
-    -- "hey.Maybe.internal.Just" -> {"hey.Maybe.internal", "hey.Maybe", "hey"}
-    possibleDeclNames :: Name -> Set Name
-    possibleDeclNames =
-      Name.reverseSegments
-        -- "Just" :| ["internal", "Maybe", "hey"]
-        >>> List.NonEmpty.toList
-        -- ["Just", "internal", "Maybe", "hey"]
-        >>> List.tails
-        -- [["Just", "internal", "Maybe", "hey"], ["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
-        >>> drop 1
-        -- [["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
-        >>> mapMaybe List.NonEmpty.nonEmpty
-        -- ["internal" :| ["Maybe", "hey"], "Maybe" :| ["hey"], "hey" :| []]
-        >>> map (Name.fromReverseSegments)
-        -- ["hey.Maybe.internal", "hey.Maybe", "hey"]
-        >>> Set.fromList
-
     personTwoUpdatedTypes :: BiMultimap TypeReference Name
     personTwoUpdatedTypes =
       BiMultimap.fromRange (personTwoUpdates ^. #types)
@@ -592,6 +539,52 @@ filterUnconflicted personOneDefns personOneConflicted personTwoUpdates =
     filterUnconflictedTypes =
       BiMultimap.withoutDom
         (Set.map ReferenceDerived (personOneConflicted ^. #types))
+
+unconflictedToBranchV3 ::
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.NamespaceTree CausalHash) ->
+  BranchV3 Transaction
+unconflictedToBranchV3 unconflicted causalHashes =
+  namespaceToBranchV3 $
+    Merge.mergeNamespaceTrees
+      (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
+      (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
+      ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+          -- A left-biased union is fine here because we are merging unconflicted things; where the maps aren't
+          -- disjoint, the values are equal
+          (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
+      )
+      (makeBigTree (unconflicted ^. #alice) (causalHashes ^. #alice))
+      (makeBigTree (unconflicted ^. #bob) (causalHashes ^. #bob))
+  where
+    makeBigTree ::
+      Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      Merge.NamespaceTree CausalHash ->
+      Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
+    makeBigTree defns causals =
+      Merge.mergeNamespaceTrees
+        (\_ -> error "impossible")
+        (\_ -> error "impossible")
+        (,)
+        (Merge.unflattenNamespaceTree defns)
+        causals
+
+-- "hey.Maybe.internal.Just" -> {"hey.Maybe.internal", "hey.Maybe", "hey"}
+possibleDeclNames :: Name -> Set Name
+possibleDeclNames =
+  Name.reverseSegments
+    -- "Just" :| ["internal", "Maybe", "hey"]
+    >>> List.NonEmpty.toList
+    -- ["Just", "internal", "Maybe", "hey"]
+    >>> List.tails
+    -- [["Just", "internal", "Maybe", "hey"], ["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
+    >>> drop 1
+    -- [["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
+    >>> mapMaybe List.NonEmpty.nonEmpty
+    -- ["internal" :| ["Maybe", "hey"], "Maybe" :| ["hey"], "hey" :| []]
+    >>> map (Name.fromReverseSegments)
+    -- ["hey.Maybe.internal", "hey.Maybe", "hey"]
+    >>> Set.fromList
 
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
