@@ -21,7 +21,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromJust)
+import Data.Maybe (catMaybes, fromJust)
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -30,11 +30,10 @@ import Data.These (These (..))
 import GHC.Clock (getMonotonicTime)
 import Text.ANSI qualified as Text
 import Text.Printf (printf)
-import U.Codebase.Branch (Branch, CausalBranch)
+import U.Codebase.Branch (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as Branch
 import U.Codebase.BranchV3 (BranchV3 (..), CausalBranchV3)
 import U.Codebase.BranchV3 qualified as BranchV3
-import U.Codebase.Causal (Causal)
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
@@ -57,13 +56,15 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as V1 (Branch, Branch0)
+import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration qualified as V1.Decl
@@ -161,6 +162,9 @@ handleMerge bobBranchName = do
   loadDeclNumConstructors <- do
     cache <- Cache.semispaceCache 1024
     pure (cacheTransaction cache Operations.expectDeclNumConstructors)
+  loadCausal <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache Operations.expectCausalBranchByCausalHash)
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -188,7 +192,7 @@ handleMerge bobBranchName = do
                 Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
             pure (Nothing, diffs)
           Just lcaCausalHash -> do
-            lcaCausal <- step "load lca causal" $ Operations.expectCausalBranchByCausalHash lcaCausalHash
+            lcaCausal <- step "load lca causal" $ loadCausal lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
             (lcaDefns, _) <- step "load lca definitions" do
               loadNamespaceDefns loadDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
@@ -213,16 +217,18 @@ handleMerge bobBranchName = do
               }
 
       -- Load and merge libdeps
-      mergedLibdeps <- do
-        aliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
-        bobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
+      (libdepsCausalParents, libdeps) <- do
+        maybeAliceLibdeps <- step "load alice library dependencies" $ loadLibdeps aliceBranch
+        maybeBobLibdeps <- step "load bob library dependencies" $ loadLibdeps bobBranch
         pure $
-          Merge.mergeLibdeps
-            ((==) `on` Causal.causalHash)
-            getTwoFreshNames
-            maybeLcaLibdeps
-            aliceLibdeps
-            bobLibdeps
+          ( Set.fromList (catMaybes [fst <$> maybeAliceLibdeps, fst <$> maybeBobLibdeps]),
+            Merge.mergeLibdeps
+              ((==) `on` Causal.causalHash)
+              getTwoFreshNames
+              (maybe Map.empty snd <$> maybeLcaLibdeps)
+              (maybe Map.empty snd maybeAliceLibdeps)
+              (maybe Map.empty snd maybeBobLibdeps)
+          )
 
       -- For some things below we only care about the `Map Name ref` direction of our `BiMultimap ref Name` definitions
       let aliceNames :: Merge.Defns (Map Name Referent) (Map Name TypeReference)
@@ -289,8 +295,15 @@ handleMerge bobBranchName = do
               Text.putStrLn "===== bob unconflicted ====="
               printNamespace (unconflicted ^. #bob)
 
-            let branchV3 = unconflictedToBranchV3 defns causalHashes
-            branchV1 <- loadV3BranchAsV1Branch0 loadDeclType (Codebase.expectBranchForHash codebase) branchV3
+            let v3Branch = unconflictedToV3Branch loadCausal defns causalHashes
+            v1Branch <-
+              loadV3BranchAndLibdepsAsV1Branch
+                loadDeclType
+                loadCausal
+                (Codebase.expectBranchForHash codebase)
+                v3Branch
+                libdepsCausalParents
+                libdeps
 
             -- TODO the rest
 
@@ -308,7 +321,7 @@ handleMerge bobBranchName = do
         printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
         Text.putStrLn ""
         Text.putStrLn "===== merged libdeps dependencies ====="
-        printLibdeps mergedLibdeps
+        printLibdeps libdeps
         Text.putStrLn ""
         Text.putStrLn "===== conflicts ====="
         printTypeConflicts (conflictedNames ^. #types)
@@ -402,28 +415,30 @@ makeWawa2 personOneDefns personTwoUpdates =
           Referent.Ref termRef -> acc & over #terms (Set.insert termRef)
 
 namespaceToBranchV3 ::
+  (CausalHash -> Transaction (CausalBranch Transaction)) ->
   Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3 Transaction
-namespaceToBranchV3 ((Merge.Defns {terms, types}, _causalParents) :< children) =
+namespaceToBranchV3 loadCausal ((Merge.Defns {terms, types}, _causalParents) :< children) =
   BranchV3.BranchV3
     { terms,
       types,
-      children = namespaceToCausalV3 <$> children
+      children = namespaceToCausalV3 loadCausal <$> children
     }
 
 namespaceToCausalV3 ::
+  (CausalHash -> Transaction (CausalBranch Transaction)) ->
   Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3.CausalBranchV3 Transaction
-namespaceToCausalV3 namespace@((_, causalParentHashes) :< _) =
+namespaceToCausalV3 loadCausal namespace@((_, causalParentHashes) :< _) =
   HashHandle.mkCausal
     v2HashHandle
     (HashHandle.hashBranchV3 v2HashHandle branchV3)
-    (Map.fromList (map (\ch -> (ch, Operations.expectCausalBranchByCausalHash ch)) causalParentHashes))
+    (Map.fromList (map (\ch -> (ch, loadCausal ch)) causalParentHashes))
     (pure branchV3)
   where
     branchV3 :: BranchV3 Transaction
     branchV3 =
-      namespaceToBranchV3 namespace
+      namespaceToBranchV3 loadCausal namespace
 
 filterUpdates ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -540,12 +555,13 @@ filterUnconflicted1 personOneDefns personOneConflicted personTwoUpdates =
       BiMultimap.withoutDom
         (Set.map ReferenceDerived (personOneConflicted ^. #types))
 
-unconflictedToBranchV3 ::
+unconflictedToV3Branch ::
+  (CausalHash -> Transaction (CausalBranch Transaction)) ->
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Merge.NamespaceTree CausalHash) ->
   BranchV3 Transaction
-unconflictedToBranchV3 unconflicted causalHashes =
-  namespaceToBranchV3 $
+unconflictedToV3Branch loadCausal unconflicted causalHashes =
+  namespaceToBranchV3 loadCausal $
     Merge.mergeNamespaceTrees
       (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
       (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
@@ -594,65 +610,124 @@ defnsToScope (Merge.Defns terms types) =
     (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
     (Set.mapMaybe Reference.toId (BiMultimap.dom types))
 
-loadV3BranchAsV1Branch0 ::
+loadV3BranchAndLibdepsAsV1Branch ::
+  (TypeReference -> Transaction ConstructorType) ->
+  (CausalHash -> Transaction (CausalBranch Transaction)) ->
+  (CausalHash -> Transaction (V1.Branch Transaction)) ->
+  BranchV3 Transaction ->
+  Set CausalHash ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Transaction (V1.Branch0 Transaction)
+loadV3BranchAndLibdepsAsV1Branch loadDeclType loadCausal loadV1Branch BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
+  terms1 <- traverse (referent2to1 loadDeclType) terms
+  children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
+
+  let libdepsV2Branch :: Branch Transaction
+      libdepsV2Branch =
+        Branch
+          { terms = Map.empty,
+            types = Map.empty,
+            patches = Map.empty,
+            children = libdeps
+          }
+
+  libdepsBranchHash <- HashHandle.hashBranch v2HashHandle libdepsV2Branch
+  let libdepsCausalHash = HashHandle.hashCausal v2HashHandle libdepsBranchHash libdepsCausalParents
+
+  libdepsV1Branch <- do
+    -- We make a fresh branch cache to load the branch of libdeps.
+    -- It would probably be better to reuse the codebase's branch cache.
+    -- FIXME how slow/bad is this without that branch cache?
+    branchCache <- Sqlite.unsafeIO newBranchCache
+    Conversions.branch2to1 branchCache loadDeclType libdepsV2Branch
+
+  let libdepsV1Causal :: V1.Branch Transaction
+      libdepsV1Causal =
+        addCausalHistoryV1
+          loadV1Branch
+          libdepsCausalHash
+          libdepsBranchHash
+          libdepsV1Branch
+          (Map.fromSet loadCausal libdepsCausalParents)
+
+  pure $
+    V1.Branch.branch0
+      (makeStar3 terms1)
+      (makeStar3 types)
+      (Map.insert Name.libSegment libdepsV1Causal children1)
+      Map.empty
+
+loadV3BranchAsV1Branch ::
   Monad m =>
   (TypeReference -> m ConstructorType) ->
   (CausalHash -> m (V1.Branch m)) ->
   BranchV3 m ->
   m (V1.Branch0 m)
-loadV3BranchAsV1Branch0 loadDeclType loadBranch BranchV3 {terms, types, children} = do
+loadV3BranchAsV1Branch loadDeclType loadV1Branch BranchV3 {terms, types, children} = do
   terms1 <- traverse (referent2to1 loadDeclType) terms
-  children1 <- traverse (loadV3CausalAsV1Branch loadDeclType loadBranch) children
+  children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
   pure $
     V1.Branch.branch0
       (makeStar3 terms1)
       (makeStar3 types)
       children1
       Map.empty
-  where
-    makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
-    makeStar3 =
-      foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
-      where
-        emptyStar3 =
-          Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
 
-loadV3CausalAsV1Branch ::
+makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
+makeStar3 =
+  foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
+  where
+    emptyStar3 =
+      Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
+
+loadV3CausalAsV1Causal ::
   forall m.
   Monad m =>
   (TypeReference -> m ConstructorType) ->
   (CausalHash -> m (V1.Branch m)) ->
   CausalBranchV3 m ->
   m (V1.Branch m)
-loadV3CausalAsV1Branch loadDeclType loadBranch causal = do
+loadV3CausalAsV1Causal loadDeclType loadV1Branch causal = do
   branch <- causal ^. #value
-  head <- loadV3BranchAsV1Branch0 loadDeclType loadBranch branch
-  let currentHash = causal ^. #causalHash
-  let valueHash = coerce @BranchHash @(Hash.HashFor (V1.Branch0 m)) (causal ^. #valueHash)
-  pure $
-    V1.Branch.Branch
-      case Map.toList (causal ^. #parents) of
-        [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
-        [(parentHash, parent)] ->
-          V1.Causal.UnsafeCons
-            { currentHash,
-              valueHash,
-              head,
-              tail = (parentHash, convertParent parent)
-            }
-        _ ->
-          V1.Causal.UnsafeMerge
-            { currentHash,
-              valueHash,
-              head,
-              tails = convertParent <$> (causal ^. #parents)
-            }
+  head <- loadV3BranchAsV1Branch loadDeclType loadV1Branch branch
+  pure (addCausalHistoryV1 loadV1Branch (causal ^. #causalHash) (causal ^. #valueHash) head (causal ^. #parents))
+
+-- Add causal history to a V1.Branch0, making it a V1.Branch
+addCausalHistoryV1 ::
+  forall m.
+  Monad m =>
+  (CausalHash -> m (V1.Branch m)) ->
+  CausalHash ->
+  BranchHash ->
+  V1.Branch0 m ->
+  Map CausalHash (m (CausalBranch m)) ->
+  V1.Branch m
+addCausalHistoryV1 loadV1Branch currentHash valueHash0 head parents =
+  V1.Branch case Map.toList parents of
+    [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+    [(parentHash, parent)] ->
+      V1.Causal.UnsafeCons
+        { currentHash,
+          valueHash,
+          head,
+          tail = (parentHash, convertParent parent)
+        }
+    _ ->
+      V1.Causal.UnsafeMerge
+        { currentHash,
+          valueHash,
+          head,
+          tails = convertParent <$> parents
+        }
   where
     convertParent :: m (CausalBranch m) -> m (V1.Causal m (V1.Branch0 m))
     convertParent loadParent = do
       parent <- loadParent
-      v1Branch <- loadBranch (parent ^. #causalHash)
+      v1Branch <- loadV1Branch (parent ^. #causalHash)
       pure (V1.Branch._history v1Branch)
+
+    valueHash =
+      coerce @BranchHash @(Hash.HashFor (V1.Branch0 m)) valueHash0
 
 -- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
 referent2to1 :: Applicative m => (TypeReference -> m ConstructorType) -> Referent -> m V1.Referent
@@ -1001,11 +1076,13 @@ conflictsish aliceDiff bobDiff =
       _ -> Nothing
 
 -- | Load the library dependencies (lib.*) of a namespace.
-loadLibdeps :: Branch Transaction -> Transaction (Map NameSegment (CausalBranch Transaction))
+loadLibdeps :: Branch Transaction -> Transaction (Maybe (CausalHash, Map NameSegment (CausalBranch Transaction)))
 loadLibdeps branch =
   case Map.lookup Name.libSegment (Branch.children branch) of
-    Nothing -> pure Map.empty
-    Just dependenciesCausal -> Branch.children <$> Causal.value dependenciesCausal
+    Nothing -> pure Nothing
+    Just dependenciesCausal -> do
+      dependenciesBranch <- Causal.value dependenciesCausal
+      pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils
