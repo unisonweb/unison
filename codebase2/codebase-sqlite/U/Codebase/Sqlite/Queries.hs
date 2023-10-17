@@ -3495,16 +3495,16 @@ loadProjectBranchByNames projectName branchName =
 
 -- | Load all branch id/name pairs in a project whose name matches an optional prefix.
 loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
-loadAllProjectBranchesBeginningWith projectId mayPrefix =
+loadAllProjectBranchesBeginningWith projectId mayPrefix = do
   let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
-   in queryListRow
-        [sql|
-        SELECT project_branch.branch_id, project_branch.name
-        FROM project_branch
-        WHERE project_branch.project_id = :projectId
-          AND project_branch.name GLOB :prefixGlob
-        ORDER BY project_branch.name ASC
-      |]
+  queryListRow
+    [sql|
+      SELECT project_branch.branch_id, project_branch.name
+      FROM project_branch
+      WHERE project_branch.project_id = :projectId
+        AND project_branch.name GLOB :prefixGlob
+      ORDER BY project_branch.name ASC
+    |]
 
 -- | Load ALL project/branch name pairs
 -- Useful for autocomplete/fuzzy-finding

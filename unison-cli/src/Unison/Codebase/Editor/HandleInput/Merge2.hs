@@ -51,6 +51,7 @@ import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Cli.Monad (Cli)
@@ -63,7 +64,9 @@ import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
+import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
@@ -332,10 +335,52 @@ handleMerge bobBranchName = do
         MergePropagationNotTypecheck ppe uf -> do
           Cli.respond $ Output.OutputMergeScratchFile ppe scratchFile (void uf)
         MergeConflicts unconflicted ppe mergeOutput -> do
-          -- Put the unconflicted stuff in a dummy namespace at the root, for funsies
+          temporaryBranchName <- do
+            -- Small race condition: since picking a branch name and creating the branch happen in different
+            -- transactions, creating could fail.
+
+            allBranchNames <-
+              fmap (Set.fromList . map snd) do
+                Cli.runTransaction do
+                  Queries.loadAllProjectBranchesBeginningWith
+                    (project ^. #projectId)
+                    Nothing
+
+            let -- all branch name candidates in order of preference:
+                --   merge-<alice>-into-<bob>
+                --   merge-<alice>-into-<bob>-2
+                --   merge-<alice>-into-<bob>-3
+                --   ...
+                allCandidates :: [ProjectBranchName]
+                allCandidates =
+                  preferred : do
+                    n <- [(2 :: Int) ..]
+                    pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
+                  where
+                    preferred :: ProjectBranchName
+                    preferred =
+                      unsafeFrom @Text $
+                        "merge-"
+                          <> into @Text (bobProjectBranch ^. #name)
+                          <> "-into-"
+                          <> into @Text (aliceProjectBranch ^. #name)
+
+            pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
+
+          temporaryBranchId <-
+            HandleInput.Branch.doCreateBranch
+              (HandleInput.Branch.CreateFrom'Branch (ProjectAndBranch project aliceProjectBranch))
+              project
+              temporaryBranchName
+              ("merge " <> into @Text (bobProjectBranch ^. #name))
+
+          let temporaryBranchPath :: Path
+              temporaryBranchPath =
+                Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) temporaryBranchId))
+
           Cli.stepAt
-            "testing merge2"
-            ( Path.fromList ["__merge2_conflicts_unconflicted_stuff"],
+            ("merge " <> into @Text (bobProjectBranch ^. #name))
+            ( temporaryBranchPath,
               \_ -> V1.Branch.transform0 (Codebase.runTransaction codebase) unconflicted
             )
 
