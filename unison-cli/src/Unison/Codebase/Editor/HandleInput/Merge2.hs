@@ -134,7 +134,10 @@ data MergePreconditionViolation
 data MergeResult v a
   = -- PPED is whatever `prettyUnisonFile` accepts
     MergePropagationNotTypecheck PPED.PrettyPrintEnvDecl (UnisonFile v a)
-  | MergeConflicts PPED.PrettyPrintEnvDecl (MergeOutput v a)
+  | MergeConflicts
+      (V1.Branch0 Transaction) -- The unconflicted stuff
+      PPED.PrettyPrintEnvDecl
+      (MergeOutput v a)
   | MergeDone
 
 handleMerge :: ProjectBranchName -> Cli ()
@@ -295,20 +298,19 @@ handleMerge bobBranchName = do
               Text.putStrLn "===== bob unconflicted ====="
               printNamespace (unconflicted ^. #bob)
 
-            let v3Branch = unconflictedToV3Branch loadCausal defns causalHashes
-            v1Branch <-
+            let unconflictedV3Branch = unconflictedToV3Branch loadCausal unconflicted causalHashes
+            unconflictedV1Branch <-
               loadV3BranchAndLibdepsAsV1Branch
                 loadDeclType
                 loadCausal
                 (Codebase.expectBranchForHash codebase)
-                v3Branch
+                unconflictedV3Branch
                 libdepsCausalParents
                 libdeps
 
             -- TODO the rest
 
-            -- that's a lie
-            pure MergeDone
+            pure (MergeConflicts unconflictedV1Branch wundefined wundefined)
 
       Sqlite.unsafeIO do
         Text.putStrLn ""
@@ -341,9 +343,18 @@ handleMerge bobBranchName = do
       Right mergeResult -> case mergeResult of
         MergePropagationNotTypecheck ppe uf -> do
           Cli.respond $ Output.OutputMergeScratchFile ppe scratchFile (void uf)
-        MergeConflicts ppe mergeOutput -> do
-          (scratchFile, _) <- Cli.expectLatestFile
-          Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
+        MergeConflicts unconflicted ppe mergeOutput -> do
+          -- Put the unconflicted stuff in a dummy namespace at the root, for funsies
+          Cli.stepAt
+            "testing merge2"
+            ( Path.fromList ["__merge2_conflicts_unconflicted_stuff"],
+              \_ -> V1.Branch.transform0 (Codebase.runTransaction codebase) unconflicted
+            )
+
+          -- Disable this temporarily cause the `ppe` and `mergeOutput` are bogus
+          when False do
+            (scratchFile, _) <- Cli.expectLatestFile
+            Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
 
 -- TODO document this
