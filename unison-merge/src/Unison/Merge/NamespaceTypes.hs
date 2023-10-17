@@ -1,7 +1,5 @@
 module Unison.Merge.NamespaceTypes
   ( Defns (..),
-    DefnsA,
-    DefnsB,
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
@@ -28,15 +26,6 @@ data Defns terms types = Defns
   }
   deriving stock (Generic, Show)
   deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
-
-
--- haha rename or delete
-type DefnsA terms types =
-  Defns (BiMultimap terms Name) (BiMultimap types Name)
-
--- haha rename or delete
-type DefnsB terms types =
-  Defns (Map Name terms) (Map Name types)
 
 -- | A namespace tree has values, and a collection of children namespace trees keyed by name segment.
 type NamespaceTree a =

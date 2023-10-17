@@ -241,6 +241,7 @@ handleMerge bobBranchName = do
           bobNames = bobDefns & over #terms BiMultimap.range & over #types BiMultimap.range
 
       let updates = filterUpdates defns diffs
+      dependents <- collectDependentsOfInterest defns updates
 
       whatToTypecheck :: Merge.WhatToTypecheck <-
         step "compute whatToTypecheck" $
@@ -276,7 +277,6 @@ handleMerge bobBranchName = do
                 pure $ MergePropagationNotTypecheck ppe (void uf)
           else do
             conflicts <- filterConflicts defns conflictedNames & onLeft (rollback . Left)
-            dependents <- collectDependentsOfInterest defns updates
             let conflicted = conflicts <> dependents
             let unconflicted = filterUnconflicted defns updates conflicted
 

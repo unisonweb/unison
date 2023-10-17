@@ -25,8 +25,6 @@ module Unison.Merge2
     -- DeepRefsId' (..),
     RefToName,
     Defns (..),
-    DefnsA,
-    DefnsB,
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
@@ -64,7 +62,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree)
+import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference qualified as V1
