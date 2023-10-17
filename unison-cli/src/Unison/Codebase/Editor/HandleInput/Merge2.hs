@@ -621,41 +621,9 @@ loadV3BranchAndLibdepsAsV1Branch ::
 loadV3BranchAndLibdepsAsV1Branch loadDeclType loadCausal loadV1Branch BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
   terms1 <- traverse (referent2to1 loadDeclType) terms
   children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
-
-  let libdepsV2Branch :: Branch Transaction
-      libdepsV2Branch =
-        Branch
-          { terms = Map.empty,
-            types = Map.empty,
-            patches = Map.empty,
-            children = libdeps
-          }
-
-  libdepsBranchHash <- HashHandle.hashBranch v2HashHandle libdepsV2Branch
-  let libdepsCausalHash = HashHandle.hashCausal v2HashHandle libdepsBranchHash libdepsCausalParents
-
-  libdepsV1Branch <- do
-    -- We make a fresh branch cache to load the branch of libdeps.
-    -- It would probably be better to reuse the codebase's branch cache.
-    -- FIXME how slow/bad is this without that branch cache?
-    branchCache <- Sqlite.unsafeIO newBranchCache
-    Conversions.branch2to1 branchCache loadDeclType libdepsV2Branch
-
-  let libdepsV1Causal :: V1.Branch Transaction
-      libdepsV1Causal =
-        addCausalHistoryV1
-          loadV1Branch
-          libdepsCausalHash
-          libdepsBranchHash
-          libdepsV1Branch
-          (Map.fromSet loadCausal libdepsCausalParents)
-
-  pure $
-    V1.Branch.branch0
-      (makeStar3 terms1)
-      (makeStar3 types)
-      (Map.insert Name.libSegment libdepsV1Causal children1)
-      Map.empty
+  libdepsV1Causal <- loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch libdepsCausalParents libdeps
+  let children2 = Map.insert Name.libSegment libdepsV1Causal children1
+  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children2 Map.empty)
 
 loadV3BranchAsV1Branch ::
   Monad m =>
@@ -666,12 +634,43 @@ loadV3BranchAsV1Branch ::
 loadV3BranchAsV1Branch loadDeclType loadV1Branch BranchV3 {terms, types, children} = do
   terms1 <- traverse (referent2to1 loadDeclType) terms
   children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
+  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children1 Map.empty)
+
+-- `loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps` loads `libdeps` as a V1 branch (without
+-- history), and then turns it into a V1 causal using `parents` as history.
+loadLibdepsV1Causal ::
+  (TypeReference -> Transaction ConstructorType) ->
+  (CausalHash -> Transaction (CausalBranch Transaction)) ->
+  (CausalHash -> Transaction (V1.Branch Transaction)) ->
+  Set CausalHash ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Transaction (V1.Branch Transaction)
+loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps = do
+  let branch :: Branch Transaction
+      branch =
+        Branch
+          { terms = Map.empty,
+            types = Map.empty,
+            patches = Map.empty,
+            children = libdeps
+          }
+
+  branchHash <- HashHandle.hashBranch v2HashHandle branch
+
+  v1Branch <- do
+    -- We make a fresh branch cache to load the branch of libdeps.
+    -- It would probably be better to reuse the codebase's branch cache.
+    -- FIXME how slow/bad is this without that branch cache?
+    branchCache <- Sqlite.unsafeIO newBranchCache
+    Conversions.branch2to1 branchCache loadDeclType branch
+
   pure $
-    V1.Branch.branch0
-      (makeStar3 terms1)
-      (makeStar3 types)
-      children1
-      Map.empty
+    addCausalHistoryV1
+      loadV1Branch
+      (HashHandle.hashCausal v2HashHandle branchHash parents)
+      branchHash
+      v1Branch
+      (Map.fromSet loadCausal parents)
 
 makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
 makeStar3 =
