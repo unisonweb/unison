@@ -79,6 +79,12 @@ import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as WK
 
+-- A) Look up transitive dependents of these names.
+--      If there are any not in the scratch file, import them to the scratch file.
+--      If there aren't, save the result to the namespace.
+-- B) Look up transitive dependents of these names, and import them to the unison file.
+--      typecheck, and save if successful.
+
 -- | Handle an @update@ command.
 handleUpdate2 :: Text -> Input -> Set Name -> Cli ()
 handleUpdate2 description input requestedNames = do
@@ -601,12 +607,6 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
       ]
       where
         split = Path.splitFromName n
-
--- Returns True if the operation changed the namespace, False otherwise.
-propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
-propagatePatchNoSync patch scopePath =
-  Cli.time "propagatePatchNoSync" do
-    Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
 
 recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
 recomponentize =
