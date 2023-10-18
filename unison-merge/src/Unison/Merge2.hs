@@ -411,14 +411,64 @@ performDeclSubstitutions substitutions =
           ty
 
 -- types: all of Alice's definitions
+--
 -- dependents: the set of Alice's definitions that are transitive dependents of names of Bob's updates
+--
 -- updates: the things Bob updated directly (which, if not a transitive dep of one of Alice's updates, would induce a Ref->Ref update)
+--
 -- dependents2: the set of Bob's definitions that are transitive dependents of names of Alice's updates
-makeTypeReferenceSubstitutions :: BiMultimap TypeReference Name -> Set TypeReferenceId -> Map Name TypeReference -> Set TypeReferenceId -> Map TypeReference TypeReferenceSubstitution
-makeTypeReferenceSubstitutions types dependents updates dependents2 =
+--
+--   1. All of `aliceDependents` (and `aliceConflicts` actually) are going to get substituted by `performDeclSubstitutions`
+--   2. We want to replace references in each with:
+--       3. Variable names, for the references to things in (1) Alice's branch that are in (1)
+--           4. Do we care about Bob's things here? Well, no --
+--       4. References, for the references to things that Bob updated, which ended up unconflicted.
+--
+-- These are the terms and decls that we will apply substitutions to, and put into the scratch file:
+--
+--   aliceDirectlyConflictedTypes     : Set TypeReferenceId
+--   aliceDependentsOfBobUpdatedTypes : Set TypeReferenceId
+--
+--   bobDirectlyConflictedTypes       : Set TypeReferenceId
+--   bobDependentsOfAliceUpdatedTypes : Set TypeReferenceId
+--
+-- These are the terms and decls that we will apply substitutions to, and put into the scratch file:
+--
+--   aliceDirectlyConflictedTerms     : Set TermReferenceId
+--   aliceDependentsOfBobUpdatedTerms : Set TermReferenceId
+--
+--   bobDirectlyConflictedTerms       : Set TermReferenceId
+--   bobDependentsOfAliceUpdatedTerms : Set TermReferenceId
+
+makeTypeReferenceSubstitutions ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Map TypeReference TypeReferenceSubstitution
+makeTypeReferenceSubstitutions defns updates conflicted unconflicted =
   -- Arbitrarily pick one of all equally-good names for each dependent
-  Map.map (SubstituteTypeRefForName . Set.NonEmpty.findMin) (BiMultimap.domain types)
-    <> wundefined
+  -- Map.map (SubstituteTypeRefForName . Set.NonEmpty.findMin) (BiMultimap.domain types)
+  --   <> wundefined
+  wundefined
+
+honking ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Map TypeReference Name
+honking = wundefined
+
+bonking ::
+  TwoWay (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Map TypeReference TypeReference
+bonking = wundefined
+
+zonking ::
+  Map TypeReference Name ->
+  Map TypeReference TypeReference ->
+  Map TypeReference TypeReferenceSubstitution
+zonking = wundefined
 
 -- | A replacement to make for a particular type reference: either a name (var), or a different reference.
 data TypeReferenceSubstitution
