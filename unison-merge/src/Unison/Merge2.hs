@@ -34,12 +34,13 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (over, (^.), _3)
+import Control.Lens (mapped, over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import U.Codebase.Reference
   ( Reference,
     ReferenceType (RtTerm, RtType),
@@ -79,6 +80,8 @@ import Unison.UnisonFile.Env qualified as UFE
 import Unison.UnisonFile.Names qualified as UFN
 import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
@@ -379,6 +382,48 @@ computeUnisonFile
                   (True, _) -> Just $ Type.var mempty (Name.toVar name)
                   (False, Just u) -> Just $ Type.ref mempty u
                   (False, Nothing) -> Nothing
+
+-- | Perform substutitions on decl constructor types for all the direct and indirect updates
+-- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
+-- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
+-- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
+-- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
+performDeclSubstitutions :: forall v a. (Var v, Monoid a) => Map TypeReference TypeReferenceSubstitution -> V1.Decl v a -> V1.Decl v a
+performDeclSubstitutions substitutions =
+  V1.Decl.modifyAsDataDecl (over (V1.Decl.constructors_ . mapped . _3) performConstructorSubstitutions)
+  where
+    performConstructorSubstitutions :: V1.Type v a -> V1.Type v a
+    performConstructorSubstitutions ctor =
+      foldl' performTypeSubstitution ctor (V1.Type.dependencies ctor)
+
+    -- If there's a substitution to apply to this reference, try applying it (which returns Nothing if it didn't result
+    -- in any changes); return either the changed type, if it changed, or the original.
+    performTypeSubstitution :: V1.Type v a -> TypeReference -> V1.Type v a
+    performTypeSubstitution ty oldRef =
+      fromMaybe ty do
+        substitution <- Map.lookup oldRef substitutions
+        ABT.rewriteExpression
+          (Type.ref mempty oldRef)
+          ( case substitution of
+              SubstituteTypeRefForName newName -> Type.var mempty (Name.toVar newName)
+              SubstituteTypeRefForRef newRef -> Type.ref mempty newRef
+          )
+          ty
+
+-- types: all of Alice's definitions
+-- dependents: the set of Alice's definitions that are transitive dependents of names of Bob's updates
+-- updates: the things Bob updated directly (which, if not a transitive dep of one of Alice's updates, would induce a Ref->Ref update)
+-- dependents2: the set of Bob's definitions that are transitive dependents of names of Alice's updates
+makeTypeReferenceSubstitutions :: BiMultimap TypeReference Name -> Set TypeReferenceId -> Map Name TypeReference -> Set TypeReferenceId -> Map TypeReference TypeReferenceSubstitution
+makeTypeReferenceSubstitutions types dependents updates dependents2 =
+  -- Arbitrarily pick one of all equally-good names for each dependent
+  Map.map (SubstituteTypeRefForName . Set.NonEmpty.findMin) (BiMultimap.domain types)
+    <> wundefined
+
+-- | A replacement to make for a particular type reference: either a name (var), or a different reference.
+data TypeReferenceSubstitution
+  = SubstituteTypeRefForName !Name
+  | SubstituteTypeRefForRef !TypeReference
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
