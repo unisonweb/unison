@@ -8,7 +8,6 @@ module Unison.Merge2
     nameBasedNamespaceDiff,
 
     -- * Typechecking
-    WhatToTypecheck (..),
     whatToTypecheck,
     computeUnisonFile,
 
@@ -22,26 +21,26 @@ module Unison.Merge2
     UpdatesRefnt,
     DiffOp (..),
     DeepRefs,
-    -- DeepRefsId' (..),
+    DeepRefsId',
     RefToName,
     Defns (..),
-    DefnsA,
-    DefnsB,
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
     mergeNamespaceTrees,
+    zipNamespaceTrees,
     TwoWay (..),
     TwoOrThreeWay (..),
   )
 where
 
-import Control.Lens (over, (^.), _3)
+import Control.Lens (mapped, over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import U.Codebase.Reference
   ( Reference,
     ReferenceType (RtTerm, RtType),
@@ -64,7 +63,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB, NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree)
+import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree, zipNamespaceTrees)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference qualified as V1
@@ -81,6 +80,8 @@ import Unison.UnisonFile.Env qualified as UFE
 import Unison.UnisonFile.Names qualified as UFN
 import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
@@ -201,7 +202,7 @@ computeUnisonFile ::
   (TermReferenceId -> Transaction (V1.Term v a)) ->
   (TypeReferenceId -> Transaction (V1.Decl v a)) ->
   (TypeReference -> Transaction ConstructorType) ->
-  WhatToTypecheck ->
+  DeepRefsId' ->
   UpdatesRefnt ->
   Transaction (UnisonFile v a)
 computeUnisonFile
@@ -209,7 +210,7 @@ computeUnisonFile
   loadTerm
   loadDecl
   loadDeclType
-  (unWhatToTypecheck -> Defns {terms = termsToTypecheck, types = declsToTypecheck})
+  (Defns {terms = termsToTypecheck, types = declsToTypecheck})
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
     combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
 
@@ -397,6 +398,98 @@ computeUnisonFile
                   (False, Just u) -> Just $ Type.ref mempty u
                   (False, Nothing) -> Nothing
 
+-- | Perform substutitions on decl constructor types for all the direct and indirect updates
+-- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
+-- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
+-- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
+-- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
+performDeclSubstitutions :: forall v a. (Var v, Monoid a) => Map TypeReference TypeReferenceSubstitution -> V1.Decl v a -> V1.Decl v a
+performDeclSubstitutions substitutions =
+  V1.Decl.modifyAsDataDecl (over (V1.Decl.constructors_ . mapped . _3) performConstructorSubstitutions)
+  where
+    performConstructorSubstitutions :: V1.Type v a -> V1.Type v a
+    performConstructorSubstitutions ctor =
+      foldl' performTypeSubstitution ctor (V1.Type.dependencies ctor)
+
+    -- If there's a substitution to apply to this reference, try applying it (which returns Nothing if it didn't result
+    -- in any changes); return either the changed type, if it changed, or the original.
+    performTypeSubstitution :: V1.Type v a -> TypeReference -> V1.Type v a
+    performTypeSubstitution ty oldRef =
+      fromMaybe ty do
+        substitution <- Map.lookup oldRef substitutions
+        ABT.rewriteExpression
+          (Type.ref mempty oldRef)
+          ( case substitution of
+              SubstituteTypeRefForName newName -> Type.var mempty (Name.toVar newName)
+              SubstituteTypeRefForRef newRef -> Type.ref mempty newRef
+          )
+          ty
+
+-- types: all of Alice's definitions
+--
+-- dependents: the set of Alice's definitions that are transitive dependents of names of Bob's updates
+--
+-- updates: the things Bob updated directly (which, if not a transitive dep of one of Alice's updates, would induce a Ref->Ref update)
+--
+-- dependents2: the set of Bob's definitions that are transitive dependents of names of Alice's updates
+--
+--   1. All of `aliceDependents` (and `aliceConflicts` actually) are going to get substituted by `performDeclSubstitutions`
+--   2. We want to replace references in each with:
+--       3. Variable names, for the references to things in (1) Alice's branch that are in (1)
+--           4. Do we care about Bob's things here? Well, no --
+--       4. References, for the references to things that Bob updated, which ended up unconflicted.
+--
+-- These are the terms and decls that we will apply substitutions to, and put into the scratch file:
+--
+--   aliceDirectlyConflictedTypes     : Set TypeReferenceId
+--   aliceDependentsOfBobUpdatedTypes : Set TypeReferenceId
+--
+--   bobDirectlyConflictedTypes       : Set TypeReferenceId
+--   bobDependentsOfAliceUpdatedTypes : Set TypeReferenceId
+--
+-- These are the terms and decls that we will apply substitutions to, and put into the scratch file:
+--
+--   aliceDirectlyConflictedTerms     : Set TermReferenceId
+--   aliceDependentsOfBobUpdatedTerms : Set TermReferenceId
+--
+--   bobDirectlyConflictedTerms       : Set TermReferenceId
+--   bobDependentsOfAliceUpdatedTerms : Set TermReferenceId
+
+makeTypeReferenceSubstitutions ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Map TypeReference TypeReferenceSubstitution
+makeTypeReferenceSubstitutions defns updates conflicted unconflicted =
+  -- Arbitrarily pick one of all equally-good names for each dependent
+  -- Map.map (SubstituteTypeRefForName . Set.NonEmpty.findMin) (BiMultimap.domain types)
+  --   <> wundefined
+  wundefined
+
+honking ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Map TypeReference Name
+honking = wundefined
+
+bonking ::
+  TwoWay (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Map TypeReference TypeReference
+bonking = wundefined
+
+zonking ::
+  Map TypeReference Name ->
+  Map TypeReference TypeReference ->
+  Map TypeReference TypeReferenceSubstitution
+zonking = wundefined
+
+-- | A replacement to make for a particular type reference: either a name (var), or a different reference.
+data TypeReferenceSubstitution
+  = SubstituteTypeRefForName !Name
+  | SubstituteTypeRefForRef !TypeReference
+
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
     rtsTermRefs :: Set V1.TermReference,
@@ -428,7 +521,6 @@ instance Monoid RefsToSubst where
 --     err _ = error ""
 
 -- Q: Does this return all of the updates? A: suspect no currently
-newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 
 -- Question: What should these input types be?
 -- drAlice and drBob could be `DeepRefs` because that's what the diff gives us,
@@ -444,7 +536,7 @@ newtype WhatToTypecheck = WhatToTypecheck {unWhatToTypecheck :: DeepRefsId'}
 -- This seems okay. So disregard.
 
 -- Question: What happens if I update a ctor?
-whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction WhatToTypecheck
+whatToTypecheck :: (DeepRefs, UpdatesRefnt) -> (DeepRefs, UpdatesRefnt) -> Transaction DeepRefsId'
 whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
   -- 1. for each update, determine the corresponding old dependent
   let -- \| Find the `Reference.Id`s that comprise a namespace. Constructors show up as decl Ids.
@@ -523,7 +615,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
           updates' = dropBuiltins $ combinedUpdates ^. #types
   -- reminder: we're basically only typechecking the dependents; the updates themselves have already been typechecked.
-  pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
+  pure $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
   { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))

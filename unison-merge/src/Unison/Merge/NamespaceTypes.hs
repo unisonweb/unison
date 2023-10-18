@@ -1,19 +1,18 @@
 module Unison.Merge.NamespaceTypes
   ( Defns (..),
-    DefnsA,
-    DefnsB,
     NamespaceTree,
     flattenNamespaceTree,
     unflattenNamespaceTree,
-    mergeNamespaceTrees
+    mergeNamespaceTrees,
+    zipNamespaceTrees,
   )
 where
 
-import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty, pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment
@@ -28,15 +27,6 @@ data Defns terms types = Defns
   }
   deriving stock (Generic, Show)
   deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
-
-
--- haha rename or delete
-type DefnsA terms types =
-  Defns (BiMultimap terms Name) (BiMultimap types Name)
-
--- haha rename or delete
-type DefnsB terms types =
-  Defns (Map Name terms) (Map Name types)
 
 -- | A namespace tree has values, and a collection of children namespace trees keyed by name segment.
 type NamespaceTree a =
@@ -55,6 +45,22 @@ mergeNamespaceTrees ac bc abc =
           :< Map.merge
             (Map.mapMaybeMissing (\_nameSeg cofreeA -> Just (ac <$> cofreeA)))
             (Map.mapMaybeMissing (\_nameSeg cofreeB -> Just (bc <$> cofreeB)))
+            (Map.zipWithMaybeMatched (\_nameSeg cofreeA cofreeB -> Just (go cofreeA cofreeB)))
+            as
+            bs
+   in go
+
+zipNamespaceTrees ::
+  (a -> b -> c) ->
+  NamespaceTree a ->
+  NamespaceTree b ->
+  NamespaceTree c
+zipNamespaceTrees f =
+  let go (a :< as) (b :< bs) =
+        f a b
+          :< Map.merge
+            Map.dropMissing
+            Map.dropMissing
             (Map.zipWithMaybeMatched (\_nameSeg cofreeA cofreeB -> Just (go cofreeA cofreeB)))
             as
             bs

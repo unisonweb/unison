@@ -368,7 +368,12 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
+causalbranch2to1 ::
+  (Monad m) =>
+  BranchCache m ->
+  (V2.Reference -> m CT.ConstructorType) ->
+  V2.Branch.CausalBranch m ->
+  m (V1.Branch.Branch m)
 causalbranch2to1 branchCache lookupCT cb = do
   let ch = V2.causalHash cb
   lookupCachedBranch branchCache ch >>= \case
@@ -378,7 +383,12 @@ causalbranch2to1 branchCache lookupCT cb = do
       insertCachedBranch branchCache ch b
       pure b
 
-causalbranch2to1' :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' ::
+  (Monad m) =>
+  BranchCache m ->
+  (V2.Reference -> m CT.ConstructorType) ->
+  V2.Branch.CausalBranch m ->
+  m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> parents) me) = do
   let branchHash = branchHash2to1 eh
   case parents of

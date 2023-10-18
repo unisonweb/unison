@@ -1801,7 +1801,7 @@ getDependentsWithinScope scope query = do
   execute
     [sql|
       CREATE TEMPORARY TABLE dependents_search_scope (
-        dependent_object_id INTEGER NOT NULL REFERENCES object(id),
+        dependent_object_id INTEGER NOT NULL,
         dependent_component_index INTEGER NOT NULL,
         PRIMARY KEY (dependent_object_id, dependent_component_index)
       )
@@ -1813,8 +1813,8 @@ getDependentsWithinScope scope query = do
   execute
     [sql|
       CREATE TEMPORARY TABLE dependencies_query (
-        dependency_builtin INTEGER NULL REFERENCES text(id),
-        dependency_object_id INTEGER NULL REFERENCES object(id),
+        dependency_builtin INTEGER NULL,
+        dependency_object_id INTEGER NULL,
         dependency_component_index INTEGER NULL,
         CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
         CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
@@ -3495,16 +3495,16 @@ loadProjectBranchByNames projectName branchName =
 
 -- | Load all branch id/name pairs in a project whose name matches an optional prefix.
 loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
-loadAllProjectBranchesBeginningWith projectId mayPrefix =
+loadAllProjectBranchesBeginningWith projectId mayPrefix = do
   let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
-   in queryListRow
-        [sql|
-        SELECT project_branch.branch_id, project_branch.name
-        FROM project_branch
-        WHERE project_branch.project_id = :projectId
-          AND project_branch.name GLOB :prefixGlob
-        ORDER BY project_branch.name ASC
-      |]
+  queryListRow
+    [sql|
+      SELECT project_branch.branch_id, project_branch.name
+      FROM project_branch
+      WHERE project_branch.project_id = :projectId
+        AND project_branch.name GLOB :prefixGlob
+      ORDER BY project_branch.name ASC
+    |]
 
 -- | Load ALL project/branch name pairs
 -- Useful for autocomplete/fuzzy-finding

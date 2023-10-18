@@ -23,6 +23,7 @@ module Unison.Codebase.Branch
     discardHistory,
     discardHistory0,
     transform,
+    transform0,
 
     -- * Branch tests
     isEmpty,
@@ -715,19 +716,19 @@ transform :: (Functor m) => (forall a. m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
   where
-    transformB0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
-    transformB0 f b =
-      b
-        { _children = transform f <$> _children b,
-          _edits = second f <$> _edits b
-        }
-
     transformB0s ::
       (Functor m) =>
       (forall a. m a -> n a) ->
       Causal m (Branch0 m) ->
       Causal m (Branch0 n)
-    transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
+    transformB0s f = Causal.unsafeMapHashPreserving (transform0 f)
+
+transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
+transform0 f branch =
+  branch
+    { _children = transform f <$> _children branch,
+      _edits = second f <$> _edits branch
+    }
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.

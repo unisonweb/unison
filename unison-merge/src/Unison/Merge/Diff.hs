@@ -20,7 +20,7 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.NamespaceTypes (Defns (..), DefnsA, DefnsB)
+import Unison.Merge.NamespaceTypes (Defns (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
@@ -36,16 +36,19 @@ import Unison.Var (Var)
 -- A couple of internal types and type aliases of questionable utility.
 
 type Synhashes =
-  DefnsB Hash Hash
+  Defns (Map Name Hash) (Map Name Hash)
 
 type Diff =
-  DefnsB (DiffOp Hash) (DiffOp Hash)
+  Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
 
 data TwoWay a = TwoWay
   { alice :: !a,
     bob :: !a
   }
   deriving stock (Generic)
+
+instance Semigroup a => Semigroup (TwoWay a) where
+  TwoWay ax bx <> TwoWay ay by = TwoWay (ax <> ay) (bx <> by)
 
 data TwoOrThreeWay a = TwoOrThreeWay
   { lca :: !(Maybe a),
@@ -77,7 +80,7 @@ nameBasedNamespaceDiff ::
   (Monad m, Var v) =>
   (TypeReferenceId -> m (V1.Decl v a)) ->
   (TermReferenceId -> m (V1.Term v a)) ->
-  TwoOrThreeWay (DefnsA Referent TypeReference) ->
+  TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   m (TwoWay Diff)
 nameBasedNamespaceDiff loadDecl loadTerm (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
   aliceSynhashes <- synhashDefns aliceDefns
@@ -88,7 +91,7 @@ nameBasedNamespaceDiff loadDecl loadTerm (TwoOrThreeWay maybeLcaDefns aliceDefns
       lcaSynhashes <- synhashDefns lcaDefns
       pure (threeWayDiff ThreeWay {lca = lcaSynhashes, alice = aliceSynhashes, bob = bobSynhashes})
   where
-    synhashDefns :: DefnsA Referent TypeReference -> m Synhashes
+    synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> m Synhashes
     synhashDefns =
       synhashDefnsWith
         loadDecl
@@ -103,7 +106,7 @@ twoWayDiff synhashes =
       bob = synhashesToAdds (synhashes ^. #bob)
     }
   where
-    synhashesToAdds :: Synhashes -> DefnsB (DiffOp Hash) (DiffOp Hash)
+    synhashesToAdds :: Synhashes -> Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
     synhashesToAdds Defns {terms, types} =
       Defns
         { terms = Map.map Added terms,
@@ -118,9 +121,9 @@ threeWayDiff ThreeWay {lca, alice, bob} =
     }
 
 diffNamespaceDefns ::
-  DefnsB Hash Hash ->
-  DefnsB Hash Hash ->
-  DefnsB (DiffOp Hash) (DiffOp Hash)
+  Defns (Map Name Hash) (Map Name Hash) ->
+  Defns (Map Name Hash) (Map Name Hash) ->
+  Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
 diffNamespaceDefns oldDefns newDefns =
   Defns
     { terms = go (oldDefns ^. #terms) (newDefns ^. #terms),
@@ -142,7 +145,7 @@ diffNamespaceDefns oldDefns newDefns =
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env helpers
 
-deepNamespaceDefinitionsToPpe :: DefnsA Referent TypeReference -> PrettyPrintEnv
+deepNamespaceDefinitionsToPpe :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> PrettyPrintEnv
 deepNamespaceDefinitionsToPpe Defns {terms, types} =
   PrettyPrintEnv
     (\ref -> arbitraryName (referent1to2 ref) terms)
@@ -169,8 +172,8 @@ synhashDefnsWith ::
   (TypeReferenceId -> m (V1.Decl v a)) ->
   (TermReferenceId -> m (V1.Term v a)) ->
   PrettyPrintEnv ->
-  DefnsA Referent TypeReference ->
-  m (DefnsB Hash Hash)
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  m (Defns (Map Name Hash) (Map Name Hash))
 synhashDefnsWith loadDecl loadTerm ppe defns = do
   terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (synhashReferent loadTerm ppe) (defns ^. #terms)
   types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (Synhash.hashDecl loadDecl ppe) (defns ^. #types)

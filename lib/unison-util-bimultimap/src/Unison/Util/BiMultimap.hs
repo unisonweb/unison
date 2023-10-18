@@ -4,6 +4,7 @@ module Unison.Util.BiMultimap
     Unison.Util.BiMultimap.empty,
 
     -- ** Lookup
+    memberDom,
     lookupDom,
     lookupRan,
     lookupPreimage,
@@ -12,9 +13,11 @@ module Unison.Util.BiMultimap
     unsafeTraverseDom,
 
     -- ** Filtering
+    filter,
     filterDom,
     restrictDom,
     withoutDom,
+    withoutRan,
 
     -- ** Maps
     domain,
@@ -45,6 +48,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
+import Prelude hiding (filter)
 
 -- | A left-unique relation.
 --
@@ -58,6 +62,10 @@ data BiMultimap a b = BiMultimap
 -- | An empty left-unique relation.
 empty :: (Ord a, Ord b) => BiMultimap a b
 empty = BiMultimap mempty mempty
+
+memberDom :: Ord a => a -> BiMultimap a b -> Bool
+memberDom x =
+  Map.member x . domain
 
 -- | Look up the set of @b@ related to an @a@.
 --
@@ -96,6 +104,20 @@ unsafeTraverseDom f m =
       !b <- f a
       acc $! BiMultimap (Map.insert b xs domain0) (deriveRangeFromDomain b xs range0)
 
+-- | Filter a left-unique relation, keeping only members @(a, b)@ that satisfy a predicate.
+filter :: (Ord a, Ord b) => (a -> b -> Bool) -> BiMultimap a b -> BiMultimap a b
+filter p (BiMultimap domain range) =
+  BiMultimap
+    ( Map.mapMaybeWithKey
+        ( \x ys ->
+            ys
+              & Set.NonEmpty.filter (p x)
+              & Set.NonEmpty.nonEmptySet
+        )
+        domain
+    )
+    (Map.filterWithKey (flip p) range)
+
 -- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is in the given set.
 filterDom :: (Ord a, Ord b) => (a -> Bool) -> BiMultimap a b -> BiMultimap a b
 filterDom f m =
@@ -110,6 +132,11 @@ restrictDom xs m =
 withoutDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
 withoutDom xs m =
   unsafeFromDomain (Map.withoutKeys (domain m) xs)
+
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @b@ is not in the given set.
+withoutRan :: (Ord a, Ord b) => Set b -> BiMultimap a b -> BiMultimap a b
+withoutRan ys m =
+  fromRange (Map.withoutKeys (range m) ys)
 
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap

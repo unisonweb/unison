@@ -2,7 +2,7 @@
 -- references to other terms and decls with names from a pretty-print environment.
 --
 -- Thus, syntactic hashes can be compared for equality to answer questions like "would these definitions look the same
--- when rendered for a human (even if their underlying references are different?".
+-- when rendered for a human (even if their underlying references are different)?".
 --
 -- The merge algorithm currently uses syntactic hashes for determining whether an update was performed by a human, or
 -- was the result of auto-propagation. (Critically, this cannot handle renames very well). For example, consider
