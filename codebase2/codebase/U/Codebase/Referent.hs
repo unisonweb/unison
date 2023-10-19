@@ -6,7 +6,7 @@ import Control.Lens (Prism, Prism', Traversal, preview, prism, review)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
-import U.Codebase.Reference (Reference, TermRReference, TermReference, TypeReference)
+import U.Codebase.Reference (Reference, Reference'(..), TermRReference, TermReference, TypeReference)
 import U.Codebase.Reference qualified as Reference
 import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
@@ -60,6 +60,9 @@ toReferenceId :: Referent -> Maybe Reference.Id
 toReferenceId = \case
   Ref termRef -> Reference.toId termRef
   Con typeRef _ -> Reference.toId typeRef
+
+fromTermReferenceId :: Reference.TermReferenceId -> Referent
+fromTermReferenceId = Ref . ReferenceDerived
 
 toTermReference :: Referent' termRef typeRef -> Maybe termRef
 toTermReference = \case

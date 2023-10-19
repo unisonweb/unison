@@ -72,6 +72,7 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
+import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
@@ -81,6 +82,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
@@ -92,7 +94,10 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
+import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Term qualified as V1 (Term)
+import Unison.Term qualified as V1.Term
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -299,9 +304,9 @@ handleMerge bobBranchName = do
                 libdepsCausalParents
                 libdeps
 
-            -- TODO the rest
+            mergeOutput <- mkMergeOutput loadTerm loadDecl aliceDefns bobDefns conflicted dependents
 
-            pure (MergeConflicts unconflictedV1Branch wundefined wundefined)
+            pure (MergeConflicts unconflictedV1Branch wundefined mergeOutput)
 
       Sqlite.unsafeIO do
         Text.putStrLn ""
@@ -389,6 +394,89 @@ handleMerge bobBranchName = do
             (scratchFile, _) <- Cli.expectLatestFile
             Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
+
+mkMergeOutput ::
+  forall a.
+  (TermReferenceId -> Transaction (V1.Term Symbol a)) ->
+  (TypeReferenceId -> Transaction (V1.Decl Symbol a)) ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Transaction (Merge.MergeOutput Symbol ())
+mkMergeOutput
+  loadTerm
+  loadDecl
+  (Merge.Defns aliceTerms aliceTypes)
+  (Merge.Defns bobTerms bobTypes)
+  nameConflicts
+  potentialConflicts = do
+    (termNameConflicts, typeNameConflicts) <- do
+      mkConflictMaps nameConflicts wundefined wundefined
+    (termPotentialConflicts, typePotentialConflicts) <- do
+      mkConflictMaps potentialConflicts Merge.Good Merge.Good
+    let termConflicts = termNameConflicts <> termPotentialConflicts
+        typeConflicts = typeNameConflicts <> typePotentialConflicts
+    pure (Merge.MergeProblem $ Merge.Defns termConflicts typeConflicts)
+    where
+      mkConflictMaps ::
+        Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+        (V1.Term Symbol () -> Merge.ConflictOrGood (V1.Term Symbol ())) ->
+        (V1.Decl Symbol () -> Merge.ConflictOrGood (V1.Decl Symbol ())) ->
+        Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (V1.Decl Symbol ())))
+      mkConflictMaps conflicts classifyTermConflict classifyTypeConflict = do
+        let Merge.TwoWay
+              (Merge.Defns aliceTermConflicts aliceTypeConflicts)
+              (Merge.Defns bobTermConflicts bobTypeConflicts) = conflicts
+
+        aliceTermMap <- mkTermMap aliceTerms aliceTermConflicts
+        bobTermMap <- mkTermMap bobTerms bobTermConflicts
+        aliceTypeMap <- mkTypeMap aliceTypes aliceTypeConflicts
+        bobTypeMap <- mkTypeMap bobTypes bobTypeConflicts
+
+        let termConflicts = classifyTermConflict <$> (aliceTermMap <> bobTermMap)
+        let typeConflicts = classifyTypeConflict <$> (aliceTypeMap <> bobTypeMap)
+
+        pure (termConflicts, typeConflicts)
+
+      mkTypeMap ::
+        forall f.
+        Foldable f =>
+        BiMultimap TypeReference Name ->
+        f TypeReferenceId ->
+        Transaction (Map Name (V1.Decl Symbol ()))
+      mkTypeMap types typeIds =
+        mkNameMap ReferenceDerived types
+          <$> traverse (\x -> (x,) . forgetAnn <$> loadDecl x) (toList typeIds)
+        where
+          forgetAnn = \case
+            Left x -> Left (x $> ())
+            Right x -> Right (x $> ())
+
+      mkTermMap ::
+        forall f.
+        Foldable f =>
+        BiMultimap Referent Name ->
+        f TermReferenceId ->
+        Transaction (Map Name (V1.Term Symbol ()))
+      mkTermMap terms termIds =
+        mkNameMap Referent.fromTermReferenceId terms
+          <$> traverse (\x -> (x,) . V1.Term.unannotate <$> loadTerm x) (toList termIds)
+
+      mkNameMap ::
+        forall ref toref x.
+        Ord ref =>
+        (toref -> ref) ->
+        BiMultimap ref Name ->
+        [(toref, x)] ->
+        Map Name x
+      mkNameMap toref bimulti =
+        Map.fromList . concat . map f
+        where
+          f :: (toref, x) -> [(Name, x)]
+          f (trefid, term) =
+            let names = BiMultimap.lookupDom (toref trefid) bimulti
+             in [(n, term) | n <- toList names]
 
 -- TODO document this
 collectDependentsOfInterest ::
