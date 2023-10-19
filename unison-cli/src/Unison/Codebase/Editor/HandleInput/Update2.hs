@@ -45,7 +45,7 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.DataDeclaration (Decl)
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.Merge2 (Defns (..), WhatToTypecheck (..))
+import Unison.Merge2 (Defns (..), DeepRefsId')
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -636,7 +636,7 @@ type DeepRefs = Defns (Map Name Referent) (Map Name TypeReference)
 
 type UpdateNames = Defns (Set Name) (Set Name)
 
-whatToTypecheck :: UpdateNames -> DeepRefs -> Transaction WhatToTypecheck
+whatToTypecheck :: UpdateNames -> DeepRefs -> Transaction DeepRefsId'
 whatToTypecheck fileUpdates namespace = do
   let -- \| Find the `Reference.Id`s that comprise a namespace.
       -- The results of the search will be a subset of these references.
@@ -690,4 +690,4 @@ whatToTypecheck fileUpdates namespace = do
           setup dr dependents = (dropBuiltins (dr ^. #types), filterDependents RtType dependents)
           dropBuiltins = Map.mapMaybe \case Reference.ReferenceDerived r -> Just r; _ -> Nothing
 
-  pure . WhatToTypecheck $ Defns latestTermDependents latestTypeDependents
+  pure $ Defns latestTermDependents latestTypeDependents

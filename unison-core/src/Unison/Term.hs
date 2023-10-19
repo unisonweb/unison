@@ -1223,53 +1223,50 @@ data GdHandler r = GdHandler
     gdTypeRef :: TypeReference -> r,
     gdLiteralType :: TypeReference -> r,
     gdDataCtor :: TypeReference -> ConstructorId -> r,
-    gdDataCtorType :: TypeReference -> r,
     gdEffectCtor :: TypeReference -> ConstructorId -> r,
-    gdEffectCtorType :: TypeReference -> r,
     gdTermLink :: Referent -> r,
-    gdTypeLink :: TypeReference -> r
+    gdTypeLink :: TypeReference -> r,
+    gdLiteralPattern :: TypeReference -> r,
+    gdDataPattern :: TypeReference -> ConstructorId -> r,
+    gdEffectPattern :: TypeReference -> ConstructorId -> r
   }
 
 -- should this work with an arbitrary Monoid r instead of Set r?
-generalizedDependencies :: (Ord v, Ord vt, Ord r) => GdHandler r -> Term2 vt at ap v a -> Set r
+generalizedDependencies :: forall r vt at ap v a. (Monoid r, Ord vt, Ord v) => GdHandler r -> Term2 vt at ap v a -> r
 generalizedDependencies GdHandler {..} =
-  Set.fromList . Writer.execWriter . ABT.visit' f
+  Writer.execWriter . ABT.visit' f
   where
-    f t@(Ref r) = Writer.tell [gdTermRef r] $> t
-    f t@(TermLink r) = Writer.tell [gdTermLink r] $> t
-    f t@(TypeLink r) = Writer.tell [gdTypeLink r] $> t
-    f t@(Ann _ typ) =
-      Writer.tell (map gdTypeRef . toList $ Type.dependencies typ) $> t
-    f t@(Nat _) = Writer.tell [gdLiteralType Type.natRef] $> t
-    f t@(Int _) = Writer.tell [gdLiteralType Type.intRef] $> t
-    f t@(Float _) = Writer.tell [gdLiteralType Type.floatRef] $> t
-    f t@(Boolean _) = Writer.tell [gdLiteralType Type.booleanRef] $> t
-    f t@(Text _) = Writer.tell [gdLiteralType Type.textRef] $> t
-    f t@(List _) = Writer.tell [gdLiteralType Type.listRef] $> t
-    f t@(Constructor (ConstructorReference r cid)) =
-      Writer.tell [gdDataCtorType r, gdDataCtor r cid] $> t
-    f t@(Request (ConstructorReference r cid)) =
-      Writer.tell [gdEffectCtorType r, gdEffectCtor r cid] $> t
+    f t@(Ref r) = Writer.tell (gdTermRef r) $> t
+    f t@(TermLink r) = Writer.tell (gdTermLink r) $> t
+    f t@(TypeLink r) = Writer.tell (gdTypeLink r) $> t
+    f t@(Ann _ typ) = Writer.tell (foldMap gdTypeRef . toList $ Type.dependencies typ) $> t
+    f t@(Nat _) = Writer.tell (gdLiteralType Type.natRef) $> t
+    f t@(Int _) = Writer.tell (gdLiteralType Type.intRef) $> t
+    f t@(Float _) = Writer.tell (gdLiteralType Type.floatRef) $> t
+    f t@(Boolean _) = Writer.tell (gdLiteralType Type.booleanRef) $> t
+    f t@(Text _) = Writer.tell (gdLiteralType Type.textRef) $> t
+    f t@(List _) = Writer.tell (gdLiteralType Type.listRef) $> t
+    f t@(Constructor (ConstructorReference r cid)) = Writer.tell (gdDataCtor r cid) $> t
+    f t@(Request (ConstructorReference r cid)) = Writer.tell (gdEffectCtor r cid) $> t
     f t@(Match _ cases) = traverse_ goPat cases $> t
     f t = pure t
-    goPat (MatchCase pat _ _) =
-      Writer.tell . toList $
-        Pattern.generalizedDependencies Pattern.GdHandler {..} pat
+    goPat (MatchCase pat _ _) = Writer.tell $ Pattern.generalizedDependencies Pattern.GdHandler {..} pat
 
 labeledDependencies ::
   (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
 labeledDependencies =
   generalizedDependencies
     GdHandler
-      { gdTermRef = LD.termRef,
-        gdTypeRef = LD.typeRef,
-        gdLiteralType = LD.typeRef,
-        gdDataCtor = \r i -> LD.dataConstructor (ConstructorReference r i),
-        gdDataCtorType = LD.typeRef,
-        gdEffectCtor = \r i -> LD.effectConstructor (ConstructorReference r i),
-        gdEffectCtorType = LD.typeRef,
-        gdTermLink = LD.referent,
-        gdTypeLink = LD.typeRef
+      { gdTermRef = Set.singleton . LD.termRef,
+        gdTypeRef = Set.singleton . LD.typeRef,
+        gdLiteralType = Set.singleton . LD.typeRef,
+        gdDataCtor = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectCtor = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)],
+        gdTermLink = Set.singleton . LD.referent,
+        gdTypeLink = Set.singleton . LD.typeRef,
+        gdLiteralPattern = Set.singleton . LD.typeRef,
+        gdDataPattern = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectPattern = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)]
       }
 
 updateDependencies ::

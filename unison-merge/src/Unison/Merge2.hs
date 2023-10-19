@@ -36,11 +36,9 @@ where
 
 import Control.Lens (mapped, over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
-import Data.Foldable qualified as Foldable
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Set.NonEmpty qualified as Set.NonEmpty
 import U.Codebase.Reference
   ( Reference,
     ReferenceType (RtTerm, RtType),
@@ -65,6 +63,7 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree, zipNamespaceTrees)
 import Unison.Name (Name)
+import Unison.Pattern qualified as V1.Pattern
 import Unison.Prelude
 import Unison.Reference qualified as V1
 import Unison.Referent qualified as V1
@@ -81,7 +80,6 @@ import Unison.UnisonFile.Names qualified as UFN
 import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
@@ -247,7 +245,8 @@ computeUnisonFile
     updatedTerms <-
       let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadTerm
             where
-              termNeedsUpdate = flip Map.member termsToTypecheck
+              ctorNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
+              termNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
               updatedTypes :: Map Name TypeReference =
                 Map.mapKeys Name.unsafeFromVar $
                   fmap (Reference.ReferenceDerived . fst) (UFE.datasId env)
@@ -300,20 +299,20 @@ computeUnisonFile
               where
                 allCtors = Set.map (,CT.Data) rtsDataCtors <> Set.map (,CT.Effect) rtsEffectCtors
                 RefsToSubst {..} =
-                  mconcat . Foldable.toList $
-                    V1.Term.generalizedDependencies
-                      V1.Term.GdHandler
-                        { gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
-                          gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r},
-                          gdLiteralType = const mempty,
-                          gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
-                          gdDataCtorType = const mempty,
-                          gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
-                          gdEffectCtorType = const mempty,
-                          gdTermLink = const mempty,
-                          gdTypeLink = \r -> mempty {rtsTypeLinks = Set.singleton r}
-                        }
-                      term
+                  V1.Term.generalizedDependencies
+                    V1.Term.GdHandler
+                      { gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
+                        gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r},
+                        gdLiteralType = const mempty,
+                        gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
+                        gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
+                        gdTermLink = const mempty,
+                        gdTypeLink = \r -> mempty {rtsTypeLinks = Set.singleton r},
+                        gdLiteralPattern = const mempty,
+                        gdDataPattern = \r i -> mempty {rtsDataPatterns = Set.singleton (V1.ConstructorReference r i)},
+                        gdEffectPattern = \r i -> mempty {rtsEffectPatterns = Set.singleton (V1.ConstructorReference r i)}
+                      }
+                    term
 
                 updatePatterns :: V1.Term v a -> (ConstructorReference, ConstructorType) -> V1.Term v a
                 updatePatterns term (cr@(ConstructorReference typeRef conId), ct) =
@@ -371,12 +370,24 @@ computeUnisonFile
                         (_, Just u) -> Just $ V1.Term.termLink mempty u
                         (False, Nothing) -> Nothing
 
+      -- a. LCA:   foo#foo calls bar#bar, bar#bar calls baz#baz
+      -- b. Alice: updates bar#bar2, autopropagates to foo#foo2
+      -- c. Bob:   updates foo#foo3
+      -- d. Alice updates: {bar#bar2}
+      -- e. Bob updates: {foo#foo3}
+      -- f. Bob dependents of Alice updates' names: {#foo3} -> {foo -> #foo3}
+      -- g. Alice dependents of Bob updates' names: {}      -> {}
+      -- h. What to typecheck: f union g = {#foo3}   or {foo -> #foo3}
+      -- i. Combined updates {bar#bar2, foo#foo3}
+      -- load #foo3, and encounter ref #bar
+
       -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
       -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
       -- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
+      --  -- ^it may also be an updated definition itself
       -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
       -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
-      substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> (V1.Decl v a) -> (V1.Decl v a)
+      substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> V1.Decl v a -> V1.Decl v a
       substForDecl Defns {types = ppe} declNeedsUpdate updatedTypes decl =
         V1.Decl.modifyAsDataDecl updateDecl decl
         where
@@ -394,6 +405,8 @@ computeUnisonFile
               new = do
                 name <- Map.lookup ref ppe
                 case (declNeedsUpdate name, Map.lookup name updatedTypes) of
+                  -- for sure, not definition whose id triggers the `var` case
+                  -- will end up in the scratch file, but some same-named definition will.
                   (True, _) -> Just $ Type.var mempty (Name.toVar name)
                   (False, Just u) -> Just $ Type.ref mempty u
                   (False, Nothing) -> Nothing
@@ -495,17 +508,19 @@ data RefsToSubst = RefsToSubst
     rtsTermRefs :: Set V1.TermReference,
     rtsDataCtors :: Set V1.ConstructorReference,
     rtsEffectCtors :: Set V1.ConstructorReference,
+    rtsDataPatterns :: Set V1.ConstructorReference,
+    rtsEffectPatterns :: Set V1.ConstructorReference,
     rtsTypeLinks :: Set V1.TypeReference,
     rtsTermLinks :: Set V1.Referent
   }
   deriving (Eq, Ord)
 
 instance Semigroup RefsToSubst where
-  RefsToSubst a1 b1 c1 d1 e1 f1 <> RefsToSubst a2 b2 c2 d2 e2 f2 =
-    RefsToSubst (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2) (e1 <> e2) (f1 <> f2)
+  RefsToSubst a1 b1 c1 d1 e1 f1 g1 h1 <> RefsToSubst a2 b2 c2 d2 e2 f2 g2 h2 =
+    RefsToSubst (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2) (e1 <> e2) (f1 <> f2) (g1 <> g2) (h1 <> h2)
 
 instance Monoid RefsToSubst where
-  mempty = RefsToSubst mempty mempty mempty mempty mempty mempty
+  mempty = RefsToSubst mempty mempty mempty mempty mempty mempty mempty mempty
 
 -- typecheck :: Codebase IO v a -> UnisonFile v a -> Transaction (Either (Seq (Result.Note v a)) (TypecheckedUnisonFile v a))
 -- typecheck codebase uf = do
@@ -618,7 +633,10 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
   pure $ Defns latestTermDependents latestTypeDependents
 
 data MergeOutput v a = MergeProblem
-  { definitions :: Defns (Map Name (ConflictOrGood (V1.Term v a))) (Map Name (ConflictOrGood (V1.Decl v a)))
+  { definitions ::
+      Defns
+        (Map Name (ConflictOrGood (V1.Term v a)))
+        (Map Name (ConflictOrGood (V1.Decl v a)))
   }
 
 instance Ord v => Functor (MergeOutput v) where

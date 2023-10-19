@@ -42,6 +42,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference, Reference' (..), TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -526,19 +527,19 @@ propagate patch b = case validatePatch patch of
     termConstructorDependencies ::
       Ord v => Term v a -> Set TypeReference
     termConstructorDependencies =
-      Set.unions
-        . Term.generalizedDependencies
-          Term.GdHandler
-            { gdTermRef = const mempty,
-              gdTypeRef = const mempty,
-              gdLiteralType = Set.singleton,
-              gdDataCtor = const . Set.singleton,
-              gdDataCtorType = Set.singleton,
-              gdEffectCtor = const . Set.singleton,
-              gdEffectCtorType = Set.singleton,
-              gdTermLink = const mempty,
-              gdTypeLink = const mempty
-            }
+      Term.generalizedDependencies
+        Term.GdHandler
+          { gdTermRef = const mempty,
+            gdTypeRef = const mempty,
+            gdLiteralType = Set.singleton,
+            gdDataCtor = const . Set.singleton,
+            gdEffectCtor = const . Set.singleton,
+            gdTermLink = const mempty,
+            gdTypeLink = const mempty,
+            gdLiteralPattern = Set.singleton,
+            gdDataPattern = const . Set.singleton,
+            gdEffectPattern = const . Set.singleton
+          }
 
     verifyTermComponent ::
       Codebase IO Symbol Ann ->

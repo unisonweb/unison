@@ -170,46 +170,37 @@ foldMap' f p = case p of
   SequenceLiteral _ ps -> f p <> foldMap (foldMap' f) ps
   SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
-data GdHandler r = GdHandler {
-  gdLiteralType :: TypeReference -> r,
-  gdDataCtor :: TypeReference -> ConstructorId -> r,
-  gdDataCtorType :: TypeReference -> r,
-  gdEffectCtor :: TypeReference -> ConstructorId -> r,
-  gdEffectCtorType :: TypeReference -> r
-}
-generalizedDependencies ::
-  (Ord r) =>
-  GdHandler r ->
-  Pattern loc ->
-  Set r
-generalizedDependencies GdHandler{..}=
-  Set.fromList
-    . foldMap'
-      ( \case
-          Unbound _ -> mempty
-          Var _ -> mempty
-          As _ _ -> mempty
-          Constructor _ (ConstructorReference r cid) _ ->
-            [gdDataCtorType r, gdDataCtor r cid]
-          EffectPure _ _ -> []
-          EffectBind _ (ConstructorReference r cid) _ _ ->
-            [gdEffectCtorType r, gdEffectCtor r cid]
-          SequenceLiteral _ _ -> [gdLiteralType Type.listRef]
-          SequenceOp {} -> [gdLiteralType Type.listRef]
-          Boolean _ _ -> [gdLiteralType Type.booleanRef]
-          Int _ _ -> [gdLiteralType Type.intRef]
-          Nat _ _ -> [gdLiteralType Type.natRef]
-          Float _ _ -> [gdLiteralType Type.floatRef]
-          Text _ _ -> [gdLiteralType Type.textRef]
-          Char _ _ -> [gdLiteralType Type.charRef]
-      )
+data GdHandler r = GdHandler
+  { gdLiteralPattern :: TypeReference -> r,
+    gdDataPattern :: TypeReference -> ConstructorId -> r,
+    gdEffectPattern :: TypeReference -> ConstructorId -> r
+  }
+
+generalizedDependencies :: (Monoid r) => GdHandler r -> Pattern loc -> r
+generalizedDependencies GdHandler {..} =
+  foldMap'
+    ( \case
+        Unbound _ -> mempty
+        Var _ -> mempty
+        As _ _ -> mempty
+        Constructor _ (ConstructorReference r cid) _ -> gdDataPattern r cid
+        EffectPure _ _ -> mempty
+        EffectBind _ (ConstructorReference r cid) _ _ -> gdEffectPattern r cid
+        SequenceLiteral _ _ -> gdLiteralPattern Type.listRef
+        SequenceOp {} -> gdLiteralPattern Type.listRef
+        Boolean _ _ -> gdLiteralPattern Type.booleanRef
+        Int _ _ -> gdLiteralPattern Type.intRef
+        Nat _ _ -> gdLiteralPattern Type.natRef
+        Float _ _ -> gdLiteralPattern Type.floatRef
+        Text _ _ -> gdLiteralPattern Type.textRef
+        Char _ _ -> gdLiteralPattern Type.charRef
+    )
 
 labeledDependencies :: Pattern loc -> Set LabeledDependency
 labeledDependencies =
-  generalizedDependencies GdHandler {
-    gdLiteralType = LD.typeRef,
-    gdDataCtor = \r i -> LD.dataConstructor (ConstructorReference r i),
-    gdDataCtorType = LD.typeRef,
-    gdEffectCtor = \r i -> LD.effectConstructor (ConstructorReference r i),
-    gdEffectCtorType = LD.typeRef
-  }
+  generalizedDependencies
+    GdHandler
+      { gdLiteralPattern = Set.singleton . LD.typeRef,
+        gdDataPattern = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectPattern = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)]
+      }
