@@ -304,7 +304,16 @@ handleMerge bobBranchName = do
                 libdepsCausalParents
                 libdeps
 
-            mergeOutput <- mkMergeOutput loadTerm loadDecl aliceDefns bobDefns conflicted dependents
+            mergeOutput <-
+              mkMergeOutput
+                (aliceProjectBranch ^. #name)
+                (bobProjectBranch ^. #name)
+                loadTerm
+                loadDecl
+                aliceDefns
+                bobDefns
+                conflicted
+                dependents
 
             pure (MergeConflicts unconflictedV1Branch wundefined mergeOutput)
 
@@ -397,6 +406,8 @@ handleMerge bobBranchName = do
 
 mkMergeOutput ::
   forall a.
+  ProjectBranchName ->
+  ProjectBranchName ->
   (TermReferenceId -> Transaction (V1.Term Symbol a)) ->
   (TypeReferenceId -> Transaction (V1.Decl Symbol a)) ->
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -405,6 +416,8 @@ mkMergeOutput ::
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Transaction (Merge.MergeOutput Symbol ())
 mkMergeOutput
+  aliceProjectBranchName
+  bobProjectBranchName
   loadTerm
   loadDecl
   (Merge.Defns aliceTerms aliceTypes)
@@ -412,19 +425,25 @@ mkMergeOutput
   nameConflicts
   potentialConflicts = do
     (termNameConflicts, typeNameConflicts) <- do
-      mkConflictMaps nameConflicts wundefined wundefined
+      mkConflictMaps
+        nameConflicts
+        ( Map.intersectionWith
+            ( \a b ->
+                Merge.Conflict $
+                  Merge.ConflictUnknown aliceProjectBranchName bobProjectBranchName a b
+            )
+        )
     (termPotentialConflicts, typePotentialConflicts) <- do
-      mkConflictMaps potentialConflicts Merge.Good Merge.Good
+      mkConflictMaps potentialConflicts (\a b -> Merge.Good <$> Map.union a b)
     let termConflicts = termNameConflicts <> termPotentialConflicts
         typeConflicts = typeNameConflicts <> typePotentialConflicts
     pure (Merge.MergeProblem $ Merge.Defns termConflicts typeConflicts)
     where
       mkConflictMaps ::
         Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
-        (V1.Term Symbol () -> Merge.ConflictOrGood (V1.Term Symbol ())) ->
-        (V1.Decl Symbol () -> Merge.ConflictOrGood (V1.Decl Symbol ())) ->
+        (forall x. Map Name x -> Map Name x -> Map Name (Merge.ConflictOrGood x)) ->
         Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (V1.Decl Symbol ())))
-      mkConflictMaps conflicts classifyTermConflict classifyTypeConflict = do
+      mkConflictMaps conflicts mergeMaps = do
         let Merge.TwoWay
               (Merge.Defns aliceTermConflicts aliceTypeConflicts)
               (Merge.Defns bobTermConflicts bobTypeConflicts) = conflicts
@@ -434,8 +453,8 @@ mkMergeOutput
         aliceTypeMap <- mkTypeMap aliceTypes aliceTypeConflicts
         bobTypeMap <- mkTypeMap bobTypes bobTypeConflicts
 
-        let termConflicts = classifyTermConflict <$> (aliceTermMap <> bobTermMap)
-        let typeConflicts = classifyTypeConflict <$> (aliceTypeMap <> bobTypeMap)
+        let termConflicts = aliceTermMap `mergeMaps` bobTermMap
+        let typeConflicts = aliceTypeMap `mergeMaps` bobTypeMap
 
         pure (termConflicts, typeConflicts)
 

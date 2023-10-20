@@ -654,8 +654,5 @@ data ConflictOrGood a = Conflict (Conflict ProjectBranchName a) | Good a
   deriving stock (Functor)
 
 data Conflict branch a
-  = ConflictAddAdd !branch !branch !a !a
-  | ConflictUpdateUpdate !branch !branch !a !a
-  | ConflictDeleteAddDependent !branch !branch !a
-  | ConflictDeleteUpdate !branch !branch !a !a
+  = ConflictUnknown !branch !branch !a !a
   deriving stock (Functor)

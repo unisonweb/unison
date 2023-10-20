@@ -47,32 +47,11 @@ pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDep
     prettyTransitiveDep = uncurry printDefn
     prettyConflict :: (Name, Conflict ProjectBranchName (ScratchDefn v a)) -> Pretty
     prettyConflict = \case
-      (name, ConflictAddAdd b1 b2 d1 d2) ->
+      (name, ConflictUnknown b1 b2 d1 d2) ->
         P.lines
-          [ "-- added in " <> P.prettyProjectBranchName b1,
+          [ "-- from " <> P.prettyProjectBranchName b1,
             printDefn name d1,
-            "-- added in " <> P.prettyProjectBranchName b2,
-            printDefn name d2
-          ]
-      (name, ConflictUpdateUpdate b1 b2 d1 d2) ->
-        P.lines
-          [ "-- updated in " <> P.prettyProjectBranchName b1,
-            printDefn name d1,
-            "-- updated in " <> P.prettyProjectBranchName b2,
-            printDefn name d2
-          ]
-      (name, ConflictDeleteAddDependent b1 b2 d) ->
-        P.lines
-          [ "-- deleted in " <> P.prettyProjectBranchName b1,
-            printDeletedDefn name d,
-            "-- original definition still in use by " <> P.prettyProjectBranchName b2,
-            printDefn name d
-          ]
-      (name, ConflictDeleteUpdate b1 b2 d1 d2) ->
-        P.lines
-          [ "-- deleted in " <> P.prettyProjectBranchName b1,
-            printDefn name d1,
-            "-- updated in " <> P.prettyProjectBranchName b2,
+            "-- from " <> P.prettyProjectBranchName b2,
             printDefn name d2
           ]
     printDeletedDefn :: Name -> ScratchDefn v a -> Pretty
