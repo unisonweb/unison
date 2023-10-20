@@ -82,10 +82,13 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Reference (TermReference)
 import Unison.Referent qualified as V1 (Referent)
@@ -315,7 +318,16 @@ handleMerge bobBranchName = do
                 conflicted
                 dependents
 
-            pure (MergeConflicts unconflictedV1Branch wundefined mergeOutput)
+            let defnNames :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Names.Names
+                defnNames = \case
+                  Merge.Defns terms types -> do
+                    termNames <- do
+                      termList <- traverse (\(k, v) -> (k,) <$> referent2to1 loadDeclType v) (Map.toList (BiMultimap.range terms))
+                      pure (foldr (\(k, v) -> Names.addTerm k v) mempty termList)
+                    pure (Map.foldrWithKey Names.addType termNames (BiMultimap.range types))
+            names <- (<>) <$> defnNames aliceDefns <*> defnNames bobDefns
+            ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
+            pure (MergeConflicts unconflictedV1Branch ppe mergeOutput)
 
       Sqlite.unsafeIO do
         Text.putStrLn ""
