@@ -60,6 +60,8 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
@@ -76,6 +78,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Merge2 (MergeOutput)
@@ -95,12 +98,15 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Reference (TermReference)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
+import Unison.Result qualified as Result
+import Unison.Server.Backend qualified as Backend
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as V1 (Term)
 import Unison.Term qualified as V1.Term
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile)
@@ -155,9 +161,38 @@ data MergeResult v a
       (MergeOutput v a)
   | MergeDone
 
+mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
+mkTypecheckFnCli = do
+  Cli.Env {codebase, generateUniqueName} <- ask
+  rootBranch <- Cli.getRootBranch
+  currentPath <- Cli.getCurrentPath
+  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+  pure (mkTypecheckFn codebase generateUniqueName currentPath parseNames)
+
+mkTypecheckFn ::
+  Codebase.Codebase IO Symbol Ann ->
+  IO Parser.UniqueName ->
+  Path.Absolute ->
+  NamesWithHistory.NamesWithHistory ->
+  UnisonFile Symbol Ann ->
+  Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
+mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
+  uniqueName <- Sqlite.unsafeIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names = parseNames
+          }
+  typecheckingEnv <-
+    computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+  let Result.Result _notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+  pure maybeTypecheckedUnisonFile
+
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
+  typecheck <- mkTypecheckFnCli
   (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
   bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
   let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
@@ -270,19 +305,18 @@ handleMerge bobBranchName = do
                     updates ^. #bob
                   )
 
-            let typecheck = wundefined
-
-                namelookup :: Merge.RefToName =
+            let namelookup :: Merge.RefToName =
                   let multimapMerge :: forall a b. Ord a => Ord b => BiMultimap a b -> BiMultimap a b -> Map a b
                       multimapMerge ma mb =
                         Map.merge
                           (Map.mapMissing \_ -> NESet.findMin)
                           (Map.mapMissing \_ -> NESet.findMin)
-                          (Map.zipWithMatched \_ a b ->
+                          ( Map.zipWithMatched \_ a b ->
                               let preferred = NESet.intersection a b
-                              in case Set.lookupMin preferred of
-                                Just x -> x
-                                Nothing -> NESet.findMin a)
+                               in case Set.lookupMin preferred of
+                                    Just x -> x
+                                    Nothing -> NESet.findMin a
+                          )
                           (BiMultimap.domain ma)
                           (BiMultimap.domain mb)
                       termNames :: Map Referent Name
