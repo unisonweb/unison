@@ -400,6 +400,11 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 openFile1 t = openFile t
 openFile2 t = openFile1 t
 
+validateSandboxedSimpl ok v =
+  match Value.validateSandboxed ok v with
+    Right [] -> true
+    _ -> false
+
 openFiles =
   [ not (validateSandboxed [] openFile)
   , not (validateSandboxed [] openFile1)
@@ -414,6 +419,24 @@ openFile]
 
 ```ucm:hide
 .> add
+```
+
+```unison
+openFilesIO = do
+  checks
+    [ not (validateSandboxedSimpl [] (value openFile))
+    , not (validateSandboxedSimpl [] (value openFile1))
+    , not (validateSandboxedSimpl [] (value openFile2))
+    , sandboxLinks (termLink openFile)
+        == sandboxLinks (termLink openFile1)
+    , sandboxLinks (termLink openFile1)
+        == sandboxLinks (termLink openFile2)
+    ]
+```
+
+```ucm
+.> add
+.> io.test openFilesIO
 ```
 
 ## Universal hash functions

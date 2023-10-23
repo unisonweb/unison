@@ -29,7 +29,7 @@ import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference, Reference' (Builtin), toShortHash)
-import Unison.Referent (pattern Con, pattern Ref)
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     Mem (..),
@@ -388,6 +388,11 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 DBTX i)
           bstk <- bump bstk
           bstk <$ pokeBi bstk (Util.Text.pack tx)
       pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 SDBL i) = do
+  tl <- peekOffBi bstk i
+  bstk <- bump bstk
+  pokeS bstk . encodeSandboxListResult =<< sandboxList env tl
+  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 op i) = do
   (ustk, bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
@@ -398,6 +403,14 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBX i j) = do
   b <- checkSandboxing env l c
   ustk <- bump ustk
   poke ustk $ if b then 1 else 0
+  pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBV i j) = do
+  s <- peekOffS bstk i
+  v <- peekOffBi bstk j
+  l <- decodeSandboxArgument s
+  res <- checkValueSandboxing env l v
+  bstk <- bump bstk
+  poke bstk $ encodeSandboxResult res
   pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
@@ -1576,6 +1589,7 @@ bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
 bprim1 !ustk !bstk DBTX _ = pure (ustk, bstk)
+bprim1 !ustk !bstk SDBL _ = pure (ustk, bstk)
 {-# INLINE bprim1 #-}
 
 bprim2 ::
@@ -1781,6 +1795,7 @@ bprim2 !ustk !bstk THRO _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk TRCE _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk SDBX _ _ = pure (ustk, bstk) -- impossible
+bprim2 !ustk !bstk SDBV _ _ = pure (ustk, bstk) -- impossible
 {-# INLINE bprim2 #-}
 
 yield ::
@@ -1949,6 +1964,22 @@ decodeSandboxArgument s = fmap join . for (toList s) $ \case
     _ -> pure [] -- constructor
   _ -> die "decodeSandboxArgument: unrecognized value"
 
+encodeSandboxListResult :: [Reference] -> Sq.Seq Closure
+encodeSandboxListResult =
+  Sq.fromList . fmap (Foreign . Wrap Rf.termLinkRef . Ref)
+
+encodeSandboxResult :: Either [Reference] [Reference] -> Closure
+encodeSandboxResult (Left rfs) =
+  encodeLeft . Foreign . Wrap Rf.listRef $ encodeSandboxListResult rfs
+encodeSandboxResult (Right rfs) =
+  encodeRight . Foreign . Wrap Rf.listRef $ encodeSandboxListResult rfs
+
+encodeLeft :: Closure -> Closure
+encodeLeft = DataB1 Rf.eitherRef leftTag
+
+encodeRight :: Closure -> Closure
+encodeRight = DataB1 Rf.eitherRef rightTag
+
 addRefs ::
   TVar Word64 ->
   TVar (M.Map Reference Word64) ->
@@ -1992,6 +2023,12 @@ codeValidate tml cc = do
           extra = Foreign . Wrap Rf.textRef . Util.Text.pack $ show cs
        in pure . Just $ Failure ioFailureRef msg extra
 
+sandboxList :: CCache -> Referent -> IO [Reference]
+sandboxList cc (Ref r) = do
+  sands <- readTVarIO $ sandbox cc
+  pure . maybe [] S.toList $ M.lookup r sands
+sandboxList _ _ = pure []
+
 checkSandboxing ::
   CCache ->
   [Reference] ->
@@ -2004,6 +2041,29 @@ checkSandboxing cc allowed0 c = do
             rs `S.difference` allowed
         | otherwise = mempty
   pure $ S.null (closureTermRefs f c)
+  where
+    allowed = S.fromList allowed0
+
+-- Checks a Value for sandboxing. A Left result indicates that some
+-- dependencies of the Value are unknown. A Right result indicates
+-- builtins transitively referenced by the Value that are disallowed.
+checkValueSandboxing ::
+  CCache ->
+  [Reference] ->
+  ANF.Value ->
+  IO (Either [Reference] [Reference])
+checkValueSandboxing cc allowed0 v = do
+  sands <- readTVarIO $ sandbox cc
+  have <- readTVarIO $ intermed cc
+  let f False r
+        | Nothing <- M.lookup r have = (S.singleton r, mempty)
+        | Just rs <- M.lookup r sands =
+            (mempty, rs `S.difference` allowed)
+      f _ _ = (mempty, mempty)
+  case valueLinks f v of
+    (miss, sbx)
+      | S.null miss -> pure . Right $ S.toList sbx
+      | otherwise -> pure . Left $ S.toList miss
   where
     allowed = S.fromList allowed0
 
@@ -2357,6 +2417,15 @@ unitTag
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: unitTag"
+
+leftTag, rightTag :: Word64
+(leftTag, rightTag)
+  | Just n <- M.lookup Rf.eitherRef builtinTypeNumbering,
+    et <- toEnum (fromIntegral n),
+    lt <- toEnum (fromIntegral Rf.eitherLeftId),
+    rt <- toEnum (fromIntegral Rf.eitherRightId) =
+      (packTags et lt, packTags et rt)
+  | otherwise = error "internal error: either tags"
 
 universalCompare ::
   (Foreign -> Foreign -> Ordering) ->

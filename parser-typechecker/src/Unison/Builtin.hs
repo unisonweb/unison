@@ -833,6 +833,10 @@ ioBuiltins =
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
+    ("sandboxLinks", termLink --> io (list termLink)),
+    ( "Value.validateSandboxed",
+      list termLink --> value -->
+        io (eithert (list termLink) (list termLink))),
     ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls),
     ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls),
     ("Tls.handshake.impl.v3", tls --> iof unit),

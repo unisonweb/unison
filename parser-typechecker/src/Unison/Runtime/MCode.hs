@@ -390,6 +390,7 @@ data BPrim1
   | TLTT -- value, Term.Link.toText
   -- debug
   | DBTX -- debug text
+  | SDBL -- sandbox link list
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -424,6 +425,7 @@ data BPrim2
   | TRCE -- trace
   -- code
   | SDBX -- sandbox
+  | SDBV -- sandbox Value
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -1190,6 +1192,8 @@ emitPOp ANF.CVLD = emitBP1 CVLD
 emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
 emitPOp ANF.SDBX = emitBP2 SDBX
+emitPOp ANF.SDBL = emitBP1 SDBL
+emitPOp ANF.SDBV = emitBP2 SDBV
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO
 emitPOp ANF.TRCE = emitBP2 TRCE

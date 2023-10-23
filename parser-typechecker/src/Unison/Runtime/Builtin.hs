@@ -1023,6 +1023,19 @@ check'sandbox =
   where
     (refs, val, b) = fresh
 
+sandbox'links :: SuperNormal Symbol
+sandbox'links = Lambda [BX] . TAbs ln $ TPrm SDBL [ln]
+  where
+    ln = fresh1
+
+value'sandbox :: SuperNormal Symbol
+value'sandbox =
+  Lambda [BX, BX]
+    . TAbss [refs, val]
+    $ TPrm SDBV [refs, val]
+  where
+    (refs, val) = fresh
+
 stm'atomic :: SuperNormal Symbol
 stm'atomic =
   Lambda [BX]
@@ -2168,6 +2181,8 @@ builtinLookup =
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
+        ("Value.validateSandboxed", (Tracked, value'sandbox)),
+        ("sandboxLinks", (Tracked, sandbox'links)),
         ("IO.tryEval", (Tracked, try'eval))
       ]
       ++ foreignWrappers
