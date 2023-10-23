@@ -15,6 +15,7 @@ tests = Tests.main do
   !bytes.tests
   !array.tests
   !codelookup.tests
+  !sandbox.tests
 
 
 crypto.hash.tests = do

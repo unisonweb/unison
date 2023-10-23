@@ -1,0 +1,26 @@
+
+sandbox.checkSafe name a =
+  if validateSandboxed [] a
+  then Tests.pass (name ++ " safe")
+  else Tests.fail name " unexpectedly unsafe"
+
+sandbox.checkUnsafe name a =
+  if validateSandboxed [] a
+  then Tests.fail name " unexpectedly safe"
+  else Tests.pass (name ++ " unsafe")
+
+sandbox.checkAllowed name ok a =
+  if validateSandboxed ok a
+  then Tests.pass (name ++ " allowed")
+  else Tests.fail name " unexpected disallowed"
+
+sandbox.tests = do
+  checkSafe "5" 5
+  checkSafe "5.0" 5.0
+  checkSafe "\"\"" ""
+  checkSafe "0xs1337" 0xs1337
+  checkSafe "List.map" List.map
+  checkUnsafe "FilePath.open" FilePath.open
+  checkUnsafe "Code.cache_" Code.cache_
+  checkAllowed "FilePath.open" [termLink FilePath.open.impl] FilePath.open
+  checkAllowed "Code.cache_" [termLink Code.cache_] Code.cache_

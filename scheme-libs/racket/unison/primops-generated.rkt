@@ -22,6 +22,12 @@
   builtin-Value.reflect:termlink
   builtin-Code.lookup
   builtin-Code.lookup:termlink
+  builtin-validateSandboxed
+  builtin-validateSandboxed:termlink
+  builtin-Value.validateSandboxed
+  builtin-Value.validateSandboxed:termlink
+  builtin-sandboxLinks
+  builtin-sandboxLinks:termlink
 
   builtin-Code.deserialize:termlink
   builtin-Code.serialize:termlink
@@ -46,6 +52,9 @@
 (define-builtin-link builtin-Value.serialize)
 (define-builtin-link builtin-crypto.hash)
 (define-builtin-link builtin-crypto.hmac)
+(define-builtin-link builtin-validateSandboxed)
+(define-builtin-link builtin-Value.validateSandboxed)
+(define-builtin-link builtin-sandboxLinks)
 
 (define (chunked-list->list cl)
   (vector->list (chunked-list->vector cl)))
@@ -348,6 +357,53 @@
        t
        (list->chunked-list (map reflect-value fs)))]))
 
+(define (check-sandbox-ok ok l)
+  (remove* ok (check-sandbox l)))
+
+(define (sandbox-proc ok f)
+  (check-sandbox-ok ok (lookup-function-link f)))
+
+(define (sandbox-scheme-value ok v)
+  (match v
+    [(? chunked-list?)
+     (for/fold ([acc '()]) ([e (in-chunked-list v)])
+       (append (sandbox-value ok e) acc))]
+    [(unison-closure f as)
+     (for/fold ([acc (sandbox-proc ok f)]) ([a (in-list as)])
+       (append (sandbox-scheme-value ok a) acc))]
+    [(? procedure?) (sandbox-proc ok v)]
+    [(unison-data rf t fs)
+     (for/fold ([acc '()]) ([e (in-list fs)])
+       (append (sandbox-scheme-value ok e) acc))]
+    [else '()]))
+
+(define (check-known l acc)
+  (if (need-dependency? l) (cons l acc) acc))
+
+; check sandboxing information for an internal.runtime.Value
+(define (sandbox-value ok v)
+  (for/fold
+    ([sdbx '()]
+     [unkn '()]
+
+     #:result
+     (if (null? unkn)
+       (unison-either-right (list->chunked-list sdbx))
+       (unison-either-left (list->chunked-list unkn))))
+
+    ([r (in-chunked-list (value-term-dependencies v))])
+
+
+    (let ([l (reference->termlink r)])
+      (values
+        (append (check-sandbox l) sdbx)
+        (check-known l unkn)))))
+
+; check sandboxing information for a reflection.Value
+(define (sandbox-quoted ok qv)
+  (match qv
+    [(unison-quote v) (sandbox-value ok v)]))
+
 ; replacment for Value.unsafeValue : a -> Value
 (define-unison
   (builtin-Value.reflect v)
@@ -507,3 +563,14 @@
   (match (lookup-code tl)
     [(unison-sum 0 (list)) unison-optional-none]
     [(unison-sum 1 (list co)) (unison-optional-some co)]))
+
+(define-unison (builtin-validateSandboxed ok v)
+  (let ([l (sandbox-scheme-value (chunked-list->list ok) v)])
+    (if (null? l)
+      unison-boolean-true
+      unison-boolean-false)))
+
+(define-unison (builtin-sandboxLinks tl) (check-sandbox tl))
+
+(define-unison (builtin-Value.validateSandboxed ok v)
+  (sandbox-value ok v))
