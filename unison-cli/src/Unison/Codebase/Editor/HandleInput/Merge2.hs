@@ -22,10 +22,12 @@ import Data.IntSet qualified as IntSet
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromJust)
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -270,7 +272,24 @@ handleMerge bobBranchName = do
 
             let typecheck = wundefined
 
-                namelookup :: Merge.RefToName = wundefined
+                namelookup :: Merge.RefToName =
+                  let multimapMerge :: forall a b. Ord a => Ord b => BiMultimap a b -> BiMultimap a b -> Map a b
+                      multimapMerge ma mb =
+                        Map.merge
+                          (Map.mapMissing \_ -> NESet.findMin)
+                          (Map.mapMissing \_ -> NESet.findMin)
+                          (Map.zipWithMatched \_ a b ->
+                              let preferred = NESet.intersection a b
+                              in case Set.lookupMin preferred of
+                                Just x -> x
+                                Nothing -> NESet.findMin a)
+                          (BiMultimap.domain ma)
+                          (BiMultimap.domain mb)
+                      termNames :: Map Referent Name
+                      termNames = multimapMerge (aliceDefns ^. #terms) (bobDefns ^. #terms)
+                      typeNames :: Map TypeReference Name
+                      typeNames = multimapMerge (aliceDefns ^. #types) (bobDefns ^. #types)
+                   in Merge.Defns termNames typeNames
 
             uf <- do
               let combinedUpdates :: Merge.UpdatesRefnt
@@ -410,10 +429,8 @@ handleMerge bobBranchName = do
               \_ -> V1.Branch.transform0 (Codebase.runTransaction codebase) unconflicted
             )
 
-          -- Disable this temporarily cause the `ppe` and `mergeOutput` are bogus
-          when False do
-            (scratchFile, _) <- Cli.expectLatestFile
-            Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
+          (scratchFile, _) <- Cli.expectLatestFile
+          Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
 
 mkMergeOutput ::
