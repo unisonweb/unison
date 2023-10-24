@@ -2171,6 +2171,16 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  MergeConflictedAliases branch name1 name2 -> wundefined
+  MergeConflictedTermName name refs -> wundefined
+  MergeConflictedTypeName name refs -> wundefined
+  MergeConflictInvolvingBuiltin -> pure "Conflict involving builtin."
+  MergeConstructorAlias name1 name2 -> pure "Constructor alias."
+  MergeDefnsInLib -> pure "Defns in lib"
+  MergeMissingConstructorName name -> pure "Missing constructor name."
+  MergeNestedDeclAlias name -> pure "Nested decl alias."
+  MergeNoConstructorNames name -> pure "No constructor names."
+  MergeStrayConstructor name -> pure "Stray constructor."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

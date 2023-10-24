@@ -63,7 +63,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -386,6 +386,17 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | -- These are all merge precondition violation. See PreconditionViolation for more docs.
+    MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeConflictedTermName !Name !(Set Referent)
+  | MergeConflictedTypeName !Name !(Set TypeReference)
+  | MergeConflictInvolvingBuiltin
+  | MergeConstructorAlias !Name !Name
+  | MergeDefnsInLib
+  | MergeMissingConstructorName !Name
+  | MergeNestedDeclAlias !Name
+  | MergeNoConstructorNames !Name
+  | MergeStrayConstructor !Name
 
 -- | What did we create a project branch from?
 --
@@ -611,6 +622,16 @@ isFailure o = case o of
   FailedToFetchLatestReleaseOfBase {} -> True
   HappyCoding {} -> False
   ProjectHasNoReleases {} -> True
+  MergeConflictedAliases {} -> True
+  MergeConflictedTermName {} -> True
+  MergeConflictedTypeName {} -> True
+  MergeConflictInvolvingBuiltin -> True
+  MergeConstructorAlias {} -> True
+  MergeDefnsInLib -> True
+  MergeMissingConstructorName {} -> True
+  MergeNestedDeclAlias {} -> True
+  MergeNoConstructorNames {} -> True
+  MergeStrayConstructor {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

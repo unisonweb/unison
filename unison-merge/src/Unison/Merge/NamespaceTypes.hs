@@ -1,6 +1,7 @@
 module Unison.Merge.NamespaceTypes
   ( Defns (..),
     NamespaceTree,
+    traverseNamespaceTreeWithName,
     flattenNamespaceTree,
     unflattenNamespaceTree,
     mergeNamespaceTrees,
@@ -31,6 +32,14 @@ data Defns terms types = Defns
 -- | A namespace tree has values, and a collection of children namespace trees keyed by name segment.
 type NamespaceTree a =
   Cofree (Map NameSegment) a
+
+-- | Traverse over a namespace tree, with access to the list of name segments (in reverse order) leading to each value.
+traverseNamespaceTreeWithName :: Applicative f => ([NameSegment] -> a -> f b) -> NamespaceTree a -> f (NamespaceTree b)
+traverseNamespaceTreeWithName f =
+  go []
+  where
+    go names (x :< xs) =
+      (:<) <$> f names x <*> Map.traverseWithKey (\name -> go (name : names)) xs
 
 mergeNamespaceTrees ::
   (a -> c) ->

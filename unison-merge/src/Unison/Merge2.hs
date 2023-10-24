@@ -28,6 +28,7 @@ module Unison.Merge2
     RefToName,
     Defns (..),
     NamespaceTree,
+    traverseNamespaceTreeWithName,
     flattenNamespaceTree,
     unflattenNamespaceTree,
     mergeNamespaceTrees,
@@ -64,10 +65,17 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree, zipNamespaceTrees)
+import Unison.Merge.NamespaceTypes
+  ( Defns (..),
+    NamespaceTree,
+    flattenNamespaceTree,
+    mergeNamespaceTrees,
+    traverseNamespaceTreeWithName,
+    unflattenNamespaceTree,
+    zipNamespaceTrees,
+  )
 import Unison.Merge.PreconditionViolation (PreconditionViolation (..))
 import Unison.Name (Name)
-import Unison.Pattern qualified as V1.Pattern
 import Unison.Prelude
 import Unison.Reference qualified as V1
 import Unison.Referent qualified as V1
