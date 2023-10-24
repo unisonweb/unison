@@ -55,6 +55,7 @@ import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import U.Codebase.Term (Term)
 import Unison.Builtin qualified as Builtins
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -191,33 +192,17 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
-  -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   typecheck <- mkTypecheckFnCli
+
+  -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
   bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
   let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
 
+  -- Create a bunch of cached database lookup functions
   Cli.Env {codebase} <- ask
-  loadTerm <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
-  loadDecl <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
-  -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
-  let loadDeclType ref =
-        case ref of
-          ReferenceBuiltin name ->
-            Map.lookup ref Builtins.builtinConstructorType
-              & maybe (error ("Unknown builtin: " ++ Text.unpack name)) pure
-          ReferenceDerived refId -> V1.Decl.constructorType <$> loadDecl refId
-  loadDeclNumConstructors <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectDeclNumConstructors)
-  loadCausal <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectCausalBranchByCausalHash)
+  MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm} <- makeMergeDatabase
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -230,12 +215,12 @@ handleMerge bobBranchName = do
       bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
 
       -- Load deep definitions
-      (aliceDefns, aliceCausalTree, aliceConstructorNameToDeclName) <-
+      NamespaceInfo aliceCausalTree aliceConstructorNameToDeclName aliceDefns <-
         step "load alice definitions" $
-          loadNamespaceDefns loadDeclNumConstructors aliceBranch (aliceCausal ^. #causalHash) & onLeftM (rollback . Left)
-      (bobDefns, bobCausalTree, bobConstructorNameToDeclName) <-
+          loadNamespaceInfo loadDeclNumConstructors (aliceCausal ^. #causalHash) aliceBranch & onLeftM (rollback . Left)
+      NamespaceInfo bobCausalTree bobConstructorNameToDeclName bobDefns <-
         step "load bob definitions" $
-          loadNamespaceDefns loadDeclNumConstructors bobBranch (bobCausal ^. #causalHash) & onLeftM (rollback . Left)
+          loadNamespaceInfo loadDeclNumConstructors (bobCausal ^. #causalHash) bobBranch & onLeftM (rollback . Left)
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let constructorNameToDeclName = Merge.TwoWay {alice = aliceConstructorNameToDeclName, bob = bobConstructorNameToDeclName}
@@ -252,8 +237,8 @@ handleMerge bobBranchName = do
           Just lcaCausalHash -> do
             lcaCausal <- step "load lca causal" $ loadCausal lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-            (lcaDefns, _, _) <- step "load lca definitions" do
-              loadNamespaceDefns loadDeclNumConstructors lcaBranch (lcaCausal ^. #causalHash) & onLeftM (rollback . Left)
+            NamespaceInfo _ _ lcaDefns <- step "load lca definitions" do
+              loadNamespaceInfo loadDeclNumConstructors (lcaCausal ^. #causalHash) lcaBranch & onLeftM (rollback . Left)
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
@@ -466,6 +451,40 @@ handleMerge bobBranchName = do
           (scratchFile, _) <- Cli.expectLatestFile
           Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
         MergeDone -> Cli.respond Output.Success
+
+-- A mini record-of-functions that contains just the (possibly backed by a cache) database queries used in merge.
+data MergeDatabase = MergeDatabase
+  { loadCausal :: CausalHash -> Transaction (CausalBranch Transaction),
+    loadDecl :: TypeReferenceId -> Transaction (V1.Decl Symbol Ann),
+    loadDeclNumConstructors :: TypeReferenceId -> Transaction Int,
+    loadDeclType :: TypeReference -> Transaction ConstructorType,
+    loadTerm :: TermReferenceId -> Transaction (V1.Term Symbol Ann)
+  }
+
+makeMergeDatabase :: Cli MergeDatabase
+makeMergeDatabase = do
+  -- Create a bunch of cached database lookup functions
+  Cli.Env {codebase} <- ask
+  loadCausal <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache Operations.expectCausalBranchByCausalHash)
+  loadDecl <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
+  loadDeclNumConstructors <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache Operations.expectDeclNumConstructors)
+  -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
+  let loadDeclType ref =
+        case ref of
+          ReferenceBuiltin name ->
+            Map.lookup ref Builtins.builtinConstructorType
+              & maybe (error ("Unknown builtin: " ++ Text.unpack name)) pure
+          ReferenceDerived refId -> V1.Decl.constructorType <$> loadDecl refId
+  loadTerm <- do
+    cache <- Cache.semispaceCache 1024
+    pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
+  pure MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm}
 
 mkMergeOutput ::
   forall a.
@@ -811,23 +830,6 @@ unconflictedToV3Branch loadCausal unconflicted causalHashes =
     makeBigTree defns causals =
       Merge.zipNamespaceTrees (,) (Merge.unflattenNamespaceTree defns) causals
 
--- "hey.Maybe.internal.Just" -> {"hey.Maybe.internal", "hey.Maybe", "hey"}
-possibleDeclNames :: Name -> Set Name
-possibleDeclNames =
-  Name.reverseSegments
-    -- "Just" :| ["internal", "Maybe", "hey"]
-    >>> List.NonEmpty.toList
-    -- ["Just", "internal", "Maybe", "hey"]
-    >>> List.tails
-    -- [["Just", "internal", "Maybe", "hey"], ["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
-    >>> drop 1
-    -- [["internal", "Maybe", "hey"], ["Maybe", "hey"], ["hey"], []]
-    >>> mapMaybe List.NonEmpty.nonEmpty
-    -- ["internal" :| ["Maybe", "hey"], "Maybe" :| ["hey"], "hey" :| []]
-    >>> map (Name.fromReverseSegments)
-    -- ["hey.Maybe.internal", "hey.Maybe", "hey"]
-    >>> Set.fromList
-
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
 defnsToScope :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference.Id
@@ -996,26 +998,29 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
+-- Information we load and compute about a namespace.
+data NamespaceInfo = NamespaceInfo
+  { -- The causal hash at every node in a namespace.
+    causalHashes :: !(Merge.NamespaceTree CausalHash),
+    -- A mapping from constructor name "foo.bar.Maybe.internal.Just" to decl name "foo.bar.Maybe"
+    constructorNameToDeclName :: !(Map Name Name),
+    -- The definitions in a namespace.
+    definitions :: !(Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  }
+
 -- | Load all term and type names from a branch (excluding dependencies) into memory.
 --
 -- Fails if:
 --   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
 --   * One name is associated with more than one reference.
 --   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
-loadNamespaceDefns ::
+loadNamespaceInfo ::
   Monad m =>
   (TypeReferenceId -> m Int) ->
-  Branch m ->
   CausalHash ->
-  m
-    ( Either
-        MergePreconditionViolation
-        ( Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-          Merge.NamespaceTree CausalHash,
-          Map Name Name
-        )
-    )
-loadNamespaceDefns loadNumConstructors branch causalHash = do
+  Branch m ->
+  m (Either MergePreconditionViolation NamespaceInfo)
+loadNamespaceInfo loadNumConstructors causalHash branch = do
   libdepsHasTopLevelDefns <-
     case Map.lookup Name.libSegment (branch ^. #children) of
       Nothing -> pure False
@@ -1025,50 +1030,57 @@ loadNamespaceDefns loadNumConstructors branch causalHash = do
   if libdepsHasTopLevelDefns
     then pure (Left DefnsInLib)
     else do
-      defns0 <- loadNamespaceDefns0 branch causalHash
-      case makeNamespaceDefns1 defns0 of
+      defns0 <- loadNamespaceInfo0 branch causalHash
+      case makeNamespaceInfo1 defns0 of
         Left err -> pure (Left err)
         Right defns1 ->
           checkDeclCoherency loadNumConstructors defns1 <&> \case
             Left err -> Left err
             Right constructorNameToDeclName ->
               Right
-                ( Merge.flattenNamespaceTree (fmap fst defns1),
-                  fmap snd defns1,
-                  constructorNameToDeclName
-                )
+                NamespaceInfo
+                  { causalHashes = fmap snd defns1,
+                    constructorNameToDeclName,
+                    definitions = Merge.flattenNamespaceTree (fmap fst defns1)
+                  }
 
-type NamespaceDefns0 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)), CausalHash)
+type NamespaceInfo0 =
+  Merge.NamespaceTree
+    ( Merge.Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+      CausalHash
+    )
 
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
-loadNamespaceDefns0 :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
-loadNamespaceDefns0 branch causalHash = do
+loadNamespaceInfo0 :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
+loadNamespaceInfo0 branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+      loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
-loadNamespaceDefns0_ :: forall m. Monad m => Branch m -> CausalHash -> m NamespaceDefns0
-loadNamespaceDefns0_ branch causalHash = do
+loadNamespaceInfo0_ :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
+loadNamespaceInfo0_ branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
   children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
-      loadNamespaceDefns0_ childBranch (childCausal ^. #causalHash)
+      loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure ((Merge.Defns {terms, types}, causalHash) :< children)
 
-type NamespaceDefns1 =
-  Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
+type NamespaceInfo1 =
+  Merge.NamespaceTree
+    ( Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+      CausalHash
+    )
 
 -- | Assert that there are no unconflicted names in a namespace.
-makeNamespaceDefns1 :: NamespaceDefns0 -> Either MergePreconditionViolation NamespaceDefns1
-makeNamespaceDefns1 =
+makeNamespaceInfo1 :: NamespaceInfo0 -> Either MergePreconditionViolation NamespaceInfo1
+makeNamespaceInfo1 =
   traverse \(Merge.Defns {terms, types}, causalHash) -> do
     terms <- traverse (assertUnconflicted ConflictedTermName) terms
     types <- traverse (assertUnconflicted ConflictedTypeName) types
@@ -1165,7 +1177,7 @@ checkDeclCoherency ::
   forall m.
   Monad m =>
   (TypeReferenceId -> m Int) ->
-  NamespaceDefns1 ->
+  NamespaceInfo1 ->
   m (Either MergePreconditionViolation (Map Name Name))
 checkDeclCoherency loadNumConstructors =
   runExceptT
@@ -1175,7 +1187,7 @@ checkDeclCoherency loadNumConstructors =
   where
     go ::
       [NameSegment] ->
-      NamespaceDefns1 ->
+      NamespaceInfo1 ->
       StateT DeclCoherencyCheckState (ExceptT MergePreconditionViolation m) ()
     go prefix ((Merge.Defns {terms, types}, _) :< children) = do
       for_ (Map.toList terms) \case
