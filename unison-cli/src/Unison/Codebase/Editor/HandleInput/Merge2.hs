@@ -463,85 +463,73 @@ mkMergeOutput ::
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Transaction (Merge.MergeOutput Symbol ())
-mkMergeOutput
-  MergeDatabase {loadDecl, loadTerm}
-  aliceProjectBranchName
-  bobProjectBranchName
-  (Merge.TwoWay (Merge.Defns aliceTerms aliceTypes) (Merge.Defns bobTerms bobTypes))
-  nameConflicts
-  potentialConflicts = do
-    (termNameConflicts, typeNameConflicts) <- do
-      mkConflictMaps
-        nameConflicts
-        ( Map.intersectionWith
-            ( \a b ->
-                Merge.Conflict $
-                  Merge.ConflictUnknown aliceProjectBranchName bobProjectBranchName a b
-            )
-        )
-    (termPotentialConflicts, typePotentialConflicts) <- do
-      mkConflictMaps potentialConflicts (\a b -> Merge.Good <$> Map.union a b)
-    let termConflicts = termNameConflicts <> termPotentialConflicts
-        typeConflicts = typeNameConflicts <> typePotentialConflicts
-    pure (Merge.MergeProblem $ Merge.Defns termConflicts typeConflicts)
-    where
-      mkConflictMaps ::
-        Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
-        (forall x. Map Name x -> Map Name x -> Map Name (Merge.ConflictOrGood x)) ->
-        Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (V1.Decl Symbol ())))
-      mkConflictMaps conflicts mergeMaps = do
-        let Merge.TwoWay
-              (Merge.Defns aliceTermConflicts aliceTypeConflicts)
-              (Merge.Defns bobTermConflicts bobTypeConflicts) = conflicts
+mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProjectBranchName defns nameConflicts potentialConflicts = do
+  (termNameConflicts, typeNameConflicts) <- do
+    mkConflictMaps
+      nameConflicts
+      ( Map.intersectionWith \a b ->
+          Merge.Conflict $ Merge.ConflictUnknown aliceProjectBranchName bobProjectBranchName a b
+      )
+  (termPotentialConflicts, typePotentialConflicts) <- do
+    mkConflictMaps potentialConflicts (\a b -> Merge.Good <$> Map.union a b)
+  let termConflicts = termNameConflicts <> termPotentialConflicts
+      typeConflicts = typeNameConflicts <> typePotentialConflicts
+  pure (Merge.MergeProblem $ Merge.Defns termConflicts typeConflicts)
+  where
+    mkConflictMaps ::
+      Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+      (forall ref. Map Name ref -> Map Name ref -> Map Name (Merge.ConflictOrGood ref)) ->
+      Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (V1.Decl Symbol ())))
+    mkConflictMaps conflicts mergeMaps = do
+      aliceTermMap <- mkTermMap (defns ^. #alice . #terms) (conflicts ^. #alice . #terms)
+      bobTermMap <- mkTermMap (defns ^. #bob . #terms) (conflicts ^. #bob . #terms)
 
-        aliceTermMap <- mkTermMap aliceTerms aliceTermConflicts
-        bobTermMap <- mkTermMap bobTerms bobTermConflicts
-        aliceTypeMap <- mkTypeMap aliceTypes aliceTypeConflicts
-        bobTypeMap <- mkTypeMap bobTypes bobTypeConflicts
+      aliceTypeMap <- mkTypeMap (defns ^. #alice . #types) (conflicts ^. #alice . #types)
+      bobTypeMap <- mkTypeMap (defns ^. #bob . #types) (conflicts ^. #bob . #types)
 
-        let termConflicts = aliceTermMap `mergeMaps` bobTermMap
-        let typeConflicts = aliceTypeMap `mergeMaps` bobTypeMap
+      let termConflicts = aliceTermMap `mergeMaps` bobTermMap
+      let typeConflicts = aliceTypeMap `mergeMaps` bobTypeMap
 
-        pure (termConflicts, typeConflicts)
+      pure (termConflicts, typeConflicts)
 
-      mkTypeMap ::
-        forall f.
-        Foldable f =>
-        BiMultimap TypeReference Name ->
-        f TypeReferenceId ->
-        Transaction (Map Name (V1.Decl Symbol ()))
-      mkTypeMap types typeIds =
-        mkNameMap ReferenceDerived types
-          <$> traverse (\x -> (x,) . forgetAnn <$> loadDecl x) (toList typeIds)
-        where
-          forgetAnn = \case
-            Left x -> Left (x $> ())
-            Right x -> Right (x $> ())
+    mkTypeMap ::
+      forall f.
+      Foldable f =>
+      BiMultimap TypeReference Name ->
+      f TypeReferenceId ->
+      Transaction (Map Name (V1.Decl Symbol ()))
+    mkTypeMap types typeIds =
+      mkNameMap ReferenceDerived types
+        <$> traverse (\x -> (x,) . forgetAnn <$> loadDecl x) (toList typeIds)
+      where
+        forgetAnn = \case
+          Left x -> Left (x $> ())
+          Right x -> Right (x $> ())
 
-      mkTermMap ::
-        forall f.
-        Foldable f =>
-        BiMultimap Referent Name ->
-        f TermReferenceId ->
-        Transaction (Map Name (V1.Term Symbol ()))
-      mkTermMap terms termIds =
-        mkNameMap Referent.fromTermReferenceId terms
-          <$> traverse (\x -> (x,) . V1.Term.unannotate <$> loadTerm x) (toList termIds)
+    mkTermMap ::
+      forall f.
+      Foldable f =>
+      BiMultimap Referent Name ->
+      f TermReferenceId ->
+      Transaction (Map Name (V1.Term Symbol ()))
+    mkTermMap terms termIds =
+      mkNameMap Referent.fromTermReferenceId terms
+        <$> traverse (\x -> (x,) . V1.Term.unannotate <$> loadTerm x) (toList termIds)
 
-      mkNameMap ::
-        forall ref toref x.
-        Ord ref =>
-        (toref -> ref) ->
-        BiMultimap ref Name ->
-        [(toref, x)] ->
-        Map Name x
-      mkNameMap toref bimulti =
-        Map.fromList . concat . map f
-        where
-          f :: (toref, x) -> [(Name, x)]
-          f (trefid, term) =
-            let names = BiMultimap.lookupDom (toref trefid) bimulti
-             in [(n, term) | n <- toList names]
+    mkNameMap ::
+      forall ref toref x.
+      Ord ref =>
+      (toref -> ref) ->
+      BiMultimap ref Name ->
+      [(toref, x)] ->
+      Map Name x
+    mkNameMap toref bimulti =
+      Map.fromList . concat . map f
+      where
+        f :: (toref, x) -> [(Name, x)]
+        f (trefid, term) =
+          let names = BiMultimap.lookupDom (toref trefid) bimulti
+           in [(n, term) | n <- toList names]
 
 -- `collectDependentsOfInterest defns updates` computes the "dependents of interest", per all definitions `defns` and
 -- direct updates `updates`, which are:

@@ -650,7 +650,9 @@ instance Ord v => Functor (MergeOutput v) where
 
 data ScratchDefn v a = SdTerm (V1.Term v a) | SdDecl (V1.Decl v a) -- could also be a builtin alias
 
-data ConflictOrGood a = Conflict (Conflict ProjectBranchName a) | Good a
+data ConflictOrGood a
+  = Conflict (Conflict ProjectBranchName a)
+  | Good a
   deriving stock (Functor)
 
 data Conflict branch a
