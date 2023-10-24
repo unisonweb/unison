@@ -24,6 +24,7 @@ library
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
       Unison.Merge.NamespaceTypes
+      Unison.Merge.PreconditionViolation
       Unison.Merge.Synhash
       Unison.Merge3
   hs-source-dirs:

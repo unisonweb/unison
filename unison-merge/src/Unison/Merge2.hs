@@ -1,7 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Merge2
-  ( -- * Library dependencies
+  ( -- * Precondition violation
+    PreconditionViolation (..),
+
+    -- * Library dependencies
     mergeLibdeps,
 
     -- * Namespace diff
@@ -62,6 +65,7 @@ import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDif
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Merge.NamespaceTypes (Defns (..), NamespaceTree, flattenNamespaceTree, mergeNamespaceTrees, unflattenNamespaceTree, zipNamespaceTrees)
+import Unison.Merge.PreconditionViolation (PreconditionViolation (..))
 import Unison.Name (Name)
 import Unison.Pattern qualified as V1.Pattern
 import Unison.Prelude

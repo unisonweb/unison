@@ -132,28 +132,6 @@ step name action = do
     Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
   pure result
 
-data MergePreconditionViolation
-  = ConflictedAliases !ProjectBranchName !Name !Name
-  | -- A name refers to two different terms
-    ConflictedTermName !(Set Referent)
-  | -- A name refers to two different terms
-    ConflictedTypeName !(Set TypeReference)
-  | -- We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
-    ConflictInvolvingBuiltin
-  | -- A second naming of a constructor was discovered underneath a decl's name, e.g.
-    --
-    --   Foo#Foo
-    --   Foo.Bar#Foo#0
-    --   Foo.Some.Other.Name.For.Bar#Foo#0
-    ConstructorAlias !Name !Name -- first name we found, second name we found
-  | -- There were some definitions at the top level of lib.*, which we don't like
-    DefnsInLib
-  | MissingConstructorName !Name
-  | NestedDeclAlias !Name
-  | NoConstructorNames !Name
-  | StrayConstructor !Name
-  deriving stock (Show)
-
 data MergeResult v a
   = -- PPED is whatever `prettyUnisonFile` accepts
     MergePropagationNotTypecheck PPED.PrettyPrintEnvDecl (UnisonFile v a)
@@ -668,7 +646,7 @@ filterUpdates1 defns diff =
 filterConflicts ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.Defns (Set Name) (Set Name) ->
-  Either MergePreconditionViolation (Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)))
+  Either Merge.PreconditionViolation (Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)))
 filterConflicts defns conflicts = do
   alice <- filterConflicts1 (defns ^. #alice) conflicts
   bob <- filterConflicts1 (defns ^. #bob) conflicts
@@ -680,7 +658,7 @@ filterConflicts defns conflicts = do
 filterConflicts1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set Name) (Set Name) ->
-  Either MergePreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
+  Either Merge.PreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
 filterConflicts1 defns conflicts = do
   terms <- foldlM doTerm Set.empty (onlyConflicted (conflicts ^. #terms) (defns ^. #terms))
   types <- foldlM doType Set.empty (onlyConflicted (conflicts ^. #types) (defns ^. #types))
@@ -690,15 +668,15 @@ filterConflicts1 defns conflicts = do
     onlyConflicted keys =
       Set.fromList . Map.elems . (`Map.restrictKeys` keys) . BiMultimap.range
 
-    doTerm :: Set TermReferenceId -> Referent -> Either MergePreconditionViolation (Set TermReferenceId)
+    doTerm :: Set TermReferenceId -> Referent -> Either Merge.PreconditionViolation (Set TermReferenceId)
     doTerm refs = \case
       Referent.Con {} -> Right refs
-      Referent.Ref (ReferenceBuiltin _) -> Left ConflictInvolvingBuiltin
+      Referent.Ref (ReferenceBuiltin _) -> Left Merge.ConflictInvolvingBuiltin
       Referent.Ref (ReferenceDerived ref) -> Right $! Set.insert ref refs
 
-    doType :: Set TypeReferenceId -> TypeReference -> Either MergePreconditionViolation (Set TypeReferenceId)
+    doType :: Set TypeReferenceId -> TypeReference -> Either Merge.PreconditionViolation (Set TypeReferenceId)
     doType refs = \case
-      ReferenceBuiltin _ -> Left ConflictInvolvingBuiltin
+      ReferenceBuiltin _ -> Left Merge.ConflictInvolvingBuiltin
       ReferenceDerived ref -> Right $! Set.insert ref refs
 
 filterUnconflicted ::
@@ -831,7 +809,7 @@ data NamespaceInfo = NamespaceInfo
 --   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
 loadNamespaceInfo ::
   Monad m =>
-  (forall void. MergePreconditionViolation -> m void) ->
+  (forall void. Merge.PreconditionViolation -> m void) ->
   (TypeReferenceId -> m Int) ->
   CausalHash ->
   Branch m ->
@@ -840,7 +818,7 @@ loadNamespaceInfo abort loadNumConstructors causalHash branch = do
   Map.lookup Name.libSegment (branch ^. #children) & onJust \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
-      abort DefnsInLib
+      abort Merge.DefnsInLib
   defns0 <- loadNamespaceInfo0 branch causalHash
   defns1 <- makeNamespaceInfo1 defns0 & onLeft abort
   constructorNameToDeclName <- checkDeclCoherency loadNumConstructors defns1 & onLeftM abort
@@ -886,14 +864,14 @@ type NamespaceInfo1 =
     )
 
 -- | Assert that there are no unconflicted names in a namespace.
-makeNamespaceInfo1 :: NamespaceInfo0 -> Either MergePreconditionViolation NamespaceInfo1
+makeNamespaceInfo1 :: NamespaceInfo0 -> Either Merge.PreconditionViolation NamespaceInfo1
 makeNamespaceInfo1 =
   traverse \(Merge.Defns {terms, types}, causalHash) -> do
-    terms <- traverse (assertUnconflicted ConflictedTermName) terms
-    types <- traverse (assertUnconflicted ConflictedTypeName) types
+    terms <- traverse (assertUnconflicted Merge.ConflictedTermName) terms
+    types <- traverse (assertUnconflicted Merge.ConflictedTypeName) types
     pure (Merge.Defns terms types, causalHash)
   where
-    assertUnconflicted :: (Set ref -> MergePreconditionViolation) -> Set ref -> Either MergePreconditionViolation ref
+    assertUnconflicted :: (Set ref -> Merge.PreconditionViolation) -> Set ref -> Either Merge.PreconditionViolation ref
     assertUnconflicted conflicted refs =
       case Set.asSingleton refs of
         Nothing -> Left (conflicted refs)
@@ -985,7 +963,7 @@ checkDeclCoherency ::
   Monad m =>
   (TypeReferenceId -> m Int) ->
   NamespaceInfo1 ->
-  m (Either MergePreconditionViolation (Map Name Name))
+  m (Either Merge.PreconditionViolation (Map Name Name))
 checkDeclCoherency loadNumConstructors =
   runExceptT
     . fmap (view #constructorNameToDeclName)
@@ -995,7 +973,7 @@ checkDeclCoherency loadNumConstructors =
     go ::
       [NameSegment] ->
       NamespaceInfo1 ->
-      StateT DeclCoherencyCheckState (ExceptT MergePreconditionViolation m) ()
+      StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation m) ()
     go prefix ((Merge.Defns {terms, types}, _) :< children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
@@ -1005,16 +983,16 @@ checkDeclCoherency loadNumConstructors =
           expectedConstructors1 <- lift (Except.except (Map.upsertF f typeRef expectedConstructors))
           #expectedConstructors .= expectedConstructors1
           where
-            f :: Maybe (IntMap MaybeConstructorName) -> Either MergePreconditionViolation (IntMap MaybeConstructorName)
+            f :: Maybe (IntMap MaybeConstructorName) -> Either Merge.PreconditionViolation (IntMap MaybeConstructorName)
             f = \case
-              Nothing -> Left (StrayConstructor (fullName name))
+              Nothing -> Left (Merge.StrayConstructor (fullName name))
               Just expected -> IntMap.alterF g (unsafeFrom @Word64 conId) expected
                 where
-                  g :: Maybe MaybeConstructorName -> Either MergePreconditionViolation (Maybe MaybeConstructorName)
+                  g :: Maybe MaybeConstructorName -> Either Merge.PreconditionViolation (Maybe MaybeConstructorName)
                   g = \case
                     Nothing -> error "didnt put expected constructor id"
                     Just NoConstructorNameYet -> Right (Just (YesConstructorName (fullName name)))
-                    Just (YesConstructorName firstName) -> Left (ConstructorAlias firstName (fullName name))
+                    Just (YesConstructorName firstName) -> Left (Merge.ConstructorAlias firstName (fullName name))
 
       childrenWeWentInto <-
         forMaybe (Map.toList types) \case
@@ -1024,10 +1002,10 @@ checkDeclCoherency loadNumConstructors =
             whatHappened <- do
               let recordNewDecl ::
                     Maybe (IntMap MaybeConstructorName) ->
-                    Compose (ExceptT MergePreconditionViolation m) WhatHappened (IntMap MaybeConstructorName)
+                    Compose (ExceptT Merge.PreconditionViolation m) WhatHappened (IntMap MaybeConstructorName)
                   recordNewDecl =
                     Compose . \case
-                      Just _ -> Except.throwError (NestedDeclAlias typeName)
+                      Just _ -> Except.throwError (Merge.NestedDeclAlias typeName)
                       Nothing ->
                         lift (loadNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
@@ -1038,7 +1016,7 @@ checkDeclCoherency loadNumConstructors =
               InhabitedDecl expectedConstructors1 -> do
                 child <-
                   Map.lookup name children & onNothing do
-                    Except.throwError (NoConstructorNames typeName)
+                    Except.throwError (Merge.NoConstructorNames typeName)
                 #expectedConstructors .= expectedConstructors1
                 go (name : prefix) child
                 DeclCoherencyCheckState {expectedConstructors} <- State.get
@@ -1047,7 +1025,7 @@ checkDeclCoherency loadNumConstructors =
                       Map.deleteLookup typeRef expectedConstructors
                 constructorNames <-
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
-                    Except.throwError (MissingConstructorName typeName)
+                    Except.throwError (Merge.MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
                 #constructorNameToDeclName %= \constructorNameToDeclName ->
                   foldr
@@ -1089,7 +1067,7 @@ data WhatHappened a
   deriving stock (Functor, Show)
 
 findConflictedAlias ::
-  (forall void. MergePreconditionViolation -> Transaction void) ->
+  (forall void. Merge.PreconditionViolation -> Transaction void) ->
   Merge.TwoWay Sqlite.ProjectBranch ->
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
@@ -1097,10 +1075,10 @@ findConflictedAlias ::
 findConflictedAlias abort projectBranchNames defns diffs = do
   step "look for alice conflicted aliases" do
     findConflictedAlias1 (defns ^. #alice) (diffs ^. #alice) & onJust \(name1, name2) ->
-      abort (ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
+      abort (Merge.ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
   step "look for bob conflicted aliases" do
     findConflictedAlias1 (defns ^. #bob) (diffs ^. #bob) & onJust \(name1, name2) ->
-      abort (ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
+      abort (Merge.ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
 
 -- @findConflictedAlias1 namespace diff@, given a namespace and a diff from an old namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
