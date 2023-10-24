@@ -344,19 +344,11 @@ handleMerge bobBranchName = do
                 db
                 (aliceProjectBranch ^. #name)
                 (bobProjectBranch ^. #name)
-                aliceDefns
-                bobDefns
+                defns
                 conflicted
                 dependents
 
-            let defnNames :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Names.Names
-                defnNames = \case
-                  Merge.Defns terms types -> do
-                    termNames <- do
-                      termList <- traverse (\(k, v) -> (k,) <$> referent2to1 db v) (Map.toList (BiMultimap.range terms))
-                      pure (foldr (\(k, v) -> Names.addTerm k v) mempty termList)
-                    pure (Map.foldrWithKey Names.addType termNames (BiMultimap.range types))
-            names <- (<>) <$> defnNames aliceDefns <*> defnNames bobDefns
+            names <- (<>) <$> convertDefnsToNames db aliceDefns <*> convertDefnsToNames db bobDefns
             ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
             pure (MergeConflicts unconflictedV1Branch ppe mergeOutput)
 
@@ -467,8 +459,7 @@ mkMergeOutput ::
   MergeDatabase ->
   ProjectBranchName ->
   ProjectBranchName ->
-  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Transaction (Merge.MergeOutput Symbol ())
@@ -476,8 +467,7 @@ mkMergeOutput
   MergeDatabase {loadDecl, loadTerm}
   aliceProjectBranchName
   bobProjectBranchName
-  (Merge.Defns aliceTerms aliceTypes)
-  (Merge.Defns bobTerms bobTypes)
+  (Merge.TwoWay (Merge.Defns aliceTerms aliceTypes) (Merge.Defns bobTerms bobTypes))
   nameConflicts
   potentialConflicts = do
     (termNameConflicts, typeNameConflicts) <- do
@@ -1194,6 +1184,21 @@ loadLibdeps branch =
     Just dependenciesCausal -> do
       dependenciesBranch <- Causal.value dependenciesCausal
       pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
+
+------------------------------------------------------------------------------------------------------------------------
+-- Pretty-print environment and names utils
+
+-- `convertDefnsToNames db defns` makes a Names from definitions.
+convertDefnsToNames ::
+  MergeDatabase ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Transaction Names.Names
+convertDefnsToNames db = \case
+  Merge.Defns terms types -> do
+    termNames <- do
+      termList <- traverse (\(k, v) -> (k,) <$> referent2to1 db v) (Map.toList (BiMultimap.range terms))
+      pure (foldr (\(k, v) -> Names.addTerm k v) mempty termList)
+    pure (Map.foldrWithKey Names.addType termNames (BiMultimap.range types))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Constructing database entities
