@@ -543,7 +543,19 @@ mkMergeOutput
             let names = BiMultimap.lookupDom (toref trefid) bimulti
              in [(n, term) | n <- toList names]
 
--- TODO document this
+-- `collectDependentsOfInterest defns updates` computes the "dependents of interest", per all definitions `defns` and
+-- direct updates `updates`, which are:
+--
+--   1. Alice's transitive dependents of whatever she referred to by names that Bob updated.
+--   2. Bob's transitive dependents of whatever he referred to by names that Alice updated.
+--
+-- For example, if:
+--
+--   * Alice updated term "foo" from #oldfoo to #alicefoo, and
+--   * Bob uses the name "foo" to refer to #bobfoo (but didn't directly update the name "foo", otherwise we wouldn't
+--     have gotten to this code -- nonetheless #bobfoo could be different than #oldfoo due to auto-propagated updates),
+--
+-- then Bob's transitive dependents of #bobfoo are all "dependents of interest".
 collectDependentsOfInterest ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Merge.Defns (Map Name Referent) (Map Name TypeReference)) ->
