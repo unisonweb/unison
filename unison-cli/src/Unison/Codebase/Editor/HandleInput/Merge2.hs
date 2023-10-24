@@ -53,6 +53,7 @@ import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import U.Codebase.Term (Term)
@@ -197,6 +198,7 @@ handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
   bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
+  let projectBranches = Merge.TwoWay {alice = aliceProjectBranch, bob = bobProjectBranch}
   let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
 
@@ -217,10 +219,10 @@ handleMerge bobBranchName = do
       -- Load deep definitions
       NamespaceInfo aliceCausalTree aliceConstructorNameToDeclName aliceDefns <-
         step "load alice definitions" $
-          loadNamespaceInfo loadDeclNumConstructors (aliceCausal ^. #causalHash) aliceBranch & onLeftM (rollback . Left)
+          loadNamespaceInfo (rollback . Left) loadDeclNumConstructors (aliceCausal ^. #causalHash) aliceBranch
       NamespaceInfo bobCausalTree bobConstructorNameToDeclName bobDefns <-
         step "load bob definitions" $
-          loadNamespaceInfo loadDeclNumConstructors (bobCausal ^. #causalHash) bobBranch & onLeftM (rollback . Left)
+          loadNamespaceInfo (rollback . Left) loadDeclNumConstructors (bobCausal ^. #causalHash) bobBranch
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let constructorNameToDeclName = Merge.TwoWay {alice = aliceConstructorNameToDeclName, bob = bobConstructorNameToDeclName}
@@ -238,25 +240,20 @@ handleMerge bobBranchName = do
             lcaCausal <- step "load lca causal" $ loadCausal lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
             NamespaceInfo _ _ lcaDefns <- step "load lca definitions" do
-              loadNamespaceInfo loadDeclNumConstructors (lcaCausal ^. #causalHash) lcaBranch & onLeftM (rollback . Left)
+              loadNamespaceInfo (rollback . Left) loadDeclNumConstructors (lcaCausal ^. #causalHash) lcaBranch
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
                 loadTerm
                 Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
-            step "look for alice conflicted aliases" do
-              findConflictedAlias aliceDefns (diffs ^. #alice) & onJust \(name1, name2) ->
-                rollback (Left (ConflictedAliases (aliceProjectBranch ^. #name) name1 name2))
-            step "look for bob conflicted aliases" do
-              findConflictedAlias bobDefns (diffs ^. #bob) & onJust \(name1, name2) ->
-                rollback (Left (ConflictedAliases (bobProjectBranch ^. #name) name1 name2))
+            findConflictedAlias (rollback . Left) projectBranches defns diffs
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
             pure (Just lcaLibdeps, diffs)
 
       let conflictedNames =
             Merge.Defns
-              { terms = conflictsish (diffs ^. #alice . #terms) (diffs ^. #bob . #terms),
-                types = conflictsish (diffs ^. #alice . #types) (diffs ^. #bob . #types)
+              { terms = conflictsish (view #terms <$> diffs),
+                types = conflictsish (view #types <$> diffs)
               }
 
       -- Load and merge libdeps
@@ -366,24 +363,6 @@ handleMerge bobBranchName = do
             names <- (<>) <$> defnNames aliceDefns <*> defnNames bobDefns
             ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
             pure (MergeConflicts unconflictedV1Branch ppe mergeOutput)
-
-      Sqlite.unsafeIO do
-        Text.putStrLn ""
-        Text.putStrLn "===== lca->alice diff ====="
-        printTypesDiff (aliceDefns ^. #types) (diffs ^. #alice . #types)
-        printTermsDiff (aliceDefns ^. #terms) (diffs ^. #alice . #terms)
-        Text.putStrLn ""
-        Text.putStrLn "===== lca->bob diff ====="
-        printTypesDiff (bobDefns ^. #types) (diffs ^. #bob . #types)
-        printTermsDiff (bobDefns ^. #terms) (diffs ^. #bob . #terms)
-        Text.putStrLn ""
-        Text.putStrLn "===== merged libdeps dependencies ====="
-        printLibdeps libdeps
-        Text.putStrLn ""
-        Text.putStrLn "===== conflicts ====="
-        printTypeConflicts (conflictedNames ^. #types)
-        printTermConflicts (conflictedNames ^. #terms)
-        Text.putStrLn ""
 
       pure (Right mergeResult)
 
@@ -1016,33 +995,25 @@ data NamespaceInfo = NamespaceInfo
 --   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
 loadNamespaceInfo ::
   Monad m =>
+  (forall void. MergePreconditionViolation -> m void) ->
   (TypeReferenceId -> m Int) ->
   CausalHash ->
   Branch m ->
-  m (Either MergePreconditionViolation NamespaceInfo)
-loadNamespaceInfo loadNumConstructors causalHash branch = do
-  libdepsHasTopLevelDefns <-
-    case Map.lookup Name.libSegment (branch ^. #children) of
-      Nothing -> pure False
-      Just libdepsCausal -> do
-        libdepsBranch <- Causal.value libdepsCausal
-        pure (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types)))
-  if libdepsHasTopLevelDefns
-    then pure (Left DefnsInLib)
-    else do
-      defns0 <- loadNamespaceInfo0 branch causalHash
-      case makeNamespaceInfo1 defns0 of
-        Left err -> pure (Left err)
-        Right defns1 ->
-          checkDeclCoherency loadNumConstructors defns1 <&> \case
-            Left err -> Left err
-            Right constructorNameToDeclName ->
-              Right
-                NamespaceInfo
-                  { causalHashes = fmap snd defns1,
-                    constructorNameToDeclName,
-                    definitions = Merge.flattenNamespaceTree (fmap fst defns1)
-                  }
+  m NamespaceInfo
+loadNamespaceInfo abort loadNumConstructors causalHash branch = do
+  Map.lookup Name.libSegment (branch ^. #children) & onJust \libdepsCausal -> do
+    libdepsBranch <- Causal.value libdepsCausal
+    when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
+      abort DefnsInLib
+  defns0 <- loadNamespaceInfo0 branch causalHash
+  defns1 <- makeNamespaceInfo1 defns0 & onLeft abort
+  constructorNameToDeclName <- checkDeclCoherency loadNumConstructors defns1 & onLeftM abort
+  pure
+    NamespaceInfo
+      { causalHashes = fmap snd defns1,
+        constructorNameToDeclName,
+        definitions = Merge.flattenNamespaceTree (fmap fst defns1)
+      }
 
 type NamespaceInfo0 =
   Merge.NamespaceTree
@@ -1281,7 +1252,21 @@ data WhatHappened a
   | InhabitedDecl !a
   deriving stock (Functor, Show)
 
--- @findConflictedAlias namespace diff@, given a namespace and a diff from an old namespace, will return the first
+findConflictedAlias ::
+  (forall void. MergePreconditionViolation -> Transaction void) ->
+  Merge.TwoWay Sqlite.ProjectBranch ->
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
+  Transaction ()
+findConflictedAlias abort projectBranchNames defns diffs = do
+  step "look for alice conflicted aliases" do
+    findConflictedAlias1 (defns ^. #alice) (diffs ^. #alice) & onJust \(name1, name2) ->
+      abort (ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
+  step "look for bob conflicted aliases" do
+    findConflictedAlias1 (defns ^. #bob) (diffs ^. #bob) & onJust \(name1, name2) ->
+      abort (ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
+
+-- @findConflictedAlias1 namespace diff@, given a namespace and a diff from an old namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
 -- thing in the old namespace, but different things in the new one.
 --
@@ -1298,11 +1283,11 @@ data WhatHappened a
 -- then (foo, bar) is a conflicted alias.
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it could.
-findConflictedAlias ::
+findConflictedAlias1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Maybe (Name, Name)
-findConflictedAlias aliceDefns aliceDiff =
+findConflictedAlias1 aliceDefns aliceDiff =
   asum
     [ go (aliceDefns ^. #terms) (aliceDiff ^. #terms),
       go (aliceDefns ^. #types) (aliceDiff ^. #types)
@@ -1335,9 +1320,9 @@ findConflictedAlias aliceDefns aliceDiff =
                 Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
                 _ -> Just (name, alias)
 
--- conflictsish(diffish(lca, alice), diffish(lca, bob))
-conflictsish :: forall hash name. (Eq hash, Ord name) => Map name (Merge.DiffOp hash) -> Map name (Merge.DiffOp hash) -> Set name
-conflictsish aliceDiff bobDiff =
+-- FIXME comment this
+conflictsish :: forall hash name. (Eq hash, Ord name) => Merge.TwoWay (Map name (Merge.DiffOp hash)) -> Set name
+conflictsish (Merge.TwoWay aliceDiff bobDiff) =
   Map.keysSet (Map.mapMaybe id (alignWith f aliceDiff bobDiff))
   where
     f :: These (Merge.DiffOp hash) (Merge.DiffOp hash) -> Maybe ()

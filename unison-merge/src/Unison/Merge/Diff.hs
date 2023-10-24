@@ -45,7 +45,7 @@ data TwoWay a = TwoWay
   { alice :: !a,
     bob :: !a
   }
-  deriving stock (Generic)
+  deriving stock (Functor, Generic)
 
 instance Semigroup a => Semigroup (TwoWay a) where
   TwoWay ax bx <> TwoWay ay by = TwoWay (ax <> ay) (bx <> by)
@@ -55,14 +55,14 @@ data TwoOrThreeWay a = TwoOrThreeWay
     alice :: !a,
     bob :: !a
   }
-  deriving stock (Generic)
+  deriving stock (Functor, Generic)
 
 data ThreeWay a = ThreeWay
   { lca :: !a,
     alice :: !a,
     bob :: !a
   }
-  deriving stock (Generic)
+  deriving stock (Functor, Generic)
 
 -- | @nameBasedNamespaceDiff loadDecl loadTerm maybeLcaDefns aliceDefns bobDefns@ returns Alice's and Bob's name-based
 -- namespace diffs, each in the form:
