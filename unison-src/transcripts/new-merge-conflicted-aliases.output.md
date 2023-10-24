@@ -93,3 +93,31 @@ project/alice> add
     foo : Nat
 
 ```
+Have Bob do nothing at all (irrelevant to this transcript).
+
+```ucm
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: Use `merge /bob /main` to merge your work back into the
+       main branch.
+
+```
+Try merging Bob into Alice and observe that Alice's branch violates the merge precondition that aliases must all be
+updated together.
+
+```ucm
+project/alice> merge2 bob
+
+  On alice, bar and foo are not aliases, but they used to be.
+
+```
+Try merging Alice into Bob and observe the same.
+
+```ucm
+project/bob> merge2 alice
+
+  On alice, bar and foo are not aliases, but they used to be.
+
+```

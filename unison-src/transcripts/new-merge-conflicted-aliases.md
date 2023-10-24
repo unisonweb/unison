@@ -37,9 +37,15 @@ Have Bob do nothing at all (irrelevant to this transcript).
 project/main> branch bob
 ```
 
-Merge Bob into Alice and observe that Alice's branch violates the merge precondition that aliases must all be updated
-together.
+Try merging Bob into Alice and observe that Alice's branch violates the merge precondition that aliases must all be
+updated together.
 
-```ucm
+```ucm:error
 project/alice> merge2 bob
+```
+
+Try merging Alice into Bob and observe the same.
+
+```ucm:error
+project/bob> merge2 alice
 ```

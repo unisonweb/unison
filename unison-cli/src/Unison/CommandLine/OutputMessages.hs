@@ -2171,9 +2171,16 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  MergeConflictedAliases branch name1 name2 -> wundefined
-  MergeConflictedTermName name refs -> wundefined
-  MergeConflictedTypeName name refs -> wundefined
+  MergeConflictedAliases branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are not aliases, but they used to be."
+  MergeConflictedTermName name refs -> pure "Conflicted term name."
+  MergeConflictedTypeName name refs -> pure "Conflicted type name."
   MergeConflictInvolvingBuiltin -> pure "Conflict involving builtin."
   MergeConstructorAlias name1 name2 -> pure "Constructor alias."
   MergeDefnsInLib -> pure "Defns in lib"

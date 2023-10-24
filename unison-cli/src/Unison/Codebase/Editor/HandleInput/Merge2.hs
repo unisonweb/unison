@@ -229,7 +229,7 @@ handleMerge bobBranchName = do
                 loadDecl
                 loadTerm
                 Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
-            findConflictedAlias abort projectBranches defns diffs
+            findConflictedAlias abort projectBranches lcaDefns diffs
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
             pure (Just lcaLibdeps, diffs)
 
@@ -301,13 +301,13 @@ handleMerge bobBranchName = do
 
           typecheck uf >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
-              let saveToCodebase = wundefined
-              let consAndSaveNamespace = wundefined
+              let saveToCodebase = werror "saveToCodebase"
+              let consAndSaveNamespace = werror "consAndSaveNamespace"
               saveToCodebase tuf
               consAndSaveNamespace tuf
               pure MergeDone
             Nothing -> do
-              let ppe :: PrettyPrintEnvDecl = wundefined
+              let ppe :: PrettyPrintEnvDecl = werror "ppe"
               pure $ MergePropagationNotTypecheck ppe (void uf)
         else do
           conflicted <- filterConflicts defns conflictedNames & onLeft abort
@@ -1073,18 +1073,18 @@ data WhatHappened a
 findConflictedAlias ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   Merge.TwoWay Sqlite.ProjectBranch ->
-  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.TwoWay (Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
   Transaction ()
-findConflictedAlias abort projectBranchNames defns diffs = do
+findConflictedAlias abort projectBranchNames lcaDefns diffs = do
   step "look for alice conflicted aliases" do
-    findConflictedAlias1 (defns ^. #alice) (diffs ^. #alice) & onJust \(name1, name2) ->
+    findConflictedAlias1 lcaDefns (diffs ^. #alice) & onJust \(name1, name2) ->
       abort (Merge.ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
   step "look for bob conflicted aliases" do
-    findConflictedAlias1 (defns ^. #bob) (diffs ^. #bob) & onJust \(name1, name2) ->
+    findConflictedAlias1 lcaDefns (diffs ^. #bob) & onJust \(name1, name2) ->
       abort (Merge.ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
 
--- @findConflictedAlias1 namespace diff@, given a namespace and a diff from an old namespace, will return the first
+-- @findConflictedAlias1 namespace diff@, given an old namespace and a diff to a new namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
 -- thing in the old namespace, but different things in the new one.
 --
@@ -1100,23 +1100,18 @@ findConflictedAlias abort projectBranchNames defns diffs = do
 --
 -- then (foo, bar) is a conflicted alias.
 --
--- This function currently doesn't return whether the conflicted alias is a decl or a term, but it could.
+-- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Maybe (Name, Name)
-findConflictedAlias1 aliceDefns aliceDiff =
+findConflictedAlias1 defns diff =
   asum
-    [ go (aliceDefns ^. #terms) (aliceDiff ^. #terms),
-      go (aliceDefns ^. #types) (aliceDiff ^. #types)
+    [ go (defns ^. #terms) (diff ^. #terms),
+      go (defns ^. #types) (diff ^. #types)
     ]
   where
-    go ::
-      forall ref.
-      Ord ref =>
-      BiMultimap ref Name ->
-      Map Name (Merge.DiffOp Hash) ->
-      Maybe (Name, Name)
+    go :: forall ref. Ord ref => BiMultimap ref Name -> Map Name (Merge.DiffOp Hash) -> Maybe (Name, Name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
