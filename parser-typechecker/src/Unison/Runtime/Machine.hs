@@ -31,10 +31,10 @@ import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
+    isBuiltin,
     toShortHash,
-    isBuiltin
   )
-import Unison.Referent (Referent, pattern Ref, pattern Con)
+import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     Mem (..),

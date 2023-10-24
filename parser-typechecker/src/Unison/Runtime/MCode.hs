@@ -61,12 +61,12 @@ import Unison.Runtime.ANF
     internalBug,
     packTags,
     pattern TApp,
+    pattern TBLit,
     pattern TFOp,
     pattern TFrc,
     pattern THnd,
     pattern TLets,
     pattern TLit,
-    pattern TBLit,
     pattern TMatch,
     pattern TName,
     pattern TPrm,
@@ -861,7 +861,7 @@ emitSection _ _ _ _ ctx (TLit l) =
       | ANF.LY {} <- l = addCount 0 1
       | otherwise = addCount 1 0
 emitSection _ _ _ _ ctx (TBLit l) =
-  addCount 0 1 . countCtx ctx . Ins (emitBLit l) .  Yield $ BArg1 0
+  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ BArg1 0
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
@@ -1042,7 +1042,6 @@ emitLet _ _ _ _ _ _ _ (TLit l) =
   fmap (Ins $ emitLit l)
 emitLet _ _ _ _ _ _ _ (TBLit l) =
   fmap (Ins $ emitBLit l)
-
 -- emitLet rns grp _   _ _   ctx (TApp (FComb r) args)
 --   -- We should be able to tell if we are making a saturated call
 --   -- or not here. We aren't carrying the information here yet, though.
@@ -1557,7 +1556,7 @@ prettySection ind sec =
         . prettySection (ind + 1) pu
         . foldr (\p r -> rqc p . r) id (mapToList bs)
       where
-        rqc (i , e) =
+        rqc (i, e) =
           showString "\n"
             . shows i
             . showString " ->\n"

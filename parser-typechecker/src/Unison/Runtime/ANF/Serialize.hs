@@ -22,8 +22,8 @@ import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
-import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
 import Unison.Util.EnumContainers qualified as EC

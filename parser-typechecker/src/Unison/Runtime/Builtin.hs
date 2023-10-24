@@ -690,7 +690,6 @@ splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
       [ (0, ([], seqViewEmpty)),
         (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
       ]
-
 splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
   unbox n0 Ty.natRef n
     . TLetD t UN (TPrm SPLR [n, s])
@@ -928,15 +927,17 @@ watch =
 raise :: SuperNormal Symbol
 raise =
   unop0 3 $ \[r, f, n, k] ->
-    TMatch r . flip MatchRequest (TAbs f $ TVar f)
+    TMatch r
+      . flip MatchRequest (TAbs f $ TVar f)
       . Map.singleton Ty.exceptionRef
-      $ mapSingleton 0
-          ( [BX],
-            TAbs f
-              . TShift Ty.exceptionRef k
-              . TLetD n BX (TLit $ T "builtin.raise")
-              $ TPrm EROR [n, f]
-          )
+      $ mapSingleton
+        0
+        ( [BX],
+          TAbs f
+            . TShift Ty.exceptionRef k
+            . TLetD n BX (TLit $ T "builtin.raise")
+            $ TPrm EROR [n, f]
+        )
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
