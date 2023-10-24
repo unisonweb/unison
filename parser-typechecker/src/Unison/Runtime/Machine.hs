@@ -401,22 +401,28 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 SDBL i) = do
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 op i) = do
   (ustk, bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBX i j) = do
-  s <- peekOffS bstk i
-  c <- peekOff bstk j
-  l <- decodeSandboxArgument s
-  b <- checkSandboxing env l c
-  ustk <- bump ustk
-  poke ustk $ if b then 1 else 0
-  pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBV i j) = do
-  s <- peekOffS bstk i
-  v <- peekOffBi bstk j
-  l <- decodeSandboxArgument s
-  res <- checkValueSandboxing env l v
-  bstk <- bump bstk
-  poke bstk $ encodeSandboxResult res
-  pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBX i j)
+  | sandboxed env =
+      die "attempted to use sandboxed operation: sandboxLinks"
+  | otherwise = do
+      s <- peekOffS bstk i
+      c <- peekOff bstk j
+      l <- decodeSandboxArgument s
+      b <- checkSandboxing env l c
+      ustk <- bump ustk
+      poke ustk $ if b then 1 else 0
+      pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim2 SDBV i j)
+  | sandboxed env =
+      die "attempted to use sandboxed operation: Value.validateSandboxed"
+  | otherwise = do
+      s <- peekOffS bstk i
+      v <- peekOffBi bstk j
+      l <- decodeSandboxArgument s
+      res <- checkValueSandboxing env l v
+      bstk <- bump bstk
+      poke bstk $ encodeSandboxResult res
+      pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
