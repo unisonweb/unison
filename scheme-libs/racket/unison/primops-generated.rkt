@@ -393,10 +393,9 @@
 
     ([r (in-chunked-list (value-term-dependencies v))])
 
-
     (let ([l (reference->termlink r)])
       (values
-        (append (check-sandbox l) sdbx)
+        (append (check-sandbox-ok ok l) sdbx)
         (check-known l unkn)))))
 
 ; check sandboxing information for a reflection.Value
@@ -485,13 +484,9 @@
           (hash-set! runtime-module-map bs mname))))
     links))
 
-(define (need-dependency? d)
-  (data-case d
-    [0 (tx) #f] ; builtin
-    [1 (id)
-     (data-case id
-       [0 (bs i)
-        (not (hash-has-key? runtime-module-map bs))])]))
+(define (need-dependency? l)
+  (let ([ln (if (unison-data? l) (reference->termlink l) l)])
+    (and (unison-termlink-derived? ln) (not (have-code? ln)))))
 
 (define (resolve-proc gr)
   (sum-case (decode-ref (group-reference gr))
@@ -573,4 +568,4 @@
 (define-unison (builtin-sandboxLinks tl) (check-sandbox tl))
 
 (define-unison (builtin-Value.validateSandboxed ok v)
-  (sandbox-value ok v))
+  (sandbox-quoted (chunked-list->list ok) v))

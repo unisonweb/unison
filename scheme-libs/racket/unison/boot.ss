@@ -511,7 +511,7 @@
   (match rf
     [(unison-data _ t (list nm))
      #:when (= t unison-reference-builtin:tag)
-     (unison-termlink-builtin nm)]
+     (unison-termlink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
      #:when (= t unison-reference-derived:tag)
      (match id

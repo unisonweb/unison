@@ -9,6 +9,7 @@
   lookup-function-link
   declare-code
   lookup-code
+  have-code?
 
   (struct-out unison-data)
   (struct-out unison-sum)
@@ -333,6 +334,9 @@
     (if (eq? mco #f)
       (sum 0)
       (sum 1 mco))))
+
+(define (have-code? hs)
+  (hash-has-key? code-associations hs))
 
 (define (unison-tuple->list t)
   (let ([fs (unison-data-fields t)])

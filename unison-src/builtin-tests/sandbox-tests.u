@@ -1,18 +1,24 @@
 
+sandbox.check ok name a k =
+  match Value.validateSandboxed ok (value a) with
+    Left _ -> Tests.fail name "unknown dependencies"
+    Right [] -> k true
+    Right _  -> k false
+
 sandbox.checkSafe name a =
-  if validateSandboxed [] a
-  then Tests.pass (name ++ " safe")
-  else Tests.fail name " unexpectedly unsafe"
+  sandbox.check [] name a cases
+    true  -> Tests.pass (name ++ " safe")
+    false -> Tests.fail name " unexpectedly unsafe"
 
 sandbox.checkUnsafe name a =
-  if validateSandboxed [] a
-  then Tests.fail name " unexpectedly safe"
-  else Tests.pass (name ++ " unsafe")
+  sandbox.check [] name a cases
+    true  -> Tests.fail name " unexpectedly safe"
+    false -> Tests.pass (name ++ " unsafe")
 
 sandbox.checkAllowed name ok a =
-  if validateSandboxed ok a
-  then Tests.pass (name ++ " allowed")
-  else Tests.fail name " unexpected disallowed"
+  sandbox.check ok name a cases
+    true  -> Tests.pass (name ++ " allowed")
+    false -> Tests.fail name " unexpected disallowed"
 
 sandbox.tests = do
   checkSafe "5" 5
