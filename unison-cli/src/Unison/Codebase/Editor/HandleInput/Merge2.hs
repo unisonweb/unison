@@ -341,10 +341,9 @@ handleMerge bobBranchName = do
 
             mergeOutput <-
               mkMergeOutput
+                db
                 (aliceProjectBranch ^. #name)
                 (bobProjectBranch ^. #name)
-                loadTerm
-                loadDecl
                 aliceDefns
                 bobDefns
                 conflicted
@@ -465,21 +464,18 @@ makeMergeDatabase = do
   pure MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm, loadV1Branch}
 
 mkMergeOutput ::
-  forall a.
+  MergeDatabase ->
   ProjectBranchName ->
   ProjectBranchName ->
-  (TermReferenceId -> Transaction (V1.Term Symbol a)) ->
-  (TypeReferenceId -> Transaction (V1.Decl Symbol a)) ->
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Transaction (Merge.MergeOutput Symbol ())
 mkMergeOutput
+  MergeDatabase {loadDecl, loadTerm}
   aliceProjectBranchName
   bobProjectBranchName
-  loadTerm
-  loadDecl
   (Merge.Defns aliceTerms aliceTypes)
   (Merge.Defns bobTerms bobTypes)
   nameConflicts
