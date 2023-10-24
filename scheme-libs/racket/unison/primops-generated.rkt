@@ -20,6 +20,8 @@
   builtin-Value.value:termlink
   builtin-Value.reflect
   builtin-Value.reflect:termlink
+  builtin-Code.isMissing
+  builtin-Code.isMissing:termlink
   builtin-Code.lookup
   builtin-Code.lookup:termlink
   builtin-validateSandboxed
@@ -43,6 +45,7 @@
 
 (define-builtin-link builtin-Value.value)
 (define-builtin-link builtin-Value.reflect)
+(define-builtin-link builtin-Code.isMissing)
 (define-builtin-link builtin-Code.lookup)
 
 (define-builtin-link builtin-Code.deserialize)
@@ -566,6 +569,13 @@
       unison-boolean-false)))
 
 (define-unison (builtin-sandboxLinks tl) (check-sandbox tl))
+
+(define-unison (builtin-Code.isMissing tl)
+  (cond
+    [(unison-termlink-builtin? tl) unison-boolean-false]
+    [(unison-termlink-con? tl) unison-boolean-false]
+    [(have-code? tl) unison-boolean-true]
+    [else unison-boolean-false]))
 
 (define-unison (builtin-Value.validateSandboxed ok v)
   (sandbox-quoted (chunked-list->list ok) v))
