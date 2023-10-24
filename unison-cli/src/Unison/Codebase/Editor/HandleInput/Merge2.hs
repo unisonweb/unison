@@ -333,7 +333,7 @@ handleMerge bobBranchName = do
 
             let unconflictedV3Branch = unconflictedToV3Branch db unconflicted causalHashes
             unconflictedV1Branch <-
-              loadV3BranchAndLibdepsAsV1Branch
+              convertV3BranchAndLibdepsToV1Branch
                 db
                 unconflictedV3Branch
                 libdepsCausalParents
@@ -354,7 +354,7 @@ handleMerge bobBranchName = do
                 defnNames = \case
                   Merge.Defns terms types -> do
                     termNames <- do
-                      termList <- traverse (\(k, v) -> (k,) <$> referent2to1 loadDeclType v) (Map.toList (BiMultimap.range terms))
+                      termList <- traverse (\(k, v) -> (k,) <$> referent2to1 db v) (Map.toList (BiMultimap.range terms))
                       pure (foldr (\(k, v) -> Names.addTerm k v) mempty termList)
                     pure (Map.foldrWithKey Names.addType termNames (BiMultimap.range types))
             names <- (<>) <$> defnNames aliceDefns <*> defnNames bobDefns
@@ -786,31 +786,6 @@ filterUnconflicted1 personOneDefns personOneConstructorNameToDeclName personOneC
         updatedByPersonTwo =
           Map.keysSet (personTwoUpdates ^. #types)
 
-unconflictedToV3Branch ::
-  MergeDatabase ->
-  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Merge.TwoWay (Merge.NamespaceTree CausalHash) ->
-  BranchV3 Transaction
-unconflictedToV3Branch db unconflicted causalHashes =
-  namespaceToV3Branch db $
-    Merge.mergeNamespaceTrees
-      (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
-      (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
-      ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
-          -- A left-biased union is fine here because we are merging unconflicted things; where the maps aren't
-          -- disjoint, the values are equal
-          (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
-      )
-      (makeBigTree (unconflicted ^. #alice) (causalHashes ^. #alice))
-      (makeBigTree (unconflicted ^. #bob) (causalHashes ^. #bob))
-  where
-    makeBigTree ::
-      Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      Merge.NamespaceTree CausalHash ->
-      Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
-    makeBigTree defns causals =
-      Merge.zipNamespaceTrees (,) (Merge.unflattenNamespaceTree defns) causals
-
 -- `defnsToScope defns` converts a flattened namespace `defns` to the set of untagged reference ids contained within,
 -- for the purpose of searching for transitive dependents of conflicts that are contained in that set.
 defnsToScope :: Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference.Id
@@ -818,115 +793,6 @@ defnsToScope (Merge.Defns terms types) =
   Set.union
     (Set.mapMaybe Referent.toReferenceId (BiMultimap.dom terms))
     (Set.mapMaybe Reference.toId (BiMultimap.dom types))
-
-loadV3BranchAndLibdepsAsV1Branch ::
-  MergeDatabase ->
-  BranchV3 Transaction ->
-  Set CausalHash ->
-  Map NameSegment (CausalBranch Transaction) ->
-  Transaction (V1.Branch0 Transaction)
-loadV3BranchAndLibdepsAsV1Branch db@MergeDatabase {loadDeclType} BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
-  terms1 <- traverse (referent2to1 loadDeclType) terms
-  children1 <- traverse (loadV3CausalAsV1Causal db) children
-  libdepsV1Causal <- loadLibdepsV1Causal db libdepsCausalParents libdeps
-  let children2 = Map.insert Name.libSegment libdepsV1Causal children1
-  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children2 Map.empty)
-
-loadV3BranchAsV1Branch :: MergeDatabase -> BranchV3 Transaction -> Transaction (V1.Branch0 Transaction)
-loadV3BranchAsV1Branch db@MergeDatabase {loadDeclType} BranchV3 {terms, types, children} = do
-  terms1 <- traverse (referent2to1 loadDeclType) terms
-  children1 <- traverse (loadV3CausalAsV1Causal db) children
-  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children1 Map.empty)
-
--- `loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps` loads `libdeps` as a V1 branch (without
--- history), and then turns it into a V1 causal using `parents` as history.
-loadLibdepsV1Causal ::
-  MergeDatabase ->
-  Set CausalHash ->
-  Map NameSegment (CausalBranch Transaction) ->
-  Transaction (V1.Branch Transaction)
-loadLibdepsV1Causal db@MergeDatabase {loadCausal, loadDeclType} parents libdeps = do
-  let branch :: Branch Transaction
-      branch =
-        Branch
-          { terms = Map.empty,
-            types = Map.empty,
-            patches = Map.empty,
-            children = libdeps
-          }
-
-  branchHash <- HashHandle.hashBranch v2HashHandle branch
-
-  v1Branch <- do
-    -- We make a fresh branch cache to load the branch of libdeps.
-    -- It would probably be better to reuse the codebase's branch cache.
-    -- FIXME how slow/bad is this without that branch cache?
-    branchCache <- Sqlite.unsafeIO newBranchCache
-    Conversions.branch2to1 branchCache loadDeclType branch
-
-  pure $
-    addCausalHistoryV1
-      db
-      (HashHandle.hashCausal v2HashHandle branchHash parents)
-      branchHash
-      v1Branch
-      (Map.fromSet loadCausal parents)
-
-makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
-makeStar3 =
-  foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
-  where
-    emptyStar3 =
-      Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
-
-loadV3CausalAsV1Causal :: MergeDatabase -> CausalBranchV3 Transaction -> Transaction (V1.Branch Transaction)
-loadV3CausalAsV1Causal db causal = do
-  branch <- causal ^. #value
-  head <- loadV3BranchAsV1Branch db branch
-  pure (addCausalHistoryV1 db (causal ^. #causalHash) (causal ^. #valueHash) head (causal ^. #parents))
-
--- Add causal history to a V1.Branch0, making it a V1.Branch
-addCausalHistoryV1 ::
-  MergeDatabase ->
-  CausalHash ->
-  BranchHash ->
-  V1.Branch0 Transaction ->
-  Map CausalHash (Transaction (CausalBranch Transaction)) ->
-  V1.Branch Transaction
-addCausalHistoryV1 MergeDatabase {loadV1Branch} currentHash valueHash0 head parents =
-  V1.Branch case Map.toList parents of
-    [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
-    [(parentHash, parent)] ->
-      V1.Causal.UnsafeCons
-        { currentHash,
-          valueHash,
-          head,
-          tail = (parentHash, convertParent parent)
-        }
-    _ ->
-      V1.Causal.UnsafeMerge
-        { currentHash,
-          valueHash,
-          head,
-          tails = convertParent <$> parents
-        }
-  where
-    convertParent :: Transaction (CausalBranch Transaction) -> Transaction (V1.Causal Transaction (V1.Branch0 Transaction))
-    convertParent loadParent = do
-      parent <- loadParent
-      v1Branch <- loadV1Branch (parent ^. #causalHash)
-      pure (V1.Branch._history v1Branch)
-
-    valueHash =
-      coerce @BranchHash @(Hash.HashFor (V1.Branch0 Transaction)) valueHash0
-
--- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
-referent2to1 :: Applicative m => (TypeReference -> m ConstructorType) -> Referent -> m V1.Referent
-referent2to1 loadDeclType = \case
-  Referent.Con typeRef conId -> do
-    declTy <- loadDeclType typeRef
-    pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
-  Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
@@ -1332,6 +1198,154 @@ loadLibdeps branch =
     Just dependenciesCausal -> do
       dependenciesBranch <- Causal.value dependenciesCausal
       pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
+
+------------------------------------------------------------------------------------------------------------------------
+-- Constructing database entities
+--
+-- These utilities help convert in-memory structures into database types for saving
+
+unconflictedToV3Branch ::
+  MergeDatabase ->
+  Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (Merge.NamespaceTree CausalHash) ->
+  BranchV3 Transaction
+unconflictedToV3Branch db unconflicted causalHashes =
+  namespaceToV3Branch db $
+    Merge.mergeNamespaceTrees
+      (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
+      (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
+      ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+          -- A left-biased union is fine here because we are merging unconflicted things; where the maps aren't
+          -- disjoint, the values are equal
+          (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
+      )
+      (makeBigTree (unconflicted ^. #alice) (causalHashes ^. #alice))
+      (makeBigTree (unconflicted ^. #bob) (causalHashes ^. #bob))
+  where
+    makeBigTree ::
+      Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      Merge.NamespaceTree CausalHash ->
+      Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
+    makeBigTree defns causals =
+      Merge.zipNamespaceTrees (,) (Merge.unflattenNamespaceTree defns) causals
+
+------------------------------------------------------------------------------------------------------------------------
+-- Compat with V1 types
+--
+-- These utilities create V1 types for compatibility with the deprecated architecture of having the entire codebase
+-- loaded into memory as a V1 type
+
+-- Convert a V3 branch of definitions, plus libdeps, into a V1 branch.
+convertV3BranchAndLibdepsToV1Branch ::
+  MergeDatabase ->
+  BranchV3 Transaction ->
+  Set CausalHash ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Transaction (V1.Branch0 Transaction)
+convertV3BranchAndLibdepsToV1Branch db BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
+  terms1 <- traverse (referent2to1 db) terms
+  children1 <- traverse (convertV3CausalToV1Causal db) children
+  libdepsV1Causal <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
+  let children2 = Map.insert Name.libSegment libdepsV1Causal children1
+  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children2 Map.empty)
+
+-- Convert a V3 branch of defninitions into a V1 branch.
+convertV3BranchToV1Branch :: MergeDatabase -> BranchV3 Transaction -> Transaction (V1.Branch0 Transaction)
+convertV3BranchToV1Branch db BranchV3 {terms, types, children} = do
+  terms1 <- traverse (referent2to1 db) terms
+  children1 <- traverse (convertV3CausalToV1Causal db) children
+  pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children1 Map.empty)
+
+-- `convertLibdepsToV1Causal db parents libdeps` loads `libdeps` as a V1 branch (without history), and then turns it
+-- into a V1 causal using `parents` as history.
+convertLibdepsToV1Causal ::
+  MergeDatabase ->
+  Set CausalHash ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Transaction (V1.Branch Transaction)
+convertLibdepsToV1Causal db@MergeDatabase {loadCausal, loadDeclType} parents libdeps = do
+  let branch :: Branch Transaction
+      branch =
+        Branch
+          { terms = Map.empty,
+            types = Map.empty,
+            patches = Map.empty,
+            children = libdeps
+          }
+
+  branchHash <- HashHandle.hashBranch v2HashHandle branch
+
+  v1Branch <- do
+    -- We make a fresh branch cache to load the branch of libdeps.
+    -- It would probably be better to reuse the codebase's branch cache.
+    -- FIXME how slow/bad is this without that branch cache?
+    branchCache <- Sqlite.unsafeIO newBranchCache
+    Conversions.branch2to1 branchCache loadDeclType branch
+
+  pure $
+    addCausalHistoryV1
+      db
+      (HashHandle.hashCausal v2HashHandle branchHash parents)
+      branchHash
+      v1Branch
+      (Map.fromSet loadCausal parents)
+
+-- Convert a V3 causal to a V1 causal.
+convertV3CausalToV1Causal :: MergeDatabase -> CausalBranchV3 Transaction -> Transaction (V1.Branch Transaction)
+convertV3CausalToV1Causal db causal = do
+  branch <- causal ^. #value
+  head <- convertV3BranchToV1Branch db branch
+  pure (addCausalHistoryV1 db (causal ^. #causalHash) (causal ^. #valueHash) head (causal ^. #parents))
+
+-- Add causal history to a V1 branch (V1.Branch0), making it a V1 causal (V1.Branch).
+addCausalHistoryV1 ::
+  MergeDatabase ->
+  CausalHash ->
+  BranchHash ->
+  V1.Branch0 Transaction ->
+  Map CausalHash (Transaction (CausalBranch Transaction)) ->
+  V1.Branch Transaction
+addCausalHistoryV1 MergeDatabase {loadV1Branch} currentHash valueHash0 head parents =
+  V1.Branch case Map.toList parents of
+    [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+    [(parentHash, parent)] ->
+      V1.Causal.UnsafeCons
+        { currentHash,
+          valueHash,
+          head,
+          tail = (parentHash, convertParent parent)
+        }
+    _ ->
+      V1.Causal.UnsafeMerge
+        { currentHash,
+          valueHash,
+          head,
+          tails = convertParent <$> parents
+        }
+  where
+    convertParent :: Transaction (CausalBranch Transaction) -> Transaction (V1.Causal Transaction (V1.Branch0 Transaction))
+    convertParent loadParent = do
+      parent <- loadParent
+      v1Branch <- loadV1Branch (parent ^. #causalHash)
+      pure (V1.Branch._history v1Branch)
+
+    valueHash =
+      coerce @BranchHash @(Hash.HashFor (V1.Branch0 Transaction)) valueHash0
+
+makeStar3 :: Ord ref => Map NameSegment ref -> Star3 ref NameSegment x y
+makeStar3 =
+  foldr (\(name, ref) -> Star3.insertD1 (ref, name)) emptyStar3 . Map.toList
+  where
+    emptyStar3 =
+      Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
+
+-- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
+referent2to1 :: MergeDatabase -> Referent -> Transaction V1.Referent
+referent2to1 MergeDatabase {loadDeclType} = \case
+  Referent.Con typeRef conId -> do
+    declTy <- loadDeclType typeRef
+    pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
+  Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Debug show/print utils
