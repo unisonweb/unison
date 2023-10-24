@@ -28,7 +28,12 @@ import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
 import Unison.Prelude hiding (Text)
-import Unison.Reference (Reference, Reference' (Builtin), toShortHash)
+import Unison.Reference
+  ( Reference,
+    Reference' (Builtin),
+    toShortHash,
+    isBuiltin
+  )
 import Unison.Referent (Referent, pattern Ref, pattern Con)
 import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
@@ -2056,7 +2061,9 @@ checkValueSandboxing cc allowed0 v = do
   sands <- readTVarIO $ sandbox cc
   have <- readTVarIO $ intermed cc
   let f False r
-        | Nothing <- M.lookup r have = (S.singleton r, mempty)
+        | Nothing <- M.lookup r have,
+          not (isBuiltin r) =
+            (S.singleton r, mempty)
         | Just rs <- M.lookup r sands =
             (mempty, rs `S.difference` allowed)
       f _ _ = (mempty, mempty)
