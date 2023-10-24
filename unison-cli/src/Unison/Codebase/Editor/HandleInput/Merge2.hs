@@ -204,7 +204,7 @@ handleMerge bobBranchName = do
 
   -- Create a bunch of cached database lookup functions
   Cli.Env {codebase} <- ask
-  MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm} <- makeMergeDatabase
+  db@MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm} <- makeMergeDatabase
 
   result <-
     Cli.runTransactionWithRollback2 \rollback -> do
@@ -288,8 +288,8 @@ handleMerge bobBranchName = do
                   )
 
             let namelookup :: Merge.RefToName =
-                  let multimapMerge :: forall a b. Ord a => Ord b => BiMultimap a b -> BiMultimap a b -> Map a b
-                      multimapMerge ma mb =
+                  let multimapMerge :: forall a b. Ord a => Ord b => Merge.TwoWay (BiMultimap a b) -> Map a b
+                      multimapMerge (Merge.TwoWay ma mb) =
                         Map.merge
                           (Map.mapMissing \_ -> NESet.findMin)
                           (Map.mapMissing \_ -> NESet.findMin)
@@ -302,9 +302,9 @@ handleMerge bobBranchName = do
                           (BiMultimap.domain ma)
                           (BiMultimap.domain mb)
                       termNames :: Map Referent Name
-                      termNames = multimapMerge (aliceDefns ^. #terms) (bobDefns ^. #terms)
+                      termNames = multimapMerge (view #terms <$> defns)
                       typeNames :: Map TypeReference Name
-                      typeNames = multimapMerge (aliceDefns ^. #types) (bobDefns ^. #types)
+                      typeNames = multimapMerge (view #types <$> defns)
                    in Merge.Defns termNames typeNames
 
             uf <- do
@@ -329,15 +329,12 @@ handleMerge bobBranchName = do
                 pure $ MergePropagationNotTypecheck ppe (void uf)
           else do
             conflicted <- filterConflicts defns conflictedNames & onLeft (rollback . Left)
-            let unconflicted =
-                  filterUnconflicted defns constructorNameToDeclName updates (conflicted <> dependents)
+            let unconflicted = filterUnconflicted defns constructorNameToDeclName updates (conflicted <> dependents)
 
-            let unconflictedV3Branch = unconflictedToV3Branch loadCausal unconflicted causalHashes
+            let unconflictedV3Branch = unconflictedToV3Branch db unconflicted causalHashes
             unconflictedV1Branch <-
               loadV3BranchAndLibdepsAsV1Branch
-                loadDeclType
-                loadCausal
-                (Codebase.expectBranchForHash codebase)
+                db
                 unconflictedV3Branch
                 libdepsCausalParents
                 libdeps
@@ -437,7 +434,8 @@ data MergeDatabase = MergeDatabase
     loadDecl :: TypeReferenceId -> Transaction (V1.Decl Symbol Ann),
     loadDeclNumConstructors :: TypeReferenceId -> Transaction Int,
     loadDeclType :: TypeReference -> Transaction ConstructorType,
-    loadTerm :: TermReferenceId -> Transaction (V1.Term Symbol Ann)
+    loadTerm :: TermReferenceId -> Transaction (V1.Term Symbol Ann),
+    loadV1Branch :: CausalHash -> Transaction (V1.Branch Transaction)
   }
 
 makeMergeDatabase :: Cli MergeDatabase
@@ -463,7 +461,8 @@ makeMergeDatabase = do
   loadTerm <- do
     cache <- Cache.semispaceCache 1024
     pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
-  pure MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm}
+  let loadV1Branch = Codebase.expectBranchForHash codebase
+  pure MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm, loadV1Branch}
 
 mkMergeOutput ::
   forall a.
@@ -626,31 +625,31 @@ makeWawa2 personOneDefns personTwoUpdates =
           Referent.Con typeRef _conId -> acc & over #types (Set.insert typeRef)
           Referent.Ref termRef -> acc & over #terms (Set.insert termRef)
 
-namespaceToBranchV3 ::
-  (CausalHash -> Transaction (CausalBranch Transaction)) ->
+namespaceToV3Branch ::
+  MergeDatabase ->
   Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3 Transaction
-namespaceToBranchV3 loadCausal ((Merge.Defns {terms, types}, _causalParents) :< children) =
+namespaceToV3Branch db ((Merge.Defns {terms, types}, _causalParents) :< children) =
   BranchV3.BranchV3
     { terms,
       types,
-      children = namespaceToCausalV3 loadCausal <$> children
+      children = namespaceToV3Causal db <$> children
     }
 
-namespaceToCausalV3 ::
-  (CausalHash -> Transaction (CausalBranch Transaction)) ->
+namespaceToV3Causal ::
+  MergeDatabase ->
   Merge.NamespaceTree (Merge.Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3.CausalBranchV3 Transaction
-namespaceToCausalV3 loadCausal namespace@((_, causalParentHashes) :< _) =
+namespaceToV3Causal db@MergeDatabase {loadCausal} namespace@((_, causalParentHashes) :< _) =
   HashHandle.mkCausal
     v2HashHandle
-    (HashHandle.hashBranchV3 v2HashHandle branchV3)
+    (HashHandle.hashBranchV3 v2HashHandle v3Branch)
     (Map.fromList (map (\ch -> (ch, loadCausal ch)) causalParentHashes))
-    (pure branchV3)
+    (pure v3Branch)
   where
-    branchV3 :: BranchV3 Transaction
-    branchV3 =
-      namespaceToBranchV3 loadCausal namespace
+    v3Branch :: BranchV3 Transaction
+    v3Branch =
+      namespaceToV3Branch db namespace
 
 filterUpdates ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -678,18 +677,21 @@ filterUpdates1 defns diff =
       Merge.Deleted {} -> False
       Merge.Updated {} -> True
 
+-- `filterConflicts1 defns conflicts` filters `defns` down to just the conflicted type and term references.
+--
+-- Fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
 filterConflicts ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.Defns (Set Name) (Set Name) ->
   Either MergePreconditionViolation (Merge.TwoWay (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId)))
-filterConflicts defns conflictedNames = do
-  alice <- filterConflicts1 (defns ^. #alice) conflictedNames
-  bob <- filterConflicts1 (defns ^. #bob) conflictedNames
+filterConflicts defns conflicts = do
+  alice <- filterConflicts1 (defns ^. #alice) conflicts
+  bob <- filterConflicts1 (defns ^. #bob) conflicts
   pure Merge.TwoWay {alice, bob}
 
 -- `filterConflicts1 defns conflicts` filters `defns` down to just the conflicted type and term references.
 --
--- It fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
+-- Fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
 filterConflicts1 ::
   Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.Defns (Set Name) (Set Name) ->
@@ -785,12 +787,12 @@ filterUnconflicted1 personOneDefns personOneConstructorNameToDeclName personOneC
           Map.keysSet (personTwoUpdates ^. #types)
 
 unconflictedToV3Branch ::
-  (CausalHash -> Transaction (CausalBranch Transaction)) ->
+  MergeDatabase ->
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Merge.NamespaceTree CausalHash) ->
   BranchV3 Transaction
-unconflictedToV3Branch loadCausal unconflicted causalHashes =
-  namespaceToBranchV3 loadCausal $
+unconflictedToV3Branch db unconflicted causalHashes =
+  namespaceToV3Branch db $
     Merge.mergeNamespaceTrees
       (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
       (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
@@ -818,41 +820,32 @@ defnsToScope (Merge.Defns terms types) =
     (Set.mapMaybe Reference.toId (BiMultimap.dom types))
 
 loadV3BranchAndLibdepsAsV1Branch ::
-  (TypeReference -> Transaction ConstructorType) ->
-  (CausalHash -> Transaction (CausalBranch Transaction)) ->
-  (CausalHash -> Transaction (V1.Branch Transaction)) ->
+  MergeDatabase ->
   BranchV3 Transaction ->
   Set CausalHash ->
   Map NameSegment (CausalBranch Transaction) ->
   Transaction (V1.Branch0 Transaction)
-loadV3BranchAndLibdepsAsV1Branch loadDeclType loadCausal loadV1Branch BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
+loadV3BranchAndLibdepsAsV1Branch db@MergeDatabase {loadDeclType} BranchV3 {terms, types, children} libdepsCausalParents libdeps = do
   terms1 <- traverse (referent2to1 loadDeclType) terms
-  children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
-  libdepsV1Causal <- loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch libdepsCausalParents libdeps
+  children1 <- traverse (loadV3CausalAsV1Causal db) children
+  libdepsV1Causal <- loadLibdepsV1Causal db libdepsCausalParents libdeps
   let children2 = Map.insert Name.libSegment libdepsV1Causal children1
   pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children2 Map.empty)
 
-loadV3BranchAsV1Branch ::
-  Monad m =>
-  (TypeReference -> m ConstructorType) ->
-  (CausalHash -> m (V1.Branch m)) ->
-  BranchV3 m ->
-  m (V1.Branch0 m)
-loadV3BranchAsV1Branch loadDeclType loadV1Branch BranchV3 {terms, types, children} = do
+loadV3BranchAsV1Branch :: MergeDatabase -> BranchV3 Transaction -> Transaction (V1.Branch0 Transaction)
+loadV3BranchAsV1Branch db@MergeDatabase {loadDeclType} BranchV3 {terms, types, children} = do
   terms1 <- traverse (referent2to1 loadDeclType) terms
-  children1 <- traverse (loadV3CausalAsV1Causal loadDeclType loadV1Branch) children
+  children1 <- traverse (loadV3CausalAsV1Causal db) children
   pure (V1.Branch.branch0 (makeStar3 terms1) (makeStar3 types) children1 Map.empty)
 
 -- `loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps` loads `libdeps` as a V1 branch (without
 -- history), and then turns it into a V1 causal using `parents` as history.
 loadLibdepsV1Causal ::
-  (TypeReference -> Transaction ConstructorType) ->
-  (CausalHash -> Transaction (CausalBranch Transaction)) ->
-  (CausalHash -> Transaction (V1.Branch Transaction)) ->
+  MergeDatabase ->
   Set CausalHash ->
   Map NameSegment (CausalBranch Transaction) ->
   Transaction (V1.Branch Transaction)
-loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps = do
+loadLibdepsV1Causal db@MergeDatabase {loadCausal, loadDeclType} parents libdeps = do
   let branch :: Branch Transaction
       branch =
         Branch
@@ -873,7 +866,7 @@ loadLibdepsV1Causal loadDeclType loadCausal loadV1Branch parents libdeps = do
 
   pure $
     addCausalHistoryV1
-      loadV1Branch
+      db
       (HashHandle.hashCausal v2HashHandle branchHash parents)
       branchHash
       v1Branch
@@ -886,29 +879,21 @@ makeStar3 =
     emptyStar3 =
       Star3.Star3 Set.empty Relation.empty Relation.empty Relation.empty
 
-loadV3CausalAsV1Causal ::
-  forall m.
-  Monad m =>
-  (TypeReference -> m ConstructorType) ->
-  (CausalHash -> m (V1.Branch m)) ->
-  CausalBranchV3 m ->
-  m (V1.Branch m)
-loadV3CausalAsV1Causal loadDeclType loadV1Branch causal = do
+loadV3CausalAsV1Causal :: MergeDatabase -> CausalBranchV3 Transaction -> Transaction (V1.Branch Transaction)
+loadV3CausalAsV1Causal db causal = do
   branch <- causal ^. #value
-  head <- loadV3BranchAsV1Branch loadDeclType loadV1Branch branch
-  pure (addCausalHistoryV1 loadV1Branch (causal ^. #causalHash) (causal ^. #valueHash) head (causal ^. #parents))
+  head <- loadV3BranchAsV1Branch db branch
+  pure (addCausalHistoryV1 db (causal ^. #causalHash) (causal ^. #valueHash) head (causal ^. #parents))
 
 -- Add causal history to a V1.Branch0, making it a V1.Branch
 addCausalHistoryV1 ::
-  forall m.
-  Monad m =>
-  (CausalHash -> m (V1.Branch m)) ->
+  MergeDatabase ->
   CausalHash ->
   BranchHash ->
-  V1.Branch0 m ->
-  Map CausalHash (m (CausalBranch m)) ->
-  V1.Branch m
-addCausalHistoryV1 loadV1Branch currentHash valueHash0 head parents =
+  V1.Branch0 Transaction ->
+  Map CausalHash (Transaction (CausalBranch Transaction)) ->
+  V1.Branch Transaction
+addCausalHistoryV1 MergeDatabase {loadV1Branch} currentHash valueHash0 head parents =
   V1.Branch case Map.toList parents of
     [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
     [(parentHash, parent)] ->
@@ -926,14 +911,14 @@ addCausalHistoryV1 loadV1Branch currentHash valueHash0 head parents =
           tails = convertParent <$> parents
         }
   where
-    convertParent :: m (CausalBranch m) -> m (V1.Causal m (V1.Branch0 m))
+    convertParent :: Transaction (CausalBranch Transaction) -> Transaction (V1.Causal Transaction (V1.Branch0 Transaction))
     convertParent loadParent = do
       parent <- loadParent
       v1Branch <- loadV1Branch (parent ^. #causalHash)
       pure (V1.Branch._history v1Branch)
 
     valueHash =
-      coerce @BranchHash @(Hash.HashFor (V1.Branch0 m)) valueHash0
+      coerce @BranchHash @(Hash.HashFor (V1.Branch0 Transaction)) valueHash0
 
 -- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
 referent2to1 :: Applicative m => (TypeReference -> m ConstructorType) -> Referent -> m V1.Referent
