@@ -660,24 +660,26 @@ filterConflicts1 ::
   Merge.Defns (Set Name) (Set Name) ->
   Either Merge.PreconditionViolation (Merge.Defns (Set TermReferenceId) (Set TypeReferenceId))
 filterConflicts1 defns conflicts = do
-  terms <- foldlM doTerm Set.empty (onlyConflicted (conflicts ^. #terms) (defns ^. #terms))
-  types <- foldlM doType Set.empty (onlyConflicted (conflicts ^. #types) (defns ^. #types))
+  terms <- foldlM doTerm Set.empty (Map.toList (onlyConflicted (conflicts ^. #terms) (defns ^. #terms)))
+  types <- foldlM doType Set.empty (Map.toList (onlyConflicted (conflicts ^. #types) (defns ^. #types)))
   pure Merge.Defns {terms, types}
   where
-    onlyConflicted :: Ord ref => Set Name -> BiMultimap ref Name -> Set ref
-    onlyConflicted keys =
-      Set.fromList . Map.elems . (`Map.restrictKeys` keys) . BiMultimap.range
+    onlyConflicted :: Ord ref => Set Name -> BiMultimap ref Name -> Map Name ref
+    onlyConflicted conflictedNames =
+      (`Map.restrictKeys` conflictedNames) . BiMultimap.range
 
-    doTerm :: Set TermReferenceId -> Referent -> Either Merge.PreconditionViolation (Set TermReferenceId)
-    doTerm refs = \case
-      Referent.Con {} -> Right refs
-      Referent.Ref (ReferenceBuiltin _) -> Left Merge.ConflictInvolvingBuiltin
-      Referent.Ref (ReferenceDerived ref) -> Right $! Set.insert ref refs
+    doTerm :: Set TermReferenceId -> (Name, Referent) -> Either Merge.PreconditionViolation (Set TermReferenceId)
+    doTerm acc (name, ref) =
+      case ref of
+        Referent.Con {} -> Right acc
+        Referent.Ref (ReferenceBuiltin _) -> Left (Merge.ConflictInvolvingBuiltin name)
+        Referent.Ref (ReferenceDerived ref) -> Right $! Set.insert ref acc
 
-    doType :: Set TypeReferenceId -> TypeReference -> Either Merge.PreconditionViolation (Set TypeReferenceId)
-    doType refs = \case
-      ReferenceBuiltin _ -> Left Merge.ConflictInvolvingBuiltin
-      ReferenceDerived ref -> Right $! Set.insert ref refs
+    doType :: Set TypeReferenceId -> (Name, TypeReference) -> Either Merge.PreconditionViolation (Set TypeReferenceId)
+    doType acc (name, ref) =
+      case ref of
+        ReferenceBuiltin _ -> Left (Merge.ConflictInvolvingBuiltin name)
+        ReferenceDerived ref -> Right $! Set.insert ref acc
 
 filterUnconflicted ::
   Merge.TwoWay (Merge.Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -1182,7 +1184,7 @@ mergePreconditionViolationToOutput db = \case
   Merge.ConflictedAliases branch name1 name2 -> pure (Output.MergeConflictedAliases branch name1 name2)
   Merge.ConflictedTermName name refs -> Output.MergeConflictedTermName name <$> Set.traverse (referent2to1 db) refs
   Merge.ConflictedTypeName name refs -> pure (Output.MergeConflictedTypeName name refs)
-  Merge.ConflictInvolvingBuiltin -> pure Output.MergeConflictInvolvingBuiltin
+  Merge.ConflictInvolvingBuiltin name -> pure (Output.MergeConflictInvolvingBuiltin name)
   Merge.ConstructorAlias name1 name2 -> pure (Output.MergeConstructorAlias name1 name2)
   Merge.DefnsInLib -> pure Output.MergeDefnsInLib
   Merge.MissingConstructorName name -> pure (Output.MergeMissingConstructorName name)

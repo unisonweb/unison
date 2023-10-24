@@ -18,8 +18,9 @@ data PreconditionViolation
     ConflictedTermName !Name !(Set Referent)
   | -- | @ConflictedTypeName name refs@: @name@ refers to 2+ type references @refs@.
     ConflictedTypeName !Name !(Set TypeReference)
-  | -- | We can't put a builtin in a scratch file, so we bomb in situations where we'd have to
-    ConflictInvolvingBuiltin
+  | -- | @ConflictInvolvingBuiltin name@: @name@ is involved in a conflict, but it refers to a builtin (on at least one
+    -- side). Since we can't put a builtin in a scratch file, we bomb in these cases.
+    ConflictInvolvingBuiltin !Name
   | -- | A second naming of a constructor was discovered underneath a decl's name, e.g.
     --
     --   Foo#Foo

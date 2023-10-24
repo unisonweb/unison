@@ -2181,7 +2181,11 @@ notifyUser dir = \case
         <> "are not aliases, but they used to be."
   MergeConflictedTermName name refs -> pure "Conflicted term name."
   MergeConflictedTypeName name refs -> pure "Conflicted type name."
-  MergeConflictInvolvingBuiltin -> pure "Conflict involving builtin."
+  MergeConflictInvolvingBuiltin name ->
+    pure . P.wrap $
+      "There's a merge conflict on"
+        <> P.group (prettyName name <> ",")
+        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
   MergeConstructorAlias name1 name2 -> pure "Constructor alias."
   MergeDefnsInLib -> pure "Defns in lib"
   MergeMissingConstructorName name -> pure "Missing constructor name."

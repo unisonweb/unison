@@ -72,12 +72,16 @@ project/bob> add
 ```ucm
 project/alice> merge2 bob
 
-  Conflict involving builtin.
+  There's a merge conflict on Foo, but it's a builtin on one or
+  both branches. We can't yet handle merge conflicts on
+  builtins.
 
 ```
 ```ucm
 project/bob> merge2 alice
 
-  Conflict involving builtin.
+  There's a merge conflict on Foo, but it's a builtin on one or
+  both branches. We can't yet handle merge conflicts on
+  builtins.
 
 ```

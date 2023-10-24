@@ -390,7 +390,7 @@ data Output
     MergeConflictedAliases !ProjectBranchName !Name !Name
   | MergeConflictedTermName !Name !(Set Referent)
   | MergeConflictedTypeName !Name !(Set TypeReference)
-  | MergeConflictInvolvingBuiltin
+  | MergeConflictInvolvingBuiltin !Name
   | MergeConstructorAlias !Name !Name
   | MergeDefnsInLib
   | MergeMissingConstructorName !Name
@@ -625,7 +625,7 @@ isFailure o = case o of
   MergeConflictedAliases {} -> True
   MergeConflictedTermName {} -> True
   MergeConflictedTypeName {} -> True
-  MergeConflictInvolvingBuiltin -> True
+  MergeConflictInvolvingBuiltin {} -> True
   MergeConstructorAlias {} -> True
   MergeDefnsInLib -> True
   MergeMissingConstructorName {} -> True
