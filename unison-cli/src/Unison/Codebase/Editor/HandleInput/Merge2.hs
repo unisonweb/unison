@@ -354,70 +354,69 @@ handleMerge bobBranchName = do
 
       pure (Right mergeResult)
 
-  do
-    scratchFile <-
-      Cli.getLatestFile >>= \case
-        Just (scratchFile, _) -> pure scratchFile
-        Nothing -> pure "merge.u"
+  scratchFile <-
+    Cli.getLatestFile >>= \case
+      Just (scratchFile, _) -> pure scratchFile
+      Nothing -> pure "merge.u"
 
-    case result of
-      Left err -> liftIO (print err)
-      Right mergeResult -> case mergeResult of
-        MergePropagationNotTypecheck ppe uf -> do
-          Cli.respond $ Output.OutputMergeScratchFile ppe scratchFile (void uf)
-        MergeConflicts unconflicted ppe mergeOutput -> do
-          temporaryBranchName <- do
-            -- Small race condition: since picking a branch name and creating the branch happen in different
-            -- transactions, creating could fail.
+  case result of
+    Left err -> liftIO (print err)
+    Right mergeResult -> case mergeResult of
+      MergePropagationNotTypecheck ppe uf -> do
+        Cli.respond $ Output.OutputMergeScratchFile ppe scratchFile (void uf)
+      MergeConflicts unconflicted ppe mergeOutput -> do
+        temporaryBranchName <- do
+          -- Small race condition: since picking a branch name and creating the branch happen in different
+          -- transactions, creating could fail.
 
-            allBranchNames <-
-              fmap (Set.fromList . map snd) do
-                Cli.runTransaction do
-                  Queries.loadAllProjectBranchesBeginningWith
-                    (project ^. #projectId)
-                    Nothing
+          allBranchNames <-
+            fmap (Set.fromList . map snd) do
+              Cli.runTransaction do
+                Queries.loadAllProjectBranchesBeginningWith
+                  (project ^. #projectId)
+                  Nothing
 
-            let -- all branch name candidates in order of preference:
-                --   merge-<alice>-into-<bob>
-                --   merge-<alice>-into-<bob>-2
-                --   merge-<alice>-into-<bob>-3
-                --   ...
-                allCandidates :: [ProjectBranchName]
-                allCandidates =
-                  preferred : do
-                    n <- [(2 :: Int) ..]
-                    pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
-                  where
-                    preferred :: ProjectBranchName
-                    preferred =
-                      unsafeFrom @Text $
-                        "merge-"
-                          <> into @Text (bobProjectBranch ^. #name)
-                          <> "-into-"
-                          <> into @Text (aliceProjectBranch ^. #name)
+          let -- all branch name candidates in order of preference:
+              --   merge-<alice>-into-<bob>
+              --   merge-<alice>-into-<bob>-2
+              --   merge-<alice>-into-<bob>-3
+              --   ...
+              allCandidates :: [ProjectBranchName]
+              allCandidates =
+                preferred : do
+                  n <- [(2 :: Int) ..]
+                  pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
+                where
+                  preferred :: ProjectBranchName
+                  preferred =
+                    unsafeFrom @Text $
+                      "merge-"
+                        <> into @Text (bobProjectBranch ^. #name)
+                        <> "-into-"
+                        <> into @Text (aliceProjectBranch ^. #name)
 
-            pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
+          pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
 
-          temporaryBranchId <-
-            HandleInput.Branch.doCreateBranch
-              (HandleInput.Branch.CreateFrom'Branch (ProjectAndBranch project aliceProjectBranch))
-              project
-              temporaryBranchName
-              ("merge " <> into @Text (bobProjectBranch ^. #name))
-
-          let temporaryBranchPath :: Path
-              temporaryBranchPath =
-                Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) temporaryBranchId))
-
-          Cli.stepAt
+        temporaryBranchId <-
+          HandleInput.Branch.doCreateBranch
+            (HandleInput.Branch.CreateFrom'Branch (ProjectAndBranch project aliceProjectBranch))
+            project
+            temporaryBranchName
             ("merge " <> into @Text (bobProjectBranch ^. #name))
-            ( temporaryBranchPath,
-              \_ -> V1.Branch.transform0 (Codebase.runTransaction codebase) unconflicted
-            )
 
-          (scratchFile, _) <- Cli.expectLatestFile
-          Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
-        MergeDone -> Cli.respond Output.Success
+        let temporaryBranchPath :: Path
+            temporaryBranchPath =
+              Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) temporaryBranchId))
+
+        Cli.stepAt
+          ("merge " <> into @Text (bobProjectBranch ^. #name))
+          ( temporaryBranchPath,
+            \_ -> V1.Branch.transform0 (Codebase.runTransaction codebase) unconflicted
+          )
+
+        (scratchFile, _) <- Cli.expectLatestFile
+        Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
+      MergeDone -> Cli.respond Output.Success
 
 -- A mini record-of-functions that contains just the (possibly backed by a cache) database queries used in merge.
 data MergeDatabase = MergeDatabase
