@@ -25,43 +25,84 @@
 (library (unison primops)
   (export
     builtin-Float.*
+    builtin-Float.*:termlink
     builtin-Float.fromRepresentation
+    builtin-Float.fromRepresentation:termlink
     builtin-Float.toRepresentation
+    builtin-Float.toRepresentation:termlink
     builtin-Float.exp
+    builtin-Float.exp:termlink
     builtin-Float.log
+    builtin-Float.log:termlink
     builtin-Float.max
+    builtin-Float.max:termlink
     builtin-Float.min
+    builtin-Float.min:termlink
     builtin-Float.tan
+    builtin-Float.tan:termlink
     builtin-Float.tanh
+    builtin-Float.tanh:termlink
     builtin-Float.logBase
+    builtin-Float.logBase:termlink
     builtin-Float.pow
+    builtin-Float.pow:termlink
     builtin-Int.pow
+    builtin-Int.pow:termlink
     builtin-Int.*
+    builtin-Int.*:termlink
     builtin-Int.+
+    builtin-Int.+:termlink
     builtin-Int.-
+    builtin-Int.-:termlink
     builtin-Int.increment
+    builtin-Int.increment:termlink
     builtin-Int.negate
+    builtin-Int.negate:termlink
     builtin-Int.fromRepresentation
+    builtin-Int.fromRepresentation:termlink
     builtin-Int.toRepresentation
+    builtin-Int.toRepresentation:termlink
     builtin-Int.signum
+    builtin-Int.signum:termlink
     builtin-Int.trailingZeros
+    builtin-Int.trailingZeros:termlink
     builtin-Int.popCount
+    builtin-Int.popCount:termlink
     builtin-Nat.increment
+    builtin-Nat.increment:termlink
     builtin-Nat.popCount
+    builtin-Nat.popCount:termlink
     builtin-Nat.toFloat
+    builtin-Nat.toFloat:termlink
+    builtin-Nat.trailingZeros
+    builtin-Nat.trailingZeros:termlink
     builtin-Text.indexOf
+    builtin-Text.indexOf:termlink
     builtin-Bytes.indexOf
+    builtin-Bytes.indexOf:termlink
     builtin-IO.randomBytes
+    builtin-IO.randomBytes:termlink
 
     builtin-List.splitLeft
+    builtin-List.splitLeft:termlink
     builtin-List.splitRight
+    builtin-List.splitRight:termlink
+
+    builtin-Link.Term.toText
+    builtin-Link.Term.toText:termlink
 
     builtin-Value.toBuiltin
+    builtin-Value.toBuiltin:termlink
     builtin-Value.fromBuiltin
+    builtin-Value.fromBuiltin:termlink
     builtin-Code.fromGroup
+    builtin-Code.fromGroup:termlink
     builtin-Code.toGroup
+    builtin-Code.toGroup:termlink
     builtin-TermLink.fromReferent
+    builtin-TermLink.fromReferent:termlink
     builtin-TermLink.toReferent
+    builtin-TermLink.toReferent:termlink
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -73,31 +114,55 @@
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
+    builtin-IO.seekHandle.impl.v3:termlink
     builtin-IO.getLine.impl.v1
+    builtin-IO.getLine.impl.v1:termlink
     builtin-IO.getSomeBytes.impl.v1
+    builtin-IO.getSomeBytes.impl.v1:termlink
     builtin-IO.setBuffering.impl.v3
+    builtin-IO.setBuffering.impl.v3:termlink
     builtin-IO.getBuffering.impl.v3
+    builtin-IO.getBuffering.impl.v3:termlink
     builtin-IO.setEcho.impl.v1
+    builtin-IO.setEcho.impl.v1:termlink
     builtin-IO.isFileOpen.impl.v3
+    builtin-IO.isFileOpen.impl.v3:termlink
     builtin-IO.ready.impl.v1
+    builtin-IO.ready.impl.v1:termlink
     builtin-IO.process.call
+    builtin-IO.process.call:termlink
     builtin-IO.getEcho.impl.v1
+    builtin-IO.getEcho.impl.v1:termlink
     builtin-IO.getArgs.impl.v1
+    builtin-IO.getArgs.impl.v1:termlink
     builtin-IO.getEnv.impl.v1
+    builtin-IO.getEnv.impl.v1:termlink
     builtin-IO.getChar.impl.v1
-    builtin-IO.ready.impl.v1
+    builtin-IO.getChar.impl.v1:termlink
     builtin-IO.getCurrentDirectory.impl.v3
+    builtin-IO.getCurrentDirectory.impl.v3:termlink
     builtin-IO.removeDirectory.impl.v3
+    builtin-IO.removeDirectory.impl.v3:termlink
     builtin-IO.renameFile.impl.v3
+    builtin-IO.renameFile.impl.v3:termlink
     builtin-IO.createTempDirectory.impl.v3
+    builtin-IO.createTempDirectory.impl.v3:termlink
     builtin-IO.createDirectory.impl.v3
+    builtin-IO.createDirectory.impl.v3:termlink
     builtin-IO.setCurrentDirectory.impl.v3
+    builtin-IO.setCurrentDirectory.impl.v3:termlink
     builtin-IO.renameDirectory.impl.v3
+    builtin-IO.renameDirectory.impl.v3:termlink
     builtin-IO.isDirectory.impl.v3
+    builtin-IO.isDirectory.impl.v3:termlink
     builtin-IO.isSeekable.impl.v3
+    builtin-IO.isSeekable.impl.v3:termlink
     builtin-IO.handlePosition.impl.v3
+    builtin-IO.handlePosition.impl.v3:termlink
     builtin-IO.systemTime.impl.v3
+    builtin-IO.systemTime.impl.v3:termlink
     builtin-IO.systemTimeMicroseconds.impl.v3
+    builtin-IO.systemTimeMicroseconds.impl.v3:termlink
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
     unison-FOp-IO.fileExists.impl.v3
@@ -453,6 +518,69 @@
           (unison concurrent)
           (racket random))
 
+  (define-builtin-link builtin-Float.*)
+  (define-builtin-link builtin-Float.fromRepresentation)
+  (define-builtin-link builtin-Float.toRepresentation)
+  (define-builtin-link builtin-Float.exp)
+  (define-builtin-link builtin-Float.log)
+  (define-builtin-link builtin-Float.max)
+  (define-builtin-link builtin-Float.min)
+  (define-builtin-link builtin-Float.tan)
+  (define-builtin-link builtin-Float.tanh)
+  (define-builtin-link builtin-Float.logBase)
+  (define-builtin-link builtin-Float.pow)
+  (define-builtin-link builtin-Int.pow)
+  (define-builtin-link builtin-Int.*)
+  (define-builtin-link builtin-Int.+)
+  (define-builtin-link builtin-Int.-)
+  (define-builtin-link builtin-Int.increment)
+  (define-builtin-link builtin-Int.negate)
+  (define-builtin-link builtin-Int.fromRepresentation)
+  (define-builtin-link builtin-Int.toRepresentation)
+  (define-builtin-link builtin-Int.signum)
+  (define-builtin-link builtin-Int.trailingZeros)
+  (define-builtin-link builtin-Int.popCount)
+  (define-builtin-link builtin-Nat.increment)
+  (define-builtin-link builtin-Nat.popCount)
+  (define-builtin-link builtin-Nat.toFloat)
+  (define-builtin-link builtin-Nat.trailingZeros)
+  (define-builtin-link builtin-Text.indexOf)
+  (define-builtin-link builtin-Bytes.indexOf)
+  (define-builtin-link builtin-IO.randomBytes)
+  (define-builtin-link builtin-List.splitLeft)
+  (define-builtin-link builtin-List.splitRight)
+  (define-builtin-link builtin-Value.toBuiltin)
+  (define-builtin-link builtin-Value.fromBuiltin)
+  (define-builtin-link builtin-Code.fromGroup)
+  (define-builtin-link builtin-Code.toGroup)
+  (define-builtin-link builtin-TermLink.fromReferent)
+  (define-builtin-link builtin-TermLink.toReferent)
+  (define-builtin-link builtin-IO.seekHandle.impl.v3)
+  (define-builtin-link builtin-IO.getLine.impl.v1)
+  (define-builtin-link builtin-IO.getSomeBytes.impl.v1)
+  (define-builtin-link builtin-IO.setBuffering.impl.v3)
+  (define-builtin-link builtin-IO.getBuffering.impl.v3)
+  (define-builtin-link builtin-IO.setEcho.impl.v1)
+  (define-builtin-link builtin-IO.isFileOpen.impl.v3)
+  (define-builtin-link builtin-IO.ready.impl.v1)
+  (define-builtin-link builtin-IO.process.call)
+  (define-builtin-link builtin-IO.getEcho.impl.v1)
+  (define-builtin-link builtin-IO.getArgs.impl.v1)
+  (define-builtin-link builtin-IO.getEnv.impl.v1)
+  (define-builtin-link builtin-IO.getChar.impl.v1)
+  (define-builtin-link builtin-IO.getCurrentDirectory.impl.v3)
+  (define-builtin-link builtin-IO.removeDirectory.impl.v3)
+  (define-builtin-link builtin-IO.renameFile.impl.v3)
+  (define-builtin-link builtin-IO.createTempDirectory.impl.v3)
+  (define-builtin-link builtin-IO.createDirectory.impl.v3)
+  (define-builtin-link builtin-IO.setCurrentDirectory.impl.v3)
+  (define-builtin-link builtin-IO.renameDirectory.impl.v3)
+  (define-builtin-link builtin-IO.isDirectory.impl.v3)
+  (define-builtin-link builtin-IO.isSeekable.impl.v3)
+  (define-builtin-link builtin-IO.handlePosition.impl.v3)
+  (define-builtin-link builtin-IO.systemTime.impl.v3)
+  (define-builtin-link builtin-IO.systemTimeMicroseconds.impl.v3)
+
   (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
   (define-unison (builtin-Value.fromBuiltin v)
     (unison-quote-val v))
@@ -469,13 +597,45 @@
 
   (define-unison (builtin-List.splitLeft n s)
     (match (unison-POp-SPLL n s)
-      [(unison-sum 0 fs) (unison-seqview-empty)]
+      [(unison-sum 0 fs) unison-seqview-empty]
       [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
 
   (define-unison (builtin-List.splitRight n s)
     (match (unison-POp-SPLR n s)
-      [(unison-sum 0 fs) (unison-seqview-empty)]
+      [(unison-sum 0 fs) unison-seqview-empty]
       [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+
+  (define (hash-string hs)
+    (string-append "#" (bytevector->base32-string b32h hs)))
+
+  (define (ix-string i)
+    (if (= i 0)
+      ""
+      (string-append "." (number->string i))))
+
+  (define (typelink->string ln)
+    (match ln
+      [(unison-typelink-builtin name)
+       (string-append "##" name)]
+      [(unison-typelink-derived hs i)
+       (string-append (hash-string hs) (ix-string i))]))
+
+  (define-builtin-link builtin-Link.Type.toText)
+  (define-unison (builtin-Link.Type.toText ln)
+    (string->chunked-string (typelink->string ln)))
+
+  (define (termlink->string ln)
+    (match ln
+      [(unison-termlink-builtin name)
+       (string-append "##" name)]
+      [(unison-termlink-derived hs i)
+       (string-append (hash-string hs) (ix-string i))]
+      [(unison-termlink-con rf t)
+       (string-append (typelink->string rf) "#" (number->string t))]))
+
+  (define-builtin-link builtin-Link.Term.toText)
+  (define-unison (builtin-Link.Term.toText ln)
+    (string->chunked-string (termlink->string ln)))
 
   (define (unison-POp-UPKB bs)
     (build-chunked-list
@@ -565,7 +725,7 @@
   (define (->optional v)
     (if v
         (unison-optional-some v)
-        (unison-optional-none)))
+        unison-optional-none))
 
   (define-unison (builtin-Text.indexOf n h)
     (->optional (chunked-string-index-of h n)))

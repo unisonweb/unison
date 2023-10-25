@@ -80,7 +80,7 @@ Functor.blah = cases Functor f ->
 This example is similar, but involves abilities: 
 
 ```unison
-unique ability Remote t where doRemoteStuff : ()
+unique ability Remote t where doRemoteStuff : t ()
 unique type Loc = Loc (forall t a . '{Remote t} a ->{Remote t} t a) 
 
 Loc.blah : Loc -> ()

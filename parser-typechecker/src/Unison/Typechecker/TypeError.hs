@@ -4,6 +4,7 @@ module Unison.Typechecker.TypeError where
 
 import Data.List.NonEmpty (NonEmpty)
 import Unison.ABT qualified as ABT
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
@@ -105,6 +106,7 @@ data TypeError v loc
       }
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
+  | KindInferenceFailure (KindError v loc)
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -149,7 +151,8 @@ allErrors =
       unknownTerm,
       duplicateDefinitions,
       redundantPattern,
-      uncoveredPatterns
+      uncoveredPatterns,
+      kindInferenceFailure
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
@@ -161,6 +164,11 @@ redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
 redundantPattern = do
   ploc <- Ex.redundantPattern
   pure (RedundantPattern ploc)
+
+kindInferenceFailure :: Ex.ErrorExtractor v a (TypeError v a)
+kindInferenceFailure = do
+  ke <- Ex.kindInferenceFailure
+  pure (KindInferenceFailure ke)
 
 uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
 uncoveredPatterns = do

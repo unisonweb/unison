@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.Decode
     decodeBranchFormat,
     decodeComponentLengthOnly,
     decodeDeclElement,
+    decodeDeclElementNumConstructors,
     decodeDeclFormat,
     decodePatchFormat,
     decodeSyncDeclFormat,
@@ -79,6 +80,10 @@ decodeComponentLengthOnly =
 decodeDeclElement :: Word64 -> ByteString -> Either DecodeError (LocalIds, DeclFormat.Decl Symbol)
 decodeDeclElement i =
   getFromBytesOr ("lookupDeclElement " <> tShow i) (Serialization.lookupDeclElement i)
+
+decodeDeclElementNumConstructors :: Word64 -> ByteString -> Either DecodeError Int
+decodeDeclElementNumConstructors i =
+  getFromBytesOr ("lookupDeclElementNumConstructors " <> tShow i) (Serialization.lookupDeclElementNumConstructors i)
 
 decodeDeclFormat :: ByteString -> Either DecodeError DeclFormat.DeclFormat
 decodeDeclFormat =

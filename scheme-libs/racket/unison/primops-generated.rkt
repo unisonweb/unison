@@ -17,9 +17,47 @@
 
 (provide
   builtin-Value.value
+  builtin-Value.value:termlink
   builtin-Value.reflect
+  builtin-Value.reflect:termlink
+  builtin-Code.isMissing
+  builtin-Code.isMissing:termlink
+  builtin-Code.lookup
+  builtin-Code.lookup:termlink
+  builtin-validateSandboxed
+  builtin-validateSandboxed:termlink
+  builtin-Value.validateSandboxed
+  builtin-Value.validateSandboxed:termlink
+  builtin-sandboxLinks
+  builtin-sandboxLinks:termlink
+
+  builtin-Code.deserialize:termlink
+  builtin-Code.serialize:termlink
+  builtin-Code.validateLinks:termlink
+  builtin-Value.deserialize:termlink
+  builtin-Value.serialize:termlink
+  builtin-crypto.hash:termlink
+  builtin-crypto.hmac:termlink
+
   unison-POp-CACH
-  unison-POp-LOAD)
+  unison-POp-LOAD
+  unison-POp-LKUP)
+
+(define-builtin-link builtin-Value.value)
+(define-builtin-link builtin-Value.reflect)
+(define-builtin-link builtin-Code.isMissing)
+(define-builtin-link builtin-Code.lookup)
+
+(define-builtin-link builtin-Code.deserialize)
+(define-builtin-link builtin-Code.serialize)
+(define-builtin-link builtin-Code.validateLinks)
+(define-builtin-link builtin-Value.deserialize)
+(define-builtin-link builtin-Value.serialize)
+(define-builtin-link builtin-crypto.hash)
+(define-builtin-link builtin-crypto.hmac)
+(define-builtin-link builtin-validateSandboxed)
+(define-builtin-link builtin-Value.validateSandboxed)
+(define-builtin-link builtin-sandboxLinks)
 
 (define (chunked-list->list cl)
   (vector->list (chunked-list->vector cl)))
@@ -322,6 +360,52 @@
        t
        (list->chunked-list (map reflect-value fs)))]))
 
+(define (check-sandbox-ok ok l)
+  (remove* ok (check-sandbox l)))
+
+(define (sandbox-proc ok f)
+  (check-sandbox-ok ok (lookup-function-link f)))
+
+(define (sandbox-scheme-value ok v)
+  (match v
+    [(? chunked-list?)
+     (for/fold ([acc '()]) ([e (in-chunked-list v)])
+       (append (sandbox-value ok e) acc))]
+    [(unison-closure f as)
+     (for/fold ([acc (sandbox-proc ok f)]) ([a (in-list as)])
+       (append (sandbox-scheme-value ok a) acc))]
+    [(? procedure?) (sandbox-proc ok v)]
+    [(unison-data rf t fs)
+     (for/fold ([acc '()]) ([e (in-list fs)])
+       (append (sandbox-scheme-value ok e) acc))]
+    [else '()]))
+
+(define (check-known l acc)
+  (if (need-dependency? l) (cons l acc) acc))
+
+; check sandboxing information for an internal.runtime.Value
+(define (sandbox-value ok v)
+  (for/fold
+    ([sdbx '()]
+     [unkn '()]
+
+     #:result
+     (if (null? unkn)
+       (unison-either-right (list->chunked-list sdbx))
+       (unison-either-left (list->chunked-list unkn))))
+
+    ([r (in-chunked-list (value-term-dependencies v))])
+
+    (let ([l (reference->termlink r)])
+      (values
+        (append (check-sandbox-ok ok l) sdbx)
+        (check-known l unkn)))))
+
+; check sandboxing information for a reflection.Value
+(define (sandbox-quoted ok qv)
+  (match qv
+    [(unison-quote v) (sandbox-value ok v)]))
+
 ; replacment for Value.unsafeValue : a -> Value
 (define-unison
   (builtin-Value.reflect v)
@@ -387,6 +471,13 @@
         (generate-module-name (cdr links))
         (string->symbol ebs)))))
 
+(define (register-code udefs)
+  (for-each
+    (lambda (p)
+      (let-values ([(ln co) (splat-upair p)])
+        (declare-code ln co)))
+    udefs))
+
 (define (add-module-associations links mname)
   (for-each
     (lambda (link)
@@ -396,13 +487,9 @@
           (hash-set! runtime-module-map bs mname))))
     links))
 
-(define (need-dependency? d)
-  (data-case d
-    [0 (tx) #f] ; builtin
-    [1 (id)
-     (data-case id
-       [0 (bs i)
-        (not (hash-has-key? runtime-module-map bs))])]))
+(define (need-dependency? l)
+  (let ([ln (if (unison-data? l) (reference->termlink l) l)])
+    (and (unison-termlink-derived? ln) (not (have-code? ln)))))
 
 (define (resolve-proc gr)
   (sum-case (decode-ref (group-reference gr))
@@ -431,31 +518,35 @@
       runtime-namespace)))
 
 (define (code-dependencies co)
-  (group-term-dependencies (unison-code-rep co)))
+  (chunked-list->list
+    (group-term-dependencies
+      (unison-code-rep co))))
 
 (define (unison-POp-CACH dfns0)
-  (define (flat-map f l)
-    (foldl
-      (lambda (x acc)
-        (append (chunked-list->list (f (usnd x))) acc))
-      '()
-      l))
+  (define (map-links dss)
+    (map (lambda (ds) (map reference->termlink ds)) dss))
 
   (let ([udefs (chunked-list->list dfns0)])
     (cond
       [(not (null? udefs))
        (let* ([links (map ufst udefs)]
               [refs (map termlink->reference links)]
-              [deps (flat-map code-dependencies udefs)]
+              [depss (map (compose code-dependencies usnd) udefs)]
+              [deps (flatten depss)]
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])
-         (if (null? rdeps)
-           (let ([sdefs (flatten (map gen-code udefs))]
-                 [mname (generate-module-name links)])
-             (add-module-associations links mname)
-             (add-runtime-module mname links sdefs)
-             (sum 0 '()))
-           (sum 1 (list->chunked-list rdeps))))]
+         (cond
+           [(null? fdeps) (sum 0 '())]
+           [(null? rdeps)
+            (let ([sdefs (flatten (map gen-code udefs))]
+                  [mname (generate-module-name links)])
+              (expand-sandbox links (map-links depss))
+              (register-code udefs)
+              (add-module-associations links mname)
+              (add-runtime-module mname links sdefs)
+              (sum 0 '()))]
+           [else
+             (sum 1 (list->chunked-list rdeps))]))]
       [else (sum 0 '())])))
 
 (define (unison-POp-LOAD v0)
@@ -466,3 +557,28 @@
     (if (null? fdeps)
       (sum 1 (reify-value val))
         (sum 0 (list->chunked-list fdeps)))))
+
+(define (unison-POp-LKUP tl) (lookup-code tl))
+
+(define-unison (builtin-Code.lookup tl)
+  (match (lookup-code tl)
+    [(unison-sum 0 (list)) unison-optional-none]
+    [(unison-sum 1 (list co)) (unison-optional-some co)]))
+
+(define-unison (builtin-validateSandboxed ok v)
+  (let ([l (sandbox-scheme-value (chunked-list->list ok) v)])
+    (if (null? l)
+      unison-boolean-true
+      unison-boolean-false)))
+
+(define-unison (builtin-sandboxLinks tl) (check-sandbox tl))
+
+(define-unison (builtin-Code.isMissing tl)
+  (cond
+    [(unison-termlink-builtin? tl) unison-boolean-false]
+    [(unison-termlink-con? tl) unison-boolean-false]
+    [(have-code? tl) unison-boolean-true]
+    [else unison-boolean-false]))
+
+(define-unison (builtin-Value.validateSandboxed ok v)
+  (sandbox-quoted (chunked-list->list ok) v))

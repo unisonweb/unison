@@ -18,7 +18,7 @@ module Unison.Typechecker
     Resolution (..),
     Name,
     NamedReference (..),
-    Context.PatternMatchCoverageCheckSwitch (..),
+    Context.PatternMatchCoverageCheckAndKindInferenceSwitch (..),
   )
 where
 
@@ -37,6 +37,7 @@ import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
+import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -105,9 +106,9 @@ makeLenses ''Env
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize ::
-  (Monad f, Var v, Ord loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
   PrettyPrintEnv ->
-  Context.PatternMatchCoverageCheckSwitch ->
+  Context.PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Env v loc ->
   Term v loc ->
   ResultT (Notes v loc) f (Type v loc)
@@ -171,14 +172,14 @@ data Resolution v loc = Resolution
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve ::
-  (Monad f, Var v, Monoid loc, Ord loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
+  (Monad f, Var v, Monoid loc, BuiltinAnnotation loc, Ord loc, Show loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve ppe env = do
   tm <- get
   (tp, notes) <-
     listen . lift $
       synthesize
         ppe
-        Context.PatternMatchCoverageCheckSwitch'Enabled
+        Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
         env
         tm
   typeDirectedNameResolution ppe notes tp env
@@ -211,7 +212,7 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution ::
   forall v loc f.
-  (Monad f, Var v, Ord loc, Monoid loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc) =>
   PrettyPrintEnv ->
   Notes v loc ->
   Type v loc ->
@@ -337,7 +338,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check ::
-  (Monad f, Var v, Ord loc) =>
+  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
@@ -346,7 +347,7 @@ check ::
 check ppe env term typ =
   synthesize
     ppe
-    Context.PatternMatchCoverageCheckSwitch'Enabled
+    Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
     env
     (Term.ann (ABT.annotation term) term typ)
 
@@ -360,8 +361,8 @@ check ppe env term typ =
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, Ord loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
-wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckSwitch'Enabled env term)
+wellTyped :: (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
+wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled env term)
   where
     go (may, _) = isJust may
 

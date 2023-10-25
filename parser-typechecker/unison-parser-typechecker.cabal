@@ -96,6 +96,20 @@ library
       Unison.DataDeclaration.Dependencies
       Unison.FileParsers
       Unison.Hashing.V2.Convert
+      Unison.KindInference
+      Unison.KindInference.Constraint.Context
+      Unison.KindInference.Constraint.Pretty
+      Unison.KindInference.Constraint.Provenance
+      Unison.KindInference.Constraint.Solved
+      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.Unsolved
+      Unison.KindInference.Error
+      Unison.KindInference.Error.Pretty
+      Unison.KindInference.Generate
+      Unison.KindInference.Generate.Monad
+      Unison.KindInference.Solve
+      Unison.KindInference.Solve.Monad
+      Unison.KindInference.UVar
       Unison.Parsers
       Unison.PatternMatchCoverage
       Unison.PatternMatchCoverage.Class
