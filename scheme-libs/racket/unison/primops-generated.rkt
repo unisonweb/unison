@@ -518,22 +518,21 @@
       runtime-namespace)))
 
 (define (code-dependencies co)
-  (group-term-dependencies (unison-code-rep co)))
+  (chunked-list->list
+    (group-term-dependencies
+      (unison-code-rep co))))
 
 (define (unison-POp-CACH dfns0)
-  (define (flat-map f l)
-    (foldl
-      (lambda (x acc)
-        (append (chunked-list->list (f (usnd x))) acc))
-      '()
-      l))
+  (define (map-links dss)
+    (map (lambda (ds) (map reference->termlink ds)) dss))
 
   (let ([udefs (chunked-list->list dfns0)])
     (cond
       [(not (null? udefs))
        (let* ([links (map ufst udefs)]
               [refs (map termlink->reference links)]
-              [deps (flat-map code-dependencies udefs)]
+              [depss (map (compose code-dependencies usnd) udefs)]
+              [deps (flatten depss)]
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])
          (cond
@@ -541,6 +540,7 @@
            [(null? rdeps)
             (let ([sdefs (flatten (map gen-code udefs))]
                   [mname (generate-module-name links)])
+              (expand-sandbox links (map-links depss))
               (register-code udefs)
               (add-module-associations links mname)
               (add-runtime-module mname links sdefs)

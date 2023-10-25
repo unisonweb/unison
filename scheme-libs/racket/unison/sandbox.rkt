@@ -3,7 +3,7 @@
 
 (provide expand-sandbox check-sandbox set-sandbox)
 
-(require racket)
+(require racket racket/hash)
 (require (except-in unison/data true false unit))
 
 ; sandboxing information
@@ -13,15 +13,32 @@
 (define (check-sandbox ln)
   (hash-ref sandbox-links ln '()))
 
+(define (expand build have ds)
+  (define (check d)
+    (hash-ref build d (lambda () (check-sandbox d))))
+
+  (for/fold ([acc '()]) ([d ds])
+    (append (remove* have (check d)) acc)))
+
 ; Add a link to the sandboxing information.
 ; deps0 should be the immediate dependencies of the code for ln.
 ; They will be used to generate the overall sandboxing 
-(define (expand-sandbox ln deps0)
-  (let rec ([tot '()] [deps deps0])
-    (match deps
-      ['() (hash-set! sandbox-links ln (remove-duplicates tot))]
-      [(cons d ds)
-       (rec (append (check-sandbox d) tot) ds)])))
+(define (expand-sandbox ls dss)
+  (let rec ([build (make-immutable-hash)])
+    (for/fold
+      ([new (make-immutable-hash)]
+
+       #:result
+       (if (hash-empty? new)
+         ; set the newly found links
+         (hash-union! sandbox-links build #:combine append)
+         (rec (hash-union build new #:combine append))))
+       
+      ([l ls] [ds dss])
+      (let ([xp (expand build (hash-ref build l '()) ds)])
+        (if (not (null? xp))
+          (hash-set new l xp)
+          new)))))
 
 (define (set-sandbox link links)
   (hash-set! sandbox-links link links))
