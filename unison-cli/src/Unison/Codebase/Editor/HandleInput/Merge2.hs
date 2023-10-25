@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Lens (over, view, (%=), (.=), (.~), (^.))
+import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -27,7 +27,9 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromJust)
 import Data.Semialign (alignWith, unzip, zip)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -318,8 +320,9 @@ handleMerge bobBranchName = do
               let ppe :: PrettyPrintEnvDecl = werror "ppe"
               pure $ MergePropagationNotTypecheck ppe (void uf)
         else do
-          conflicted <- filterConflicts defns conflictedNames & onLeft abort
-          let unconflicted = filterUnconflicted defns constructorNameToDeclName updates (conflicted <> dependents)
+          conflicted <- filterConflicts conflictedNames defns & onLeft abort
+          let dirty = conflicted <> dependents
+          let unconflicted = filterUnconflicted constructorNameToDeclName updates dirty defns
 
           let unconflictedNametree = makeNametreeFromUnconflicted unconflicted causalHashes
           let unconflictedV3Branch = namespaceToV3Branch db unconflictedNametree
@@ -858,26 +861,26 @@ filterUpdates1 defns diff =
       Merge.Deleted {} -> False
       Merge.Updated {} -> True
 
--- `filterConflicts defns conflicts` filters `defns` down to just the conflicted type and term references.
+-- `filterConflicts conflicts defns` filters `defns` down to just the conflicted type and term references.
 --
 -- Fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
 filterConflicts ::
-  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Defns (Set Name) (Set Name) ->
+  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Either Merge.PreconditionViolation (Merge.TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)))
-filterConflicts defns conflicts = do
-  alice <- filterConflicts1 (defns ^. #alice) conflicts
-  bob <- filterConflicts1 (defns ^. #bob) conflicts
+filterConflicts conflicts defns = do
+  alice <- filterConflicts1 conflicts (defns ^. #alice)
+  bob <- filterConflicts1 conflicts (defns ^. #bob)
   pure Merge.TwoWay {alice, bob}
 
 -- `filterConflicts1 defns conflicts` filters `defns` down to just the conflicted type and term references.
 --
 -- Fails if it any conflict involving a builtin is discovered, since we can't handle those yet.
 filterConflicts1 ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Defns (Set Name) (Set Name) ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Either Merge.PreconditionViolation (Defns (Set TermReferenceId) (Set TypeReferenceId))
-filterConflicts1 defns conflicts = do
+filterConflicts1 conflicts defns = do
   terms <- foldlM doTerm Set.empty (Map.toList (onlyConflicted (conflicts ^. #terms) (defns ^. #terms)))
   types <- foldlM doType Set.empty (Map.toList (onlyConflicted (conflicts ^. #types) (defns ^. #types)))
   pure Defns {terms, types}
@@ -899,44 +902,49 @@ filterConflicts1 defns conflicts = do
         ReferenceBuiltin _ -> Left (Merge.ConflictInvolvingBuiltin name)
         ReferenceDerived ref -> Right $! Set.insert ref acc
 
+-- `filterUnconflicted declName updates dirty defns` returns the subset of `defns` that are "unconflicted", i.e. ready
+-- to put into a namespace and saved to the database.
+--
+--   * `declName`: Mappings from constructor name to decl name
+--   * `dirty`: Conflicted things, plus dependents of interest (per other person's updates)
+--   * `updates`: Updates
+--   * `defns`: Definitions
 filterUnconflicted ::
-  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Map Name Name) ->
   Merge.TwoWay (Defns (Map Name Referent) (Map Name TypeReference)) ->
   Merge.TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
+  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-filterUnconflicted defns constructorNameToDeclName updates dirty =
-  Merge.TwoWay
-    { alice =
-        filterUnconflicted1
-          (defns ^. #alice)
-          (constructorNameToDeclName ^. #alice)
-          (dirty ^. #alice)
-          (updates ^. #bob),
-      bob =
-        filterUnconflicted1
-          (defns ^. #bob)
-          (constructorNameToDeclName ^. #bob)
-          (dirty ^. #bob)
-          (updates ^. #alice)
-    }
+filterUnconflicted constructorNameToDeclName updates dirty =
+  f #bob #alice . f #alice #bob
+  where
+    f ::
+      (forall a. Lens' (Merge.TwoWay a) a) ->
+      (forall a. Lens' (Merge.TwoWay a) a) ->
+      Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+    f alice bob =
+      over alice (filterUnconflicted1 (constructorNameToDeclName ^. alice) (dirty ^. alice) (updates ^. bob))
 
--- `filterUnconflicted1 defns conflicted` returns the subset of `defns` that are not in `conflicted`.
--- TODO update comment
+-- `filterUnconflicted1 declName dirty updates defns` returns the subset of `defns` that are "unconflicted", i.e. ready
+-- to put into a namespace and saved to the database.
+--
+--   * `declName`: Alice's mapping from constructor name to decl name
+--   * `dirty`: Alice's conflicted things, plus her dependents of interest (per Bob's updates)
+--   * `updates`: Bob's updates
+--   * `defns`: Alice's definitions
 filterUnconflicted1 ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Map Name Name ->
   Defns (Set TermReferenceId) (Set TypeReferenceId) ->
   Defns (Map Name Referent) (Map Name TypeReference) ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-filterUnconflicted1 aliceDefns aliceConstructorNameToDeclName aliceDirty bobUpdates =
-  aliceDefns
-    & over #terms filterUnconflictedTerms
-    & over #types filterUnconflictedTypes
+filterUnconflicted1 aliceConstructorNameToDeclName aliceDirty bobUpdates =
+  over #types filterUnconflictedTypes . over #terms filterUnconflictedTerms
   where
     filterUnconflictedTerms :: BiMultimap Referent Name -> BiMultimap Referent Name
     filterUnconflictedTerms =
-      BiMultimap.filter wasNotUpdatedByBob . BiMultimap.filterDom isNotConflicted
+      BiMultimap.filterDom isNotConflicted >>> BiMultimap.filterDomain wasNotUpdatedByBob
       where
         isNotConflicted :: Referent -> Bool
         isNotConflicted = \case
@@ -948,26 +956,35 @@ filterUnconflicted1 aliceDefns aliceConstructorNameToDeclName aliceDirty bobUpda
           Referent.Con (ReferenceBuiltin _) _ -> True
           Referent.Ref (ReferenceBuiltin _) -> True
 
-        wasNotUpdatedByBob :: Referent -> Name -> Bool
-        wasNotUpdatedByBob ref name =
+        wasNotUpdatedByBob :: Referent -> NESet Name -> Bool
+        wasNotUpdatedByBob ref names1 =
           case ref of
             Referent.Con _ _ ->
-              case Map.lookup name aliceConstructorNameToDeclName of
-                Nothing -> error "missing decl name"
-                Just declName -> not (Map.member declName (bobUpdates ^. #types))
-            Referent.Ref _ -> not (Map.member name (bobUpdates ^. #terms))
+              let declNames = Set.mapMaybe (`Map.lookup` aliceConstructorNameToDeclName) names
+               in Set.disjoint typeNamesUpdatedByBob declNames
+            Referent.Ref _ -> Set.disjoint termNamesUpdatedByBob names
+          where
+            names = Set.NonEmpty.toSet names1
 
     filterUnconflictedTypes :: BiMultimap TypeReference Name -> BiMultimap TypeReference Name
     filterUnconflictedTypes =
-      BiMultimap.withoutRan updatedByBob . BiMultimap.withoutDom conflicted
+      BiMultimap.withoutDom dirty >>> BiMultimap.filterDomain wasNotUpdatedByBob
       where
-        conflicted :: Set TypeReference
-        conflicted =
+        dirty :: Set TypeReference
+        dirty =
           Set.map ReferenceDerived (aliceDirty ^. #types)
 
-        updatedByBob :: Set Name
-        updatedByBob =
-          Map.keysSet (bobUpdates ^. #types)
+        wasNotUpdatedByBob :: TypeReference -> NESet Name -> Bool
+        wasNotUpdatedByBob _ =
+          Set.disjoint typeNamesUpdatedByBob . Set.NonEmpty.toSet
+
+    termNamesUpdatedByBob :: Set Name
+    termNamesUpdatedByBob =
+      Map.keysSet (bobUpdates ^. #terms)
+
+    typeNamesUpdatedByBob :: Set Name
+    typeNamesUpdatedByBob =
+      Map.keysSet (bobUpdates ^. #types)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Dependents of interest
