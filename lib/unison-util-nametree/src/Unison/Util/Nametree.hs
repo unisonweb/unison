@@ -75,45 +75,28 @@ traverseNametreeWithName f =
 -- >   "foo.bar.baz" = #baz
 -- > }
 flattenNametree ::
-  forall terms types.
-  (Ord terms, Ord types) =>
-  Nametree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
-  Defns (BiMultimap terms Name) (BiMultimap types Name)
-flattenNametree =
+  forall a b.
+  Ord b =>
+  (a -> Map NameSegment b) ->
+  Nametree a ->
+  BiMultimap b Name
+flattenNametree f =
   go []
   where
-    go ::
-      [NameSegment] ->
-      Nametree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
-      Defns (BiMultimap terms Name) (BiMultimap types Name)
-    go prefix (Nametree defns0 children) =
-      foldr step defns1 (Map.toList children)
-      where
-        step ::
-          (NameSegment, Nametree (Defns (Map NameSegment terms) (Map NameSegment types))) ->
-          Defns (BiMultimap terms Name) (BiMultimap types Name) ->
-          Defns (BiMultimap terms Name) (BiMultimap types Name)
-        step (name, child) (Defns accTerms accTypes) =
-          let Defns childTerms childTypes = go (name : prefix) child
-           in -- These unions are safe because the input nametree had unconflicted names
-              Defns (BiMultimap.unsafeUnion accTerms childTerms) (BiMultimap.unsafeUnion accTypes childTypes)
-
-        defns1 :: Defns (BiMultimap terms Name) (BiMultimap types Name)
-        defns1 =
-          Defns
-            { terms =
-                BiMultimap.fromRange
-                  ( Map.mapKeysMonotonic
-                      (\name -> Name.fromReverseSegments (name :| prefix))
-                      (defns0 ^. #terms)
-                  ),
-              types =
-                BiMultimap.fromRange
-                  ( Map.mapKeysMonotonic
-                      (\name -> Name.fromReverseSegments (name :| prefix))
-                      (defns0 ^. #types)
-                  )
-            }
+    go :: [NameSegment] -> Nametree a -> BiMultimap b Name
+    go prefix (Nametree node children) =
+      foldr
+        ( \(name, child) ->
+            -- This union is safe because the keys are disjoint
+            BiMultimap.unsafeUnion (go (name : prefix) child)
+        )
+        ( BiMultimap.fromRange
+            ( Map.mapKeysMonotonic
+                (\name -> Name.fromReverseSegments (name :| prefix))
+                (f node)
+            )
+        )
+        (Map.toList children)
 
 unflattenNametree ::
   forall terms types.

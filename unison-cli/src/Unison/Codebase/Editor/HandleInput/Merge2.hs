@@ -837,7 +837,11 @@ loadNamespaceInfo abort loadNumConstructors causalHash branch = do
     NamespaceInfo
       { causalHashes,
         constructorNameToDeclName,
-        definitions = flattenNametree definitions
+        definitions =
+          Defns
+            { terms = flattenNametree (view #terms) definitions,
+              types = flattenNametree (view #types) definitions
+            }
       }
 
 type NamespaceInfo0 =
