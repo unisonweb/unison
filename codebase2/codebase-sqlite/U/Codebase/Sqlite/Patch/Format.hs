@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.Patch.Format
     SyncPatchFormat' (..),
     applyPatchDiffs,
     localPatchToPatch,
+    localPatchToPatch',
     localPatchDiffToPatchDiff,
   )
 where
@@ -68,6 +69,15 @@ localPatchToPatch :: PatchLocalIds -> LocalPatch -> Patch
 localPatchToPatch li =
   Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
 
+-- | Generic version of `localPatchToPatch` that works with any `PatchLocalIds'`.
+localPatchToPatch' ::
+  (Ord t, Ord h, Ord d) =>
+  PatchLocalIds' t h d ->
+  Patch' LocalTextId LocalHashId LocalDefnId ->
+  Patch' t h d
+localPatchToPatch' li =
+  Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
+
 localPatchDiffToPatchDiff :: PatchLocalIds -> LocalPatchDiff -> PatchDiff
 localPatchDiffToPatchDiff li =
   Patch.Diff.trimap
@@ -75,11 +85,11 @@ localPatchDiffToPatchDiff li =
     (lookupPatchLocalHash li)
     (lookupPatchLocalDefn li)
 
-lookupPatchLocalText :: PatchLocalIds -> LocalTextId -> TextId
+lookupPatchLocalText :: PatchLocalIds' t h d -> LocalTextId -> t
 lookupPatchLocalText li (LocalTextId w) = patchTextLookup li Vector.! fromIntegral w
 
-lookupPatchLocalHash :: PatchLocalIds -> LocalHashId -> HashId
+lookupPatchLocalHash :: PatchLocalIds' t h d -> LocalHashId -> h
 lookupPatchLocalHash li (LocalHashId w) = patchHashLookup li Vector.! fromIntegral w
 
-lookupPatchLocalDefn :: PatchLocalIds -> LocalDefnId -> ObjectId
+lookupPatchLocalDefn :: PatchLocalIds' t h d -> LocalDefnId -> d
 lookupPatchLocalDefn li (LocalDefnId w) = patchDefnLookup li Vector.! fromIntegral w
