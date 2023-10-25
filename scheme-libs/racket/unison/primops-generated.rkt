@@ -536,14 +536,17 @@
               [deps (flat-map code-dependencies udefs)]
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])
-         (if (null? rdeps)
-           (let ([sdefs (flatten (map gen-code udefs))]
-                 [mname (generate-module-name links)])
-             (register-code udefs)
-             (add-module-associations links mname)
-             (add-runtime-module mname links sdefs)
-             (sum 0 '()))
-           (sum 1 (list->chunked-list rdeps))))]
+         (cond
+           [(null? fdeps) (sum 0 '())]
+           [(null? rdeps)
+            (let ([sdefs (flatten (map gen-code udefs))]
+                  [mname (generate-module-name links)])
+              (register-code udefs)
+              (add-module-associations links mname)
+              (add-runtime-module mname links sdefs)
+              (sum 0 '()))]
+           [else
+             (sum 1 (list->chunked-list rdeps))]))]
       [else (sum 0 '())])))
 
 (define (unison-POp-LOAD v0)
