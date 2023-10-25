@@ -1,11 +1,11 @@
 module Unison.Util.Nametree
   ( -- * Nametree
-    NamespaceTree,
-    traverseNamespaceTreeWithName,
-    flattenNamespaceTree,
-    unflattenNamespaceTree,
-    mergeNamespaceTrees,
-    zipNamespaceTrees,
+    Nametree,
+    traverseNametreeWithName,
+    flattenNametree,
+    unflattenNametree,
+    mergeNametrees,
+    zipNametrees,
 
     -- * Definitions
     Defns (..),
@@ -24,26 +24,26 @@ import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 
--- | A namespace tree has values, and a collection of children namespace trees keyed by name segment.
-type NamespaceTree a =
+-- | A nametree has values, and a collection of children nametrees keyed by name segment.
+type Nametree a =
   Cofree (Map NameSegment) a
 
--- | Traverse over a namespace tree, with access to the list of name segments (in reverse order) leading to each value.
-traverseNamespaceTreeWithName :: Applicative f => ([NameSegment] -> a -> f b) -> NamespaceTree a -> f (NamespaceTree b)
-traverseNamespaceTreeWithName f =
+-- | Traverse over a nametree, with access to the list of name segments (in reverse order) leading to each value.
+traverseNametreeWithName :: Applicative f => ([NameSegment] -> a -> f b) -> Nametree a -> f (Nametree b)
+traverseNametreeWithName f =
   go []
   where
     go names (x :< xs) =
       (:<) <$> f names x <*> Map.traverseWithKey (\name -> go (name : names)) xs
 
-mergeNamespaceTrees ::
+mergeNametrees ::
   (a -> c) ->
   (b -> c) ->
   (a -> b -> c) ->
-  NamespaceTree a ->
-  NamespaceTree b ->
-  NamespaceTree c
-mergeNamespaceTrees ac bc abc =
+  Nametree a ->
+  Nametree b ->
+  Nametree c
+mergeNametrees ac bc abc =
   let go (a :< as) (b :< bs) =
         abc a b
           :< Map.merge
@@ -54,12 +54,8 @@ mergeNamespaceTrees ac bc abc =
             bs
    in go
 
-zipNamespaceTrees ::
-  (a -> b -> c) ->
-  NamespaceTree a ->
-  NamespaceTree b ->
-  NamespaceTree c
-zipNamespaceTrees f =
+zipNametrees :: (a -> b -> c) -> Nametree a -> Nametree b -> Nametree c
+zipNametrees f =
   let go (a :< as) (b :< bs) =
         f a b
           :< Map.merge
@@ -70,7 +66,7 @@ zipNamespaceTrees f =
             bs
    in go
 
--- | 'flattenNamespaceTree' organizes a namespace tree like
+-- | 'flattenNametree' organizes a nametree like
 --
 -- > "foo" = #foo
 -- > "foo": {
@@ -87,28 +83,28 @@ zipNamespaceTrees f =
 -- >   "foo.bar" = #bar,
 -- >   "foo.bar.baz" = #baz
 -- > }
-flattenNamespaceTree ::
+flattenNametree ::
   forall terms types.
   (Ord terms, Ord types) =>
-  NamespaceTree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
+  Nametree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
   Defns (BiMultimap terms Name) (BiMultimap types Name)
-flattenNamespaceTree =
+flattenNametree =
   go []
   where
     go ::
       [NameSegment] ->
-      NamespaceTree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
+      Nametree (Defns (Map NameSegment terms) (Map NameSegment types)) ->
       Defns (BiMultimap terms Name) (BiMultimap types Name)
     go prefix (defns :< children) =
       foldr step (fff defns) (Map.toList children)
       where
         step ::
-          (NameSegment, NamespaceTree (Defns (Map NameSegment terms) (Map NameSegment types))) ->
+          (NameSegment, Nametree (Defns (Map NameSegment terms) (Map NameSegment types))) ->
           Defns (BiMultimap terms Name) (BiMultimap types Name) ->
           Defns (BiMultimap terms Name) (BiMultimap types Name)
         step (name, child) (Defns accTerms accTypes) =
           let Defns childTerms childTypes = go (name : prefix) child
-           in -- These unions are safe because the input namespace tree had unconflicted names
+           in -- These unions are safe because the input nametree had unconflicted names
               Defns (BiMultimap.unsafeUnion accTerms childTerms) (BiMultimap.unsafeUnion accTypes childTypes)
 
         fff ::
@@ -125,13 +121,13 @@ flattenNamespaceTree =
               types = BiMultimap.fromRange (Map.mapKeysMonotonic Name.fromSegment types)
             }
 
-unflattenNamespaceTree ::
+unflattenNametree ::
   forall terms types.
   Ord terms =>
   Ord types =>
   Defns (BiMultimap terms Name) (BiMultimap types Name) ->
-  NamespaceTree (Defns (Map NameSegment terms) (Map NameSegment types))
-unflattenNamespaceTree defns0 =
+  Nametree (Defns (Map NameSegment terms) (Map NameSegment types))
+unflattenNametree defns0 =
   let inputTerms :: [(NonEmpty NameSegment, terms)]
       inputTerms = map (first Name.segments) $ Map.toList (BiMultimap.range $ terms defns0)
       inputTypes :: [(NonEmpty NameSegment, types)]
@@ -158,7 +154,7 @@ unflattenNamespaceTree defns0 =
       unflatten ::
         [(NonEmpty NameSegment, terms)] ->
         [(NonEmpty NameSegment, types)] ->
-        NamespaceTree (Defns (Map NameSegment terms) (Map NameSegment types))
+        Nametree (Defns (Map NameSegment terms) (Map NameSegment types))
       unflatten a b =
         let (curr, children) = unflattenLevel a b
             finalChildren = fmap (uncurry unflatten) children

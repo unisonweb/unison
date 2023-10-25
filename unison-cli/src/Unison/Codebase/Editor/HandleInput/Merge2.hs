@@ -118,12 +118,12 @@ import Unison.Util.Cache qualified as Cache
 import Unison.Util.Map qualified as Map
 import Unison.Util.Nametree
   ( Defns (..),
-    NamespaceTree,
-    flattenNamespaceTree,
-    mergeNamespaceTrees,
-    traverseNamespaceTreeWithName,
-    unflattenNamespaceTree,
-    zipNamespaceTrees,
+    Nametree,
+    flattenNametree,
+    mergeNametrees,
+    traverseNametreeWithName,
+    unflattenNametree,
+    zipNametrees,
   )
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -599,7 +599,7 @@ makeWawa2 personOneDefns personTwoUpdates =
 
 namespaceToV3Branch ::
   MergeDatabase ->
-  NamespaceTree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
+  Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3 Transaction
 namespaceToV3Branch db ((Defns {terms, types}, _causalParents) :< children) =
   BranchV3.BranchV3
@@ -610,7 +610,7 @@ namespaceToV3Branch db ((Defns {terms, types}, _causalParents) :< children) =
 
 namespaceToV3Causal ::
   MergeDatabase ->
-  NamespaceTree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
+  Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3.CausalBranchV3 Transaction
 namespaceToV3Causal db@MergeDatabase {loadCausal} namespace@((_, causalParentHashes) :< _) =
   HashHandle.mkCausal
@@ -805,7 +805,7 @@ getTwoFreshNames names name0 =
 -- Information we load and compute about a namespace.
 data NamespaceInfo = NamespaceInfo
   { -- The causal hash at every node in a namespace.
-    causalHashes :: !(NamespaceTree CausalHash),
+    causalHashes :: !(Nametree CausalHash),
     -- A mapping from constructor name "foo.bar.Maybe.internal.Just" to decl name "foo.bar.Maybe"
     constructorNameToDeclName :: !(Map Name Name),
     -- The definitions in a namespace.
@@ -837,11 +837,11 @@ loadNamespaceInfo abort loadNumConstructors causalHash branch = do
     NamespaceInfo
       { causalHashes = fmap snd defns1,
         constructorNameToDeclName,
-        definitions = flattenNamespaceTree (fmap fst defns1)
+        definitions = flattenNametree (fmap fst defns1)
       }
 
 type NamespaceInfo0 =
-  NamespaceTree
+  Nametree
     ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
       CausalHash
     )
@@ -869,7 +869,7 @@ loadNamespaceInfo0_ branch causalHash = do
   pure ((Defns {terms, types}, causalHash) :< children)
 
 type NamespaceInfo1 =
-  NamespaceTree
+  Nametree
     ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
       CausalHash
     )
@@ -877,7 +877,7 @@ type NamespaceInfo1 =
 -- | Assert that there are no unconflicted names in a namespace.
 makeNamespaceInfo1 :: NamespaceInfo0 -> Either Merge.PreconditionViolation NamespaceInfo1
 makeNamespaceInfo1 =
-  traverseNamespaceTreeWithName \names (Defns {terms, types}, causalHash) -> do
+  traverseNametreeWithName \names (Defns {terms, types}, causalHash) -> do
     terms <-
       terms & Map.traverseWithKey \name ->
         assertUnconflicted (Merge.ConflictedTermName (Name.fromReverseSegments (name :| names)))
@@ -1209,11 +1209,11 @@ mergePreconditionViolationToOutput db = \case
 unconflictedToV3Branch ::
   MergeDatabase ->
   Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Merge.TwoWay (NamespaceTree CausalHash) ->
+  Merge.TwoWay (Nametree CausalHash) ->
   BranchV3 Transaction
 unconflictedToV3Branch db unconflicted causalHashes =
   namespaceToV3Branch db $
-    mergeNamespaceTrees
+    mergeNametrees
       (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
       (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
       ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
@@ -1226,10 +1226,10 @@ unconflictedToV3Branch db unconflicted causalHashes =
   where
     makeBigTree ::
       Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      NamespaceTree CausalHash ->
-      NamespaceTree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
+      Nametree CausalHash ->
+      Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
     makeBigTree defns causals =
-      zipNamespaceTrees (,) (unflattenNamespaceTree defns) causals
+      zipNametrees (,) (unflattenNametree defns) causals
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Compat with V1 types
