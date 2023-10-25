@@ -7,7 +7,7 @@ ghc-options: -Wall
 dependencies:
   - base
   - containers
-  - free
+  - lens
   - semigroups
   - unison-core
   - unison-core1

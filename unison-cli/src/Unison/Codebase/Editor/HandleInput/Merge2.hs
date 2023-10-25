@@ -118,7 +118,7 @@ import Unison.Util.Cache qualified as Cache
 import Unison.Util.Map qualified as Map
 import Unison.Util.Nametree
   ( Defns (..),
-    Nametree,
+    Nametree (..),
     flattenNametree,
     mergeNametrees,
     traverseNametreeWithName,
@@ -601,7 +601,7 @@ namespaceToV3Branch ::
   MergeDatabase ->
   Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3 Transaction
-namespaceToV3Branch db ((Defns {terms, types}, _causalParents) :< children) =
+namespaceToV3Branch db (Nametree (Defns {terms, types}, _causalParents) children) =
   BranchV3.BranchV3
     { terms,
       types,
@@ -612,11 +612,11 @@ namespaceToV3Causal ::
   MergeDatabase ->
   Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), [CausalHash]) ->
   BranchV3.CausalBranchV3 Transaction
-namespaceToV3Causal db@MergeDatabase {loadCausal} namespace@((_, causalParentHashes) :< _) =
+namespaceToV3Causal db@MergeDatabase {loadCausal} namespace =
   HashHandle.mkCausal
     v2HashHandle
     (HashHandle.hashBranchV3 v2HashHandle v3Branch)
-    (Map.fromList (map (\ch -> (ch, loadCausal ch)) causalParentHashes))
+    (Map.fromList (map (\ch -> (ch, loadCausal ch)) (snd (namespace ^. #value))))
     (pure v3Branch)
   where
     v3Branch :: BranchV3 Transaction
@@ -852,21 +852,23 @@ loadNamespaceInfo0 :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
 loadNamespaceInfo0 branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
+  let value = (Defns {terms, types}, causalHash)
   children <-
     for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
       childBranch <- Causal.value childCausal
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
-  pure ((Defns {terms, types}, causalHash) :< children)
+  pure Nametree {value, children}
 
 loadNamespaceInfo0_ :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
 loadNamespaceInfo0_ branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
+  let value = (Defns {terms, types}, causalHash)
   children <-
     for (branch ^. #children) \childCausal -> do
       childBranch <- Causal.value childCausal
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
-  pure ((Defns {terms, types}, causalHash) :< children)
+  pure Nametree {value, children}
 
 type NamespaceInfo1 =
   Nametree
@@ -989,7 +991,7 @@ checkDeclCoherency loadNumConstructors =
       [NameSegment] ->
       NamespaceInfo1 ->
       StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation m) ()
-    go prefix ((Defns {terms, types}, _) :< children) = do
+    go prefix (Nametree (Defns {terms, types}, _) children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
         (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
