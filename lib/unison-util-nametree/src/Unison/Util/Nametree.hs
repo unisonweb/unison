@@ -2,6 +2,8 @@ module Unison.Util.Nametree
   ( -- * Nametree
     Nametree (..),
     traverseNametreeWithName,
+
+    -- ** Flattening and unflattening
     flattenNametree,
     unflattenNametree,
 
@@ -10,8 +12,8 @@ module Unison.Util.Nametree
   )
 where
 
-import Control.Lens ((^.))
 import Data.List.NonEmpty (NonEmpty, pattern (:|))
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Semialign (Semialign (alignWith), Unzip (unzipWith), Zip (zipWith))
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
@@ -98,45 +100,35 @@ flattenNametree f =
         )
         (Map.toList children)
 
-unflattenNametree ::
-  forall terms types.
-  Ord terms =>
-  Ord types =>
-  Defns (BiMultimap terms Name) (BiMultimap types Name) ->
-  Nametree (Defns (Map NameSegment terms) (Map NameSegment types))
-unflattenNametree defns0 =
-  let inputTerms :: [(NonEmpty NameSegment, terms)]
-      inputTerms = map (first Name.segments) $ Map.toList (BiMultimap.range $ terms defns0)
-      inputTypes :: [(NonEmpty NameSegment, types)]
-      inputTypes = map (first Name.segments) $ Map.toList (BiMultimap.range $ types defns0)
-      unflattenLevel ::
-        [(NonEmpty NameSegment, terms)] ->
-        [(NonEmpty NameSegment, types)] ->
-        ( Defns (Map NameSegment terms) (Map NameSegment types),
-          Map NameSegment ([(NonEmpty NameSegment, terms)], [(NonEmpty NameSegment, types)])
-        )
-      unflattenLevel terms0 types0 =
-        let (terms, children0) = foldl' phi (Map.empty, Map.empty) terms0
-            (types, children) = foldl' psi (Map.empty, children0) types0
-            phi (ts, cs) (n :| ns, v) =
-              case ns of
-                [] -> (Map.insert n v ts, cs)
-                n1 : restNames -> (ts, Map.insertWith (\(a, b) (c, d) -> (a ++ c, b ++ d)) n ([(n1 :| restNames, v)], []) cs)
-            psi (ts, cs) (n :| ns, v) =
-              case ns of
-                [] -> (Map.insert n v ts, cs)
-                n1 : restNames -> (ts, Map.insertWith (\(a, b) (c, d) -> (a ++ c, b ++ d)) n ([], [(n1 :| restNames, v)]) cs)
-         in (Defns {terms, types}, children)
+unflattenNametree :: Ord a => BiMultimap a Name -> Nametree (Map NameSegment a)
+unflattenNametree =
+  go . map (first Name.segments) . Map.toList . BiMultimap.range
+  where
+    go :: forall a. Ord a => [(NonEmpty NameSegment, a)] -> Nametree (Map NameSegment a)
+    go =
+      let unflatten :: [(NonEmpty NameSegment, a)] -> Nametree (Map NameSegment a)
+          unflatten xs =
+            let (value, children) = unflattenLevel xs
+             in Nametree value (unflatten <$> children)
+       in unflatten
 
-      unflatten ::
-        [(NonEmpty NameSegment, terms)] ->
-        [(NonEmpty NameSegment, types)] ->
-        Nametree (Defns (Map NameSegment terms) (Map NameSegment types))
-      unflatten a b =
-        let (curr, children) = unflattenLevel a b
-            finalChildren = fmap (uncurry unflatten) children
-         in Nametree curr finalChildren
-   in unflatten inputTerms inputTypes
+    unflattenLevel :: [(NonEmpty NameSegment, a)] -> (Map NameSegment a, Map NameSegment [(NonEmpty NameSegment, a)])
+    unflattenLevel =
+      foldl' phi (Map.empty, Map.empty)
+      where
+        phi (!accValue, !accChildren) = \case
+          (NameHere n, v) -> (Map.insert n v accValue, accChildren)
+          (NameThere n ns, v) -> (accValue, Map.insertWith (++) n [(ns, v)] accChildren)
+
+-- Helper patterns for switching on "name here" (1 name segment) or "name there" (2+ name segments)
+
+pattern NameHere :: a -> NonEmpty a
+pattern NameHere x <- x :| (List.NonEmpty.nonEmpty -> Nothing)
+
+pattern NameThere :: a -> NonEmpty a -> NonEmpty a
+pattern NameThere x xs <- x :| (List.NonEmpty.nonEmpty -> Just xs)
+
+{-# COMPLETE NameHere, NameThere #-}
 
 -- | Definitions (terms and types) in a namespace.
 data Defns terms types = Defns

@@ -1228,8 +1228,22 @@ unconflictedToV3Branch db unconflicted causalHashes =
             -- disjoint, the values are equal
             (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
       )
-      (zip (unflattenNametree (unconflicted ^. #alice)) (causalHashes ^. #alice))
-      (zip (unflattenNametree (unconflicted ^. #bob)) (causalHashes ^. #bob))
+      (zip (unflattenDefns (unconflicted ^. #alice)) (causalHashes ^. #alice))
+      (zip (unflattenDefns (unconflicted ^. #bob)) (causalHashes ^. #bob))
+  where
+    unflattenDefns ::
+      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+    unflattenDefns (Defns terms types) =
+      alignWith theseToDefns (unflattenNametree terms) (unflattenNametree types)
+
+    theseToDefns ::
+      These (Map NameSegment Referent) (Map NameSegment TypeReference) ->
+      Defns (Map NameSegment Referent) (Map NameSegment TypeReference)
+    theseToDefns = \case
+      This terms -> Defns {terms, types = Map.empty}
+      That types -> Defns {terms = Map.empty, types}
+      These terms types -> Defns {terms, types}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Compat with V1 types
