@@ -8,22 +8,29 @@ sandbox.check ok name a k =
 sandbox.checkSafe name a =
   sandbox.check [] name a cases
     true  -> Tests.pass (name ++ " safe")
-    false -> Tests.fail name " unexpectedly unsafe"
+    false -> Tests.fail name "unexpectedly unsafe"
 
 sandbox.checkUnsafe name a =
   sandbox.check [] name a cases
-    true  -> Tests.fail name " unexpectedly safe"
+    true  -> Tests.fail name "unexpectedly safe"
     false -> Tests.pass (name ++ " unsafe")
 
 sandbox.checkAllowed name ok a =
   sandbox.check ok name a cases
     true  -> Tests.pass (name ++ " allowed")
-    false -> Tests.fail name " unexpected disallowed"
+    false -> Tests.fail name "unexpected disallowed"
 
 sandbox.directory =
   "unison-src/transcripts-using-base/serialized-cases/"
 
 sandbox.file = FilePath (directory ++ "case-04.v4.ser")
+
+sandbox.open1 = do
+  _ = FilePath.open
+  ()
+
+sandbox.open2 = do
+  !open1
 
 serial.checkLoaded : '{IO, Tests, Exception} ()
 serial.checkLoaded = do
@@ -45,6 +52,8 @@ sandbox.tests = do
   checkSafe "0xs1337" 0xs1337
   checkSafe "List.map" List.map
   checkUnsafe "FilePath.open" FilePath.open
+  checkUnsafe "sandbox.open1" sandbox.open1
+  checkUnsafe "sandbox.open2" sandbox.open2
   checkUnsafe "Code.cache_" Code.cache_
   checkAllowed "FilePath.open" [termLink FilePath.open.impl] FilePath.open
   checkAllowed "Code.cache_" [termLink Code.cache_] Code.cache_
