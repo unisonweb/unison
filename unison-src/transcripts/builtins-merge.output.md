@@ -82,7 +82,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   71. Value/              (5 terms)
   72. bug                 (a -> b)
   73. crypto/             (13 terms, 1 type)
-  74. io2/                (133 terms, 32 types)
+  74. io2/                (135 terms, 32 types)
   75. metadata/           (2 terms)
   76. todo                (a -> b)
   77. unsafe/             (1 term)

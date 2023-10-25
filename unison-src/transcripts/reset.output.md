@@ -26,13 +26,13 @@ a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #65muh384mp
+  ⊙ 1. #peqesc1c8j
   
     + Adds / updates:
     
       a
   
-  □ 2. #imu74ctf2v (start of history)
+  □ 2. #adb3s165os (start of history)
 
 .> reset 2
 
@@ -45,7 +45,7 @@ a = 5
   
   
   
-  □ 1. #imu74ctf2v (start of history)
+  □ 1. #adb3s165os (start of history)
 
 ```
 ```unison
@@ -79,13 +79,13 @@ foo.a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #5upvuiur50
+  ⊙ 1. #ujrlqvm3gc
   
     + Adds / updates:
     
       foo.a
   
-  □ 2. #imu74ctf2v (start of history)
+  □ 2. #adb3s165os (start of history)
 
 .> reset 1 foo
 

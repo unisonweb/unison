@@ -22,8 +22,8 @@ import Data.Word (Word16, Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
-import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
 import Unison.Util.EnumContainers qualified as EC
@@ -618,6 +618,8 @@ pOpCode op = case op of
   DBTX -> 119
   IXOT -> 120
   IXOB -> 121
+  SDBL -> 122
+  SDBV -> 123
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]
