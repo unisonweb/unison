@@ -107,7 +107,12 @@ flattenNametree =
                       (\name -> Name.fromReverseSegments (name :| prefix))
                       (defns0 ^. #terms)
                   ),
-              types = BiMultimap.fromRange (Map.mapKeysMonotonic Name.fromSegment (defns0 ^. #types))
+              types =
+                BiMultimap.fromRange
+                  ( Map.mapKeysMonotonic
+                      (\name -> Name.fromReverseSegments (name :| prefix))
+                      (defns0 ^. #types)
+                  )
             }
 
 unflattenNametree ::
