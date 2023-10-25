@@ -1,4 +1,4 @@
 module Unison.JitInfo (currentRelease) where
 
 currentRelease :: String
-currentRelease = "releases/0.0.7"
+currentRelease = "releases/0.0.8"
