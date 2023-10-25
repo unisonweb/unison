@@ -20,6 +20,24 @@ sandbox.checkAllowed name ok a =
     true  -> Tests.pass (name ++ " allowed")
     false -> Tests.fail name " unexpected disallowed"
 
+sandbox.directory =
+  "unison-src/transcripts-using-base/serialized-cases/"
+
+sandbox.file = FilePath (directory ++ "case-04.v4.ser")
+
+serial.checkLoaded : '{IO, Tests, Exception} ()
+serial.checkLoaded = do
+  input = FilePath.readFile sandbox.file
+  match fromBase32 input with
+    Left msg -> raiseFailure msg input
+    Right bs ->
+    (deps, v) = loadValueBytes bs
+
+    _ = cache_ deps
+    match Value.load v with
+      Left l -> raiseFailure "value missing deps" l
+      Right (f, _) -> checkUnsafe "loaded" (Value.value f)
+
 sandbox.tests = do
   checkSafe "5" 5
   checkSafe "5.0" 5.0
@@ -30,3 +48,4 @@ sandbox.tests = do
   checkUnsafe "Code.cache_" Code.cache_
   checkAllowed "FilePath.open" [termLink FilePath.open.impl] FilePath.open
   checkAllowed "Code.cache_" [termLink Code.cache_] Code.cache_
+  !checkLoaded
