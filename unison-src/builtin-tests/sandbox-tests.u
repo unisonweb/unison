@@ -36,7 +36,7 @@ serial.checkLoaded = do
     _ = cache_ deps
     match Value.load v with
       Left l -> raiseFailure "value missing deps" l
-      Right (f, _) -> checkUnsafe "loaded" (Value.value f)
+      Right (f, _) -> checkUnsafe "loaded" f
 
 sandbox.tests = do
   checkSafe "5" 5
