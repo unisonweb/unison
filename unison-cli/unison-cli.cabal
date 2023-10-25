@@ -237,6 +237,7 @@ library
     , unison-util-base32hex
     , unison-util-bimultimap
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -381,6 +382,7 @@ executable cli-integration-tests
     , unison-util-base32hex
     , unison-util-bimultimap
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -520,6 +522,7 @@ executable transcripts
     , unison-util-base32hex
     , unison-util-bimultimap
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -665,6 +668,7 @@ executable unison
     , unison-util-base32hex
     , unison-util-bimultimap
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -813,6 +817,7 @@ test-suite cli-tests
     , unison-util-base32hex
     , unison-util-bimultimap
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers

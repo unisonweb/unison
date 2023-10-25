@@ -1,11 +1,14 @@
-module Unison.Merge.NamespaceTypes
-  ( Defns (..),
+module Unison.Util.Nametree
+  ( -- * Nametree
     NamespaceTree,
     traverseNamespaceTreeWithName,
     flattenNamespaceTree,
     unflattenNamespaceTree,
     mergeNamespaceTrees,
     zipNamespaceTrees,
+
+    -- * Definitions
+    Defns (..),
   )
 where
 
@@ -20,14 +23,6 @@ import Unison.NameSegment
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-
--- | Definitions (terms and types) in a namespace.
-data Defns terms types = Defns
-  { terms :: !terms,
-    types :: !types
-  }
-  deriving stock (Generic, Show)
-  deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 -- | A namespace tree has values, and a collection of children namespace trees keyed by name segment.
 type NamespaceTree a =
@@ -169,3 +164,11 @@ unflattenNamespaceTree defns0 =
             finalChildren = fmap (uncurry unflatten) children
          in curr :< finalChildren
    in unflatten inputTerms inputTypes
+
+-- | Definitions (terms and types) in a namespace.
+data Defns terms types = Defns
+  { terms :: !terms,
+    types :: !types
+  }
+  deriving stock (Generic, Show)
+  deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)

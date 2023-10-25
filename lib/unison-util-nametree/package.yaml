@@ -1,4 +1,4 @@
-name: unison-merge
+name: unison-util-nametree
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
@@ -6,57 +6,29 @@ ghc-options: -Wall
 
 dependencies:
   - base
-  - bimap
-  - bitvec
-  - bytestring
   - containers
-  - either
   - free
-  - generic-lens
-  - lens
-  - monad-validate
-  - mtl
-  - nonempty-containers
-  - safe
-  - semialign
   - semigroups
-  - these
-  - unison-codebase
-  - unison-codebase-sqlite
-  - unison-codebase-sqlite-hashing-v2
   - unison-core
   - unison-core1
-  - unison-hash
-  - unison-parser-typechecker
   - unison-prelude
-  - unison-sqlite
-  - unison-syntax
   - unison-util-bimultimap
-  - unison-util-nametree
-  - unison-util-relation
-  - vector
 
 library:
-  exposed-modules:
-    # TODO probably whittle this down to one
-    - Unison.Merge
-    - Unison.Merge2
   source-dirs: src
   when:
-    - condition: '!os(windows)'
-      dependencies: unix
     - condition: false
-      other-modules: Paths_unison_merge
+      other-modules: Paths_unison_util_nametree
 
 default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
   - DeriveAnyClass
-  - DeriveFunctor
   - DeriveFoldable
-  - DeriveTraversable
+  - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-merge
+name:           unison-util-nametree
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -17,15 +17,7 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Merge
-      Unison.Merge2
-  other-modules:
-      Unison.Merge.Diff
-      Unison.Merge.DiffOp
-      Unison.Merge.Libdeps
-      Unison.Merge.PreconditionViolation
-      Unison.Merge.Synhash
-      Unison.Merge3
+      Unison.Util.Nametree
   hs-source-dirs:
       src
   default-extensions:
@@ -33,10 +25,10 @@ library
       BangPatterns
       BlockArguments
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -63,36 +55,11 @@ library
   ghc-options: -Wall
   build-depends:
       base
-    , bimap
-    , bitvec
-    , bytestring
     , containers
-    , either
     , free
-    , generic-lens
-    , lens
-    , monad-validate
-    , mtl
-    , nonempty-containers
-    , safe
-    , semialign
     , semigroups
-    , these
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
-    , unison-hash
-    , unison-parser-typechecker
     , unison-prelude
-    , unison-sqlite
-    , unison-syntax
     , unison-util-bimultimap
-    , unison-util-nametree
-    , unison-util-relation
-    , vector
   default-language: Haskell2010
-  if !os(windows)
-    build-depends:
-        unix

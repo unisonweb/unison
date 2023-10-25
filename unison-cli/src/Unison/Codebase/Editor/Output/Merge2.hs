@@ -6,14 +6,14 @@ import Unison.Cli.Pretty qualified as P
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.Merge2 (Conflict (..), ConflictOrGood (Conflict, Good), MergeOutput, ScratchDefn (SdDecl, SdTerm), definitions)
-import Unison.Merge2 qualified as NT
+import Unison.Merge2 (Conflict (..), ConflictOrGood (Conflict, Good), MergeOutput, ScratchDefn (SdDecl, SdTerm))
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Project (ProjectBranchName)
 import Unison.Syntax.NamePrinter qualified as NamePrinter
 import Unison.Term (Term)
 import Unison.Util.Pretty qualified as P
+import Control.Lens ((^.))
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Pretty-print definitions
@@ -33,8 +33,8 @@ pseudoOutput printDefn merge = prettyConflicts <> newline <> prettyTransitiveDep
     conflictedDecls :: Map Name (Conflict ProjectBranchName (Decl v a))
     okTerms :: Map Name (Term v a)
     okDecls :: Map Name (Decl v a)
-    (conflictedTerms, okTerms) = foldl' (partitionConflicts) mempty (Map.toList . NT.terms $ definitions merge)
-    (conflictedDecls, okDecls) = foldl' (partitionConflicts) mempty (Map.toList . NT.types $ definitions merge)
+    (conflictedTerms, okTerms) = foldl' (partitionConflicts) mempty (Map.toList (merge ^. #definitions . #terms))
+    (conflictedDecls, okDecls) = foldl' (partitionConflicts) mempty (Map.toList (merge ^. #definitions . #types))
     partitionConflicts ::
       forall a.
       Ord a =>

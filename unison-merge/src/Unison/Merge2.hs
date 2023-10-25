@@ -26,13 +26,6 @@ module Unison.Merge2
     DeepRefs,
     DeepRefsId',
     RefToName,
-    Defns (..),
-    NamespaceTree,
-    traverseNamespaceTreeWithName,
-    flattenNamespaceTree,
-    unflattenNamespaceTree,
-    mergeNamespaceTrees,
-    zipNamespaceTrees,
     TwoWay (..),
     TwoOrThreeWay (..),
   )
@@ -65,15 +58,6 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
-import Unison.Merge.NamespaceTypes
-  ( Defns (..),
-    NamespaceTree,
-    flattenNamespaceTree,
-    mergeNamespaceTrees,
-    traverseNamespaceTreeWithName,
-    unflattenNamespaceTree,
-    zipNamespaceTrees,
-  )
 import Unison.Merge.PreconditionViolation (PreconditionViolation (..))
 import Unison.Name (Name)
 import Unison.Prelude
@@ -93,6 +77,7 @@ import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.Maybe qualified as Maybe
+import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1
 
@@ -650,6 +635,7 @@ data MergeOutput v a = MergeProblem
         (Map Name (ConflictOrGood (V1.Term v a)))
         (Map Name (ConflictOrGood (V1.Decl v a)))
   }
+  deriving stock (Generic)
 
 instance Ord v => Functor (MergeOutput v) where
   fmap f (MergeProblem Defns {terms, types}) =

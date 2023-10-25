@@ -45,7 +45,7 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.DataDeclaration (Decl)
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.Merge2 (Defns (..), DeepRefsId')
+import Unison.Merge2 (DeepRefsId')
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -73,6 +73,7 @@ import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (UnisonFile (UnisonFileId))
 import Unison.Util.Map qualified as Map (remap, upsert)
 import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Nametree (Defns (..))
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.Var qualified as Var

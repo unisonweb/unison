@@ -20,7 +20,6 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.NamespaceTypes (Defns (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
@@ -31,6 +30,7 @@ import Unison.Referent qualified as V1.Referent
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
 
 -- A couple of internal types and type aliases of questionable utility.
