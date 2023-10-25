@@ -25,7 +25,7 @@ import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromJust)
-import Data.Semialign (alignWith)
+import Data.Semialign (alignWith, unzip, zip)
 import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
@@ -120,16 +120,15 @@ import Unison.Util.Nametree
   ( Defns (..),
     Nametree (..),
     flattenNametree,
-    mergeNametrees,
     traverseNametreeWithName,
     unflattenNametree,
-    zipNametrees,
   )
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 (Star3)
 import Unison.Util.Star3 qualified as Star3
 import Witch (unsafeFrom)
+import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -833,11 +832,12 @@ loadNamespaceInfo abort loadNumConstructors causalHash branch = do
   defns0 <- loadNamespaceInfo0 branch causalHash
   defns1 <- makeNamespaceInfo1 defns0 & onLeft abort
   constructorNameToDeclName <- checkDeclCoherency loadNumConstructors defns1 & onLeftM abort
+  let (definitions, causalHashes) = unzip defns1
   pure
     NamespaceInfo
-      { causalHashes = fmap snd defns1,
+      { causalHashes,
         constructorNameToDeclName,
-        definitions = flattenNametree (fmap fst defns1)
+        definitions = flattenNametree definitions
       }
 
 type NamespaceInfo0 =
@@ -1215,23 +1215,17 @@ unconflictedToV3Branch ::
   BranchV3 Transaction
 unconflictedToV3Branch db unconflicted causalHashes =
   namespaceToV3Branch db $
-    mergeNametrees
-      (\(aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal]))
-      (\(bobDefns, bobCausal) -> (bobDefns, [bobCausal]))
-      ( \(aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
-          -- A left-biased union is fine here because we are merging unconflicted things; where the maps aren't
-          -- disjoint, the values are equal
-          (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
+    alignWith
+      ( \case
+          This (aliceDefns, aliceCausal) -> (aliceDefns, [aliceCausal])
+          That (bobDefns, bobCausal) -> (bobDefns, [bobCausal])
+          These (aliceDefns, aliceCausal) (bobDefns, bobCausal) ->
+            -- A left-biased union is fine here because we are merging unconflicted things; where the maps aren't
+            -- disjoint, the values are equal
+            (aliceDefns <> bobDefns, [aliceCausal, bobCausal])
       )
-      (makeBigTree (unconflicted ^. #alice) (causalHashes ^. #alice))
-      (makeBigTree (unconflicted ^. #bob) (causalHashes ^. #bob))
-  where
-    makeBigTree ::
-      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      Nametree CausalHash ->
-      Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference), CausalHash)
-    makeBigTree defns causals =
-      zipNametrees (,) (unflattenNametree defns) causals
+      (zip (unflattenNametree (unconflicted ^. #alice)) (causalHashes ^. #alice))
+      (zip (unflattenNametree (unconflicted ^. #bob)) (causalHashes ^. #bob))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Compat with V1 types

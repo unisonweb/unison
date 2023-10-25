@@ -8,7 +8,9 @@ dependencies:
   - base
   - containers
   - lens
+  - semialign
   - semigroups
+  - these
   - unison-core
   - unison-core1
   - unison-prelude
