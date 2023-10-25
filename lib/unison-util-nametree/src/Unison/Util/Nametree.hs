@@ -2,6 +2,7 @@ module Unison.Util.Nametree
   ( -- * Nametree
     Nametree (..),
     traverseNametreeWithName,
+    unfoldNametree,
 
     -- ** Flattening and unflattening
     flattenNametree,
@@ -59,6 +60,12 @@ traverseNametreeWithName f =
     go names (Nametree x xs) =
       Nametree <$> f names x <*> Map.traverseWithKey (\name -> go (name : names)) xs
 
+-- | Build a nametree from a seed value.
+unfoldNametree :: (a -> (b, Map NameSegment a)) -> a -> Nametree b
+unfoldNametree f x =
+  let (y, ys) = f x
+   in Nametree y (unfoldNametree f <$> ys)
+
 -- | 'flattenNametree' organizes a nametree like
 --
 -- > "foo" = #foo
@@ -100,18 +107,27 @@ flattenNametree f =
         )
         (Map.toList children)
 
+-- | 'unflattenNametree' organizes an association between names and definitions like
+--
+-- > {
+-- >   "foo" = #bar,
+-- >   "foo.bar" = #bar,
+-- >   "foo.bar.baz" = #baz
+-- > }
+--
+-- into an equivalent-but-less-flat nametree, like
+--
+-- > "foo" = #foo
+-- > "foo": {
+-- >   "bar" = #bar
+-- >   "bar": {
+-- >     "baz" = #baz
+-- >   }
+-- > }
 unflattenNametree :: Ord a => BiMultimap a Name -> Nametree (Map NameSegment a)
 unflattenNametree =
-  go . map (first Name.segments) . Map.toList . BiMultimap.range
+  unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList . BiMultimap.range
   where
-    go :: forall a. Ord a => [(NonEmpty NameSegment, a)] -> Nametree (Map NameSegment a)
-    go =
-      let unflatten :: [(NonEmpty NameSegment, a)] -> Nametree (Map NameSegment a)
-          unflatten xs =
-            let (value, children) = unflattenLevel xs
-             in Nametree value (unflatten <$> children)
-       in unflatten
-
     unflattenLevel :: [(NonEmpty NameSegment, a)] -> (Map NameSegment a, Map NameSegment [(NonEmpty NameSegment, a)])
     unflattenLevel =
       foldl' phi (Map.empty, Map.empty)
@@ -131,6 +147,8 @@ pattern NameThere x xs <- x :| (List.NonEmpty.nonEmpty -> Just xs)
 {-# COMPLETE NameHere, NameThere #-}
 
 -- | Definitions (terms and types) in a namespace.
+--
+-- FIXME this doesn't belong in this module
 data Defns terms types = Defns
   { terms :: !terms,
     types :: !types
