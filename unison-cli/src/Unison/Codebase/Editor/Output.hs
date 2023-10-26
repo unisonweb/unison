@@ -386,7 +386,7 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
-  | -- These are all merge precondition violation. See PreconditionViolation for more docs.
+  | -- These are all merge precondition violations. See PreconditionViolation for more docs.
     MergeConflictedAliases !ProjectBranchName !Name !Name
   | MergeConflictedTermName !Name !(Set Referent)
   | MergeConflictedTypeName !Name !(Set TypeReference)

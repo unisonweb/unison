@@ -202,12 +202,23 @@ handleMerge bobBranchName = do
             mergePreconditionViolationToOutput db >=> abort0
 
       -- Load causals
-      aliceCausal <- step "load alice causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
-      bobCausal <- step "load bob causal" $ Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+      aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
+      bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+      maybeLcaCausal <-
+        step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
+          Nothing -> pure Nothing
+          Just lcaCausalHash -> do
+            -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
+            when (lcaCausalHash == bobCausal ^. #causalHash) do
+              abort0 $
+                Output.MergeAlreadyUpToDate
+                  (Right (ProjectAndBranch project bobProjectBranch))
+                  (Right (ProjectAndBranch project aliceProjectBranch))
+            Just <$> loadCausal lcaCausalHash
 
       -- Load shallow branches
-      aliceBranch <- step "load shallow alice branch" $ Causal.value aliceCausal
-      bobBranch <- step "load shallow bob branch" $ Causal.value bobCausal
+      aliceBranch <- Causal.value aliceCausal
+      bobBranch <- Causal.value bobCausal
 
       -- Load deep definitions
       NamespaceInfo aliceCausalTree aliceConstructorNameToDeclName aliceDefns <-
@@ -221,7 +232,7 @@ handleMerge bobBranchName = do
       let constructorNameToDeclName = Merge.TwoWay {alice = aliceConstructorNameToDeclName, bob = bobConstructorNameToDeclName}
 
       (maybeLcaLibdeps, diffs) <- do
-        step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
+        case maybeLcaCausal of
           Nothing -> do
             diffs <-
               Merge.nameBasedNamespaceDiff
@@ -229,8 +240,7 @@ handleMerge bobBranchName = do
                 loadTerm
                 Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
             pure (Nothing, diffs)
-          Just lcaCausalHash -> do
-            lcaCausal <- step "load lca causal" $ loadCausal lcaCausalHash
+          Just lcaCausal -> do
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
             lcaDefns <- step "load lca definitions" $ loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
             diffs <-
