@@ -43,6 +43,8 @@ module U.Codebase.Sqlite.Serialization
     putSingleTerm,
     putDeclElement,
     getSingleTerm,
+    putLocalIdsWith,
+    getLocalIdsWith,
   )
 where
 
@@ -160,7 +162,7 @@ putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
   putFoldable putText textLookup
   putFoldable putDefn defnLookup
 
-getLocalIds :: (MonadGet m) => m LocalIds
+getLocalIds :: (MonadGet m, Num t, Bits t, Num h, Bits h) => m (LocalIds' t h)
 getLocalIds = getLocalIdsWith getVarInt getVarInt
 
 skipLocalIds :: (MonadGet m) => m ()
