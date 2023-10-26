@@ -54,6 +54,7 @@ import Unison.Codebase.Editor.Output
   )
 import Unison.Codebase.Editor.Output qualified as E
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
+import Unison.Codebase.Editor.Output.Merge2 qualified as MergeOutput
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
@@ -89,6 +90,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Merge2 (MergeOutput)
+import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -2471,15 +2473,40 @@ displayOutputMergeScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> Fi
 displayOutputMergeScratchFile ppe fp uf = do
   let scratchMessage = "The merge results didn't typecheck. Please fix them up below, and `update` to save them when you're done."
   let header = "-- " <> P.string scratchMessage <> "\n"
-  let ucmMessage = "The merge results didn't typecheck. I put them at the top of " <> fromString fp <> "and need your help to fix them up. Use `update` to save them when you're done."
-  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
-  pure $ P.callout "☝️" $ P.lines [P.wrap ucmMessage]
+  let ucmMessage fp =
+        "The merge results didn't typecheck. I put them at the top of "
+          <> fromString fp
+          <> "and need your help to fix them up. Use `update` to save them when you're done."
+  canonicalizedPath <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
+  pure $ P.callout "☝️" $ P.lines [P.wrap $ ucmMessage canonicalizedPath]
 
 displayOutputMergeConfictScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> MergeOutput v a -> IO Pretty
-displayOutputMergeConfictScratchFile ppe fp uf = wundefined
+displayOutputMergeConfictScratchFile ppe fp merge = do
+  let scratchMessage = "The merge results had some conflicts. Please fix them up below, and `update` to save them when you're done."
+  let header = "-- " <> P.string scratchMessage <> "\n"
+  let ucmMessage fp =
+        "The merge results had some conflicts. I put them at the top of "
+          <> fromString fp
+          <> "and need your help to fix them up. Use `update` to save them when you're done."
+  canonicalizedPath <- prependToFile (header <> "\n\n" <> prettyMergeOutput ppe merge <> foldLine) fp
+  pure $ P.callout "☝️" $ P.lines [P.wrap $ ucmMessage canonicalizedPath]
 
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+
+-- Note: We can't use a PPE to look up binding names, because we want multiple names for the same bindings
+prettyMergeOutput :: (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> Merge.MergeOutput v a -> Pretty
+prettyMergeOutput ppe merge = MergeOutput.pseudoOutput defnPrinter merge
+  where
+    -- PPE should be suffixified on the right for readability and editing
+    -- maybe needs MergeOutput to include the references to the things being output
+    defnPrinter name =
+      P.syntaxToColor . \case
+        Merge.SdTerm tm -> TermPrinter.prettyBinding (wundefined "ppe") (asHQ name) tm
+        Merge.SdDecl decl ->
+          -- let _r = Hashing.hashDecl
+          DeclPrinter.prettyDecl (wundefined "ppe") (wundefined "typereference") (asHQ name) decl
+    asHQ = HQ.NameOnly
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =

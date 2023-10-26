@@ -310,9 +310,9 @@ handleMerge bobBranchName = do
 
           typecheck uf >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
-              let saveToCodebase = werror "saveToCodebase"
+              let saveDefnsToCodebase = werror "saveDefnsToCodebase"
               let consAndSaveNamespace = werror "consAndSaveNamespace"
-              saveToCodebase tuf
+              saveDefnsToCodebase tuf
               consAndSaveNamespace tuf
               pure MergeDone
             Nothing -> do

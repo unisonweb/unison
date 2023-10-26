@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Output.Merge2 where
 
+import Control.Lens ((^.))
 import Data.Map qualified as Map
 import Unison.ABT (Var)
 import Unison.Cli.Pretty qualified as P
@@ -13,7 +14,6 @@ import Unison.Project (ProjectBranchName)
 import Unison.Syntax.NamePrinter qualified as NamePrinter
 import Unison.Term (Term)
 import Unison.Util.Pretty qualified as P
-import Control.Lens ((^.))
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Pretty-print definitions
