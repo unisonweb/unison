@@ -1,13 +1,10 @@
-```ucm
-.> builtins.merge
-```
+Alice tries to merge Bob's branch. There's an add-add conflict involving a builtin. This is a merge precondition
+violation.
 
 ```ucm
 .> project.create-empty project
 project/main> builtins.merge
 ```
-
-Make an add-add conflict involving a builtin and observe that violates a merge precondition.
 
 ```unison
 structural type Foo = MkFoo Nat Nat Nat

@@ -26,7 +26,7 @@ data PreconditionViolation
     --   Foo#Foo
     --   Foo.Bar#Foo#0
     --   Foo.Some.Other.Name.For.Bar#Foo#0
-    ConstructorAlias !Name !Name -- first name we found, second name we found
+    ConstructorAlias !ProjectBranchName !Name !Name -- first name we found, second name we found
   | -- | There were some definitions at the top level of lib.*, which we don't like
     DefnsInLib
   | MissingConstructorName !Name

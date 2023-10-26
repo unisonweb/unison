@@ -391,7 +391,7 @@ data Output
   | MergeConflictedTermName !Name !(Set Referent)
   | MergeConflictedTypeName !Name !(Set TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !Name !Name
+  | MergeConstructorAlias !ProjectBranchName !Name !Name
   | MergeDefnsInLib
   | MergeMissingConstructorName !Name
   | MergeNestedDeclAlias !Name

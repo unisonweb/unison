@@ -1,10 +1,5 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-```
-Create an LCA in which `foo` and `bar` are aliases.
+Alice tries to merge Bob's branch. In their LCA, `foo` and `bar` are aliases, but in Alice's branch, they are not. This
+is a merge precondition violation.
 
 ```unison
 foo = 10
@@ -19,8 +14,8 @@ bar = 10
   
     ⍟ These new definitions are ok to `add`:
     
-      bar : Nat
-      foo : Nat
+      bar : ##Nat
+      foo : ##Nat
 
 ```
 ```ucm
@@ -40,6 +35,10 @@ bar = 10
   
   🎉 🥳 Happy coding!
 
+project/main> builtins.merge
+
+  Done.
+
 project/main> add
 
   ⍟ I've added these definitions:
@@ -47,10 +46,6 @@ project/main> add
     bar : Nat
     foo : Nat
 
-```
-Have Alice update `foo` to one thing and `bar` to another.
-
-```ucm
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
@@ -92,10 +87,6 @@ project/alice> add
     bar : Nat
     foo : Nat
 
-```
-Have Bob do nothing at all (irrelevant to this transcript).
-
-```ucm
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
@@ -104,17 +95,12 @@ project/main> branch bob
        main branch.
 
 ```
-Try merging Bob into Alice and observe that Alice's branch violates the merge precondition that aliases must all be
-updated together.
-
 ```ucm
 project/alice> merge2 bob
 
   On alice, bar and foo are not aliases, but they used to be.
 
 ```
-Try merging Alice into Bob and observe the same.
-
 ```ucm
 project/bob> merge2 alice
 

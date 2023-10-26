@@ -2186,7 +2186,14 @@ notifyUser dir = \case
       "There's a merge conflict on"
         <> P.group (prettyName name <> ",")
         <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias name1 name2 -> pure "Constructor alias."
+  MergeConstructorAlias branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are aliases. Every type declaration must have exactly one name for each constructor."
   MergeDefnsInLib -> pure "Defns in lib"
   MergeMissingConstructorName name -> pure "Missing constructor name."
   MergeNestedDeclAlias name -> pure "Nested decl alias."

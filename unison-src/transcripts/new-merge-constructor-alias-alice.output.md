@@ -1,5 +1,4 @@
-Alice tries to merge Bob's branch. There's an add-add conflict involving a builtin. This is a merge precondition
-violation.
+Alice tries to merge Bob's branch. Alice has two names for one constructor. This is a merge precondition violation.
 
 ```ucm
 .> project.create-empty project
@@ -24,7 +23,7 @@ project/main> builtins.merge
 
 ```
 ```unison
-structural type Foo = MkFoo Nat Nat Nat
+unique type Foo = MkFoo Nat
 ```
 
 ```ucm
@@ -35,7 +34,7 @@ structural type Foo = MkFoo Nat Nat Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -46,7 +45,13 @@ project/main> branch alice
   Tip: Use `merge /alice /main` to merge your work back into the
        main branch.
 
-project/alice> alias.type builtin.Nat Foo
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    unique type Foo
+
+project/alice> alias.term Foo.MkFoo Foo.internal.MkFoo2
 
   Done.
 
@@ -57,26 +62,12 @@ project/main> branch bob
   Tip: Use `merge /bob /main` to merge your work back into the
        main branch.
 
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    structural type Foo
-
 ```
 ```ucm
 project/alice> merge2 bob
 
-  There's a merge conflict on Foo, but it's a builtin on one or
-  both branches. We can't yet handle merge conflicts on
-  builtins.
-
-```
-```ucm
-project/bob> merge2 alice
-
-  There's a merge conflict on Foo, but it's a builtin on one or
-  both branches. We can't yet handle merge conflicts on
-  builtins.
+  On alice, Foo.MkFoo and Foo.internal.MkFoo2 are aliases. Every
+  type declaration must have exactly one name for each
+  constructor.
 
 ```

@@ -192,7 +192,7 @@ handleMerge bobBranchName = do
 
   -- Create a bunch of cached database lookup functions
   Cli.Env {codebase} <- ask
-  db@MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm} <- makeMergeDatabase
+  db@MergeDatabase {loadCausal, loadDecl, loadDeclType, loadTerm} <- makeMergeDatabase
 
   mergeResult <-
     Cli.runTransactionWithRollback \abort0 -> do
@@ -212,10 +212,10 @@ handleMerge bobBranchName = do
       -- Load deep definitions
       NamespaceInfo aliceCausalTree aliceConstructorNameToDeclName aliceDefns <-
         step "load alice definitions" $
-          loadNamespaceInfo abort loadDeclNumConstructors (aliceCausal ^. #causalHash) aliceBranch
+          loadNamespaceInfo db abort (projectBranches ^. #alice . #name) (aliceCausal ^. #causalHash) aliceBranch
       NamespaceInfo bobCausalTree bobConstructorNameToDeclName bobDefns <-
         step "load bob definitions" $
-          loadNamespaceInfo abort loadDeclNumConstructors (bobCausal ^. #causalHash) bobBranch
+          loadNamespaceInfo db abort (projectBranches ^. #bob . #name) (bobCausal ^. #causalHash) bobBranch
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let constructorNameToDeclName = Merge.TwoWay {alice = aliceConstructorNameToDeclName, bob = bobConstructorNameToDeclName}
@@ -232,8 +232,7 @@ handleMerge bobBranchName = do
           Just lcaCausalHash -> do
             lcaCausal <- step "load lca causal" $ loadCausal lcaCausalHash
             lcaBranch <- step "load lca shallow branch" $ Causal.value lcaCausal
-            NamespaceInfo _ _ lcaDefns <- step "load lca definitions" do
-              loadNamespaceInfo abort loadDeclNumConstructors (lcaCausal ^. #causalHash) lcaBranch
+            lcaDefns <- step "load lca definitions" $ loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
             diffs <-
               Merge.nameBasedNamespaceDiff
                 loadDecl
@@ -460,27 +459,27 @@ data NamespaceInfo = NamespaceInfo
     definitions :: !(Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
   }
 
--- | Load all term and type names from a branch (excluding dependencies) into memory.
+-- Load namespace info into memory.
 --
 -- Fails if:
 --   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
 --   * One name is associated with more than one reference.
 --   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
 loadNamespaceInfo ::
-  Monad m =>
-  (forall void. Merge.PreconditionViolation -> m void) ->
-  (TypeReferenceId -> m Int) ->
+  MergeDatabase ->
+  (forall void. Merge.PreconditionViolation -> Transaction void) ->
+  ProjectBranchName ->
   CausalHash ->
-  Branch m ->
-  m NamespaceInfo
-loadNamespaceInfo abort loadNumConstructors causalHash branch = do
+  Branch Transaction ->
+  Transaction NamespaceInfo
+loadNamespaceInfo db abort branchName causalHash branch = do
   Map.lookup Name.libSegment (branch ^. #children) & onJust \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
       abort Merge.DefnsInLib
   defns0 <- loadNamespaceInfo0 branch causalHash
-  defns1 <- makeNamespaceInfo1 defns0 & onLeft abort
-  constructorNameToDeclName <- checkDeclCoherency loadNumConstructors defns1 & onLeftM abort
+  defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
+  constructorNameToDeclName <- checkDeclCoherency db branchName defns1 & onLeftM abort
   let (definitions, causalHashes) = unzip defns1
   pure
     NamespaceInfo
@@ -491,6 +490,26 @@ loadNamespaceInfo abort loadNumConstructors causalHash branch = do
             { terms = flattenNametree (view #terms) definitions,
               types = flattenNametree (view #types) definitions
             }
+      }
+
+-- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
+--
+-- Fails if:
+--   * One name is associated with more than one reference.
+loadLcaDefinitions ::
+  Monad m =>
+  (forall void. Merge.PreconditionViolation -> m void) ->
+  CausalHash ->
+  Branch m ->
+  m (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+loadLcaDefinitions abort causalHash branch = do
+  defns0 <- loadNamespaceInfo0 branch causalHash
+  defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
+  let defns2 = fst <$> defns1
+  pure
+    Defns
+      { terms = flattenNametree (view #terms) defns2,
+        types = flattenNametree (view #types) defns2
       }
 
 type NamespaceInfo0 =
@@ -530,8 +549,8 @@ type NamespaceInfo1 =
     )
 
 -- | Assert that there are no unconflicted names in a namespace.
-makeNamespaceInfo1 :: NamespaceInfo0 -> Either Merge.PreconditionViolation NamespaceInfo1
-makeNamespaceInfo1 =
+assertNamespaceHasNoConflictedNames :: NamespaceInfo0 -> Either Merge.PreconditionViolation NamespaceInfo1
+assertNamespaceHasNoConflictedNames =
   traverseNametreeWithName \names (Defns {terms, types}, causalHash) -> do
     terms <-
       terms & Map.traverseWithKey \name ->
@@ -629,12 +648,11 @@ makeNamespaceInfo1 =
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
 checkDeclCoherency ::
-  forall m.
-  Monad m =>
-  (TypeReferenceId -> m Int) ->
+  MergeDatabase ->
+  ProjectBranchName ->
   NamespaceInfo1 ->
-  m (Either Merge.PreconditionViolation (Map Name Name))
-checkDeclCoherency loadNumConstructors =
+  Transaction (Either Merge.PreconditionViolation (Map Name Name))
+checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   runExceptT
     . fmap (view #constructorNameToDeclName)
     . (`State.execStateT` DeclCoherencyCheckState Map.empty Map.empty)
@@ -643,7 +661,7 @@ checkDeclCoherency loadNumConstructors =
     go ::
       [NameSegment] ->
       NamespaceInfo1 ->
-      StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation m) ()
+      StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation Transaction) ()
     go prefix (Nametree (Defns {terms, types}, _) children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
@@ -662,7 +680,7 @@ checkDeclCoherency loadNumConstructors =
                   g = \case
                     Nothing -> error "didnt put expected constructor id"
                     Just NoConstructorNameYet -> Right (Just (YesConstructorName (fullName name)))
-                    Just (YesConstructorName firstName) -> Left (Merge.ConstructorAlias firstName (fullName name))
+                    Just (YesConstructorName firstName) -> Left (Merge.ConstructorAlias branchName firstName (fullName name))
 
       childrenWeWentInto <-
         forMaybe (Map.toList types) \case
@@ -672,12 +690,12 @@ checkDeclCoherency loadNumConstructors =
             whatHappened <- do
               let recordNewDecl ::
                     Maybe (IntMap MaybeConstructorName) ->
-                    Compose (ExceptT Merge.PreconditionViolation m) WhatHappened (IntMap MaybeConstructorName)
+                    Compose (ExceptT Merge.PreconditionViolation Transaction) WhatHappened (IntMap MaybeConstructorName)
                   recordNewDecl =
                     Compose . \case
                       Just _ -> Except.throwError (Merge.NestedDeclAlias typeName)
                       Nothing ->
-                        lift (loadNumConstructors typeRef) <&> \case
+                        lift (loadDeclNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
                           n -> InhabitedDecl (IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
               lift (getCompose (Map.upsertF recordNewDecl typeRef expectedConstructors))
@@ -1189,7 +1207,7 @@ mergePreconditionViolationToOutput db = \case
   Merge.ConflictedTermName name refs -> Output.MergeConflictedTermName name <$> Set.traverse (referent2to1 db) refs
   Merge.ConflictedTypeName name refs -> pure (Output.MergeConflictedTypeName name refs)
   Merge.ConflictInvolvingBuiltin name -> pure (Output.MergeConflictInvolvingBuiltin name)
-  Merge.ConstructorAlias name1 name2 -> pure (Output.MergeConstructorAlias name1 name2)
+  Merge.ConstructorAlias branch name1 name2 -> pure (Output.MergeConstructorAlias branch name1 name2)
   Merge.DefnsInLib -> pure Output.MergeDefnsInLib
   Merge.MissingConstructorName name -> pure (Output.MergeMissingConstructorName name)
   Merge.NestedDeclAlias name -> pure (Output.MergeNestedDeclAlias name)
