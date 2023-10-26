@@ -392,6 +392,11 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 openFile1 t = openFile t
 openFile2 t = openFile1 t
 
+validateSandboxedSimpl ok v =
+  match Value.validateSandboxed ok v with
+    Right [] -> true
+    _ -> false
+
 openFiles =
   [ not (validateSandboxed [] openFile)
   , not (validateSandboxed [] openFile1)
@@ -412,27 +417,76 @@ openFile]
   
     ⍟ These new definitions are ok to `add`:
     
-      Sandbox.test1 : [Result]
-      Sandbox.test2 : [Result]
-      Sandbox.test3 : [Result]
-      openFile1     : Text -> FileMode ->{IO, Exception} Handle
-      openFile2     : Text -> FileMode ->{IO, Exception} Handle
-      openFiles     : [Boolean]
+      Sandbox.test1          : [Result]
+      Sandbox.test2          : [Result]
+      Sandbox.test3          : [Result]
+      openFile1              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFile2              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFiles              : [Boolean]
+      validateSandboxedSimpl : [Link.Term]
+                               -> Value
+                               ->{IO} Boolean
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    10 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+    15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
     ✅ Passed Passed
   
-    11 | test> Sandbox.test2 = checks openFiles
+    16 | test> Sandbox.test2 = checks openFiles
     
     ✅ Passed Passed
   
-    12 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+    17 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
     
     ✅ Passed Passed
+
+```
+```unison
+openFilesIO = do
+  checks
+    [ not (validateSandboxedSimpl [] (value openFile))
+    , not (validateSandboxedSimpl [] (value openFile1))
+    , not (validateSandboxedSimpl [] (value openFile2))
+    , sandboxLinks (termLink openFile)
+        == sandboxLinks (termLink openFile1)
+    , sandboxLinks (termLink openFile1)
+        == sandboxLinks (termLink openFile2)
+    ]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      openFilesIO : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    openFilesIO : '{IO} [Result]
+
+.> io.test openFilesIO
+
+    New test results:
+  
+  ◉ openFilesIO   Passed
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view openFilesIO to view the source of a test.
 
 ```
 ## Universal hash functions

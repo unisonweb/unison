@@ -75,6 +75,12 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> alias.term ##Value.validateSandboxed Value.validateSandboxed
+.> load unison-src/builtin-tests/sandbox-tests.u
+.> add
+```
+
+```ucm:hide
 .> load unison-src/builtin-tests/tests.u
 .> add
 ```

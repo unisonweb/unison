@@ -1416,6 +1416,8 @@ data POp
   | -- STM
     ATOM
   | TFRC -- try force
+  | SDBL -- sandbox link list
+  | SDBV -- sandbox check for Values
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 type ANormal = ABTN.Term ANormalF

@@ -9,6 +9,7 @@
   lookup-function-link
   declare-code
   lookup-code
+  have-code?
 
   (struct-out unison-data)
   (struct-out unison-sum)
@@ -120,7 +121,42 @@
 ; something that allows us to distinguish it as builtin.
 (struct unison-termlink ()
   #:transparent
-  #:reflection-name 'termlink)
+  #:reflection-name 'termlink
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc lnl lnr rec)
+      (match lnl
+        [(unison-termlink-con r i)
+         (match lnr
+           [(unison-termlink-con l j)
+            (and (rec r l) (= i j))]
+           [else #f])]
+        [(unison-termlink-builtin l)
+         (match lnr
+           [(unison-termlink-builtin r)
+            (equal? l r)]
+           [else #f])]
+        [(unison-termlink-derived hl i)
+         (match lnr
+           [(unison-termlink-derived hr j)
+            (and (equal? hl hr) (= i j))]
+           [else #f])]))
+
+    (define ((hash-proc init) ln rec)
+      (match ln
+        [(unison-termlink-con r i)
+         (fxxor (fx*/wraparound (rec r) 29)
+                (fx*/wraparound (rec i) 23)
+                (fx*/wraparound init 17))]
+        [(unison-termlink-builtin n)
+         (fxxor (fx*/wraparound (rec n) 31)
+                (fx*/wraparound init 13))]
+        [(unison-termlink-derived hl i)
+         (fxxor (fx*/wraparound (rec hl) 37)
+                (fx*/wraparound (rec i) 41)
+                (fx*/wraparound init 7))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (struct unison-termlink-con unison-termlink
   (ref index)
@@ -298,6 +334,9 @@
     (if (eq? mco #f)
       (sum 0)
       (sum 1 mco))))
+
+(define (have-code? hs)
+  (hash-has-key? code-associations hs))
 
 (define (unison-tuple->list t)
   (let ([fs (unison-data-fields t)])

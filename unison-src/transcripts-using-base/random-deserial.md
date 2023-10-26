@@ -35,7 +35,10 @@ runTestCase name =
   hfile = directory ++ name ++ ".v4.hash"
 
   p@(f, i) = loadSelfContained sfile
-  pl@(fl, il) = loadSelfContained lsfile
+  pl@(fl, il) =
+    if fileExists lsfile
+    then loadSelfContained lsfile
+    else p
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
 

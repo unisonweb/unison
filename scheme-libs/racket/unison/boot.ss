@@ -20,6 +20,10 @@
   data
   data-case
 
+  expand-sandbox
+  check-sandbox
+  set-sandbox
+
   (struct-out unison-data)
   (struct-out unison-termlink)
   (struct-out unison-termlink-con)
@@ -68,6 +72,7 @@
   (only-in racket/control prompt0-at control0-at)
   unison/core
   unison/data
+  unison/sandbox
   unison/data-info
   unison/crypto
   (only-in unison/chunked-seq
@@ -506,7 +511,7 @@
   (match rf
     [(unison-data _ t (list nm))
      #:when (= t unison-reference-builtin:tag)
-     (unison-termlink-builtin nm)]
+     (unison-termlink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
      #:when (= t unison-reference-derived:tag)
      (match id
