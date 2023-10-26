@@ -5,19 +5,18 @@ where
 
 import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
-import Control.Exception (catch, finally, mask)
+import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens (preview, (?~), (^.))
 import Control.Monad.Catch (MonadMask)
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.Text qualified as Text
-import Data.Text.Lazy.IO qualified as Text.Lazy
+import Data.Text.IO qualified as Text
 import Ki qualified
 import System.Console.Haskeline qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import Text.Pretty.Simple (pShow)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
@@ -256,7 +255,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
               loop0 s0
             -- Exception during command execution
             Right (Left e) -> do
-              Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
+              Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
               loop0 s0
             Right (Right (result, s1)) -> do
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
