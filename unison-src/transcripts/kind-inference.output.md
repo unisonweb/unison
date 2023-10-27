@@ -120,7 +120,7 @@ unique type S = S (T Nat)
       unique type T a
 
 ```
-Demonstrate kind defaulting by component
+Delay kind defaulting until all components are processed
 ```unison
 unique type T a = T
 
@@ -129,11 +129,14 @@ unique type S = S (T Optional)
 
 ```ucm
 
-  Kind mismatch arising from
-        3 | unique type S = S (T Optional)
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
     
-    T expects an argument of kind: Type; however, it is applied
-    to Optional which has kind: Type -> Type.
+      unique type S
+      unique type T a
 
 ```
 Catch invalid instantiation of `T`'s `a` parameter in `S`

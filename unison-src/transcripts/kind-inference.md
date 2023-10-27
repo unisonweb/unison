@@ -54,7 +54,7 @@ unique type T a = T a
 unique type S = S (T Nat)
 ```
 
-Demonstrate kind defaulting by component
+Delay kind defaulting until all components are processed
 ```unison:error
 unique type T a = T
 
