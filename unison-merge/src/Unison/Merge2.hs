@@ -475,17 +475,13 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
         where
           -- \| doTerms will return a TypeReference from a Constructor
           doTerms :: Map Name Referent -> [Reference]
-          doTerms = map f . Map.keys
-          f :: Name -> Reference
-          f name = fromMaybe err $ Referent.toReference <$> Map.lookup name (scope ^. #terms)
-            where
-              err = error $ "delete / update conflict on term " ++ Name.toString name
+          doTerms = mapMaybe f . Map.keys
+          f :: Name -> Maybe Reference
+          f name = Referent.toReference <$> Map.lookup name (scope ^. #terms)
           doTypes :: Map Name TypeReference -> [Reference]
-          doTypes = map g . Map.keys
-          g :: Name -> Reference
-          g name = fromMaybe err $ Map.lookup name (scope ^. #types)
-            where
-              err = error $ "delete / update conflict on type " ++ Name.toString name
+          doTypes = mapMaybe g . Map.keys
+          g :: Name -> Maybe Reference
+          g name = Map.lookup name (scope ^. #types)
 
   -- these dependents are just term/decl ids
   aliceDependents <- Ops.dependentsWithinScope (makeScope drAlice) (getByCorrespondingName drAlice bobUpdates)
