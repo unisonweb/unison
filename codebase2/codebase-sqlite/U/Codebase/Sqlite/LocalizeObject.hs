@@ -34,7 +34,7 @@ module U.Codebase.Sqlite.LocalizeObject
 where
 
 import Control.Lens
-import Control.Monad.Trans.State.Strict (StateT)
+import Control.Monad.State.Strict
 import Control.Monad.Trans.State.Strict qualified as State
 import Data.Bitraversable (bitraverse)
 import Data.Generics.Product (HasField (..))
@@ -71,7 +71,7 @@ localizeBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
 localizeBranch = localizeBranchG
 
 -- | Generalized form of 'localizeBranch'.
-localizeBranchG :: forall t d p c state. (state ~ (LocalizeBranchState t d p c), ContainsDefns d state, ContainsText t state, Ord p, Ord c) => Branch' t d p c -> (Branch.BranchLocalIds' t d p c, LocalBranch)
+localizeBranchG :: forall t d p c. (Ord t, Ord d, Ord p, Ord c) => Branch' t d p c -> (Branch.BranchLocalIds' t d p c, LocalBranch)
 localizeBranchG (Branch terms types patches children) =
   (runIdentity . runLocalizeBranch) do
     Branch
@@ -80,6 +80,9 @@ localizeBranchG (Branch terms types patches children) =
       <*> Map.bitraverse localizeText localizePatchReference patches
       <*> Map.bitraverse localizeText localizeBranchReference children
   where
+    localizeBranchMetadata ::
+      Branch.MetadataSetFormat' t d ->
+      State (LocalizeBranchState t d p c) (Branch.MetadataSetFormat' LocalTextId LocalDefnId)
     localizeBranchMetadata (Branch.Inline refs) =
       Branch.Inline <$> Set.traverse localizeReference refs
 
@@ -94,11 +97,11 @@ localizePatchG (Patch termEdits typeEdits) =
       <$> Map.bitraverse localizeReferentH (Set.traverse localizeTermEdit) termEdits
       <*> Map.bitraverse localizeReferenceH (Set.traverse localizeTypeEdit) typeEdits
   where
-    localizeTermEdit :: Monad m => (TermEdit' t d) -> StateT (LocalizePatchState t h d) m LocalTermEdit
+    localizeTermEdit :: (TermEdit' t d) -> State (LocalizePatchState t h d) LocalTermEdit
     localizeTermEdit =
       bitraverse localizeText localizeDefn
 
-    localizeTypeEdit :: Monad m => TypeEdit' t d -> StateT (LocalizePatchState t h d) m LocalTypeEdit
+    localizeTypeEdit :: TypeEdit' t d -> State (LocalizePatchState t h d) LocalTypeEdit
     localizeTypeEdit =
       bitraverse localizeText localizeDefn
 
