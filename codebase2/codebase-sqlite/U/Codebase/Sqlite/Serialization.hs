@@ -45,6 +45,7 @@ module U.Codebase.Sqlite.Serialization
     getSingleTerm,
     putLocalIdsWith,
     getLocalIdsWith,
+    putLocalBranch,
   )
 where
 
@@ -528,21 +529,13 @@ putBranchFormat b = case b of
   BranchFormat.Full li b -> do
     putWord8 0
     putBranchLocalIds li
-    putBranchFull b
+    putLocalBranch b
   BranchFormat.Diff r li d -> do
     putWord8 1
     putVarInt r
     putBranchLocalIds li
     putBranchDiff d
   where
-    putBranchFull (BranchFull.Branch terms types patches children) = do
-      putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
-      putMap putVarInt (putMap putReference putMetadataSetFormat) types
-      putMap putVarInt putVarInt patches
-      putMap putVarInt putVarInt children
-      where
-        putMetadataSetFormat (BranchFull.Inline s) =
-          putWord8 0 *> putFoldable putReference s
     putBranchDiff (BranchDiff.Diff terms types patches children) = do
       putMap putVarInt (putMap putReferent putDiffOp) terms
       putMap putVarInt (putMap putReference putDiffOp) types
@@ -563,6 +556,16 @@ putBranchFormat b = case b of
         putChildOp = \case
           BranchDiff.ChildRemove -> putWord8 0
           BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
+
+putLocalBranch :: (MonadPut m) => BranchFull.LocalBranch -> m ()
+putLocalBranch (BranchFull.Branch terms types patches children) = do
+  putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
+  putMap putVarInt (putMap putReference putMetadataSetFormat) types
+  putMap putVarInt putVarInt patches
+  putMap putVarInt putVarInt children
+  where
+    putMetadataSetFormat (BranchFull.Inline s) =
+      putWord8 0 *> putFoldable putReference s
 
 putBranchLocalIds :: (MonadPut m) => BranchFormat.BranchLocalIds -> m ()
 putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
