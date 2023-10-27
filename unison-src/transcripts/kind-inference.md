@@ -54,6 +54,13 @@ unique type T a = T a
 unique type S = S (T Nat)
 ```
 
+Demonstrate kind defaulting by component
+```unison:error
+unique type T a = T
+
+unique type S = S (T Optional)
+```
+
 Catch invalid instantiation of `T`'s `a` parameter in `S`
 ```unison:error
 unique type T a = T a

@@ -120,6 +120,22 @@ unique type S = S (T Nat)
       unique type T a
 
 ```
+Demonstrate kind defaulting by component
+```unison
+unique type T a = T
+
+unique type S = S (T Optional)
+```
+
+```ucm
+
+  Kind mismatch arising from
+        3 | unique type S = S (T Optional)
+    
+    T expects an argument of kind: Type; however, it is applied
+    to Optional which has kind: Type -> Type.
+
+```
 Catch invalid instantiation of `T`'s `a` parameter in `S`
 ```unison
 unique type T a = T a
