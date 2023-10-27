@@ -1143,7 +1143,7 @@ mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProje
     mkConflictMaps ::
       Merge.TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
       (forall ref. Map Name ref -> Map Name ref -> Map Name (Merge.ConflictOrGood ref)) ->
-      Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (V1.Decl Symbol ())))
+      Transaction (Map Name (Merge.ConflictOrGood (V1.Term Symbol ())), Map Name (Merge.ConflictOrGood (TypeReference, V1.Decl Symbol ())))
     mkConflictMaps conflicts mergeMaps = do
       aliceTermMap <- mkTermMap (defns ^. #alice . #terms) (conflicts ^. #alice . #terms)
       bobTermMap <- mkTermMap (defns ^. #bob . #terms) (conflicts ^. #bob . #terms)
@@ -1161,10 +1161,10 @@ mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProje
       Foldable f =>
       BiMultimap TypeReference Name ->
       f TypeReferenceId ->
-      Transaction (Map Name (V1.Decl Symbol ()))
+      Transaction (Map Name (TypeReference, V1.Decl Symbol ()))
     mkTypeMap types typeIds =
       mkNameMap ReferenceDerived types
-        <$> traverse (\x -> (x,) . forgetAnn <$> loadDecl x) (toList typeIds)
+        <$> traverse (\x -> (x,) . (ReferenceDerived x,) . forgetAnn <$> loadDecl x) (toList typeIds)
       where
         forgetAnn = \case
           Left x -> Left (x $> ())

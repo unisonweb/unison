@@ -2503,9 +2503,9 @@ prettyMergeOutput ppe merge = MergeOutput.pseudoOutput defnPrinter merge
     defnPrinter name =
       P.syntaxToColor . \case
         Merge.SdTerm tm -> TermPrinter.prettyBinding (wundefined "ppe") (asHQ name) tm
-        Merge.SdDecl decl ->
+        Merge.SdDecl r decl ->
           -- let _r = Hashing.hashDecl
-          DeclPrinter.prettyDecl (wundefined "ppe") (wundefined "typereference") (asHQ name) decl
+          DeclPrinter.prettyDecl (wundefined "ppe") r (asHQ name) decl
     asHQ = HQ.NameOnly
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty

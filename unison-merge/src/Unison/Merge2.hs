@@ -541,7 +541,7 @@ data MergeOutput v a = MergeProblem
   { definitions ::
       Defns
         (Map Name (ConflictOrGood (V1.Term v a)))
-        (Map Name (ConflictOrGood (V1.Decl v a)))
+        (Map Name (ConflictOrGood (TypeReference, V1.Decl v a)))
   }
   deriving stock (Generic)
 
@@ -550,11 +550,11 @@ instance Ord v => Functor (MergeOutput v) where
     MergeProblem
       ( Defns
           { terms = fmap (fmap (V1.Term.amap f)) terms,
-            types = fmap (fmap (V1.Decl.amap f)) types
+            types = fmap (fmap (second $ V1.Decl.amap f)) types
           }
       )
 
-data ScratchDefn v a = SdTerm (V1.Term v a) | SdDecl (V1.Decl v a) -- could also be a builtin alias
+data ScratchDefn v a = SdTerm (V1.Term v a) | SdDecl TypeReference (V1.Decl v a) -- could also be a builtin alias
 
 data ConflictOrGood a
   = Conflict (Conflict ProjectBranchName a)
