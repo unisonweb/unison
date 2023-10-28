@@ -545,7 +545,6 @@ expectDeclNumConstructors (C.Reference.Id h i) = do
   oid <- Q.expectObjectIdForPrimaryHash h
   Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
 
-
 -- * Branch transformation
 
 s2cBranch :: S.DbBranch -> Transaction (C.Branch.Branch Transaction)

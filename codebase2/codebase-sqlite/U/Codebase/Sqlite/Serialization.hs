@@ -46,6 +46,7 @@ module U.Codebase.Sqlite.Serialization
     putLocalIdsWith,
     getLocalIdsWith,
     putLocalBranch,
+    putLocalPatch,
   )
 where
 
@@ -579,7 +580,7 @@ putPatchFormat = \case
   PatchFormat.Full ids p -> do
     putWord8 0
     putPatchLocalIds ids
-    putPatchFull p
+    putLocalPatch p
   PatchFormat.Diff r ids p -> do
     putWord8 1
     putVarInt r
@@ -636,8 +637,8 @@ getPatchLocalIds =
     <*> getVector getVarInt
     <*> getVector getVarInt
 
-putPatchFull :: (MonadPut m) => PatchFull.LocalPatch -> m ()
-putPatchFull (PatchFull.Patch termEdits typeEdits) = do
+putLocalPatch :: (MonadPut m) => PatchFull.LocalPatch -> m ()
+putLocalPatch (PatchFull.Patch termEdits typeEdits) = do
   putMap putReferent (putFoldable putTermEdit) termEdits
   putMap putReference (putFoldable putTypeEdit) typeEdits
 
