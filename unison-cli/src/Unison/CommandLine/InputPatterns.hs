@@ -1211,9 +1211,9 @@ pullImpl name aliases verbosity pullMode addendum = do
           help =
             P.lines
               [ P.wrap
-                  "The"
+                  "The "
                   <> makeExample' self
-                  <> "command merges a remote namespace into a local namespace"
+                  <> " command merges a remote namespace into a local namespace "
                   <> addendum,
                 "",
                 P.wrapColumn2
