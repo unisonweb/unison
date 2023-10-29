@@ -1210,11 +1210,11 @@ pullImpl name aliases verbosity pullMode addendum = do
           argTypes = [(Optional, remoteNamespaceArg), (Optional, namespaceArg)],
           help =
             P.lines
-              [ P.wrap
-                  "The "
-                  <> makeExample' self
-                  <> " command merges a remote namespace into a local namespace "
-                  <> addendum,
+              [ P.wrap $
+                  "The"
+                    <> makeExample' self
+                    <> "command merges a remote namespace into a local namespace"
+                    <> addendum,
                 "",
                 P.wrapColumn2
                   [ ( makeExample self ["@unison/base/main"],
