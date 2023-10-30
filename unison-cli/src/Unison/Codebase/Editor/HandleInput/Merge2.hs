@@ -221,11 +221,13 @@ handleMerge bobBranchName = do
 
       -- Load deep definitions
       NamespaceInfo aliceCausalTree aliceDeclNames aliceDefns <-
-        step "load alice definitions" $
-          loadNamespaceInfo db abort (projectBranches ^. #alice . #name) (aliceCausal ^. #causalHash) aliceBranch
+        step "load alice definitions" do
+          info <- loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
+          assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch info
       NamespaceInfo bobCausalTree bobDeclNames bobDefns <-
-        step "load bob definitions" $
-          loadNamespaceInfo db abort (projectBranches ^. #bob . #name) (bobCausal ^. #causalHash) bobBranch
+        step "load bob definitions" do
+          info <- loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
+          assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch info
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let declNames = Merge.TwoWay {alice = aliceDeclNames, bob = bobDeclNames}
@@ -430,23 +432,42 @@ data NamespaceInfo = NamespaceInfo
 -- Load namespace info into memory.
 --
 -- Fails if:
---   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
 --   * One name is associated with more than one reference.
---   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
 loadNamespaceInfo ::
+  (forall void. Merge.PreconditionViolation -> Transaction void) ->
+  CausalHash ->
+  Branch Transaction ->
+  Transaction
+    ( Nametree
+        ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+          CausalHash
+        )
+    )
+loadNamespaceInfo abort causalHash branch = do
+  defns <- loadNamespaceInfo0 branch causalHash
+  assertNamespaceHasNoConflictedNames defns & onLeft abort
+
+-- Assert that a namespace satisfies a few preconditions.
+--
+-- Fails if:
+--   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
+--   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
+assertNamespaceSatisfiesPreconditions ::
   MergeDatabase ->
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   ProjectBranchName ->
-  CausalHash ->
   Branch Transaction ->
+  ( Nametree
+      ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+        CausalHash
+      )
+  ) ->
   Transaction NamespaceInfo
-loadNamespaceInfo db abort branchName causalHash branch = do
+assertNamespaceSatisfiesPreconditions db abort branchName branch defns1 = do
   Map.lookup Name.libSegment (branch ^. #children) & onJust \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
       abort Merge.DefnsInLib
-  defns0 <- loadNamespaceInfo0 branch causalHash
-  defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
   declNames <- checkDeclCoherency db branchName defns1 & onLeftM abort
   let (definitions, causalHashes) = unzip defns1
   pure
