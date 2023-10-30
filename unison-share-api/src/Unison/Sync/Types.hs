@@ -26,7 +26,8 @@ module Unison.Sync.Types
 
     -- *** Entity Traversals
     entityHashes_,
-    patchHashes_,
+    patchOldHashes_,
+    patchNewHashes_,
     patchDiffHashes_,
     namespaceDiffHashes_,
     causalHashes_,
@@ -170,7 +171,7 @@ entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text 
 entityHashes_ f = \case
   TC tc -> TC <$> bitraverse pure f tc
   DC dc -> DC <$> bitraverse pure f dc
-  P patch -> P <$> patchHashes_ f patch
+  P patch -> P <$> patchNewHashes_ f patch
   PD patch -> PD <$> patchDiffHashes_ f patch
   N ns -> N <$> bitraverse pure f ns
   ND ns -> ND <$> namespaceDiffHashes_ f ns
@@ -328,8 +329,13 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
-patchHashes_ :: (Applicative m) => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
-patchHashes_ f (Patch {..}) = do
+patchOldHashes_ :: (Applicative m) => (oldHash -> m oldHash') -> Patch text oldHash newHash -> m (Patch text oldHash' newHash)
+patchOldHashes_ f (Patch {..}) = do
+  oldHashLookup <- traverse f oldHashLookup
+  pure (Patch {..})
+
+patchNewHashes_ :: (Applicative m) => (newHash -> m newHash') -> Patch text oldHash newHash -> m (Patch text oldHash newHash')
+patchNewHashes_ f (Patch {..}) = do
   newHashLookup <- traverse f newHashLookup
   pure (Patch {..})
 
@@ -700,9 +706,9 @@ instance FromJSON HashMismatchForEntity where
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
         <$> obj
-          .: "supplied"
+        .: "supplied"
         <*> obj
-          .: "computed"
+        .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path
