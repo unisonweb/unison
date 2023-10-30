@@ -80,7 +80,7 @@ nameBasedNamespaceDiff ::
   MergeDatabase ->
   TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction (TwoWay Diff)
-nameBasedNamespaceDiff db (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
+nameBasedNamespaceDiff MergeDatabase {loadV1Term, loadV1Decl} (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
   aliceSynhashes <- synhashDefns aliceDefns
   bobSynhashes <- synhashDefns bobDefns
   case maybeLcaDefns of
@@ -91,10 +91,13 @@ nameBasedNamespaceDiff db (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
   where
     synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Synhashes
     synhashDefns =
-      synhashDefnsWith
-        db
-        -- The order isn't important here for syntactic hashing
-        (deepNamespaceDefinitionsToPpe aliceDefns `Ppe.addFallback` deepNamespaceDefinitionsToPpe bobDefns)
+      -- FIXME: use cache so we only synhash each thing once
+      synhashDefnsWith (synhashReferent loadV1Term ppe) (Synhash.hashDecl loadV1Decl ppe)
+      where
+        ppe :: PrettyPrintEnv
+        ppe =
+          -- The order isn't important here for syntactic hashing
+          (deepNamespaceDefinitionsToPpe aliceDefns `Ppe.addFallback` deepNamespaceDefinitionsToPpe bobDefns)
 
 twoWayDiff :: TwoWay Synhashes -> TwoWay Diff
 twoWayDiff synhashes =
@@ -165,13 +168,14 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
 -- Syntactic hashing helpers
 
 synhashDefnsWith ::
-  MergeDatabase ->
-  PrettyPrintEnv ->
+  Monad m =>
+  (Referent -> m Hash) ->
+  (TypeReference -> m Hash) ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Transaction (Defns (Map Name Hash) (Map Name Hash))
-synhashDefnsWith MergeDatabase {loadV1Decl, loadV1Term} ppe defns = do
-  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (synhashReferent loadV1Term ppe) (defns ^. #terms)
-  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (Synhash.hashDecl loadV1Decl ppe) (defns ^. #types)
+  m (Defns (Map Name Hash) (Map Name Hash))
+synhashDefnsWith hashReferent hashDecl defns = do
+  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashReferent (defns ^. #terms)
+  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashDecl (defns ^. #types)
   pure Defns {terms, types}
 
 synhashReferent ::
