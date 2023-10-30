@@ -36,10 +36,6 @@ module Unison.Util.BiMultimap
 
     -- ** Union
     unsafeUnion,
-
-    -- ** Conversions
-    toMultimap,
-    toMapR,
   )
 where
 

@@ -220,15 +220,15 @@ handleMerge bobBranchName = do
       bobBranch <- Causal.value bobCausal
 
       -- Load deep definitions
-      NamespaceInfo aliceCausalTree aliceConstructorNameToDeclName aliceDefns <-
+      NamespaceInfo aliceCausalTree aliceDeclNames aliceDefns <-
         step "load alice definitions" $
           loadNamespaceInfo db abort (projectBranches ^. #alice . #name) (aliceCausal ^. #causalHash) aliceBranch
-      NamespaceInfo bobCausalTree bobConstructorNameToDeclName bobDefns <-
+      NamespaceInfo bobCausalTree bobDeclNames bobDefns <-
         step "load bob definitions" $
           loadNamespaceInfo db abort (projectBranches ^. #bob . #name) (bobCausal ^. #causalHash) bobBranch
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
-      let constructorNameToDeclName = Merge.TwoWay {alice = aliceConstructorNameToDeclName, bob = bobConstructorNameToDeclName}
+      let declNames = Merge.TwoWay {alice = aliceDeclNames, bob = bobDeclNames}
 
       (maybeLcaLibdeps, diffs) <- do
         case maybeLcaCausal of
@@ -328,7 +328,7 @@ handleMerge bobBranchName = do
         else do
           conflicted <- filterConflicts conflictedNames defns & onLeft abort
           let dirty = conflicted <> dependents
-          let unconflicted = filterUnconflicted constructorNameToDeclName updates dirty defns
+          let unconflicted = filterUnconflicted (BiMultimap.range <$> declNames) updates dirty defns
 
           let unconflictedNametree = makeNametreeFromUnconflicted unconflicted causalHashes
           let unconflictedV3Branch = namespaceToV3Branch db unconflictedNametree
@@ -421,8 +421,8 @@ handleMerge bobBranchName = do
 data NamespaceInfo = NamespaceInfo
   { -- The causal hash at every node in a namespace.
     causalHashes :: !(Nametree CausalHash),
-    -- A mapping from constructor name "foo.bar.Maybe.internal.Just" to decl name "foo.bar.Maybe"
-    constructorNameToDeclName :: !(Map Name Name),
+    -- A left-unique relation of (decl name, constructor name). Decls with 0 constructors are not represented here.
+    declNames :: !(BiMultimap Name Name),
     -- The definitions in a namespace.
     definitions :: !(Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
   }
@@ -447,12 +447,12 @@ loadNamespaceInfo db abort branchName causalHash branch = do
       abort Merge.DefnsInLib
   defns0 <- loadNamespaceInfo0 branch causalHash
   defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
-  constructorNameToDeclName <- checkDeclCoherency db branchName defns1 & onLeftM abort
+  declNames <- checkDeclCoherency db branchName defns1 & onLeftM abort
   let (definitions, causalHashes) = unzip defns1
   pure
     NamespaceInfo
       { causalHashes,
-        constructorNameToDeclName,
+        declNames,
         definitions =
           Defns
             { terms = flattenNametree (view #terms) definitions,
@@ -640,11 +640,11 @@ checkDeclCoherency ::
         CausalHash
       )
   ) ->
-  Transaction (Either Merge.PreconditionViolation (Map Name Name))
+  Transaction (Either Merge.PreconditionViolation (BiMultimap Name Name))
 checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   runExceptT
-    . fmap (view #constructorNameToDeclName)
-    . (`State.execStateT` DeclCoherencyCheckState Map.empty Map.empty)
+    . fmap (view #declNames)
+    . (`State.execStateT` DeclCoherencyCheckState Map.empty BiMultimap.empty)
     . go []
   where
     go ::
@@ -708,11 +708,8 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
                     Except.throwError (Merge.MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
-                #constructorNameToDeclName %= \constructorNameToDeclName ->
-                  foldr
-                    (\constructorName -> Map.insert constructorName typeName)
-                    constructorNameToDeclName
-                    constructorNames
+                #declNames %= \declNames ->
+                  foldr (BiMultimap.insert typeName) declNames constructorNames
                 pure (Just name)
             where
               typeName = fullName name
@@ -725,7 +722,7 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
   { expectedConstructors :: !(Map TypeReferenceId (IntMap MaybeConstructorName)),
-    constructorNameToDeclName :: !(Map Name Name)
+    declNames :: !(BiMultimap Name Name)
   }
   deriving stock (Generic)
 
