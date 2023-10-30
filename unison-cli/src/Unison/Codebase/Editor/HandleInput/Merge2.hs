@@ -522,15 +522,18 @@ loadLcaDefinitions abort causalHash branch = do
         types = flattenNametree (view #types) defns2
       }
 
-type NamespaceInfo0 =
-  Nametree
-    ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
-      CausalHash
-    )
-
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
-loadNamespaceInfo0 :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
+loadNamespaceInfo0 ::
+  Monad m =>
+  Branch m ->
+  CausalHash ->
+  m
+    ( Nametree
+        ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+          CausalHash
+        )
+    )
 loadNamespaceInfo0 branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
@@ -541,7 +544,16 @@ loadNamespaceInfo0 branch causalHash = do
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure Nametree {value, children}
 
-loadNamespaceInfo0_ :: Monad m => Branch m -> CausalHash -> m NamespaceInfo0
+loadNamespaceInfo0_ ::
+  Monad m =>
+  Branch m ->
+  CausalHash ->
+  m
+    ( Nametree
+        ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+          CausalHash
+        )
+    )
 loadNamespaceInfo0_ branch causalHash = do
   let terms = Map.map Map.keysSet (branch ^. #terms)
   let types = Map.map Map.keysSet (branch ^. #types)
@@ -552,14 +564,19 @@ loadNamespaceInfo0_ branch causalHash = do
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure Nametree {value, children}
 
-type NamespaceInfo1 =
-  Nametree
-    ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
-      CausalHash
-    )
-
 -- | Assert that there are no unconflicted names in a namespace.
-assertNamespaceHasNoConflictedNames :: NamespaceInfo0 -> Either Merge.PreconditionViolation NamespaceInfo1
+assertNamespaceHasNoConflictedNames ::
+  Nametree
+    ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+      CausalHash
+    ) ->
+  Either
+    Merge.PreconditionViolation
+    ( Nametree
+        ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+          CausalHash
+        )
+    )
 assertNamespaceHasNoConflictedNames =
   traverseNametreeWithName \names (Defns {terms, types}, causalHash) -> do
     terms <-
@@ -660,7 +677,11 @@ assertNamespaceHasNoConflictedNames =
 checkDeclCoherency ::
   MergeDatabase ->
   ProjectBranchName ->
-  NamespaceInfo1 ->
+  ( Nametree
+      ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+        CausalHash
+      )
+  ) ->
   Transaction (Either Merge.PreconditionViolation (Map Name Name))
 checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   runExceptT
@@ -670,7 +691,11 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   where
     go ::
       [NameSegment] ->
-      NamespaceInfo1 ->
+      ( Nametree
+          ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+            CausalHash
+          )
+      ) ->
       StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation Transaction) ()
     go prefix (Nametree (Defns {terms, types}, _) children) = do
       for_ (Map.toList terms) \case

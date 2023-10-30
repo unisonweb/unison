@@ -513,7 +513,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
 
   -- todo: there's something confusing here about constructor names.
   --       the names should come from the diffs and the updates
-  let -- \| terms to typecheck. they'll be Ids because that's all we have in the database as dependents.
+  let -- terms to typecheck. they'll be Ids because that's all we have in the database as dependents.
       latestTermDependents :: Map Name TermReferenceId
       latestTermDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
@@ -522,7 +522,7 @@ whatToTypecheck (drAlice, aliceUpdates) (drBob, bobUpdates) = do
           dropCtorsAndBuiltins = Map.mapMaybe Referent.toReferenceId
           updates' = dropCtorsAndBuiltins $ combinedUpdates ^. #terms
 
-  let -- \| decls to typecheck
+  let -- decls to typecheck
       latestTypeDependents :: Map Name TypeReferenceId
       latestTypeDependents = latestDefn updates' (setup drAlice aliceDependents) (setup drBob bobDependents)
         where
