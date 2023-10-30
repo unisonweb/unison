@@ -120,7 +120,9 @@ unique type S = S (T Nat)
       unique type T a
 
 ```
-Delay kind defaulting until all components are processed
+Delay kind defaulting until all components are processed. Here `S`
+constrains the kind of `T`'s `a` parameter, although `S` is not in
+the same component as `T`.
 ```unison
 unique type T a = T
 
