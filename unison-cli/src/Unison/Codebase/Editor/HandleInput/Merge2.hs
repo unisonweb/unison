@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
@@ -85,7 +84,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Merge2 (MergeOutput, MergeDatabase (..), makeMergeDatabase)
+import Unison.Merge2 (MergeDatabase (..), MergeOutput, makeMergeDatabase)
 import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -192,7 +191,7 @@ handleMerge bobBranchName = do
 
   -- Create a bunch of cached database lookup functions
   Cli.Env {codebase} <- ask
-  db@MergeDatabase {loadCausal, loadDeclType, loadV1Decl, loadV1Term} <- makeMergeDatabase codebase
+  db@MergeDatabase {loadCausal} <- makeMergeDatabase codebase
 
   mergeResult <-
     Cli.runTransactionWithRollback \abort0 -> do
@@ -236,8 +235,7 @@ handleMerge bobBranchName = do
           Nothing -> do
             diffs <-
               Merge.nameBasedNamespaceDiff
-                loadV1Decl
-                loadV1Term
+                db
                 Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
             pure (Nothing, diffs)
           Just lcaCausal -> do
@@ -245,8 +243,7 @@ handleMerge bobBranchName = do
             lcaDefns <- step "load lca definitions" $ loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
             diffs <-
               Merge.nameBasedNamespaceDiff
-                loadV1Decl
-                loadV1Term
+                db
                 Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
             abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
@@ -316,7 +313,7 @@ handleMerge bobBranchName = do
                     { terms = Map.union (updates ^. #alice . #terms) (updates ^. #bob . #terms),
                       types = Map.union (updates ^. #alice . #types) (updates ^. #bob . #types)
                     }
-            Merge.computeUnisonFile namelookup loadV1Term loadV1Decl loadDeclType whatToTypecheck combinedUpdates
+            Merge.computeUnisonFile db namelookup whatToTypecheck combinedUpdates
 
           typecheck uf >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do

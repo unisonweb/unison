@@ -35,7 +35,7 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (mapped, over, (^.), _3)
+import Control.Lens (over, (^.), _3)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
@@ -57,7 +57,7 @@ import Unison.ConstructorReference qualified as V1
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName)
-import Unison.DataDeclaration qualified as V1
+import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase)
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
@@ -65,26 +65,27 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
 import Unison.Merge.PreconditionViolation (PreconditionViolation (..))
 import Unison.Name (Name)
+import Unison.Parser.Ann qualified as V1 (Ann)
 import Unison.Prelude
-import Unison.Reference qualified as V1
-import Unison.Referent qualified as V1
+import Unison.Reference qualified as V1 (TermReference, TypeReference)
+import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
 import Unison.Sqlite (Transaction)
+import Unison.Symbol qualified as V1 (Symbol)
 import Unison.Syntax.Name qualified as Name
-import Unison.Term qualified as V1
+import Unison.Term qualified as V1 (Term)
 import Unison.Term qualified as V1.Term
 import Unison.Type qualified as Type
-import Unison.Type qualified as V1
+import Unison.Type qualified as V1 (Type)
 import Unison.Type qualified as V1.Type
 import Unison.UnisonFile.Env qualified as UFE
 import Unison.UnisonFile.Names qualified as UFN
 import Unison.UnisonFile.Type (UnisonFile)
 import Unison.UnisonFile.Type qualified as UF
-import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
-import Unison.WatchKind qualified as V1
+import Unison.WatchKind qualified as V1 (WatchKind)
 
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
 -- It can represent the input or output namespace.
@@ -196,20 +197,14 @@ type UpdatesRefnt =
 -- the terms to typecheck (the dependents of updates)
 -- the updates themselves
 computeUnisonFile ::
-  forall v a.
-  (Var v, Monoid a, Eq a) =>
+  MergeDatabase ->
   RefToName ->
-  (TermReferenceId -> Transaction (V1.Term v a)) ->
-  (TypeReferenceId -> Transaction (V1.Decl v a)) ->
-  (TypeReference -> Transaction ConstructorType) ->
   DeepRefsId' ->
   UpdatesRefnt ->
-  Transaction (UnisonFile v a)
+  Transaction (UnisonFile V1.Symbol V1.Ann)
 computeUnisonFile
+  MergeDatabase {loadDeclType, loadV1Decl, loadV1Term}
   ppes
-  loadTerm
-  loadDecl
-  loadDeclType
   (Defns {terms = termsToTypecheck, types = declsToTypecheck})
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
     combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
@@ -227,25 +222,25 @@ computeUnisonFile
     -}
 
     updatedDecls <-
-      let setupDecl = fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadDecl
+      let setupDecl = fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadV1Decl
             where
               declNeedsUpdate = flip Map.member declsToTypecheck
        in traverse setupDecl declsToTypecheck
     let -- todo: handle errors better:
-        env :: UFE.Env v a = (fromRight' . fromRight') envResult
+        env :: UFE.Env V1.Symbol V1.Ann = (fromRight' . fromRight') envResult
           where
             -- This `Names` can be `mempty` because there shouldn't be any free vars in these declarations.
             -- There will be references that come from the codebase, or there will be vars that we just substed in
             -- right now for other decls listed here.
             envResult = UFN.environmentFor mempty dataDeclarations effectDeclarations
-            effectDeclarations :: Map v (V1.Decl.EffectDeclaration v a)
-            dataDeclarations :: Map v (V1.Decl.DataDeclaration v a)
+            effectDeclarations :: Map V1.Symbol (V1.Decl.EffectDeclaration V1.Symbol V1.Ann)
+            dataDeclarations :: Map V1.Symbol (V1.Decl.DataDeclaration V1.Symbol V1.Ann)
             (fmap fromLeft' -> effectDeclarations, fmap fromRight' -> dataDeclarations) =
               updatedDecls
                 & Map.mapKeys Name.toVar
                 & Map.partition (\case Left {} -> True; Right {} -> False)
     updatedTerms <-
-      let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadTerm
+      let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadV1Term
             where
               ctorNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
               termNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
@@ -256,9 +251,9 @@ computeUnisonFile
        in traverse setupTerm termsToTypecheck
     let uf = UF.UnisonFileId (UFE.datasId env) (UFE.effectsId env) terms watches
           where
-            terms :: [(v, a {- ann for whole binding -}, V1.Term v a)]
-            terms = fmap (\(n, t) -> (Name.toVar n, mempty :: a, t)) $ Map.toList updatedTerms
-            watches :: Map V1.WatchKind [(v, a {- ann for whole watch -}, V1.Term v a)]
+            terms :: [(V1.Symbol, V1.Ann {- ann for whole binding -}, V1.Term V1.Symbol V1.Ann)]
+            terms = fmap (\(n, t) -> (Name.toVar n, mempty, t)) $ Map.toList updatedTerms
+            watches :: Map V1.WatchKind [(V1.Symbol, V1.Ann {- ann for whole watch -}, V1.Term V1.Symbol V1.Ann)]
             watches = mempty
     pure uf
     where

@@ -11,14 +11,14 @@ import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
-import U.Codebase.Reference (TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (TermReferenceId, TypeReference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
+import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Name (Name)
@@ -27,6 +27,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
+import Unison.Sqlite (Transaction)
 import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -76,13 +77,10 @@ data ThreeWay a = ThreeWay
 -- If there is no LCA (i.e. @maybeLcaDefns@ is @Nothing@), we fall back to a two-way diff, where every name in each of
 -- Alice and Bob's branches is considered an add.
 nameBasedNamespaceDiff ::
-  forall a m v.
-  (Monad m, Var v) =>
-  (TypeReferenceId -> m (V1.Decl v a)) ->
-  (TermReferenceId -> m (V1.Term v a)) ->
+  MergeDatabase ->
   TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  m (TwoWay Diff)
-nameBasedNamespaceDiff loadDecl loadTerm (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
+  Transaction (TwoWay Diff)
+nameBasedNamespaceDiff db (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
   aliceSynhashes <- synhashDefns aliceDefns
   bobSynhashes <- synhashDefns bobDefns
   case maybeLcaDefns of
@@ -91,11 +89,10 @@ nameBasedNamespaceDiff loadDecl loadTerm (TwoOrThreeWay maybeLcaDefns aliceDefns
       lcaSynhashes <- synhashDefns lcaDefns
       pure (threeWayDiff ThreeWay {lca = lcaSynhashes, alice = aliceSynhashes, bob = bobSynhashes})
   where
-    synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> m Synhashes
+    synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Synhashes
     synhashDefns =
       synhashDefnsWith
-        loadDecl
-        loadTerm
+        db
         -- The order isn't important here for syntactic hashing
         (deepNamespaceDefinitionsToPpe aliceDefns `Ppe.addFallback` deepNamespaceDefinitionsToPpe bobDefns)
 
@@ -168,15 +165,13 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
 -- Syntactic hashing helpers
 
 synhashDefnsWith ::
-  (Monad m, Var v) =>
-  (TypeReferenceId -> m (V1.Decl v a)) ->
-  (TermReferenceId -> m (V1.Term v a)) ->
+  MergeDatabase ->
   PrettyPrintEnv ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  m (Defns (Map Name Hash) (Map Name Hash))
-synhashDefnsWith loadDecl loadTerm ppe defns = do
-  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (synhashReferent loadTerm ppe) (defns ^. #terms)
-  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (Synhash.hashDecl loadDecl ppe) (defns ^. #types)
+  Transaction (Defns (Map Name Hash) (Map Name Hash))
+synhashDefnsWith MergeDatabase {loadV1Decl, loadV1Term} ppe defns = do
+  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (synhashReferent loadV1Term ppe) (defns ^. #terms)
+  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom (Synhash.hashDecl loadV1Decl ppe) (defns ^. #types)
   pure Defns {terms, types}
 
 synhashReferent ::
