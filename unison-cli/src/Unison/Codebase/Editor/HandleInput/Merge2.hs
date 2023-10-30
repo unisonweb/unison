@@ -1,6 +1,11 @@
 -- | @merge@ input handler
 module Unison.Codebase.Editor.HandleInput.Merge2
   ( handleMerge,
+    NamespaceInfo (..),
+    loadNamespaceInfo,
+    mergePreconditionViolationToOutput,
+    assertNamespaceSatisfiesPreconditions,
+    step,
   )
 where
 
@@ -220,14 +225,18 @@ handleMerge bobBranchName = do
       bobBranch <- Causal.value bobCausal
 
       -- Load deep definitions
-      NamespaceInfo aliceCausalTree aliceDeclNames aliceDefns <-
+      (aliceCausalTree, aliceDeclNames, aliceDefns) <-
         step "load alice definitions" do
           info <- loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
-          assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch info
-      NamespaceInfo bobCausalTree bobDeclNames bobDefns <-
+          let (definitions0, causalHashes) = unzip info
+          (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch definitions0
+          pure (causalHashes, declNames, definitions1)
+      (bobCausalTree, bobDeclNames, bobDefns) <-
         step "load bob definitions" do
           info <- loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
-          assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch info
+          let (definitions0, causalHashes) = unzip info
+          (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
+          pure (causalHashes, declNames, definitions1)
       let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let declNames = Merge.TwoWay {alice = aliceDeclNames, bob = bobDeclNames}
@@ -458,28 +467,22 @@ assertNamespaceSatisfiesPreconditions ::
   ProjectBranchName ->
   Branch Transaction ->
   ( Nametree
-      ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
-        CausalHash
-      )
+      (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
   ) ->
-  Transaction NamespaceInfo
-assertNamespaceSatisfiesPreconditions db abort branchName branch defns1 = do
+  Transaction (BiMultimap Name Name, Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup Name.libSegment (branch ^. #children) & onJust \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
       abort Merge.DefnsInLib
-  declNames <- checkDeclCoherency db branchName defns1 & onLeftM abort
-  let (definitions, causalHashes) = unzip defns1
+  declNames <- checkDeclCoherency db branchName defns & onLeftM abort
   pure
-    NamespaceInfo
-      { causalHashes,
-        declNames,
-        definitions =
-          Defns
-            { terms = flattenNametree (view #terms) definitions,
-              types = flattenNametree (view #types) definitions
-            }
-      }
+    ( declNames,
+      Defns
+        { terms = flattenNametree (view #terms) defns,
+          types = flattenNametree (view #types) defns
+        }
+    )
 
 -- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
 --
@@ -657,9 +660,7 @@ checkDeclCoherency ::
   MergeDatabase ->
   ProjectBranchName ->
   ( Nametree
-      ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
-        CausalHash
-      )
+      (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
   ) ->
   Transaction (Either Merge.PreconditionViolation (BiMultimap Name Name))
 checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
@@ -671,12 +672,10 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
     go ::
       [NameSegment] ->
       ( Nametree
-          ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
-            CausalHash
-          )
+          (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
       ) ->
       StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation Transaction) ()
-    go prefix (Nametree (Defns {terms, types}, _) children) = do
+    go prefix (Nametree Defns {terms, types} children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
         (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()

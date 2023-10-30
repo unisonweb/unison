@@ -37,6 +37,8 @@ module Unison.Prelude
   )
 where
 
+import System.IO.Unsafe (unsafePerformIO)
+import GHC.Stack
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
@@ -222,4 +224,6 @@ werror = error
 
 {-# WARNING wundefined "You left this wundefined." #-}
 wundefined :: (HasCallStack) => a
-wundefined = undefined
+wundefined = unsafePerformIO do
+  putStrLn (prettyCallStack callStack)
+  undefined
