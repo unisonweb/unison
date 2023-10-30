@@ -1,7 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Merge2
-  ( -- * Precondition violation
+  ( -- * Merge database
+    MergeDatabase (..),
+    makeMergeDatabase,
+
+    -- * Precondition violation
     PreconditionViolation (..),
 
     -- * Library dependencies
@@ -55,6 +59,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as V1
 import Unison.DataDeclaration qualified as V1.Decl
+import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase)
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)

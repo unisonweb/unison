@@ -20,6 +20,7 @@ library
       Unison.Merge
       Unison.Merge2
   other-modules:
+      Unison.Merge.Database
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
@@ -77,6 +78,7 @@ library
     , safe
     , semialign
     , semigroups
+    , text
     , these
     , unison-codebase
     , unison-codebase-sqlite
@@ -89,6 +91,7 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-bimultimap
+    , unison-util-cache
     , unison-util-nametree
     , unison-util-relation
     , vector

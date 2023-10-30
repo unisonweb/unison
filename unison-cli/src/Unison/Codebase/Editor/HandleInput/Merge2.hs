@@ -85,7 +85,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Merge2 (MergeOutput)
+import Unison.Merge2 (MergeOutput, MergeDatabase (..), makeMergeDatabase)
 import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -192,7 +192,7 @@ handleMerge bobBranchName = do
 
   -- Create a bunch of cached database lookup functions
   Cli.Env {codebase} <- ask
-  db@MergeDatabase {loadCausal, loadDecl, loadDeclType, loadTerm} <- makeMergeDatabase
+  db@MergeDatabase {loadCausal, loadDeclType, loadV1Decl, loadV1Term} <- makeMergeDatabase codebase
 
   mergeResult <-
     Cli.runTransactionWithRollback \abort0 -> do
@@ -236,8 +236,8 @@ handleMerge bobBranchName = do
           Nothing -> do
             diffs <-
               Merge.nameBasedNamespaceDiff
-                loadDecl
-                loadTerm
+                loadV1Decl
+                loadV1Term
                 Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
             pure (Nothing, diffs)
           Just lcaCausal -> do
@@ -245,8 +245,8 @@ handleMerge bobBranchName = do
             lcaDefns <- step "load lca definitions" $ loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
             diffs <-
               Merge.nameBasedNamespaceDiff
-                loadDecl
-                loadTerm
+                loadV1Decl
+                loadV1Term
                 Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
             abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
             lcaLibdeps <- step "load lca library dependencies" $ loadLibdeps lcaBranch
@@ -316,7 +316,7 @@ handleMerge bobBranchName = do
                     { terms = Map.union (updates ^. #alice . #terms) (updates ^. #bob . #terms),
                       types = Map.union (updates ^. #alice . #types) (updates ^. #bob . #types)
                     }
-            Merge.computeUnisonFile namelookup loadTerm loadDecl loadDeclType whatToTypecheck combinedUpdates
+            Merge.computeUnisonFile namelookup loadV1Term loadV1Decl loadDeclType whatToTypecheck combinedUpdates
 
           typecheck uf >>= \case
             Just tuf@(TypecheckedUnisonFileId {}) -> do
@@ -416,45 +416,6 @@ handleMerge bobBranchName = do
       (scratchFile, _) <- Cli.expectLatestFile
       Cli.respond $ Output.OutputMergeConflictScratchFile ppe scratchFile (void mergeOutput)
     MergeDone -> Cli.respond Output.Success
-
-------------------------------------------------------------------------------------------------------------------------
--- Merge database
-
--- A mini record-of-functions that contains just the (possibly backed by a cache) database queries used in merge.
-data MergeDatabase = MergeDatabase
-  { loadCausal :: CausalHash -> Transaction (CausalBranch Transaction),
-    loadDecl :: TypeReferenceId -> Transaction (V1.Decl Symbol Ann),
-    loadDeclNumConstructors :: TypeReferenceId -> Transaction Int,
-    loadDeclType :: TypeReference -> Transaction ConstructorType,
-    loadTerm :: TermReferenceId -> Transaction (V1.Term Symbol Ann),
-    loadV1Branch :: CausalHash -> Transaction (V1.Branch Transaction)
-  }
-
-makeMergeDatabase :: Cli MergeDatabase
-makeMergeDatabase = do
-  -- Create a bunch of cached database lookup functions
-  Cli.Env {codebase} <- ask
-  loadCausal <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectCausalBranchByCausalHash)
-  loadDecl <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
-  loadDeclNumConstructors <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache Operations.expectDeclNumConstructors)
-  -- Since loading a decl type loads the decl and projects out the decl type, just reuse the loadDecl cache
-  let loadDeclType ref =
-        case ref of
-          ReferenceBuiltin name ->
-            Map.lookup ref Builtins.builtinConstructorType
-              & maybe (error ("Unknown builtin: " ++ Text.unpack name)) pure
-          ReferenceDerived refId -> V1.Decl.constructorType <$> loadDecl refId
-  loadTerm <- do
-    cache <- Cache.semispaceCache 1024
-    pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
-  let loadV1Branch = Codebase.expectBranchForHash codebase
-  pure MergeDatabase {loadCausal, loadDecl, loadDeclNumConstructors, loadDeclType, loadTerm, loadV1Branch}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading namespace info from the database
@@ -1152,7 +1113,7 @@ mkMergeOutput ::
   Merge.TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Merge.TwoWay (Defns (Set TermReferenceId) (Set TypeReferenceId)) ->
   Transaction (Merge.MergeOutput Symbol ())
-mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProjectBranchName defns nameConflicts potentialConflicts = do
+mkMergeOutput MergeDatabase {loadV1Decl, loadV1Term} aliceProjectBranchName bobProjectBranchName defns nameConflicts potentialConflicts = do
   (termNameConflicts, typeNameConflicts) <- do
     mkConflictMaps
       nameConflicts
@@ -1189,7 +1150,7 @@ mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProje
       Transaction (Map Name (TypeReference, V1.Decl Symbol ()))
     mkTypeMap types typeIds =
       mkNameMap ReferenceDerived types
-        <$> traverse (\x -> (x,) . (ReferenceDerived x,) . forgetAnn <$> loadDecl x) (toList typeIds)
+        <$> traverse (\x -> (x,) . (ReferenceDerived x,) . forgetAnn <$> loadV1Decl x) (toList typeIds)
       where
         forgetAnn = \case
           Left x -> Left (x $> ())
@@ -1203,7 +1164,7 @@ mkMergeOutput MergeDatabase {loadDecl, loadTerm} aliceProjectBranchName bobProje
       Transaction (Map Name (V1.Term Symbol ()))
     mkTermMap terms termIds =
       mkNameMap Referent.fromTermReferenceId terms
-        <$> traverse (\x -> (x,) . V1.Term.unannotate <$> loadTerm x) (toList termIds)
+        <$> traverse (\x -> (x,) . V1.Term.unannotate <$> loadV1Term x) (toList termIds)
 
     mkNameMap ::
       forall ref toref x.
@@ -1559,23 +1520,3 @@ printTypeConflicts =
 printTermConflicts :: Set Name -> IO ()
 printTermConflicts =
   Text.putStrLn . Text.unwords . map (("term " <>) . Name.toText) . Set.toList
-
------------------------------------------------------------------------------------------------------------------------
--- Utilities for caching transaction calls
---
--- These ought to be in a more general-puprose location, but defining here for now
-
-cacheTransaction :: forall k v. Cache.Cache k v -> (k -> Transaction v) -> (k -> Transaction v)
-cacheTransaction cache f k =
-  unTransactionWithMonadIO (Cache.apply cache (TransactionWithMonadIO . f) k)
-
-newtype TransactionWithMonadIO a
-  = TransactionWithMonadIO (Transaction a)
-  deriving newtype (Applicative, Functor, Monad)
-
-unTransactionWithMonadIO :: TransactionWithMonadIO a -> Transaction a
-unTransactionWithMonadIO (TransactionWithMonadIO m) = m
-
-instance MonadIO TransactionWithMonadIO where
-  liftIO :: forall a. IO a -> TransactionWithMonadIO a
-  liftIO = coerce @(IO a -> Transaction a) Sqlite.unsafeIO
