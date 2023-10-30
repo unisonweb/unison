@@ -55,7 +55,7 @@ unique type S = S (T Nat)
 ```
 
 Delay kind defaulting until all components are processed
-```unison:error
+```unison
 unique type T a = T
 
 unique type S = S (T Optional)
