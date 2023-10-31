@@ -36,7 +36,7 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (mapped, over, traversed, view, (^.), _3)
+import Control.Lens (mapped, over, traverseOf, traversed, view, (^.), _3)
 import Control.Monad.State.Strict (State, evalState, evalStateT)
 import Control.Monad.State.Strict qualified as State
 import Data.Bimap (Bimap)
@@ -45,11 +45,13 @@ import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
+import Data.Monoid (Endo (..))
 import Data.Set qualified as Set
 import U.Codebase.Reference
   ( Reference,
     Reference' (..),
     ReferenceType (RtTerm, RtType),
+    TermReference,
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
@@ -422,11 +424,14 @@ computeUnisonFile2 ::
   Transaction (UnisonFile V1.Symbol V1.Ann)
 computeUnisonFile2
   db@MergeDatabase {loadV1Decl, loadV1Term}
-  unconflictedUpdates
+  unconflictedUpdates0
   dependents
   ppes
   (Defns {terms = termsToTypecheck, types = declsToTypecheck})
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
+    unconflictedUpdates <- do
+      let f (x, y) = (,) <$> referent2to1 db x <*> referent2to1 db y
+      traverseOf #terms (fmap Map.fromList . traverse f . Map.toList) unconflictedUpdates0
     combinedTermUpdates <- traverse (referent2to1 db) combinedTermUpdates0
 
     {-
@@ -445,7 +450,13 @@ computeUnisonFile2
       namedDependents
         & view #types
         & Bimap.toMap
-        & traverse (fmap (substituteDecl unconflictedUpdates namedDependents) . loadV1Decl)
+        & traverse (fmap (substituteDecl (unconflictedUpdates ^. #types) (namedDependents ^. #types)) . loadV1Decl)
+
+    terms :: Map V1.Symbol (V1.Term V1.Symbol V1.Ann) <-
+      namedDependents
+        & view #terms
+        & Bimap.toMap
+        & traverse (fmap (substituteTerm unconflictedUpdates namedDependents undefined undefined undefined undefined) . loadV1Term)
 
     let -- todo: handle errors better:
         env :: UFE.Env V1.Symbol V1.Ann = (fromRight' . fromRight') envResult
@@ -603,10 +614,10 @@ computeUnisonFile2
             pure var
 
 substituteDecl ::
-  forall v a.
-  (Var v, Monoid a) =>
-  Defns (Map Referent Referent) (Map TypeReference TypeReference) ->
-  Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId) ->
+  forall a v.
+  (Monoid a, Var v) =>
+  Map TypeReference TypeReference ->
+  Bimap v TypeReferenceId ->
   V1.Decl v a ->
   V1.Decl v a
 substituteDecl unconflictedUpdates namedDependents =
@@ -614,22 +625,126 @@ substituteDecl unconflictedUpdates namedDependents =
   where
     substituteConstructor :: V1.Type v a -> V1.Type v a
     substituteConstructor ctor =
-      foldl' substituteType ctor (V1.Type.dependencies ctor)
+      foldr
+        ( \old typ ->
+            fromMaybe typ do
+              new <- replaceTypeReference unconflictedUpdates namedDependents old
+              ABT.rewriteExpression (Type.ref mempty old) new typ
+        )
+        ctor
+        (V1.Type.dependencies ctor)
 
-    substituteType :: V1.Type v a -> TypeReference -> V1.Type v a
-    substituteType typ ref =
-      fromMaybe typ do
+replaceTypeReference ::
+  forall a v.
+  (Monoid a, Ord v) =>
+  Map TypeReference TypeReference ->
+  Bimap v TypeReferenceId ->
+  TypeReference ->
+  Maybe (V1.Type v a)
+replaceTypeReference unconflictedUpdates namedDependents old = do
+  asum
+    [ Type.var mempty <$> dependentTypeName old,
+      Type.ref mempty <$> Map.lookup old unconflictedUpdates
+    ]
+  where
+    dependentTypeName :: TypeReference -> Maybe v
+    dependentTypeName = \case
+      ReferenceBuiltin _ -> Nothing
+      ReferenceDerived rid -> Bimap.lookupR rid namedDependents
+
+substituteTerm ::
+  forall v a.
+  (Var v, Eq a, Monoid a) =>
+  Defns (Map V1.Referent V1.Referent) (Map TypeReference TypeReference) ->
+  Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId) ->
+  RefToName ->
+  (Name -> Bool) ->
+  Map Name TypeReference ->
+  Map Name V1.Referent ->
+  V1.Term v a ->
+  V1.Term v a
+substituteTerm unconflictedUpdates namedDependents Defns {terms = ppeTerms, types = ppeTypes} termNeedsUpdate updatedTypes updatedTerms term =
+  let RefsToSubst {rtsDataCtors, rtsEffectCtors, rtsTermRefs, rtsTermLinks, rtsTypeAnnRefs, rtsTypeLinks} =
+        V1.Term.generalizedDependencies
+          V1.Term.GdHandler
+            { gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
+              gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r},
+              gdLiteralType = const mempty,
+              gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
+              gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
+              gdTermLink = const mempty,
+              gdTypeLink = \r -> mempty {rtsTypeLinks = Set.singleton r},
+              gdLiteralPattern = const mempty,
+              gdDataPattern = \r i -> mempty {rtsDataPatterns = Set.singleton (V1.ConstructorReference r i)},
+              gdEffectPattern = \r i -> mempty {rtsEffectPatterns = Set.singleton (V1.ConstructorReference r i)}
+            }
+          term
+   in appEndo
+        ( fold
+            [ foldMap (Endo . substituteTermReference) rtsTermRefs,
+              foldMap (Endo . updatePatterns) (Set.map (,CT.Data) rtsDataCtors <> Set.map (,CT.Effect) rtsEffectCtors),
+              foldMap (Endo . substituteTypeReferenceInSignature) rtsTypeAnnRefs,
+              foldMap (Endo . updateTypeLinks) rtsTypeLinks,
+              foldMap (Endo . updateTermLinks) rtsTermLinks
+            ]
+        )
+        term
+  where
+    updatePatterns :: (ConstructorReference, ConstructorType) -> V1.Term v a -> V1.Term v a
+    updatePatterns (cr@(ConstructorReference typeRef conId), ct) term =
+      Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
+      where
+        old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
+        new :: Maybe (V1.Term v a)
+        new = do
+          name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
+          case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+            (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
+            (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
+            (False, Just r@V1.Referent.Con {}) -> Just $ V1.Term.fromReferent mempty r
+            (False, Nothing) -> Nothing
+
+    updateTypeLinks :: TypeReference -> V1.Term v a -> V1.Term v a
+    updateTypeLinks ref term = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
+      where
+        old = V1.Term.typeLink mempty ref
+        new = do
+          name <- Map.lookup ref ppeTypes
+          case Map.lookup name updatedTypes of
+            Just u -> Just $ V1.Term.typeLink mempty u
+            Nothing -> Nothing
+
+    substituteTypeReferenceInSignature :: TypeReference -> V1.Term v a -> V1.Term v a
+    substituteTypeReferenceInSignature old term =
+      fromMaybe term do
+        new <- replaceTypeReference (unconflictedUpdates ^. #types) (namedDependents ^. #types) old
+        V1.Term.rewriteSignatures (Type.ref mempty old) new term
+
+    substituteTermReference :: TermReference -> V1.Term v a -> V1.Term v a
+    substituteTermReference old term =
+      fromMaybe term do
         new <-
           asum
-            [ Type.var mempty <$> dependentTypeName ref,
-              Type.ref mempty <$> Map.lookup ref (unconflictedUpdates ^. #types)
+            [ V1.Term.var mempty <$> dependentTermName old,
+              V1.Term.fromReferent mempty <$> Map.lookup (V1.Referent.Ref old) (unconflictedUpdates ^. #terms)
             ]
-        ABT.rewriteExpression (Type.ref mempty ref) new typ
+        ABT.rewriteExpression (V1.Term.ref mempty old) new term
       where
-        dependentTypeName :: Reference -> Maybe v
-        dependentTypeName = \case
+        dependentTermName :: TermReference -> Maybe v
+        dependentTermName = \case
           ReferenceBuiltin _ -> Nothing
-          ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
+          ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #terms)
+
+    updateTermLinks :: V1.Referent -> V1.Term v a -> V1.Term v a
+    updateTermLinks ref term = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
+      where
+        name :: Maybe Name = Map.lookup ref (error "substForTerm:updateTermLinks: unimplemented" ppeTerms)
+        old = V1.Term.termLink mempty ref
+        new =
+          name >>= \name -> case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+            (True, _) -> error $ "substForTerm: We can't set up a var for the termLink " ++ show name
+            (_, Just u) -> Just $ V1.Term.termLink mempty u
+            (False, Nothing) -> Nothing
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
