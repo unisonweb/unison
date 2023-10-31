@@ -36,11 +36,13 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (mapped, over, traversed, (^.), _3)
-import Control.Monad.State.Strict (State)
+import Control.Lens (mapped, over, traversed, view, (^.), _3)
+import Control.Monad.State.Strict (State, evalState, evalStateT)
+import Control.Monad.State.Strict qualified as State
 import Data.Bimap (Bimap)
 import Data.Bimap qualified as Bimap
 import Data.Either.Combinators (fromLeft', fromRight')
+import Data.Foldable (foldlM)
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -90,6 +92,7 @@ import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 import Unison.WatchKind qualified as V1 (WatchKind)
 
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
@@ -438,7 +441,11 @@ computeUnisonFile2
 
     -}
 
-    decls <- for (Set.toList (dependents ^. #types)) (fmap substituteDecl . loadV1Decl)
+    decls :: Map V1.Symbol (V1.Decl V1.Symbol V1.Ann) <-
+      namedDependents
+        & view #types
+        & Bimap.toMap
+        & traverse (fmap substituteDecl . loadV1Decl)
 
     updatedDecls <-
       let setupDecl :: TypeReferenceId -> Transaction (V1.Decl v a)
@@ -603,8 +610,27 @@ computeUnisonFile2
                 ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
 
       -- give unique name to each type and term in dependents
-      namedDependents :: Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId)
-      namedDependents = undefined
+      namedDependents :: forall v. Var v => Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId)
+      namedDependents =
+        (`evalState` Set.empty) do
+          terms <- generateNamesFor (dependents ^. #terms)
+          types <- generateNamesFor (dependents ^. #types)
+          pure Defns {terms, types}
+        where
+          generateNamesFor :: Ord ref => Set ref -> State (Set v) (Bimap v ref)
+          generateNamesFor =
+            foldlM
+              ( \acc ref -> do
+                  var <- fresh
+                  pure $! Bimap.insert var ref acc
+              )
+              Bimap.empty
+          fresh :: State (Set v) v
+          fresh = do
+            used <- State.get
+            let var = Var.freshIn used (Var.typed Var.Propagate)
+            State.put $! Set.insert var used
+            pure var
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
