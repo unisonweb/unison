@@ -447,12 +447,6 @@ computeUnisonFile2
         & Bimap.toMap
         & traverse (fmap substituteDecl . loadV1Decl)
 
-    updatedDecls <-
-      let setupDecl :: TypeReferenceId -> Transaction (V1.Decl v a)
-          setupDecl = undefined -- fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadV1Decl
-            where
-              declNeedsUpdate = flip Map.member declsToTypecheck
-       in traverse setupDecl undefined -- (dependents ^. #types)
     let -- todo: handle errors better:
         env :: UFE.Env V1.Symbol V1.Ann = (fromRight' . fromRight') envResult
           where
@@ -463,9 +457,7 @@ computeUnisonFile2
             effectDeclarations :: Map V1.Symbol (V1.Decl.EffectDeclaration V1.Symbol V1.Ann)
             dataDeclarations :: Map V1.Symbol (V1.Decl.DataDeclaration V1.Symbol V1.Ann)
             (fmap fromLeft' -> effectDeclarations, fmap fromRight' -> dataDeclarations) =
-              updatedDecls
-                & Map.mapKeys Name.toVar
-                & Map.partition (\case Left {} -> True; Right {} -> False)
+              Map.partition (\case Left {} -> True; Right {} -> False) decls
     updatedTerms <-
       let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadV1Term
             where
