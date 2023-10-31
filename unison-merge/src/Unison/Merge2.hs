@@ -3,6 +3,7 @@
 module Unison.Merge2
   ( -- * Merge database
     MergeDatabase (..),
+    referent2to1,
     makeMergeDatabase,
 
     -- * Precondition violation
@@ -35,13 +36,16 @@ module Unison.Merge2
   )
 where
 
-import Control.Lens (over, (^.), _3)
+import Control.Lens (mapped, over, traversed, (^.), _3)
+import Control.Monad.State.Strict (State)
+import Data.Bimap (Bimap)
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference
   ( Reference,
+    Reference' (..),
     ReferenceType (RtTerm, RtType),
     TermReferenceId,
     TypeReference,
@@ -59,7 +63,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
-import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase)
+import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff (TwoOrThreeWay (..), TwoWay (..), nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Libdeps (mergeLibdeps)
@@ -86,6 +90,7 @@ import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1 (WatchKind)
+import qualified Data.Bimap as Bimap
 
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
 -- It can represent the input or output namespace.
@@ -203,11 +208,11 @@ computeUnisonFile ::
   UpdatesRefnt ->
   Transaction (UnisonFile V1.Symbol V1.Ann)
 computeUnisonFile
-  MergeDatabase {loadDeclType, loadV1Decl, loadV1Term}
+  db@MergeDatabase {loadV1Decl, loadV1Term}
   ppes
   (Defns {terms = termsToTypecheck, types = declsToTypecheck})
   Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
-    combinedTermUpdates <- traverse referent2to1 combinedTermUpdates0
+    combinedTermUpdates <- traverse (referent2to1 db) combinedTermUpdates0
 
     {-
     dependencies
@@ -257,14 +262,6 @@ computeUnisonFile
             watches = mempty
     pure uf
     where
-      -- Convert a v2 referent (missing decl type) to a v1 referent using the provided lookup-decl-type function.
-      referent2to1 :: Referent -> Transaction V1.Referent
-      referent2to1 = \case
-        Referent.Con typeRef conId -> do
-          declTy <- loadDeclType typeRef
-          pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
-        Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
-
       -- \| Perform substitions in a term for all the direct and indirect updates
       -- RefToName gives us our var names. It only needs to contain things that appear in typechecking.
       -- `dependents` and `updates` just give us the latest input version for term definitions.
@@ -407,6 +404,273 @@ computeUnisonFile
                   (True, _) -> Just $ Type.var mempty (Name.toVar name)
                   (False, Just u) -> Just $ Type.ref mempty u
                   (False, Nothing) -> Nothing
+
+-- | `ppes` for everything that needs to be typechecked, and all their dependencies
+-- loadTerm / loadDecl, optionally with caching
+-- the terms to typecheck (the dependents of updates)
+-- the updates themselves
+computeUnisonFile2 ::
+  MergeDatabase ->
+  Defns (Set TermReferenceId) (Set TypeReferenceId) ->
+  RefToName ->
+  DeepRefsId' ->
+  UpdatesRefnt ->
+  Transaction (UnisonFile V1.Symbol V1.Ann)
+computeUnisonFile2
+  db@MergeDatabase {loadV1Decl, loadV1Term}
+  dependents
+  ppes
+  (Defns {terms = termsToTypecheck, types = declsToTypecheck})
+  Defns {terms = combinedTermUpdates0, types = combinedTypeUpdates} = do
+    combinedTermUpdates <- traverse (referent2to1 db) combinedTermUpdates0
+
+    {-
+    dependencies
+    updates
+    dependents
+
+    right now: required: {dependents, required, dependencies optional
+    later need {dependencies, updates, dependents}
+
+    update type Foo = Foo #Bar
+
+    -}
+
+    updatedDecls <-
+      let setupDecl :: TypeReferenceId -> Transaction (V1.Decl v a)
+          setupDecl = undefined -- fmap (substForDecl ppes declNeedsUpdate combinedTypeUpdates) . loadV1Decl
+            where
+              declNeedsUpdate = flip Map.member declsToTypecheck
+       in traverse setupDecl undefined -- (dependents ^. #types)
+    let -- todo: handle errors better:
+        env :: UFE.Env V1.Symbol V1.Ann = (fromRight' . fromRight') envResult
+          where
+            -- This `Names` can be `mempty` because there shouldn't be any free vars in these declarations.
+            -- There will be references that come from the codebase, or there will be vars that we just substed in
+            -- right now for other decls listed here.
+            envResult = UFN.environmentFor mempty dataDeclarations effectDeclarations
+            effectDeclarations :: Map V1.Symbol (V1.Decl.EffectDeclaration V1.Symbol V1.Ann)
+            dataDeclarations :: Map V1.Symbol (V1.Decl.DataDeclaration V1.Symbol V1.Ann)
+            (fmap fromLeft' -> effectDeclarations, fmap fromRight' -> dataDeclarations) =
+              updatedDecls
+                & Map.mapKeys Name.toVar
+                & Map.partition (\case Left {} -> True; Right {} -> False)
+    updatedTerms <-
+      let setupTerm = fmap (substForTerm ppes termNeedsUpdate updatedTypes combinedTermUpdates) . loadV1Term
+            where
+              ctorNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
+              termNeedsUpdate = flip Map.member termsToTypecheck -- todo: amend this to include constructor names for declsToTypecheck?
+              updatedTypes :: Map Name TypeReference =
+                Map.mapKeys Name.unsafeFromVar $
+                  fmap (Reference.ReferenceDerived . fst) (UFE.datasId env)
+                    <> fmap (Reference.ReferenceDerived . fst) (UFE.effectsId env)
+       in traverse setupTerm termsToTypecheck
+    let uf = UF.UnisonFileId (UFE.datasId env) (UFE.effectsId env) terms watches
+          where
+            terms :: [(V1.Symbol, V1.Ann {- ann for whole binding -}, V1.Term V1.Symbol V1.Ann)]
+            terms = fmap (\(n, t) -> (Name.toVar n, mempty, t)) $ Map.toList updatedTerms
+            watches :: Map V1.WatchKind [(V1.Symbol, V1.Ann {- ann for whole watch -}, V1.Term V1.Symbol V1.Ann)]
+            watches = mempty
+    pure uf
+    where
+      -- \| Perform substitions in a term for all the direct and indirect updates
+      -- RefToName gives us our var names. It only needs to contain things that appear in typechecking.
+      -- `dependents` and `updates` just give us the latest input version for term definitions.
+      -- `dependents` includes things that need to be typechecked, and updates includes things that don't.
+      -- What about patterns?
+      substForTerm ::
+        forall v a.
+        (Var v, Eq a, Monoid a) =>
+        RefToName ->
+        (Name -> Bool) ->
+        Map Name TypeReference ->
+        Map Name V1.Referent ->
+        (V1.Term v a) ->
+        (V1.Term v a)
+      substForTerm
+        Defns {terms = ppeTerms, types = ppeTypes}
+        termNeedsUpdate
+        updatedTypes
+        updatedTerms
+        term =
+          updatesTerm term
+          where
+            updatesTerm =
+              flip (foldl' updateTermDeps) rtsTermRefs
+                . flip (foldl' updatePatterns) allCtors
+                . flip (foldl' updateSignatures) rtsTypeAnnRefs
+                . flip (foldl' updateTypeLinks) rtsTypeLinks
+                . flip (foldl' updateTermLinks) rtsTermLinks
+              where
+                allCtors = Set.map (,CT.Data) rtsDataCtors <> Set.map (,CT.Effect) rtsEffectCtors
+                RefsToSubst {..} =
+                  V1.Term.generalizedDependencies
+                    V1.Term.GdHandler
+                      { gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
+                        gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r},
+                        gdLiteralType = const mempty,
+                        gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
+                        gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
+                        gdTermLink = const mempty,
+                        gdTypeLink = \r -> mempty {rtsTypeLinks = Set.singleton r},
+                        gdLiteralPattern = const mempty,
+                        gdDataPattern = \r i -> mempty {rtsDataPatterns = Set.singleton (V1.ConstructorReference r i)},
+                        gdEffectPattern = \r i -> mempty {rtsEffectPatterns = Set.singleton (V1.ConstructorReference r i)}
+                      }
+                    term
+
+                updatePatterns :: V1.Term v a -> (ConstructorReference, ConstructorType) -> V1.Term v a
+                updatePatterns term (cr@(ConstructorReference typeRef conId), ct) =
+                  Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
+                  where
+                    old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
+                    new :: Maybe (V1.Term v a)
+                    new = do
+                      name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
+                      case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
+                        (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
+                        (False, Just r@V1.Referent.Con {}) -> Just $ V1.Term.fromReferent mempty r
+                        (False, Nothing) -> Nothing
+
+                updateTypeLinks :: V1.Term v a -> TypeReference -> V1.Term v a
+                updateTypeLinks term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
+                  where
+                    old = V1.Term.typeLink mempty ref
+                    new = do
+                      name <- Map.lookup ref ppeTypes
+                      case Map.lookup name updatedTypes of
+                        Just u -> Just $ V1.Term.typeLink mempty u
+                        Nothing -> Nothing
+
+                updateSignatures :: V1.Term v a -> TypeReference -> V1.Term v a
+                updateSignatures term ref = Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteSignatures old new term) term
+                  where
+                    old = Type.ref mempty ref
+                    new = do
+                      name <- Map.lookup ref ppeTypes
+                      case Map.lookup name updatedTypes of
+                        Just u -> Just $ Type.ref mempty u
+                        Nothing -> Nothing
+
+                updateTermDeps :: V1.Term v a -> Reference -> V1.Term v a
+                updateTermDeps term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
+                  where
+                    old = V1.Term.ref mempty ref
+                    new = do
+                      name <- Map.lookup (Referent.Ref ref) ppeTerms
+                      case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> Just $ V1.Term.var mempty (Name.toVar name)
+                        (_, Just u) -> Just $ V1.Term.fromReferent mempty u
+                        (False, Nothing) -> Nothing
+
+                updateTermLinks :: V1.Term v a -> V1.Referent -> V1.Term v a
+                updateTermLinks term ref = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
+                  where
+                    name :: Maybe Name = Map.lookup ref (error "substForTerm:updateTermLinks: unimplemented" ppeTerms)
+                    old = V1.Term.termLink mempty ref
+                    new =
+                      name >>= \name -> case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+                        (True, _) -> error $ "substForTerm: We can't set up a var for the termLink " ++ show name
+                        (_, Just u) -> Just $ V1.Term.termLink mempty u
+                        (False, Nothing) -> Nothing
+
+      -- a. LCA:   foo#foo calls bar#bar, bar#bar calls baz#baz
+      -- b. Alice: updates bar#bar2, autopropagates to foo#foo2
+      -- c. Bob:   updates foo#foo3
+      -- d. Alice updates: {bar#bar2}
+      -- e. Bob updates: {foo#foo3}
+      -- f. Bob dependents of Alice updates' names: {#foo3} -> {foo -> #foo3}
+      -- g. Alice dependents of Bob updates' names: {}      -> {}
+      -- h. What to typecheck: f union g = {#foo3}   or {foo -> #foo3}
+      -- i. Combined updates {bar#bar2, foo#foo3}
+      -- load #foo3, and encounter ref #bar
+
+      -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
+      -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
+      -- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
+      --  -- ^it may also be an updated definition itself
+      -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
+      -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
+      substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> V1.Decl v a -> V1.Decl v a
+      substForDecl Defns {types = ppe} declNeedsUpdate updatedTypes decl =
+        V1.Decl.modifyAsDataDecl updateDecl decl
+        where
+          updateDecl decl = decl {V1.Decl.constructors' = map (over _3 updateCtorDependencies) $ V1.Decl.constructors' decl}
+          updateCtorDependencies ctor = foldl' updateType ctor $ V1.Type.dependencies ctor
+          updateType :: V1.Type v a -> Reference -> V1.Type v a
+          updateType typ ref = Maybe.rewrite (\typ -> new >>= \new -> ABT.rewriteExpression old new typ) typ
+            where
+              old :: V1.Type v a
+              old = Type.ref mempty ref
+              -- A "dependent" is gonna be part of the typechecking, so it gets replaced with a var.
+              -- An update that isn't also a dependent just gets replaced with the latest ref.
+              -- A ref that corresponds to neither doesn't need to be replaced.
+              new :: Maybe (V1.Type v a)
+              new = do
+                name <- Map.lookup ref ppe
+                case (declNeedsUpdate name, Map.lookup name updatedTypes) of
+                  -- for sure, not definition whose id triggers the `var` case
+                  -- will end up in the scratch file, but some same-named definition will.
+                  (True, _) -> Just $ Type.var mempty (Name.toVar name)
+                  (False, Just u) -> Just $ Type.ref mempty u
+                  (False, Nothing) -> Nothing
+
+      -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
+      -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
+      -- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
+      --  -- ^it may also be an updated definition itself
+      -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
+      -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
+      substForDecl2 ::
+        forall v a.
+        (Var v, Monoid a) =>
+        RefToName ->
+        (Name -> Bool) ->
+        Map Name TypeReference ->
+        V1.Decl v a ->
+        V1.Decl v a
+      substForDecl2 Defns {types = ppe} declNeedsUpdate updatedTypes =
+        over V1.Decl.dataDecl_ updateDecl
+        where
+          updateDecl = over (V1.Decl.constructors_ . mapped . _3) updateCtorDependencies
+          updateCtorDependencies ctor = foldl' updateType ctor $ V1.Type.dependencies ctor
+          updateType :: V1.Type v a -> Reference -> V1.Type v a
+          updateType typ ref =
+            fromMaybe typ do
+              new <-
+                case (dependentTypeName ref, False) of
+                  (Just name, _) -> Just (Type.var mempty name)
+              -- name <- Map.lookup ref ppe
+              -- case (declNeedsUpdate name, Map.lookup name updatedTypes) of
+              --   -- for sure, not definition whose id triggers the `var` case
+              --   -- will end up in the scratch file, but some same-named definition will.
+              --   (True, _) -> Just $ Type.var mempty (Name.toVar name)
+              --   (False, Just u) -> Just $ Type.ref mempty u
+              --   (False, Nothing) -> Nothing
+              ABT.rewriteExpression (Type.ref mempty ref) new typ
+            where
+              dependentTypeName :: Reference -> Maybe v
+              dependentTypeName = \case
+                ReferenceBuiltin _ -> Nothing
+                ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
+
+              -- A "dependent" is gonna be part of the typechecking, so it gets replaced with a var.
+              -- An update that isn't also a dependent just gets replaced with the latest ref.
+              -- A ref that corresponds to neither doesn't need to be replaced.
+              maybeNew :: Maybe (V1.Type v a)
+              maybeNew = do
+                name <- Map.lookup ref ppe
+                case (declNeedsUpdate name, Map.lookup name updatedTypes) of
+                  -- for sure, not definition whose id triggers the `var` case
+                  -- will end up in the scratch file, but some same-named definition will.
+                  (True, _) -> Just $ Type.var mempty (Name.toVar name)
+                  (False, Just u) -> Just $ Type.ref mempty u
+                  (False, Nothing) -> Nothing
+
+      -- give unique name to each type and term in dependents
+      namedDependents :: Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId)
+      namedDependents = undefined
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,

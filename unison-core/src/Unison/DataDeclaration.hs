@@ -33,6 +33,7 @@ module Unison.DataDeclaration
     amap,
     updateDependencies,
     constructors_,
+    dataDecl_,
     asDataDecl_,
   )
 where
@@ -71,6 +72,10 @@ data DeclOrBuiltin v a
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
+
+-- | An isomorphism between a decl (tagged as either effect or data) and the underlying untagged decl.
+dataDecl_ :: Iso' (Decl v a) (DataDeclaration v a)
+dataDecl_ = iso asDataDecl Right
 
 modifyAsDataDecl :: (DataDeclaration v a -> DataDeclaration v a) -> Decl v a -> Decl v a
 modifyAsDataDecl f = \case

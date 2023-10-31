@@ -1,5 +1,6 @@
 module Unison.Merge.Database
   ( MergeDatabase (..),
+    referent2to1,
     makeMergeDatabase,
   )
 where
@@ -9,16 +10,21 @@ import Data.Text qualified as Text
 import U.Codebase.Branch (CausalBranch)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference (Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Referent (Referent)
+import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Builtin qualified as Builtins
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Parser.Ann qualified as V1 (Ann)
 import Unison.Prelude
+import Unison.Referent qualified as V1 (Referent)
+import Unison.Referent qualified as V1.Referent
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol qualified as V1 (Symbol)
@@ -62,6 +68,14 @@ makeMergeDatabase codebase = liftIO do
     cache <- Cache.semispaceCache 1024
     pure (cacheTransaction cache (Codebase.unsafeGetTerm codebase))
   pure MergeDatabase {loadCausal, loadDeclNumConstructors, loadDeclType, loadV1Branch, loadV1Decl, loadV1Term}
+
+-- Convert a v2 referent (missing decl type) to a v1 referent.
+referent2to1 :: MergeDatabase -> Referent -> Transaction V1.Referent
+referent2to1 MergeDatabase {loadDeclType} = \case
+  Referent.Con typeRef conId -> do
+    declTy <- loadDeclType typeRef
+    pure (V1.Referent.Con (ConstructorReference typeRef conId) declTy)
+  Referent.Ref termRef -> pure (V1.Referent.Ref termRef)
 
 -----------------------------------------------------------------------------------------------------------------------
 -- Utilities for caching transaction calls

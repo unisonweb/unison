@@ -184,6 +184,14 @@ data Type
     Irrelevant
   | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1)
     Delay
+  | -- A synthetic variable used during propagation of updates to other references (either during an update or a merge).
+    --
+    -- For example, say we are updating #oldfoo to #newfoo, and #bar depends on #oldfoo, and #baz depends on #bar.
+    -- We'll we put together a unison file to typecheck that looks like
+    --
+    --   "propagate-var-1" = <body of #bar with #newfoo in place of #oldfoo>
+    --   "propagate-var-2" = <body of #baz with "propagate-var-1" in place of #bar>
+    Propagate
   deriving (Eq, Ord, Show)
 
 data InferenceType
