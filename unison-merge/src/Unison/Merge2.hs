@@ -445,7 +445,7 @@ computeUnisonFile2
       namedDependents
         & view #types
         & Bimap.toMap
-        & traverse (fmap substituteDecl . loadV1Decl)
+        & traverse (fmap (substituteDecl unconflictedUpdates namedDependents) . loadV1Decl)
 
     let -- todo: handle errors better:
         env :: UFE.Env V1.Symbol V1.Ann = (fromRight' . fromRight') envResult
@@ -578,29 +578,6 @@ computeUnisonFile2
                         (_, Just u) -> Just $ V1.Term.termLink mempty u
                         (False, Nothing) -> Nothing
 
-      substituteDecl :: forall v a. (Var v, Monoid a) => V1.Decl v a -> V1.Decl v a
-      substituteDecl =
-        over (V1.Decl.dataDecl_ . V1.Decl.constructors_ . mapped . _3) substituteConstructor
-        where
-          substituteConstructor :: V1.Type v a -> V1.Type v a
-          substituteConstructor ctor =
-            foldl' substituteType ctor (V1.Type.dependencies ctor)
-
-          substituteType :: V1.Type v a -> TypeReference -> V1.Type v a
-          substituteType typ ref =
-            fromMaybe typ do
-              new <-
-                asum
-                  [ Type.var mempty <$> dependentTypeName ref,
-                    Type.ref mempty <$> Map.lookup ref (unconflictedUpdates ^. #types)
-                  ]
-              ABT.rewriteExpression (Type.ref mempty ref) new typ
-            where
-              dependentTypeName :: Reference -> Maybe v
-              dependentTypeName = \case
-                ReferenceBuiltin _ -> Nothing
-                ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
-
       -- give unique name to each type and term in dependents
       namedDependents :: forall v. Var v => Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId)
       namedDependents =
@@ -617,12 +594,42 @@ computeUnisonFile2
                   pure $! Bimap.insert var ref acc
               )
               Bimap.empty
+
           fresh :: State (Set v) v
           fresh = do
             used <- State.get
             let var = Var.freshIn used (Var.typed Var.Propagate)
             State.put $! Set.insert var used
             pure var
+
+substituteDecl ::
+  forall v a.
+  (Var v, Monoid a) =>
+  Defns (Map Referent Referent) (Map TypeReference TypeReference) ->
+  Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId) ->
+  V1.Decl v a ->
+  V1.Decl v a
+substituteDecl unconflictedUpdates namedDependents =
+  over (V1.Decl.dataDecl_ . V1.Decl.constructors_ . mapped . _3) substituteConstructor
+  where
+    substituteConstructor :: V1.Type v a -> V1.Type v a
+    substituteConstructor ctor =
+      foldl' substituteType ctor (V1.Type.dependencies ctor)
+
+    substituteType :: V1.Type v a -> TypeReference -> V1.Type v a
+    substituteType typ ref =
+      fromMaybe typ do
+        new <-
+          asum
+            [ Type.var mempty <$> dependentTypeName ref,
+              Type.ref mempty <$> Map.lookup ref (unconflictedUpdates ^. #types)
+            ]
+        ABT.rewriteExpression (Type.ref mempty ref) new typ
+      where
+        dependentTypeName :: Reference -> Maybe v
+        dependentTypeName = \case
+          ReferenceBuiltin _ -> Nothing
+          ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
