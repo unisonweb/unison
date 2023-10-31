@@ -90,6 +90,7 @@ rawName typ = case typ of
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
   Delay -> "()"
+  Propagate -> "_propagate"
 
 name :: (Var v) => v -> Text
 name v = rawName (typeOf v) <> showid v

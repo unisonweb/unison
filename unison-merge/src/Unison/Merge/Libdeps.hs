@@ -6,7 +6,6 @@ where
 
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
@@ -19,46 +18,20 @@ mergeLibdeps ::
   (lib -> lib -> Bool) ->
   -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
   (Set name -> name -> (name, name)) ->
-  -- | LCA library dependencies, if there is an LCA.
-  Maybe (Map name lib) ->
+  -- | LCA library dependencies (empty map if no dependencies or no LCA).
+  Map name lib ->
   -- | Alice's library dependencies.
   Map name lib ->
   -- | Bob's library dependencies.
   Map name lib ->
   -- | Merged library dependencies.
   Map name lib
-mergeLibdeps eq freshen maybeLca alice bob =
-  case maybeLca of
-    Nothing -> twoWayLibdepsMerge eq (freshen usedNames) alice bob
-    Just lca -> threeWayLibdepsMerge eq (freshen usedNames) lca alice bob
+mergeLibdeps eq freshen lca alice bob =
+  threeWayLibdepsMerge eq (freshen usedNames) lca alice bob
   where
     usedNames :: Set name
     usedNames =
-      maybe Set.empty Map.keysSet maybeLca <> Map.keysSet alice <> Map.keysSet bob
-
--- Perform a two-way merge on two collections of library dependencies.
-twoWayLibdepsMerge ::
-  forall lib name.
-  Ord name =>
-  -- | Are these library dependencies equal?
-  (lib -> lib -> Bool) ->
-  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
-  (name -> (name, name)) ->
-  -- | Alice's library dependencies.
-  Map name lib ->
-  -- | Bob's library dependencies.
-  Map name lib ->
-  -- | Merged library dependencies.
-  Map name lib
-twoWayLibdepsMerge eq freshen alice bob =
-  Map.mergeMap Map.singleton Map.singleton both alice bob
-  where
-    both :: name -> lib -> lib -> Map name lib
-    both name lib1 lib2
-      | eq lib1 lib2 = Map.singleton name lib1
-      | otherwise =
-          let (name1, name2) = freshen name
-           in Map.insert name2 lib2 (Map.singleton name1 lib1)
+      Map.keysSet lca <> Map.keysSet alice <> Map.keysSet bob
 
 -- Perform a three-way merge on two collections of library dependencies.
 threeWayLibdepsMerge ::
@@ -145,10 +118,10 @@ mergeLibdepsDiffs eq =
           (Deleted {}, Deleted {}) -> DeleteLibdep
           -- These are all nonsense: if one person's change was classified as an add, then it didn't exist in the
           -- LCA, so the other person's change to the same name couldn't be classified as an update/delete
-          (Added {}, Deleted {}) -> wundefined
-          (Added {}, Updated {}) -> wundefined
-          (Deleted {}, Added {}) -> wundefined
-          (Updated {}, Added {}) -> wundefined
+          (Added {}, Deleted {}) -> undefined
+          (Added {}, Updated {}) -> undefined
+          (Deleted {}, Added {}) -> undefined
+          (Updated {}, Added {}) -> undefined
 
 -- Apply a library dependencies diff to the LCA.
 applyLibdepsDiff ::

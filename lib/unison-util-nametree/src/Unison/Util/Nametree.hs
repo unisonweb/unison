@@ -10,6 +10,8 @@ module Unison.Util.Nametree
 
     -- * Definitions
     Defns (..),
+    mapDefns,
+    bimapDefns,
   )
 where
 
@@ -155,3 +157,11 @@ data Defns terms types = Defns
   }
   deriving stock (Generic, Show)
   deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
+
+mapDefns :: (a -> b) -> Defns a a -> Defns b b
+mapDefns f (Defns terms types) =
+  Defns (f terms) (f types)
+
+bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
+bimapDefns f g (Defns terms types) =
+  Defns (f terms) (g types)

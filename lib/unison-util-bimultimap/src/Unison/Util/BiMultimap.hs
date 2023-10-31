@@ -17,6 +17,7 @@ module Unison.Util.BiMultimap
     filterDom,
     filterDomain,
     restrictDom,
+    restrictRan,
     withoutDom,
     withoutRan,
 
@@ -129,6 +130,11 @@ filterDomain f m =
 restrictDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
 restrictDom xs m =
   unsafeFromDomain (Map.restrictKeys (domain m) xs)
+
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @b@ is in the given set.
+restrictRan :: (Ord a, Ord b) => Set b -> BiMultimap a b -> BiMultimap a b
+restrictRan ys m =
+  fromRange (Map.restrictKeys (range m) ys)
 
 -- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is not in the given set.
 withoutDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
