@@ -39,6 +39,7 @@ where
 import Control.Lens (mapped, over, traversed, (^.), _3)
 import Control.Monad.State.Strict (State)
 import Data.Bimap (Bimap)
+import Data.Bimap qualified as Bimap
 import Data.Either.Combinators (fromLeft', fromRight')
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
@@ -90,7 +91,6 @@ import Unison.Util.Maybe qualified as Maybe
 import Unison.Util.Nametree (Defns (..))
 import Unison.Var (Var)
 import Unison.WatchKind qualified as V1 (WatchKind)
-import qualified Data.Bimap as Bimap
 
 -- | DeepRefs is basically a one-way Names (many to one, rather than many to many)
 -- It can represent the input or output namespace.
@@ -411,6 +411,7 @@ computeUnisonFile
 -- the updates themselves
 computeUnisonFile2 ::
   MergeDatabase ->
+  Defns (Map Referent Referent) (Map TypeReference TypeReference) ->
   Defns (Set TermReferenceId) (Set TypeReferenceId) ->
   RefToName ->
   DeepRefsId' ->
@@ -418,6 +419,7 @@ computeUnisonFile2 ::
   Transaction (UnisonFile V1.Symbol V1.Ann)
 computeUnisonFile2
   db@MergeDatabase {loadV1Decl, loadV1Term}
+  unconflictedUpdates
   dependents
   ppes
   (Defns {terms = termsToTypecheck, types = declsToTypecheck})
@@ -435,6 +437,8 @@ computeUnisonFile2
     update type Foo = Foo #Bar
 
     -}
+
+    decls <- for (Set.toList (dependents ^. #types)) (fmap substituteDecl . loadV1Decl)
 
     updatedDecls <-
       let setupDecl :: TypeReferenceId -> Transaction (V1.Decl v a)
@@ -575,98 +579,28 @@ computeUnisonFile2
                         (_, Just u) -> Just $ V1.Term.termLink mempty u
                         (False, Nothing) -> Nothing
 
-      -- a. LCA:   foo#foo calls bar#bar, bar#bar calls baz#baz
-      -- b. Alice: updates bar#bar2, autopropagates to foo#foo2
-      -- c. Bob:   updates foo#foo3
-      -- d. Alice updates: {bar#bar2}
-      -- e. Bob updates: {foo#foo3}
-      -- f. Bob dependents of Alice updates' names: {#foo3} -> {foo -> #foo3}
-      -- g. Alice dependents of Bob updates' names: {}      -> {}
-      -- h. What to typecheck: f union g = {#foo3}   or {foo -> #foo3}
-      -- i. Combined updates {bar#bar2, foo#foo3}
-      -- load #foo3, and encounter ref #bar
-
-      -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
-      -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
-      -- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
-      --  -- ^it may also be an updated definition itself
-      -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
-      -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
-      substForDecl :: forall v a. (Var v, Monoid a) => RefToName -> (Name -> Bool) -> Map Name TypeReference -> V1.Decl v a -> V1.Decl v a
-      substForDecl Defns {types = ppe} declNeedsUpdate updatedTypes decl =
-        V1.Decl.modifyAsDataDecl updateDecl decl
+      substituteDecl :: forall v a. (Var v, Monoid a) => V1.Decl v a -> V1.Decl v a
+      substituteDecl =
+        over (V1.Decl.dataDecl_ . V1.Decl.constructors_ . mapped . _3) substituteConstructor
         where
-          updateDecl decl = decl {V1.Decl.constructors' = map (over _3 updateCtorDependencies) $ V1.Decl.constructors' decl}
-          updateCtorDependencies ctor = foldl' updateType ctor $ V1.Type.dependencies ctor
-          updateType :: V1.Type v a -> Reference -> V1.Type v a
-          updateType typ ref = Maybe.rewrite (\typ -> new >>= \new -> ABT.rewriteExpression old new typ) typ
-            where
-              old :: V1.Type v a
-              old = Type.ref mempty ref
-              -- A "dependent" is gonna be part of the typechecking, so it gets replaced with a var.
-              -- An update that isn't also a dependent just gets replaced with the latest ref.
-              -- A ref that corresponds to neither doesn't need to be replaced.
-              new :: Maybe (V1.Type v a)
-              new = do
-                name <- Map.lookup ref ppe
-                case (declNeedsUpdate name, Map.lookup name updatedTypes) of
-                  -- for sure, not definition whose id triggers the `var` case
-                  -- will end up in the scratch file, but some same-named definition will.
-                  (True, _) -> Just $ Type.var mempty (Name.toVar name)
-                  (False, Just u) -> Just $ Type.ref mempty u
-                  (False, Nothing) -> Nothing
+          substituteConstructor :: V1.Type v a -> V1.Type v a
+          substituteConstructor ctor =
+            foldl' substituteType ctor (V1.Type.dependencies ctor)
 
-      -- \| Perform substutitions on decl constructor types for all the direct and indirect updates
-      -- `ppe` we use to look up names for dependencies that will go into the new decl for checking. dependencies of decls can only be decls
-      -- `declNeedsUpdate name` iff `name` is a dependent of one of the updated definitions.
-      --  -- ^it may also be an updated definition itself
-      -- `updates` are the latest versions of updated  definitions. We use the latest version from here if it's not a dependent of any other updates.
-      -- Precondition: decl's constructor names are properly located from the namespace (WhateverDecl.WhateverTerm, because we will want those names in the output constructor)
-      substForDecl2 ::
-        forall v a.
-        (Var v, Monoid a) =>
-        RefToName ->
-        (Name -> Bool) ->
-        Map Name TypeReference ->
-        V1.Decl v a ->
-        V1.Decl v a
-      substForDecl2 Defns {types = ppe} declNeedsUpdate updatedTypes =
-        over V1.Decl.dataDecl_ updateDecl
-        where
-          updateDecl = over (V1.Decl.constructors_ . mapped . _3) updateCtorDependencies
-          updateCtorDependencies ctor = foldl' updateType ctor $ V1.Type.dependencies ctor
-          updateType :: V1.Type v a -> Reference -> V1.Type v a
-          updateType typ ref =
+          substituteType :: V1.Type v a -> TypeReference -> V1.Type v a
+          substituteType typ ref =
             fromMaybe typ do
               new <-
-                case (dependentTypeName ref, False) of
-                  (Just name, _) -> Just (Type.var mempty name)
-              -- name <- Map.lookup ref ppe
-              -- case (declNeedsUpdate name, Map.lookup name updatedTypes) of
-              --   -- for sure, not definition whose id triggers the `var` case
-              --   -- will end up in the scratch file, but some same-named definition will.
-              --   (True, _) -> Just $ Type.var mempty (Name.toVar name)
-              --   (False, Just u) -> Just $ Type.ref mempty u
-              --   (False, Nothing) -> Nothing
+                asum
+                  [ Type.var mempty <$> dependentTypeName ref,
+                    Type.ref mempty <$> Map.lookup ref (unconflictedUpdates ^. #types)
+                  ]
               ABT.rewriteExpression (Type.ref mempty ref) new typ
             where
               dependentTypeName :: Reference -> Maybe v
               dependentTypeName = \case
                 ReferenceBuiltin _ -> Nothing
                 ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #types)
-
-              -- A "dependent" is gonna be part of the typechecking, so it gets replaced with a var.
-              -- An update that isn't also a dependent just gets replaced with the latest ref.
-              -- A ref that corresponds to neither doesn't need to be replaced.
-              maybeNew :: Maybe (V1.Type v a)
-              maybeNew = do
-                name <- Map.lookup ref ppe
-                case (declNeedsUpdate name, Map.lookup name updatedTypes) of
-                  -- for sure, not definition whose id triggers the `var` case
-                  -- will end up in the scratch file, but some same-named definition will.
-                  (True, _) -> Just $ Type.var mempty (Name.toVar name)
-                  (False, Just u) -> Just $ Type.ref mempty u
-                  (False, Nothing) -> Nothing
 
       -- give unique name to each type and term in dependents
       namedDependents :: Defns (Bimap v TermReferenceId) (Bimap v TypeReferenceId)
