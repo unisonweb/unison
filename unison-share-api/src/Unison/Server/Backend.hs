@@ -13,6 +13,7 @@ module Unison.Server.Backend
     BackendError (..),
     Backend (..),
     ShallowListEntry (..),
+    listEntryName,
     BackendEnv (..),
     TermEntry (..),
     TypeEntry (..),
