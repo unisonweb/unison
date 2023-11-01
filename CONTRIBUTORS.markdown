@@ -78,3 +78,4 @@ The format for this list: name, GitHub handle
 * Hatim Khambati (@hatimkhambati26)
 * Kyle Goetz (@kylegoetz)
 * Ethan Morgan (@sixfourtwelve)
+* Johan Winther (@JohanWinther)
