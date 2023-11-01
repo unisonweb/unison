@@ -17,12 +17,13 @@ import Control.Lens (Lens', (%%~))
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
 import Data.Functor.Identity
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as Set
 import Unison.KindInference.Constraint.Solved (Constraint (..))
 import Unison.KindInference.Generate.Monad (Gen (..))
 import Unison.KindInference.Generate.Monad qualified as Gen
-import Unison.KindInference.UVar (UVar(..))
+import Unison.KindInference.UVar (UVar (..))
 import Unison.PatternMatchCoverage.UFMap qualified as U
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -38,7 +39,7 @@ data SolveState v loc = SolveState
   { unifVars :: !(Set Symbol),
     newUnifVars :: [UVar v loc],
     constraints :: !(U.UFMap (UVar v loc) (Descriptor v loc)),
-    typeMap :: !(Map (T.Type v loc) (UVar v loc))
+    typeMap :: !(Map (T.Type v loc) (NonEmpty (UVar v loc)))
   }
 
 data Descriptor v loc = Descriptor
@@ -81,7 +82,7 @@ runGen gena = do
   let ((cs, vs), st') = st & genStateL %%~ Gen.run gena'
   M.put st'
   traverse_ addUnconstrainedVar vs
-  M.modify \st -> st { newUnifVars = vs ++ newUnifVars st }
+  M.modify \st -> st {newUnifVars = vs ++ newUnifVars st}
   pure cs
 
 addUnconstrainedVar :: Var v => UVar v loc -> Solve v loc ()
@@ -110,4 +111,3 @@ find k = do
       M.put st {constraints = constraints'}
       pure descriptorConstraint
     Nothing -> error "find: Nothing"
-
