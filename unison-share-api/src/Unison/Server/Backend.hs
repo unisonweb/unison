@@ -87,6 +87,7 @@ module Unison.Server.Backend
     mkTermDefinition,
     mkTypeDefinition,
     displayTerm,
+    formatTypeName,
   )
 where
 
