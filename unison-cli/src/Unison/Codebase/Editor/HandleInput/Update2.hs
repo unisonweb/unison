@@ -3,6 +3,8 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
+import Control.Lens ((^.))
+import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -12,12 +14,15 @@ import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Codebase qualified as Codebase
 import Unison.Name (Name)
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.Util.Relation qualified as Relation
 
 data Defns terms types = Defns
   { terms :: !terms,
@@ -58,9 +63,13 @@ typecheckBigUf = wundefined
 saveTuf :: TypecheckedUnisonFile v a -> Cli a0
 saveTuf = wundefined
 
--- arya
-getExistingReferencesNamed :: Defns (Set Name) (Set Name) -> Names -> Cli (Set Reference)
-getExistingReferencesNamed = wundefined
+-- | get references from `names` that have the same names as in `defns`
+-- For constructors, we get the type reference.
+getExistingReferencesNamed :: Defns (Set Name) (Set Name) -> Names -> Set Reference
+getExistingReferencesNamed defns names = fromTerms <> fromTypes
+  where
+    fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
+    fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
 -- mitchell
 buildBigUnisonFile :: TypecheckedUnisonFile Symbol Ann -> Map Reference.Id Reference.ReferenceType -> Names -> Cli a0
