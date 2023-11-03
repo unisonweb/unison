@@ -166,6 +166,7 @@ handleUpdate2 description input _requestedNames = do
           wundefined
         Just tuf -> do
           -- typechecking succeeded
+          persistTuf codebase tuf
           wundefined
 
       pure ()
@@ -250,3 +251,11 @@ computeUnisonFile ::
   Merge2.TwoWay (Defns (Map Name (Merge2.DiffOp Hash)) (Map Name (Merge2.DiffOp Hash))) ->
   Transaction (UnisonFile Symbol Ann)
 computeUnisonFile = wundefined
+
+persistTuf ::
+  Codebase.Codebase IO Symbol Ann ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Transaction ()
+persistTuf codebase tuf = do
+  Codebase.addDefsToCodebase codebase tuf
+  -- need to update branch and sync root
