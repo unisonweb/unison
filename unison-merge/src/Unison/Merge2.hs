@@ -652,6 +652,7 @@ replaceTypeReference unconflictedUpdates namedDependents old = do
       ReferenceBuiltin _ -> Nothing
       ReferenceDerived rid -> Bimap.lookupR rid namedDependents
 
+-- TODO update links after type checking
 substituteTerm ::
   forall v a.
   (Var v, Eq a, Monoid a) =>
@@ -664,55 +665,60 @@ substituteTerm ::
   V1.Term v a ->
   V1.Term v a
 substituteTerm unconflictedUpdates namedDependents Defns {terms = ppeTerms, types = ppeTypes} termNeedsUpdate updatedTypes updatedTerms term =
-  let RefsToSubst {rtsDataCtors, rtsEffectCtors, rtsTermRefs, rtsTermLinks, rtsTypeAnnRefs, rtsTypeLinks} =
+  let RefsToSubst {rtsDataCtors, rtsDataPatterns, rtsEffectCtors, rtsEffectPatterns, rtsTermRefs, rtsTypeAnnRefs} =
         V1.Term.generalizedDependencies
           V1.Term.GdHandler
-            { gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
-              gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r},
-              gdLiteralType = const mempty,
-              gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
-              gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
-              gdTermLink = const mempty,
-              gdTypeLink = \r -> mempty {rtsTypeLinks = Set.singleton r},
-              gdLiteralPattern = const mempty,
+            { gdDataCtor = \r i -> mempty {rtsDataCtors = Set.singleton (V1.ConstructorReference r i)},
               gdDataPattern = \r i -> mempty {rtsDataPatterns = Set.singleton (V1.ConstructorReference r i)},
-              gdEffectPattern = \r i -> mempty {rtsEffectPatterns = Set.singleton (V1.ConstructorReference r i)}
+              gdEffectCtor = \r i -> mempty {rtsEffectCtors = Set.singleton (V1.ConstructorReference r i)},
+              gdEffectPattern = \r i -> mempty {rtsEffectPatterns = Set.singleton (V1.ConstructorReference r i)},
+              gdLiteralPattern = const mempty,
+              gdLiteralType = const mempty,
+              gdTermLink = const mempty,
+              gdTermRef = \r -> mempty {rtsTermRefs = Set.singleton r},
+              gdTypeLink = const mempty,
+              gdTypeRef = \r -> mempty {rtsTypeAnnRefs = Set.singleton r}
             }
           term
    in appEndo
         ( fold
-            [ foldMap (Endo . substituteTermReference) rtsTermRefs,
+            [ foldMap (Endo . substituteDataConstructorReferenceInApplication) rtsDataCtors,
+              foldMap (Endo . substituteTermReference) rtsTermRefs,
               foldMap (Endo . updatePatterns) (Set.map (,CT.Data) rtsDataCtors <> Set.map (,CT.Effect) rtsEffectCtors),
-              foldMap (Endo . substituteTypeReferenceInSignature) rtsTypeAnnRefs,
-              foldMap (Endo . updateTypeLinks) rtsTypeLinks,
-              foldMap (Endo . updateTermLinks) rtsTermLinks
+              foldMap (Endo . substituteTypeReferenceInSignature) rtsTypeAnnRefs
             ]
         )
         term
   where
+    substituteDataConstructorReferenceInApplication :: ConstructorReference -> V1.Term v a -> V1.Term v a
+    substituteDataConstructorReferenceInApplication old term =
+      fromMaybe term do
+        new <-
+          asum
+            [ V1.Term.var mempty <$> dependentTermName old,
+              V1.Term.fromReferent mempty <$> Map.lookup (V1.Referent.Ref old) (unconflictedUpdates ^. #terms)
+            ]
+        ABT.rewriteExpression (V1.Term.ref mempty old) new term
+      where
+        dependentTermName :: TermReference -> Maybe v
+        dependentTermName = \case
+          ReferenceBuiltin _ -> Nothing
+          ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #terms)
+
     updatePatterns :: (ConstructorReference, ConstructorType) -> V1.Term v a -> V1.Term v a
     updatePatterns (cr@(ConstructorReference typeRef conId), ct) term =
-      Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
-      where
-        old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
-        new :: Maybe (V1.Term v a)
-        new = do
-          name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
-          case (termNeedsUpdate name, Map.lookup name updatedTerms) of
-            (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
-            (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
-            (False, Just r@V1.Referent.Con {}) -> Just $ V1.Term.fromReferent mempty r
-            (False, Nothing) -> Nothing
-
-    updateTypeLinks :: TypeReference -> V1.Term v a -> V1.Term v a
-    updateTypeLinks ref term = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
-      where
-        old = V1.Term.typeLink mempty ref
-        new = do
-          name <- Map.lookup ref ppeTypes
-          case Map.lookup name updatedTypes of
-            Just u -> Just $ V1.Term.typeLink mempty u
-            Nothing -> Nothing
+      -- Maybe.rewrite (\term -> new >>= \new -> V1.Term.rewriteCasesLHS old new term) term
+      -- old = V1.Term.fromReferent mempty (V1.Referent.Con cr ct)
+      -- new :: Maybe (V1.Term v a)
+      -- new = do
+      --   name <- Map.lookup (Referent.Con typeRef conId) ppeTerms
+      --   case (termNeedsUpdate name, Map.lookup name updatedTerms) of
+      --     (True, _) -> Nothing -- a pattern was deleted and replaced with a term dependent of another update. we can't do anything great here, and a warning would be nice
+      --     (False, Just V1.Referent.Ref {}) -> Nothing -- a pattern was deleted and replaced with a new term. a warning about this would be nice
+      --     (False, Just r@V1.Referent.Con {}) -> Just $ V1.Term.fromReferent mempty r
+      --     (False, Nothing) -> Nothing
+      fromMaybe term do
+        undefined
 
     substituteTypeReferenceInSignature :: TypeReference -> V1.Term v a -> V1.Term v a
     substituteTypeReferenceInSignature old term =
@@ -734,17 +740,6 @@ substituteTerm unconflictedUpdates namedDependents Defns {terms = ppeTerms, type
         dependentTermName = \case
           ReferenceBuiltin _ -> Nothing
           ReferenceDerived rid -> Bimap.lookupR rid (namedDependents ^. #terms)
-
-    updateTermLinks :: V1.Referent -> V1.Term v a -> V1.Term v a
-    updateTermLinks ref term = Maybe.rewrite (\term -> new >>= \new -> ABT.rewriteExpression old new term) term
-      where
-        name :: Maybe Name = Map.lookup ref (error "substForTerm:updateTermLinks: unimplemented" ppeTerms)
-        old = V1.Term.termLink mempty ref
-        new =
-          name >>= \name -> case (termNeedsUpdate name, Map.lookup name updatedTerms) of
-            (True, _) -> error $ "substForTerm: We can't set up a var for the termLink " ++ show name
-            (_, Just u) -> Just $ V1.Term.termLink mempty u
-            (False, Nothing) -> Nothing
 
 data RefsToSubst = RefsToSubst
   { rtsTypeAnnRefs :: Set V1.TypeReference,
