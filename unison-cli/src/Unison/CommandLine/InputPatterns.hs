@@ -1553,6 +1553,20 @@ mergeLocal =
         _ -> Nothing
     )
 
+update2 :: InputPattern
+update2 =
+  InputPattern
+    { patternName = "update2",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap (makeExample update2 []),
+      parse =
+        maybeToEither (I.help update2) . \case
+          [] -> Just Input.Update2I
+          _ -> Nothing
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
@@ -2898,6 +2912,7 @@ validInputs =
       unlink,
       up,
       update,
+      update2,
       updateBuiltins,
       updateNoPatch,
       view,
