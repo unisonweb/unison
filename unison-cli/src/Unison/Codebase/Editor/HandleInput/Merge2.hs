@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     mergePreconditionViolationToOutput,
     assertNamespaceSatisfiesPreconditions,
     step,
+    mkTypecheckFnCli
   )
 where
 
