@@ -1,4 +1,4 @@
-module Unison.Codebase.Editor.HandleInput.Update
+module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
   )
 where
@@ -37,14 +37,15 @@ handleUpdate2 = do
   -- - construct new UF with dependents
   names :: Names <- NamesUtils.getBasicPrettyPrintNames
 
-  dependents :: Map Reference.Id ReferenceType <- Ops.dependentsWithinScope <$> namespaceReferences names <*> getExistingReferencesNamed termAndDeclNames names
-  bigUf <- buildBigUnisonFile tuf dependents names
+  -- dependents :: Map Reference.Id ReferenceType <- Ops.dependentsWithinScope <$> namespaceReferences names <*> getExistingReferencesNamed termAndDeclNames names
+  -- bigUf <- buildBigUnisonFile tuf dependents names
   -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-  ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
+  -- ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
   -- - typecheck it
-  typecheckBigUf bigUf >>= \case
-    Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf tuf
+  -- typecheckBigUf bigUf >>= \case
+  --   Left bigUfText -> prependTextToScratchFile bigUfText
+  --   Right tuf -> saveTuf tuf
+  wundefined
 
 -- travis
 prependTextToScratchFile :: Text -> Cli a0
