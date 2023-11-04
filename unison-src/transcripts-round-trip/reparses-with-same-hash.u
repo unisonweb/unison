@@ -468,3 +468,16 @@ structural type foo.Join =
   Table | Join Boolean | Values [Nat]
 
 fix_4352 = {{``+1``}}
+
+-- regression test to make sure we don't use soft hang between a `do` and `match`
+-- if there's imports that have been inserted there
+
+structural ability Ask a where 
+  ask : a 
+
+Decode.remainder : '{Ask (Optional Bytes)} Bytes
+Decode.remainder = do 
+  use Bytes ++
+  match ask with
+    None -> Bytes.empty
+    Some b -> b ++ !Decode.remainder

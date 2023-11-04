@@ -304,7 +304,7 @@ pretty0
       Delay' x
         | isLet x || p < 0 -> do
             let (im', uses) = calcImports im x
-            let hang = if isSoftHangable x then PP.softHang else PP.hang
+            let hang = if isSoftHangable x && null uses then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])

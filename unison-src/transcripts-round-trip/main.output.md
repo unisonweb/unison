@@ -32,6 +32,8 @@ So we can see the pretty-printed output:
   
     structural ability Abort where abort : {Abort} a
     
+    structural ability Ask a where ask : {Ask a} a
+    
     structural type Fix_2337
       = Fix_2337 Boolean Boolean
     
@@ -77,6 +79,13 @@ So we can see the pretty-printed output:
     
     catchAll : x -> Nat
     catchAll x = 99
+    
+    Decode.remainder : '{Ask (Optional Bytes)} Bytes
+    Decode.remainder = do
+      use Bytes ++
+      match ask with
+        None   -> Bytes.empty
+        Some b -> b ++ !Decode.remainder
     
     ex1 : Nat
     ex1 =
