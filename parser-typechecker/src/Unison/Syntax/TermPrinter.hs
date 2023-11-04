@@ -566,7 +566,6 @@ pretty0
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
-        Constructor' (ConstructorReference DD.UnitRef 0) -> False
         Constructor' (ConstructorReference DD.DocRef _) -> False
         _ -> True
 

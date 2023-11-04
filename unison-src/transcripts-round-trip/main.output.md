@@ -283,7 +283,7 @@ So we can see the pretty-printed output:
       ()
     
     fix_4258_example : ()
-    fix_4258_example = (fix_4258 1 ()) 2
+    fix_4258_example = fix_4258 1 () 2
     
     fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
     fix_4340 = 
@@ -305,7 +305,7 @@ So we can see the pretty-printed output:
     
     fix_525_exampleType :
       Id qualifiedName -> Id Fully.qualifiedName
-    fix_525_exampleType z = Id (!Dontcare 19)
+    fix_525_exampleType z = Id (Dontcare () 19)
     
     Foo.bar.qux1 : Nat
     Foo.bar.qux1 = 42
