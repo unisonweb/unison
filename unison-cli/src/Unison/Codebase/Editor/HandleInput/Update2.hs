@@ -71,7 +71,7 @@ handleUpdate2 = do
   bigUf :: UnisonFile Symbol Ann <- buildBigUnisonFile tuf dependents names
 
   -- - typecheck it
-  typecheckBigUf bigUf pped >>= \case
+  prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> prependTextToScratchFile bigUfText
     Right tuf -> saveTuf tuf
 
@@ -79,8 +79,8 @@ handleUpdate2 = do
 prependTextToScratchFile :: Text -> Cli a0
 prependTextToScratchFile textUf = wundefined
 
-typecheckBigUf :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
-typecheckBigUf bigUf pped = do
+prettyParseTypecheck :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
+prettyParseTypecheck bigUf pped = do
   typecheck <- mkTypecheckFnCli
   let prettyUf = Output.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
