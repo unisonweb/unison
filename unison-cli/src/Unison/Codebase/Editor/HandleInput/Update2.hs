@@ -13,6 +13,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Codebase qualified as Codebase
+import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -24,6 +25,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
+import Unison.Test.Common qualified as Typechecker
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -63,8 +65,12 @@ handleUpdate2 = do
 prependTextToScratchFile :: Text -> Cli a0
 prependTextToScratchFile bigUfText = wundefined
 
-typecheckBigUf :: UnisonFile v a -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile v a))
-typecheckBigUf bigUf pped = wundefined
+typecheckBigUf :: UnisonFile v a -> PrettyPrintEnvDecl -> Identity (Either Text (TypecheckedUnisonFile v a))
+typecheckBigUf bigUf pped = do
+  let prettyUf = Output.prettyUnisonFile pped bigUf
+  error "parseAndSynthesizeAsFile" [] "update" (P.toPlain 80 prettyUf)
+
+  wundefined
 
 -- save definitions and namespace
 saveTuf :: TypecheckedUnisonFile v a -> Cli a0
