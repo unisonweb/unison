@@ -481,3 +481,10 @@ Decode.remainder = do
   match ask with
     None -> Bytes.empty
     Some b -> b ++ !Decode.remainder
+
+unique type HandlerWebSocket x = HandlerWebSocket x
+
+-- socketRouteHandler : Nat ->{Abort} Text
+fix_4340 = HandlerWebSocket cases
+  1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+  _ -> abort
