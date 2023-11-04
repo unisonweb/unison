@@ -9,6 +9,7 @@ import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Cli.Monad (Cli)
+import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Codebase qualified as Codebase
@@ -18,6 +19,8 @@ import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
@@ -43,22 +46,25 @@ handleUpdate2 = do
   -- - construct new UF with dependents
   names :: Names <- NamesUtils.getBasicPrettyPrintNames
 
-  -- dependents :: Map Reference.Id ReferenceType <- Ops.dependentsWithinScope <$> namespaceReferences names <*> getExistingReferencesNamed termAndDeclNames names
-  -- bigUf <- buildBigUnisonFile tuf dependents names
-  -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-  -- ppe <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
+  (dependents, pped) <- Cli.runTransactionWithRollback \_abort -> do
+    dependents <- Ops.dependentsWithinScope (namespaceReferences names) (getExistingReferencesNamed termAndDeclNames names)
+    -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
+    pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
+    pure (dependents, pped)
+
+  bigUf <- buildBigUnisonFile tuf dependents names
+
   -- - typecheck it
-  -- typecheckBigUf bigUf >>= \case
-  --   Left bigUfText -> prependTextToScratchFile bigUfText
-  --   Right tuf -> saveTuf tuf
-  wundefined
+  typecheckBigUf bigUf pped >>= \case
+    Left bigUfText -> prependTextToScratchFile bigUfText
+    Right tuf -> saveTuf tuf
 
 -- travis
 prependTextToScratchFile :: Text -> Cli a0
 prependTextToScratchFile bigUfText = wundefined
 
-typecheckBigUf :: UnisonFile v a -> Cli (Either Text (TypecheckedUnisonFile v a))
-typecheckBigUf = wundefined
+typecheckBigUf :: UnisonFile v a -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile v a))
+typecheckBigUf bigUf pped = wundefined
 
 -- save definitions and namespace
 saveTuf :: TypecheckedUnisonFile v a -> Cli a0
