@@ -484,7 +484,12 @@ Decode.remainder = do
 
 structural type HandlerWebSocket x y z p q = HandlerWebSocket x
 
--- socketRouteHandler : Nat ->{Abort} Text
 fix_4340 = HandlerWebSocket cases
   1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
   _ -> abort
+
+fix_4258 x y z = 
+  _ = "fix_4258"
+  ()
+
+fix_4258_example = fix_4258 1 () 2

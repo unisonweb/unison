@@ -277,6 +277,14 @@ So we can see the pretty-printed output:
       Some x -> x
       None   -> bug "oops"
     
+    fix_4258 : x -> y -> z -> ()
+    fix_4258 x y z =
+      _ = "fix_4258"
+      ()
+    
+    fix_4258_example : ()
+    fix_4258_example = (fix_4258 1 ()) 2
+    
     fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
     fix_4340 = 
       HandlerWebSocket cases
@@ -339,8 +347,9 @@ So we can see the pretty-printed output:
     longlines1 =
       do
         longlines
-          !(longlines_helper
-             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+          (longlines_helper
+            "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break"
+            ())
     
     longlines2 : (Text, '{g} Bytes)
     longlines2 =
