@@ -138,9 +138,10 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
   pure maybeTypecheckedUnisonFile
 
 -- save definitions and namespace
-saveTuf :: TypecheckedUnisonFile v a -> Cli a0
+saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli a0
 saveTuf tuf = do
-  wundefined "todo: save definitions"
+  Cli.Env {codebase} <- ask
+  Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
   wundefined "todo: build and cons namespace"
 
 -- | get references from `names` that have the same names as in `defns`
