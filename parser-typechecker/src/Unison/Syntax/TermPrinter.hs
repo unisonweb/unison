@@ -228,7 +228,7 @@ pretty0
         tm' <- pretty0 (ac 10 Normal im doc) tm
         tp' <- TypePrinter.pretty0 im 0 t
         pure . paren (p >= 0) $ tm' <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
-      Int' i -> pure . fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
+      Int' i -> pure . fmt S.NumericLiteral . l $ (if i >= 0 then ("+" ++ show i) else (show i))
       Nat' u -> pure . fmt S.NumericLiteral . l $ show u
       Float' f -> pure . fmt S.NumericLiteral . l $ show f
       -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse

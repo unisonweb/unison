@@ -265,6 +265,9 @@ So we can see the pretty-printed output:
       Some x -> x
       None   -> bug "oops"
     
+    fix_4352 : Doc2
+    fix_4352 = {{ `` +1 `` }}
+    
     Fix_525.bar.quaffle : Nat
     Fix_525.bar.quaffle = 32
     

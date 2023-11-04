@@ -466,3 +466,5 @@ test3 = do
 -- this would previously get printed as `Join.Join`
 structural type foo.Join =
   Table | Join Boolean | Values [Nat]
+
+fix_4352 = {{``+1``}}
