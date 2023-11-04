@@ -81,8 +81,9 @@ handleUpdate2 = do
     Right tuf -> saveTuf tuf
 
 -- travis
-prependTextToScratchFile :: Text -> Cli a0
-prependTextToScratchFile textUf = wundefined
+prependTextToScratchFile :: Text -> Cli ()
+prependTextToScratchFile textUf = do
+  liftIO $ putStrLn (Text.unpack textUf)
 
 prettyParseTypecheck :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
 prettyParseTypecheck bigUf pped = do
