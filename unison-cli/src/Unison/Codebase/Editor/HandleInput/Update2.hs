@@ -4,7 +4,9 @@ module Unison.Codebase.Editor.HandleInput.Update2
 where
 
 import Control.Lens ((^.))
+import Control.Monad.RWS (ask)
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -12,23 +14,35 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as NamesUtils
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.Output (Output (ParseErrors))
+import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.OutputMessages qualified as Output
+import Unison.FileParsers qualified as FileParsers
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Server.Backend qualified as Backend
+import Unison.Sqlite (Transaction)
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Test.Common qualified as Typechecker
+import Unison.Syntax.Parser qualified as Parser
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Var (Var)
 
 data Defns terms types = Defns
   { terms :: !terms,
@@ -54,7 +68,7 @@ handleUpdate2 = do
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
     pure (dependents, pped)
 
-  bigUf <- buildBigUnisonFile tuf dependents names
+  bigUf :: UnisonFile Symbol Ann <- buildBigUnisonFile tuf dependents names
 
   -- - typecheck it
   typecheckBigUf bigUf pped >>= \case
@@ -63,18 +77,65 @@ handleUpdate2 = do
 
 -- travis
 prependTextToScratchFile :: Text -> Cli a0
-prependTextToScratchFile bigUfText = wundefined
+prependTextToScratchFile textUf = wundefined
 
-typecheckBigUf :: UnisonFile v a -> PrettyPrintEnvDecl -> Identity (Either Text (TypecheckedUnisonFile v a))
+typecheckBigUf :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
 typecheckBigUf bigUf pped = do
+  typecheck <- mkTypecheckFnCli
   let prettyUf = Output.prettyUnisonFile pped bigUf
-  error "parseAndSynthesizeAsFile" [] "update" (P.toPlain 80 prettyUf)
+  let stringUf = Pretty.toPlain 80 prettyUf
+  rootBranch <- Cli.getRootBranch
+  currentPath <- Cli.getCurrentPath
+  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+  Cli.Env {generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names = parseNames
+          }
+  Cli.runTransaction do
+    Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
+      Left {} -> pure $ Left (Text.pack stringUf)
+      Right reparsedUf ->
+        typecheck reparsedUf <&> \case
+          Just reparsedTuf -> Right reparsedTuf
+          Nothing -> Left (Text.pack stringUf)
 
-  wundefined
+mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
+mkTypecheckFnCli = do
+  Cli.Env {codebase, generateUniqueName} <- ask
+  rootBranch <- Cli.getRootBranch
+  currentPath <- Cli.getCurrentPath
+  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+  pure (mkTypecheckFn codebase generateUniqueName currentPath parseNames)
+
+mkTypecheckFn ::
+  Codebase.Codebase IO Symbol Ann ->
+  IO Parser.UniqueName ->
+  Path.Absolute ->
+  NamesWithHistory.NamesWithHistory ->
+  UnisonFile Symbol Ann ->
+  Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
+mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
+  uniqueName <- Sqlite.unsafeIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names = parseNames
+          }
+  typecheckingEnv <-
+    computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+  let Result.Result _notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+  pure maybeTypecheckedUnisonFile
 
 -- save definitions and namespace
 saveTuf :: TypecheckedUnisonFile v a -> Cli a0
-saveTuf = wundefined
+saveTuf tuf = do
+  wundefined "todo: save definitions"
+  wundefined "todo: build and cons namespace"
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
@@ -93,9 +154,6 @@ namespaceReferences names = fromTerms <> fromTypes
   where
     fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran $ Names.terms names)
     fromTypes = Set.mapMaybe Reference.toId (Relation.ran $ Names.types names)
-
-getExistingReferences :: Defns (Set Name) (Set Name) -> Cli (Set Reference)
-getExistingReferences = wundefined
 
 getTermAndDeclNames :: TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
 getTermAndDeclNames = wundefined
