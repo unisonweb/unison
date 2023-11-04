@@ -154,7 +154,7 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
 
 -- mitchell
 buildBigUnisonFile :: TypecheckedUnisonFile Symbol Ann -> Map Reference.Id Reference.ReferenceType -> Names -> Cli a0
-buildBigUnisonFile = wundefined
+buildBigUnisonFile tuf dependents names = wundefined
 
 namespaceReferences :: Names -> Set Reference.Id
 namespaceReferences names = fromTerms <> fromTypes
