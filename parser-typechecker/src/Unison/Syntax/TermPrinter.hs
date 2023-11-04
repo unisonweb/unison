@@ -460,8 +460,6 @@ pretty0
                             <> [lhs, arr]
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
-              -- (Apps' f@(Constructor' _) args, _) ->
-                -- paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
