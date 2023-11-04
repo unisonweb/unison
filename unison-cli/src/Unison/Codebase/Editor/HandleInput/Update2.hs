@@ -23,6 +23,7 @@ import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 
 data Defns terms types = Defns
   { terms :: !terms,
@@ -75,8 +76,11 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
 buildBigUnisonFile :: TypecheckedUnisonFile Symbol Ann -> Map Reference.Id Reference.ReferenceType -> Names -> Cli a0
 buildBigUnisonFile = wundefined
 
-namespaceReferences :: Names -> Cli (Set Reference.Id)
-namespaceReferences = wundefined
+namespaceReferences :: Names -> Set Reference.Id
+namespaceReferences names = fromTerms <> fromTypes
+  where
+    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran $ Names.terms names)
+    fromTypes = Set.mapMaybe Reference.toId (Relation.ran $ Names.types names)
 
 getExistingReferences :: Defns (Set Name) (Set Name) -> Cli (Set Reference)
 getExistingReferences = wundefined
