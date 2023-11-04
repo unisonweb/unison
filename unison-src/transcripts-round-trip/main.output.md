@@ -50,7 +50,7 @@ So we can see the pretty-printed output:
     structural type Fully.qualifiedName
       = Dontcare () Nat
     
-    unique type HandlerWebSocket x
+    structural type HandlerWebSocket x y z p q
       = HandlerWebSocket x
     
     structural type Id a
@@ -277,13 +277,12 @@ So we can see the pretty-printed output:
       Some x -> x
       None   -> bug "oops"
     
-    fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text)
+    fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
     fix_4340 = 
-      HandlerWebSocket
-        (cases
-          1 ->
-            "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
-          _ -> abort)
+      HandlerWebSocket cases
+        1 ->
+          "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+        _ -> abort
     
     fix_4352 : Doc2
     fix_4352 = {{ `` +1 `` }}
@@ -298,7 +297,7 @@ So we can see the pretty-printed output:
     
     fix_525_exampleType :
       Id qualifiedName -> Id Fully.qualifiedName
-    fix_525_exampleType z = Id (Dontcare () 19)
+    fix_525_exampleType z = Id (!Dontcare 19)
     
     Foo.bar.qux1 : Nat
     Foo.bar.qux1 = 42
@@ -629,19 +628,74 @@ So we can see the pretty-printed output:
   definitions currently in this namespace.
 
 ```
+This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
+
 ```ucm
-.a2> load /private/tmp/roundtrip.u
+.> diff.namespace a1 a2
+
+  The namespaces are identical.
+
+```
+Now check that definitions in 'reparses.u' at least parse on round trip:
+
+This just makes 'roundtrip.u' the latest scratch file.
+
+```unison
+---
+title: /private/tmp/roundtrip.u
+---
+x = ()
+
 ```
 
 
-🛑
+```ucm
+.a3> edit 1-5000
 
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  offset=1360:
-  unexpected (
-  expecting newline or semicolon
-    246 |   (cases
+  ☝️
   
+  I added these definitions to the top of
+  /private/tmp/roundtrip.u
+  
+    explanationOfThisFile : Text
+    explanationOfThisFile =
+      """
+      Put definitions in here that are expected to
+      parse with a different hash after pretty-printing.
+      """
+    
+    sloppyDocEval : Doc2
+    sloppyDocEval =
+      use Nat +
+      {{
+      Here's an example of an eval block that's technically a
+      lambda but should print as a backticked block (since old
+      docs in the wild still use this format).
+      
+      ```
+      1 + 1
+      ```
+      }}
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+```
+These are currently all expected to have different hashes on round trip.
+
+```ucm
+.> diff.namespace a3 a3_old
+
+  Updates:
+  
+    1. sloppyDocEval : Doc2
+       ↓
+    2. sloppyDocEval : Doc2
+
+```
+## Other regression tests not covered by above
+
+### Comment out builtins in the edit command
+
+Regression test for https://github.com/unisonweb/unison/pull/3548
 

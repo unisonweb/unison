@@ -482,7 +482,7 @@ Decode.remainder = do
     None -> Bytes.empty
     Some b -> b ++ !Decode.remainder
 
-unique type HandlerWebSocket x = HandlerWebSocket x
+structural type HandlerWebSocket x y z p q = HandlerWebSocket x
 
 -- socketRouteHandler : Nat ->{Abort} Text
 fix_4340 = HandlerWebSocket cases
