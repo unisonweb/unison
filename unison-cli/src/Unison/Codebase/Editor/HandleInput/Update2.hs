@@ -5,6 +5,8 @@ where
 
 import Control.Lens ((^.))
 import Control.Monad.RWS (ask)
+import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Reference (Reference, ReferenceType)
@@ -20,6 +22,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output (Output (ParseErrors))
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.OutputMessages qualified as Output
+import Unison.DataDeclaration qualified as Decl
 import Unison.FileParsers qualified as FileParsers
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -37,8 +40,10 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -155,8 +160,16 @@ namespaceReferences names = fromTerms <> fromTypes
     fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran $ Names.terms names)
     fromTypes = Set.mapMaybe Reference.toId (Relation.ran $ Names.types names)
 
-getTermAndDeclNames :: TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
-getTermAndDeclNames = wundefined
+getTermAndDeclNames :: Var v => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
+getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
+  where
+    terms = keysToNames $ UF.hashTermsId tuf
+    effects = keysToNames $ UF.effectDeclarationsId' tuf
+    datas = keysToNames $ UF.dataDeclarationsId' tuf
+    effectCtors = foldMap ctorsToNames $ fmap (Decl.toDataDecl . snd) $ UF.effectDeclarationsId' tuf
+    dataCtors = foldMap ctorsToNames $ fmap snd $ UF.dataDeclarationsId' tuf
+    keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
+    ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
 
 -- namespace:
 -- type Foo = Bar Nat
