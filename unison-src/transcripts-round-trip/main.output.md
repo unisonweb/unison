@@ -32,6 +32,8 @@ So we can see the pretty-printed output:
   
     structural ability Abort where abort : {Abort} a
     
+    structural ability Ask a where ask : {Ask a} a
+    
     structural type Fix_2337
       = Fix_2337 Boolean Boolean
     
@@ -47,6 +49,9 @@ So we can see the pretty-printed output:
     
     structural type Fully.qualifiedName
       = Dontcare () Nat
+    
+    structural type HandlerWebSocket x y z p q
+      = HandlerWebSocket x
     
     structural type Id a
       = Id a
@@ -77,6 +82,13 @@ So we can see the pretty-printed output:
     
     catchAll : x -> Nat
     catchAll x = 99
+    
+    Decode.remainder : '{Ask (Optional Bytes)} Bytes
+    Decode.remainder = do
+      use Bytes ++
+      match ask with
+        None   -> Bytes.empty
+        Some b -> b ++ !Decode.remainder
     
     ex1 : Nat
     ex1 =
@@ -265,6 +277,24 @@ So we can see the pretty-printed output:
       Some x -> x
       None   -> bug "oops"
     
+    fix_4258 : x -> y -> z -> ()
+    fix_4258 x y z =
+      _ = "fix_4258"
+      ()
+    
+    fix_4258_example : ()
+    fix_4258_example = fix_4258 1 () 2
+    
+    fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
+    fix_4340 = 
+      HandlerWebSocket cases
+        1 ->
+          "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+        _ -> abort
+    
+    fix_4352 : Doc2
+    fix_4352 = {{ `` +1 `` }}
+    
     Fix_525.bar.quaffle : Nat
     Fix_525.bar.quaffle = 32
     
@@ -317,8 +347,9 @@ So we can see the pretty-printed output:
     longlines1 =
       do
         longlines
-          !(longlines_helper
-             "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+          (longlines_helper
+            "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break"
+            ())
     
     longlines2 : (Text, '{g} Bytes)
     longlines2 =

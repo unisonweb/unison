@@ -228,7 +228,7 @@ pretty0
         tm' <- pretty0 (ac 10 Normal im doc) tm
         tp' <- TypePrinter.pretty0 im 0 t
         pure . paren (p >= 0) $ tm' <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
-      Int' i -> pure . fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
+      Int' i -> pure . fmt S.NumericLiteral . l $ (if i >= 0 then ("+" ++ show i) else (show i))
       Nat' u -> pure . fmt S.NumericLiteral . l $ show u
       Float' f -> pure . fmt S.NumericLiteral . l $ show f
       -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
@@ -297,14 +297,10 @@ pretty0
                     <> fmt S.ControlKeyword "with"
                     `hangHandler` ph
                 ]
-      App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
-        px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
-        pure . paren (p >= 11 || isBlock x && p >= 3) $
-          fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
       Delay' x
         | isLet x || p < 0 -> do
             let (im', uses) = calcImports im x
-            let hang = if isSoftHangable x then PP.softHang else PP.hang
+            let hang = if isSoftHangable x && null uses then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])
@@ -399,6 +395,7 @@ pretty0
                     fmt S.ControlKeyword " with" `PP.hang` pbs
                   ]
               else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
+      Apps' f args -> paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
       t -> pure $ l "error: " <> l (show t)
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
@@ -460,8 +457,6 @@ pretty0
                             <> [lhs, arr]
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
-              (Apps' f@(Constructor' _) args, _) ->
-                paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
@@ -491,28 +486,23 @@ pretty0
                     y = thing2
                     ...)
               -}
-              (Apps' f (unsnoc -> Just (args, lastArg)), _) | isSoftHangable lastArg -> do
-                fun <- goNormal 9 f
-                args' <- traverse (goNormal 10) args
-                lastArg' <- goNormal 0 lastArg
-                let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
-                pure . paren (p >= 3) $
-                  PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
+              (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
+                px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
+                pure . paren (p >= 11 || isBlock x && p >= 3) $ 
+                  fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
+              (Apps' f (unsnoc -> Just (args, lastArg)), _)
+                | isSoftHangable lastArg -> do
+                  fun <- goNormal 9 f
+                  args' <- traverse (goNormal 10) args
+                  lastArg' <- goNormal 0 lastArg
+                  let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
+                  pure . paren (p >= 3) $
+                    PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Ands' xs lastArg, _) ->
-                -- Old code, without monadic booleanOps:
-                -- paren (p >= 10)
-                --   . booleanOps (fmt S.ControlKeyword "&&") xs
-                --   <$> pretty0 (ac 10 Normal im doc) lastArg
-                -- New code, where booleanOps is monadic like pretty0:
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
               (Ors' xs lastArg, _) ->
-                -- Old code:
-                -- paren (p >= 10)
-                --   . booleanOps (fmt S.ControlKeyword "||") xs
-                --   <$> pretty0 (ac 10 Normal im doc) lastArg
-                -- New code:
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "||") xs lastArg'
@@ -576,7 +566,6 @@ pretty0
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
-        Constructor' (ConstructorReference DD.UnitRef 0) -> False
         Constructor' (ConstructorReference DD.DocRef _) -> False
         _ -> True
 
@@ -2154,3 +2143,10 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
       | Set.member suffixedName used = (fullName, fullName)
     tweak _ p = p
     varToName v = toList (Name.fromText (Var.name v))
+
+isLeaf :: Term2 vt at ap v a -> Bool
+isLeaf (Var' {}) = True
+isLeaf (Constructor' {}) = True
+isLeaf (Request' {}) = True
+isLeaf (Ref' {}) = True
+isLeaf _ = False
