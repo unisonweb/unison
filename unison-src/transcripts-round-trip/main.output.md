@@ -598,6 +598,24 @@ So we can see the pretty-printed output:
             _ -> 2
       go (SomethingUnusuallyLong "one" "two" "three")
     
+    stew_issue : ()
+    stew_issue =
+      error x = ()
+      a ++ b = 0
+      toText a = a
+      Debug : a -> b -> ()
+      Debug a b = ()
+      error (Debug None '(Debug "Failed " 42))
+    
+    stew_issue2 : ()
+    stew_issue2 =
+      error x = ()
+      a ++ b = 0
+      toText a = a
+      Debug : a -> b -> ()
+      Debug a b = ()
+      error (Debug None '("Failed " ++ toText 42))
+    
     test3 : '('('r))
     test3 = do
       run : Nat -> a
