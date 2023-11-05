@@ -616,6 +616,19 @@ So we can see the pretty-printed output:
       Debug a b = ()
       error (Debug None '("Failed " ++ toText 42))
     
+    stew_issue3 : ()
+    stew_issue3 =
+      id x = x
+      error x = ()
+      a ++ b = 0
+      blah x y = 99
+      toText a = a
+      configPath = 0
+      Debug a b = ()
+      error
+        (Debug None '("Failed to get timestamp of config file "
+            ++ toText configPath))
+    
     test3 : '('('r))
     test3 = do
       run : Nat -> a
