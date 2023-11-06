@@ -151,6 +151,7 @@
     builtin-Universal.<=:termlink
     builtin-Universal.compare
     builtin-Universal.compare:termlink
+    builtin-Universal.murmurHash:termlink
 
     builtin-List.splitLeft
     builtin-List.splitLeft:termlink
@@ -706,6 +707,7 @@
   (define-builtin-link Universal.>=)
   (define-builtin-link Universal.<=)
   (define-builtin-link Universal.compare)
+  (define-builtin-link Universal.murmurHash)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
 
@@ -721,7 +723,7 @@
     (define-unison (builtin-TermLink.toReferent tl)
       (termlink->referent tl))
     (define-unison (builtin-murmurHashBytes bs)
-      (murmurhash-bytes bs))
+      (murmurhash-bytes (chunked-bytes->bytes bs)))
 
     (define-unison (builtin-IO.randomBytes n)
       (bytes->chunked-bytes (crypto-random-bytes n)))
