@@ -19,6 +19,7 @@ import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output (Output (ParseErrors))
@@ -147,21 +148,20 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
 saveTuf :: (Name -> [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
+  currentPath <- Cli.getCurrentPath
   Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
-  -- need to add the tuf contents to the current namespace
-  -- types and term refs just overwrite; ctors of replaced decls go away
-  --
-  wundefined "todo: build and cons namespace"
+  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates (declUpdates ++ termUpdates))
   where
-    -- \| for each decl in the tuf, delete the constructors of whatever decl currently has that name in the branch.
-    deleteReplacedDeclCtors tuf branch0 = wundefined
-
-    zonkNewDecls :: forall m. Branch0 m -> TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
-    zonkNewDecls branch0 tuf = do
-      foldMap bonkData (Map.toList $ UF.dataDeclarationsId' tuf)
-        ++ foldMap bonkEffect (Map.toList $ UF.effectDeclarationsId' tuf)
+    declUpdates :: [(Path, Branch0 m -> Branch0 m)]
+    declUpdates =
+      fold
+        [ foldMap makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf),
+          foldMap makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
+        ]
       where
-        bonkData (symbol, (typeRefId, dataDecl)) =
+        makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
+        makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))
+        makeDeclUpdates (symbol, (typeRefId, decl)) =
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               -- some decls will be deleted, we want to delete their
               -- constructors as well
@@ -169,26 +169,33 @@ saveTuf getConstructors tuf = do
                 map
                   (BranchUtil.makeAnnihilateTermName . Path.splitFromName)
                   (getConstructors (Name.unsafeFromVar symbol))
-              split = symbolSplit symbol
+              split = splitVar symbol
               insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId) Map.empty
               insertTypeConstructorActions =
-                let referentIdsWithNames = zip (Decl.constructorVars dataDecl) (Decl.declConstructorReferents typeRefId (Right dataDecl))
+                let referentIdsWithNames = zip (Decl.constructorVars (Decl.asDataDecl decl)) (Decl.declConstructorReferents typeRefId decl)
                  in map
                       ( \(sym, rid) ->
-                          let splitConName = symbolSplit sym
+                          let splitConName = splitVar sym
                            in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid) Map.empty
                       )
                       referentIdsWithNames
               deleteStuff = deleteTypeAction : deleteConstructorActions
               addStuff = insertTypeAction : insertTypeConstructorActions
            in deleteStuff ++ addStuff
-        bonkEffect (symbol, (typeRefId, effectDecl)) =
-          []
 
-        symbolSplit :: Symbol -> Path.Split
-        symbolSplit = Path.splitFromName . Name.unsafeFromVar
+    termUpdates :: [(Path, Branch0 m -> Branch0 m)]
+    termUpdates =
+      tuf
+        & UF.hashTermsId
+        & Map.toList
+        & foldMap \(var, (_, ref, _, _, _)) ->
+          let split = splitVar var
+           in [ BranchUtil.makeAnnihilateTermName split,
+                BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
+              ]
 
-    addNewTerms tuf branch0 = wundefined
+    splitVar :: Symbol -> Path.Split
+    splitVar = Path.splitFromName . Name.unsafeFromVar
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
