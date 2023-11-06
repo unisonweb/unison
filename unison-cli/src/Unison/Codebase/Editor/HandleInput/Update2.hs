@@ -32,11 +32,14 @@ import Unison.Codebase.Editor.Output (Output (ParseErrors))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
 import Unison.CommandLine.OutputMessages qualified as Output
+import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -98,7 +101,7 @@ handleUpdate2 = do
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
-    Left bigUfText -> prependTextToScratchFile bigUfText >> pure pure
+    Left bigUfText -> prependTextToScratchFile bigUfText
     Right tuf -> saveTuf tuf
 
 -- travis
@@ -159,7 +162,7 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
   pure maybeTypecheckedUnisonFile
 
 -- save definitions and namespace
-saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli (Branch0 m -> Cli (Branch0 m))
+saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf tuf = do
   Cli.Env {codebase} <- ask
   Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
@@ -181,7 +184,6 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
--- mitchell
 buildBigUnisonFile :: Codebase IO Symbol Ann -> TypecheckedUnisonFile Symbol Ann -> Map Reference.Id ReferenceType -> Names -> Transaction (UnisonFile Symbol Ann)
 buildBigUnisonFile c tuf dependents names =
   -- for each dependent, add its definition with all its names to the UnisonFile
@@ -212,7 +214,7 @@ buildBigUnisonFile c tuf dependents names =
         nameExists uf name = any (\(v, _, _) -> v == Name.toVar name) uf.terms
 
     -- given a dependent hash, include that component in the scratch file
-    -- todo: wundefined: skip any definitions that already have names
+    -- todo: wundefined: cut off constructor name prefixes
     addDeclComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
     addDeclComponent h uf = do
       declComponent <- fromJust <$> Codebase.getDeclComponent h
@@ -225,11 +227,12 @@ buildBigUnisonFile c tuf dependents names =
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldl' (addRebuiltDefinition decl) uf declNames
           where
+            -- skip any definitions that already have names, we don't want to overwrite what the user has supplied
             addRebuiltDefinition decl uf name = case decl of
-              Left ed -> uf {UF.effectDeclarationsId = Map.insert (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames names name ed.toDataDecl) uf.effectDeclarationsId}
-              Right dd -> uf {UF.dataDeclarationsId = Map.insert (Name.toVar name) (Reference.Id h i, overwriteConstructorNames names name dd) uf.dataDeclarationsId}
-        overwriteConstructorNames :: Names -> Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
-        overwriteConstructorNames names name dd =
+              Left ed -> uf {UF.effectDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames name ed.toDataDecl) uf.effectDeclarationsId}
+              Right dd -> uf {UF.dataDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
+        overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
+        overwriteConstructorNames name dd =
           let constructorNames :: [Symbol] = Name.toVar <$> findCtorNames (Decl.constructorCount dd) name
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
@@ -237,21 +240,30 @@ buildBigUnisonFile c tuf dependents names =
            in over Decl.constructors_ swapConstructorNames dd
         -- \| given a decl name, find names for all of its constructors, in order.
         findCtorNames :: Int -> Name -> [Name]
-        findCtorNames expectCount n = wundefined
+        findCtorNames expectCount n =
+          let r = Set.findMin $ Relation.lookupDom n names.types
+              f = ForwardName.fromName n
+              (_, centerRight) = Map.split f ctorsForward
+              (center, _) = Map.split (incrementLastSegmentChar f) centerRight
+              -- go through `rest`, looking for constructor references that match `h` above, and adding the
+              -- name to the constructorid map if there's no mapping yet or if the name has fewer segments than
+              -- existing mapping
+              insertShortest :: Map ConstructorId Name -> (Referent, Name) -> Map ConstructorId Name
+              insertShortest m (Referent.Con (ConstructorReference r' cid) _ct, newName) | r' == r =
+                case Map.lookup cid m of
+                  Just existingName
+                    | length (Name.segments existingName) > length (Name.segments newName) ->
+                        Map.insert cid newName m
+                  Just {} -> m
+                  Nothing -> Map.insert cid newName m
+              insertShortest m _ = m
+              m = foldl' insertShortest mempty (Foldable.toList center)
+           in if Map.size m == expectCount && all (isJust . flip Map.lookup m) [0 .. fromIntegral expectCount - 1]
+                then Map.elems m
+                else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show expectCount
 
--- let f = ForwardName.fromName n
---     (_, rest1) = Map.split f ctorsForward
---     (rest2, _) = Map.split (incrementLastSegmentChar f) rest1
---     -- go through `rest`, looking for constructor references that match `h` above, and adding the
---     -- name to the constructorid map if there's no mapping yet or if the name has fewer segments than
---     -- existing mapping
---     insertShortest :: Map ConstructorId Name -> (ForwardName, (Referent, Name)) -> Map Int Name
---     insertShortest m (fname, (Referent.ConId _ _ constructorId?, name)) = wundefined
---     m = foldl' insertShortest mempty (Map.toList rest2)
---  in wundefined
-
--- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.bam"
--- ForwardName {toList = "foo" :| ["bar","ban"]}
+-- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
+-- ForwardName {toList = "foo" :| ["bar","quuy"]}
 incrementLastSegmentChar :: ForwardName -> ForwardName
 incrementLastSegmentChar (ForwardName segments) =
   let (initSegments, lastSegment) = (NonEmpty.init segments, NonEmpty.last segments)
