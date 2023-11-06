@@ -233,7 +233,7 @@ token'' tok p = do
     pops p = do
       env <- S.get
       let l = layout env
-      if top l == column p
+      if top l == column p && topBlockName l /= Just "(" -- don't emit virtual semis inside parens
         then pure [Token (Semi True) p p]
         else
           if column p > top l || topHasClosePair l

@@ -493,3 +493,37 @@ fix_4258 x y z =
   ()
 
 fix_4258_example = fix_4258 1 () 2
+
+-- previously, lexer was emitting virtual semicolons inside parens, which
+-- led to some very odd parse errors in cases like these
+
+stew_issue = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '(Debug "Failed " -- virtual semicolon here was tripping up parser 
+                  42))
+stew_issue2 = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '("Failed " ++ 
+           toText 42))
+
+stew_issue3 = 
+  id x = x
+  error x = ()
+  (++) a b = 0
+  blah x y = 99
+  toText a = a
+  configPath = 0
+  Debug a b = ()
+  error
+    (Debug None '("Failed to get timestamp of config file " ++ 
+           toText configPath))
