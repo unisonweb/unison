@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
 where
 
 import Control.Lens (over, (^.))
+import Control.Exception (mask, onException)
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
 import Data.List.NonEmpty qualified as NonEmpty
@@ -14,6 +15,9 @@ import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import System.Directory (getTemporaryDirectory, removeFile, renameFile)
+import System.IO (IOMode (..), hClose, openTempFile, withFile)
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -103,10 +107,30 @@ handleUpdate2 = do
     Left bigUfText -> prependTextToScratchFile bigUfText
     Right tuf -> saveTuf (findCtorNames names ctorNames Nothing) tuf
 
--- travis
 prependTextToScratchFile :: Text -> Cli ()
 prependTextToScratchFile textUf = do
-  liftIO $ putStrLn (Text.unpack textUf)
+  fp <- fst <$> Cli.expectLatestFile
+  liftIO do
+    let withTempFile tmpFilePath tmpHandle = do
+          Text.hPutStrLn tmpHandle textUf
+          Text.hPutStrLn tmpHandle "\n---\n"
+          withFile fp ReadMode \currentScratchFile -> do
+            let copyLoop = do
+                  chunk <- Text.hGetChunk currentScratchFile
+                  case Text.length chunk == 0 of
+                    True -> pure ()
+                    False -> do
+                      Text.hPutStr tmpHandle chunk
+                      copyLoop
+            copyLoop
+          hClose tmpHandle
+          renameFile tmpFilePath fp
+    tmpDir <- getTemporaryDirectory
+    mask \unmask -> do
+      (tmpFilePath, tmpHandle) <- openTempFile tmpDir "unison-scratch"
+      unmask (withTempFile tmpFilePath tmpHandle) `onException` do
+        hClose tmpHandle
+        removeFile tmpFilePath
 
 prettyParseTypecheck :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
 prettyParseTypecheck bigUf pped = do
