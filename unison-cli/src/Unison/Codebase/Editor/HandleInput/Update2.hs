@@ -27,8 +27,11 @@ import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
+import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output (Output (ParseErrors))
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
 import Unison.CommandLine.OutputMessages qualified as Output
@@ -38,6 +41,7 @@ import Unison.DataDeclaration qualified as Decl
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
@@ -53,8 +57,10 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Referent' qualified as Referent'
 import Unison.Result qualified as Result
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
@@ -102,7 +108,7 @@ handleUpdate2 = do
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf tuf
+    Right tuf -> saveTuf wundefined tuf
 
 -- travis
 prependTextToScratchFile :: Text -> Cli ()
@@ -162,19 +168,57 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
   pure maybeTypecheckedUnisonFile
 
 -- save definitions and namespace
-saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli ()
-saveTuf tuf = do
+saveTuf :: (Name -> [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
+saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
+  currentPath <- Cli.getCurrentPath
   Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
-  -- need to add the tuf contents to the current namespace
-  -- types and term refs just overwrite; ctors of replaced decls go away
-  --
-  wundefined "todo: build and cons namespace"
+  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates (declUpdates ++ termUpdates))
   where
-    -- \| for each decl in the tuf, delete the constructors of whatever decl currently has that name in the branch.
-    deleteReplacedDeclCtors tuf branch0 = wundefined
-    addNewDecls tuf branch0 = wundefined
-    addNewTerms tuf branch0 = wundefined
+    declUpdates :: [(Path, Branch0 m -> Branch0 m)]
+    declUpdates =
+      fold
+        [ foldMap makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf),
+          foldMap makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
+        ]
+      where
+        makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
+        makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))
+        makeDeclUpdates (symbol, (typeRefId, decl)) =
+          let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
+              -- some decls will be deleted, we want to delete their
+              -- constructors as well
+              deleteConstructorActions =
+                map
+                  (BranchUtil.makeAnnihilateTermName . Path.splitFromName)
+                  (getConstructors (Name.unsafeFromVar symbol))
+              split = splitVar symbol
+              insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId) Map.empty
+              insertTypeConstructorActions =
+                let referentIdsWithNames = zip (Decl.constructorVars (Decl.asDataDecl decl)) (Decl.declConstructorReferents typeRefId decl)
+                 in map
+                      ( \(sym, rid) ->
+                          let splitConName = splitVar sym
+                           in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid) Map.empty
+                      )
+                      referentIdsWithNames
+              deleteStuff = deleteTypeAction : deleteConstructorActions
+              addStuff = insertTypeAction : insertTypeConstructorActions
+           in deleteStuff ++ addStuff
+
+    termUpdates :: [(Path, Branch0 m -> Branch0 m)]
+    termUpdates =
+      tuf
+        & UF.hashTermsId
+        & Map.toList
+        & foldMap \(var, (_, ref, _, _, _)) ->
+          let split = splitVar var
+           in [ BranchUtil.makeAnnihilateTermName split,
+                BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
+              ]
+
+    splitVar :: Symbol -> Path.Split
+    splitVar = Path.splitFromName . Name.unsafeFromVar
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.

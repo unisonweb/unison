@@ -254,7 +254,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- This function is unsound, since the `rid` and the `decl` have to match.
 -- It should probably be hashed directly from the Decl, once we have a
 -- reliable way of doing that. —AI
-declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
+declConstructorReferents :: Reference.TypeReferenceId -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
   [Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl)]
   where
