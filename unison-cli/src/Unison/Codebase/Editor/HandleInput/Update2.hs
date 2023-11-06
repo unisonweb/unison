@@ -19,6 +19,7 @@ import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.Editor.Output (Output (ParseErrors))
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.OutputMessages qualified as Output
@@ -57,7 +58,7 @@ data Defns terms types = Defns
 
 -- deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
-handleUpdate2 :: Cli ()
+handleUpdate2 :: Cli (Branch0 m -> Cli (Branch0 m))
 handleUpdate2 = do
   -- - confirm all aliases updated together?
   tuf <- Cli.expectLatestTypecheckedFile
@@ -77,7 +78,7 @@ handleUpdate2 = do
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
-    Left bigUfText -> prependTextToScratchFile bigUfText
+    Left bigUfText -> prependTextToScratchFile bigUfText >> pure pure
     Right tuf -> saveTuf tuf
 
 -- travis
@@ -138,11 +139,19 @@ mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
   pure maybeTypecheckedUnisonFile
 
 -- save definitions and namespace
-saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli a0
+saveTuf :: TypecheckedUnisonFile Symbol Ann -> Cli (Branch0 m -> Cli (Branch0 m))
 saveTuf tuf = do
   Cli.Env {codebase} <- ask
   Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
+  -- need to add the tuf contents to the current namespace
+  -- types and term refs just overwrite; ctors of replaced decls go away
+  --
   wundefined "todo: build and cons namespace"
+  where
+    -- \| for each decl in the tuf, delete the constructors of whatever decl currently has that name in the branch.
+    deleteReplacedDeclCtors tuf branch0 = wundefined
+    addNewDecls tuf branch0 = wundefined
+    addNewTerms tuf branch0 = wundefined
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
