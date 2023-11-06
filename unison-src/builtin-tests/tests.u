@@ -4,6 +4,7 @@ tests = Tests.main do
   !io.tests
   !tls.tests
   !crypto.hash.tests
+  !murmur.hash.tests
   !hmac.tests
   !concurrency.tests
   !tcp.tests
@@ -17,6 +18,23 @@ tests = Tests.main do
   !codelookup.tests
   !sandbox.tests
 
+murmur.hash.tests = do
+  targets =
+    [ 3616548711131950114
+    , 1208954131003843843
+    , 664611890102475300
+    , 6714987116946118165
+    , 16299576272983505103
+    , 4073299915095202490
+    , 12366602710912766676
+    , 7206684309820213116
+    , 18221756083322989289
+    , 15843896009975349171
+    ]
+  process i t =
+    name = "murmurHash " ++ toText i
+    checkEqual name (murmurHash i) t
+  List.foreach_ (uncurry process) <| List.zip (List.range 0 10) targets
 
 crypto.hash.tests = do
   hash alg = hashBytes alg (toUtf8 "")
