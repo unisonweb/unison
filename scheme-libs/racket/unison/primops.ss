@@ -26,6 +26,16 @@
   (export
     builtin-Float.*
     builtin-Float.*:termlink
+    builtin-Float.>=
+    builtin-Float.>=:termlink
+    builtin-Float.<=
+    builtin-Float.<=:termlink
+    builtin-Float.>
+    builtin-Float.>:termlink
+    builtin-Float.<
+    builtin-Float.<:termlink
+    builtin-Float.==
+    builtin-Float.==:termlink
     builtin-Float.fromRepresentation
     builtin-Float.fromRepresentation:termlink
     builtin-Float.toRepresentation
@@ -54,6 +64,8 @@
     builtin-Int.+:termlink
     builtin-Int.-
     builtin-Int.-:termlink
+    builtin-Int./
+    builtin-Int./:termlink
     builtin-Int.increment
     builtin-Int.increment:termlink
     builtin-Int.negate
@@ -68,6 +80,38 @@
     builtin-Int.trailingZeros:termlink
     builtin-Int.popCount
     builtin-Int.popCount:termlink
+    builtin-Int.isEven
+    builtin-Int.isEven:termlink
+    builtin-Int.isOdd
+    builtin-Int.isOdd:termlink
+    builtin-Int.==
+    builtin-Int.==:termlink
+    builtin-Int.<
+    builtin-Int.<:termlink
+    builtin-Int.<=
+    builtin-Int.<=:termlink
+    builtin-Int.>
+    builtin-Int.>:termlink
+    builtin-Int.>=
+    builtin-Int.>=:termlink
+    builtin-Nat.+
+    builtin-Nat.+:termlink
+    builtin-Nat.drop
+    builtin-Nat.drop:termlink
+    builtin-Nat.==
+    builtin-Nat.==:termlink
+    builtin-Nat.<
+    builtin-Nat.<:termlink
+    builtin-Nat.<=
+    builtin-Nat.<=:termlink
+    builtin-Nat.>
+    builtin-Nat.>:termlink
+    builtin-Nat.>=
+    builtin-Nat.>=:termlink
+    builtin-Nat.isEven
+    builtin-Nat.isEven:termlink
+    builtin-Nat.isOdd
+    builtin-Nat.isOdd:termlink
     builtin-Nat.increment
     builtin-Nat.increment:termlink
     builtin-Nat.popCount
@@ -78,10 +122,35 @@
     builtin-Nat.trailingZeros:termlink
     builtin-Text.indexOf
     builtin-Text.indexOf:termlink
+    builtin-Text.==
+    builtin-Text.==:termlink
+    builtin-Text.!=
+    builtin-Text.!=:termlink
+    builtin-Text.<=
+    builtin-Text.<=:termlink
+    builtin-Text.>=
+    builtin-Text.>=:termlink
+    builtin-Text.<
+    builtin-Text.<:termlink
+    builtin-Text.>
+    builtin-Text.>:termlink
     builtin-Bytes.indexOf
     builtin-Bytes.indexOf:termlink
     builtin-IO.randomBytes
     builtin-IO.randomBytes:termlink
+
+    builtin-Universal.==
+    builtin-Universal.==:termlink
+    builtin-Universal.>
+    builtin-Universal.>:termlink
+    builtin-Universal.>=
+    builtin-Universal.>=:termlink
+    builtin-Universal.<
+    builtin-Universal.<:termlink
+    builtin-Universal.<=
+    builtin-Universal.<=:termlink
+    builtin-Universal.compare
+    builtin-Universal.compare:termlink
 
     builtin-List.splitLeft
     builtin-List.splitLeft:termlink
@@ -110,7 +179,7 @@
     ; unison-FOp-Code.serialize
     unison-FOp-IO.closeFile.impl.v3
     unison-FOp-IO.openFile.impl.v3
-    unison-FOp-IO.isFileEOF.impl.v3
+    ; unison-FOp-IO.isFileEOF.impl.v3
     unison-FOp-IO.putBytes.impl.v3
     unison-FOp-IO.getBytes.impl.v3
     builtin-IO.seekHandle.impl.v3
@@ -163,9 +232,19 @@
     builtin-IO.systemTime.impl.v3:termlink
     builtin-IO.systemTimeMicroseconds.impl.v3
     builtin-IO.systemTimeMicroseconds.impl.v3:termlink
+
+    builtin-Char.Class.is
+    builtin-Char.Class.is:termlink
+    builtin-Pattern.isMatch
+    builtin-Pattern.isMatch:termlink
+    builtin-IO.fileExists.impl.v3
+    builtin-IO.fileExists.impl.v3:termlink
+    builtin-IO.isFileEOF.impl.v3
+    builtin-IO.isFileEOF.impl.v3:termlink
+
     unison-FOp-IO.getFileSize.impl.v3
     unison-FOp-IO.getFileTimestamp.impl.v3
-    unison-FOp-IO.fileExists.impl.v3
+    ; unison-FOp-IO.fileExists.impl.v3
     unison-FOp-IO.removeFile.impl.v3
     unison-FOp-IO.getTempDirectory.impl.v3
     unison-FOp-Text.fromUtf8.impl.v3
@@ -473,10 +552,20 @@
     unison-FOp-Tls.newClient.impl.v3
     unison-FOp-Tls.receive.impl.v3
     unison-FOp-Tls.send.impl.v3
-    unison-FOp-Tls.terminate.impl.v3)
+    unison-FOp-Tls.terminate.impl.v3
+
+    ; fake builtins
+    builtin-murmurHashBytes)
 
   (import (rnrs)
           (only (srfi :13) string-reverse)
+          (racket performance-hint)
+          (only (racket flonum)
+                fl<
+                fl>
+                fl<=
+                fl>=
+                fl=)
           (rename
            (only (racket)
                  car
@@ -511,6 +600,7 @@
           (unison crypto)
           (unison io)
           (unison io-handles)
+          (unison murmurhash)
           (unison tls)
           (unison tcp)
           (unison gzip)
@@ -518,587 +608,783 @@
           (unison concurrent)
           (racket random))
 
-  (define-builtin-link builtin-Float.*)
-  (define-builtin-link builtin-Float.fromRepresentation)
-  (define-builtin-link builtin-Float.toRepresentation)
-  (define-builtin-link builtin-Float.exp)
-  (define-builtin-link builtin-Float.log)
-  (define-builtin-link builtin-Float.max)
-  (define-builtin-link builtin-Float.min)
-  (define-builtin-link builtin-Float.tan)
-  (define-builtin-link builtin-Float.tanh)
-  (define-builtin-link builtin-Float.logBase)
-  (define-builtin-link builtin-Float.pow)
-  (define-builtin-link builtin-Int.pow)
-  (define-builtin-link builtin-Int.*)
-  (define-builtin-link builtin-Int.+)
-  (define-builtin-link builtin-Int.-)
-  (define-builtin-link builtin-Int.increment)
-  (define-builtin-link builtin-Int.negate)
-  (define-builtin-link builtin-Int.fromRepresentation)
-  (define-builtin-link builtin-Int.toRepresentation)
-  (define-builtin-link builtin-Int.signum)
-  (define-builtin-link builtin-Int.trailingZeros)
-  (define-builtin-link builtin-Int.popCount)
-  (define-builtin-link builtin-Nat.increment)
-  (define-builtin-link builtin-Nat.popCount)
-  (define-builtin-link builtin-Nat.toFloat)
-  (define-builtin-link builtin-Nat.trailingZeros)
-  (define-builtin-link builtin-Text.indexOf)
-  (define-builtin-link builtin-Bytes.indexOf)
-  (define-builtin-link builtin-IO.randomBytes)
-  (define-builtin-link builtin-List.splitLeft)
-  (define-builtin-link builtin-List.splitRight)
-  (define-builtin-link builtin-Value.toBuiltin)
-  (define-builtin-link builtin-Value.fromBuiltin)
-  (define-builtin-link builtin-Code.fromGroup)
-  (define-builtin-link builtin-Code.toGroup)
-  (define-builtin-link builtin-TermLink.fromReferent)
-  (define-builtin-link builtin-TermLink.toReferent)
-  (define-builtin-link builtin-IO.seekHandle.impl.v3)
-  (define-builtin-link builtin-IO.getLine.impl.v1)
-  (define-builtin-link builtin-IO.getSomeBytes.impl.v1)
-  (define-builtin-link builtin-IO.setBuffering.impl.v3)
-  (define-builtin-link builtin-IO.getBuffering.impl.v3)
-  (define-builtin-link builtin-IO.setEcho.impl.v1)
-  (define-builtin-link builtin-IO.isFileOpen.impl.v3)
-  (define-builtin-link builtin-IO.ready.impl.v1)
-  (define-builtin-link builtin-IO.process.call)
-  (define-builtin-link builtin-IO.getEcho.impl.v1)
-  (define-builtin-link builtin-IO.getArgs.impl.v1)
-  (define-builtin-link builtin-IO.getEnv.impl.v1)
-  (define-builtin-link builtin-IO.getChar.impl.v1)
-  (define-builtin-link builtin-IO.getCurrentDirectory.impl.v3)
-  (define-builtin-link builtin-IO.removeDirectory.impl.v3)
-  (define-builtin-link builtin-IO.renameFile.impl.v3)
-  (define-builtin-link builtin-IO.createTempDirectory.impl.v3)
-  (define-builtin-link builtin-IO.createDirectory.impl.v3)
-  (define-builtin-link builtin-IO.setCurrentDirectory.impl.v3)
-  (define-builtin-link builtin-IO.renameDirectory.impl.v3)
-  (define-builtin-link builtin-IO.isDirectory.impl.v3)
-  (define-builtin-link builtin-IO.isSeekable.impl.v3)
-  (define-builtin-link builtin-IO.handlePosition.impl.v3)
-  (define-builtin-link builtin-IO.systemTime.impl.v3)
-  (define-builtin-link builtin-IO.systemTimeMicroseconds.impl.v3)
+  (define-builtin-link Float.*)
+  (define-builtin-link Float.fromRepresentation)
+  (define-builtin-link Float.toRepresentation)
+  (define-builtin-link Float.exp)
+  (define-builtin-link Float.log)
+  (define-builtin-link Float.max)
+  (define-builtin-link Float.min)
+  (define-builtin-link Float.tan)
+  (define-builtin-link Float.tanh)
+  (define-builtin-link Float.logBase)
+  (define-builtin-link Float.pow)
+  (define-builtin-link Float.>)
+  (define-builtin-link Float.<)
+  (define-builtin-link Float.>=)
+  (define-builtin-link Float.<=)
+  (define-builtin-link Float.==)
+  (define-builtin-link Int.pow)
+  (define-builtin-link Int.*)
+  (define-builtin-link Int.+)
+  (define-builtin-link Int.-)
+  (define-builtin-link Int./)
+  (define-builtin-link Int.>)
+  (define-builtin-link Int.<)
+  (define-builtin-link Int.>=)
+  (define-builtin-link Int.<=)
+  (define-builtin-link Int.==)
+  (define-builtin-link Int.isEven)
+  (define-builtin-link Int.isOdd)
+  (define-builtin-link Int.increment)
+  (define-builtin-link Int.negate)
+  (define-builtin-link Int.fromRepresentation)
+  (define-builtin-link Int.toRepresentation)
+  (define-builtin-link Int.signum)
+  (define-builtin-link Int.trailingZeros)
+  (define-builtin-link Int.popCount)
+  (define-builtin-link Nat.increment)
+  (define-builtin-link Nat.popCount)
+  (define-builtin-link Nat.toFloat)
+  (define-builtin-link Nat.trailingZeros)
+  (define-builtin-link Nat.+)
+  (define-builtin-link Nat.>)
+  (define-builtin-link Nat.<)
+  (define-builtin-link Nat.>=)
+  (define-builtin-link Nat.<=)
+  (define-builtin-link Nat.==)
+  (define-builtin-link Nat.drop)
+  (define-builtin-link Nat.isEven)
+  (define-builtin-link Nat.isOdd)
+  (define-builtin-link Text.indexOf)
+  (define-builtin-link Text.>)
+  (define-builtin-link Text.<)
+  (define-builtin-link Text.>=)
+  (define-builtin-link Text.<=)
+  (define-builtin-link Text.==)
+  (define-builtin-link Text.!=)
+  (define-builtin-link Bytes.indexOf)
+  (define-builtin-link IO.randomBytes)
+  (define-builtin-link List.splitLeft)
+  (define-builtin-link List.splitRight)
+  (define-builtin-link Value.toBuiltin)
+  (define-builtin-link Value.fromBuiltin)
+  (define-builtin-link Code.fromGroup)
+  (define-builtin-link Code.toGroup)
+  (define-builtin-link TermLink.fromReferent)
+  (define-builtin-link TermLink.toReferent)
+  (define-builtin-link IO.seekHandle.impl.v3)
+  (define-builtin-link IO.getLine.impl.v1)
+  (define-builtin-link IO.getSomeBytes.impl.v1)
+  (define-builtin-link IO.setBuffering.impl.v3)
+  (define-builtin-link IO.getBuffering.impl.v3)
+  (define-builtin-link IO.setEcho.impl.v1)
+  (define-builtin-link IO.isFileOpen.impl.v3)
+  (define-builtin-link IO.ready.impl.v1)
+  (define-builtin-link IO.process.call)
+  (define-builtin-link IO.getEcho.impl.v1)
+  (define-builtin-link IO.getArgs.impl.v1)
+  (define-builtin-link IO.getEnv.impl.v1)
+  (define-builtin-link IO.getChar.impl.v1)
+  (define-builtin-link IO.getCurrentDirectory.impl.v3)
+  (define-builtin-link IO.removeDirectory.impl.v3)
+  (define-builtin-link IO.renameFile.impl.v3)
+  (define-builtin-link IO.createTempDirectory.impl.v3)
+  (define-builtin-link IO.createDirectory.impl.v3)
+  (define-builtin-link IO.setCurrentDirectory.impl.v3)
+  (define-builtin-link IO.renameDirectory.impl.v3)
+  (define-builtin-link IO.fileExists.impl.v3)
+  (define-builtin-link IO.isDirectory.impl.v3)
+  (define-builtin-link IO.isFileEOF.impl.v3)
+  (define-builtin-link IO.isSeekable.impl.v3)
+  (define-builtin-link IO.handlePosition.impl.v3)
+  (define-builtin-link IO.systemTime.impl.v3)
+  (define-builtin-link IO.systemTimeMicroseconds.impl.v3)
+  (define-builtin-link Universal.==)
+  (define-builtin-link Universal.>)
+  (define-builtin-link Universal.<)
+  (define-builtin-link Universal.>=)
+  (define-builtin-link Universal.<=)
+  (define-builtin-link Universal.compare)
+  (define-builtin-link Pattern.isMatch)
+  (define-builtin-link Char.Class.is)
 
-  (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
-  (define-unison (builtin-Value.fromBuiltin v)
-    (unison-quote-val v))
-  (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
-  (define-unison (builtin-Code.toGroup co)
-    (unison-code-rep co))
-  (define-unison (builtin-TermLink.fromReferent rf)
-    (referent->termlink rf))
-  (define-unison (builtin-TermLink.toReferent tl)
-    (termlink->referent tl))
+  (begin-encourage-inline
+    (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
+    (define-unison (builtin-Value.fromBuiltin v)
+      (unison-quote-val v))
+    (define-unison (builtin-Code.fromGroup sg) (unison-code sg))
+    (define-unison (builtin-Code.toGroup co)
+      (unison-code-rep co))
+    (define-unison (builtin-TermLink.fromReferent rf)
+      (referent->termlink rf))
+    (define-unison (builtin-TermLink.toReferent tl)
+      (termlink->referent tl))
+    (define-unison (builtin-murmurHashBytes bs)
+      (murmurhash-bytes bs))
 
-  (define-unison (builtin-IO.randomBytes n)
-    (bytes->chunked-bytes (crypto-random-bytes n)))
+    (define-unison (builtin-IO.randomBytes n)
+      (bytes->chunked-bytes (crypto-random-bytes n)))
 
-  (define-unison (builtin-List.splitLeft n s)
-    (match (unison-POp-SPLL n s)
-      [(unison-sum 0 fs) unison-seqview-empty]
-      [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+    (define-unison (builtin-List.splitLeft n s)
+      (match (unison-POp-SPLL n s)
+        [(unison-sum 0 fs) unison-seqview-empty]
+        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
 
-  (define-unison (builtin-List.splitRight n s)
-    (match (unison-POp-SPLR n s)
-      [(unison-sum 0 fs) unison-seqview-empty]
-      [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+    (define-unison (builtin-List.splitRight n s)
+      (match (unison-POp-SPLR n s)
+        [(unison-sum 0 fs) unison-seqview-empty]
+        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
 
-  (define (hash-string hs)
-    (string-append "#" (bytevector->base32-string b32h hs)))
+    (define-unison (builtin-Float.> x y) (fl> x y))
+    (define-unison (builtin-Float.< x y) (fl< x y))
+    (define-unison (builtin-Float.>= x y) (fl>= x y))
+    (define-unison (builtin-Float.<= x y) (fl<= x y))
+    (define-unison (builtin-Float.== x y) (fl= x y))
 
-  (define (ix-string i)
-    (if (= i 0)
-      ""
-      (string-append "." (number->string i))))
+    (define-unison (builtin-Int.> x y) (> x y))
+    (define-unison (builtin-Int.< x y) (< x y))
+    (define-unison (builtin-Int.>= x y) (>= x y))
+    (define-unison (builtin-Int.<= x y) (<= x y))
+    (define-unison (builtin-Int.== x y) (= x y))
+    (define-unison (builtin-Int.isEven x) (even? x))
+    (define-unison (builtin-Int.isOdd x) (odd? x))
 
-  (define (typelink->string ln)
-    (match ln
-      [(unison-typelink-builtin name)
-       (string-append "##" name)]
-      [(unison-typelink-derived hs i)
-       (string-append (hash-string hs) (ix-string i))]))
+    (define-unison (builtin-Nat.> x y) (> x y))
+    (define-unison (builtin-Nat.< x y) (< x y))
+    (define-unison (builtin-Nat.>= x y) (>= x y))
+    (define-unison (builtin-Nat.<= x y) (<= x y))
+    (begin-encourage-inline
+      (define-unison (builtin-Nat.== x y) (= x y)))
 
-  (define-builtin-link builtin-Link.Type.toText)
-  (define-unison (builtin-Link.Type.toText ln)
-    (string->chunked-string (typelink->string ln)))
+    (define-unison (builtin-Nat.isEven x) (even? x))
+    (define-unison (builtin-Nat.isOdd x) (odd? x))
 
-  (define (termlink->string ln)
-    (match ln
-      [(unison-termlink-builtin name)
-       (string-append "##" name)]
-      [(unison-termlink-derived hs i)
-       (string-append (hash-string hs) (ix-string i))]
-      [(unison-termlink-con rf t)
-       (string-append (typelink->string rf) "#" (number->string t))]))
+    ; Note: chunked-string<? is actually <=
+    (define-unison (builtin-Text.> x y)
+      (not (chunked-string<? x y)))
+    (define-unison (builtin-Text.< x y)
+      (not (chunked-string<? y x)))
+    (define-unison (builtin-Text.>= x y) (chunked-string<? y x))
+    (define-unison (builtin-Text.<= x y) (chunked-string<? x y))
+    (define-unison (builtin-Text.== x y) (equal? x y))
+    (define-unison (builtin-Text.!= x y) (not (equal? x y)))
 
-  (define-builtin-link builtin-Link.Term.toText)
-  (define-unison (builtin-Link.Term.toText ln)
-    (string->chunked-string (termlink->string ln)))
+    (define-unison (builtin-Universal.== x y) (universal=? x y))
+    (define-unison (builtin-Universal.> x y)
+      (case (universal-compare x y) [(>) #t] [else #f]))
+    (define-unison (builtin-Universal.< x y)
+      (case (universal-compare x y) [(<) #t] [else #f]))
+    (define-unison (builtin-Universal.<= x y)
+      (case (universal-compare x y) [(>) #f] [else #t]))
+    (define-unison (builtin-Universal.>= x y)
+      (case (universal-compare x y) [(<) #f] [else #t]))
+    (define-unison (builtin-Universal.compare x y)
+      (case (universal-compare x y)
+        [(>) 1] [(<) -1] [else 0]))
 
-  (define (unison-POp-UPKB bs)
-    (build-chunked-list
-     (chunked-bytes-length bs)
-     (lambda (i) (chunked-bytes-ref bs i))))
+    (define (hash-string hs)
+      (string-append "#" (bytevector->base32-string b32h hs)))
 
-  (define unison-POp-ADDI +)
-  (define unison-POp-MULI *)
-  (define unison-POp-MODI mod)
-  (define (unison-POp-LEQI a b) (bool (<= a b)))
-  (define unison-POp-POWN expt)
-  (define unison-POp-LOGF log)
+    (define (ix-string i)
+      (if (= i 0)
+        ""
+        (string-append "." (number->string i))))
 
-  (define (reify-exn thunk)
-    (guard
-      (e [else
-           (sum 0 '() (exception->string e) e)])
-      (thunk)))
+    (define (typelink->string ln)
+      (match ln
+        [(unison-typelink-builtin name)
+         (string-append "##" name)]
+        [(unison-typelink-derived hs i)
+         (string-append (hash-string hs) (ix-string i))]))
 
-  ; Core implemented primops, upon which primops-in-unison can be built.
-  (define (unison-POp-ADDN m n) (fx+ m n))
-  (define (unison-POp-ANDN m n) (bitwise-and m n))
-  (define unison-POp-BLDS
-    (lambda args-list
-      (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
-  (define (unison-POp-CATS l r) (chunked-list-append l r))
-  (define (unison-POp-CATT l r) (chunked-string-append l r))
-  (define (unison-POp-CATB l r) (chunked-bytes-append l r))
-  (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
-  (define (unison-POp-COMN n) (fxnot n))
-  (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
-  (define (unison-POp-DECI n) (fx1- n))
-  (define (unison-POp-INCI n) (fx+ n 1))
-  (define (unison-POp-DECN n) (- n 1))
-  (define (unison-POp-INCN n) (+ n 1))
-  (define (unison-POp-DIVN m n) (fxdiv m n))
-  (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
-  (define (unison-POp-DRPS n l) (chunked-list-drop l n))
-  (define (unison-POp-DRPT n t) (chunked-string-drop t n))
-  (define (unison-POp-EQLN m n) (bool (fx=? m n)))
-  (define (unison-POp-EQLT s t) (bool (equal? s t)))
-  (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
-  (define (unison-POp-EQLU x y) (bool (universal=? x y)))
-  (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
-    (let-values ([(p g) (open-string-output-port)])
-      (put-string p (chunked-string->string fnm))
-      (put-string p ": ")
-      (display (describe-value x) p)
-      (raise (make-exn:bug fnm x))))
-  (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
-  (define (unison-POp-IDXB n bs)
-    (guard (x [else none])
-      (some (chunked-bytes-ref bs n))))
-  (define (unison-POp-IDXS n l)
-    (guard (x [else none])
-      (some (chunked-list-ref l n))))
-  (define (unison-POp-IORN m n) (fxior m n))
-  (define (unison-POp-ITOT n)
-    (string->chunked-string (number->string n)))
-  (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
-  (define (unison-POp-LZRO m) (- 64 (fxlength m)))
-  (define (unison-POp-MULN m n) (fx* m n))
-  (define (unison-POp-MODN m n) (fxmod m n))
-  (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
-  (define (unison-POp-PAKB l)
-    (build-chunked-bytes
-     (chunked-list-length l)
-     (lambda (i) (chunked-list-ref l i))))
-  (define (unison-POp-PAKT l)
-    (build-chunked-string
-     (chunked-list-length l)
-     (lambda (i) (chunked-list-ref l i))))
-  (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
-  (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
-  (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
-  (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
-  (define (unison-POp-SIZS l) (chunked-list-length l))
-  (define (unison-POp-SIZT t) (chunked-string-length t))
-  (define (unison-POp-SIZB b) (chunked-bytes-length b))
-  (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
-  (define (unison-POp-SUBN m n) (fx- m n))
-  (define (unison-POp-SUBI m n) (- m n))
-  (define (unison-POp-TAKS n s) (chunked-list-take s n))
-  (define (unison-POp-TAKT n t) (chunked-string-take t n))
-  (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+    (define-builtin-link Link.Type.toText)
+    (define-unison (builtin-Link.Type.toText ln)
+      (string->chunked-string (typelink->string ln)))
 
-  (define (->optional v)
-    (if v
-        (unison-optional-some v)
-        unison-optional-none))
+    (define (termlink->string ln)
+      (match ln
+        [(unison-termlink-builtin name)
+         (string-append "##" name)]
+        [(unison-termlink-derived hs i)
+         (string-append (hash-string hs) (ix-string i))]
+        [(unison-termlink-con rf t)
+         (string-append (typelink->string rf) "#" (number->string t))]))
 
-  (define-unison (builtin-Text.indexOf n h)
-    (->optional (chunked-string-index-of h n)))
-  (define-unison (builtin-Bytes.indexOf n h)
-    (->optional (chunked-bytes-index-of h n)))
+    (define-builtin-link Link.Term.toText)
+    (define-unison (builtin-Link.Term.toText ln)
+      (string->chunked-string (termlink->string ln)))
 
-  ;; TODO currently only runs in low-level tracing support
-  (define (unison-POp-DBTX x)
-    (sum 1 (string->chunked-string (describe-value x))))
+    (define-unison (builtin-Char.Class.is cc c)
+      (pattern-match? cc (string->chunked-string (string c))))
 
-  (define (unison-FOp-Handle.toText h)
-    (string->chunked-string (describe-value h)))
-  (define (unison-FOp-Socket.toText s)
-    (string->chunked-string (describe-value s)))
-  (define (unison-FOp-ThreadId.toText tid)
-    (string->chunked-string (describe-value tid)))
+    (define-unison (builtin-Pattern.isMatch p s)
+      (pattern-match? p s))
 
-  (define (unison-POp-TRCE s x)
-    (display "trace: ")
-    (display (chunked-string->string s))
-    (newline)
-    (display (describe-value x))
-    (newline))
-  (define (unison-POp-PRNT s)
-    (display (chunked-string->string s))
-    (newline))
-  (define (unison-POp-TTON s)
-    (let ([mn (string->number (chunked-string->string s))])
-      (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
-  (define (unison-POp-TTOI s)
-    (let ([mn (string->number (chunked-string->string s))])
-      (if (fixnum? mn) (some mn) none)))
-  (define (unison-POp-TTOF s)
-    (let ([mn (string->number (chunked-string->string s))])
-      (if mn (some mn) none)))
-  (define (unison-POp-UPKT s)
-    (build-chunked-list
-     (chunked-string-length s)
-     (lambda (i) (chunked-string-ref s i))))
-  (define (unison-POp-VWLS l)
-    (if (chunked-list-empty? l)
-        (sum 0)
-        (let-values ([(t h) (chunked-list-pop-first l)])
-          (sum 1 h t))))
-  (define (unison-POp-VWRS l)
-    (if (chunked-list-empty? l)
-        (sum 0)
-        (let-values ([(t h) (chunked-list-pop-last l)])
-          (sum 1 t h))))
-  (define (unison-POp-SPLL i s)
-    (if (< (chunked-list-length s) i)
-        (sum 0)
-        (let-values ([(l r) (chunked-list-split-at s i)])
-          (sum 1 l r))))
-  (define (unison-POp-SPLR i s) ; TODO write test that stresses this
-    (let ([len (chunked-list-length s) ])
-      (if (< len i)
+    (define (unison-POp-UPKB bs)
+      (build-chunked-list
+       (chunked-bytes-length bs)
+       (lambda (i) (chunked-bytes-ref bs i))))
+
+    (define unison-POp-ADDI +)
+    (define unison-POp-MULI *)
+    (define unison-POp-MODI mod)
+    (define (unison-POp-LEQI a b) (bool (<= a b)))
+    (define unison-POp-POWN expt)
+    (define unison-POp-LOGF log)
+
+    (define (reify-exn thunk)
+      (guard
+        (e [else
+             (sum 0 '() (exception->string e) e)])
+        (thunk)))
+
+    ; Core implemented primops, upon which primops-in-unison can be built.
+    (define (unison-POp-ADDN m n) (fx+ m n))
+    (define (unison-POp-ANDN m n) (bitwise-and m n))
+    (define unison-POp-BLDS
+      (lambda args-list
+        (fold-right (lambda (e l) (chunked-list-add-first l e)) empty-chunked-list args-list)))
+    (define (unison-POp-CATS l r) (chunked-list-append l r))
+    (define (unison-POp-CATT l r) (chunked-string-append l r))
+    (define (unison-POp-CATB l r) (chunked-bytes-append l r))
+    (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
+    (define (unison-POp-COMN n) (fxnot n))
+    (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
+    (define (unison-POp-DECI n) (fx1- n))
+    (define (unison-POp-INCI n) (fx+ n 1))
+    (define (unison-POp-DECN n) (- n 1))
+    (define (unison-POp-INCN n) (+ n 1))
+    (define (unison-POp-DIVN m n) (fxdiv m n))
+    (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
+    (define (unison-POp-DRPS n l) (chunked-list-drop l n))
+    (define (unison-POp-DRPT n t) (chunked-string-drop t n))
+    (define (unison-POp-EQLN m n) (bool (fx=? m n)))
+    (define (unison-POp-EQLT s t) (bool (equal? s t)))
+    (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
+    (define (unison-POp-EQLU x y) (bool (universal=? x y)))
+    (define (unison-POp-EROR fnm x) ;; TODO raise the correct failure, use display
+      (let-values ([(p g) (open-string-output-port)])
+        (put-string p (chunked-string->string fnm))
+        (put-string p ": ")
+        (display (describe-value x) p)
+        (raise (make-exn:bug fnm x))))
+    (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
+    (define (unison-POp-IDXB n bs)
+      (guard (x [else none])
+        (some (chunked-bytes-ref bs n))))
+    (define (unison-POp-IDXS n l)
+      (guard (x [else none])
+        (some (chunked-list-ref l n))))
+    (define (unison-POp-IORN m n) (fxior m n))
+    (define (unison-POp-ITOT n)
+      (string->chunked-string (number->string n)))
+    (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
+    (define (unison-POp-LZRO m) (- 64 (fxlength m)))
+    (define (unison-POp-MULN m n) (* m n))
+    (define (unison-POp-MODN m n) (fxmod m n))
+    (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
+    (define (unison-POp-PAKB l)
+      (build-chunked-bytes
+       (chunked-list-length l)
+       (lambda (i) (chunked-list-ref l i))))
+    (define (unison-POp-PAKT l)
+      (build-chunked-string
+       (chunked-list-length l)
+       (lambda (i) (chunked-list-ref l i))))
+    (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
+    (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
+    (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
+    (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
+    (define (unison-POp-SIZS l) (chunked-list-length l))
+    (define (unison-POp-SIZT t) (chunked-string-length t))
+    (define (unison-POp-SIZB b) (chunked-bytes-length b))
+    (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
+    (define (unison-POp-SUBN m n) (fx- m n))
+    (define (unison-POp-SUBI m n) (- m n))
+    (define (unison-POp-TAKS n s) (chunked-list-take s n))
+    (define (unison-POp-TAKT n t) (chunked-string-take t n))
+    (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
+
+    (define (->optional v)
+      (if v
+          (unison-optional-some v)
+          unison-optional-none))
+
+    (define-unison (builtin-Text.indexOf n h)
+      (->optional (chunked-string-index-of h n)))
+    (define-unison (builtin-Bytes.indexOf n h)
+      (->optional (chunked-bytes-index-of h n)))
+
+    ;; TODO currently only runs in low-level tracing support
+    (define (unison-POp-DBTX x)
+      (sum 1 (string->chunked-string (describe-value x))))
+
+    (define (unison-FOp-Handle.toText h)
+      (string->chunked-string (describe-value h)))
+    (define (unison-FOp-Socket.toText s)
+      (string->chunked-string (describe-value s)))
+    (define (unison-FOp-ThreadId.toText tid)
+      (string->chunked-string (describe-value tid)))
+
+    (define (unison-POp-TRCE s x)
+      (display "trace: ")
+      (display (chunked-string->string s))
+      (newline)
+      (display (describe-value x))
+      (newline))
+    (define (unison-POp-PRNT s)
+      (display (chunked-string->string s))
+      (newline))
+    (define (unison-POp-TTON s)
+      (let ([mn (string->number (chunked-string->string s))])
+        (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
+    (define (unison-POp-TTOI s)
+      (let ([mn (string->number (chunked-string->string s))])
+        (if (fixnum? mn) (some mn) none)))
+    (define (unison-POp-TTOF s)
+      (let ([mn (string->number (chunked-string->string s))])
+        (if mn (some mn) none)))
+    (define (unison-POp-UPKT s)
+      (build-chunked-list
+       (chunked-string-length s)
+       (lambda (i) (chunked-string-ref s i))))
+    (define (unison-POp-VWLS l)
+      (if (chunked-list-empty? l)
           (sum 0)
-          (let-values ([(l r) (chunked-list-split-at s (- len i))])
-            (sum 1 l r)))))
+          (let-values ([(t h) (chunked-list-pop-first l)])
+            (sum 1 h t))))
+    (define (unison-POp-VWRS l)
+      (if (chunked-list-empty? l)
+          (sum 0)
+          (let-values ([(t h) (chunked-list-pop-last l)])
+            (sum 1 t h))))
+    (define (unison-POp-SPLL i s)
+      (if (< (chunked-list-length s) i)
+          (sum 0)
+          (let-values ([(l r) (chunked-list-split-at s i)])
+            (sum 1 l r))))
+    (define (unison-POp-SPLR i s) ; TODO write test that stresses this
+      (let ([len (chunked-list-length s) ])
+        (if (< len i)
+            (sum 0)
+            (let-values ([(l r) (chunked-list-split-at s (- len i))])
+              (sum 1 l r)))))
 
-  (define (unison-POp-UCNS s)
-    (if (chunked-string-empty? s)
-        (sum 0)
-        (let-values ([(t h) (chunked-string-pop-first s)])
-          (sum 1 (char h) t))))
+    (define (unison-POp-UCNS s)
+      (if (chunked-string-empty? s)
+          (sum 0)
+          (let-values ([(t h) (chunked-string-pop-first s)])
+            (sum 1 (char h) t))))
 
-  (define (unison-POp-USNC s)
-    (if (chunked-string-empty? s)
-        (sum 0)
-        (let-values ([(t h) (chunked-string-pop-last s)])
-          (sum 1 t (char h)))))
+    (define (unison-POp-USNC s)
+      (if (chunked-string-empty? s)
+          (sum 0)
+          (let-values ([(t h) (chunked-string-pop-last s)])
+            (sum 1 t (char h)))))
 
-  ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
-  (define (unison-POp-FLTB b) b)
+    ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
+    (define (unison-POp-FLTB b) b)
 
-  (define (unison-POp-XORN m n) (fxxor m n))
-  (define (unison-POp-VALU c) (decode-value c))
+    (define (unison-POp-XORN m n) (fxxor m n))
+    (define (unison-POp-VALU c) (decode-value c))
 
-  (define (unison-FOp-ImmutableByteArray.read16be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u16-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read16be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u16-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read24be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u24-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read24be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u24-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read32be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u32-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read32be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u32-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read40be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u40-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read40be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u40-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read48be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u48-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read48be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u48-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read56be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u56-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read56be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u56-ref bs n 'big)))))
 
-  (define (unison-FOp-ImmutableByteArray.read64be bs n)
-    (reify-exn
-      (lambda ()
-        (sum 1 (bytevector-u64-ref bs n 'big)))))
+    (define (unison-FOp-ImmutableByteArray.read64be bs n)
+      (reify-exn
+        (lambda ()
+          (sum 1 (bytevector-u64-ref bs n 'big)))))
 
-  (define unison-FOp-internal.dataTag unison-data-tag)
+    (define unison-FOp-internal.dataTag unison-data-tag)
 
-  (define (unison-FOp-IO.getBytes.impl.v3 p n)
-    (reify-exn
-      (lambda ()
-        (right
-          (bytes->chunked-bytes
-            (get-bytevector-n p n))))))
+    (define (unison-FOp-IO.getBytes.impl.v3 p n)
+      (reify-exn
+        (lambda ()
+          (right
+            (bytes->chunked-bytes
+              (get-bytevector-n p n))))))
 
-  (define (unison-FOp-IO.putBytes.impl.v3 p bs)
-    (begin
-      (put-bytevector p (chunked-bytes->bytes bs))
-      (flush-output-port p)
-      (sum 1 #f)))
+    (define (unison-FOp-IO.putBytes.impl.v3 p bs)
+      (begin
+        (put-bytevector p (chunked-bytes->bytes bs))
+        (flush-output-port p)
+        (sum 1 #f)))
 
-  (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
+    (define (unison-FOp-Char.toText c) (string->chunked-string (string (integer->char c))))
 
-  (define (unison-FOp-IO.getArgs.impl.v1)
-    (sum 1 (cdr (command-line))))
+    (define (unison-FOp-IO.getArgs.impl.v1)
+      (sum 1 (cdr (command-line))))
 
-  (define (unison-FOp-IO.directoryContents.impl.v3 path)
-    (reify-exn
-      (lambda ()
-        (sum 1 (directory-contents path)))))
+    (define (unison-FOp-IO.directoryContents.impl.v3 path)
+      (reify-exn
+        (lambda ()
+          (sum 1 (directory-contents path)))))
 
-  (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
+    (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
 
-  ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
-  (define (unison-FOp-Text.fromUtf8.impl.v3 b)
-    (with-handlers
-      ([exn:fail:contract? ; TODO proper typeLink
-        (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
-      (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
+    ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
+    (define (unison-FOp-Text.fromUtf8.impl.v3 b)
+      (with-handlers
+        ([exn:fail:contract? ; TODO proper typeLink
+          (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+        (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
-  ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
-  (define (unison-FOp-Text.toUtf8 s)
-    (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
+    ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
+    (define (unison-FOp-Text.toUtf8 s)
+      (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
-  (define (unison-FOp-IO.isFileEOF.impl.v3 p)
-    (right (if (port-eof? p) 1 0)))
+    (define-unison (builtin-IO.isFileEOF.impl.v3 p)
+      (unison-either-right (port-eof? p)))
 
-  (define (unison-FOp-IO.closeFile.impl.v3 h)
-    (if (input-port? h)
-        (close-input-port h)
-        (close-output-port h))
-    (right none))
+    (define (unison-FOp-IO.closeFile.impl.v3 h)
+      (if (input-port? h)
+          (close-input-port h)
+          (close-output-port h))
+      (right none))
 
-  (define (unison-FOp-IO.openFile.impl.v3 fn mode)
-    (right (case mode
-      [(0) (open-file-input-port (chunked-string->string fn))]
-      [(1) (open-file-output-port (chunked-string->string fn))]
-      [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
-      [else (open-file-input/output-port (chunked-string->string fn))])))
+    (define (unison-FOp-IO.openFile.impl.v3 fn mode)
+      (right (case mode
+        [(0) (open-file-input-port (chunked-string->string fn))]
+        [(1) (open-file-output-port (chunked-string->string fn))]
+        [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
+        [else (open-file-input/output-port (chunked-string->string fn))])))
 
-  (define (unison-FOp-Text.repeat n t)
-    (let loop ([cnt 0]
-               [acc empty-chunked-string])
-      (if (= cnt n)
-          acc
-          (loop (+ cnt 1) (chunked-string-append acc t)))))
+    (define (unison-FOp-Text.repeat n t)
+      (let loop ([cnt 0]
+                 [acc empty-chunked-string])
+        (if (= cnt n)
+            acc
+            (loop (+ cnt 1) (chunked-string-append acc t)))))
 
-  (define (unison-FOp-Text.reverse s)
-    (chunked-string-foldMap-chunks
-     s
-     string-reverse
-     (lambda (acc c) (chunked-string-append c acc))))
+    (define (unison-FOp-Text.reverse s)
+      (chunked-string-foldMap-chunks
+       s
+       string-reverse
+       (lambda (acc c) (chunked-string-append c acc))))
 
-  (define (unison-FOp-Text.toLowercase s)
-    (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
+    (define (unison-FOp-Text.toLowercase s)
+      (chunked-string-foldMap-chunks s string-downcase chunked-string-append))
 
-  (define (unison-FOp-Text.toUppercase s)
-    (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
+    (define (unison-FOp-Text.toUppercase s)
+      (chunked-string-foldMap-chunks s string-upcase chunked-string-append))
 
-  (define (unison-FOp-Pattern.run p s)
-    (let* ([r (pattern-match p s)])
-      (if r (sum 1 (icdr r) (icar r)) (sum 0))))
+    (define (unison-FOp-Pattern.run p s)
+      (let* ([r (pattern-match p s)])
+        (if r (sum 1 (icdr r) (icar r)) (sum 0))))
 
-  (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
-  (define (unison-FOp-Pattern.many p) (many p))
-  (define (unison-FOp-Pattern.capture p) (capture p))
-  (define (unison-FOp-Pattern.join ps)
-    (join* ps))
-  (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
-  (define (unison-FOp-Pattern.replicate n m p) (replicate p n m))
+    (define (unison-FOp-Pattern.isMatch p s) (bool (pattern-match? p s)))
+    (define (unison-FOp-Pattern.many p) (many p))
+    (define (unison-FOp-Pattern.capture p) (capture p))
+    (define (unison-FOp-Pattern.join ps)
+      (join* ps))
+    (define (unison-FOp-Pattern.or p1 p2) (choice p1 p2))
+    (define (unison-FOp-Pattern.replicate n m p) (replicate p n m))
 
-  (define (unison-FOp-Text.patterns.digit) digit)
-  (define (unison-FOp-Text.patterns.letter) letter)
-  (define (unison-FOp-Text.patterns.punctuation) punctuation)
-  (define (unison-FOp-Text.patterns.charIn cs) (chars cs))
-  (define (unison-FOp-Text.patterns.notCharIn cs) (not-chars cs))
-  (define (unison-FOp-Text.patterns.anyChar) any-char)
-  (define (unison-FOp-Text.patterns.space) space)
-  (define (unison-FOp-Text.patterns.charRange a z) (char-range (integer->char a) (integer->char z)))
-  (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range (integer->char a) (integer->char z)))
-  (define (unison-FOp-Text.patterns.literal s) (literal s))
-  (define (unison-FOp-Text.patterns.eof) eof)
-  (define (unison-FOp-Text.patterns.char cc) cc)
-  (define (unison-FOp-Char.Class.is cc c)
-    (unison-FOp-Pattern.isMatch cc (unison-FOp-Char.toText c)))
-  (define (unison-FOp-Char.Class.any) (unison-FOp-Text.patterns.anyChar))
-  (define (unison-FOp-Char.Class.punctuation)
-    (unison-FOp-Text.patterns.punctuation))
-  (define (unison-FOp-Char.Class.letter) (unison-FOp-Text.patterns.letter))
-  (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
-  (define (unison-FOp-Char.Class.upper) upper)
-  (define (unison-FOp-Char.Class.lower) lower)
-  (define (unison-FOp-Char.Class.number) number)
-  (define (unison-FOp-Char.Class.symbol) symbol)
-  (define (unison-FOp-Char.Class.whitespace) space)
-  (define (unison-FOp-Char.Class.control) control)
-  (define (unison-FOp-Char.Class.printable) printable)
-  (define (unison-FOp-Char.Class.mark) mark)
-  (define (unison-FOp-Char.Class.separator) separator)
-  (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
-  (define (unison-FOp-Char.Class.range a z)
-    (unison-FOp-Text.patterns.charRange a z))
-  (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
-  (define (unison-FOp-Char.Class.and cc1 cc2) (char-class-and cc1 cc2))
-  (define (unison-FOp-Char.Class.not cc) (char-class-not cc))
+    (define (unison-FOp-Text.patterns.digit) digit)
+    (define (unison-FOp-Text.patterns.letter) letter)
+    (define (unison-FOp-Text.patterns.punctuation) punctuation)
+    (define (unison-FOp-Text.patterns.charIn cs) (chars cs))
+    (define (unison-FOp-Text.patterns.notCharIn cs) (not-chars cs))
+    (define (unison-FOp-Text.patterns.anyChar) any-char)
+    (define (unison-FOp-Text.patterns.space) space)
+    (define (unison-FOp-Text.patterns.charRange a z) (char-range (integer->char a) (integer->char z)))
+    (define (unison-FOp-Text.patterns.notCharRange a z) (not-char-range (integer->char a) (integer->char z)))
+    (define (unison-FOp-Text.patterns.literal s) (literal s))
+    (define (unison-FOp-Text.patterns.eof) eof)
+    (define (unison-FOp-Text.patterns.char cc) cc)
+    (define (unison-FOp-Char.Class.is cc c)
+      (unison-FOp-Pattern.isMatch cc (unison-FOp-Char.toText c)))
+    (define (unison-FOp-Char.Class.any) (unison-FOp-Text.patterns.anyChar))
+    (define (unison-FOp-Char.Class.punctuation)
+      (unison-FOp-Text.patterns.punctuation))
+    (define (unison-FOp-Char.Class.letter) (unison-FOp-Text.patterns.letter))
+    (define (unison-FOp-Char.Class.alphanumeric) alphanumeric)
+    (define (unison-FOp-Char.Class.upper) upper)
+    (define (unison-FOp-Char.Class.lower) lower)
+    (define (unison-FOp-Char.Class.number) number)
+    (define (unison-FOp-Char.Class.symbol) symbol)
+    (define (unison-FOp-Char.Class.whitespace) space)
+    (define (unison-FOp-Char.Class.control) control)
+    (define (unison-FOp-Char.Class.printable) printable)
+    (define (unison-FOp-Char.Class.mark) mark)
+    (define (unison-FOp-Char.Class.separator) separator)
+    (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+    (define (unison-FOp-Char.Class.range a z)
+      (unison-FOp-Text.patterns.charRange a z))
+    (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
+    (define (unison-FOp-Char.Class.and cc1 cc2) (char-class-and cc1 cc2))
+    (define (unison-FOp-Char.Class.not cc) (char-class-not cc))
 
-  (define (catch-array thunk)
-    (reify-exn thunk))
+    (define (catch-array thunk)
+      (reify-exn thunk))
 
-  (define (unison-FOp-ImmutableArray.read vec i)
-    (catch-array
-      (lambda ()
-        (sum 1 (vector-ref vec i)))))
+    (define (unison-FOp-ImmutableArray.read vec i)
+      (catch-array
+        (lambda ()
+          (sum 1 (vector-ref vec i)))))
 
-  (define (unison-FOp-ImmutableArray.copyTo! dst doff src soff n)
-    (catch-array
-      (lambda ()
-        (vector-copy! dst doff src soff n)
-        (sum 1))))
+    (define (unison-FOp-ImmutableArray.copyTo! dst doff src soff n)
+      (catch-array
+        (lambda ()
+          (vector-copy! dst doff src soff n)
+          (sum 1))))
 
-  (define (unison-FOp-MutableArray.copyTo! dst doff src soff l)
-    (catch-array
-      (lambda ()
-        (vector-copy! dst doff src soff l)
-        (sum 1))))
+    (define (unison-FOp-MutableArray.copyTo! dst doff src soff l)
+      (catch-array
+        (lambda ()
+          (vector-copy! dst doff src soff l)
+          (sum 1))))
 
-  (define unison-FOp-MutableArray.freeze! freeze-vector!)
+    (define unison-FOp-MutableArray.freeze! freeze-vector!)
 
-  (define unison-FOp-MutableArray.freeze freeze-subvector)
+    (define unison-FOp-MutableArray.freeze freeze-subvector)
 
-  (define (unison-FOp-MutableArray.read src i)
-    (catch-array
-      (lambda ()
-        (sum 1 (vector-ref src i)))))
+    (define (unison-FOp-MutableArray.read src i)
+      (catch-array
+        (lambda ()
+          (sum 1 (vector-ref src i)))))
 
-  (define (unison-FOp-MutableArray.write dst i x)
-    (catch-array
-      (lambda ()
-        (vector-set! dst i x)
-        (sum 1))))
+    (define (unison-FOp-MutableArray.write dst i x)
+      (catch-array
+        (lambda ()
+          (vector-set! dst i x)
+          (sum 1))))
 
-  (define (unison-FOp-ImmutableByteArray.copyTo! dst doff src soff n)
-    (catch-array
-      (lambda ()
-        (bytes-copy! dst doff src soff n)
-        (sum 1))))
+    (define (unison-FOp-ImmutableByteArray.copyTo! dst doff src soff n)
+      (catch-array
+        (lambda ()
+          (bytes-copy! dst doff src soff n)
+          (sum 1))))
 
-  (define (unison-FOp-ImmutableByteArray.read8 arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u8-ref arr i)))))
+    (define (unison-FOp-ImmutableByteArray.read8 arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u8-ref arr i)))))
 
-  (define (unison-FOp-MutableByteArray.copyTo! dst doff src soff l)
-    (catch-array
-      (lambda ()
-        (bytes-copy! dst doff src soff l)
-        (sum 1))))
+    (define (unison-FOp-MutableByteArray.copyTo! dst doff src soff l)
+      (catch-array
+        (lambda ()
+          (bytes-copy! dst doff src soff l)
+          (sum 1))))
 
-  (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
+    (define unison-FOp-MutableByteArray.freeze! freeze-bytevector!)
 
-  (define (unison-FOp-MutableByteArray.write8 arr i b)
-    (catch-array
-      (lambda ()
-        (bytevector-u8-set! arr i b)
-        (sum 1))))
+    (define (unison-FOp-MutableByteArray.write8 arr i b)
+      (catch-array
+        (lambda ()
+          (bytevector-u8-set! arr i b)
+          (sum 1))))
 
-  (define (unison-FOp-MutableByteArray.write16be arr i b)
-    (catch-array
-      (lambda ()
-        (bytevector-u16-set! arr i b 'big)
-        (sum 1))))
+    (define (unison-FOp-MutableByteArray.write16be arr i b)
+      (catch-array
+        (lambda ()
+          (bytevector-u16-set! arr i b 'big)
+          (sum 1))))
 
-  (define (unison-FOp-MutableByteArray.write32be arr i b)
-    (catch-array
-      (lambda ()
-        (bytevector-u32-set! arr i b 'big)
-        (sum 1))))
+    (define (unison-FOp-MutableByteArray.write32be arr i b)
+      (catch-array
+        (lambda ()
+          (bytevector-u32-set! arr i b 'big)
+          (sum 1))))
 
-  (define (unison-FOp-MutableByteArray.write64be arr i b)
-    (catch-array
-      (lambda ()
-        (bytevector-u64-set! arr i b 'big)
-        (sum 1))))
+    (define (unison-FOp-MutableByteArray.write64be arr i b)
+      (catch-array
+        (lambda ()
+          (bytevector-u64-set! arr i b 'big)
+          (sum 1))))
 
-  (define (unison-FOp-MutableByteArray.read8 arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u8-ref arr i)))))
+    (define (unison-FOp-MutableByteArray.read8 arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u8-ref arr i)))))
 
-  (define (unison-FOp-MutableByteArray.read16be arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u16-ref arr i 'big)))))
+    (define (unison-FOp-MutableByteArray.read16be arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u16-ref arr i 'big)))))
 
-  (define (unison-FOp-MutableByteArray.read24be arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u24-ref arr i 'big)))))
+    (define (unison-FOp-MutableByteArray.read24be arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u24-ref arr i 'big)))))
 
-  (define (unison-FOp-MutableByteArray.read32be arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u32-ref arr i 'big)))))
+    (define (unison-FOp-MutableByteArray.read32be arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u32-ref arr i 'big)))))
 
-  (define (unison-FOp-MutableByteArray.read40be arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u40-ref arr i 'big)))))
+    (define (unison-FOp-MutableByteArray.read40be arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u40-ref arr i 'big)))))
 
-  (define (unison-FOp-MutableByteArray.read64be arr i)
-    (catch-array
-      (lambda ()
-        (sum 1 (bytevector-u64-ref arr i 'big)))))
+    (define (unison-FOp-MutableByteArray.read64be arr i)
+      (catch-array
+        (lambda ()
+          (sum 1 (bytevector-u64-ref arr i 'big)))))
 
-  (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
-  (define (unison-FOp-IO.bytearray n) (make-bytevector n))
+    (define (unison-FOp-Scope.bytearray n) (make-bytevector n))
+    (define (unison-FOp-IO.bytearray n) (make-bytevector n))
 
-  (define (unison-FOp-Scope.array n) (make-vector n))
-  (define (unison-FOp-IO.array n) (make-vector n))
+    (define (unison-FOp-Scope.array n) (make-vector n))
+    (define (unison-FOp-IO.array n) (make-vector n))
 
-  (define (unison-FOp-Scope.bytearrayOf b n) (make-bytevector n b))
-  (define (unison-FOp-IO.bytearrayOf b n) (make-bytevector n b))
+    (define (unison-FOp-Scope.bytearrayOf b n) (make-bytevector n b))
+    (define (unison-FOp-IO.bytearrayOf b n) (make-bytevector n b))
 
-  (define (unison-FOp-Scope.arrayOf v n) (make-vector n v))
-  (define (unison-FOp-IO.arrayOf v n) (make-vector n v))
+    (define (unison-FOp-Scope.arrayOf v n) (make-vector n v))
+    (define (unison-FOp-IO.arrayOf v n) (make-vector n v))
 
-  (define unison-FOp-MutableByteArray.length bytevector-length)
-  (define unison-FOp-ImmutableByteArray.length bytevector-length)
-  (define unison-FOp-MutableByteArray.size bytevector-length)
-  (define unison-FOp-ImmutableByteArray.size bytevector-length)
-  (define unison-FOp-MutableArray.size vector-length)
-  (define unison-FOp-ImmutableArray.size vector-length)
+    (define unison-FOp-MutableByteArray.length bytevector-length)
+    (define unison-FOp-ImmutableByteArray.length bytevector-length)
+    (define unison-FOp-MutableByteArray.size bytevector-length)
+    (define unison-FOp-ImmutableByteArray.size bytevector-length)
+    (define unison-FOp-MutableArray.size vector-length)
+    (define unison-FOp-ImmutableArray.size vector-length)
 
-  (define (unison-POp-FORK thunk) (fork thunk))
-  (define (unison-POp-TFRC thunk) (try-eval thunk))
-  (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
-  (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
-  (define (unison-FOp-Scope.ref a) (ref-new a))
-  (define (unison-FOp-IO.ref a) (ref-new a))
-  (define (unison-FOp-Ref.read ref) (ref-read ref))
-  (define (unison-FOp-Ref.write ref a) (ref-write ref a))
-  (define (unison-FOp-Ref.readForCas ref) (ref-read ref))
-  (define (unison-FOp-Ref.Ticket.read ticket) ticket)
-  (define (unison-FOp-Ref.cas ref ticket value) (ref-cas ref ticket value))
-  (define (unison-FOp-Promise.new) (promise-new))
-  (define (unison-FOp-Promise.read promise) (promise-read promise))
-  (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
-  (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
+    (define (unison-POp-FORK thunk) (fork thunk))
+    (define (unison-POp-TFRC thunk) (try-eval thunk))
+    (define (unison-FOp-IO.delay.impl.v3 micros) (sleep micros))
+    (define (unison-FOp-IO.kill.impl.v3 threadId) (kill threadId))
+    (define (unison-FOp-Scope.ref a) (ref-new a))
+    (define (unison-FOp-IO.ref a) (ref-new a))
+    (define (unison-FOp-Ref.read ref) (ref-read ref))
+    (define (unison-FOp-Ref.write ref a) (ref-write ref a))
+    (define (unison-FOp-Ref.readForCas ref) (ref-read ref))
+    (define (unison-FOp-Ref.Ticket.read ticket) ticket)
+    (define (unison-FOp-Ref.cas ref ticket value) (ref-cas ref ticket value))
+    (define (unison-FOp-Promise.new) (promise-new))
+    (define (unison-FOp-Promise.read promise) (promise-read promise))
+    (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
+    (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
+  
+  (declare-builtin-link builtin-Float.*)
+  (declare-builtin-link builtin-Float.fromRepresentation)
+  (declare-builtin-link builtin-Float.toRepresentation)
+  (declare-builtin-link builtin-Float.exp)
+  (declare-builtin-link builtin-Float.log)
+  (declare-builtin-link builtin-Float.max)
+  (declare-builtin-link builtin-Float.min)
+  (declare-builtin-link builtin-Float.tan)
+  (declare-builtin-link builtin-Float.tanh)
+  (declare-builtin-link builtin-Float.logBase)
+  (declare-builtin-link builtin-Float.pow)
+  (declare-builtin-link builtin-Float.>)
+  (declare-builtin-link builtin-Float.<)
+  (declare-builtin-link builtin-Float.>=)
+  (declare-builtin-link builtin-Float.<=)
+  (declare-builtin-link builtin-Float.==)
+  (declare-builtin-link builtin-Int.pow)
+  (declare-builtin-link builtin-Int.*)
+  (declare-builtin-link builtin-Int.+)
+  (declare-builtin-link builtin-Int.-)
+  (declare-builtin-link builtin-Int./)
+  (declare-builtin-link builtin-Int.>)
+  (declare-builtin-link builtin-Int.<)
+  (declare-builtin-link builtin-Int.>=)
+  (declare-builtin-link builtin-Int.<=)
+  (declare-builtin-link builtin-Int.==)
+  (declare-builtin-link builtin-Int.isEven)
+  (declare-builtin-link builtin-Int.isOdd)
+  (declare-builtin-link builtin-Int.increment)
+  (declare-builtin-link builtin-Int.negate)
+  (declare-builtin-link builtin-Int.fromRepresentation)
+  (declare-builtin-link builtin-Int.toRepresentation)
+  (declare-builtin-link builtin-Int.signum)
+  (declare-builtin-link builtin-Int.trailingZeros)
+  (declare-builtin-link builtin-Int.popCount)
+  (declare-builtin-link builtin-Nat.increment)
+  (declare-builtin-link builtin-Nat.popCount)
+  (declare-builtin-link builtin-Nat.toFloat)
+  (declare-builtin-link builtin-Nat.trailingZeros)
+  (declare-builtin-link builtin-Nat.+)
+  (declare-builtin-link builtin-Nat.>)
+  (declare-builtin-link builtin-Nat.<)
+  (declare-builtin-link builtin-Nat.>=)
+  (declare-builtin-link builtin-Nat.<=)
+  (declare-builtin-link builtin-Nat.==)
+  (declare-builtin-link builtin-Nat.drop)
+  (declare-builtin-link builtin-Nat.isEven)
+  (declare-builtin-link builtin-Nat.isOdd)
+  (declare-builtin-link builtin-Text.indexOf)
+  (declare-builtin-link builtin-Text.>)
+  (declare-builtin-link builtin-Text.<)
+  (declare-builtin-link builtin-Text.>=)
+  (declare-builtin-link builtin-Text.<=)
+  (declare-builtin-link builtin-Text.==)
+  (declare-builtin-link builtin-Text.!=)
+  (declare-builtin-link builtin-Bytes.indexOf)
+  (declare-builtin-link builtin-IO.randomBytes)
+  (declare-builtin-link builtin-List.splitLeft)
+  (declare-builtin-link builtin-List.splitRight)
+  (declare-builtin-link builtin-Value.toBuiltin)
+  (declare-builtin-link builtin-Value.fromBuiltin)
+  (declare-builtin-link builtin-Code.fromGroup)
+  (declare-builtin-link builtin-Code.toGroup)
+  (declare-builtin-link builtin-TermLink.fromReferent)
+  (declare-builtin-link builtin-TermLink.toReferent)
+  (declare-builtin-link builtin-IO.seekHandle.impl.v3)
+  (declare-builtin-link builtin-IO.getLine.impl.v1)
+  (declare-builtin-link builtin-IO.getSomeBytes.impl.v1)
+  (declare-builtin-link builtin-IO.setBuffering.impl.v3)
+  (declare-builtin-link builtin-IO.getBuffering.impl.v3)
+  (declare-builtin-link builtin-IO.setEcho.impl.v1)
+  (declare-builtin-link builtin-IO.isFileOpen.impl.v3)
+  (declare-builtin-link builtin-IO.ready.impl.v1)
+  (declare-builtin-link builtin-IO.process.call)
+  (declare-builtin-link builtin-IO.getEcho.impl.v1)
+  (declare-builtin-link builtin-IO.getArgs.impl.v1)
+  (declare-builtin-link builtin-IO.getEnv.impl.v1)
+  (declare-builtin-link builtin-IO.getChar.impl.v1)
+  (declare-builtin-link builtin-IO.getCurrentDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.removeDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.renameFile.impl.v3)
+  (declare-builtin-link builtin-IO.createTempDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.createDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.setCurrentDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.renameDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.fileExists.impl.v3)
+  (declare-builtin-link builtin-IO.isDirectory.impl.v3)
+  (declare-builtin-link builtin-IO.isFileEOF.impl.v3)
+  (declare-builtin-link builtin-IO.isSeekable.impl.v3)
+  (declare-builtin-link builtin-IO.handlePosition.impl.v3)
+  (declare-builtin-link builtin-IO.systemTime.impl.v3)
+  (declare-builtin-link builtin-IO.systemTimeMicroseconds.impl.v3)
+  (declare-builtin-link builtin-Universal.==)
+  (declare-builtin-link builtin-Universal.>)
+  (declare-builtin-link builtin-Universal.<)
+  (declare-builtin-link builtin-Universal.>=)
+  (declare-builtin-link builtin-Universal.<=)
+  (declare-builtin-link builtin-Universal.compare)
+  (declare-builtin-link builtin-Pattern.isMatch)
+  (declare-builtin-link builtin-Char.Class.is)
+  )

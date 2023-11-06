@@ -48,15 +48,14 @@
     (unison-either-left x8)))
 
 (define-unison (isFileOpen.impl.v3 port)
-    (unison-either-right
-        (if (port-closed? port) unison-boolean-false unison-boolean-true)))
+    (unison-either-right (not (port-closed? port))))
 
 (define-unison (ready.impl.v1 port)
     (if (byte-ready? port)
-        (unison-either-right unison-boolean-true)
+        (unison-either-right #t)
         (if (port-eof? port)
             (Exception 'IO "EOF" port)
-            (unison-either-right unison-boolean-false))))
+            (unison-either-right #f))))
 
 (define-unison (getCurrentDirectory.impl.v3 unit)
     (unison-either-right
@@ -64,7 +63,7 @@
 
 (define-unison (isSeekable.impl.v3 handle)
     (unison-either-right
-        (if (port-has-set-port-position!? handle) unison-boolean-true unison-boolean-false)))
+        (port-has-set-port-position!? handle)))
 
 (define-unison (handlePosition.impl.v3 handle)
     (unison-either-right (port-position handle)))
@@ -142,16 +141,15 @@
 
 (define-unison (getEcho.impl.v1 handle)
   (if (eq? handle stdin)
-      (unison-either-right
-        (if (get-stdin-echo) unison-boolean-true unison-boolean-false))
+      (unison-either-right (get-stdin-echo))
       (Exception 'IO "getEcho only supported on stdin" '())))
 
 (define-unison (setEcho.impl.v1 handle echo)
   (if (eq? handle stdin)
       (begin
-        (data-case echo
-            (1 () (system "stty echo"))
-            (0 () (system "stty -echo")))
+        (if echo
+            (system "stty echo")
+            (system "stty -echo"))
         (unison-either-right none))
       (Exception 'IO "setEcho only supported on stdin" '())))
 
