@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -178,6 +178,7 @@ library
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Names
+      Unison.UnisonFile.Summary
       Unison.UnisonFile.Type
       Unison.Util.Convert
       Unison.Util.CycleTable

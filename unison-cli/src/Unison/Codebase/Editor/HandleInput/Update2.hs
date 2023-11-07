@@ -68,6 +68,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Summary qualified as Summary
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
@@ -79,8 +80,6 @@ data Defns terms types = Defns
     types :: !types
   }
   deriving stock (Generic, Show)
-
--- deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
@@ -107,10 +106,16 @@ handleUpdate2 = do
     bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
     pure (pped, bigUf)
 
+  traceShowM $ Summary.fromUnisonFile bigUf
+
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
-    Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
+    Left bigUfText -> do
+      traceM ("Typechecking failed when propagating the update to all the dependents." :: String)
+      prependTextToScratchFile bigUfText
+    Right tuf -> do
+      traceM ("I propagated the update and am now saving the results." :: String)
+      saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
 
 prependTextToScratchFile :: Text -> Cli ()
 prependTextToScratchFile textUf = do
@@ -153,6 +158,7 @@ prettyParseTypecheck bigUf pped = do
             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
             names = parseNames
           }
+  traceM stringUf
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left {} -> pure $ Left (Text.pack stringUf)
