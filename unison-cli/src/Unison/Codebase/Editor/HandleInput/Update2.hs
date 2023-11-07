@@ -6,17 +6,14 @@ module Unison.Codebase.Editor.HandleInput.Update2
 where
 
 import Control.Lens (over, (^.))
-import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
-import Data.List.NonEmpty (NonEmpty ((:|)), (<|))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.NonEmpty.Extra ((|>))
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Text.Megaparsec (MonadParsec (eof))
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -30,7 +27,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.Output (Output (ParseErrors))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
@@ -41,7 +37,6 @@ import Unison.DataDeclaration qualified as Decl
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
@@ -50,17 +45,15 @@ import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
-import Unison.Parser.Ann (Ann (Ann))
+import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent'
 import Unison.Result qualified as Result
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
@@ -72,8 +65,6 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
-import Unison.Util.ManyToOne (ManyToOne (ManyToOne))
-import Unison.Util.ManyToOne qualified as ManyToOne
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -97,6 +88,8 @@ handleUpdate2 = do
   let termAndDeclNames :: Defns (Set Name) (Set Name) = getTermAndDeclNames tuf
   -- - construct new UF with dependents
   names :: Names <- NamesUtils.getBasicPrettyPrintNames
+
+  let ctorNames = forwardCtorNames names
 
   (pped, bigUf) <- Cli.runTransactionWithRollback \_abort -> do
     dependents <- Ops.dependentsWithinScope (namespaceReferences names) (getExistingReferencesNamed termAndDeclNames names)
@@ -238,15 +231,14 @@ buildBigUnisonFile c tuf dependents names =
     addComponent uf (h, rt) = case rt of
       Reference.RtTerm -> addTermComponent h uf
       Reference.RtType -> addDeclComponent h uf
-    ctorsForward :: Map ForwardName (Referent, Name)
-    ctorsForward = Map.fromList $ [(ForwardName.fromName name, (r, name)) | (name, r@Referent.Con {}) <- Relation.toList names.terms]
+    ctorNames = forwardCtorNames names
     addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
     addTermComponent h uf = do
       termComponent <- Codebase.unsafeGetTermComponent c h
       pure $ foldl' addTermElement uf (zip termComponent [0 ..])
       where
         addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
-        addTermElement uf ((tm, tp), i) = do
+        addTermElement uf ((tm, _tp), i) = do
           let r :: Referent = Referent.Ref $ Reference.Derived h i
               termNames = Relation.lookupRan r (names.terms)
           foldl' (addDefinition tm) uf termNames
@@ -277,34 +269,45 @@ buildBigUnisonFile c tuf dependents names =
               Right dd -> uf {UF.dataDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
         overwriteConstructorNames name dd =
-          let constructorNames :: [Symbol] = Name.toVar <$> findCtorNames (Decl.constructorCount dd) name
+          let constructorNames :: [Symbol]
+              constructorNames =
+                Name.toVar . fromJust . Name.stripNamePrefix name
+                  <$> findCtorNames names ctorNames (Decl.constructorCount dd) name
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
                  in zip3 annotations constructorNames types
            in over Decl.constructors_ swapConstructorNames dd
-        -- \| given a decl name, find names for all of its constructors, in order.
-        findCtorNames :: Int -> Name -> [Name]
-        findCtorNames expectCount n =
-          let r = Set.findMin $ Relation.lookupDom n names.types
-              f = ForwardName.fromName n
-              (_, centerRight) = Map.split f ctorsForward
-              (center, _) = Map.split (incrementLastSegmentChar f) centerRight
-              -- go through `rest`, looking for constructor references that match `h` above, and adding the
-              -- name to the constructorid map if there's no mapping yet or if the name has fewer segments than
-              -- existing mapping
-              insertShortest :: Map ConstructorId Name -> (Referent, Name) -> Map ConstructorId Name
-              insertShortest m (Referent.Con (ConstructorReference r' cid) _ct, newName) | r' == r =
-                case Map.lookup cid m of
-                  Just existingName
-                    | length (Name.segments existingName) > length (Name.segments newName) ->
-                        Map.insert cid newName m
-                  Just {} -> m
-                  Nothing -> Map.insert cid newName m
-              insertShortest m _ = m
-              m = foldl' insertShortest mempty (Foldable.toList center)
-           in if Map.size m == expectCount && all (isJust . flip Map.lookup m) [0 .. fromIntegral expectCount - 1]
-                then Map.elems m
-                else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show expectCount
+
+-- | O(r + c * d) touches all the referents (r), and all the NameSegments (d) of all of the Con referents (c)
+forwardCtorNames :: Names -> Map ForwardName (Referent, Name)
+forwardCtorNames names =
+  Map.fromList $
+    [ (ForwardName.fromName name, (r, name))
+      | (r@Referent.Con {}, rNames) <- Map.toList $ Relation.range names.terms,
+        name <- Foldable.toList rNames
+    ]
+
+-- | given a decl name, find names for all of its constructors, in order.
+findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Int -> Name -> [Name]
+findCtorNames names forwardCtorNames expectCount n =
+  let declRef = Set.findMin $ Relation.lookupDom n names.types
+      f = ForwardName.fromName n
+      (_, centerRight) = Map.split f forwardCtorNames
+      (center, _) = Map.split (incrementLastSegmentChar f) centerRight
+
+      insertShortest :: Map ConstructorId Name -> (Referent, Name) -> Map ConstructorId Name
+      insertShortest m (Referent.Con (ConstructorReference r cid) _ct, newName) | r == declRef =
+        case Map.lookup cid m of
+          Just existingName
+            | length (Name.segments existingName) > length (Name.segments newName) ->
+                Map.insert cid newName m
+          Just {} -> m
+          Nothing -> Map.insert cid newName m
+      insertShortest m _ = m
+      m = foldl' insertShortest mempty (Foldable.toList center)
+   in if Map.size m == expectCount && all (isJust . flip Map.lookup m) [0 .. fromIntegral expectCount - 1]
+        then Map.elems m
+        else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show expectCount
 
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
 -- ForwardName {toList = "foo" :| ["bar","quuy"]}
