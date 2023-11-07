@@ -278,11 +278,11 @@ buildBigUnisonFile c tuf dependents names =
               termNames = Relation.lookupRan r names.terms
           foldl' (addDefinition tm) uf termNames
         addDefinition :: Term Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
-        addDefinition tm uf name =
-          if nameExists uf name
+        addDefinition tm uf (Name.toVar -> v) =
+          if Set.member v termNames
             then uf
-            else uf {UF.terms = (Name.toVar name, Ann.External, tm) : uf.terms}
-        nameExists uf name = any (\(v, _, _) -> v == Name.toVar name) uf.terms
+            else uf {UF.terms = (v, Ann.External, tm) : uf.terms}
+        termNames = Set.fromList [v | (v, _, _) <- uf.terms]
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes
