@@ -102,62 +102,59 @@
 ; The intent is for the scheme compiler to be able to recognize and
 ; optimize static, fast path calls itself, while still supporting
 ; unison-like automatic partial application and such.
-(define-syntax define-unison
-  (lambda (x)
-    (define (fast-path-symbol name)
-      (string->symbol
-        (string-append
-          "fast-path-"
-          (symbol->string name))))
+(define-syntax (define-unison x)
+  (define (fast-path-symbol name)
+    (string->symbol
+      (string-append
+        (symbol->string name)
+        ":fast-path")))
 
-    (define (fast-path-name name)
-      (datum->syntax name (fast-path-symbol (syntax->datum name))))
+  (define (fast-path-name name)
+    (datum->syntax name (fast-path-symbol (syntax->datum name))))
 
-    ; Helper function. Turns a list of syntax objects into a
-    ; list-syntax object.
-    (define (list->syntax l) #`(#,@l))
-    ; Builds partial application cases for unison functions.
-    ; It seems most efficient to have a case for each posible
-    ; under-application.
-    (define (build-partials name formals)
-      (let rec ([us formals] [acc '()])
-        (syntax-case us ()
-          [() (list->syntax (cons #`[() #,name] acc))]
-          [(a ... z)
-           (rec #'(a ...)
-                (cons
-                  #`[(a ... z)
-                     (with-name
-                       #,(datum->syntax name (syntax->datum name))
-                       (partial-app #,name a ... z))]
-                  acc))])))
-
-    ; Given an overall function name, a fast path name, and a list of
-    ; arguments, builds the case-lambda body of a unison function that
-    ; enables applying to arbitrary numbers of arguments.
-    (define (func-cases name fast args)
-      (syntax-case args ()
-        [() (quasisyntax/loc x
-              (case-lambda
-                [() (#,fast)]
-                [r (apply (#,fast) r)]))]
+  ; Helper function. Turns a list of syntax objects into a
+  ; list-syntax object.
+  (define (list->syntax l) #`(#,@l))
+  ; Builds partial application cases for unison functions.
+  ; It seems most efficient to have a case for each posible
+  ; under-application.
+  (define (build-partials name formals)
+    (let rec ([us formals] [acc '()])
+      (syntax-case us ()
+        [() (list->syntax (cons #`[() #,name] acc))]
         [(a ... z)
-         (quasisyntax/loc x
-           (case-lambda
-             #,@(build-partials name #'(a ...))
-             [(a ... z) (#,fast a ... z)]
-             [(a ... z . r) (apply (#,fast a ... z) r)]))]))
+         (rec #'(a ...)
+              (cons
+                #`[(a ... z)
+                   (with-name
+                     #,(datum->syntax name (syntax->datum name))
+                     (partial-app #,name a ... z))]
+                acc))])))
 
-    (define (func-wrap name args body)
-      (with-syntax ([fp (fast-path-name name)])
-        #`(let ([fp #,(quasisyntax/loc x
-                        (lambda (#,@args) #,@body))])
-            #,(func-cases name #'fp args))))
+  ; Given an overall function name, a fast path name, and a list of
+  ; arguments, builds the case-lambda body of a unison function that
+  ; enables applying to arbitrary numbers of arguments.
+  (define (func-cases name name:fast args)
+    (syntax-case args ()
+      [() (quasisyntax/loc x
+            (case-lambda
+              [() (#,name:fast)]
+              [r (apply (#,name:fast) r)]))]
+      [(a ... z)
+       (quasisyntax/loc x
+         (case-lambda
+           #,@(build-partials name #'(a ...))
+           [(a ... z) (#,name:fast a ... z)]
+           [(a ... z . r) (apply (#,name:fast a ... z) r)]))]))
 
-    (syntax-case x ()
-      [(define-unison (name a ...) e ...)
-       #`(define name
-           #,(func-wrap #'name #'(a ...) #'(e ...)))])))
+  (syntax-case x ()
+    [(define-unison (name a ...) e ...)
+     (let ([fname (fast-path-name #'name)])
+       (with-syntax ([name:fast fname]
+                     [fast (syntax/loc x (lambda (a ...) e ...))]
+                     [slow (func-cases #'name fname #'(a ...))])
+         (syntax/loc x
+           (define-values (name:fast name) (values fast slow)))))]))
 
 ; call-by-name bindings
 (define-syntax name
@@ -393,7 +390,8 @@
                         #'unison-data-tag
                         #'unison-data-fields
                         #'(c ...))])
-         #'(case (unison-data-tag scrut) tc ...))])))
+         (syntax/loc stx
+           (case (unison-data-tag scrut) tc ...)))])))
 
 (define-syntax request-case
   (lambda (stx)

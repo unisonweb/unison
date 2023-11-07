@@ -43,21 +43,21 @@
   unison-POp-LOAD
   unison-POp-LKUP)
 
-(define-builtin-link builtin-Value.value)
-(define-builtin-link builtin-Value.reflect)
-(define-builtin-link builtin-Code.isMissing)
-(define-builtin-link builtin-Code.lookup)
+(define-builtin-link Value.value)
+(define-builtin-link Value.reflect)
+(define-builtin-link Code.isMissing)
+(define-builtin-link Code.lookup)
 
-(define-builtin-link builtin-Code.deserialize)
-(define-builtin-link builtin-Code.serialize)
-(define-builtin-link builtin-Code.validateLinks)
-(define-builtin-link builtin-Value.deserialize)
-(define-builtin-link builtin-Value.serialize)
-(define-builtin-link builtin-crypto.hash)
-(define-builtin-link builtin-crypto.hmac)
-(define-builtin-link builtin-validateSandboxed)
-(define-builtin-link builtin-Value.validateSandboxed)
-(define-builtin-link builtin-sandboxLinks)
+(define-builtin-link Code.deserialize)
+(define-builtin-link Code.serialize)
+(define-builtin-link Code.validateLinks)
+(define-builtin-link Value.deserialize)
+(define-builtin-link Value.serialize)
+(define-builtin-link crypto.hash)
+(define-builtin-link crypto.hmac)
+(define-builtin-link validateSandboxed)
+(define-builtin-link Value.validateSandboxed)
+(define-builtin-link sandboxLinks)
 
 (define (chunked-list->list cl)
   (vector->list (chunked-list->vector cl)))
@@ -491,12 +491,20 @@
   (let ([ln (if (unison-data? l) (reference->termlink l) l)])
     (and (unison-termlink-derived? ln) (not (have-code? ln)))))
 
+(define (resolve-builtin nm)
+  (dynamic-require
+    'unison/primops
+    nm
+    (lambda ()
+      (dynamic-require
+        'unison/simple-wrappers
+        nm))))
+
 (define (resolve-proc gr)
   (sum-case (decode-ref (group-reference gr))
     [0 (tx)
      (parameterize ([current-namespace runtime-namespace])
-       (dynamic-require
-         'unison/simple-wrappers
+       (resolve-builtin
          (string->symbol (string-append "builtin-" tx))))]
     [1 (bs i)
      (let ([sym (group-ref-sym gr)]
@@ -567,18 +575,16 @@
 
 (define-unison (builtin-validateSandboxed ok v)
   (let ([l (sandbox-scheme-value (chunked-list->list ok) v)])
-    (if (null? l)
-      unison-boolean-true
-      unison-boolean-false)))
+    (null? l)))
 
 (define-unison (builtin-sandboxLinks tl) (check-sandbox tl))
 
 (define-unison (builtin-Code.isMissing tl)
   (cond
-    [(unison-termlink-builtin? tl) unison-boolean-false]
-    [(unison-termlink-con? tl) unison-boolean-false]
-    [(have-code? tl) unison-boolean-true]
-    [else unison-boolean-false]))
+    [(unison-termlink-builtin? tl) #f]
+    [(unison-termlink-con? tl) #f]
+    [(have-code? tl) #t]
+    [else #f]))
 
 (define-unison (builtin-Value.validateSandboxed ok v)
   (sandbox-quoted (chunked-list->list ok) v))
