@@ -1536,6 +1536,7 @@ inputDescription input =
           DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
           UsePatch p0 -> (" " <>) <$> ps' p0
       pure ("update" <> p)
+    Update2I -> pure ("update2")
     PropagatePatchI p0 scope0 -> do
       p <- ps' p0
       scope <- p' scope0
