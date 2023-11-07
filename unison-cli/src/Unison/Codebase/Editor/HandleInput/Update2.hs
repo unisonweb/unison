@@ -101,7 +101,7 @@ handleUpdate2 = do
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf wundefined tuf
+    Right tuf -> saveTuf (findCtorNames names ctorNames Nothing) tuf
 
 -- travis
 prependTextToScratchFile :: Text -> Cli ()
@@ -272,7 +272,7 @@ buildBigUnisonFile c tuf dependents names =
           let constructorNames :: [Symbol]
               constructorNames =
                 Name.toVar . fromJust . Name.stripNamePrefix name
-                  <$> findCtorNames names ctorNames (Decl.constructorCount dd) name
+                  <$> findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
                  in zip3 annotations constructorNames types
@@ -288,8 +288,8 @@ forwardCtorNames names =
     ]
 
 -- | given a decl name, find names for all of its constructors, in order.
-findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Int -> Name -> [Name]
-findCtorNames names forwardCtorNames expectCount n =
+findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> [Name]
+findCtorNames names forwardCtorNames ctorCount n =
   let declRef = Set.findMin $ Relation.lookupDom n names.types
       f = ForwardName.fromName n
       (_, centerRight) = Map.split f forwardCtorNames
@@ -305,9 +305,10 @@ findCtorNames names forwardCtorNames expectCount n =
           Nothing -> Map.insert cid newName m
       insertShortest m _ = m
       m = foldl' insertShortest mempty (Foldable.toList center)
-   in if Map.size m == expectCount && all (isJust . flip Map.lookup m) [0 .. fromIntegral expectCount - 1]
+      ctorCountGuess = fromMaybe (Map.size m) ctorCount
+   in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m) [0 .. fromIntegral ctorCountGuess - 1]
         then Map.elems m
-        else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show expectCount
+        else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show ctorCountGuess
 
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
 -- ForwardName {toList = "foo" :| ["bar","quuy"]}
