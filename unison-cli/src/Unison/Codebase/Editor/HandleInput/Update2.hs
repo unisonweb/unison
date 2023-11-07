@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
   )
@@ -5,9 +7,14 @@ where
 
 import Control.Exception (mask, onException)
 import Control.Lens ((^.))
+import Control.Lens (over, (^.))
+import Control.Exception (mask, onException)
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty.Extra ((|>))
 import Data.Map qualified as Map
+import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -26,26 +33,33 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.Output (Output (ParseErrors))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Type (Codebase)
 import Unison.CommandLine.OutputMessages qualified as Output
+import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
+import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.FileParsers qualified as FileParsers
-import Unison.HashQualified' qualified as HQ'
+import Unison.Hash (Hash)
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.Name.Forward (ForwardName (..))
+import Unison.Name.Forward qualified as ForwardName
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Reference qualified as Reference (fromId)
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent'
 import Unison.Result qualified as Result
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
@@ -53,8 +67,10 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Term (Term)
+import Unison.Type (Type)
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
-import Unison.UnisonFile.Type qualified as UF
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -70,6 +86,7 @@ data Defns terms types = Defns
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
+  Cli.Env {codebase} <- ask
   -- - confirm all aliases updated together?
   tuf <- Cli.expectLatestTypecheckedFile
 
@@ -78,18 +95,19 @@ handleUpdate2 = do
   -- - construct new UF with dependents
   names :: Names <- NamesUtils.getBasicPrettyPrintNames
 
-  (dependents, pped) <- Cli.runTransactionWithRollback \_abort -> do
+  let ctorNames = forwardCtorNames names
+
+  (pped, bigUf) <- Cli.runTransactionWithRollback \_abort -> do
     dependents <- Ops.dependentsWithinScope (namespaceReferences names) (getExistingReferencesNamed termAndDeclNames names)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
-    pure (dependents, pped)
-
-  bigUf :: UnisonFile Symbol Ann <- buildBigUnisonFile tuf dependents names
+    bigUf <- buildBigUnisonFile codebase tuf dependents names
+    pure (pped, bigUf)
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf wundefined tuf
+    Right tuf -> saveTuf (findCtorNames names ctorNames Nothing) tuf
 
 prependTextToScratchFile :: Text -> Cli ()
 prependTextToScratchFile textUf = do
@@ -229,9 +247,110 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
--- mitchell
-buildBigUnisonFile :: TypecheckedUnisonFile Symbol Ann -> Map Reference.Id Reference.ReferenceType -> Names -> Cli a0
-buildBigUnisonFile tuf dependents names = wundefined
+buildBigUnisonFile :: Codebase IO Symbol Ann -> TypecheckedUnisonFile Symbol Ann -> Map Reference.Id ReferenceType -> Names -> Transaction (UnisonFile Symbol Ann)
+buildBigUnisonFile c tuf dependents names =
+  -- for each dependent, add its definition with all its names to the UnisonFile
+  foldM addComponent (UF.discardTypes tuf) (Map.toList dependents')
+  where
+    dependents' :: Map Hash ReferenceType = Map.mapKeys (\(Reference.Id h _pos) -> h) dependents
+    addComponent :: UnisonFile Symbol Ann -> (Hash, ReferenceType) -> Transaction (UnisonFile Symbol Ann)
+    addComponent uf (h, rt) = case rt of
+      Reference.RtTerm -> addTermComponent h uf
+      Reference.RtType -> addDeclComponent h uf
+    ctorNames = forwardCtorNames names
+    addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
+    addTermComponent h uf = do
+      termComponent <- Codebase.unsafeGetTermComponent c h
+      pure $ foldl' addTermElement uf (zip termComponent [0 ..])
+      where
+        addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
+        addTermElement uf ((tm, _tp), i) = do
+          let r :: Referent = Referent.Ref $ Reference.Derived h i
+              termNames = Relation.lookupRan r (names.terms)
+          foldl' (addDefinition tm) uf termNames
+        addDefinition :: Term Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
+        addDefinition tm uf name =
+          if nameExists uf name
+            then uf
+            else uf {UF.terms = (Name.toVar name, Ann.External, tm) : uf.terms}
+        nameExists uf name = any (\(v, _, _) -> v == Name.toVar name) uf.terms
+
+    -- given a dependent hash, include that component in the scratch file
+    -- todo: wundefined: cut off constructor name prefixes
+    addDeclComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
+    addDeclComponent h uf = do
+      declComponent <- fromJust <$> Codebase.getDeclComponent h
+      pure $ foldl' addDeclElement uf (zip declComponent [0 ..])
+      where
+        -- for each name a decl has, update its constructor names according to what exists in the namespace
+        addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> UnisonFile Symbol Ann
+        addDeclElement uf (decl, i) = do
+          let declNames = Relation.lookupRan (Reference.Derived h i) (names.types)
+          -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
+          foldl' (addRebuiltDefinition decl) uf declNames
+          where
+            -- skip any definitions that already have names, we don't want to overwrite what the user has supplied
+            addRebuiltDefinition decl uf name = case decl of
+              Left ed -> uf {UF.effectDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames name ed.toDataDecl) uf.effectDeclarationsId}
+              Right dd -> uf {UF.dataDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
+        overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
+        overwriteConstructorNames name dd =
+          let constructorNames :: [Symbol]
+              constructorNames =
+                Name.toVar . fromJust . Name.stripNamePrefix name
+                  <$> findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name
+              swapConstructorNames oldCtors =
+                let (annotations, _vars, types) = unzip3 oldCtors
+                 in zip3 annotations constructorNames types
+           in over Decl.constructors_ swapConstructorNames dd
+
+-- | O(r + c * d) touches all the referents (r), and all the NameSegments (d) of all of the Con referents (c)
+forwardCtorNames :: Names -> Map ForwardName (Referent, Name)
+forwardCtorNames names =
+  Map.fromList $
+    [ (ForwardName.fromName name, (r, name))
+      | (r@Referent.Con {}, rNames) <- Map.toList $ Relation.range names.terms,
+        name <- Foldable.toList rNames
+    ]
+
+-- | given a decl name, find names for all of its constructors, in order.
+findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> [Name]
+findCtorNames names forwardCtorNames ctorCount n =
+  let declRef = Set.findMin $ Relation.lookupDom n names.types
+      f = ForwardName.fromName n
+      (_, centerRight) = Map.split f forwardCtorNames
+      (center, _) = Map.split (incrementLastSegmentChar f) centerRight
+
+      insertShortest :: Map ConstructorId Name -> (Referent, Name) -> Map ConstructorId Name
+      insertShortest m (Referent.Con (ConstructorReference r cid) _ct, newName) | r == declRef =
+        case Map.lookup cid m of
+          Just existingName
+            | length (Name.segments existingName) > length (Name.segments newName) ->
+                Map.insert cid newName m
+          Just {} -> m
+          Nothing -> Map.insert cid newName m
+      insertShortest m _ = m
+      m = foldl' insertShortest mempty (Foldable.toList center)
+      ctorCountGuess = fromMaybe (Map.size m) ctorCount
+   in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m) [0 .. fromIntegral ctorCountGuess - 1]
+        then Map.elems m
+        else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show ctorCountGuess
+
+-- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
+-- ForwardName {toList = "foo" :| ["bar","quuy"]}
+incrementLastSegmentChar :: ForwardName -> ForwardName
+incrementLastSegmentChar (ForwardName segments) =
+  let (initSegments, lastSegment) = (NonEmpty.init segments, NonEmpty.last segments)
+      incrementedLastSegment = incrementLastCharInSegment lastSegment
+   in ForwardName $ maybe (NonEmpty.singleton incrementedLastSegment) (|> incrementedLastSegment) (NonEmpty.nonEmpty initSegments)
+  where
+    incrementLastCharInSegment :: NameSegment -> NameSegment
+    incrementLastCharInSegment (NameSegment text) =
+      let incrementedText =
+            if Text.null text
+              then text
+              else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
+       in NameSegment incrementedText
 
 namespaceReferences :: Names -> Set Reference.Id
 namespaceReferences names = fromTerms <> fromTypes
