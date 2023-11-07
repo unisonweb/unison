@@ -34,6 +34,7 @@ import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
@@ -111,11 +112,12 @@ handleUpdate2 = do
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> do
-      traceM ("Typechecking failed when propagating the update to all the dependents." :: String)
+      Cli.respond Output.UpdateTypecheckingFailure
       prependTextToScratchFile bigUfText
     Right tuf -> do
-      traceM ("I propagated the update and am now saving the results." :: String)
+      Cli.respond Output.UpdateTypecheckingSuccess
       saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
+      Cli.respond Output.Success
 
 prependTextToScratchFile :: Text -> Cli ()
 prependTextToScratchFile textUf = do

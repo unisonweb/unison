@@ -383,6 +383,8 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | UpdateTypecheckingFailure
+  | UpdateTypecheckingSuccess
 
 -- | What did we create a project branch from?
 --
@@ -444,6 +446,8 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  UpdateTypecheckingFailure{} -> True
+  UpdateTypecheckingSuccess{} -> False
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False

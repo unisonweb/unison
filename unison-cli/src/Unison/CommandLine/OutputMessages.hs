@@ -2168,6 +2168,8 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  UpdateTypecheckingFailure -> pure "Typechecking failed when propagating the update to all the dependents."
+  UpdateTypecheckingSuccess -> pure "I propagated the update and am now saving the results."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
