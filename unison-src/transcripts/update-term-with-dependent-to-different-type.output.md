@@ -9,7 +9,7 @@ foo : Nat
 foo = 5
 
 bar : Nat
-bar = 5
+bar = foo + 10
 ```
 
 ```ucm
@@ -34,11 +34,8 @@ bar = 5
 
 ```
 ```unison
-foo : Nat
-foo = 6
-
-bar : Nat
-bar = 7
+foo : Int
+foo = +5
 ```
 
 ```ucm
@@ -50,27 +47,20 @@ bar = 7
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      bar : Nat
-        (The old definition is also named foo. I'll update this
-        name too.)
-      foo : Nat
-        (The old definition is also named bar. I'll update this
-        name too.)
+      foo : Int
 
 ```
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
-
-  Done.
-
-.> view foo bar
-
   bar : Nat
-  bar = 7
+  bar =
+    use Nat +
+    foo + 10
   
-  foo : Nat
-  foo = 6
+  foo : Int
+  foo = +5
+
+  Typechecking failed when propagating the update to all the dependents.
 
 ```

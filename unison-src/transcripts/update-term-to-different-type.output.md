@@ -48,6 +48,10 @@ foo = +5
 ```ucm
 .> update
 
+  I propagated the update and am now saving the results.
+
+  Done.
+
 .> view foo
 
   foo : Int

@@ -55,6 +55,10 @@ foo = 6
 ```ucm
 .> update
 
+  I propagated the update and am now saving the results.
+
+  Done.
+
 .> view foo bar
 
   bar : Nat
