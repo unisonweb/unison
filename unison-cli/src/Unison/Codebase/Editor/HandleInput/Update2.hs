@@ -6,9 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
 where
 
 import Control.Exception (mask, onException)
-import Control.Lens ((^.))
 import Control.Lens (over, (^.))
-import Control.Exception (mask, onException)
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
 import Data.List.NonEmpty qualified as NonEmpty
@@ -26,11 +24,11 @@ import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils qualified as NamesUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Path (Path)
@@ -92,22 +90,27 @@ handleUpdate2 = do
 
   -- - get add/updates from TUF
   let termAndDeclNames :: Defns (Set Name) (Set Name) = getTermAndDeclNames tuf
-  -- - construct new UF with dependents
-  names :: Names <- NamesUtils.getBasicPrettyPrintNames
 
-  let ctorNames = forwardCtorNames names
+  currentBranch0 <- Cli.getCurrentBranch0
+  let namesIncludingLibdeps = Branch.toNames currentBranch0
+  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
+
+  let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   (pped, bigUf) <- Cli.runTransactionWithRollback \_abort -> do
-    dependents <- Ops.dependentsWithinScope (namespaceReferences names) (getExistingReferencesNamed termAndDeclNames names)
+    dependents <-
+      Ops.dependentsWithinScope
+        (namespaceReferences namesExcludingLibdeps)
+        (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-    pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames names))
-    bigUf <- buildBigUnisonFile codebase tuf dependents names
+    pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
+    bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
     pure (pped, bigUf)
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left bigUfText -> prependTextToScratchFile bigUfText
-    Right tuf -> saveTuf (findCtorNames names ctorNames Nothing) tuf
+    Right tuf -> saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
 
 prependTextToScratchFile :: Text -> Cli ()
 prependTextToScratchFile textUf = do
@@ -266,7 +269,7 @@ buildBigUnisonFile c tuf dependents names =
         addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
         addTermElement uf ((tm, _tp), i) = do
           let r :: Referent = Referent.Ref $ Reference.Derived h i
-              termNames = Relation.lookupRan r (names.terms)
+              termNames = Relation.lookupRan r names.terms
           foldl' (addDefinition tm) uf termNames
         addDefinition :: Term Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
         addDefinition tm uf name =
