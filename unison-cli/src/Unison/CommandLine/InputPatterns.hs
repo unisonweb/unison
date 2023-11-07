@@ -258,7 +258,7 @@ updateNoPatch =
 update :: InputPattern
 update =
   InputPattern
-    "update"
+    "update.old"
     []
     I.Visible
     [(Optional, patchArg), (ZeroPlus, noCompletionsArg)]
@@ -1556,7 +1556,7 @@ mergeLocal =
 update2 :: InputPattern
 update2 =
   InputPattern
-    { patternName = "update2",
+    { patternName = "update",
       aliases = [],
       visibility = I.Visible,
       argTypes = [],
