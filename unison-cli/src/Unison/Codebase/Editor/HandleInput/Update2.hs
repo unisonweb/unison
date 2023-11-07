@@ -300,8 +300,8 @@ buildBigUnisonFile c tuf dependents names =
           where
             -- skip any definitions that already have names, we don't want to overwrite what the user has supplied
             addRebuiltDefinition decl uf name = case decl of
-              Left ed -> uf {UF.effectDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames name ed.toDataDecl) uf.effectDeclarationsId}
-              Right dd -> uf {UF.dataDeclarationsId = Map.insertWith const (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
+              Left ed -> uf {UF.effectDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames name ed.toDataDecl) uf.effectDeclarationsId}
+              Right dd -> uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
         overwriteConstructorNames name dd =
           let constructorNames :: [Symbol]
