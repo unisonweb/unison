@@ -221,15 +221,29 @@ previewAdd =
     )
     $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
-updateNoPatch :: InputPattern
-updateNoPatch =
+update2 :: InputPattern
+update2 =
   InputPattern
-    "update.nopatch"
-    ["un"]
+    { patternName = "update",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help = P.wrap (makeExample update2 []),
+      parse =
+        maybeToEither (I.help update2) . \case
+          [] -> Just Input.Update2I
+          _ -> Nothing
+    }
+
+updateOldNoPatch :: InputPattern
+updateOldNoPatch =
+  InputPattern
+    "update.old.nopatch"
+    []
     I.Visible
     [(ZeroPlus, noCompletionsArg)]
     ( P.wrap
-        ( makeExample' updateNoPatch
+        ( makeExample' updateOldNoPatch
             <> "works like"
             <> P.group (makeExample' update <> ",")
             <> "except it doesn't add a patch entry for any updates. "
@@ -239,10 +253,10 @@ updateNoPatch =
             <> "just added."
         )
         <> P.wrapColumn2
-          [ ( makeExample' updateNoPatch,
+          [ ( makeExample' updateOldNoPatch,
               "updates all definitions in the .u file."
             ),
-            ( makeExample updateNoPatch ["foo", "bar"],
+            ( makeExample updateOldNoPatch ["foo", "bar"],
               "updates `foo`, `bar`, and their dependents from the .u file."
             )
           ]
@@ -1552,20 +1566,6 @@ mergeLocal =
           Just $ Input.MergeLocalBranchI src dest Branch.RegularMerge
         _ -> Nothing
     )
-
-update2 :: InputPattern
-update2 =
-  InputPattern
-    { patternName = "update",
-      aliases = [],
-      visibility = I.Visible,
-      argTypes = [],
-      help = P.wrap (makeExample update2 []),
-      parse =
-        maybeToEither (I.help update2) . \case
-          [] -> Just Input.Update2I
-          _ -> Nothing
-    }
 
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
@@ -2914,7 +2914,7 @@ validInputs =
       update,
       update2,
       updateBuiltins,
-      updateNoPatch,
+      updateOldNoPatch,
       view,
       viewGlobal,
       viewPatch,
