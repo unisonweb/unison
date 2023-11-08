@@ -104,7 +104,10 @@ handleUpdate2 = do
     bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
     pure (pped, bigUf)
 
-  traceShowM $ Summary.fromUnisonFile bigUf
+    pure (pped `PPED.addFallback` tufPped, bigUf)
+
+  Debug.whenDebug Debug.Update do
+    liftIO . print $ Summary.fromUnisonFile bigUf
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
@@ -137,7 +140,8 @@ prettyParseTypecheck bigUf pped = do
             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
             names = parseNames
           }
-  traceM stringUf
+  Debug.whenDebug Debug.Update do
+    liftIO $ print stringUf
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left {} -> pure $ Left prettyUf
