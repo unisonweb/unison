@@ -1,11 +1,11 @@
-```ucm
+```ucm:hide
 .> builtins.merge
 .> move.namespace builtin lib.builtin
 ```
 
 ```unison
-structural type Foo = Bar Nat
-structural type Baz = Qux Foo
+unique type Foo = Bar Nat
+unique type Baz = Qux Foo
 ```
 
 ```ucm
@@ -13,7 +13,7 @@ structural type Baz = Qux Foo
 ```
 
 ```unison
-structural type Foo = Bar Nat Nat
+unique type Foo = Bar Nat Nat
 ```
 
 ```ucm

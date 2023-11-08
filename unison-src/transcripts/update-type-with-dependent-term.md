@@ -1,10 +1,10 @@
-```ucm
+```ucm:hide
 .> builtins.merge
 .> move.namespace builtin lib.builtin
 ```
 
 ```unison
-structural type Foo = Bar Nat
+unique type Foo = Bar Nat
 
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n+1)
@@ -15,7 +15,7 @@ incrFoo = cases Bar n -> Bar (n+1)
 ```
 
 ```unison
-structural type Foo = Bar Nat Nat
+unique type Foo = Bar Nat Nat
 ```
 
 ```ucm:error

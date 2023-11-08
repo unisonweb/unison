@@ -1,15 +1,5 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-.> move.namespace builtin lib.builtin
-
-  Done.
-
-```
 ```unison
-structural type Foo
+unique type Foo
   = Bar Nat
   | Baz Nat Nat
 
@@ -27,7 +17,7 @@ foo = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type Foo
+      unique type Foo
       foo : Foo -> Nat
 
 ```
@@ -36,12 +26,12 @@ foo = cases
 
   ⍟ I've added these definitions:
   
-    structural type Foo
+    unique type Foo
     foo : Foo -> Nat
 
 ```
 ```unison
-structural type Foo
+unique type Foo
   = Bar Nat
 ```
 
@@ -54,7 +44,7 @@ structural type Foo
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      structural type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -65,7 +55,7 @@ structural type Foo
     Bar n   -> n
     Baz n m -> n Nat.+ m
   
-  structural type Foo = Bar Nat
+  unique type Foo = Bar Nat
 
   Typechecking failed when propagating the update to all the dependents.
 

@@ -1,15 +1,5 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-.> move.namespace builtin lib.builtin
-
-  Done.
-
-```
 ```unison
-structural type Foo = Bar Nat
+unique type Foo = Bar Nat
 
 makeFoo : Nat -> Foo
 makeFoo n = Bar (n+10)
@@ -23,7 +13,7 @@ makeFoo n = Bar (n+10)
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type Foo
+      unique type Foo
       makeFoo : Nat -> Foo
 
 ```
@@ -32,12 +22,12 @@ makeFoo n = Bar (n+10)
 
   ⍟ I've added these definitions:
   
-    structural type Foo
+    unique type Foo
     makeFoo : Nat -> Foo
 
 ```
 ```unison
-structural type Foo = internal.Bar Nat
+unique type Foo = internal.Bar Nat
 
 Foo.Bar : Nat -> Foo
 Foo.Bar n = internal.Bar n
@@ -65,20 +55,20 @@ Foo.Bar n = internal.Bar n
 
 .> view Foo
 
-  structural type Foo = internal.Bar Nat
+  unique type Foo = internal.Bar Nat
 
 .> find.verbose
 
-  1. -- #68k40ra7l7bmv3m2qebgt14uhqjmiqugadem3eqaqhljgaqnvhmn0urfut51vjml4rdnre9hqkqp9ipn1kr5qs2hocucot2uai7q1mo
-     structural type Foo
+  1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
+     unique type Foo
      
-  2. -- #no7n4dnlmm7i8gg0e94fpebd4ciq3o85rcuvtmq7ohh7tvfipivol21u26kuvaq5ct5g60frknt0hucpcdl9c87n61rmjj9ojjvmsko
+  2. -- #qp7bkhdbv3b8fphm9lhr5nnuu1d2hb0aesr3hc5i212krdgpa953gqmlac9ehfisjp38jlvrftnuehpcveampsgl1ouogki4rnqdbn8
      Foo.Bar : Nat -> Foo
      
-  3. -- #68k40ra7l7bmv3m2qebgt14uhqjmiqugadem3eqaqhljgaqnvhmn0urfut51vjml4rdnre9hqkqp9ipn1kr5qs2hocucot2uai7q1mo#0
+  3. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
      Foo.internal.Bar : Nat -> Foo
      
-  4. -- #ptmhmi3lrmec2l22t9el62b6j6qurku52qi9a95dm4c944bemr2m9747bff1qi1pg75h6qr7363af8kdp3iivnd41sd8rbh5n28j6io
+  4. -- #02rqdk3rbj79g7dnvbaa6sc5gcc6q24sa4smpok88nkhqc0atbpvhklpuain8bn7s0nt0ivsi0ln69oqvsasagvqlh700928cbgdki0
      makeFoo : Nat -> Foo
      
   

@@ -1,10 +1,10 @@
-```ucm
+```ucm:hide
 .> builtins.merge
 .> move.namespace builtin lib.builtin
 ```
 
 ```unison
-structural type Foo = Bar Nat
+unique type Foo = Bar Nat
 
 makeFoo : Nat -> Foo
 makeFoo n = Bar (n+10)
@@ -15,7 +15,7 @@ makeFoo n = Bar (n+10)
 ```
 
 ```unison
-structural type Foo = internal.Bar Nat
+unique type Foo = internal.Bar Nat
 
 Foo.Bar : Nat -> Foo
 Foo.Bar n = internal.Bar n

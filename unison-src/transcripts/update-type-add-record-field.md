@@ -1,10 +1,10 @@
-```ucm
+```ucm:hide
 .> builtins.merge
 .> move.namespace builtin lib.builtin
 ```
 
 ```unison
-structural type Foo = { bar : Nat }
+unique type Foo = { bar : Nat }
 ```
 
 ```ucm
@@ -12,7 +12,7 @@ structural type Foo = { bar : Nat }
 ```
 
 ```unison
-structural type Foo = { bar : Nat, baz : Int }
+unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ```ucm
@@ -20,4 +20,3 @@ structural type Foo = { bar : Nat, baz : Int }
 .> view Foo
 .> find.verbose
 ```
-

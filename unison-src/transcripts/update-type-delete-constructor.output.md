@@ -1,15 +1,5 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-.> move.namespace builtin lib.builtin
-
-  Done.
-
-```
 ```unison
-structural type Foo
+unique type Foo
   = Bar Nat
   | Baz Nat Nat
 ```
@@ -22,7 +12,7 @@ structural type Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -30,11 +20,11 @@ structural type Foo
 
   ⍟ I've added these definitions:
   
-    structural type Foo
+    unique type Foo
 
 ```
 ```unison
-structural type Foo
+unique type Foo
   = Bar Nat
 ```
 
@@ -47,7 +37,7 @@ structural type Foo
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      structural type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -59,14 +49,14 @@ structural type Foo
 
 .> view Foo
 
-  structural type Foo = Bar Nat
+  unique type Foo = Bar Nat
 
 .> find.verbose
 
-  1. -- #68k40ra7l7bmv3m2qebgt14uhqjmiqugadem3eqaqhljgaqnvhmn0urfut51vjml4rdnre9hqkqp9ipn1kr5qs2hocucot2uai7q1mo
-     structural type Foo
+  1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
+     unique type Foo
      
-  2. -- #68k40ra7l7bmv3m2qebgt14uhqjmiqugadem3eqaqhljgaqnvhmn0urfut51vjml4rdnre9hqkqp9ipn1kr5qs2hocucot2uai7q1mo#0
+  2. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
      Foo.Bar : Nat -> Foo
      
   

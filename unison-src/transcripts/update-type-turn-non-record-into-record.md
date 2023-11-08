@@ -4,8 +4,7 @@
 ```
 
 ```unison
-unique type Foo = Bar Nat
-unique type Baz = Qux Foo
+unique type Foo = Nat
 ```
 
 ```ucm
@@ -13,9 +12,11 @@ unique type Baz = Qux Foo
 ```
 
 ```unison
-unique type Foo a = Bar Nat a
+unique type Foo = { bar : Nat }
 ```
 
-```ucm:error
+```ucm
 .> update
+.> view Foo
+.> find.verbose
 ```

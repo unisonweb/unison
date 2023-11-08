@@ -4,17 +4,14 @@
 ```
 
 ```unison
-unique type Foo = Bar Nat
-unique type Baz = Qux Foo
+unique type Foo = { bar : Nat }
 ```
 
 ```ucm
 .> add
 ```
 
-```unison
-unique type Foo a = Bar Nat a
-```
+Bug: this no-op update should (of course) succeed.
 
 ```ucm:error
 .> update

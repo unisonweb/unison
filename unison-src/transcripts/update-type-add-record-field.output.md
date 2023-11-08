@@ -1,15 +1,5 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-.> move.namespace builtin lib.builtin
-
-  Done.
-
-```
 ```unison
-structural type Foo = { bar : Nat }
+unique type Foo = { bar : Nat }
 ```
 
 ```ucm
@@ -20,7 +10,7 @@ structural type Foo = { bar : Nat }
   
     ⍟ These new definitions are ok to `add`:
     
-      structural type Foo
+      unique type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -31,14 +21,14 @@ structural type Foo = { bar : Nat }
 
   ⍟ I've added these definitions:
   
-    structural type Foo
+    unique type Foo
     Foo.bar        : Foo -> Nat
     Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
     Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
 ```unison
-structural type Foo = { bar : Nat, baz : Int }
+unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ```ucm
@@ -56,7 +46,7 @@ structural type Foo = { bar : Nat, baz : Int }
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      structural type Foo
+      unique type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -71,32 +61,32 @@ structural type Foo = { bar : Nat, baz : Int }
 
 .> view Foo
 
-  structural type Foo = { bar : Nat, baz : Int }
+  unique type Foo = { bar : Nat, baz : Int }
 
 .> find.verbose
 
-  1. -- #c8lqlau828dsiv3ht34ouvj99af6ni5ea8d0lcdgan8deo81bo5jp0e62o68m6h6sb48ankinjv69khjpv75efkuuopucgdeltrvpc8
-     structural type Foo
+  1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
+     unique type Foo
      
-  2. -- #plugs26tg47t470v7hm3kh0cqprom3mk2hjs1j3t4q1epphi9b4273fv77cabars6ka7kjibh8is807q3mcbg27phok3n7ug2vfkh7o
+  2. -- #77mi33dv8ac2s90852khi35km5gsamhnpada8mai0k36obbttgg17qld719ospcs1ht9ctolg3pjsqs6qjnl3hfmu493rgsher73sc0
      Foo.bar : Foo -> Nat
      
-  3. -- #ur93ievaahimqm5in7c01atktmls5ps7gg8c5ertmesh5joit8335g2no04p60dl9qsc021r2q1vg2l0f4310bps84fnhfp9gpb6be0
+  3. -- #7m1n2178r5u12jdnb6crcmanu2gm961kdvbjul5m6hta1s57avibsvk6p5g9efut8sennpgstbb8kf97eujbbuiplsoloa4cael7t90
      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
      
-  4. -- #f64s8rv4ib3pqd3cjatm4u0cogtdlkrfo6biefb66r4q24ou72anglu0rv9l0gj7ifj82t8k82bkn2bdjlmc450qjsgl5a0mi9fqjf0
+  4. -- #ghuqoel4pao6v8e7un238i3e86vv7a7pnvgaq8m9s32edm1upgv35gri2iu32ipn9r4poli56r5kr3vtjfrltem696grfl75al4jkgg
      Foo.bar.set : Nat -> Foo -> Foo
      
-  5. -- #m1qs3bkkmhdbn36vtk9psegu7208n2rdgrt2c348ckb3jat7125fds8bjecbucebks0s0s36b3tbksoos98nmrfioqimkt48v6bh11o
+  5. -- #p8emkm2s09n3nsd8ne5f6fro0vsldk8pn7n6rcf417anuvvun43qrk1ioofs6pdq4537eosao17c7ibvktktr3lfqglmj26gmbulmj0
      Foo.baz : Foo -> Int
      
-  6. -- #p6avdaqjq2u15nb0bv36bjpp3sbespn5gt9ot89l28a99jn1majnval3n5g45ij5un4l8137peqpcohr4hafpi743edbbhc6ugredsg
+  6. -- #0il9pl29jpe3fh6vp3qeqai73915k3qffhf4bgttrgsj000b9fgs3bqoj8ugjop6kdr04acc34m1bj7lf417tslfeva7dmmoqdu5hug
      Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
      
-  7. -- #68iqrrap68hjep8rjpgkg2o15dpsph0r7h6m43gfrbipn5m2de3la7qr0kk25l4r7b5otg6eihmtnmufg8klpapl6tvgin2i17m529g
+  7. -- #87rjeqltvvd4adffsheqae62eefoge8p78pvnjdkc9q1stq20lhubvtpos0io4v3vhnol8nn2uollup97l4orq1fh2h12b0imeuuc58
      Foo.baz.set : Int -> Foo -> Foo
      
-  8. -- #c8lqlau828dsiv3ht34ouvj99af6ni5ea8d0lcdgan8deo81bo5jp0e62o68m6h6sb48ankinjv69khjpv75efkuuopucgdeltrvpc8#0
+  8. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58#0
      Foo.Foo : Nat -> Int -> Foo
      
   
