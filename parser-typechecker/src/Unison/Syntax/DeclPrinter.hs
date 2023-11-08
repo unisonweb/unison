@@ -1,7 +1,9 @@
-module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
+module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, FieldName) where
 
+import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List (isPrefixOf)
 import Data.Map qualified as Map
+import Debug.Trace (traceShowId)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
@@ -32,6 +34,19 @@ import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
+type FieldName = HQ.HashQualified Name
+
+prettyDeclW ::
+  (Var v) =>
+  PrettyPrintEnvDecl ->
+  Reference ->
+  HQ.HashQualified Name ->
+  DD.Decl v a ->
+  Writer [FieldName] (Pretty SyntaxText)
+prettyDeclW ppe r hq d = case d of
+  Left e -> pure $ prettyEffectDecl ppe r hq e
+  Right dd -> prettyDataDecl ppe r hq dd
+
 prettyDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
@@ -39,9 +54,7 @@ prettyDecl ::
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
-prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl ppe r hq e
-  Right dd -> prettyDataDecl ppe r hq dd
+prettyDecl ppe r hq d = fst . runWriter $ prettyDeclW ppe r hq d
 
 prettyEffectDecl ::
   (Var v) =>
@@ -97,24 +110,27 @@ prettyDataDecl ::
   Reference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Pretty SyntaxText
+  Writer [FieldName] (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $
-    constructor
-      <$> zip
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+    <$> constructor
+      `traverse` zip
         [0 ..]
         (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
-      Nothing -> prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
-      Just ts -> case fieldNames unsuffixifiedPPE r name dd of
+      Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
+      Just ts -> case traceShowId $ fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
-          P.group . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $
-            P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
-        Just fs ->
-          P.group $
+          pure
+            . P.group
+            . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
+            $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
+        Just fs -> do
+          tell fs
+          pure . P.group $
             fmt S.DelimiterChar "{ "
               <> P.sep
                 (fmt S.DelimiterChar "," <> " " `P.orElse` "\n      ")
@@ -154,7 +170,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
+  (traceShowId -> hashes) <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes

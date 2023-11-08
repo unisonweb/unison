@@ -8,7 +8,7 @@ module Unison.CommandLine.OutputMessages where
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Trans.Writer.CPS
+import Control.Monad.Writer (Writer, mapWriter, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -126,6 +126,7 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
+import Unison.Syntax.DeclPrinter (FieldName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toString, toText)
@@ -2443,20 +2444,26 @@ foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
-  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things)
+  P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
-    things =
-      map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
-        <> map (Right . (Nothing,)) terms
-        <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
-    pretty (Left (Left (n, (r, et)))) =
+    prettyEffects = map prettyEffectDecl (Map.toList effects)
+    (prettyDatas, fieldNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
+    prettyTerms = map (prettyTerm fieldNames) terms
+    prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
+
+    prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, Pretty)
+    prettyEffectDecl (n, (r, et)) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    pretty (Left (Right (n, (r, dt)))) =
-      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
-    pretty (Right (Nothing, (n, a, tm))) =
-      (a, pb (hqv n) tm)
-    pretty (Right (Just wk, (n, a, tm))) =
-      (a, go wk n tm)
+    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set FieldName) (a, Pretty)
+    prettyDataDecl (n, (r, dt)) =
+      (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
+    prettyTerm :: Set FieldName -> (v, a, Term v a) -> Maybe (a, Pretty)
+    prettyTerm fieldNames (n, a, tm) =
+      if Set.member hq fieldNames then Nothing else Just (a, pb hq tm)
+      where
+        hq = hqv n
+    prettyWatch :: (String, (v, a, Term v a)) -> (a, Pretty)
+    prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)
       where
         go wk v tm = case wk of
           WK.RegularWatch
@@ -2465,7 +2472,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
           WK.RegularWatch -> "> " <> pb (hqv v) tm
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
-    sppe = PPED.suffixifiedPPE ppe
+    sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
     dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
