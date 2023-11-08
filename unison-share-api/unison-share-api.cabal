@@ -45,7 +45,7 @@ library
       Unison.Server.Types
       Unison.Sync.API
       Unison.Sync.Common
-      Unison.Sync.HashValidation
+      Unison.Sync.EntityValidation
       Unison.Sync.Types
       Unison.Util.Find
   hs-source-dirs:

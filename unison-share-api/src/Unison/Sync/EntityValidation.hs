@@ -2,15 +2,14 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 -- | Module for validating hashes of entities received/sent via sync.
-module Unison.Sync.HashValidation
-  ( HashValidationError (..),
-    validateEntityHash,
+module Unison.Sync.EntityValidation
+  ( validateEntity,
   )
 where
 
-import Control.Exception
 import Data.ByteString qualified as BS
 import Data.Bytes.Get (runGetS)
+import Data.Text qualified as Text
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.Decode qualified as Decode
@@ -27,29 +26,15 @@ import Unison.Prelude
 import Unison.Sync.Common qualified as Share
 import Unison.Sync.Types qualified as Share
 
-data HashValidationError
-  = MismatchedNamespaceHash (Hash {- expected hash -}) (Hash {- actual hash -})
-  | MismatchedTermHash (Hash {- expected hash -}) (Hash {- actual hash -})
-  | NamespaceDiffsAreUnsupported
-  | InvalidByteEncoding Text
-  deriving stock (Show, Eq, Ord)
-  deriving anyclass (Exception)
-
-data UnexpectedHashMismatch = UnexpectedHashMismatch
-  { providedHash :: ComponentHash,
-    actualHash :: ComponentHash
-  }
-  deriving stock (Show)
-
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
-validateEntityHash :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe HashValidationError
-validateEntityHash expectedHash32 entity = do
+validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe Share.EntityValidationError
+validateEntity expectedHash32 entity = do
   case Share.entityToTempEntity id entity of
     Entity.TC (TermFormat.SyncTerm localComp) -> do
       validateTerm expectedHash localComp
     Entity.N (BranchFormat.SyncDiff {}) -> do
-      (Just NamespaceDiffsAreUnsupported)
+      (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
     Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
       validateBranchFull expectedHash localIds bytes
     _ -> Nothing
@@ -61,10 +46,10 @@ validateBranchFull ::
   Hash ->
   BranchFormat.BranchLocalIds' Text Hash32 Hash32 (Hash32, Hash32) ->
   BS.ByteString ->
-  (Maybe HashValidationError)
+  (Maybe Share.EntityValidationError)
 validateBranchFull expectedHash localIds bytes = do
   case runGetS Serialization.getLocalBranch bytes of
-    Left e -> Just $ InvalidByteEncoding ("Failed to decode local branch bytes: " <> tShow e)
+    Left e -> Just $ Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.NamespaceType (Text.pack e)
     Right localBranch -> do
       let localIds' =
             localIds
@@ -78,13 +63,20 @@ validateBranchFull expectedHash localIds bytes = do
             HH.hashBranchFormatFull v2HashHandle localIds' localBranch
       if actualHash == BranchHash expectedHash
         then Nothing
-        else Just $ MismatchedNamespaceHash expectedHash (unBranchHash actualHash)
+        else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unBranchHash actualHash))
 
-validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe HashValidationError)
-validateTerm expectedHash syncLocalComp@(TermFormat.SyncLocallyIndexedComponent comps) = do
+validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe Share.EntityValidationError)
+validateTerm expectedHash syncLocalComp = do
   case Decode.unsyncTermComponent syncLocalComp of
-    Left _ -> Just (InvalidByteEncoding $ "Failed to decode term component bytes" <> tShow comps)
+    Left decodeErr -> Just (Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.TermComponentType (tShow decodeErr))
     Right localComp -> do
       case HH.verifyTermFormatHash v2HashHandle (ComponentHash expectedHash) (TermFormat.Term localComp) of
         Nothing -> Nothing
-        Just (HH.HashMismatch {expectedHash, actualHash}) -> Just $ MismatchedTermHash expectedHash actualHash
+        Just (HH.HashMismatch {expectedHash, actualHash}) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+
+mismatch :: Hash -> Hash -> Share.HashMismatchForEntity
+mismatch supplied computed =
+  Share.HashMismatchForEntity
+    { supplied = Hash32.fromHash supplied,
+      computed = Hash32.fromHash computed
+    }
