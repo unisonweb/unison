@@ -209,7 +209,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update
+.ns2> update.old
 
   ⍟ I've added these definitions:
   
@@ -477,7 +477,7 @@ bdependent = "banana"
 ```
 
 ```ucm
-.ns3> update
+.ns3> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -532,7 +532,7 @@ a = 444
 ```
 
 ```ucm
-.nsy> update
+.nsy> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -544,7 +544,7 @@ a = 555
 ```
 
 ```ucm
-.nsz> update
+.nsz> update.old
 
   ⍟ I've updated these names to your new definition:
   

@@ -49,10 +49,9 @@ ping _ = 3
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    ping : 'Nat
-    pong : 'Nat
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> view ping pong
 

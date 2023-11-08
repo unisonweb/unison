@@ -20,7 +20,7 @@ structural type MyType = MyType Text
 ```
 
 ```ucm
-.simple> update
+.simple> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -175,7 +175,7 @@ foo = 802
 
 ```
 ```ucm
-.lhs> update
+.lhs> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -269,7 +269,7 @@ even = 17
 
 ```
 ```ucm
-.cycle2> update
+.cycle2> update.old
 
   ⍟ I've updated these names to your new definition:
   

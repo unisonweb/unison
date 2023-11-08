@@ -227,15 +227,9 @@ master.frobnicate n = n + 1
 ```ucm
 .> update
 
-  ⍟ I've added these definitions:
-  
-    master.frobnicate : Nat -> Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    master.y : Text
-      (The old definition was also named feature2.y. I updated
-      this name too.)
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> view master.y
 

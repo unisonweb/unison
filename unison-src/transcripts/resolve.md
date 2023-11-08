@@ -45,7 +45,7 @@ foo = 43
 ```
 
 ```ucm
-.example.resolve.a> update
+.example.resolve.a> update.old
 ```
 
 And make a different change in the `b` namespace:
@@ -59,7 +59,7 @@ foo = 44
 ```
 
 ```ucm
-.example.resolve.b> update
+.example.resolve.b> update.old
 ```
 
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:

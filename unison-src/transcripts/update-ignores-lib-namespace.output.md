@@ -49,11 +49,9 @@ foo = 200
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    foo : Nat
-      (The old definition was also named lib.foo. I updated this
-      name too.)
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> names foo
 

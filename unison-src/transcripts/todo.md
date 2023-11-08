@@ -29,7 +29,7 @@ structural type MyType = MyType Text
 ```
 
 ```ucm:error
-.simple> update
+.simple> update.old
 .simple> todo
 .> cd .
 ```
@@ -56,7 +56,7 @@ structural type MyType = MyType Nat
 ```
 
 ```ucm:hide
-.mergeA> update
+.mergeA> update.old
 .> cd .
 ```
 
@@ -66,7 +66,7 @@ structural type MyType = MyType Int
 ```
 
 ```ucm:hide
-.mergeB> update
+.mergeB> update.old
 ```
 
 ```ucm:error
@@ -93,7 +93,7 @@ foo = 802
 ```
 
 ```ucm
-.lhs> update
+.lhs> update.old
 ```
 
 ```unison
@@ -131,7 +131,7 @@ even = 17
 ```
 
 ```ucm
-.cycle2> update
+.cycle2> update.old
 ```
 
 ```ucm:error
