@@ -195,6 +195,7 @@ lspNotificationHandlers =
     & SMM.insert Msg.SMethod_Initialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert Msg.SMethod_CancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
     & SMM.insert Msg.SMethod_WorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
+    & SMM.insert Msg.SMethod_SetTrace (ClientMessageHandler Notifications.setTraceHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

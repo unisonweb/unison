@@ -14,14 +14,9 @@ import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Key qualified as Aeson.Key
-import Data.Aeson.KeyMap qualified as Aeson.KeyMap
-import Data.ByteString.Lazy.Char8 qualified as BSC
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
-import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens
@@ -34,6 +29,7 @@ import Unison.Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
@@ -185,18 +181,8 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
-    when (not . null $ invalidKeys) do
-      fail . Text.unpack $
-        "Unrecognized configuration key(s): "
-          <> Text.intercalate ", " (Set.toList invalidKeys)
-          <> ".\nThe default configuration is:\n"
-          <> Text.pack defaultConfigExample
+    Debug.debugM Debug.LSP "Config" $ "maxCompletions: " <> show maxCompletions
     pure Config {..}
-    where
-      validKeys = Set.fromList ["maxCompletions"]
-      defaultConfigExample =
-        BSC.unpack $ Aeson.encode defaultLSPConfig
 
 instance Aeson.ToJSON Config where
   toJSON (Config maxCompletions) =
