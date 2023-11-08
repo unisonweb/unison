@@ -69,7 +69,6 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
-import Unison.UnisonFile.Summary qualified as Summary
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty

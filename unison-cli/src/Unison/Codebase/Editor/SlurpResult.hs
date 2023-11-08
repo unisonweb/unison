@@ -158,7 +158,6 @@ pretty isPast ppe sr =
         Just (UpdateAliases oldNames newNames) ->
           let oldMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList oldNames
-                    sz = length oldNames
                  in P.indentN
                       2
                       ( P.wrap $
