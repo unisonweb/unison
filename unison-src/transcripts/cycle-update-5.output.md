@@ -50,7 +50,7 @@ inner.ping _ = !pong + 3
 
 ```
 ```ucm
-.inner> update
+.inner> update.old
 
   ⍟ I've added these definitions:
   

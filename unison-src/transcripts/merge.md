@@ -136,7 +136,7 @@ a = "hello world!"
 ```
 
 ```ucm
-.c1b> update
+.c1b> update.old
 ```
 
 Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`, and the new definitions `b` and `c`:

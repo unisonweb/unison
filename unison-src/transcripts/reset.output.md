@@ -178,9 +178,9 @@ a = 3
 ```ucm
 foo/main> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : Nat
+  I propagated the update and am now saving the results.
+
+  Done.
 
 foo/main> reset /topic
 

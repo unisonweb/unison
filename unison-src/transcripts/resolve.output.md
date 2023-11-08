@@ -74,7 +74,7 @@ foo = 43
 
 ```
 ```ucm
-.example.resolve.a> update
+.example.resolve.a> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -104,7 +104,7 @@ foo = 44
 
 ```
 ```ucm
-.example.resolve.b> update
+.example.resolve.b> update.old
 
   ⍟ I've updated these names to your new definition:
   

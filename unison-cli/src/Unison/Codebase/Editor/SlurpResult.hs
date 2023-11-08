@@ -162,19 +162,13 @@ pretty isPast ppe sr =
                  in P.indentN
                       2
                       ( P.wrap $
-                          P.hiBlack
-                            ( "(The old definition "
-                                <> (if isPast then "was" else "is")
-                                <> " also named "
-                            )
-                            <> oxfordAliases (P.text . Name.toText <$> shown) (length rest) (P.hiBlack ".")
-                            <> P.hiBlack
-                              ( case (sz, isPast) of
-                                  (1, True) -> "I updated this name too.)"
-                                  (1, False) -> "I'll update this name too.)"
-                                  (_, True) -> "I updated these names too.)"
-                                  (_, False) -> "I'll update these names too.)"
+                          P.parenthesize $
+                            P.hiBlack
+                              ( "The old definition "
+                                  <> (if isPast then "was" else "is")
+                                  <> " also named "
                               )
+                              <> oxfordAliases (P.text . Name.toText <$> shown) (length rest) (P.hiBlack ".")
                       )
               newMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList newNames

@@ -24,7 +24,7 @@ x = 4
 ```
 
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   
