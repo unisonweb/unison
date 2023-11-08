@@ -36,6 +36,7 @@ import Unison.ConstructorReference (GConstructorReference (ConstructorReference)
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
@@ -45,12 +46,14 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
@@ -65,6 +68,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Summary qualified as Summary
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty (Pretty)
@@ -102,7 +106,7 @@ handleUpdate2 = do
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
     bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
-    pure (pped, bigUf)
+    let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
