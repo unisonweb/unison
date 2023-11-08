@@ -55,39 +55,42 @@ unique type Foo = { bar : Nat, baz : Int }
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  unique type Foo = { bar : Nat, baz : Int }
+  
+  Foo.bar.modify f = cases Foo bar baz -> Foo (f bar) baz
+  
+  Foo.bar.set bar1 = cases Foo _ baz -> Foo bar1 baz
+  
+  Foo.bar = cases Foo bar _ -> bar
+  
+  Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
+  
+  Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
+  
+  Foo.baz = cases Foo _ baz -> baz
 
-  Done.
+  Typechecking failed when propagating the update to all the dependents.
 
 .> view Foo
 
-  unique type Foo = { bar : Nat, baz : Int }
+  unique type Foo = { bar : Nat }
 
 .> find.verbose
 
-  1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
+  1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
      unique type Foo
      
-  2. -- #77mi33dv8ac2s90852khi35km5gsamhnpada8mai0k36obbttgg17qld719ospcs1ht9ctolg3pjsqs6qjnl3hfmu493rgsher73sc0
+  2. -- #ovhevqfin94qhq5fu0mujfi20mbpvg5mh4vsfklrohp84cch4lhvrn5p29cnbsqfm92l7bt8c1vpjooh72a0psbddvvten4gq2sipag
      Foo.bar : Foo -> Nat
      
-  3. -- #7m1n2178r5u12jdnb6crcmanu2gm961kdvbjul5m6hta1s57avibsvk6p5g9efut8sennpgstbb8kf97eujbbuiplsoloa4cael7t90
+  3. -- #as72md2u70e0u9s2ig2ug7jvlbrk1mubo8qlfokpuvgusg35svh05r7nsj27sqo5edeghjnk8g8259fi4ismse736v4n5ojrb3o2le8
      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
      
-  4. -- #ghuqoel4pao6v8e7un238i3e86vv7a7pnvgaq8m9s32edm1upgv35gri2iu32ipn9r4poli56r5kr3vtjfrltem696grfl75al4jkgg
+  4. -- #5cbctoor75nbtn4ppp10qm1i25gqt2lgth3itqa0lloib32je4ijfj2n3qcdfhmdcnbgum2jg46opntlohv7ladun3dmefl1ucgobeg
      Foo.bar.set : Nat -> Foo -> Foo
      
-  5. -- #p8emkm2s09n3nsd8ne5f6fro0vsldk8pn7n6rcf417anuvvun43qrk1ioofs6pdq4537eosao17c7ibvktktr3lfqglmj26gmbulmj0
-     Foo.baz : Foo -> Int
-     
-  6. -- #0il9pl29jpe3fh6vp3qeqai73915k3qffhf4bgttrgsj000b9fgs3bqoj8ugjop6kdr04acc34m1bj7lf417tslfeva7dmmoqdu5hug
-     Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
-     
-  7. -- #87rjeqltvvd4adffsheqae62eefoge8p78pvnjdkc9q1stq20lhubvtpos0io4v3vhnol8nn2uollup97l4orq1fh2h12b0imeuuc58
-     Foo.baz.set : Int -> Foo -> Foo
-     
-  8. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58#0
-     Foo.Foo : Nat -> Int -> Foo
+  5. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
+     Foo.Foo : Nat -> Foo
      
   
 
