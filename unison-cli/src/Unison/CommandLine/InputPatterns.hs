@@ -228,7 +228,12 @@ update =
       aliases = [],
       visibility = I.Visible,
       argTypes = [],
-      help = P.wrap (makeExample update []),
+      help =
+        P.wrap $
+          "Adds everything in the most recently typechecked file to the namespace,"
+            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+            <> "can't be completed automatically, the dependents will be added back to the scratch file"
+            <> "for your review.",
       parse =
         maybeToEither (I.help update) . \case
           [] -> Just Input.Update2I
