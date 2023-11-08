@@ -48,8 +48,7 @@ foo = 6
       new definition:
     
       foo : Nat
-        (The old definition is also named bar. I'll update this
-        name too.)
+        (The old definition is also named bar.)
 
 ```
 ```ucm

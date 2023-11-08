@@ -51,11 +51,9 @@ bar = 7
       new definition:
     
       bar : Nat
-        (The old definition is also named foo. I'll update this
-        name too.)
+        (The old definition is also named foo.)
       foo : Nat
-        (The old definition is also named bar. I'll update this
-        name too.)
+        (The old definition is also named bar.)
 
 ```
 ```ucm

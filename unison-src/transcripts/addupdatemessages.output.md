@@ -90,11 +90,9 @@ structural type X = Three Nat Nat Nat
       new definition:
     
       structural type X
-        (The old definition is also named Z. I'll update this
-        name too.)
+        (The old definition is also named Z.)
       x : Nat
-        (The old definition is also named z. I'll update this
-        name too.)
+        (The old definition is also named z.)
 
 ```
 Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old definitions were also called `z` and `Z` and these names have also been updated.

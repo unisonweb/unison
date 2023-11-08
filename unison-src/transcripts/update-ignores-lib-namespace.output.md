@@ -42,8 +42,7 @@ foo = 200
       new definition:
     
       foo : Nat
-        (The old definition is also named lib.foo. I'll update
-        this name too.)
+        (The old definition is also named lib.foo.)
 
 ```
 ```ucm

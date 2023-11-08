@@ -222,8 +222,7 @@ unique type Y a b = Y a b
   
     b        : Text
     fromJust : Nat
-      (The old definition was also named fromJust'. I updated
-      this name too.)
+      (The old definition was also named fromJust'.)
 
 .ns2> links fromJust
 
