@@ -315,11 +315,11 @@ updateOld =
 previewUpdate :: InputPattern
 previewUpdate =
   InputPattern
-    "update.preview"
+    "update.old.preview"
     []
     I.Visible
     [(ZeroPlus, noCompletionsArg)]
-    ( "`update.preview` previews updates to the codebase from the most "
+    ( "`update.old.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
