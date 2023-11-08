@@ -110,9 +110,6 @@ handleUpdate2 = do
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
-  Debug.whenDebug Debug.Update do
-    liftIO . print $ Summary.fromUnisonFile bigUf
-
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
     Left prettyUf -> do
