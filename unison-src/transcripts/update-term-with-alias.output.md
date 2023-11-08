@@ -48,12 +48,15 @@ foo = 6
       new definition:
     
       foo : Nat
-        (The old definition is also named bar. I'll update this
-        name too.)
+        (The old definition is also named bar.)
 
 ```
 ```ucm
 .> update
+
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> view foo bar
 

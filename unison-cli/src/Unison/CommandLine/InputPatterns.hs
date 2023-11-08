@@ -228,7 +228,12 @@ update =
       aliases = [],
       visibility = I.Visible,
       argTypes = [],
-      help = P.wrap (makeExample update []),
+      help =
+        P.wrap $
+          "Adds everything in the most recently typechecked file to the namespace,"
+            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+            <> "can't be completed automatically, the dependents will be added back to the scratch file"
+            <> "for your review.",
       parse =
         maybeToEither (I.help update) . \case
           [] -> Just Input.Update2I
@@ -315,11 +320,11 @@ updateOld =
 previewUpdate :: InputPattern
 previewUpdate =
   InputPattern
-    "update.preview"
+    "update.old.preview"
     []
     I.Visible
     [(ZeroPlus, noCompletionsArg)]
-    ( "`update.preview` previews updates to the codebase from the most "
+    ( "`update.old.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."

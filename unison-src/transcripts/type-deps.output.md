@@ -29,8 +29,7 @@ structural type Y = Y Nat
       new definition:
     
       structural type Y
-        (The old definition is also named builtin.Unit. I'll
-        update this name too.)
+        (The old definition is also named builtin.Unit.)
 
 ```
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.

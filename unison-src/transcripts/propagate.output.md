@@ -75,7 +75,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update
+.subpath> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -158,7 +158,7 @@ someTerm _ = None
 Update...
 
 ```ucm
-.subpath.preserve> update
+.subpath.preserve> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -258,7 +258,7 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update
+.subpath.one> update.old
 
   ⍟ I've updated these names to your new definition:
   

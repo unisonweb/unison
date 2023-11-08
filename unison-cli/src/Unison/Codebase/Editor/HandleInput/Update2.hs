@@ -5,7 +5,6 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Exception (mask, onException)
 import Control.Lens (over, (^.))
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
@@ -15,9 +14,6 @@ import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
-import System.Directory (getTemporaryDirectory, removeFile, renameFile)
-import System.IO (IOMode (..), hClose, openTempFile, withFile)
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -31,15 +27,16 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
-import Unison.Codebase.Editor.Output qualified as Output
 import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
@@ -49,12 +46,14 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
@@ -69,8 +68,9 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.UnisonFile.Summary qualified as Summary
+import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -105,46 +105,26 @@ handleUpdate2 = do
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
     bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
-    pure (pped, bigUf)
+    let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
 
-  traceShowM $ Summary.fromUnisonFile bigUf
+    pure (pped `PPED.addFallback` tufPped, bigUf)
 
   -- - typecheck it
   prettyParseTypecheck bigUf pped >>= \case
-    Left bigUfText -> do
+    Left prettyUf -> do
+      Cli.Env {isTranscript} <- ask
+      maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
+      Cli.respond (Output.DisplayDefinitionsString maybePath prettyUf)
       Cli.respond Output.UpdateTypecheckingFailure
-      prependTextToScratchFile bigUfText
     Right tuf -> do
       Cli.respond Output.UpdateTypecheckingSuccess
       saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
       Cli.respond Output.Success
 
-prependTextToScratchFile :: Text -> Cli ()
-prependTextToScratchFile textUf = do
-  fp <- fst <$> Cli.expectLatestFile
-  liftIO do
-    let withTempFile tmpFilePath tmpHandle = do
-          Text.hPutStrLn tmpHandle textUf
-          Text.hPutStrLn tmpHandle "\n---\n"
-          withFile fp ReadMode \currentScratchFile -> do
-            let copyLoop = do
-                  chunk <- Text.hGetChunk currentScratchFile
-                  case Text.length chunk == 0 of
-                    True -> pure ()
-                    False -> do
-                      Text.hPutStr tmpHandle chunk
-                      copyLoop
-            copyLoop
-          hClose tmpHandle
-          renameFile tmpFilePath fp
-    tmpDir <- getTemporaryDirectory
-    mask \unmask -> do
-      (tmpFilePath, tmpHandle) <- openTempFile tmpDir "unison-scratch"
-      unmask (withTempFile tmpFilePath tmpHandle) `onException` do
-        hClose tmpHandle
-        removeFile tmpFilePath
-
-prettyParseTypecheck :: UnisonFile Symbol Ann -> PrettyPrintEnvDecl -> Cli (Either Text (TypecheckedUnisonFile Symbol Ann))
+prettyParseTypecheck ::
+  UnisonFile Symbol Ann ->
+  PrettyPrintEnvDecl ->
+  Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
 prettyParseTypecheck bigUf pped = do
   typecheck <- mkTypecheckFnCli
   let prettyUf = Output.prettyUnisonFile pped bigUf
@@ -160,14 +140,15 @@ prettyParseTypecheck bigUf pped = do
             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
             names = parseNames
           }
-  traceM stringUf
+  Debug.whenDebug Debug.Update do
+    liftIO $ print stringUf
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
-      Left {} -> pure $ Left (Text.pack stringUf)
+      Left {} -> pure $ Left prettyUf
       Right reparsedUf ->
         typecheck reparsedUf <&> \case
           Just reparsedTuf -> Right reparsedTuf
-          Nothing -> Left (Text.pack stringUf)
+          Nothing -> Left prettyUf
 
 mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
 mkTypecheckFnCli = do

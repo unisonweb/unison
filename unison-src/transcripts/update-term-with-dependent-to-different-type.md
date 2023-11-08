@@ -19,6 +19,6 @@ foo : Int
 foo = +5
 ```
 
-```ucm
+```ucm:error
 .> update
 ```

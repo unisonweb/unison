@@ -153,6 +153,9 @@ data Env = Env
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
+    -- | Are we currently running a transcript? Sometimes, it is convenient to know this fact, so we can put more
+    -- information to the terminal to be captured in transcript output.
+    isTranscript :: Bool,
     -- | How to load source code.
     loadSource :: Text -> IO LoadSourceResult,
     -- | What to do with output for the user.

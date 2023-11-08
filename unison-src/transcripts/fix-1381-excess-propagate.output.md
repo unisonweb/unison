@@ -23,9 +23,9 @@ a = "an update"
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Text
+  I propagated the update and am now saving the results.
+
+  Done.
 
 ```
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;

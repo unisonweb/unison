@@ -5,6 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
+import Control.Exception (mask, onException)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
@@ -21,6 +22,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
@@ -29,7 +31,8 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, getTemporaryDirectory, removeFile, renameFile)
+import System.IO qualified as IO
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -760,6 +763,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
+  DisplayDefinitionsString isTranscript definitions -> displayDefinitionsString isTranscript definitions
   OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
@@ -2649,6 +2653,33 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
         <> P.newline
         <> tip "You might need to repair the codebase manually."
 
+displayDefinitionsString :: Maybe FilePath -> Pretty -> IO Pretty
+displayDefinitionsString maybePath definitions =
+  case maybePath of
+    Nothing -> pure definitions
+    Just path -> do
+      let withTempFile tmpFilePath tmpHandle = do
+            Text.hPutStrLn tmpHandle (Text.pack (P.toPlain 80 definitions))
+            Text.hPutStrLn tmpHandle "\n---\n"
+            IO.withFile path IO.ReadMode \currentScratchFile -> do
+              let copyLoop = do
+                    chunk <- Text.hGetChunk currentScratchFile
+                    case Text.length chunk == 0 of
+                      True -> pure ()
+                      False -> do
+                        Text.hPutStr tmpHandle chunk
+                        copyLoop
+              copyLoop
+            IO.hClose tmpHandle
+            renameFile tmpFilePath path
+      tmpDir <- getTemporaryDirectory
+      mask \unmask -> do
+        (tmpFilePath, tmpHandle) <- IO.openTempFile tmpDir "unison-scratch"
+        unmask (withTempFile tmpFilePath tmpHandle) `onException` do
+          IO.hClose tmpHandle
+          removeFile tmpFilePath
+      pure mempty
+
 displayTestResults ::
   Bool -> -- whether to show the tip
   PPE.PrettyPrintEnv ->
@@ -2796,7 +2827,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2811,7 +2842,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
