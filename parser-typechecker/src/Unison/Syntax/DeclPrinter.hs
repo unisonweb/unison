@@ -1,5 +1,6 @@
-module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
+module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, AccessorName) where
 
+import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List (isPrefixOf)
 import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
@@ -13,6 +14,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
@@ -32,6 +34,19 @@ import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
+type AccessorName = HQ.HashQualified Name
+
+prettyDeclW ::
+  (Var v) =>
+  PrettyPrintEnvDecl ->
+  Reference ->
+  HQ.HashQualified Name ->
+  DD.Decl v a ->
+  Writer [AccessorName] (Pretty SyntaxText)
+prettyDeclW ppe r hq d = case d of
+  Left e -> pure $ prettyEffectDecl ppe r hq e
+  Right dd -> prettyDataDecl ppe r hq dd
+
 prettyDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
@@ -39,9 +54,7 @@ prettyDecl ::
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
-prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl ppe r hq e
-  Right dd -> prettyDataDecl ppe r hq dd
+prettyDecl ppe r hq d = fst . runWriter $ prettyDeclW ppe r hq d
 
 prettyEffectDecl ::
   (Var v) =>
@@ -97,24 +110,34 @@ prettyDataDecl ::
   Reference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Pretty SyntaxText
+  Writer [AccessorName] (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $
-    constructor
-      <$> zip
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+    <$> constructor
+      `traverse` zip
         [0 ..]
         (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
-      Nothing -> prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
+      Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
       Just ts -> case fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
-          P.group . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $
-            P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
-        Just fs ->
-          P.group $
+          pure
+            . P.group
+            . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
+            $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
+        Just fs -> do
+          tell
+            [ case accessor of
+                Nothing -> HQ.NameOnly $ declName `Name.joinDot` fieldName
+                Just accessor -> HQ.NameOnly $ declName `Name.joinDot` fieldName `Name.joinDot` accessor
+              | HQ.NameOnly declName <- [name],
+                HQ.NameOnly fieldName <- fs,
+                accessor <- [Nothing, Just "set", Just "modify"]
+            ]
+          pure . P.group $
             fmt S.DelimiterChar "{ "
               <> P.sep
                 (fmt S.DelimiterChar "," <> " " `P.orElse` "\n      ")

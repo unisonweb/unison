@@ -37,12 +37,12 @@ testBuilder ::
   Bool -> ((FilePath, Text) -> IO ()) -> FilePath -> [String] -> String -> Test ()
 testBuilder expectFailure recordFailure dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
-    withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing $ \runTranscript -> do
-      for files $ \filePath -> do
+    withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing \runTranscript -> do
+      for files \filePath -> do
         transcriptSrc <- readUtf8 filePath
         out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
         pure (filePath, out)
-  for_ outputs $ \case
+  for_ outputs \case
     (filePath, Left err) -> do
       let outputFile = outputFileForTranscript filePath
       case err of

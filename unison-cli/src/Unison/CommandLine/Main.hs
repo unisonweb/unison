@@ -223,6 +223,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
             codebase,
             config,
             credentialManager,
+            isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,

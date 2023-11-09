@@ -96,26 +96,21 @@ ping _ = ! #4t465jk908dsue9fgdfi06fihppsme16cvaua29hjm1585de1mvt11dftqrab5chhla3
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    ping : 'Nat
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> view ping pong
 
   ping : 'Nat
   ping _ =
     use Nat +
-    !pong#4t465jk908 + 4
+    !#4t465jk908 + 4
   
-  pong#4t465jk908 : 'Nat
-  pong#4t465jk908 _ =
+  pong : 'Nat
+  pong _ =
     use Nat +
-    !#4t465jk908.1 + 2
-  
-  pong#hrsm7vhrcr : 'Nat
-  pong#hrsm7vhrcr _ =
-    use Nat +
-    !ping + 3
+    !ping + 2
 
 ```
 Here we see that we didn't properly update `pong` to point to the new `ping because it was conflicted.

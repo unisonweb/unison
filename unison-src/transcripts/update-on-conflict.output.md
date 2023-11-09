@@ -85,18 +85,12 @@ x = 3
 ```ucm
 .merged> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    x : Nat
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .merged> view.patch
 
-  Edited Terms:
-    1. b.x -> 3. x
-    2. a.x -> 4. x
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
+  This patch is empty.
 
 ```

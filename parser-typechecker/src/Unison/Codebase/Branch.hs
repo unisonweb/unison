@@ -51,6 +51,8 @@ module Unison.Codebase.Branch
     addTermName,
     addTypeName,
     deleteTermName,
+    annihilateTermName,
+    annihilateTypeName,
     deleteTypeName,
     setChildBranch,
     replacePatch,
@@ -692,6 +694,12 @@ deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
       over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
+
+annihilateTermName :: NameSegment -> Branch0 m -> Branch0 m
+annihilateTermName = over terms . Star3.deleteD1
+
+annihilateTypeName :: NameSegment -> Branch0 m -> Branch0 m
+annihilateTypeName = over types . Star3.deleteD1
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b

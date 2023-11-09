@@ -221,17 +221,36 @@ previewAdd =
     )
     $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
-updateNoPatch :: InputPattern
-updateNoPatch =
+update :: InputPattern
+update =
   InputPattern
-    "update.nopatch"
-    ["un"]
+    { patternName = "update",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help =
+        P.wrap $
+          "Adds everything in the most recently typechecked file to the namespace,"
+            <> "replacing existing definitions having the same name, and attempts to update all the existing dependents accordingly. If the process"
+            <> "can't be completed automatically, the dependents will be added back to the scratch file"
+            <> "for your review.",
+      parse =
+        maybeToEither (I.help update) . \case
+          [] -> Just Input.Update2I
+          _ -> Nothing
+    }
+
+updateOldNoPatch :: InputPattern
+updateOldNoPatch =
+  InputPattern
+    "update.old.nopatch"
+    []
     I.Visible
     [(ZeroPlus, noCompletionsArg)]
     ( P.wrap
-        ( makeExample' updateNoPatch
+        ( makeExample' updateOldNoPatch
             <> "works like"
-            <> P.group (makeExample' update <> ",")
+            <> P.group (makeExample' updateOld <> ",")
             <> "except it doesn't add a patch entry for any updates. "
             <> "Use this when you want to make changes to definitions without "
             <> "pushing those changes to dependents beyond your codebase. "
@@ -239,10 +258,10 @@ updateNoPatch =
             <> "just added."
         )
         <> P.wrapColumn2
-          [ ( makeExample' updateNoPatch,
+          [ ( makeExample' updateOldNoPatch,
               "updates all definitions in the .u file."
             ),
-            ( makeExample updateNoPatch ["foo", "bar"],
+            ( makeExample updateOldNoPatch ["foo", "bar"],
               "updates `foo`, `bar`, and their dependents from the .u file."
             )
           ]
@@ -255,15 +274,15 @@ updateNoPatch =
               (Set.fromList $ map Name.unsafeFromString ws)
     )
 
-update :: InputPattern
-update =
+updateOld :: InputPattern
+updateOld =
   InputPattern
-    "update"
+    "update.old"
     []
     I.Visible
     [(Optional, patchArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrap
-        ( makeExample' update
+        ( makeExample' updateOld
             <> "works like"
             <> P.group (makeExample' add <> ",")
             <> "except that if a definition in the file has the same name as an"
@@ -273,45 +292,44 @@ update =
             <> "optional patch."
         )
         <> P.wrapColumn2
-          [ ( makeExample' update,
+          [ ( makeExample' updateOld,
               "adds all definitions in the .u file, noting replacements in the"
                 <> "default patch for the current namespace."
             ),
-            ( makeExample update ["<patch>"],
+            ( makeExample updateOld ["<patch>"],
               "adds all definitions in the .u file, noting replacements in the"
                 <> "specified patch."
             ),
-            ( makeExample update ["<patch>", "foo", "bar"],
+            ( makeExample updateOld ["<patch>", "foo", "bar"],
               "adds `foo`, `bar`, and their dependents from the .u file, noting"
                 <> "any replacements into the specified patch."
             )
           ]
     )
-    ( \case
-        patchStr : ws -> do
-          patch <-
-            first fromString $
-              Path.parseSplit' Path.definitionNameSegment patchStr
-          pure $
-            Input.UpdateI
-              (Input.UsePatch patch)
-              (Set.fromList $ map Name.unsafeFromString ws)
-        [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
-    )
+    \case
+      patchStr : ws -> do
+        patch <-
+          first fromString $
+            Path.parseSplit' Path.definitionNameSegment patchStr
+        pure $
+          Input.UpdateI
+            (Input.UsePatch patch)
+            (Set.fromList $ map Name.unsafeFromString ws)
+      [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
 
 previewUpdate :: InputPattern
 previewUpdate =
   InputPattern
-    "update.preview"
+    "update.old.preview"
     []
     I.Visible
     [(ZeroPlus, noCompletionsArg)]
-    ( "`update.preview` previews updates to the codebase from the most "
+    ( "`update.old.preview` previews updates to the codebase from the most "
         <> "recently typechecked file. This command only displays cached "
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
+    \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
 
 patch :: InputPattern
 patch =
@@ -339,19 +357,18 @@ patch =
             ]
         ]
     )
-    ( \case
-        patchStr : ws -> first fromString $ do
-          patch <- Path.parseSplit' Path.definitionNameSegment patchStr
-          branch <- case ws of
-            [pathStr] -> Path.parsePath' pathStr
-            _ -> pure Path.relativeEmpty'
-          pure $ Input.PropagatePatchI patch branch
-        [] ->
-          Left $
-            warn $
-              makeExample' patch
-                <> "takes a patch and an optional namespace."
-    )
+    \case
+      patchStr : ws -> first fromString $ do
+        patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+        branch <- case ws of
+          [pathStr] -> Path.parsePath' pathStr
+          _ -> pure Path.relativeEmpty'
+        pure $ Input.PropagatePatchI patch branch
+      [] ->
+        Left $
+          warn $
+            makeExample' patch
+              <> "takes a patch and an optional namespace."
 
 view :: InputPattern
 view =
@@ -403,8 +420,7 @@ display =
           "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
-    )
+    \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
 
 displayTo :: InputPattern
 displayTo =
@@ -417,11 +433,10 @@ displayTo =
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
     )
-    ( \case
-        (file : xs) ->
-          Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
-        _ -> Left (I.help displayTo)
-    )
+    \case
+      file : xs ->
+        Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
+      _ -> Left (I.help displayTo)
 
 docs :: InputPattern
 docs =
@@ -2899,7 +2914,8 @@ validInputs =
       up,
       update,
       updateBuiltins,
-      updateNoPatch,
+      updateOld,
+      updateOldNoPatch,
       view,
       viewGlobal,
       viewPatch,
