@@ -33,6 +33,7 @@ module Unison.Codebase.Branch
     -- * properties
     history,
     head,
+    head_,
     headHash,
     children,
     nonEmptyChildren,
