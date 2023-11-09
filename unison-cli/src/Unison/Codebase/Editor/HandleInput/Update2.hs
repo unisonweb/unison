@@ -3,6 +3,7 @@
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
     addDefinitionsToUnisonFile,
+    prettyParseTypecheck,
   )
 where
 
@@ -115,6 +116,7 @@ handleUpdate2 = do
       saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
       Cli.respond Output.Success
 
+-- TODO: find a better module for this function, as it's used in a couple places
 prettyParseTypecheck ::
   UnisonFile Symbol Ann ->
   PrettyPrintEnvDecl ->

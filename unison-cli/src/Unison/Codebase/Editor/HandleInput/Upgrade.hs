@@ -10,6 +10,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
@@ -20,7 +21,8 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, prettyParseTypecheck)
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Name (Name)
@@ -32,6 +34,7 @@ import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Sqlite (Transaction)
 import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Witch (unsafeFrom)
@@ -79,61 +82,60 @@ handleUpgrade oldDepName newDepName = do
         wundefined (namesExcludingOldDep <> fakeNames)
 
   -- Round-trip that bad boy through a bad String
-  wundefined
+  typecheckedUnisonFile <-
+    prettyParseTypecheck unisonFile printPPE & onLeftM \prettyUnisonFile -> do
+      -- Small race condition: since picking a branch name and creating the branch happen in different
+      -- transactions, creating could fail.
+      temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName projectId oldDepName newDepName)
+      temporaryBranchId <-
+        HandleInput.Branch.doCreateBranch
+          (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
+          (projectAndBranch ^. #project)
+          temporaryBranchName
+          textualDescriptionOfUpgrade
+      let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
+      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, deleteLibdep oldDepName)
+      Cli.Env {isTranscript} <- ask
+      maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
+      Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
+      -- TODO: output message indicating what's going on
+      Cli.returnEarlyWithoutOutput
 
   -- Happy path: save updated things to codebase, cons namespace. Don't forget to delete `lib.old`
   wundefined
-
-  -- Sad path:
-  --   [x] Make a new project branch, stepped forward one causal (tossing `lib.old`).
-  --   [ ] Put the busted dependents into scratch.u
-  --   [ ] Output message or something.
-  let sadPath = False
-  when sadPath do
-    temporaryBranchName <- do
-      -- Small race condition: since picking a branch name and creating the branch happen in different
-      -- transactions, creating could fail.
-      allBranchNames <-
-        fmap (Set.fromList . map snd) do
-          Cli.runTransaction (Queries.loadAllProjectBranchesBeginningWith projectId Nothing)
-
-      let -- all branch name candidates in order of preference:
-          --   upgrade-<old>-to-<new>
-          --   upgrade-<old>-to-<new>-2
-          --   upgrade-<old>-to-<new>-3
-          --   ...
-          allCandidates :: [ProjectBranchName]
-          allCandidates =
-            preferred : do
-              n <- [(2 :: Int) ..]
-              pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
-            where
-              preferred :: ProjectBranchName
-              preferred =
-                unsafeFrom @Text $
-                  "upgrade-"
-                    <> NameSegment.toText oldDepName
-                    <> "-to-"
-                    <> NameSegment.toText newDepName
-
-      pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
-
-    temporaryBranchId <-
-      HandleInput.Branch.doCreateBranch
-        (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
-        (projectAndBranch ^. #project)
-        temporaryBranchName
-        textualDescriptionOfUpgrade
-
-    let temporaryBranchPath :: Path
-        temporaryBranchPath =
-          Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
-
-    Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, deleteLibdep oldDepName)
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
+
+-- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
+-- like "upgrade-<oldDepName>-to-<newDepName>".
+findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
+findTemporaryBranchName projectId oldDepName newDepName = do
+  allBranchNames <-
+    fmap (Set.fromList . map snd) do
+      Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+
+  let -- all branch name candidates in order of preference:
+      --   upgrade-<old>-to-<new>
+      --   upgrade-<old>-to-<new>-2
+      --   upgrade-<old>-to-<new>-3
+      --   ...
+      allCandidates :: [ProjectBranchName]
+      allCandidates =
+        preferred : do
+          n <- [(2 :: Int) ..]
+          pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
+        where
+          preferred :: ProjectBranchName
+          preferred =
+            unsafeFrom @Text $
+              "upgrade-"
+                <> NameSegment.toText oldDepName
+                <> "-to-"
+                <> NameSegment.toText newDepName
+
+  pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
 
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
