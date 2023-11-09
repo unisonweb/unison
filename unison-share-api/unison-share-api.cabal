@@ -121,6 +121,7 @@ library
     , unison-core1
     , unison-hash
     , unison-hash-orphans-aeson
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

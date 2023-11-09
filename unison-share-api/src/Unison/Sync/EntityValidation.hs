@@ -9,11 +9,13 @@ where
 
 import Data.ByteString qualified as BS
 import Data.Bytes.Get (runGetS)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import GHC.IO (unsafePerformIO)
 import System.Environment (lookupEnv)
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
+import U.Codebase.Sqlite.Causal qualified as CausalFormat
 import U.Codebase.Sqlite.Decode qualified as Decode
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle qualified as HH
@@ -24,6 +26,7 @@ import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Hash (Hash)
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
+import Unison.Hashing.V2 qualified as H
 import Unison.Prelude
 import Unison.Sync.Common qualified as Share
 import Unison.Sync.Types qualified as Share
@@ -50,6 +53,8 @@ validateEntity expectedHash32 entity
           (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
         Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
           validateBranchFull expectedHash localIds bytes
+        Entity.C CausalFormat.SyncCausalFormat {valueHash, parents} -> do
+          validateCausal expectedHash32 valueHash (toList parents)
         _ -> Nothing
   | otherwise = Nothing
   where
@@ -87,6 +92,16 @@ validateTerm expectedHash syncLocalComp = do
       case HH.verifyTermFormatHash v2HashHandle (ComponentHash expectedHash) (TermFormat.Term localComp) of
         Nothing -> Nothing
         Just (HH.HashMismatch {expectedHash, actualHash}) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+
+validateCausal :: Hash32 -> Hash32 -> [Hash32] -> Maybe Share.EntityValidationError
+validateCausal expectedHash32 valueHash32 parentHashes32 = do
+  let expectedHash = Hash32.toHash expectedHash32
+  let branchHash = Hash32.toHash valueHash32
+  let parents = Set.fromList (Hash32.toHash <$> parentHashes32)
+  let actualHash = H.contentHash (H.Causal {branchHash, parents})
+  if actualHash == expectedHash
+    then Nothing
+    else Just $ Share.EntityHashMismatch Share.CausalType (mismatch expectedHash actualHash)
 
 mismatch :: Hash -> Hash -> Share.HashMismatchForEntity
 mismatch supplied computed =
