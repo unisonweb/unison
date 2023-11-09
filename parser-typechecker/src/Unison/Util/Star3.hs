@@ -199,6 +199,15 @@ deleteD2 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) d2' (d3 s))
   where
     d2' = R.delete f x (d2 s)
 
+deleteD1 ::
+  (Ord fact, Ord d1, Ord d2, Ord d3) =>
+  (fact, d1) ->
+  Star3 fact d1 d2 d3 ->
+  Star3 fact d1 d2 d3
+deleteD1 (f, x) s = garbageCollect f (Star3 (fact s) d1' (d2 s) (d3 s))
+  where
+    d1' = R.delete f x (d1 s)
+
 -- | Given a possibly-invalid Star3, which may contain the given fact in its fact set that are not related to any d1,
 -- d2, or d3, return a valid Star3, with this fact possibly removed.
 garbageCollect :: (Ord fact) => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3

@@ -2,26 +2,21 @@
 
 module U.Codebase.Referent where
 
-import Control.Lens (Prism, Traversal)
+import Control.Lens (Prism, Prism', Traversal, preview, prism, review)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
-import U.Codebase.Decl (ConstructorId)
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (Reference, Reference'(..), TermRReference, TermReference, TypeReference)
 import U.Codebase.Reference qualified as Reference
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 
-data ConstructorType
-  = DataConstructor
-  | EffectConstructor
-  deriving (Show, Eq, Ord)
+type Referent = Referent' TermReference TypeReference
 
-type Referent = Referent' Reference Reference
-
-type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type ReferentH = Referent' TermRReference TypeReference
 
 data Referent' termRef typeRef
   = Ref termRef
@@ -31,11 +26,11 @@ data Referent' termRef typeRef
 refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
 refs_ f r = bitraverse f f r
 
-typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
-typeRef_ f = bitraverse f pure
+termRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef' typeRef) termRef termRef'
+termRef_ f = bitraverse f pure
 
-termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
-termRef_ f = bitraverse pure f
+typeRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef typeRef') typeRef typeRef'
+typeRef_ f = bitraverse pure f
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"
@@ -43,10 +38,31 @@ _Ref = _Ctor @"Ref"
 _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
 _Con = _Ctor @"Con"
 
+_ReferentHReferent :: Prism' ReferentH Referent
+_ReferentHReferent = prism embed project
+  where
+    embed = \case
+      Ref termRef -> Ref (review Reference._RReferenceReference termRef)
+      Con r cid -> Con r cid
+
+    project = \case
+      Con r cid -> Right (Con r cid)
+      Ref r -> case preview Reference._RReferenceReference r of
+        Nothing -> Left (Ref r)
+        Just r -> Right (Ref r)
+
 toReference :: Referent -> Reference
 toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
+
+toReferenceId :: Referent -> Maybe Reference.Id
+toReferenceId = \case
+  Ref termRef -> Reference.toId termRef
+  Con typeRef _ -> Reference.toId typeRef
+
+fromTermReferenceId :: Reference.TermReferenceId -> Referent
+fromTermReferenceId = Ref . ReferenceDerived
 
 toTermReference :: Referent' termRef typeRef -> Maybe termRef
 toTermReference = \case

@@ -5,6 +5,7 @@ module Unison.Name
 
     -- * Basic construction
     cons,
+    snoc,
     joinDot,
     fromSegment,
     fromSegments,
@@ -68,6 +69,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import Unison.Util.List qualified as List
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
@@ -310,7 +312,7 @@ lastSegment = List.NonEmpty.head . reverseSegments
 -- will return `{r1}`.
 --
 -- NB: Implementation uses logarithmic time lookups, not a linear scan.
-searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchBySuffix :: (Ord r) => Name -> Relation Name r -> Set r
 searchBySuffix suffix rel =
   R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
   where
@@ -323,7 +325,7 @@ searchBySuffix suffix rel =
 --
 -- Example: foo.bar shadows lib.foo.bar
 -- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
-searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchByRankedSuffix :: (Ord r) => Name -> Relation Name r -> Set r
 searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
   rs | Set.size rs <= 1 -> rs
   rs -> case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
@@ -344,6 +346,13 @@ searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
 
 libSegment :: NameSegment
 libSegment = NameSegment "lib"
+
+-- | Snoc a name segment onto the end of a name.
+--
+-- /O(1)/.
+snoc :: Name -> NameSegment -> Name
+snoc (Name pos (s1 :| ss)) s0 =
+  Name pos (s0 :| s1 : ss)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
@@ -479,7 +488,7 @@ unqualified (Name _ (s :| _)) =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. (Ord r) => Name -> r -> R.Relation Name r -> Name
+shortestUniqueSuffix :: forall r. (Ord r) => Name -> r -> Relation Name r -> Name
 shortestUniqueSuffix fqn r rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where

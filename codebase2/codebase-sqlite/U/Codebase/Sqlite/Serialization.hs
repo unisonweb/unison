@@ -21,7 +21,7 @@ module U.Codebase.Sqlite.Serialization
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
-    lookupDeclElementNumConstructors,
+    brokenLookupDeclElementNumConstructors,
     lookupTermElement,
     lookupTermElementDiscardingTerm,
     lookupTermElementDiscardingType,
@@ -77,6 +77,7 @@ import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization hiding (debug)
+import Unison.ConstructorType qualified as ConstructorType
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
@@ -442,8 +443,8 @@ putDeclFormat = \case
           putModifier modifier
           putFoldable putSymbol bound
           putFoldable putDType constructorTypes
-        putDeclType Decl.Data = putWord8 0
-        putDeclType Decl.Effect = putWord8 1
+        putDeclType ConstructorType.Data = putWord8 0
+        putDeclType ConstructorType.Effect = putWord8 1
         putModifier Decl.Structural = putWord8 0
         putModifier (Decl.Unique t) = putWord8 1 *> putText t
 
@@ -468,9 +469,9 @@ getDeclElement =
   where
     getDeclType =
       getWord8 >>= \case
-        0 -> pure Decl.Data
-        1 -> pure Decl.Effect
-        other -> unknownTag "DeclType" other
+        0 -> pure ConstructorType.Data
+        1 -> pure ConstructorType.Effect
+        other -> unknownTag "ConstructorType" other
     getModifier =
       getWord8 >>= \case
         0 -> pure Decl.Structural
@@ -494,8 +495,12 @@ lookupDeclElement ::
 lookupDeclElement i =
   lookupDeclElementWith i (getPair getLocalIds getDeclElement)
 
-lookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
-lookupDeclElementNumConstructors i =
+-- Whoops, this is broken.
+--
+-- Here is the binary blob of the Doc decl: 000200a204041104033102b5014700012862376134666238376533343536393331393539313133306266336563366532346339393535623661001c000101010000000101010001000001010100010000010001000000010101000100000101010001000001000100000001010100010000010101000100000100010000000101010301000101000001000100000101010001000001000100000001010100000101010103010000020100010000010001000000010101000101010001000100000001010100010000010001000000010101000100000100010000000101010001000001000100000001010100010000010001000000010101000100000100010000000101010001000001000100000001010100010000010001000000010101000100000101010301000002010001000001000100000001010100010000010101000100000101010301000101000001000100000100010000000100010000000100010000000100010000000101010301000002010301000002010001000001000100000001010100000301000100000001010103010000020100010000010001000000010101030100000201000100000100010000000101010301000002010001000001000100000001010103010000020100010000010001000000010101030100000201000100000100010000000101010000030101010001000001000100000001010100000301010100010000010001000000010101000003010101000100000100010000
+-- We incorrectly report its constructor length as 1, when it should be 11 or something
+brokenLookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
+brokenLookupDeclElementNumConstructors i =
   lookupDeclElementWith i (skipLocalIds *> getDeclElementNumConstructors)
 
 -- Note: the caller is responsible for either consuming the whole decl, or not

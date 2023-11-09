@@ -19,6 +19,9 @@ data TypeLookup v a = TypeLookup
   }
   deriving (Show)
 
+empty :: TypeLookup v a
+empty = mempty
+
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r

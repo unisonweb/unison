@@ -69,6 +69,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
@@ -84,6 +85,7 @@ import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
+import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -1111,6 +1113,9 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
+            Update2I requestedNames -> do
+              description <- inputDescription input
+              handleUpdate2 description input requestedNames
             PreviewUpdateI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1346,6 +1351,7 @@ loop e = do
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
+            MergeI branch -> handleMerge branch
 
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
@@ -1534,6 +1540,11 @@ inputDescription input =
           DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
           UsePatch p0 -> (" " <>) <$> ps' p0
       pure ("update" <> p)
+    Update2I selection ->
+      pure
+        if null selection
+          then "update"
+          else "update " <> Monoid.intercalate " " (map Name.toText $ toList selection)
     PropagatePatchI p0 scope0 -> do
       p <- ps' p0
       scope <- p' scope0
@@ -1609,6 +1620,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
@@ -1741,7 +1753,7 @@ handleStructuredFindReplaceI rule = do
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
-  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
+  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) (second void uf')
 
 handleFindI ::
   Bool ->

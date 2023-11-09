@@ -4,6 +4,9 @@ module U.Codebase.Branch.Diff
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
+    pattern DiffIsAdd,
+    pattern DiffIsRemoval,
+    pattern DiffIsUpdate,
     NameBasedDiff (..),
     diffBranches,
     allNameChanges,
@@ -20,6 +23,8 @@ import Data.Functor.Compose (Compose (..))
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.These
 import U.Codebase.Branch
 import U.Codebase.Branch qualified as V2Branch
@@ -37,18 +42,38 @@ import Unison.Util.Monoid (foldMapM, ifoldMapM)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 
+-- | Invariant: adds and removes are not both empty.
 data Diff a = Diff
-  { adds :: Set a,
-    removals :: Set a
+  { adds :: !(Set a),
+    removals :: !(Set a)
   }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Generic, Ord, Show)
+
+-- Note: the DiffIsAdd and DiffIsUpdate pattern synonyms below intentionally return only a single arbitrary element
+-- from the add set, and as such are most useful to calling code that has this invariant on adds (such as the merge
+-- algorithm, which disallows merging namespaces that have conflicted names).
+
+-- | Does this diff look like an "add", that is, the removal of 0 things, and the addition of 1 thing?
+pattern DiffIsAdd :: a -> Diff a
+pattern DiffIsAdd x <- Diff (Set.lookupMin -> Just x) (Set.null -> True)
+
+-- | Does this diff look like a "removal", that is, the removal of 1+ things, and the addition of 0 things?
+pattern DiffIsRemoval :: NESet a -> Diff a
+pattern DiffIsRemoval xs <- Diff (Set.null -> True) (NESet.nonEmptySet -> Just xs)
+
+-- | Does this diff look like an "update", that is, the removal of 1+ things, and the addition of 1 thing?
+pattern DiffIsUpdate :: NESet a -> a -> Diff a
+pattern DiffIsUpdate xs y <- Diff (Set.lookupMin -> Just y) (NESet.nonEmptySet -> Just xs)
+
+-- Complete due to the invariant that adds/removals are not both empty.
+{-# COMPLETE DiffIsAdd, DiffIsRemoval, DiffIsUpdate #-}
 
 -- | Represents the changes to definitions at a given path, not including child paths.
 --
 -- Note: doesn't yet include any info on metadata or patch diffs. Feel free to add it.
 data DefinitionDiffs = DefinitionDiffs
-  { termDiffs :: Map NameSegment (Diff Referent),
-    typeDiffs :: Map NameSegment (Diff Reference)
+  { termDiffs :: !(Map NameSegment (Diff Referent)),
+    typeDiffs :: !(Map NameSegment (Diff Reference))
     -- termMetadataDiffs :: Map (NameSegment, Referent) (Diff Reference),
     -- typeMetadataDiffs :: Map (NameSegment, Reference) (Diff Reference)
     -- patchDiffs :: Map NameSegment (Diff ())
@@ -143,28 +168,28 @@ diffBranches from to = do
               newChildBranch <- Causal.value ca
               unTreeDiff <$> diffBranches Branch.empty newChildBranch
             These fromC toC
-              | Causal.valueHash fromC == Causal.valueHash toC ->
-                  -- This child didn't change.
-                  Nothing
-              | otherwise -> Just $ do
+              -- This child didn't change.
+              | Causal.valueHash fromC == Causal.valueHash toC -> Nothing
+              | otherwise -> Just do
                   fromChildBranch <- Causal.value fromC
                   toChildBranch <- Causal.value toC
-                  diffBranches fromChildBranch toChildBranch >>= \case
-                    TreeDiff (defDiffs :< Compose mchildren) -> do
-                      pure $ (defDiffs :< Compose mchildren)
-  pure $
-    TreeDiff (defDiff :< Compose childDiff)
+                  unTreeDiff <$> diffBranches fromChildBranch toChildBranch
+  pure $ TreeDiff (defDiff :< Compose childDiff)
   where
     diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (Sqlite.Transaction MdValues)) -> Map NameSegment (Map ref (Sqlite.Transaction MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
-        & fmap \case
-          This refs -> Diff {removals = Map.keysSet refs, adds = mempty}
-          That refs -> Diff {removals = mempty, adds = Map.keysSet refs}
+        & mapMaybe \case
+          This refs -> Just Diff {removals = Map.keysSet refs, adds = mempty}
+          That refs -> Just Diff {removals = mempty, adds = Map.keysSet refs}
           These l' r' ->
             let lRefs = Map.keysSet l'
                 rRefs = Map.keysSet r'
-             in Diff {removals = lRefs `Set.difference` rRefs, adds = rRefs `Set.difference` lRefs}
+                removals = lRefs `Set.difference` rRefs
+                adds = rRefs `Set.difference` lRefs
+             in if Set.null removals && Set.null adds
+                  then Nothing
+                  else Just Diff {removals, adds}
 
 -- | Get a summary of all of the name adds and removals from a tree diff.
 --

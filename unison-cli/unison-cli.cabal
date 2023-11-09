@@ -51,6 +51,8 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.Merge
+      Unison.Codebase.Editor.HandleInput.Merge2
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
@@ -66,10 +68,12 @@ library
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
+      Unison.Codebase.Editor.HandleInput.Update2
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Output.Merge2
       Unison.Codebase.Editor.Output.PushPull
       Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.Slurp
@@ -159,6 +163,7 @@ library
     , ansi-terminal
     , async
     , base
+    , bimap
     , bytes
     , bytestring
     , co-log-core
@@ -189,6 +194,7 @@ library
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -205,7 +211,9 @@ library
     , servant
     , servant-client
     , stm
+    , strict-tuple
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -218,6 +226,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -226,6 +235,9 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -293,6 +305,7 @@ executable cli-integration-tests
     , ansi-terminal
     , async
     , base
+    , bimap
     , bytes
     , bytestring
     , co-log-core
@@ -325,6 +338,7 @@ executable cli-integration-tests
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -342,7 +356,9 @@ executable cli-integration-tests
     , servant-client
     , shellmet
     , stm
+    , strict-tuple
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -355,6 +371,7 @@ executable cli-integration-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -363,6 +380,9 @@ executable cli-integration-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -423,6 +443,7 @@ executable transcripts
     , ansi-terminal
     , async
     , base
+    , bimap
     , bytes
     , bytestring
     , co-log-core
@@ -455,6 +476,7 @@ executable transcripts
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -473,7 +495,9 @@ executable transcripts
     , shellmet
     , silently
     , stm
+    , strict-tuple
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -487,6 +511,7 @@ executable transcripts
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -495,6 +520,9 @@ executable transcripts
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -560,6 +588,7 @@ executable unison
     , ansi-terminal
     , async
     , base
+    , bimap
     , bytes
     , bytestring
     , co-log-core
@@ -591,6 +620,7 @@ executable unison
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -609,9 +639,11 @@ executable unison
     , servant-client
     , shellmet
     , stm
+    , strict-tuple
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -625,6 +657,7 @@ executable unison
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -633,6 +666,9 @@ executable unison
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -701,6 +737,7 @@ test-suite cli-tests
     , ansi-terminal
     , async
     , base
+    , bimap
     , bytes
     , bytestring
     , co-log-core
@@ -734,6 +771,7 @@ test-suite cli-tests
     , lsp-types >=2.0.0.0
     , megaparsec
     , memory
+    , monad-validate
     , mtl
     , network
     , network-simple
@@ -751,8 +789,10 @@ test-suite cli-tests
     , servant-client
     , shellmet
     , stm
+    , strict-tuple
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -766,6 +806,7 @@ test-suite cli-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -774,6 +815,9 @@ test-suite cli-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers

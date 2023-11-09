@@ -42,6 +42,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference, Reference' (..), TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -521,6 +522,25 @@ propagate patch b = case validatePatch patch of
            in Map.fromList
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
+    -- Gets the types to which this term contains references via patterns and
+    -- data constructors.
+    termConstructorDependencies ::
+      Ord v => Term v a -> Set TypeReference
+    termConstructorDependencies =
+      Term.generalizedDependencies
+        Term.GdHandler
+          { gdTermRef = const mempty,
+            gdTypeRef = const mempty,
+            gdLiteralType = Set.singleton,
+            gdDataCtor = const . Set.singleton,
+            gdEffectCtor = const . Set.singleton,
+            gdTermLink = const mempty,
+            gdTypeLink = const mempty,
+            gdLiteralPattern = Set.singleton,
+            gdDataPattern = const . Set.singleton,
+            gdEffectPattern = const . Set.singleton
+          }
+
     verifyTermComponent ::
       Codebase IO Symbol Ann ->
       Map Symbol (Reference, Term Symbol Ann, a) ->
@@ -539,7 +559,7 @@ propagate patch b = case validatePatch patch of
           oldTypes = Map.keysSet typeEdits
       if not . Set.null $
         Set.intersection
-          (foldMap Term.constructorDependencies terms)
+          (foldMap termConstructorDependencies terms)
           oldTypes
         then pure Nothing
         else do

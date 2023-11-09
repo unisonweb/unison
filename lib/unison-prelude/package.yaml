@@ -18,6 +18,7 @@ dependencies:
   - generic-lens
   - lens
   - mtl
+  - nonempty-containers
   - pretty-simple
   - safe
   - text

@@ -21,10 +21,11 @@ handleReleaseDraft ver = do
 
   let branchName = unsafeFrom @Text ("releases/drafts/" <> into @Text ver)
 
-  doCreateBranch
-    (CreateFrom'Branch currentProjectAndBranch)
-    (currentProjectAndBranch ^. #project)
-    branchName
-    ("release.draft " <> into @Text ver)
+  _ <-
+    doCreateBranch
+      (CreateFrom'Branch currentProjectAndBranch)
+      (currentProjectAndBranch ^. #project)
+      branchName
+      ("release.draft " <> into @Text ver)
 
   Cli.respond (Output.DraftingRelease branchName ver)

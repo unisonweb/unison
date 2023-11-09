@@ -9,9 +9,9 @@ import Data.Text (Text, unpack)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)
 import Unison.Pattern qualified as Pattern
 import Unison.Reference (Reference)

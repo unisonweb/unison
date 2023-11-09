@@ -52,6 +52,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge2 (MergeOutput)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -62,7 +63,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -376,13 +377,26 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol Ann)
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol ())
+  | OutputMergeScratchFile PPE.PrettyPrintEnvDecl FilePath (UF.UnisonFile Symbol ()) -- scratchMsg, ucmMsg :: String
+  | OutputMergeConflictScratchFile PPE.PrettyPrintEnvDecl FilePath (MergeOutput Symbol ()) -- scratchMsg, ucmMsg :: String
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | -- These are all merge precondition violations. See PreconditionViolation for more docs.
+    MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeConflictedTermName !Name !(Set Referent)
+  | MergeConflictedTypeName !Name !(Set TypeReference)
+  | MergeConflictInvolvingBuiltin !Name
+  | MergeConstructorAlias !ProjectBranchName !Name !Name
+  | MergeDefnsInLib
+  | MergeMissingConstructorName !Name
+  | MergeNestedDeclAlias !Name
+  | MergeNoConstructorNames !Name
+  | MergeStrayConstructor !Name
 
 -- | What did we create a project branch from?
 --
@@ -600,12 +614,24 @@ isFailure o = case o of
   CalculatingDiff {} -> False
   RenamedProject {} -> False
   OutputRewrittenFile {} -> False
+  OutputMergeScratchFile {} -> False
+  OutputMergeConflictScratchFile {} -> False
   RenamedProjectBranch {} -> False
   CantRenameBranchTo {} -> True
   FetchingLatestReleaseOfBase {} -> False
   FailedToFetchLatestReleaseOfBase {} -> True
   HappyCoding {} -> False
   ProjectHasNoReleases {} -> True
+  MergeConflictedAliases {} -> True
+  MergeConflictedTermName {} -> True
+  MergeConflictedTypeName {} -> True
+  MergeConflictInvolvingBuiltin {} -> True
+  MergeConstructorAlias {} -> True
+  MergeDefnsInLib -> True
+  MergeMissingConstructorName {} -> True
+  MergeNestedDeclAlias {} -> True
+  MergeNoConstructorNames {} -> True
+  MergeStrayConstructor {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

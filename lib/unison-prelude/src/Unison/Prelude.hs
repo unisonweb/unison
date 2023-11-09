@@ -7,9 +7,12 @@ module Unison.Prelude
     uncurry4,
     reportBug,
     tShow,
+    werror,
     wundefined,
 
     -- * @Maybe@ control flow
+    onJust,
+    onJustM,
     onNothing,
     onNothingM,
     whenNothing,
@@ -34,6 +37,8 @@ module Unison.Prelude
   )
 where
 
+import System.IO.Unsafe (unsafePerformIO)
+import GHC.Stack
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
@@ -78,7 +83,7 @@ import System.IO qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import UnliftIO qualified
-import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
+import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto, unsafeInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | Can be removed when we upgrade transformers to a more recent version.
@@ -93,19 +98,18 @@ altSum = foldl' (<|>) empty
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
 
--- | E.g.
---
--- @@
--- onNothing (throwIO MissingPerson) $ mayThing
--- @@
+onJust :: Applicative m => (a -> m ()) -> Maybe a -> m ()
+onJust = flip whenJust
+
+onJustM :: Monad m => (a -> m ()) -> m (Maybe a) -> m ()
+onJustM = flip whenJustM
+
 onNothing :: (Applicative m) => m a -> Maybe a -> m a
-onNothing m may = maybe m pure may
+onNothing m = maybe m pure
 
 onNothingM :: (Monad m) => m a -> m (Maybe a) -> m a
-onNothingM =
-  flip whenNothingM
+onNothingM = flip whenNothingM
 
--- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
 whenNothing :: (Applicative m) => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
 
@@ -214,6 +218,12 @@ reportBug bugId msg =
       "any additional details you know of to the issue."
     ]
 
+{-# WARNING werror "You left this werror." #-}
+werror :: (HasCallStack) => String -> a
+werror = error
+
 {-# WARNING wundefined "You left this wundefined." #-}
 wundefined :: (HasCallStack) => a
-wundefined = undefined
+wundefined = unsafePerformIO do
+  putStrLn (prettyCallStack callStack)
+  undefined

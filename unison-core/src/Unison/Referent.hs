@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Referent
   ( Referent,
     pattern Ref,
@@ -33,7 +30,7 @@ import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R
@@ -83,7 +80,7 @@ toText = \case
   Ref r -> R.toText r
   Con (ConstructorReference r cid) ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
 
-ctorTypeText :: CT.ConstructorType -> Text
+ctorTypeText :: ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
 ctorTypeText CT.Data = DataCtor
 

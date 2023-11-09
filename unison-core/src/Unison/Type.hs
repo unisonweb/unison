@@ -48,8 +48,8 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
-bindExternal ::
-  (ABT.Var v) => [(v, Reference)] -> Type v a -> Type v a
+-- | @bindExternal bindings type@ replaces every free occurrence of one of the bindings with the associated reference.
+bindExternal :: (ABT.Var v) => [(v, Reference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
 bindReferences ::

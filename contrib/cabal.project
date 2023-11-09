@@ -23,11 +23,14 @@ packages:
   lib/unison-util-cache
   lib/unison-util-relation
   lib/unison-util-rope
+  lib/unison-util-file-embed
+  lib/unison-util-bimultimap
 
   parser-typechecker
   unison-core
   unison-cli
   unison-hashing-v2
+  unison-merge
   unison-share-api
   unison-share-projects-api
   unison-syntax

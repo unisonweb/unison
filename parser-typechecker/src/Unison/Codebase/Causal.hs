@@ -12,6 +12,7 @@ module Unison.Codebase.Causal
     one,
     cons,
     consDistinct,
+    mergeNode,
     uncons,
     predecessors,
     threeWayMerge,

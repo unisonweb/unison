@@ -67,6 +67,7 @@ library
       ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedStrings

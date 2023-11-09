@@ -27,6 +27,7 @@ module Unison.Hashing.V2
     Type,
     TypeEdit (..),
     TypeF (..),
+    hashClosedDecl,
     hashClosedTerm,
     hashDecls,
     hashTermComponents,
@@ -42,7 +43,7 @@ where
 import Unison.Hashing.ContentAddressable (ContentAddressable (..))
 import Unison.Hashing.V2.Branch (Branch (..), MdValues (..))
 import Unison.Hashing.V2.Causal (Causal (..))
-import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDeclaration (..), Modifier (..), hashDecls)
+import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDeclaration (..), Modifier (..), hashClosedDecl, hashDecls)
 import Unison.Hashing.V2.Kind (Kind (..))
 import Unison.Hashing.V2.NameSegment (NameSegment (..))
 import Unison.Hashing.V2.Patch (Patch (..))

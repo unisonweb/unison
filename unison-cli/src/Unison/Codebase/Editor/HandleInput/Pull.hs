@@ -231,7 +231,7 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
     ReadShare'ProjectBranch remoteBranch -> do
       projectBranchCausalHashJWT <- downloadShareProjectBranch (pullMode == Input.PullWithoutHistory) remoteBranch
       let causalHash = Common.hash32ToCausalHash (Share.hashJWTHash projectBranchCausalHashJWT)
-      liftIO (Codebase.expectBranchForHash codebase causalHash)
+      liftIO (Codebase.expectBranchForHashIO codebase causalHash)
 
 -- | @downloadShareProjectBranch branch@ downloads the given branch.
 downloadShareProjectBranch :: HasCallStack => Bool -> Share.RemoteProjectBranch -> Cli HashJWT
@@ -276,7 +276,7 @@ loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
       numDownloaded <- liftIO getNumDownloaded
       pure (causalHash, numDownloaded)
   Cli.respond (Output.DownloadedEntities numDownloaded)
-  liftIO (Codebase.expectBranchForHash codebase causalHash)
+  liftIO (Codebase.expectBranchForHashIO codebase causalHash)
 
 -- Provide the given action a callback that display to the terminal.
 withEntitiesDownloadedProgressCallback :: ((Int -> IO (), IO Int) -> IO a) -> IO a

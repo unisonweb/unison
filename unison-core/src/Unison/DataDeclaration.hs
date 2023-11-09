@@ -7,6 +7,7 @@ module Unison.DataDeclaration
     DeclOrBuiltin (..),
     Modifier (..),
     allVars,
+    allVars',
     asDataDecl,
     bindReferences,
     constructorNames,
@@ -19,6 +20,7 @@ module Unison.DataDeclaration
     declTypeDependencies,
     labeledDeclTypeDependencies,
     labeledDeclDependenciesIncludingSelf,
+    modifyAsDataDecl,
     declFields,
     typeDependencies,
     labeledTypeDependencies,
@@ -31,6 +33,7 @@ module Unison.DataDeclaration
     amap,
     updateDependencies,
     constructors_,
+    dataDecl_,
     asDataDecl_,
   )
 where
@@ -42,13 +45,13 @@ import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
@@ -69,6 +72,15 @@ data DeclOrBuiltin v a
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
+
+-- | An isomorphism between a decl (tagged as either effect or data) and the underlying untagged decl.
+dataDecl_ :: Iso' (Decl v a) (DataDeclaration v a)
+dataDecl_ = iso asDataDecl Right
+
+modifyAsDataDecl :: (DataDeclaration v a -> DataDeclaration v a) -> Decl v a -> Decl v a
+modifyAsDataDecl f = \case
+  Right dd@DataDeclaration {} -> Right . f $ dd
+  Left (EffectDeclaration dd) -> Left . EffectDeclaration . f $ dd
 
 declTypeDependencies :: (Ord v) => Decl v a -> Set Reference
 declTypeDependencies = either (typeDependencies . toDataDecl) typeDependencies
@@ -282,7 +294,7 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
 -- (unless the decl is self-referential)
 -- Note: Does NOT include the referents for fields and field accessors.
 -- Those must be computed separately because we need access to the typechecker to do so.
-typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
+typeDependencies :: (Ord v) => DataDeclaration v a -> Set TypeReference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
@@ -333,19 +345,16 @@ unhashComponent m =
       m' = evalState (Map.traverseWithKey assignVar m) usedVars
         where
           assignVar r d = (,d) <$> ABT.freshenS (Var.unnamedRef r)
-      unhash1 :: ABT.Term Type.F v a -> ABT.Term Type.F v a
-      unhash1 = ABT.rebuildUp' go
+      rewriteType :: ABT.Term Type.F v a -> ABT.Term Type.F v a
+      rewriteType = ABT.rebuildUp' go
         where
           go e@(Type.Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
             Nothing -> e
             Just (v, _) -> Type.var (ABT.annotation e) v
           go e = e
-      unhash2 (Right dd@DataDeclaration {}) = Right $ unhash3 dd
-      unhash2 (Left (EffectDeclaration dd)) =
-        Left . EffectDeclaration $ unhash3 dd
       unhash3 dd@DataDeclaration {..} =
-        dd {constructors' = fmap (over _3 unhash1) constructors'}
-   in second unhash2 <$> m'
+        dd {constructors' = fmap (over _3 rewriteType) constructors'}
+   in second (modifyAsDataDecl unhash3) <$> m'
 
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)

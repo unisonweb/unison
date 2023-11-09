@@ -51,6 +51,13 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
+  ( Alternative ((<|>)),
+    Bifunctor (first, second),
+    Map,
+    Set,
+    join,
+    toList,
+  )
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent

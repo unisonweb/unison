@@ -14,8 +14,10 @@ module Unison.Codebase.BranchUtil
     -- * Branch modifications
     makeSetBranch,
     makeAddTypeName,
-    makeDeleteTypeName,
     makeAddTermName,
+    makeReplaceTypeNames,
+    makeReplaceTermNames,
+    makeDeleteTypeName,
     makeDeleteTermName,
     makeDeletePatch,
     makeReplacePatch,
@@ -116,6 +118,9 @@ getBranch (p, seg) b = case Path.toList p of
 makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
+makeReplaceTermNames :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeReplaceTermNames (p, name) r = (p, Branch.addTermName2 r name)
+
 makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
@@ -127,6 +132,9 @@ makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
 makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
+
+makeReplaceTypeNames :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeReplaceTypeNames (p, name) r = (p, Branch.addTypeName2 r name)
 
 makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)

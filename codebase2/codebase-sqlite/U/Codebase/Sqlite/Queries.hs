@@ -42,6 +42,7 @@ module U.Codebase.Sqlite.Queries
     expectObjectIdForPrimaryHash,
     loadPatchObjectIdForPrimaryHash,
     loadObjectIdForAnyHash,
+    expectObjectIdForAnyHash,
     loadObjectIdForAnyHashId,
     expectObjectIdForAnyHashId,
     recordObjectRehash,
@@ -160,6 +161,7 @@ module U.Codebase.Sqlite.Queries
     getDependenciesForDependent,
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
+    getDependentsWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -377,6 +379,7 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
 import U.Util.Term qualified as TermUtil
+import Unison.ConstructorType (ConstructorType)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
@@ -845,10 +848,25 @@ loadPatchObjectIdForPrimaryHash =
   (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash . unPatchHash
 
 loadObjectIdForAnyHash :: Hash -> Transaction (Maybe ObjectId)
-loadObjectIdForAnyHash h =
-  loadHashIdByHash h >>= \case
-    Nothing -> pure Nothing
-    Just hashId -> loadObjectIdForAnyHashId hashId
+loadObjectIdForAnyHash hash =
+  queryMaybeCol (loadObjectIdForAnyHashSql hash)
+
+-- FIXME(mitchell): "for any hash" is weird, but this query follows the existing pattern of just ignoring
+-- hash_object.hash_version... seems like that's a relevant column
+expectObjectIdForAnyHash :: Hash -> Transaction ObjectId
+expectObjectIdForAnyHash hash =
+  queryOneCol (loadObjectIdForAnyHashSql hash)
+
+loadObjectIdForAnyHashSql :: Hash -> Sql
+loadObjectIdForAnyHashSql hash =
+  [sql|
+    SELECT hash_object.object_id
+    FROM hash
+      JOIN hash_object ON hash.id = hash_object.hash_id
+    WHERE hash.base32 = :hash32
+  |]
+  where
+    hash32 = Hash32.fromHash hash
 
 loadObjectIdForAnyHashId :: HashId -> Transaction (Maybe ObjectId)
 loadObjectIdForAnyHashId h =
@@ -1775,6 +1793,84 @@ getDependenciesBetweenTerms oid1 oid2 =
       WHERE path_elem IS NOT null
     |]
 
+-- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+getDependentsWithinScope :: Set Reference.Id -> Set S.Reference -> Transaction (Map Reference.Id ObjectType)
+getDependentsWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependents_search_scope (
+        dependent_object_id INTEGER NOT NULL,
+        dependent_component_index INTEGER NOT NULL,
+        PRIMARY KEY (dependent_object_id, dependent_component_index)
+      )
+    |]
+  for_ scope \r ->
+    execute [sql|INSERT INTO dependents_search_scope VALUES (@r, @)|]
+
+  -- Populate a temporary table with all of the references in `query`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependencies_query (
+        dependency_builtin INTEGER NULL,
+        dependency_object_id INTEGER NULL,
+        dependency_component_index INTEGER NULL,
+        CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
+        CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
+      )
+    |]
+  for_ query \r ->
+    execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+
+  -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
+  --
+  -- Furthermore, say the dependencies are as follows, where `x -> y` means "x depends on y".
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --
+  -- The recursive query below is seeded with direct dependents of the `query` set that are in `scope`, namely:
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --            ^^^^
+  --            direct deps of { #foo, #bar } are: { #baz, #qux }
+  --
+  -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
+  -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
+  -- reference more than once.
+
+  result :: [Reference.Id :. Only ObjectType] <- queryListRow [sql|
+    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
+      SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      FROM dependents_index d
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN dependencies_query q
+        ON q.dependency_builtin IS d.dependency_builtin
+        AND q.dependency_object_id IS d.dependency_object_id
+        AND q.dependency_component_index IS d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
+
+      UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      FROM dependents_index d
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN transitive_dependents t
+        ON t.dependent_object_id = d.dependency_object_id
+        AND t.dependent_component_index = d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
+    )
+    SELECT * FROM transitive_dependents
+  |]
+  execute [sql|DROP TABLE dependents_search_scope|]
+  execute [sql|DROP TABLE dependencies_query|]
+  pure . Map.fromList $ [(r, t) | r :. Only t <- result]
+
+
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
   queryListCol
@@ -1915,7 +2011,7 @@ deleteNameLookupsExceptFor hashIds = do
         |]
 
 -- | Insert the given set of term names into the name lookup table
-insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)] -> Transaction ()
+insertScopedTermNames :: BranchHashId -> [NamedRef (Referent.TextReferent, Maybe ConstructorType)] -> Transaction ()
 insertScopedTermNames bhId = do
   traverse_ \name0 -> do
     let name = NamedRef.ScopedRow (refToRow <$> name0)
@@ -1935,7 +2031,7 @@ insertScopedTermNames bhId = do
         VALUES (:bhId, @name, @, @, @, @, @, @, @)
       |]
   where
-    refToRow :: (Referent.TextReferent, Maybe NamedRef.ConstructorType) -> (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))
+    refToRow :: (Referent.TextReferent, Maybe ConstructorType) -> (Referent.TextReferent :. Only (Maybe ConstructorType))
     refToRow (ref, ct) = ref :. Only ct
 
 -- | Insert the given set of type names into the name lookup table
@@ -2032,9 +2128,9 @@ likeEscape escapeChar pat =
 --
 -- Get the list of a term names in the provided name lookup and relative namespace.
 -- Includes dependencies, but not transitive dependencies.
-termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesWithinNamespace :: BranchHashId -> PathSegments -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termNamesWithinNamespace bhId namespace = do
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     queryListRow
       [sql|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
@@ -2094,13 +2190,13 @@ typeNamesWithinNamespace bhId namespace =
 -- is only true on Share.
 --
 -- Get the list of term names within a given namespace which have the given suffix.
-termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termNamesBySuffix :: BranchHashId -> PathSegments -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termNamesBySuffix bhId namespaceRoot suffix = do
   Debug.debugM Debug.Server "termNamesBySuffix" (namespaceRoot, suffix)
   let namespaceGlob = toNamespaceGlob namespaceRoot
   let lastSegment = NonEmpty.head . into @(NonEmpty Text) $ suffix
   let reversedNameGlob = toSuffixGlob suffix
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
     -- GLOB, but this helps improve query performance.
     -- The SQLite query optimizer is smart enough to do a prefix-search on globs, but will
@@ -2172,10 +2268,10 @@ typeNamesBySuffix bhId namespaceRoot suffix = do
 -- id. It's the caller's job to select the correct name lookup for your exact name.
 --
 -- See termRefsForExactName in U.Codebase.Sqlite.Operations
-termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)]
+termRefsForExactName :: BranchHashId -> ReversedName -> Transaction [NamedRef (Referent.TextReferent, Maybe ConstructorType)]
 termRefsForExactName bhId reversedSegments = do
   let reversedName = toReversedName reversedSegments
-  results :: [NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))] <-
+  results :: [NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))] <-
     queryListRow
       [sql|
         SELECT reversed_name, referent_builtin, referent_component_hash, referent_component_index, referent_constructor_index, referent_constructor_type
@@ -2418,13 +2514,13 @@ recursiveTypeNameSearch bhId ref = do
 -- the longest matching suffix.
 --
 -- Considers one level of dependencies, but not transitive dependencies.
-longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)))
+longestMatchingTermNameForSuffixification :: BranchHashId -> PathSegments -> NamedRef Referent.TextReferent -> Transaction (Maybe (NamedRef (Referent.TextReferent, Maybe ConstructorType)))
 longestMatchingTermNameForSuffixification bhId namespaceRoot (NamedRef.NamedRef {reversedSegments = revSuffix@(ReversedName (lastSegment NonEmpty.:| _)), ref}) = do
   let namespaceGlob = toNamespaceGlob namespaceRoot <> ".*"
-  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))
+  let loop :: [Text] -> MaybeT Transaction (NamedRef (Referent.TextReferent, Maybe ConstructorType))
       loop [] = empty
       loop (suffGlob : rest) = do
-        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType))) <-
+        result :: Maybe (NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType))) <-
           lift $
             queryMaybeRow
               -- Note: It may seem strange that we do a last_name_segment constraint AND a reversed_name
@@ -2975,7 +3071,7 @@ addTypeMentionsToIndexForTerm :: S.Referent.Id -> Set C.Reference -> Transaction
 addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
   traverse_ (flip addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
 
-localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.Decl.TypeRef)
+localIdsToTypeRefLookup :: LocalIds -> Transaction (S.Decl.TypeRef -> C.TypeRReference)
 localIdsToTypeRefLookup localIds = do
   (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId localIds
   pure $ bimap substText (fmap substHash)
@@ -3083,7 +3179,7 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.MatchCase Text C.Term.TypeRef a ->
+      C.Term.MatchCase Text C.TypeReference a ->
       m (C.Term.MatchCase LocalTextId S.Term.TypeRef a)
     goCase = \case
       C.Term.MatchCase pat guard body ->
@@ -3097,7 +3193,7 @@ c2xTerm saveText saveDefn tm tp =
         Lens.Field2' s (Map Hash LocalDefnId),
         Lens.Field2' w (Seq Hash)
       ) =>
-      C.Term.Pattern Text C.Term.TypeRef ->
+      C.Term.Pattern Text C.TypeReference ->
       m (C.Term.Pattern LocalTextId S.Term.TypeRef)
     goPat = \case
       C.Term.PUnbound -> pure $ C.Term.PUnbound
@@ -3399,16 +3495,16 @@ loadProjectBranchByNames projectName branchName =
 
 -- | Load all branch id/name pairs in a project whose name matches an optional prefix.
 loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
-loadAllProjectBranchesBeginningWith projectId mayPrefix =
+loadAllProjectBranchesBeginningWith projectId mayPrefix = do
   let prefixGlob = maybe "*" (\prefix -> (globEscape prefix <> "*")) mayPrefix
-   in queryListRow
-        [sql|
-        SELECT project_branch.branch_id, project_branch.name
-        FROM project_branch
-        WHERE project_branch.project_id = :projectId
-          AND project_branch.name GLOB :prefixGlob
-        ORDER BY project_branch.name ASC
-      |]
+  queryListRow
+    [sql|
+      SELECT project_branch.branch_id, project_branch.name
+      FROM project_branch
+      WHERE project_branch.project_id = :projectId
+        AND project_branch.name GLOB :prefixGlob
+      ORDER BY project_branch.name ASC
+    |]
 
 -- | Load ALL project/branch name pairs
 -- Useful for autocomplete/fuzzy-finding
@@ -3955,7 +4051,7 @@ loadMostRecentBranch projectId =
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.
 -- Search is case insensitive.
-fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType))]
+fuzzySearchTerms :: Bool -> BranchHashId -> Int -> PathSegments -> [Text] -> Transaction [(NamedRef (Referent.TextReferent, Maybe ConstructorType))]
 fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
   -- Union in the dependencies if required.
   let dependenciesSql =
@@ -3990,7 +4086,7 @@ fuzzySearchTerms includeDependencies bhId limit namespace querySegments = do
   where
     namespaceGlob = toNamespaceGlob namespace
     preparedQuery = prepareFuzzyQuery '\\' querySegments
-    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe NamedRef.ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe NamedRef.ConstructorType)
+    unRow :: NamedRef (Referent.TextReferent :. Only (Maybe ConstructorType)) -> NamedRef (Referent.TextReferent, Maybe ConstructorType)
     unRow = fmap \(a :. Only b) -> (a, b)
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments

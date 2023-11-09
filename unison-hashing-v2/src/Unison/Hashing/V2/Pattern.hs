@@ -4,7 +4,7 @@ module Unison.Hashing.V2.Pattern
   )
 where
 
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hashing.V2.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude

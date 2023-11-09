@@ -47,10 +47,10 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-            | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
+        [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          | (typ, fields) <- parsedAccessors,
+            Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+        ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
@@ -78,7 +78,7 @@ file = do
         -- All locally declared term variables, running example:
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
-        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors) 
+        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
@@ -89,15 +89,15 @@ file = do
             -- Each unique suffix mapped to its fully qualified name
             canonicalVars :: Map v v
             canonicalVars = UFN.variableCanonicalizer fqLocalTerms
-            
+
             -- All unique local term name suffixes - these we want to
             -- avoid resolving to a term that's in the codebase
             locals :: [Name.Name]
             locals = (Name.unsafeFromVar <$> Map.keys canonicalVars)
-            
+
             -- A function to replace unique local term suffixes with their
             -- fully qualified name
-            replacements = [ (v, Term.var () v2) | (v,v2) <- Map.toList canonicalVars, v /= v2 ]
+            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
             resolveLocals = ABT.substsInheritAnnotation replacements
     let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of
@@ -120,23 +120,18 @@ validateUnisonFile :: (Var v) => UnisonFile v Ann -> P v m ()
 validateUnisonFile uf =
   checkForDuplicateTermsAndConstructors uf
 
--- | Because types and abilities can introduce their own constructors and fields it's difficult
--- to detect all duplicate terms during parsing itself. Here we collect all terms and
--- constructors and verify that no duplicates exist in the file, triggering an error if needed.
-checkForDuplicateTermsAndConstructors ::
+checkForDuplicateTermsAndConstructors' ::
   forall m v.
-  (Ord v) =>
+  (Applicative m, Ord v) =>
+  ([(v, [Ann])] -> m ()) ->
   UnisonFile v Ann ->
-  P v m ()
-checkForDuplicateTermsAndConstructors uf = do
-  when (not . null $ duplicates) $ do
-    let dupeList :: [(v, [Ann])]
-        dupeList =
-          duplicates
-            & fmap Set.toList
-            & Map.toList
-    P.customFailure (DuplicateTermNames dupeList)
+  m ()
+checkForDuplicateTermsAndConstructors' notifyDuplicateTermNames uf = do
+  when (not . null $ duplicates) $
+    notifyDuplicateTermNames dupeList
   where
+    dupeList :: [(v, [Ann])]
+    dupeList = duplicates & fmap Set.toList & Map.toList
     effectDecls :: [DataDeclaration v Ann]
     effectDecls = (Map.elems . fmap (DD.toDataDecl . snd) $ (effectDeclarationsId uf))
     dataDecls :: [DataDeclaration v Ann]
@@ -159,6 +154,17 @@ checkForDuplicateTermsAndConstructors uf = do
     duplicates =
       -- Any vars with multiple annotations are duplicates.
       Map.filter ((> 1) . Set.size) mergedTerms
+
+-- | Because types and abilities can introduce their own constructors and fields it's difficult
+-- to detect all duplicate terms during parsing itself. Here we collect all terms and
+-- constructors and verify that no duplicates exist in the file, triggering an error if needed.
+checkForDuplicateTermsAndConstructors ::
+  forall m v.
+  (Ord v) =>
+  UnisonFile v Ann ->
+  P v m ()
+checkForDuplicateTermsAndConstructors =
+  checkForDuplicateTermsAndConstructors' $ P.customFailure . DuplicateTermNames
 
 -- A stanza is either a watch expression like:
 --   > 1 + x

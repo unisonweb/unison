@@ -5,12 +5,16 @@ module Unison.Util.Map
     bitraversed,
     deleteLookup,
     foldMapM,
+    fromSetA,
+    fromSetM,
+    mergeMap,
     unionWithM,
     remap,
     traverseKeys,
     traverseKeysWith,
     swap,
     upsert,
+    upsertF,
     valuesVector,
   )
 where
@@ -21,6 +25,8 @@ import Data.Bifunctor qualified as B
 import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
 import Data.Map.Strict qualified as Map
+import Data.Map.Strict.Internal qualified as Map
+import Data.Set.Internal qualified as Set
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap)
@@ -44,6 +50,11 @@ swap =
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
 upsert f =
   Map.alter (Just . f)
+
+-- | Upsert an element into a map.
+upsertF :: (Functor f, Ord k) => (Maybe v -> f v) -> k -> Map k v -> f (Map k v)
+upsertF f =
+  Map.alterF (fmap Just . f)
 
 valuesVector :: Map k v -> Vector v
 valuesVector =
@@ -95,3 +106,37 @@ traverseKeys f = bitraverse f pure
 traverseKeysWith :: (Applicative f, Ord k') => (v -> v -> v) -> (k -> f k') -> Map k v -> f (Map k' v)
 traverseKeysWith combine f m =
   Map.fromListWith combine <$> (Map.toList m & traversed . _1 %%~ f)
+
+-- | \(O(n)\)
+fromSetA :: Applicative f => (k -> f a) -> Set k -> f (Map k a)
+fromSetA f = \case
+  Set.Tip -> pure Map.Tip
+  Set.Bin sz x l r -> Map.Bin sz x <$> f x <*> fromSetA f l <*> fromSetA f r
+
+-- | \(O(n)\), strict
+fromSetM :: Monad f => (k -> f a) -> Set k -> f (Map k a)
+fromSetM f = \case
+  Set.Tip -> pure Map.Tip
+  Set.Bin sz x l r -> do
+    v <- f x
+    v `seq` Map.Bin sz x v <$> fromSetM f l <*> fromSetM f r
+
+-- | @mergeMap@ is like a @foldMap@ version of @merge@: summarize the merging of two maps together as a monoidal value.
+mergeMap ::
+  forall a b k m.
+  (Monoid m, Ord k) =>
+  -- | Function to apply when a key exists in the first map, but not the second.
+  (k -> a -> m) ->
+  -- | Function to apply when a key exists in the second map, but not the first.
+  (k -> b -> m) ->
+  -- | Function to apply when a key exists in both maps.
+  (k -> a -> b -> m) ->
+  Map k a ->
+  Map k b ->
+  m
+mergeMap f g h =
+  coerce @(Map k a -> Map k b -> Const m (Map k ())) do
+    Map.mergeA
+      (Map.traverseMissing (coerce f))
+      (Map.traverseMissing (coerce g))
+      (Map.zipWithAMatched (coerce h))

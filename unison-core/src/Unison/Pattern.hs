@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Pattern where
 
@@ -10,11 +11,11 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type qualified as Type
@@ -169,41 +170,37 @@ foldMap' f p = case p of
   SequenceLiteral _ ps -> f p <> foldMap (foldMap' f) ps
   SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
-generalizedDependencies ::
-  (Ord r) =>
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  Pattern loc ->
-  Set r
-generalizedDependencies literalType dataConstructor dataType effectConstructor effectType =
-  Set.fromList
-    . foldMap'
-      ( \case
-          Unbound _ -> mempty
-          Var _ -> mempty
-          As _ _ -> mempty
-          Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
-          EffectPure _ _ -> [effectType Type.effectRef]
-          EffectBind _ (ConstructorReference r cid) _ _ ->
-            [effectType Type.effectRef, effectType r, effectConstructor r cid]
-          SequenceLiteral _ _ -> [literalType Type.listRef]
-          SequenceOp {} -> [literalType Type.listRef]
-          Boolean _ _ -> [literalType Type.booleanRef]
-          Int _ _ -> [literalType Type.intRef]
-          Nat _ _ -> [literalType Type.natRef]
-          Float _ _ -> [literalType Type.floatRef]
-          Text _ _ -> [literalType Type.textRef]
-          Char _ _ -> [literalType Type.charRef]
-      )
+data GdHandler r = GdHandler
+  { gdLiteralPattern :: TypeReference -> r,
+    gdDataPattern :: TypeReference -> ConstructorId -> r,
+    gdEffectPattern :: TypeReference -> ConstructorId -> r
+  }
+
+generalizedDependencies :: (Monoid r) => GdHandler r -> Pattern loc -> r
+generalizedDependencies GdHandler {..} =
+  foldMap'
+    ( \case
+        Unbound _ -> mempty
+        Var _ -> mempty
+        As _ _ -> mempty
+        Constructor _ (ConstructorReference r cid) _ -> gdDataPattern r cid
+        EffectPure _ _ -> mempty
+        EffectBind _ (ConstructorReference r cid) _ _ -> gdEffectPattern r cid
+        SequenceLiteral _ _ -> gdLiteralPattern Type.listRef
+        SequenceOp {} -> gdLiteralPattern Type.listRef
+        Boolean _ _ -> gdLiteralPattern Type.booleanRef
+        Int _ _ -> gdLiteralPattern Type.intRef
+        Nat _ _ -> gdLiteralPattern Type.natRef
+        Float _ _ -> gdLiteralPattern Type.floatRef
+        Text _ _ -> gdLiteralPattern Type.textRef
+        Char _ _ -> gdLiteralPattern Type.charRef
+    )
 
 labeledDependencies :: Pattern loc -> Set LabeledDependency
 labeledDependencies =
   generalizedDependencies
-    LD.typeRef
-    (\r i -> LD.dataConstructor (ConstructorReference r i))
-    LD.typeRef
-    (\r i -> LD.effectConstructor (ConstructorReference r i))
-    LD.typeRef
+    GdHandler
+      { gdLiteralPattern = Set.singleton . LD.typeRef,
+        gdDataPattern = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectPattern = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)]
+      }

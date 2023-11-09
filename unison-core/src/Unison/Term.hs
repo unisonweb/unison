@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Unison.Term where
@@ -16,9 +17,9 @@ import Data.Text qualified as Text
 import Text.Show
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
@@ -29,7 +30,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, TypeReference, pattern Builtin)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -810,8 +811,14 @@ missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholde
 constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
+constructorId :: Ord v => a -> ConstructorReferenceId -> Term2 vt at ap v a
+constructorId a ref = constructor a (Reference.DerivedId <$> ref)
+
 request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
+
+requestId :: Ord v => a -> ConstructorReferenceId -> Term2 vt at ap v a
+requestId a ref = request a (Reference.DerivedId <$> ref)
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1211,76 +1218,56 @@ typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
   Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
 
--- Gets the types to which this term contains references via patterns and
--- data constructors.
-constructorDependencies ::
-  (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
-constructorDependencies =
-  Set.unions
-    . generalizedDependencies
-      (const mempty)
-      (const mempty)
-      Set.singleton
-      (const . Set.singleton)
-      Set.singleton
-      (const . Set.singleton)
-      Set.singleton
+data GdHandler r = GdHandler
+  { gdTermRef :: TermReference -> r,
+    gdTypeRef :: TypeReference -> r,
+    gdLiteralType :: TypeReference -> r,
+    gdDataCtor :: TypeReference -> ConstructorId -> r,
+    gdEffectCtor :: TypeReference -> ConstructorId -> r,
+    gdTermLink :: Referent -> r,
+    gdTypeLink :: TypeReference -> r,
+    gdLiteralPattern :: TypeReference -> r,
+    gdDataPattern :: TypeReference -> ConstructorId -> r,
+    gdEffectPattern :: TypeReference -> ConstructorId -> r
+  }
 
-generalizedDependencies ::
-  (Ord v, Ord vt, Ord r) =>
-  (Reference -> r) ->
-  (Reference -> r) ->
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  (Reference -> ConstructorId -> r) ->
-  (Reference -> r) ->
-  Term2 vt at ap v a ->
-  Set r
-generalizedDependencies termRef typeRef literalType dataConstructor dataType effectConstructor effectType =
-  Set.fromList . Writer.execWriter . ABT.visit' f
+-- should this work with an arbitrary Monoid r instead of Set r?
+generalizedDependencies :: forall r vt at ap v a. (Monoid r, Ord vt, Ord v) => GdHandler r -> Term2 vt at ap v a -> r
+generalizedDependencies GdHandler {..} =
+  Writer.execWriter . ABT.visit' f
   where
-    f t@(Ref r) = Writer.tell [termRef r] $> t
-    f t@(TermLink r) = case r of
-      Referent.Ref r -> Writer.tell [termRef r] $> t
-      Referent.Con (ConstructorReference r id) CT.Data -> Writer.tell [dataConstructor r id] $> t
-      Referent.Con (ConstructorReference r id) CT.Effect -> Writer.tell [effectConstructor r id] $> t
-    f t@(TypeLink r) = Writer.tell [typeRef r] $> t
-    f t@(Ann _ typ) =
-      Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
-    f t@(Nat _) = Writer.tell [literalType Type.natRef] $> t
-    f t@(Int _) = Writer.tell [literalType Type.intRef] $> t
-    f t@(Float _) = Writer.tell [literalType Type.floatRef] $> t
-    f t@(Boolean _) = Writer.tell [literalType Type.booleanRef] $> t
-    f t@(Text _) = Writer.tell [literalType Type.textRef] $> t
-    f t@(List _) = Writer.tell [literalType Type.listRef] $> t
-    f t@(Constructor (ConstructorReference r cid)) =
-      Writer.tell [dataType r, dataConstructor r cid] $> t
-    f t@(Request (ConstructorReference r cid)) =
-      Writer.tell [effectType r, effectConstructor r cid] $> t
+    f t@(Ref r) = Writer.tell (gdTermRef r) $> t
+    f t@(TermLink r) = Writer.tell (gdTermLink r) $> t
+    f t@(TypeLink r) = Writer.tell (gdTypeLink r) $> t
+    f t@(Ann _ typ) = Writer.tell (foldMap gdTypeRef . toList $ Type.dependencies typ) $> t
+    f t@(Nat _) = Writer.tell (gdLiteralType Type.natRef) $> t
+    f t@(Int _) = Writer.tell (gdLiteralType Type.intRef) $> t
+    f t@(Float _) = Writer.tell (gdLiteralType Type.floatRef) $> t
+    f t@(Boolean _) = Writer.tell (gdLiteralType Type.booleanRef) $> t
+    f t@(Text _) = Writer.tell (gdLiteralType Type.textRef) $> t
+    f t@(List _) = Writer.tell (gdLiteralType Type.listRef) $> t
+    f t@(Constructor (ConstructorReference r cid)) = Writer.tell (gdDataCtor r cid) $> t
+    f t@(Request (ConstructorReference r cid)) = Writer.tell (gdEffectCtor r cid) $> t
     f t@(Match _ cases) = traverse_ goPat cases $> t
     f t = pure t
-    goPat (MatchCase pat _ _) =
-      Writer.tell . toList $
-        Pattern.generalizedDependencies
-          literalType
-          dataConstructor
-          dataType
-          effectConstructor
-          effectType
-          pat
+    goPat (MatchCase pat _ _) = Writer.tell $ Pattern.generalizedDependencies Pattern.GdHandler {..} pat
 
 labeledDependencies ::
   (Ord v, Ord vt) => Term2 vt at ap v a -> Set LabeledDependency
 labeledDependencies =
   generalizedDependencies
-    LD.termRef
-    LD.typeRef
-    LD.typeRef
-    (\r i -> LD.dataConstructor (ConstructorReference r i))
-    LD.typeRef
-    (\r i -> LD.effectConstructor (ConstructorReference r i))
-    LD.typeRef
+    GdHandler
+      { gdTermRef = Set.singleton . LD.termRef,
+        gdTypeRef = Set.singleton . LD.typeRef,
+        gdLiteralType = Set.singleton . LD.typeRef,
+        gdDataCtor = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectCtor = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)],
+        gdTermLink = Set.singleton . LD.referent,
+        gdTypeLink = Set.singleton . LD.typeRef,
+        gdLiteralPattern = Set.singleton . LD.typeRef,
+        gdDataPattern = \r i -> Set.fromList [LD.typeRef r, LD.dataConstructor (ConstructorReference r i)],
+        gdEffectPattern = \r i -> Set.fromList [LD.typeRef r, LD.effectConstructor (ConstructorReference r i)]
+      }
 
 updateDependencies ::
   (Ord v) =>
@@ -1375,6 +1362,17 @@ fromReferent a = \case
   Referent.Con r ct -> case ct of
     CT.Data -> constructor a r
     CT.Effect -> request a r
+
+fromReferentId ::
+  Ord v =>
+  a ->
+  Referent.Id ->
+  Term2 vt at ap v a
+fromReferentId a = \case
+  Referent.RefId r -> refId a r
+  Referent.ConId r ct -> case ct of
+    CT.Data -> constructorId a r
+    CT.Effect -> requestId a r
 
 -- Used to find matches of `@rewrite case` rules
 containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool

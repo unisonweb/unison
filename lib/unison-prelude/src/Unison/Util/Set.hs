@@ -1,6 +1,7 @@
 module Unison.Util.Set
   ( asSingleton,
     difference1,
+    intersectKeys,
     mapMaybe,
     symmetricDifference,
     Unison.Util.Set.traverse,
@@ -12,9 +13,12 @@ where
 
 import Data.Function ((&))
 import Data.Functor ((<&>))
+import Data.Map (Map)
+import Data.Map.Internal qualified as Map.Internal
 import Data.Maybe qualified as Maybe
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Set.Internal qualified as Set.Internal
 import Unison.Util.Monoid (foldMapM)
 
 -- | Get the only member of a set, iff it's a singleton.
@@ -28,6 +32,20 @@ difference1 xs ys =
   if null zs then Nothing else Just zs
   where
     zs = Set.difference xs ys
+
+-- | @intersectKeys xs ys@ is like @intersection xs ys@, except the first argument is a map (whose values are ignored).
+intersectKeys :: Ord a => Map a x -> Set a -> Set a
+intersectKeys xs ys =
+  case xs of
+    Map.Internal.Tip -> Set.Internal.Tip
+    Map.Internal.Bin _ x _ xsL xsR ->
+      case ys of
+        Set.Internal.Tip -> Set.Internal.Tip
+        _ ->
+          let !(ysL, y, ysR) = Set.splitMember x ys
+              !zsL = intersectKeys xsL ysL
+              !zsR = intersectKeys xsR ysR
+           in if y then Set.Internal.link x zsL zsR else Set.Internal.merge zsL zsR
 
 symmetricDifference :: (Ord a) => Set a -> Set a -> Set a
 symmetricDifference a b = (a `Set.difference` b) `Set.union` (b `Set.difference` a)

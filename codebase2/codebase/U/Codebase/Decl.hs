@@ -1,32 +1,55 @@
-module U.Codebase.Decl where
+module U.Codebase.Decl
+  ( Decl,
+    Type,
+    Modifier (..),
+    DeclR (..),
+    constructorType,
 
-import U.Codebase.Reference (Reference')
-import U.Codebase.Type (TypeR)
+    -- * Hashing stuff
+    V (..),
+    F (..),
+    dependencies,
+  )
+where
+
+import Control.Lens (ix, (^?))
+import U.Codebase.Reference (TypeRReference)
+import U.Codebase.Type (TypeD, TypeR)
 import U.Codebase.Type qualified as Type
-import Unison.Hash (Hash)
+import Unison.ConstructorType (ConstructorType)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude
 
-type ConstructorId = Word64
+type Decl v = DeclR TypeRReference v
 
-data DeclType = Data | Effect
-  deriving (Eq, Ord, Show, Enum)
+type Type v = TypeD v
 
-type Decl v = DeclR TypeRef v
-
-type TypeRef = Reference' Text (Maybe Hash)
-
-type Type v = TypeR TypeRef v
-
-data Modifier = Structural | Unique Text
+data Modifier = Structural | Unique !Text
   deriving (Eq, Ord, Show)
 
 data DeclR r v = DataDeclaration
-  { declType :: DeclType,
+  { declType :: ConstructorType,
     modifier :: Modifier,
     bound :: [v],
     constructorTypes :: [TypeR r v]
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
+
+-- | Get a single constructor's type.
+--
+-- Calls `error` if the constructor id is out of bounds.
+constructorType :: (HasCallStack, Show r, Show v) => DeclR r v -> ConstructorId -> TypeR r v
+constructorType decl@DataDeclaration {constructorTypes} conId =
+  case constructorTypes ^? ix (unsafeInto @Int conId) of
+    Nothing ->
+      error $
+        reportBug "E668346" $
+          unlines
+            [ "Decl does not have constructor id",
+              "Decl: " ++ show decl,
+              "Constructor id: " ++ show conId
+            ]
+    Just ty -> ty
 
 -- * Hashing stuff
 
@@ -39,5 +62,5 @@ data F a
   = Type (Type.FD a)
   | LetRec [a] a
   | Constructors [a]
-  | Modified DeclType Modifier a
+  | Modified ConstructorType Modifier a
   deriving (Functor, Foldable, Show)

@@ -14,8 +14,8 @@ import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.CodeLookup.Util qualified as CL
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.ConstructorId qualified as DD
 import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -120,7 +120,7 @@ isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
 
-eitherLeftId, eitherRightId, someId, noneId :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId :: ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
@@ -427,7 +427,7 @@ pattern AnsiColorRef <- ((== ansiColorRef) -> True)
       ct "BrightWhite"
     )
     where
-      ct :: Text -> DD.ConstructorId
+      ct :: Text -> ConstructorId
       ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
 
 pattern AnsiColorBlack <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBlackId -> True))
@@ -488,7 +488,7 @@ pattern ConsoleTextUnderline ct <- Term.App' (Term.Constructor' (ConstructorRefe
 
 pattern ConsoleTextInvert ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextInvertId -> True))) ct
 
-constructorNamed :: R.Reference -> Text -> DD.ConstructorId
+constructorNamed :: R.Reference -> Text -> ConstructorId
 constructorNamed ref name =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->
@@ -508,7 +508,7 @@ constructorNamed ref name =
         . DD.constructorNames
         $ DD.asDataDecl decl
 
-constructorName :: R.Reference -> DD.ConstructorId -> Text
+constructorName :: R.Reference -> ConstructorId -> Text
 constructorName ref cid =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->

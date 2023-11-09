@@ -6,6 +6,7 @@ import Data.Function (on)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
+import Data.Set qualified as Set
 import Data.Tuple.Extra (uncurry3)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
@@ -103,6 +104,10 @@ lookupD1 a = fromMaybe mempty . Map.lookup a . d1
 
 lookupD2 :: (Ord a, Ord b, Ord c) => b -> Relation3 a b c -> Relation a c
 lookupD2 b = fromMaybe mempty . Map.lookup b . d2
+
+lookupD23 :: (Ord b, Ord c) => b -> c -> Relation3 a b c -> Set a
+lookupD23 b c =
+  maybe Set.empty (R.lookupRan c) . Map.lookup b . d2
 
 lookupD3 :: (Ord a, Ord b, Ord c) => c -> Relation3 a b c -> Relation a b
 lookupD3 c = fromMaybe mempty . Map.lookup c . d3

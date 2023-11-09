@@ -2,6 +2,7 @@ module Unison.Util.Monoid
   ( foldMapM,
     ifoldMapM,
     Unison.Util.Monoid.fromMaybe,
+    intercalate,
     intercalateMap,
     intercalateMapM,
     isEmpty,
@@ -17,6 +18,9 @@ import Unison.Prelude hiding (whenM)
 
 -- List.intercalate extended to any monoid
 -- "The type that intercalate should have had to begin with."
+intercalate :: (Foldable t, Monoid a) => a -> t a -> a
+intercalate separator elements = intercalateMap separator id elements
+
 intercalateMap :: (Foldable t, Monoid a) => a -> (b -> a) -> t b -> a
 intercalateMap separator renderer elements =
   mconcat $ intersperse separator (renderer <$> toList elements)

@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.Referent'
   ( Referent' (..),
 
@@ -21,7 +18,7 @@ where
 import Control.Lens (Lens, lens)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Prelude
 
 -- | Specifies a term.

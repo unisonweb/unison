@@ -17,6 +17,7 @@ module Unison.Var
     inferTypeConstructorArg,
     isAction,
     joinDot,
+    mergeEcVar,
     missingResult,
     name,
     nameStr,
@@ -85,9 +86,11 @@ rawName typ = case typ of
   Float -> "_float"
   Pattern -> "_pattern"
   Irrelevant -> "_irrelevant"
+  EquivalenceClass ec -> "_ec_" <> fromString (show ec)
   UnnamedReference ref -> Reference.idToText ref
   UnnamedWatch k guid -> fromString k <> "." <> guid
   Delay -> "()"
+  Propagate -> "_propagate"
 
 name :: (Var v) => v -> Text
 name v = rawName (typeOf v) <> showid v
@@ -140,6 +143,9 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
+mergeEcVar :: (Var v) => Int -> v
+mergeEcVar n = typed (EquivalenceClass n)
+
 unnamedRef :: (Var v) => Reference.Id -> v
 unnamedRef ref = typed (UnnamedReference ref)
 
@@ -157,6 +163,8 @@ data Type
     Blank
   | -- | An unnamed reference, created during unhashing a term/decl component.
     UnnamedReference Reference.Id
+  | -- | An unnamed reference, used for equating versions of a term during a merge.
+    EquivalenceClass Int
   | -- An unnamed watch expression of the given kind, for instance:
     --
     --  test> Ok "oog"
@@ -177,6 +185,14 @@ data Type
     Irrelevant
   | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1)
     Delay
+  | -- A synthetic variable used during propagation of updates to other references (either during an update or a merge).
+    --
+    -- For example, say we are updating #oldfoo to #newfoo, and #bar depends on #oldfoo, and #baz depends on #bar.
+    -- We'll we put together a unison file to typecheck that looks like
+    --
+    --   "propagate-var-1" = <body of #bar with #newfoo in place of #oldfoo>
+    --   "propagate-var-2" = <body of #baz with "propagate-var-1" in place of #bar>
+    Propagate
   deriving (Eq, Ord, Show)
 
 data InferenceType

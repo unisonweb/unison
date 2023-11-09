@@ -1,53 +1,78 @@
-module U.Codebase.Term where
+module U.Codebase.Term
+  ( Term,
+    ClosedTerm,
+    HashableTerm,
+    HashableTermRef,
+    Type,
+    HashableTermLink,
+    TermLink,
+    TypeLink,
+    F,
+    ClosedF,
+    F' (..),
+    MatchCase (..),
+    Pattern (..),
+    SeqOp (..),
+    extraMap,
+    rmapPattern,
+    matchCasePattern,
+    unhashComponent,
+  )
+where
 
 import Control.Lens hiding (List)
 import Control.Monad.State
-import Control.Monad.Writer qualified as Writer
-import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Reference (Reference, Reference')
+import U.Codebase.Reference (Reference, Reference', TermRReference, TermReference, TypeReference)
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Referent (Referent')
+import U.Codebase.Referent (Referent, Referent', ReferentH)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Type (TypeR)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
 import U.Core.ABT.Var qualified as ABT
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Prelude
 
-type ConstructorId = Word64
-
 type Term v = ABT.Term (F v) v ()
+
+type Type v = TypeR TypeReference v
 
 -- | A version of 'Term' but where TermRefs never have a 'Nothing' Hash, but instead self references
 -- are filled with User Variable references
 -- to the relevant piece of the component in a component map.
-type HashableTerm v = ABT.Term (F' Text HashableTermRef TypeRef HashableTermLink TypeLink v) v ()
-
-type Type v = TypeR TypeRef v
-
-type TermRef = Reference' Text (Maybe Hash)
+type HashableTerm v = ABT.Term (F' Text HashableTermRef TypeReference HashableTermLink TypeLink v) v ()
 
 type HashableTermRef = Reference' Text Hash
 
-type TypeRef = Reference
-
-type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type TermLink = ReferentH
 
 type HashableTermLink = Referent' (Reference' Text Hash) (Reference' Text Hash)
 
 type TypeLink = Reference
 
+-- | A closed term has no free variables, nor holes that represent self-references.
+type ClosedTerm v = ABT.Term (ClosedF v) v ()
+
 -- | Base functor for terms in the Unison codebase
 type F vt =
   F'
     Text
-    TermRef
-    TypeRef
+    TermRReference
+    TypeReference
     TermLink
     TypeLink
+    vt
+
+type ClosedF vt =
+  F'
+    Text
+    TermReference
+    TypeReference
+    Referent
+    TypeReference
     vt
 
 -- | Generalized version.  We could generalize further to allow sharing within
@@ -95,6 +120,9 @@ data F' text termRef typeRef termLink typeLink vt a
 
 data MatchCase t r a = MatchCase (Pattern t r) (Maybe a) a
   deriving (Foldable, Functor, Generic, Generic1, Traversable, Show)
+
+matchCasePattern :: Lens (MatchCase t r a) (MatchCase t' r' a) (Pattern t r) (Pattern t' r')
+matchCasePattern f (MatchCase p a b) = (\p' -> MatchCase p' a b) <$> f p
 
 data Pattern t r
   = PUnbound
@@ -193,35 +221,6 @@ rmapPattern ft fr = go
       PEffectBind r i ps p -> PEffectBind (fr r) i (go <$> ps) (go p)
       PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
       PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
-
-dependencies ::
-  (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>
-  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
-  (Set termRef, Set typeRef, Set termLink, Set typeLink)
-dependencies =
-  Writer.execWriter . ABT.visit_ \case
-    Ref r -> termRef r
-    Constructor r _ -> typeRef r
-    Request r _ -> typeRef r
-    Match _ cases -> Foldable.for_ cases \case
-      MatchCase pat _guard _body -> go pat
-        where
-          go = \case
-            PConstructor r _i args -> typeRef r *> Foldable.traverse_ go args
-            PAs pat -> go pat
-            PEffectPure pat -> go pat
-            PEffectBind r _i args k -> typeRef r *> Foldable.traverse_ go args *> go k
-            PSequenceLiteral pats -> Foldable.traverse_ go pats
-            PSequenceOp l _op r -> go l *> go r
-            _ -> pure ()
-    TermLink r -> termLink r
-    TypeLink r -> typeLink r
-    _ -> pure ()
-  where
-    termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty)
-    typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
-    termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
-    typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
 
 -- | Given the pieces of a single term component,
 -- replaces all 'Nothing' self-referential hashes with a variable reference

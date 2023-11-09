@@ -20,6 +20,7 @@ module Unison.Cli.ProjectUtils
     expectProjectAndBranchByIds,
     getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
+    expectProjectBranchByName,
     expectLooseCodeOrProjectBranch,
 
     -- * Loading remote project info
@@ -151,9 +152,7 @@ expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
     (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
-    branch <-
-      Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
-        Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
+    branch <- expectProjectBranchByName project branchName
     pure (ProjectAndBranch project branch)
   These projectName branchName -> do
     maybeProjectAndBranch <-
@@ -164,6 +163,11 @@ expectProjectAndBranchByTheseNames = \case
           pure (ProjectAndBranch project branch)
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+
+expectProjectBranchByName :: Sqlite.Project -> ProjectBranchName -> Cli Sqlite.ProjectBranch
+expectProjectBranchByName project branchName =
+  Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
+    Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
 
 -- | Expect/resolve a possibly-ambiguous "loose code or project", with the following rules:
 --
@@ -177,7 +181,7 @@ expectLooseCodeOrProjectBranch ::
 expectLooseCodeOrProjectBranch =
   _Right expectProjectAndBranchByTheseNames . f
   where
-    f :: LooseCodeOrProject -> Either Path' (These ProjectName ProjectBranchName) -- (Maybe ProjectName, ProjectBranchName)
+    f :: LooseCodeOrProject -> Either Path' (These ProjectName ProjectBranchName)
     f = \case
       This path -> Left path
       That (ProjectAndBranch Nothing branch) -> Right (That branch)

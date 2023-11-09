@@ -151,6 +151,7 @@ data Input
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)
   | PreviewUpdateI (Set Name)
+  | Update2I (Set Name)
   | TodoI (Maybe PatchPath) Path'
   | PropagatePatchI PatchPath Path'
   | ListEditsI (Maybe PatchPath)
@@ -237,6 +238,8 @@ data Input
   | BranchesI (Maybe ProjectName)
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
+  | -- New merge algorithm: merge the given project branch (from the current project) into the current one.
+    MergeI ProjectBranchName
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

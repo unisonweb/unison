@@ -29,7 +29,10 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache
 import Unison.Codebase.TermEdit qualified as V1.TermEdit
 import Unison.Codebase.TypeEdit qualified as V1.TypeEdit
 import Unison.ConstructorReference qualified as V1 (GConstructorReference (..))
+import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
+import Unison.ConstructorType qualified as ConstructorType
+import Unison.Core.ConstructorId (ConstructorId)
 import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
@@ -57,16 +60,6 @@ import Unison.WatchKind qualified as V1.WK
 
 sch1to2 :: V1.ShortCausalHash -> ShortCausalHash
 sch1to2 (V1.ShortCausalHash b32) = ShortCausalHash b32
-
-decltype2to1 :: V2.Decl.DeclType -> CT.ConstructorType
-decltype2to1 = \case
-  V2.Decl.Data -> CT.Data
-  V2.Decl.Effect -> CT.Effect
-
-decltype1to2 :: CT.ConstructorType -> V2.Decl.DeclType
-decltype1to2 = \case
-  CT.Data -> V2.Decl.Data
-  CT.Effect -> V2.Decl.Effect
 
 watchKind1to2 :: V1.WK.WatchKind -> V2.WatchKind
 watchKind1to2 = \case
@@ -218,9 +211,9 @@ decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
       V2.Decl.Structural -> V1.Decl.Structural
       V2.Decl.Unique t -> V1.Decl.Unique t
     goCT = \case
-      V2.Decl.Data -> Right
-      V2.Decl.Effect -> Left . V1.Decl.EffectDeclaration
-    cts' = map mkCtor (zip cts [0 :: V2.Decl.ConstructorId ..])
+      ConstructorType.Data -> Right
+      ConstructorType.Effect -> Left . V1.Decl.EffectDeclaration
+    cts' = map mkCtor (zip cts [0 :: ConstructorId ..])
     mkCtor (type1, i) =
       (Ann.External, V1.symbol . pack $ "Constructor" ++ show i, type2)
       where
@@ -230,7 +223,7 @@ decl1to2 :: Hash -> V1.Decl.Decl V1.Symbol a -> V2.Decl.Decl V2.Symbol
 decl1to2 h decl1 = case V1.Decl.asDataDecl decl1 of
   V1.Decl.DataDeclaration m _ann bound cts ->
     V2.Decl.DataDeclaration
-      (decltype1to2 $ V1.Decl.constructorType decl1)
+      (V1.Decl.constructorType decl1)
       (goMod m)
       (symbol1to2 <$> bound)
       cts'
@@ -304,10 +297,10 @@ referent2to1 lookupCT = \case
   V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) <$> lookupCT r
 
 -- | Like referent2to1, but uses the provided constructor type directly
-referent2to1UsingCT :: V2.ConstructorType -> V2.Referent -> V1.Referent
+referent2to1UsingCT :: ConstructorType -> V2.Referent -> V1.Referent
 referent2to1UsingCT ct = \case
   V2.Ref r -> V1.Ref (reference2to1 r)
-  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) (constructorType2to1 ct)
+  V2.Con r i -> V1.Con (V1.ConstructorReference (reference2to1 r) (fromIntegral i)) ct
 
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
@@ -319,16 +312,6 @@ referentid2to1 lookupCT = \case
   V2.RefId r -> pure $ V1.RefId (referenceid2to1 r)
   V2.ConId r i ->
     V1.ConId (V1.ConstructorReference (referenceid2to1 r) (fromIntegral i)) <$> lookupCT (V2.ReferenceDerived r)
-
-constructorType1to2 :: CT.ConstructorType -> V2.ConstructorType
-constructorType1to2 = \case
-  CT.Data -> V2.DataConstructor
-  CT.Effect -> V2.EffectConstructor
-
-constructorType2to1 :: V2.ConstructorType -> CT.ConstructorType
-constructorType2to1 = \case
-  V2.DataConstructor -> CT.Data
-  V2.EffectConstructor -> CT.Effect
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
@@ -385,7 +368,12 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.Branch m)
+causalbranch2to1 ::
+  (Monad m) =>
+  BranchCache m ->
+  (V2.Reference -> m CT.ConstructorType) ->
+  V2.Branch.CausalBranch m ->
+  m (V1.Branch.Branch m)
 causalbranch2to1 branchCache lookupCT cb = do
   let ch = V2.causalHash cb
   lookupCachedBranch branchCache ch >>= \case
@@ -395,7 +383,12 @@ causalbranch2to1 branchCache lookupCT cb = do
       insertCachedBranch branchCache ch b
       pure b
 
-causalbranch2to1' :: (Monad m) => BranchCache m -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.CausalBranch m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' ::
+  (Monad m) =>
+  BranchCache m ->
+  (V2.Reference -> m CT.ConstructorType) ->
+  V2.Branch.CausalBranch m ->
+  m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' branchCache lookupCT (V2.Causal currentHash eh (Map.toList -> parents) me) = do
   let branchHash = branchHash2to1 eh
   case parents of

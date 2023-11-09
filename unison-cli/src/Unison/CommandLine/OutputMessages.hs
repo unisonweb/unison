@@ -54,6 +54,7 @@ import Unison.Codebase.Editor.Output
   )
 import Unison.Codebase.Editor.Output qualified as E
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
+import Unison.Codebase.Editor.Output.Merge2 qualified as MergeOutput
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
@@ -88,6 +89,8 @@ import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
+import Unison.Merge2 (MergeOutput)
+import Unison.Merge2 qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -760,6 +763,8 @@ notifyUser dir = \case
         ]
   DisplayDefinitions output -> displayDefinitions output
   OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
+  OutputMergeScratchFile ppe dest uf -> displayOutputMergeScratchFile ppe dest uf
+  OutputMergeConflictScratchFile ppe dest uf -> displayOutputMergeConfictScratchFile ppe dest uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2168,6 +2173,34 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  MergeConflictedAliases branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are not aliases, but they used to be."
+  MergeConflictedTermName name refs -> pure "Conflicted term name."
+  MergeConflictedTypeName name refs -> pure "Conflicted type name."
+  MergeConflictInvolvingBuiltin name ->
+    pure . P.wrap $
+      "There's a merge conflict on"
+        <> P.group (prettyName name <> ",")
+        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
+  MergeConstructorAlias branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are aliases. Every type declaration must have exactly one name for each constructor."
+  MergeDefnsInLib -> pure "Defns in lib"
+  MergeMissingConstructorName name -> pure "Missing constructor name."
+  MergeNestedDeclAlias name -> pure "Nested decl alias."
+  MergeNoConstructorNames name -> pure "No constructor names."
+  MergeStrayConstructor name -> pure "Stray constructor."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2436,8 +2469,44 @@ displayOutputRewrittenFile ppe fp msg (vs, uf) = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
+displayOutputMergeScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> UF.UnisonFile v a -> IO Pretty
+displayOutputMergeScratchFile ppe fp uf = do
+  let scratchMessage = "The merge results didn't typecheck. Please fix them up below, and `update` to save them when you're done."
+  let header = "-- " <> P.string scratchMessage <> "\n"
+  let ucmMessage fp =
+        "The merge results didn't typecheck. I put them at the top of "
+          <> fromString fp
+          <> "and need your help to fix them up. Use `update` to save them when you're done."
+  canonicalizedPath <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
+  pure $ P.callout "☝️" $ P.lines [P.wrap $ ucmMessage canonicalizedPath]
+
+displayOutputMergeConfictScratchFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> MergeOutput v a -> IO Pretty
+displayOutputMergeConfictScratchFile ppe fp merge = do
+  let scratchMessage = "The merge results had some conflicts. Please fix them up below, and `update` to save them when you're done."
+  let header = "-- " <> P.string scratchMessage <> "\n"
+  let ucmMessage fp =
+        "The merge results had some conflicts. I put them at the top of "
+          <> fromString fp
+          <> "and need your help to fix them up. Use `update` to save them when you're done."
+  canonicalizedPath <- prependToFile (header <> "\n\n" <> prettyMergeOutput ppe merge <> foldLine) fp
+  pure $ P.callout "☝️" $ P.lines [P.wrap $ ucmMessage canonicalizedPath]
+
 foldLine :: IsString s => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+
+-- Note: We can't use a PPE to look up binding names, because we want multiple names for the same bindings
+prettyMergeOutput :: (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> Merge.MergeOutput v a -> Pretty
+prettyMergeOutput ppe merge = MergeOutput.pseudoOutput defnPrinter merge
+  where
+    -- PPE should be suffixified on the right for readability and editing
+    -- maybe needs MergeOutput to include the references to the things being output
+    defnPrinter name =
+      P.syntaxToColor . \case
+        Merge.SdTerm tm -> TermPrinter.prettyBinding (wundefined "ppe") (asHQ name) tm
+        Merge.SdDecl r decl ->
+          -- let _r = Hashing.hashDecl
+          DeclPrinter.prettyDecl (wundefined "ppe") r (asHQ name) decl
+    asHQ = HQ.NameOnly
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
@@ -2787,7 +2856,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2802,7 +2871,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

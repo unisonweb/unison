@@ -13,6 +13,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.Relation qualified as Rel
 
+-- | len is the hash-qualification length
 fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types'
   where

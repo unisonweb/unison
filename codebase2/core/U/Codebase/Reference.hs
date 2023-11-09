@@ -14,6 +14,7 @@ module U.Codebase.Reference
     Id,
     Id' (..),
     Pos,
+    ReferenceType (..),
     _ReferenceDerived,
     _RReferenceReference,
     t_,
@@ -25,11 +26,12 @@ module U.Codebase.Reference
     toShortHash,
     toId,
     unsafeId,
+    closeRReference,
     component,
   )
 where
 
-import Control.Lens (Lens, Prism, Prism', Traversal, lens, preview, prism)
+import Control.Lens (Lens, Prism, Prism', Traversal, lens, preview, prism, (%~))
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
@@ -65,6 +67,8 @@ type TermReferenceId = Id
 
 -- | A type declaration reference id.
 type TypeReferenceId = Id
+
+data ReferenceType = RtTerm | RtType deriving (Eq, Ord, Show)
 
 -- | Either a builtin or a user defined (hashed) top-level declaration. Used for both terms and types.
 data Reference' t h
@@ -146,6 +150,11 @@ unsafeId :: Reference -> Id
 unsafeId = \case
   ReferenceBuiltin b -> error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
   ReferenceDerived x -> x
+
+-- | "Close" an RReference to a Reference by replacing all self-references with the given self-hash.
+closeRReference :: Hash -> RReference -> Reference
+closeRReference selfHash =
+  h_ %~ fromMaybe selfHash
 
 instance Bifunctor Reference' where
   bimap f _ (ReferenceBuiltin t) = ReferenceBuiltin (f t)

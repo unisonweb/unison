@@ -12,6 +12,8 @@ module Unison.PrettyPrintEnv
     typeName,
     termNameOrHashOnly,
     typeNameOrHashOnly,
+    termNameOrHashOnlyFq,
+    typeNameOrHashOnlyFq,
     biasTo,
     labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
@@ -62,6 +64,16 @@ termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r
 
 typeNameOrHashOnly :: PrettyPrintEnv -> Reference -> HQ.HashQualified Name
 typeNameOrHashOnly ppe r = maybe (HQ.fromReference r) HQ'.toHQ $ types ppe r
+
+-- Like 'termNameOrHashOnly' but returns the fully qualified name
+termNameOrHashOnlyFq :: PrettyPrintEnv -> Referent -> HQ.HashQualified Name
+termNameOrHashOnlyFq ppe r =
+  maybe (HQ.fromReferent r) HQ'.toHQ . fmap fst . listToMaybe $ termNames ppe r
+
+-- Like 'typeNameOrHashOnly' but returns the fully qualified name
+typeNameOrHashOnlyFq :: PrettyPrintEnv -> Reference -> HQ.HashQualified Name
+typeNameOrHashOnlyFq ppe r =
+  maybe (HQ.fromReference r) HQ'.toHQ . fmap fst . listToMaybe $ typeNames ppe r
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
 patterns ppe r =

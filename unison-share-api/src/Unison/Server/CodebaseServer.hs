@@ -554,7 +554,7 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
 
     resolveProjectRoot :: Backend IO (Either ShortCausalHash CausalHash)
     resolveProjectRoot = do
-      mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
+      mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName projectAndBranchName
       case mayCH of
         Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
         Just ch -> pure (Right ch)

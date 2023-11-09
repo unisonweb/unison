@@ -1,0 +1,101 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-merge
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      Unison.Merge
+      Unison.Merge2
+  other-modules:
+      Unison.Merge.Database
+      Unison.Merge.Diff
+      Unison.Merge.DiffOp
+      Unison.Merge.Libdeps
+      Unison.Merge.PreconditionViolation
+      Unison.Merge.Synhash
+      Unison.Merge3
+  hs-source-dirs:
+      src
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      InstanceSigs
+      LambdaCase
+      MultiParamTypeClasses
+      MultiWayIf
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      base
+    , bimap
+    , bitvec
+    , bytestring
+    , containers
+    , either
+    , free
+    , generic-lens
+    , lens
+    , monad-validate
+    , mtl
+    , nonempty-containers
+    , safe
+    , semialign
+    , semigroups
+    , text
+    , these
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
+    , unison-core
+    , unison-core1
+    , unison-hash
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-sqlite
+    , unison-syntax
+    , unison-util-bimultimap
+    , unison-util-cache
+    , unison-util-nametree
+    , unison-util-relation
+    , vector
+  default-language: Haskell2010
+  if !os(windows)
+    build-depends:
+        unix

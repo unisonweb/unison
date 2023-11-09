@@ -23,6 +23,7 @@ module Unison.Codebase.Branch
     discardHistory,
     discardHistory0,
     transform,
+    transform0,
 
     -- * Branch tests
     isEmpty,
@@ -50,6 +51,8 @@ module Unison.Codebase.Branch
     UpdateStrategy (..),
     addTermName,
     addTypeName,
+    addTermName2,
+    addTypeName2,
     deleteTermName,
     deleteTypeName,
     setChildBranch,
@@ -126,6 +129,7 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star3.Deprecate qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -687,6 +691,12 @@ addTypeName ::
 addTypeName r new md =
   over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
+addTermName2 :: Referent -> NameSegment -> Branch0 m -> Branch0 m
+addTermName2 r new = over terms (Star3.insertD1 (r, new) . Star3.deleteD1RanAndGC new)
+
+addTypeName2 :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
+addTypeName2 r new = over types (Star3.insertD1 (r, new) . Star3.deleteD1RanAndGC new)
+
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
   | Star3.memberD1 (r, n) (view terms b) =
@@ -706,19 +716,19 @@ transform :: (Functor m) => (forall a. m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
   where
-    transformB0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
-    transformB0 f b =
-      b
-        { _children = transform f <$> _children b,
-          _edits = second f <$> _edits b
-        }
-
     transformB0s ::
       (Functor m) =>
       (forall a. m a -> n a) ->
       Causal m (Branch0 m) ->
       Causal m (Branch0 n)
-    transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
+    transformB0s f = Causal.unsafeMapHashPreserving (transform0 f)
+
+transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
+transform0 f branch =
+  branch
+    { _children = transform f <$> _children branch,
+      _edits = second f <$> _edits branch
+    }
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.

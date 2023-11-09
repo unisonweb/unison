@@ -37,6 +37,7 @@ module Unison.Codebase
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
     expectBranchForHash,
+    expectBranchForHashIO,
     putBranch,
     SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
@@ -244,7 +245,7 @@ getShallowBranchAtPath path mayBranch = do
           getShallowBranchAtPath p (Just childBranch)
 
 -- | Get a branch from the codebase.
-getBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Maybe (Branch m))
+getBranchForHash :: MonadIO m => Codebase m v a -> CausalHash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
   -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
   -- If not found, attempt to find it in the Codebase (sqlite)
@@ -259,14 +260,20 @@ getBranchForHash codebase h =
       find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
    in do
         rootBranch <- getRootBranch codebase
-        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
+        maybe (fmap (Branch.transform (runTransaction codebase)) <$> runTransaction codebase (getBranchForHashImpl codebase h)) (pure . Just) (find rootBranch)
 
--- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
-expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
+expectBranchForHash :: Codebase m v a -> CausalHash -> Sqlite.Transaction (Branch Sqlite.Transaction)
 expectBranchForHash codebase hash =
-  getBranchForHash codebase hash >>= \case
+  getBranchForHashImpl codebase hash >>= \case
     Just branch -> pure branch
     Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
+
+-- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
+expectBranchForHashIO :: MonadIO m => Codebase m v a -> CausalHash -> m (Branch m)
+expectBranchForHashIO codebase hash =
+  getBranchForHash codebase hash >>= \case
+    Just branch -> pure branch
+    Nothing -> error $ reportBug "E412939" ("expectBranchForHashIO: " ++ show hash ++ " not found in codebase")
 
 -- | Get the metadata attached to the term at a given path and name relative to the given branch.
 termMetadata ::
@@ -502,9 +509,9 @@ importRemoteBranch ::
   SyncMode ->
   Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode preprocess = runExceptT $ do
+importRemoteBranch codebase ns mode preprocess = runExceptT do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
-    withStatus "Importing downloaded files into local codebase..." $ do
+    withStatus "Importing downloaded files into local codebase..." do
       processedBranch <- preprocessOp branch
       time "SyncFromDirectory" $ do
         syncFromDirectory codebase cacheDir mode processedBranch

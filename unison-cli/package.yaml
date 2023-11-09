@@ -17,6 +17,7 @@ dependencies:
   - ansi-terminal
   - async
   - base
+  - bimap
   - bytes
   - bytestring
   - concurrent-output
@@ -46,6 +47,7 @@ dependencies:
   - lsp-types >= 2.0.0.0
   - megaparsec
   - memory
+  - monad-validate
   - mtl
   - network-uri
   - network-simple
@@ -64,7 +66,9 @@ dependencies:
   - servant
   - servant-client
   - stm
+  - strict-tuple
   - text
+  - text-ansi
   - text-builder
   - text-rope
   - these
@@ -77,6 +81,7 @@ dependencies:
   - unison-core
   - unison-core1
   - unison-hash
+  - unison-merge
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
@@ -85,6 +90,9 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-bimultimap
+  - unison-util-cache
+  - unison-util-nametree
   - unison-util-relation
   - unliftio
   - unordered-containers

@@ -44,6 +44,24 @@ dataDeclToNames' varToName (v, (r, d)) = dataDeclToNames varToName v r d
 effectDeclToNames' :: (Var v) => (v -> Name.Name) -> (v, (Reference.Id, EffectDeclaration v a)) -> Names
 effectDeclToNames' varToName (v, (r, d)) = effectDeclToNames varToName v r d
 
+-- | @bindNames varToName localNames names decl@ adjusts each constructor type in @decl@ by:
+--
+--   1. Expanding unique suffix references to locally-defined things to their full name.
+--   2. Replacing each free variable (but not to locally-defined things!) with the corresponding reference.
+--
+-- For example, consider the following Unison file.
+--
+--     unique type Foo.Bar.Baz = Qux Nat | Waffle Int
+--
+--     unique type Wombat = WomOne Baz | WomTwo Whamlet Nat
+--
+-- When processing decl Wombat, step (1) would replace "Baz" with "Foo.Bar.Baz":
+--
+--     unique type Wombat = WomOne Foo.Bar.Baz | WomTwo Whamlet Nat
+--
+-- And step (2) would bind non-local variables to type references:
+--
+--     unique type Wombat = WomOne Foo.Bar.Baz | WomTwo #whamlet ##Nat
 bindNames ::
   (Var v) =>
   (v -> Name.Name) ->
@@ -52,7 +70,7 @@ bindNames ::
   DataDeclaration v a ->
   Names.ResolutionResult v a (DataDeclaration v a)
 bindNames varToName localNames names (DataDeclaration m a bound constructors) = do
-  constructors <- for constructors $ \(a, v, ty) ->
+  constructors <- for constructors \(a, v, ty) ->
     (a,v,) <$> Type.Names.bindNames varToName keepFree names (ABT.substsInheritAnnotation subs ty)
   pure $ DataDeclaration m a bound constructors
   where
