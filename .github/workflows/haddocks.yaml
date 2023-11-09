@@ -9,6 +9,8 @@ on:
   push:
     branches:
       - trunk
+        # TODO: remove
+      - cp/firebase-haddocks
 
 jobs:
   build:
@@ -76,25 +78,17 @@ jobs:
         working-directory: unison
         run: stack --no-terminal build --fast --haddock
 
-      # Haddocks
-      - name: Checkout haddocks branch
-        uses: actions/checkout@v2
-        with:
-          ref: 'haddocks'
-          path: 'haddocks'
-
-      - name: Copy haddocks
+      - name: Copy haddocks to firebase site
         working-directory: 'unison'
         run: |
           docs_root="$(stack path --local-doc-root)"
           # Erase any stale files
-          cd "$GITHUB_WORKSPACE"/haddocks
-          rm -rf ./*
-          cp -r "${docs_root}"/* "$GITHUB_WORKSPACE"/haddocks
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo No changes.
-          else
-            git add .
-            git commit -m "Regenerated haddocks based on ${GITHUB_SHA}"
-            git push
-          fi
+          rm -rf ./haddocks/public
+          cp -r "${docs_root}" ./haddocks/public
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UNISON_DOCS }}'
+          channelId: live
+          projectId: unison-docs
+          entryPoint: haddocks
