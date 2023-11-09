@@ -68,7 +68,7 @@ handleUpgrade oldDepName newDepName = do
       dependents <-
         Operations.dependentsWithinScope
           (Names.referenceIds namesExcludingLibdeps)
-          (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences newDepV1Branch)
+          (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
       unisonFile <- addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
       -- Construct a PPE to use for rendering the Unison file full of dependents.
       hashLength <- Codebase.hashLength
@@ -78,7 +78,6 @@ handleUpgrade oldDepName newDepName = do
               (NamesWithHistory.fromCurrentNames (namesExcludingOldDep <> fakeNames))
       pure (unisonFile, printPPE)
 
-  -- Round-trip that bad boy through a bad String
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE & onLeftM \prettyUnisonFile -> do
       -- Small race condition: since picking a branch name and creating the branch happen in different
@@ -99,6 +98,9 @@ handleUpgrade oldDepName newDepName = do
       Cli.returnEarlyWithoutOutput
 
   -- Happy path: save updated things to codebase, cons namespace. Don't forget to delete `lib.old`
+  -- TODO: respond "upgrade success"
+  -- saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
+  -- Cli.respond Output.Success
   wundefined
   where
     textualDescriptionOfUpgrade :: Text

@@ -182,7 +182,29 @@ saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
   Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
-  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates (declUpdates ++ termUpdates))
+  Cli.stepAt
+    "update"
+    ( Path.unabsolute currentPath,
+      Branch.batchUpdates (typecheckedUnisonFileToBranchUpdates getConstructors tuf)
+    )
+
+-- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
+-- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
+-- `getConstructors` returns the full constructor names of a decl, e.g. "Maybe" -> ["Maybe.Nothing", "Maybe.Just"]
+--
+-- For example, if the file contains
+--
+--     foo.bar.baz = <#foo>
+--
+-- then the returned updates will look like
+--
+--     [ ("foo.bar", insert-term("baz",<#foo>)) ]
+typecheckedUnisonFileToBranchUpdates ::
+  (Name -> [Name]) ->
+  TypecheckedUnisonFile Symbol a ->
+  [(Path, Branch0 m -> Branch0 m)]
+typecheckedUnisonFileToBranchUpdates getConstructors tuf =
+  declUpdates ++ termUpdates
   where
     declUpdates :: [(Path, Branch0 m -> Branch0 m)]
     declUpdates =
@@ -247,7 +269,8 @@ buildBigUnisonFile c tuf dependents names =
   addDefinitionsToUnisonFile c names dependents (UF.discardTypes tuf)
 
 -- | @addDefinitionsToUnisonFile codebase names definitions file@ adds all @definitions@ to @file@, avoiding overwriting
--- anything already in @file@, using names in @names@. All aliases of each definition are put into the file separately.
+-- anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on the
+-- left-hand-side of the equals" (but yes type decls don't really have a LHS).
 --
 -- TODO: find a better module for this function, as it's used in a couple places
 addDefinitionsToUnisonFile ::
