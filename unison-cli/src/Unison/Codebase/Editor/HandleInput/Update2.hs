@@ -141,7 +141,9 @@ prettyParseTypecheck bigUf pped = do
             names = parseNames
           }
   Debug.whenDebug Debug.Update do
-    liftIO $ print stringUf
+    liftIO do
+      putStrLn "--- Scratch ---"
+      putStrLn stringUf
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left {} -> pure $ Left prettyUf

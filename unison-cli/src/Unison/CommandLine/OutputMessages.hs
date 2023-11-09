@@ -86,6 +86,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
@@ -2464,7 +2465,13 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     prettyTerm :: Set FieldName -> (v, a, Term v a) -> Maybe (a, Pretty)
     prettyTerm fieldNames (n, a, tm) =
       if Set.member hq fieldNames then Nothing else Just (a, pb hq tm)
+      if traceMember isMember then Nothing else Just (a, pb hq tm)
       where
+        traceMember =
+          if Debug.shouldDebug Debug.Update
+            then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
+            else id
+        isMember = Set.member hq skip
         hq = hqv n
     prettyWatch :: (String, (v, a, Term v a)) -> (a, Pretty)
     prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)

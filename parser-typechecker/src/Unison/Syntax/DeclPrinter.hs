@@ -3,7 +3,6 @@ module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, pre
 import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List (isPrefixOf)
 import Data.Map qualified as Map
-import Debug.Trace (traceShowId)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
@@ -122,7 +121,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
       Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
-      Just ts -> case traceShowId $ fieldNames unsuffixifiedPPE r name dd of
+      Just ts -> case fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
           pure
             . P.group
@@ -170,7 +169,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  (traceShowId -> hashes) <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
+  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
