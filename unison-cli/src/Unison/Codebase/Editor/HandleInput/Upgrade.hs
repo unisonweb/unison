@@ -34,17 +34,9 @@ handleUpgrade oldDepName newDepName = do
   newDepBranch <- Cli.expectBranch0AtPath (Path.fromList [Name.libSegment, newDepName])
   currentBranch <- Cli.getCurrentBranch0
 
+  let namesIncludingLibdeps = Branch.toNames currentBranch
   let namesExcludingLibdeps = Branch.toNames (currentBranch & over Branch.children (Map.delete Name.libSegment))
-
-  unisonFile <-
-    Cli.runTransaction do
-      dependents <-
-        Operations.dependentsWithinScope
-          (Names.referenceIds namesExcludingLibdeps)
-          (Branch.deepTermReferences oldDepBranch <> Branch.deepTypeReferences newDepBranch)
-      addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
-
-  let allNames = Branch.toNames currentBranch
+  let namesExcludingOldDep = wundefined
 
   -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
   let fakeNames :: Names = wundefined
@@ -53,16 +45,22 @@ handleUpgrade oldDepName newDepName = do
           rename :: Name -> Name
           rename = wundefined
 
-  -- Construct a PPE to use for rendering the Unison file full of dependents. This PPE should shadow everything in
-  -- `allNames` with `fakeNames`.
-  --
-  -- Note to implementor: this isn't exactly possible with the existing PPE API
-  let printPPE :: PrettyPrintEnvDecl
-      printPPE = wundefined
+  -- Create a Unison file that contains all of our dependents of things in `lib.old`.
+  (unisonFile, printPPE) <-
+    Cli.runTransaction do
+      dependents <-
+        Operations.dependentsWithinScope
+          (Names.referenceIds namesExcludingLibdeps)
+          (Branch.deepTermReferences oldDepBranch <> Branch.deepTypeReferences newDepBranch)
+      unisonFile <- addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
+      -- Construct a PPE to use for rendering the Unison file full of dependents.
+      printPPE :: PrettyPrintEnvDecl <- wundefined (namesExcludingOldDep <> fakeNames)
+      pure (unisonFile, printPPE)
 
-  -- Make a biggol Unison file with all of the dependents of everything in `lib.old`
-  let unisonFile :: UnisonFile Symbol Ann
-      unisonFile = wundefined
+  -- Construct a PPE to use for rendering the Unison file full of dependents.
+  let printPPE :: PrettyPrintEnvDecl
+      printPPE =
+        wundefined (namesExcludingOldDep <> fakeNames)
 
   -- Round-trip that bad boy through a bad String
   wundefined
@@ -70,7 +68,10 @@ handleUpgrade oldDepName newDepName = do
   -- Happy path: save updated things to codebase, cons namespace. Don't forget to delete `lib.old`
   wundefined
 
-  -- Sad path: put the busted dependents into scratch.u. None of the string names in that file should resolve to
-  -- anything in `lib.old` since they were all shadowed by the PPE.
+  -- Sad path:
+  --   1. Make a new project branch, stepped forward one causal (tossing `lib.old`).
+  --   2. Put the busted dependents into scratch.u
+  --   3. Output message or something.
+  wundefined
 
   pure ()
