@@ -6,6 +6,7 @@ where
 import Control.Lens (ix, over, (^.))
 import Control.Monad.Reader (ask)
 import Data.List qualified as List
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
@@ -24,21 +25,16 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, prettyParseTypecheck)
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
-import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite (Transaction)
-import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Witch (unsafeFrom)
 
@@ -53,19 +49,18 @@ handleUpgrade oldDepName newDepName = do
   let newDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newDepName]))
 
   currentV1Branch <- Cli.getBranch0At projectPath
+  let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
   oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
   newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
-  let namesIncludingLibdeps = Branch.toNames currentV1Branch
   let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
-  let namesExcludingOldDep = wundefined
+  let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
 
   -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
-  let fakeNames :: Names = wundefined
-        where
-          -- rename "lib.old.X" to "lib.new.X"
-          rename :: Name -> Name
-          rename = wundefined
+  let fakeNames =
+        oldDepV1Branch
+          & Branch.toNames
+          & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
 
   -- Create a Unison file that contains all of our dependents of things in `lib.old`.
   (unisonFile, printPPE) <-
@@ -96,7 +91,7 @@ handleUpgrade oldDepName newDepName = do
           temporaryBranchName
           textualDescriptionOfUpgrade
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
-      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, deleteLibdep oldDepName)
+      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
       Cli.Env {isTranscript} <- ask
       maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
       Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
