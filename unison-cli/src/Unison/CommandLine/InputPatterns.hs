@@ -2943,6 +2943,7 @@ validInputs =
       updateBuiltins,
       updateOld,
       updateOldNoPatch,
+      upgrade,
       view,
       viewGlobal,
       viewPatch,
