@@ -17,6 +17,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -31,8 +32,10 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite (Transaction)
 import Unison.UnisonFile (UnisonFile)
@@ -73,13 +76,12 @@ handleUpgrade oldDepName newDepName = do
           (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences newDepV1Branch)
       unisonFile <- addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
       -- Construct a PPE to use for rendering the Unison file full of dependents.
-      printPPE :: PrettyPrintEnvDecl <- wundefined (namesExcludingOldDep <> fakeNames)
+      hashLength <- Codebase.hashLength
+      let printPPE =
+            PPED.fromNamesDecl
+              hashLength
+              (NamesWithHistory.fromCurrentNames (namesExcludingOldDep <> fakeNames))
       pure (unisonFile, printPPE)
-
-  -- Construct a PPE to use for rendering the Unison file full of dependents.
-  let printPPE :: PrettyPrintEnvDecl
-      printPPE =
-        wundefined (namesExcludingOldDep <> fakeNames)
 
   -- Round-trip that bad boy through a bad String
   typecheckedUnisonFile <-
