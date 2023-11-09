@@ -15,7 +15,7 @@ unique type Foo = { bar : Nat }
 unique type Foo = { bar : Nat, baz : Int }
 ```
 
-```ucm:error
+```ucm
 .> update
 .> view Foo
 .> find.verbose

@@ -32,14 +32,8 @@ Bug: this no-op update should (of course) succeed.
 ```ucm
 .> update
 
-  unique type Foo = { bar : Nat }
-  
-  Foo.bar.modify f = cases Foo bar -> Foo (f bar)
-  
-  Foo.bar.set bar1 = cases Foo _ -> Foo bar1
-  
-  Foo.bar = cases Foo bar -> bar
+  I propagated the update and am now saving the results.
 
-  Typechecking failed when propagating the update to all the dependents.
+  Done.
 
 ```
