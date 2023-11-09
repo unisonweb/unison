@@ -70,22 +70,15 @@ import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.Util.Nametree (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
-
-data Defns terms types = Defns
-  { terms :: !terms,
-    types :: !types
-  }
-  deriving stock (Generic, Show)
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
   Cli.Env {codebase} <- ask
-  -- - confirm all aliases updated together?
   tuf <- Cli.expectLatestTypecheckedFile
 
   -- - get add/updates from TUF
@@ -97,10 +90,10 @@ handleUpdate2 = do
 
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
-  (pped, bigUf) <- Cli.runTransactionWithRollback \_abort -> do
+  (pped, bigUf) <- Cli.runTransaction do
     dependents <-
       Ops.dependentsWithinScope
-        (namespaceReferences namesExcludingLibdeps)
+        (Names.referenceIds namesExcludingLibdeps)
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
@@ -241,7 +234,12 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
-buildBigUnisonFile :: Codebase IO Symbol Ann -> TypecheckedUnisonFile Symbol Ann -> Map Reference.Id ReferenceType -> Names -> Transaction (UnisonFile Symbol Ann)
+buildBigUnisonFile ::
+  Codebase IO Symbol Ann ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Map Reference.Id ReferenceType ->
+  Names ->
+  Transaction (UnisonFile Symbol Ann)
 buildBigUnisonFile c tuf dependents names =
   -- for each dependent, add its definition with all its names to the UnisonFile
   foldM addComponent (UF.discardTypes tuf) (Map.toList dependents')
@@ -345,12 +343,6 @@ incrementLastSegmentChar (ForwardName segments) =
               then text
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
        in NameSegment incrementedText
-
-namespaceReferences :: Names -> Set Reference.Id
-namespaceReferences names = fromTerms <> fromTypes
-  where
-    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran $ Names.terms names)
-    fromTypes = Set.mapMaybe Reference.toId (Relation.ran $ Names.types names)
 
 getTermAndDeclNames :: Var v => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
 getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> datas)

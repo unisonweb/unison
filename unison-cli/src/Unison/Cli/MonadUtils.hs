@@ -33,6 +33,8 @@ module Unison.Cli.MonadUtils
     getMaybeBranchAt,
     expectBranchAtPath,
     expectBranchAtPath',
+    expectBranch0AtPath,
+    expectBranch0AtPath',
     assertNoBranchAtPath',
     branchExistsAtPath',
 
@@ -297,6 +299,16 @@ expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
   getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+
+-- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
+expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
+expectBranch0AtPath' =
+  fmap Branch.head . expectBranchAtPath'
+
+-- | Get the branch0 at a relative path, or return early if there's no such branch.
+expectBranch0AtPath :: Path -> Cli (Branch0 IO)
+expectBranch0AtPath =
+  expectBranch0AtPath' . Path' . Right . Path.Relative
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no

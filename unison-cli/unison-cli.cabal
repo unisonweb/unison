@@ -229,6 +229,7 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -367,6 +368,7 @@ executable cli-integration-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -500,6 +502,7 @@ executable transcripts
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -639,6 +642,7 @@ executable unison
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -781,6 +785,7 @@ test-suite cli-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
