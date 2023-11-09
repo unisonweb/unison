@@ -2,6 +2,7 @@
 
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
+    addDefinitionsToUnisonFile,
   )
 where
 
@@ -241,8 +242,21 @@ buildBigUnisonFile ::
   Names ->
   Transaction (UnisonFile Symbol Ann)
 buildBigUnisonFile c tuf dependents names =
+  addDefinitionsToUnisonFile c names dependents (UF.discardTypes tuf)
+
+-- | @addDefinitionsToUnisonFile codebase names definitions file@ adds all @definitions@ to @file@, avoiding overwriting
+-- anything already in @file@, using names in @names@. All aliases of each definition are put into the file separately.
+--
+-- TODO: find a better module for this function, as it's used in a couple places
+addDefinitionsToUnisonFile ::
+  Codebase IO Symbol Ann ->
+  Names ->
+  Map Reference.Id ReferenceType ->
+  UnisonFile Symbol Ann ->
+  Transaction (UnisonFile Symbol Ann)
+addDefinitionsToUnisonFile c names dependents initialUnisonFile =
   -- for each dependent, add its definition with all its names to the UnisonFile
-  foldM addComponent (UF.discardTypes tuf) (Map.toList dependents')
+  foldM addComponent initialUnisonFile (Map.toList dependents')
   where
     dependents' :: Map Hash ReferenceType = Map.mapKeys (\(Reference.Id h _pos) -> h) dependents
     addComponent :: UnisonFile Symbol Ann -> (Hash, ReferenceType) -> Transaction (UnisonFile Symbol Ann)
@@ -277,7 +291,7 @@ buildBigUnisonFile c tuf dependents names =
         -- for each name a decl has, update its constructor names according to what exists in the namespace
         addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> UnisonFile Symbol Ann
         addDeclElement uf (decl, i) = do
-          let declNames = Relation.lookupRan (Reference.Derived h i) (names.types)
+          let declNames = Relation.lookupRan (Reference.Derived h i) names.types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldl' (addRebuiltDefinition decl) uf declNames
           where

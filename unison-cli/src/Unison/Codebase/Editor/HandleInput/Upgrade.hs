@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
 where
 
 import Control.Lens (over)
+import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
@@ -11,6 +12,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile)
 import Unison.Codebase.Path qualified as Path
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -22,20 +24,25 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Symbol (Symbol)
 import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile qualified as UnisonFile
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldDepName newDepName = do
+  Cli.Env {codebase} <- ask
+
   oldDepBranch <- Cli.expectBranch0AtPath (Path.fromList [Name.libSegment, oldDepName])
   newDepBranch <- Cli.expectBranch0AtPath (Path.fromList [Name.libSegment, newDepName])
   currentBranch <- Cli.getCurrentBranch0
 
   let namesExcludingLibdeps = Branch.toNames (currentBranch & over Branch.children (Map.delete Name.libSegment))
 
-  dependents <-
+  unisonFile <-
     Cli.runTransaction do
-      Operations.dependentsWithinScope
-        (Names.referenceIds namesExcludingLibdeps)
-        (Branch.deepTermReferences oldDepBranch <> Branch.deepTypeReferences newDepBranch)
+      dependents <-
+        Operations.dependentsWithinScope
+          (Names.referenceIds namesExcludingLibdeps)
+          (Branch.deepTermReferences oldDepBranch <> Branch.deepTypeReferences newDepBranch)
+      addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
 
   let allNames = Branch.toNames currentBranch
 
