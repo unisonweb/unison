@@ -22,6 +22,8 @@ where
 
 import Control.Concurrent.STM
 import Control.Lens
+import GHC.IO (unsafePerformIO)
+import System.Environment (lookupEnv)
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -459,11 +461,26 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
   where
     validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
     validateEntities entities =
-      ifor_ (NEMap.toMap entities) \hash entity -> do
-        let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
-        case EV.validateEntity hash entityWithHashes of
-          Nothing -> pure ()
-          Just err -> Left err
+      when shouldValidateEntities $ do
+        ifor_ (NEMap.toMap entities) \hash entity -> do
+          let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
+          case EV.validateEntity hash entityWithHashes of
+            Nothing -> pure ()
+            Just err -> Left err
+
+-- | Only validate entities if this flag is set.
+-- It defaults to disabled because there are terms in the wild that currently fail hash
+-- validation.
+validationEnvKey :: String
+validationEnvKey = "UNISON_ENTITY_VALIDATION"
+
+shouldValidateEntities :: Bool
+shouldValidateEntities = unsafePerformIO $ do
+  lookupEnv validationEnvKey <&> \case
+    Just "true" -> True
+    _ -> False
+{-# NOINLINE shouldValidateEntities #-}
+
 
 type WorkerCount =
   TVar Int
