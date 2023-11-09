@@ -39,15 +39,16 @@ benchmarks:
 dependencies:
   - base
   - containers
-  - extra
-  - unison-prelude
   - deepseq
+  - extra
+  - nonempty-containers
+  - unison-prelude
 
 ghc-options:
   -Wall
 
 default-extensions:
-  - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - DeriveFunctor
   - DerivingStrategies

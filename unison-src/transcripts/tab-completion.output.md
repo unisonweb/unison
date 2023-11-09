@@ -154,7 +154,7 @@ add b = b
 
 ```
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've added these definitions:
   

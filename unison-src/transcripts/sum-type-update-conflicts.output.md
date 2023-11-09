@@ -61,7 +61,7 @@ This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ```ucm
-.ns> update
+.ns> update.old
 
   ⍟ I've added these definitions:
   

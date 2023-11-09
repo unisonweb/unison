@@ -27,6 +27,7 @@
   (struct-out unison-quote)
 
   define-builtin-link
+  declare-builtin-link
 
   data
   sum
@@ -203,9 +204,21 @@
             [txt (symbol->string sym)]
             [dname (datum->syntax stx
                      (string->symbol
-                       (string-append txt ":termlink")))])
+                       (string-append
+                         "builtin-" txt ":termlink")))])
        #`(define #,dname
            (unison-termlink-builtin #,(datum->syntax stx txt))))]))
+
+(define-syntax (declare-builtin-link stx)
+  (syntax-case stx ()
+    [(_ name)
+     (identifier? #'name)
+     (let* ([sym (syntax-e #'name)]
+            [txt (symbol->string sym)]
+            [dname (datum->syntax stx
+                     (string->symbol
+                       (string-append txt ":termlink")))])
+       #`(declare-function-link name #,dname))]))
 
 (define (partial-app f . args) (unison-closure f args))
 

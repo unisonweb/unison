@@ -20,7 +20,7 @@ import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, insertType, lookupType, scopedType)
+import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, pushType, lookupType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -239,7 +239,7 @@ declComponentConstraintTree ::
 declComponentConstraintTree decls = do
   decls <- for decls \(ref, decl) -> do
     -- Add a kind variable for every datatype
-    declKind <- insertType (Type.ref (DD.annotation $ asDataDecl decl) ref)
+    declKind <- pushType (Type.ref (DD.annotation $ asDataDecl decl) ref)
     pure (ref, decl, declKind)
   cts <- for decls \(ref, decl, declKind) -> do
     let declAnn = DD.annotation $ asDataDecl decl
@@ -413,7 +413,7 @@ builtinConstraintTree =
 
     constrain :: Kind -> (loc -> Type.Type v loc) -> Gen v loc (ConstraintTree v loc)
     constrain k t = do
-      kindVar <- insertType (t builtinAnnotation)
+      kindVar <- pushType (t builtinAnnotation)
       foldr Constraint (Node []) <$> constrainToKind (Provenance Builtin builtinAnnotation) kindVar k
 
 constrainToKind :: (Var v) => Provenance v loc -> UVar v loc -> Kind -> Gen v loc [GeneratedConstraint v loc]

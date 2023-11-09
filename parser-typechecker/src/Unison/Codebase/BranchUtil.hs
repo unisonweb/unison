@@ -15,8 +15,10 @@ module Unison.Codebase.BranchUtil
     makeSetBranch,
     makeAddTypeName,
     makeDeleteTypeName,
+    makeAnnihilateTypeName,
     makeAddTermName,
     makeDeleteTermName,
+    makeAnnihilateTermName,
     makeDeletePatch,
     makeReplacePatch,
   )
@@ -91,7 +93,7 @@ getTermMetadataAt (path, _) r b = Set.fromList <$> List.multimap mdList
     mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
     terms = Branch._terms $ Branch.getAt0 path b
 
-getType :: Path.HQSplit -> Branch0 m -> Set Reference
+getType :: Path.HQSplit -> Branch0 m -> Set Reference.TypeReference
 getType (p, hq) b = case hq of
   NameOnly n -> Star3.lookupD1 n types
   HashQualified n sh -> filter sh $ Star3.lookupD1 n types
@@ -118,6 +120,12 @@ makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
 makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
+
+makeAnnihilateTermName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeAnnihilateTermName (p, name) = (p, Branch.annihilateTermName name)
+
+makeAnnihilateTypeName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeAnnihilateTypeName (p, name) = (p, Branch.annihilateTypeName name)
 
 makeReplacePatch :: (Applicative m) => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)

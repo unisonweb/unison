@@ -275,7 +275,7 @@ a = "hello world!"
 ```
 
 ```ucm
-.c1b> update
+.c1b> update.old
 
   ⍟ I've updated these names to your new definition:
   

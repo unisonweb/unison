@@ -120,6 +120,27 @@ unique type S = S (T Nat)
       unique type T a
 
 ```
+Delay kind defaulting until all components are processed. Here `S`
+constrains the kind of `T`'s `a` parameter, although `S` is not in
+the same component as `T`.
+```unison
+unique type T a = T
+
+unique type S = S (T Optional)
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type S
+      unique type T a
+
+```
 Catch invalid instantiation of `T`'s `a` parameter in `S`
 ```unison
 unique type T a = T a

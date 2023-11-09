@@ -2,6 +2,7 @@ module Unison.KindInference.Solve
   ( step,
     verify,
     initialState,
+    defaultUnconstrainedVars,
     KindError (..),
     ConstraintConflict (..),
   )
@@ -76,7 +77,7 @@ step e st cs =
    in case unSolve action e st of
         (res, finalState) -> case res of
           Left e -> Left e
-          Right () -> Right (defaultUnconstrainedVars finalState)
+          Right () -> Right finalState
 
 -- | Default any unconstrained vars to *
 defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc

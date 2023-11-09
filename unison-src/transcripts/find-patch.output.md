@@ -52,7 +52,7 @@ hey = "hello"
 Update
 
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   

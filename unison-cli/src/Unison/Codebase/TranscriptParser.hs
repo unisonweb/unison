@@ -201,9 +201,9 @@ withTranscriptRunner ::
   (TranscriptRunner -> m r) ->
   m r
 withTranscriptRunner verbosity ucmVersion configFile action = do
-  withRuntimes \runtime sbRuntime -> withConfig $ \config -> do
+  withRuntimes \runtime sbRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
           liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
@@ -496,6 +496,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
             generateUniqueName = do
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
+            isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
             notify = print,
             notifyNumbered = printNumbered,

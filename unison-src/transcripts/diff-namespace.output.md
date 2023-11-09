@@ -209,7 +209,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update
+.ns2> update.old
 
   ⍟ I've added these definitions:
   
@@ -222,8 +222,7 @@ unique type Y a b = Y a b
   
     b        : Text
     fromJust : Nat
-      (The old definition was also named fromJust'. I updated
-      this name too.)
+      (The old definition was also named fromJust'.)
 
 .ns2> links fromJust
 
@@ -477,7 +476,7 @@ bdependent = "banana"
 ```
 
 ```ucm
-.ns3> update
+.ns3> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -532,7 +531,7 @@ a = 444
 ```
 
 ```ucm
-.nsy> update
+.nsy> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -544,7 +543,7 @@ a = 555
 ```
 
 ```ucm
-.nsz> update
+.nsz> update.old
 
   ⍟ I've updated these names to your new definition:
   

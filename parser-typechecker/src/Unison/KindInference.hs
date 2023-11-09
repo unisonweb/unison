@@ -28,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
-import Unison.KindInference.Solve (KindError, verify, initialState, step)
+import Unison.KindInference.Solve (KindError, verify, initialState, step, defaultUnconstrainedVars)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGen)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
@@ -76,7 +76,7 @@ inferDecls ppe declMap =
       handleComponents = verify <=< foldlM phi (initialState env)
         where
           phi b a = handleComponent b a
-   in handleComponents components
+   in defaultUnconstrainedVars <$> handleComponents components
 
 -- | Break the decls into strongly connected components in reverse
 -- topological order

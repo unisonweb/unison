@@ -10,6 +10,7 @@ module U.Codebase.Reference
     Reference' (..),
     TermReference',
     TypeReference',
+    ReferenceType(..),
     pattern Derived,
     Id,
     Id' (..),
@@ -34,11 +35,11 @@ import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
 import Unison.Hash (Hash)
+import Unison.Hash qualified as H
 import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Hash qualified as H
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -65,6 +66,8 @@ type TermReferenceId = Id
 
 -- | A type declaration reference id.
 type TypeReferenceId = Id
+
+data ReferenceType = RtTerm | RtType deriving (Eq, Ord, Show)
 
 -- | Either a builtin or a user defined (hashed) top-level declaration. Used for both terms and types.
 data Reference' t h
@@ -163,4 +166,3 @@ component :: H.Hash -> [k] -> [(k, Id)]
 component h ks =
   let
    in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
-

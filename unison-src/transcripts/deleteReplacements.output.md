@@ -40,7 +40,7 @@ x = 2
 
 ```
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -105,7 +105,7 @@ unique[b] type Foo = Foo | Bar
 
 ```
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -173,7 +173,7 @@ unique[bb] type bar = Foo | Bar
 
 ```
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   

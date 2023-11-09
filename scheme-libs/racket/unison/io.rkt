@@ -24,7 +24,6 @@
  (prefix-out
   unison-FOp-IO.
   (combine-out
-   fileExists.impl.v3
    getFileTimestamp.impl.v3
    getTempDirectory.impl.v3
    removeFile.impl.v3
@@ -32,6 +31,7 @@
   (prefix-out
     builtin-IO.
     (combine-out
+        fileExists.impl.v3
         renameFile.impl.v3
         createDirectory.impl.v3
         removeDirectory.impl.v3
@@ -53,12 +53,12 @@
         (right (file-or-directory-modify-seconds (chunked-string->string path)))))
 
 ; in haskell, it's not just file but also directory
-(define (fileExists.impl.v3 path)
+(define-unison (fileExists.impl.v3 path)
     (let ([path-string (chunked-string->string path)])
-    (right (bool
+    (unison-either-right
         (or
         (file-exists? path-string)
-        (directory-exists? path-string))))))
+        (directory-exists? path-string)))))
 
 (define (removeFile.impl.v3 path)
     (delete-file (chunked-string->string path))
@@ -89,9 +89,7 @@
 
 (define-unison (isDirectory.impl.v3 path)
     (unison-either-right
-        (if (directory-exists? (chunked-string->string path))
-            unison-boolean-true
-            unison-boolean-false)))
+        (directory-exists? (chunked-string->string path))))
 
 (define-unison (renameDirectory.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
