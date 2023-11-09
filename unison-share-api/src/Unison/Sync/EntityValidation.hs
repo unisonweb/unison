@@ -16,6 +16,7 @@ import System.Environment (lookupEnv)
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.Causal qualified as CausalFormat
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Decode qualified as Decode
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle qualified as HH
@@ -49,6 +50,8 @@ validateEntity expectedHash32 entity
       case Share.entityToTempEntity id entity of
         Entity.TC (TermFormat.SyncTerm localComp) -> do
           validateTerm expectedHash localComp
+        Entity.DC (DeclFormat.SyncDecl localComp) -> do
+          validateDecl expectedHash localComp
         Entity.N (BranchFormat.SyncDiff {}) -> do
           (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
         Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
@@ -92,6 +95,16 @@ validateTerm expectedHash syncLocalComp = do
       case HH.verifyTermFormatHash v2HashHandle (ComponentHash expectedHash) (TermFormat.Term localComp) of
         Nothing -> Nothing
         Just (HH.HashMismatch {expectedHash, actualHash}) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+
+validateDecl :: Hash -> (DeclFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe Share.EntityValidationError)
+validateDecl expectedHash syncLocalComp = do
+  case Decode.unsyncDeclComponent syncLocalComp of
+    Left decodeErr -> Just (Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.DeclComponentType (tShow decodeErr))
+    Right localComp -> do
+      case HH.verifyDeclFormatHash v2HashHandle (ComponentHash expectedHash) (DeclFormat.Decl localComp) of
+        Nothing -> Nothing
+        Just (HH.DeclHashMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+        Just HH.DeclHashResolutionFailure -> Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
 
 validateCausal :: Hash32 -> Hash32 -> [Hash32] -> Maybe Share.EntityValidationError
 validateCausal expectedHash32 valueHash32 parentHashes32 = do

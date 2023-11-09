@@ -1,6 +1,7 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
     HashMismatch (..),
+    DeclHashingError (..),
   )
 where
 
@@ -10,6 +11,7 @@ import U.Codebase.HashTags
 import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Term qualified as C.Term
@@ -21,6 +23,10 @@ data HashMismatch = HashMismatch
   { expectedHash :: Hash,
     actualHash :: Hash
   }
+
+data DeclHashingError
+  = DeclHashMismatch HashMismatch
+  | DeclHashResolutionFailure
 
 data HashHandle = HashHandle
   { -- | Hash type
@@ -43,5 +49,12 @@ data HashHandle = HashHandle
       HashBranchLocalIds ->
       LocalBranch ->
       BranchHash,
-    verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
+    verifyTermFormatHash ::
+      ComponentHash ->
+      TermFormat.HashTermFormat ->
+      Maybe (HashMismatch),
+    verifyDeclFormatHash ::
+      ComponentHash ->
+      DeclFormat.HashDeclFormat ->
+      Maybe DeclHashingError
   }

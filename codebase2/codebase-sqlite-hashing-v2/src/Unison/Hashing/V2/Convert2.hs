@@ -6,16 +6,19 @@ module Unison.Hashing.V2.Convert2
     h2ToV2Reference,
     v2ToH2Branch,
     v2ToH2Term,
+    v2ToH2Decl,
     hashBranchFormatToH2Branch,
   )
 where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.BranchV3 (BranchV3 (..))
 import U.Codebase.Causal qualified as Causal
+import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
@@ -30,6 +33,7 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as H2
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Symbol qualified as Unison
 import Unison.Util.Map qualified as Map
 
 -- | Convert a V3 branch to a hashing branch.
@@ -189,3 +193,27 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.PCons -> H2.Cons
       V2.Term.PSnoc -> H2.Snoc
       V2.Term.PConcat -> H2.Concat
+
+v2ToH2Decl :: V2.Decl.HashableDecl Unison.Symbol -> H2.Decl Unison.Symbol ()
+v2ToH2Decl (V2.Decl.DataDeclaration {declType, modifier, bound, constructorTypes}) =
+  let tag = case declType of
+        V2.Decl.Effect -> Left . H2.EffectDeclaration
+        V2.Decl.Data -> Right
+   in tag $
+        H2.DataDeclaration
+          { modifier = v2ToH2Modifier modifier,
+            annotation = (),
+            bound = bound,
+            constructors' =
+              constructorTypes
+                & zip [0 ..]
+                & fmap mkCtor
+          }
+  where
+    mkCtor :: (Int, V2.Type.TypeR V2.Decl.HashableTypeRef Unison.Symbol) -> ((), Unison.Symbol, H2.Type Unison.Symbol ())
+    mkCtor (n, t) = ((), Unison.symbol . Text.pack $ "Constructor" ++ show n, v2ToH2Type t)
+
+    v2ToH2Modifier :: V2.Decl.Modifier -> H2.Modifier
+    v2ToH2Modifier = \case
+      V2.Decl.Structural -> H2.Structural
+      V2.Decl.Unique t -> H2.Unique t
