@@ -130,7 +130,7 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
-import Unison.Syntax.DeclPrinter (FieldName)
+import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toString, toText)
@@ -2452,19 +2452,18 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
-    (prettyDatas, fieldNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
-    prettyTerms = map (prettyTerm fieldNames) terms
+    (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
+    prettyTerms = map (prettyTerm accessorNames) terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
     prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, Pretty)
     prettyEffectDecl (n, (r, et)) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set FieldName) (a, Pretty)
+    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, Pretty)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
-    prettyTerm :: Set FieldName -> (v, a, Term v a) -> Maybe (a, Pretty)
-    prettyTerm fieldNames (n, a, tm) =
-      if Set.member hq fieldNames then Nothing else Just (a, pb hq tm)
+    prettyTerm :: Set (AccessorName) -> (v, a, Term v a) -> Maybe (a, Pretty)
+    prettyTerm skip (n, a, tm) =
       if traceMember isMember then Nothing else Just (a, pb hq tm)
       where
         traceMember =

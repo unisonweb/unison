@@ -13,6 +13,6 @@ unique type Foo = { bar : Nat }
 
 Bug: this no-op update should (of course) succeed.
 
-```ucm:error
+```ucm
 .> update
 ```

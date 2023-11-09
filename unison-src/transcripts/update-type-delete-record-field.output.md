@@ -67,12 +67,6 @@ We want the field accessors to go away; but for now they are here, causing the u
   Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
   
   unique type Foo = { bar : Nat }
-  
-  Foo.bar.modify f = cases Foo bar -> Foo (f bar)
-  
-  Foo.bar.set bar1 = cases Foo _ -> Foo bar1
-  
-  Foo.bar = cases Foo bar -> bar
 
   Typechecking failed when propagating the update to all the dependents.
 
