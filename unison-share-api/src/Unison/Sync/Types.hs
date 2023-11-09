@@ -63,6 +63,7 @@ module Unison.Sync.Types
     HashMismatchForEntity (..),
     InvalidParentage (..),
     NeedDependencies (..),
+    EntityValidationError (..),
   )
 where
 
@@ -597,6 +598,7 @@ data DownloadEntitiesError
     DownloadEntitiesUserNotFound Text
   | -- | project shorthand
     DownloadEntitiesProjectNotFound Text
+  | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
 
 instance ToJSON DownloadEntitiesResponse where
@@ -606,6 +608,7 @@ instance ToJSON DownloadEntitiesResponse where
     DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo msg repoInfo) -> jsonUnion "invalid_repo_info" (msg, repoInfo)
     DownloadEntitiesFailure (DownloadEntitiesUserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
     DownloadEntitiesFailure (DownloadEntitiesProjectNotFound projectShorthand) -> jsonUnion "project_not_found" projectShorthand
+    DownloadEntitiesFailure (DownloadEntitiesEntityValidationFailure err) -> jsonUnion "entity_validation_failure" err
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
@@ -616,6 +619,38 @@ instance FromJSON DownloadEntitiesResponse where
       "user_not_found" -> DownloadEntitiesFailure . DownloadEntitiesUserNotFound <$> obj .: "payload"
       "project_not_found" -> DownloadEntitiesFailure . DownloadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
+
+-- | The ways in which validating an entity may fail.
+data EntityValidationError
+  = EntityHashMismatch EntityType HashMismatchForEntity
+  | UnsupportedEntityType Hash32 EntityType
+  | InvalidByteEncoding Hash32 EntityType Text {- decoding err msg -}
+  deriving stock (Show, Eq, Ord)
+  deriving anyclass (Exception)
+
+instance ToJSON EntityValidationError where
+  toJSON = \case
+    EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
+    UnsupportedEntityType hash typ -> jsonUnion "unsupported_entity_type" (object ["hash" .= hash, "type" .= typ])
+    InvalidByteEncoding hash typ errMsg -> jsonUnion "invalid_byte_encoding" (object ["hash" .= hash, "type" .= typ, "error" .= errMsg])
+
+instance FromJSON EntityValidationError where
+  parseJSON = Aeson.withObject "EntityValidationError" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "mismatched_hash" -> do
+        typ <- obj .: "payload" >>= (.: "type")
+        mismatch <- obj .: "payload" >>= (.: "mismatch")
+        pure (EntityHashMismatch typ mismatch)
+      "unsupported_entity_type" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        pure (UnsupportedEntityType hash typ)
+      "invalid_byte_encoding" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        errMsg <- obj .: "payload" >>= (.: "error")
+        pure (InvalidByteEncoding hash typ errMsg)
+      t -> failText $ "Unexpected EntityValidationError type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities

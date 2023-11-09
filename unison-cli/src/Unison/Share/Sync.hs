@@ -21,6 +21,7 @@ module Unison.Share.Sync
 where
 
 import Control.Concurrent.STM
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -62,6 +63,7 @@ import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.API qualified as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
+import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
 import Unison.Util.Monoid (foldMapM)
 
@@ -428,6 +430,9 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
               Left err -> failed (TransportError err)
               Right (Share.DownloadEntitiesFailure err) -> failed (SyncError err)
               Right (Share.DownloadEntitiesSuccess entities) -> pure entities
+          case validateEntities entities of
+            Left err -> failed . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
+            Right () -> pure ()
           tempEntities <- Cli.runTransaction (insertEntities entities)
           liftIO (downloadedCallback 1)
           pure (NESet.nonEmptySet tempEntities)
@@ -446,12 +451,19 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
               tempEntities
       liftIO doCompleteTempEntities & onLeftM \err ->
         failed err
-
     -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
     -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
+  where
+    validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
+    validateEntities entities =
+      ifor_ (NEMap.toMap entities) \hash entity -> do
+        let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
+        case EV.validateEntity hash entityWithHashes of
+          Nothing -> pure ()
+          Just err -> Left err
 
 type WorkerCount =
   TVar Int
