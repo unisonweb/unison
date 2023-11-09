@@ -6,7 +6,9 @@ where
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Path qualified as Path
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
@@ -16,10 +18,9 @@ import Unison.Symbol (Symbol)
 import Unison.UnisonFile (UnisonFile)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
-handleUpgrade old new = do
-  -- Assert that `lib.oldDepName` and `lib.newDepName` exist.
-  wundefined
-
+handleUpgrade oldDepName newDepName = do
+  oldDepBranch <- Cli.expectBranchAtPath (Path.fromList [Name.libSegment, oldDepName])
+  newDepBranch <- Cli.expectBranchAtPath (Path.fromList [Name.libSegment, newDepName])
   currentBranch <- Cli.getCurrentBranch0
 
   let allNames = Branch.toNames currentBranch

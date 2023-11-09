@@ -6,6 +6,7 @@ module Unison.Cli.MonadUtils
 
     -- * Paths
     getCurrentPath,
+    resolvePath,
     resolvePath',
     resolveSplit',
 
@@ -30,6 +31,7 @@ module Unison.Cli.MonadUtils
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
+    expectBranchAtPath,
     expectBranchAtPath',
     assertNoBranchAtPath',
     branchExistsAtPath',
@@ -138,6 +140,12 @@ getConfig key = do
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   use #currentPath
+
+-- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
+resolvePath :: Path -> Cli Path.Absolute
+resolvePath path = do
+  currentPath <- getCurrentPath
+  pure (Path.resolve currentPath (Path.Relative path))
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli Path.Absolute
@@ -278,6 +286,11 @@ getMaybeBranchAt :: Path.Absolute -> Cli (Maybe (Branch IO))
 getMaybeBranchAt path = do
   rootBranch <- getRootBranch
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
+
+-- | Get the branch at a relative path, or return early if there's no such branch.
+expectBranchAtPath :: Path -> Cli (Branch IO)
+expectBranchAtPath =
+  expectBranchAtPath' . Path' . Right . Path.Relative
 
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
