@@ -49,6 +49,8 @@ import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
 import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
@@ -2794,6 +2796,31 @@ releaseDraft =
         [tryInto @Semver . Text.pack -> Right semver] -> Right (Input.ReleaseDraftI semver)
         _ -> Left (showPatternHelp releaseDraft)
     }
+
+upgrade :: InputPattern
+upgrade =
+  InputPattern
+    { patternName = "upgrade",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help =
+        P.wrap $
+          "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
+      parse =
+        maybeToEither (I.help upgrade) . \args -> do
+          [oldString, newString] <- Just args
+          old <- parseRelativeNameSegment oldString
+          new <- parseRelativeNameSegment newString
+          Just (Input.UpgradeI old new)
+    }
+  where
+    parseRelativeNameSegment :: String -> Maybe NameSegment
+    parseRelativeNameSegment string = do
+      name <- Name.fromText (Text.pack string)
+      guard (Name.isRelative name)
+      segment NE.:| [] <- Just (Name.reverseSegments name)
+      Just segment
 
 validInputs :: [InputPattern]
 validInputs =
