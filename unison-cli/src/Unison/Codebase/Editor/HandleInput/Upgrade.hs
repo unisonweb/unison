@@ -23,7 +23,7 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, prettyParseTypecheck)
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, findCtorNames, forwardCtorNames, prettyParseTypecheck, typecheckedUnisonFileToBranchUpdates)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Name qualified as Name
@@ -51,9 +51,10 @@ handleUpgrade oldDepName newDepName = do
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
   oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
-  newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
+  _newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
   let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
+  let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
   let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
 
   -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
@@ -69,7 +70,13 @@ handleUpgrade oldDepName newDepName = do
         Operations.dependentsWithinScope
           (Names.referenceIds namesExcludingLibdeps)
           (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
-      unisonFile <- addDefinitionsToUnisonFile codebase namesExcludingLibdeps dependents UnisonFile.emptyUnisonFile
+      unisonFile <-
+        addDefinitionsToUnisonFile
+          codebase
+          namesExcludingLibdeps
+          constructorNamesExcludingLibdeps
+          dependents
+          UnisonFile.emptyUnisonFile
       -- Construct a PPE to use for rendering the Unison file full of dependents.
       hashLength <- Codebase.hashLength
       let printPPE =
@@ -98,10 +105,18 @@ handleUpgrade oldDepName newDepName = do
       Cli.returnEarlyWithoutOutput
 
   -- Happy path: save updated things to codebase, cons namespace. Don't forget to delete `lib.old`
-  -- TODO: respond "upgrade success"
-  -- saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
-  -- Cli.respond Output.Success
-  wundefined
+  Cli.runTransaction (Codebase.addDefsToCodebase codebase typecheckedUnisonFile)
+  Cli.stepAt
+    textualDescriptionOfUpgrade
+    ( Path.unabsolute projectPath,
+      deleteLibdep oldDepName
+        . Branch.batchUpdates
+          ( typecheckedUnisonFileToBranchUpdates
+              (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+              typecheckedUnisonFile
+          )
+    )
+  Cli.respond Output.Success
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =

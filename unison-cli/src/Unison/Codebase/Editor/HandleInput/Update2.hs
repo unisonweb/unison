@@ -4,6 +4,9 @@ module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
     addDefinitionsToUnisonFile,
     prettyParseTypecheck,
+    typecheckedUnisonFileToBranchUpdates,
+    forwardCtorNames,
+    findCtorNames,
   )
 where
 
@@ -89,7 +92,6 @@ handleUpdate2 = do
   currentBranch0 <- Cli.getCurrentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
-
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   (pped, bigUf) <- Cli.runTransaction do
@@ -99,7 +101,7 @@ handleUpdate2 = do
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
-    bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps
+    bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps ctorNames
     let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
@@ -217,8 +219,7 @@ typecheckedUnisonFileToBranchUpdates getConstructors tuf =
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))
         makeDeclUpdates (symbol, (typeRefId, decl)) =
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
-              -- some decls will be deleted, we want to delete their
-              -- constructors as well
+              -- some decls will be deleted, we want to delete their constructors as well
               deleteConstructorActions =
                 map
                   (BranchUtil.makeAnnihilateTermName . Path.splitFromName)
@@ -264,22 +265,24 @@ buildBigUnisonFile ::
   TypecheckedUnisonFile Symbol Ann ->
   Map Reference.Id ReferenceType ->
   Names ->
+  Map ForwardName (Referent, Name) ->
   Transaction (UnisonFile Symbol Ann)
-buildBigUnisonFile c tuf dependents names =
-  addDefinitionsToUnisonFile c names dependents (UF.discardTypes tuf)
+buildBigUnisonFile c tuf dependents names ctorNames =
+  addDefinitionsToUnisonFile c names ctorNames dependents (UF.discardTypes tuf)
 
--- | @addDefinitionsToUnisonFile codebase names definitions file@ adds all @definitions@ to @file@, avoiding overwriting
--- anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on the
--- left-hand-side of the equals" (but yes type decls don't really have a LHS).
+-- | @addDefinitionsToUnisonFile codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
+-- overwriting anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on
+-- the left-hand-side of the equals" (but yes type decls don't really have a LHS).
 --
 -- TODO: find a better module for this function, as it's used in a couple places
 addDefinitionsToUnisonFile ::
   Codebase IO Symbol Ann ->
   Names ->
+  Map ForwardName (Referent, Name) ->
   Map Reference.Id ReferenceType ->
   UnisonFile Symbol Ann ->
   Transaction (UnisonFile Symbol Ann)
-addDefinitionsToUnisonFile c names dependents initialUnisonFile =
+addDefinitionsToUnisonFile c names ctorNames dependents initialUnisonFile =
   -- for each dependent, add its definition with all its names to the UnisonFile
   foldM addComponent initialUnisonFile (Map.toList dependents')
   where
@@ -288,7 +291,6 @@ addDefinitionsToUnisonFile c names dependents initialUnisonFile =
     addComponent uf (h, rt) = case rt of
       Reference.RtTerm -> addTermComponent h uf
       Reference.RtType -> addDeclComponent h uf
-    ctorNames = forwardCtorNames names
     addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
     addTermComponent h uf = do
       termComponent <- Codebase.unsafeGetTermComponent c h
