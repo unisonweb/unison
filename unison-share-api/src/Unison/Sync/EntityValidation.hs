@@ -10,6 +10,8 @@ where
 import Data.ByteString qualified as BS
 import Data.Bytes.Get (runGetS)
 import Data.Text qualified as Text
+import GHC.IO (unsafePerformIO)
+import System.Environment (lookupEnv)
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
 import U.Codebase.Sqlite.Decode qualified as Decode
@@ -26,18 +28,30 @@ import Unison.Prelude
 import Unison.Sync.Common qualified as Share
 import Unison.Sync.Types qualified as Share
 
+validationEnvKey :: String
+validationEnvKey = "UNISON_ENTITY_VALIDATION"
+
+shouldValidateEntities :: Bool
+shouldValidateEntities = unsafePerformIO $ do
+  lookupEnv validationEnvKey <&> \case
+    Just "true" -> True
+    _ -> False
+{-# NOINLINE shouldValidateEntities #-}
+
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
 validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe Share.EntityValidationError
-validateEntity expectedHash32 entity = do
-  case Share.entityToTempEntity id entity of
-    Entity.TC (TermFormat.SyncTerm localComp) -> do
-      validateTerm expectedHash localComp
-    Entity.N (BranchFormat.SyncDiff {}) -> do
-      (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
-    Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
-      validateBranchFull expectedHash localIds bytes
-    _ -> Nothing
+validateEntity expectedHash32 entity
+  | shouldValidateEntities = do
+      case Share.entityToTempEntity id entity of
+        Entity.TC (TermFormat.SyncTerm localComp) -> do
+          validateTerm expectedHash localComp
+        Entity.N (BranchFormat.SyncDiff {}) -> do
+          (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
+        Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
+          validateBranchFull expectedHash localIds bytes
+        _ -> Nothing
+  | otherwise = Nothing
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32
