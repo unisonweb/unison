@@ -49,7 +49,7 @@ import Witch (unsafeFrom)
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldDepName newDepName = do
   when (oldDepName == newDepName) do
-    error "todo: do nothing rather that error if you try to upgrade dep to itself"
+    Cli.returnEarlyWithoutOutput
 
   Cli.Env {codebase} <- ask
 
@@ -70,29 +70,68 @@ handleUpgrade oldDepName newDepName = do
   let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
   let namesExcludingOldAndNewDeps = Branch.toNames currentV1BranchWithoutOldAndNewDeps
 
-  -- Create a Unison file that contains all of our dependents of things in `lib.old`.
+  -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
+  -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
+  -- parsing it back in a particular parsing environment.
+  --
+  -- For example, if a user with the namespace
+  --
+  --     lib.old.foo#oldfoo = 17
+  --     lib.new.foo#newfoo = 18
+  --     mything#mything    = #oldfoo + 10
+  --
+  -- runs `upgrade old new`, we will first render
+  --
+  --     mything#mything    = #oldfoo + 10
+  --
+  -- as
+  --
+  --     mything = foo + 10
+  --
+  -- (note, "foo" here is the shortest unambiguous suffix of all names minus those in `old`), then parse it back in the
+  -- parsing environment with names
+  --
+  --     lib.new.foo = #newfoo
+  --
+  -- resulting in
+  --
+  --     mything#mything2 = #newfoo + 10
+
   (unisonFile, printPPE) <-
     Cli.runTransaction do
-      dependents <-
-        Operations.dependentsWithinScope
-          (Names.referenceIds namesExcludingLibdeps)
-          (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
-      unisonFile <-
+      -- Create a Unison file that contains all of our dependents of things in `lib.old`.
+      unisonFile <- do
+        dependents <-
+          Operations.dependentsWithinScope
+            (Names.referenceIds namesExcludingLibdeps)
+            (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
         addDefinitionsToUnisonFile
           codebase
           namesExcludingLibdeps
           constructorNamesExcludingLibdeps
           dependents
           UnisonFile.emptyUnisonFile
-      -- Construct a PPE to use for rendering the Unison file full of dependents.
       hashLength <- Codebase.hashLength
-      let printPPE1 = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
-      -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
+      let namesToPPED = PPED.fromNamesDecl hashLength . NamesWithHistory.fromCurrentNames
+      let printPPE1 = namesToPPED namesExcludingOldDep
+      -- These "fake names" are all of things in `lib.old`, with the `old` segment swapped out for `new`
+      --
+      -- If we fall back to this second PPE, we know we have a reference in `fakeNames` (i.e. a reference originally
+      -- from `old`, and found nowhere else in our project+libdeps), but we have to include
+      -- `namesExcludingOldAndNewDeps` as well, so that we don't over-suffixify.
+      --
+      -- For example, consider the names
+      --
+      --   #old = lib.new.foobaloo
+      --   #thing = my.project.foobaloo
+      --
+      -- Were we to fall back on this PPE looking up a name for #old, we'd not want to return "foobaloo", but rather
+      -- "new.foobaloo".
       let fakeNames =
             oldDepV1Branch
               & Branch.toNames
               & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
-      let printPPE2 = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames (namesExcludingOldAndNewDeps <> fakeNames))
+      let printPPE2 = namesToPPED (namesExcludingOldAndNewDeps <> fakeNames)
       pure (unisonFile, printPPE1 `PPED.addFallback` printPPE2)
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
@@ -112,10 +151,9 @@ handleUpgrade oldDepName newDepName = do
       Cli.Env {isTranscript} <- ask
       maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
       Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
-      -- TODO: output message indicating what's going on
+      Cli.respond (Output.UpgradeFailure oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
-  -- Happy path: save updated things to codebase, cons namespace. Don't forget to delete `lib.old`
   Cli.runTransaction (Codebase.addDefsToCodebase codebase typecheckedUnisonFile)
   Cli.stepAt
     textualDescriptionOfUpgrade
@@ -127,7 +165,7 @@ handleUpgrade oldDepName newDepName = do
               typecheckedUnisonFile
           )
     )
-  Cli.respond Output.Success
+  Cli.respond (Output.UpgradeSuccess oldDepName newDepName)
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
