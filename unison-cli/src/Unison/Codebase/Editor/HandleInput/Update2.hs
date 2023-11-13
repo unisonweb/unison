@@ -2,11 +2,14 @@
 
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
+
+    -- * Misc helpers to be organized later
     addDefinitionsToUnisonFile,
+    findCtorNames,
+    forwardCtorNames,
+    makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
-    forwardCtorNames,
-    findCtorNames,
   )
 where
 
@@ -51,6 +54,7 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesWithHistory (NamesWithHistory (NamesWithHistory))
 import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -64,9 +68,7 @@ import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
-import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
-import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
@@ -89,7 +91,8 @@ handleUpdate2 = do
   -- - get add/updates from TUF
   let termAndDeclNames :: Defns (Set Name) (Set Name) = getTermAndDeclNames tuf
 
-  currentBranch0 <- Cli.getCurrentBranch0
+  currentPath <- Cli.getCurrentPath
+  currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
@@ -106,8 +109,8 @@ handleUpdate2 = do
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
-  -- - typecheck it
-  prettyParseTypecheck bigUf pped >>= \case
+  parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+  prettyParseTypecheck bigUf pped parsingEnv >>= \case
     Left prettyUf -> do
       Cli.Env {isTranscript} <- ask
       maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
@@ -122,22 +125,12 @@ handleUpdate2 = do
 prettyParseTypecheck ::
   UnisonFile Symbol Ann ->
   PrettyPrintEnvDecl ->
+  Parser.ParsingEnv Transaction ->
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
-prettyParseTypecheck bigUf pped = do
-  typecheck <- mkTypecheckFnCli
+prettyParseTypecheck bigUf pped parsingEnv = do
+  Cli.Env {codebase} <- ask
   let prettyUf = Output.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
-  rootBranch <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-  Cli.Env {generateUniqueName} <- ask
-  uniqueName <- liftIO generateUniqueName
-  let parsingEnv =
-        Parser.ParsingEnv
-          { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
-          }
   Debug.whenDebug Debug.Update do
     liftIO do
       putStrLn "--- Scratch ---"
@@ -145,38 +138,24 @@ prettyParseTypecheck bigUf pped = do
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left {} -> pure $ Left prettyUf
-      Right reparsedUf ->
-        typecheck reparsedUf <&> \case
-          Just reparsedTuf -> Right reparsedTuf
-          Nothing -> Left prettyUf
+      Right reparsedUf -> do
+        typecheckingEnv <-
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] reparsedUf
+        pure case FileParsers.synthesizeFile typecheckingEnv reparsedUf of
+          Result.Result _notes (Just reparsedTuf) -> Right reparsedTuf
+          Result.Result _notes Nothing -> Left prettyUf
 
-mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
-mkTypecheckFnCli = do
-  Cli.Env {codebase, generateUniqueName} <- ask
-  rootBranch <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-  pure (mkTypecheckFn codebase generateUniqueName currentPath parseNames)
-
-mkTypecheckFn ::
-  Codebase.Codebase IO Symbol Ann ->
-  IO Parser.UniqueName ->
-  Path.Absolute ->
-  NamesWithHistory.NamesWithHistory ->
-  UnisonFile Symbol Ann ->
-  Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
-mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
-  uniqueName <- Sqlite.unsafeIO generateUniqueName
-  let parsingEnv =
-        Parser.ParsingEnv
-          { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
-          }
-  typecheckingEnv <-
-    computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-  let Result.Result _notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-  pure maybeTypecheckedUnisonFile
+-- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
+makeParsingEnv :: Path.Absolute -> Names -> Cli (Parser.ParsingEnv Transaction)
+makeParsingEnv path names = do
+  Cli.Env {generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  pure do
+    Parser.ParsingEnv
+      { uniqueNames = uniqueName,
+        uniqueTypeGuid = Cli.loadUniqueTypeGuid path,
+        names = NamesWithHistory {currentNames = names, oldNames = mempty}
+      }
 
 -- save definitions and namespace
 saveTuf :: (Name -> [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()

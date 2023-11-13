@@ -27,6 +27,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
     findCtorNames,
     forwardCtorNames,
+    makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
   )
@@ -94,8 +95,9 @@ handleUpgrade oldDepName newDepName = do
       let printPPE2 = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames (namesExcludingOldAndNewDeps <> fakeNames))
       pure (unisonFile, printPPE1 `PPED.addFallback` printPPE2)
 
+  parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
   typecheckedUnisonFile <-
-    prettyParseTypecheck unisonFile printPPE & onLeftM \prettyUnisonFile -> do
+    prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
       -- Small race condition: since picking a branch name and creating the branch happen in different
       -- transactions, creating could fail.
       temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName projectId oldDepName newDepName)
