@@ -271,6 +271,7 @@ module U.Codebase.Sqlite.Queries
     schemaVersion,
     x2cTType,
     x2cTerm,
+    x2cDecl,
     checkBranchExistsForCausalHash,
 
     -- * Types
@@ -2973,9 +2974,12 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
 
 -- | Unlocalize a decl.
 s2cDecl :: LocalIds -> S.Decl.Decl Symbol -> Transaction (C.Decl Symbol)
-s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
+s2cDecl ids decl = do
   substTypeRef <- localIdsToTypeRefLookup ids
-  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+  pure $ x2cDecl substTypeRef decl
+
+x2cDecl :: (r -> r1) -> (C.Decl.DeclR r Symbol -> C.Decl.DeclR r1 Symbol)
+x2cDecl substTypeRef (C.Decl.DataDeclaration dt m b ct) = C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)
 
 saveDeclComponent ::
   HashHandle ->

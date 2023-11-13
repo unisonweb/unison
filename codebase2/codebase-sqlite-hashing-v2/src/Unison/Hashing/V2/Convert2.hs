@@ -7,22 +7,29 @@ module Unison.Hashing.V2.Convert2
     v2ToH2Referent,
     v2ToH2Branch,
     v2ToH2Term,
+    v2ToH2Decl,
     hashBranchFormatToH2Branch,
+    hashPatchFormatToH2Patch,
   )
 where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.BranchV3 (BranchV3 (..))
 import U.Codebase.Causal qualified as Causal
+import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.HashTags
 import U.Codebase.Kind qualified as V2
 import U.Codebase.Reference qualified as V2
 import U.Codebase.Reference qualified as V2Reference
 import U.Codebase.Referent qualified as V2Referent
 import U.Codebase.Sqlite.Branch.Full qualified as Memory.BranchFull
+import U.Codebase.Sqlite.Patch.Full qualified as Memory.PatchFull
+import U.Codebase.Sqlite.Patch.TermEdit qualified as Memory.TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as Memory.TypeEdit
 import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
@@ -31,6 +38,7 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as H2
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Symbol qualified as Unison
 import Unison.Util.Map qualified as Map
 
 -- | Convert a V3 branch to a hashing branch.
@@ -136,6 +144,29 @@ hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, chil
       V2Referent.Con typeRef conId -> do
         (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
 
+hashPatchFormatToH2Patch :: Memory.PatchFull.HashPatch -> H2.Patch
+hashPatchFormatToH2Patch Memory.PatchFull.Patch {termEdits, typeEdits} =
+  H2.Patch
+    { termEdits = Map.bimap cvreferent (Set.map cvTermEdit) termEdits,
+      typeEdits = Map.bimap cvreference (Set.map cvTypeEdit) typeEdits
+    }
+  where
+    cvTermEdit :: Memory.TermEdit.HashTermEdit -> H2.TermEdit
+    cvTermEdit = \case
+      Memory.TermEdit.Replace ref _typing -> H2.TermEditReplace (v2ToH2Referent . coerce $ ref)
+      Memory.TermEdit.Deprecate -> H2.TermEditDeprecate
+    cvTypeEdit :: Memory.TypeEdit.HashTypeEdit -> H2.TypeEdit
+    cvTypeEdit = \case
+      Memory.TypeEdit.Replace ref -> H2.TypeEditReplace (v2ToH2Reference . coerce $ ref)
+      Memory.TypeEdit.Deprecate -> H2.TypeEditDeprecate
+    cvreference :: V2Reference.Reference' Text ComponentHash -> H2.Reference
+    cvreference = v2ToH2Reference . second unComponentHash
+    cvreferent :: Memory.BranchFull.Referent'' Text ComponentHash -> H2.Referent
+    cvreferent = \case
+      V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second unComponentHash ref))
+      V2Referent.Con typeRef conId -> do
+        (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
+
 v2ToH2Term :: forall v. Ord v => V2.Term.HashableTerm v -> H2.Term v ()
 v2ToH2Term = ABT.transform convertF
   where
@@ -190,3 +221,27 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.PCons -> H2.Cons
       V2.Term.PSnoc -> H2.Snoc
       V2.Term.PConcat -> H2.Concat
+
+v2ToH2Decl :: V2.Decl.HashableDecl Unison.Symbol -> H2.Decl Unison.Symbol ()
+v2ToH2Decl (V2.Decl.DataDeclaration {declType, modifier, bound, constructorTypes}) =
+  let tag = case declType of
+        V2.Decl.Effect -> Left . H2.EffectDeclaration
+        V2.Decl.Data -> Right
+   in tag $
+        H2.DataDeclaration
+          { modifier = v2ToH2Modifier modifier,
+            annotation = (),
+            bound = bound,
+            constructors' =
+              constructorTypes
+                & zip [0 ..]
+                & fmap mkCtor
+          }
+  where
+    mkCtor :: (Int, V2.Type.TypeR V2.Decl.HashableTypeRef Unison.Symbol) -> ((), Unison.Symbol, H2.Type Unison.Symbol ())
+    mkCtor (n, t) = ((), Unison.symbol . Text.pack $ "Constructor" ++ show n, v2ToH2Type t)
+
+    v2ToH2Modifier :: V2.Decl.Modifier -> H2.Modifier
+    v2ToH2Modifier = \case
+      V2.Decl.Structural -> H2.Structural
+      V2.Decl.Unique t -> H2.Unique t

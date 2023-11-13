@@ -2337,6 +2337,11 @@ prettyEntityValidationError = \case
         "",
         P.wrap $ "The error was: " <> P.text err
       ]
+  Share.HashResolutionFailure hash ->
+    P.lines
+      [ P.wrap $ "Failed to resolve data when hashing " <> prettyHash32 hash <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
 
 prettyEntityType :: Share.EntityType -> Pretty
 prettyEntityType = \case

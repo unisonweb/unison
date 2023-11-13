@@ -21,6 +21,7 @@ library
   other-modules:
       U.Codebase.Branch.Hashing
       U.Codebase.Causal.Hashing
+      U.Codebase.Decl.Hashing
       U.Codebase.Term.Hashing
       Unison.Hashing.V2.Convert2
   hs-source-dirs:
@@ -69,6 +70,7 @@ library
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
+    , unison-syntax
     , unison-util-base32hex
     , unison-util-term
     , vector
