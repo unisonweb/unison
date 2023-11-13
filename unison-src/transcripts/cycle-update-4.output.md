@@ -54,7 +54,7 @@ clang _ = !pong + 3
 
 ```
 ```ucm
-.> update ping
+.> update.old ping
 
   ⍟ I've added these definitions:
   

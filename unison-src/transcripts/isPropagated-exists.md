@@ -24,7 +24,7 @@ x = 4
 ```
 
 ```ucm
-.> update
+.> update.old
 .> links y
 .> view 1
 ```

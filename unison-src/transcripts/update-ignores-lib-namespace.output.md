@@ -42,18 +42,15 @@ foo = 200
       new definition:
     
       foo : Nat
-        (The old definition is also named lib.foo. I'll update
-        this name too.)
+        (The old definition is also named lib.foo.)
 
 ```
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    foo : Nat
-      (The old definition was also named lib.foo. I updated this
-      name too.)
+  I propagated the update and am now saving the results.
+
+  Done.
 
 .> names foo
 

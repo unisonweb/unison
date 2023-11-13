@@ -13,6 +13,6 @@ foo = 1
 ```
 
 ```ucm
-.> update
+.> update.old
 .> links foo
 ```

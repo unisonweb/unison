@@ -66,6 +66,7 @@ library
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
+      Unison.Codebase.Editor.HandleInput.Update2
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
@@ -202,6 +203,7 @@ library
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , stm
@@ -338,6 +340,7 @@ executable cli-integration-tests
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
@@ -468,6 +471,7 @@ executable transcripts
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
@@ -605,6 +609,7 @@ executable unison
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
@@ -747,6 +752,7 @@ test-suite cli-tests
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet

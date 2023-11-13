@@ -9,6 +9,7 @@ module Unison.DataDeclaration
     allVars,
     asDataDecl,
     bindReferences,
+    constructorCount,
     constructorNames,
     constructors,
     constructorType,
@@ -32,6 +33,7 @@ module Unison.DataDeclaration
     updateDependencies,
     constructors_,
     asDataDecl_,
+    declAsDataDecl_,
   )
 where
 
@@ -111,6 +113,9 @@ data DataDeclaration v a = DataDeclaration
   }
   deriving (Eq, Ord, Show, Functor)
 
+constructorCount :: DataDeclaration v a -> Int
+constructorCount DataDeclaration {constructors'} = length constructors'
+
 constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
 constructors_ = lens getter setter
   where
@@ -121,6 +126,13 @@ newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
   deriving (Eq, Ord, Show, Functor)
+
+declAsDataDecl_ :: Lens' (Decl v a) (DataDeclaration v a)
+declAsDataDecl_ = lens get set
+  where
+    get (Left ed) = toDataDecl ed
+    get (Right dd) = dd
+    set decl dd = bimap (EffectDeclaration . const dd) (const dd) decl
 
 asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration
@@ -242,7 +254,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- This function is unsound, since the `rid` and the `decl` have to match.
 -- It should probably be hashed directly from the Decl, once we have a
 -- reliable way of doing that. —AI
-declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
+declConstructorReferents :: Reference.TypeReferenceId -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
   [Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl)]
   where

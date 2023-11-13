@@ -251,6 +251,8 @@ data Output
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions DisplayDefinitionsOutput
+  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
+    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText) {- rendered definitions -}
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
   | TestResults
@@ -383,6 +385,8 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | UpdateTypecheckingFailure
+  | UpdateTypecheckingSuccess
 
 -- | What did we create a project branch from?
 --
@@ -444,6 +448,8 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  UpdateTypecheckingFailure{} -> True
+  UpdateTypecheckingSuccess{} -> False
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False
@@ -509,6 +515,7 @@ isFailure o = case o of
   Evaluated {} -> False
   Typechecked {} -> False
   DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
+  DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False

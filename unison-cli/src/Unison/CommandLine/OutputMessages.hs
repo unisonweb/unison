@@ -5,10 +5,11 @@
 
 module Unison.CommandLine.OutputMessages where
 
+import Control.Exception (mask, onException)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Trans.Writer.CPS
+import Control.Monad.Writer (Writer, mapWriter, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -21,6 +22,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
@@ -29,7 +31,8 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, getTemporaryDirectory, removeFile, renameFile)
+import System.IO qualified as IO
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -83,6 +86,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
@@ -126,6 +130,7 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
+import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toString, toText)
@@ -759,6 +764,7 @@ notifyUser dir = \case
               <> "to push the changes."
         ]
   DisplayDefinitions output -> displayDefinitions output
+  DisplayDefinitionsString isTranscript definitions -> displayDefinitionsString isTranscript definitions
   OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
@@ -2168,6 +2174,8 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  UpdateTypecheckingFailure -> pure "Typechecking failed when propagating the update to all the dependents."
+  UpdateTypecheckingSuccess -> pure "I propagated the update and am now saving the results."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2479,20 +2487,31 @@ foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
-  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things)
+  P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
-    things =
-      map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
-        <> map (Right . (Nothing,)) terms
-        <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
-    pretty (Left (Left (n, (r, et)))) =
+    prettyEffects = map prettyEffectDecl (Map.toList effects)
+    (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
+    prettyTerms = map (prettyTerm accessorNames) terms
+    prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
+
+    prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, Pretty)
+    prettyEffectDecl (n, (r, et)) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    pretty (Left (Right (n, (r, dt)))) =
-      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
-    pretty (Right (Nothing, (n, a, tm))) =
-      (a, pb (hqv n) tm)
-    pretty (Right (Just wk, (n, a, tm))) =
-      (a, go wk n tm)
+    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, Pretty)
+    prettyDataDecl (n, (r, dt)) =
+      (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
+    prettyTerm :: Set (AccessorName) -> (v, a, Term v a) -> Maybe (a, Pretty)
+    prettyTerm skip (n, a, tm) =
+      if traceMember isMember then Nothing else Just (a, pb hq tm)
+      where
+        traceMember =
+          if Debug.shouldDebug Debug.Update
+            then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
+            else id
+        isMember = Set.member hq skip
+        hq = hqv n
+    prettyWatch :: (String, (v, a, Term v a)) -> (a, Pretty)
+    prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)
       where
         go wk v tm = case wk of
           WK.RegularWatch
@@ -2501,7 +2520,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
           WK.RegularWatch -> "> " <> pb (hqv v) tm
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
-    sppe = PPED.suffixifiedPPE ppe
+    sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
     dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
@@ -2678,6 +2697,33 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
         <> P.newline
         <> tip "You might need to repair the codebase manually."
 
+displayDefinitionsString :: Maybe FilePath -> Pretty -> IO Pretty
+displayDefinitionsString maybePath definitions =
+  case maybePath of
+    Nothing -> pure definitions
+    Just path -> do
+      let withTempFile tmpFilePath tmpHandle = do
+            Text.hPutStrLn tmpHandle (Text.pack (P.toPlain 80 definitions))
+            Text.hPutStrLn tmpHandle "\n---\n"
+            IO.withFile path IO.ReadMode \currentScratchFile -> do
+              let copyLoop = do
+                    chunk <- Text.hGetChunk currentScratchFile
+                    case Text.length chunk == 0 of
+                      True -> pure ()
+                      False -> do
+                        Text.hPutStr tmpHandle chunk
+                        copyLoop
+              copyLoop
+            IO.hClose tmpHandle
+            renameFile tmpFilePath path
+      tmpDir <- getTemporaryDirectory
+      mask \unmask -> do
+        (tmpFilePath, tmpHandle) <- IO.openTempFile tmpDir "unison-scratch"
+        unmask (withTempFile tmpFilePath tmpHandle) `onException` do
+          IO.hClose tmpHandle
+          removeFile tmpFilePath
+      pure mempty
+
 displayTestResults ::
   Bool -> -- whether to show the tip
   PPE.PrettyPrintEnv ->
@@ -2825,7 +2871,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2840,7 +2886,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
