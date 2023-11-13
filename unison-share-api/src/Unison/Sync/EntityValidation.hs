@@ -56,33 +56,21 @@ validateEntity expectedHash32 entity = do
 
 validatePatchFull :: Hash32 -> PatchFormat.PatchLocalIds' Text Hash32 Hash32 -> BS.ByteString -> Maybe Share.EntityValidationError
 validatePatchFull expectedHash32 localIds bytes = do
+  let expectedHash = Hash32.toHash expectedHash32
   case runGetS Serialization.getLocalPatch bytes of
     Left e -> Just $ Share.InvalidByteEncoding expectedHash32 Share.PatchType (Text.pack e)
     Right localPatch -> do
       let localIds' =
             localIds
-              { PatchFormat.patchTextLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchTextLookup localIds,
+              { PatchFormat.patchTextLookup = PatchFormat.patchTextLookup localIds,
                 PatchFormat.patchHashLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchHashLookup localIds,
                 PatchFormat.patchDefnLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchDefnLookup localIds
               }
       let actualHash =
-            HH.hashPatchFormatFull v2HashHandle localIds' localBranch
-      if actualHash == BranchHash expectedHash
+            HH.hashPatchFormatFull v2HashHandle localIds' localPatch
+      if actualHash == PatchHash expectedHash
         then Nothing
-        else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unBranchHash actualHash))
-
--- let localIds' =
---       localIds
---         { PatchFormat.patchTermLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchTermLookup localIds,
---           PatchFormat.patchDeclLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchDeclLookup localIds,
---           PatchFormat.patchBranchLookup = BranchHash . Hash32.toHash <$> PatchFormat.patchBranchLookup localIds,
---           PatchFormat.patchCausalLookup = CausalHash . Hash32.toHash <$> PatchFormat.patchCausalLookup localIds
---         }
--- let actualHash =
---       HH.hashPatchFormatFull v2HashHandle localIds' localPatch
--- if actualHash == PatchHash expectedHash32
---   then Nothing
---   else Just $ Share.EntityHashMismatch Share.PatchComponentType (mismatch expectedHash (unPatchHash actualHash))
+        else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unPatchHash actualHash))
 
 validateBranchFull ::
   Hash ->
