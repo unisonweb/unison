@@ -19,6 +19,7 @@ import U.Codebase.Sqlite.Decode qualified as Decode
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle qualified as HH
 import U.Codebase.Sqlite.Orphans ()
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Serialization qualified as Serialization
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -34,21 +35,54 @@ import Unison.Sync.Types qualified as Share
 -- We should add more validation as more entities are shared.
 validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe Share.EntityValidationError
 validateEntity expectedHash32 entity = do
-      case Share.entityToTempEntity id entity of
-        Entity.TC (TermFormat.SyncTerm localComp) -> do
-          validateTerm expectedHash localComp
-        Entity.DC (DeclFormat.SyncDecl localComp) -> do
-          validateDecl expectedHash localComp
-        Entity.N (BranchFormat.SyncDiff {}) -> do
-          (Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType)
-        Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
-          validateBranchFull expectedHash localIds bytes
-        Entity.C CausalFormat.SyncCausalFormat {valueHash, parents} -> do
-          validateCausal expectedHash32 valueHash (toList parents)
-        _ -> Nothing
+  case Share.entityToTempEntity id entity of
+    Entity.TC (TermFormat.SyncTerm localComp) -> do
+      validateTerm expectedHash localComp
+    Entity.DC (DeclFormat.SyncDecl localComp) -> do
+      validateDecl expectedHash localComp
+    Entity.N (BranchFormat.SyncDiff {}) -> do
+      Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType
+    Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
+      validateBranchFull expectedHash localIds bytes
+    Entity.C CausalFormat.SyncCausalFormat {valueHash, parents} -> do
+      validateCausal expectedHash32 valueHash (toList parents)
+    Entity.P (PatchFormat.SyncDiff {}) -> do
+      Just $ Share.UnsupportedEntityType expectedHash32 Share.PatchDiffType
+    Entity.P (PatchFormat.SyncFull localIds bytes) -> do
+      validatePatchFull expectedHash32 localIds bytes
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32
+
+validatePatchFull :: Hash32 -> PatchFormat.PatchLocalIds' Text Hash32 Hash32 -> BS.ByteString -> Maybe Share.EntityValidationError
+validatePatchFull expectedHash32 localIds bytes = do
+  case runGetS Serialization.getLocalPatch bytes of
+    Left e -> Just $ Share.InvalidByteEncoding expectedHash32 Share.PatchType (Text.pack e)
+    Right localPatch -> do
+      let localIds' =
+            localIds
+              { PatchFormat.patchTextLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchTextLookup localIds,
+                PatchFormat.patchHashLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchHashLookup localIds,
+                PatchFormat.patchDefnLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchDefnLookup localIds
+              }
+      let actualHash =
+            HH.hashPatchFormatFull v2HashHandle localIds' localBranch
+      if actualHash == BranchHash expectedHash
+        then Nothing
+        else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unBranchHash actualHash))
+
+-- let localIds' =
+--       localIds
+--         { PatchFormat.patchTermLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchTermLookup localIds,
+--           PatchFormat.patchDeclLookup = ComponentHash . Hash32.toHash <$> PatchFormat.patchDeclLookup localIds,
+--           PatchFormat.patchBranchLookup = BranchHash . Hash32.toHash <$> PatchFormat.patchBranchLookup localIds,
+--           PatchFormat.patchCausalLookup = CausalHash . Hash32.toHash <$> PatchFormat.patchCausalLookup localIds
+--         }
+-- let actualHash =
+--       HH.hashPatchFormatFull v2HashHandle localIds' localPatch
+-- if actualHash == PatchHash expectedHash32
+--   then Nothing
+--   else Just $ Share.EntityHashMismatch Share.PatchComponentType (mismatch expectedHash (unPatchHash actualHash))
 
 validateBranchFull ::
   Hash ->

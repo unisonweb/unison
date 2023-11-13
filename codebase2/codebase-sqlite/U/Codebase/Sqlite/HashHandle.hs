@@ -12,6 +12,8 @@ import U.Codebase.Reference qualified as C
 import U.Codebase.Sqlite.Branch.Format (HashBranchLocalIds)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Patch.Format (HashPatchLocalIds)
+import U.Codebase.Sqlite.Patch.Full (LocalPatch)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import U.Codebase.Term qualified as C.Term
@@ -49,6 +51,10 @@ data HashHandle = HashHandle
       HashBranchLocalIds ->
       LocalBranch ->
       BranchHash,
+    hashPatchFormatFull ::
+      HashPatchLocalIds ->
+      LocalPatch ->
+      PatchHash,
     verifyTermFormatHash ::
       ComponentHash ->
       TermFormat.HashTermFormat ->
