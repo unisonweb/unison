@@ -23,7 +23,13 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, findCtorNames, forwardCtorNames, prettyParseTypecheck, typecheckedUnisonFileToBranchUpdates)
+import Unison.Codebase.Editor.HandleInput.Update2
+  ( addDefinitionsToUnisonFile,
+    findCtorNames,
+    forwardCtorNames,
+    prettyParseTypecheck,
+    typecheckedUnisonFileToBranchUpdates,
+  )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Name qualified as Name
@@ -32,6 +38,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite (Transaction)
@@ -40,6 +47,9 @@ import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldDepName newDepName = do
+  when (oldDepName == newDepName) do
+    error "todo: do nothing rather that error if you try to upgrade dep to itself"
+
   Cli.Env {codebase} <- ask
 
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
@@ -50,18 +60,14 @@ handleUpgrade oldDepName newDepName = do
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
+  let currentV1BranchWithoutOldAndNewDeps = deleteLibdep newDepName currentV1BranchWithoutOldDep
   oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
   _newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
   let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
   let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
   let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
-
-  -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
-  let fakeNames =
-        oldDepV1Branch
-          & Branch.toNames
-          & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
+  let namesExcludingOldAndNewDeps = Branch.toNames currentV1BranchWithoutOldAndNewDeps
 
   -- Create a Unison file that contains all of our dependents of things in `lib.old`.
   (unisonFile, printPPE) <-
@@ -79,11 +85,14 @@ handleUpgrade oldDepName newDepName = do
           UnisonFile.emptyUnisonFile
       -- Construct a PPE to use for rendering the Unison file full of dependents.
       hashLength <- Codebase.hashLength
-      let printPPE =
-            PPED.fromNamesDecl
-              hashLength
-              (NamesWithHistory.fromCurrentNames (namesExcludingOldDep <> fakeNames))
-      pure (unisonFile, printPPE)
+      let printPPE1 = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
+      -- Compute "fake names": these are all of things in `lib.old`, with the `old` segment swapped out for `new`
+      let fakeNames =
+            oldDepV1Branch
+              & Branch.toNames
+              & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
+      let printPPE2 = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames (namesExcludingOldAndNewDeps <> fakeNames))
+      pure (unisonFile, printPPE1 `PPED.addFallback` printPPE2)
 
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE & onLeftM \prettyUnisonFile -> do
