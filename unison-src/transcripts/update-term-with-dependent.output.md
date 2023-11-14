@@ -53,7 +53,12 @@ foo = 6
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 

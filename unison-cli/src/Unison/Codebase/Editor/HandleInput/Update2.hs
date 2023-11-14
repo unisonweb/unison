@@ -97,6 +97,7 @@ handleUpdate2 = do
 
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
+  Cli.respond Output.UpdateLookingForDependents
   (pped, bigUf) <- Cli.runTransactionWithRollback \_abort -> do
     dependents <-
       Ops.dependentsWithinScope
@@ -110,6 +111,7 @@ handleUpdate2 = do
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
   -- - typecheck it
+  Cli.respond Output.UpdateStartTypechecking
   prettyParseTypecheck bigUf pped >>= \case
     Left prettyUf -> do
       Cli.Env {isTranscript} <- ask

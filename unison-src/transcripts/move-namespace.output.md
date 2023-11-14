@@ -53,7 +53,12 @@ unique type a.T = T1 | T2
 ```ucm
 .happy> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 
@@ -143,7 +148,12 @@ b.termInB = 11
 ```ucm
 .history> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 
@@ -234,7 +244,12 @@ b.termInB = 11
 ```ucm
 .existing> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 

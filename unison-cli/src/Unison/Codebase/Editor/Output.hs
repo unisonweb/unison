@@ -385,6 +385,8 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | UpdateLookingForDependents
+  | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
 
@@ -448,8 +450,10 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
-  UpdateTypecheckingFailure{} -> True
-  UpdateTypecheckingSuccess{} -> False
+  UpdateLookingForDependents -> False
+  UpdateStartTypechecking -> False
+  UpdateTypecheckingFailure {} -> True
+  UpdateTypecheckingSuccess {} -> False
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False

@@ -57,6 +57,11 @@ We want the field accessors to go away; but for now they are here, causing the u
 ```ucm
 .> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
   Foo.baz : Foo -> Int
   Foo.baz = cases Foo _ baz -> baz
   
@@ -68,7 +73,9 @@ We want the field accessors to go away; but for now they are here, causing the u
   
   unique type Foo = { bar : Nat }
 
-  Typechecking failed when propagating the update to all the dependents.
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 .> view Foo
 

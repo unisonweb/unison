@@ -2174,8 +2174,17 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  UpdateTypecheckingFailure -> pure "Typechecking failed when propagating the update to all the dependents."
-  UpdateTypecheckingSuccess -> pure "I propagated the update and am now saving the results."
+  UpdateLookingForDependents -> pure . P.wrap $ "Okay, I'm searching the branch for code that needs to be updated..."
+  UpdateStartTypechecking -> pure . P.wrap $ "That's done. Now I'm making sure everything typechecks..."
+  UpdateTypecheckingSuccess -> pure . P.wrap $ "Everything typechecks, so I'm saving the results..."
+  UpdateTypecheckingFailure ->
+    pure . P.wrap $
+      "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
+        <> P.newline
+        <> P.newline
+        <> "Once the file is compiling, try"
+        <> makeExample' IP.update
+        <> "again."
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
