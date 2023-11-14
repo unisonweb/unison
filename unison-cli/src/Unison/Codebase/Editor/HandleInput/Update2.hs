@@ -14,6 +14,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
 where
 
 import Control.Lens (over, (^.))
+import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
 import Data.List.NonEmpty qualified as NonEmpty
@@ -35,6 +36,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -64,6 +66,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -77,6 +80,7 @@ import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Nametree (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -98,14 +102,14 @@ handleUpdate2 = do
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
-  (pped, bigUf) <- Cli.runTransaction do
+  (pped, bigUf) <- Cli.runTransactionWithRollback \abort -> do
     dependents <-
       Ops.dependentsWithinScope
         (Names.referenceIds namesExcludingLibdeps)
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
-    bigUf <- buildBigUnisonFile codebase tuf dependents namesExcludingLibdeps ctorNames
+    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
     let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
@@ -161,16 +165,14 @@ makeParsingEnv path names = do
       }
 
 -- save definitions and namespace
-saveTuf :: (Name -> [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
+saveTuf :: (Name -> Either Output [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
-  Cli.runTransaction $ Codebase.addDefsToCodebase codebase tuf
-  Cli.stepAt
-    "update"
-    ( Path.unabsolute currentPath,
-      Branch.batchUpdates (typecheckedUnisonFileToBranchUpdates getConstructors tuf)
-    )
+  branchUpdates <- Cli.runTransactionWithRollback \abort -> do
+    Codebase.addDefsToCodebase codebase tuf
+    typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
+  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
@@ -184,28 +186,30 @@ saveTuf getConstructors tuf = do
 --
 --     [ ("foo.bar", insert-term("baz",<#foo>)) ]
 typecheckedUnisonFileToBranchUpdates ::
-  (Name -> [Name]) ->
-  TypecheckedUnisonFile Symbol a ->
-  [(Path, Branch0 m -> Branch0 m)]
-typecheckedUnisonFileToBranchUpdates getConstructors tuf =
-  declUpdates ++ termUpdates
+  (forall void. Output -> Transaction void) ->
+  (Name -> Either Output [Name]) ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Transaction [(Path, Branch0 m -> Branch0 m)]
+typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
+  declUpdates <- makeDeclUpdates abort
+  pure $ declUpdates ++ termUpdates
   where
-    declUpdates :: [(Path, Branch0 m -> Branch0 m)]
-    declUpdates =
-      fold
-        [ foldMap makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf),
-          foldMap makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
-        ]
+    makeDeclUpdates :: forall m. (forall void. Output -> Transaction void) -> Transaction [(Path, Branch0 m -> Branch0 m)]
+    makeDeclUpdates abort = do
+      dataDeclUpdates <- Monoid.foldMapM makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf)
+      effectDeclUpdates <- Monoid.foldMapM makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
+      pure $ dataDeclUpdates <> effectDeclUpdates
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))
-        makeDeclUpdates (symbol, (typeRefId, decl)) =
+        makeDeclUpdates :: (Symbol, (TypeReferenceId, Decl Symbol Ann)) -> Transaction [(Path, Branch0 m -> Branch0 m)]
+        makeDeclUpdates (symbol, (typeRefId, decl)) = do
+          -- some decls will be deleted, we want to delete their
+          -- constructors as well
+          deleteConstructorActions <- case map (BranchUtil.makeAnnihilateTermName . Path.splitFromName) <$> getConstructors (Name.unsafeFromVar symbol) of
+            Left err -> abort err
+            Right actions -> pure actions
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
-              -- some decls will be deleted, we want to delete their constructors as well
-              deleteConstructorActions =
-                map
-                  (BranchUtil.makeAnnihilateTermName . Path.splitFromName)
-                  (getConstructors (Name.unsafeFromVar symbol))
               split = splitVar symbol
               insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId) Map.empty
               insertTypeConstructorActions =
@@ -218,7 +222,7 @@ typecheckedUnisonFileToBranchUpdates getConstructors tuf =
                       referentIdsWithNames
               deleteStuff = deleteTypeAction : deleteConstructorActions
               addStuff = insertTypeAction : insertTypeConstructorActions
-           in deleteStuff ++ addStuff
+          pure $ deleteStuff ++ addStuff
 
     termUpdates :: [(Path, Branch0 m -> Branch0 m)]
     termUpdates =
@@ -243,28 +247,30 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
 buildBigUnisonFile ::
+  (forall a. Output -> Transaction a) ->
   Codebase IO Symbol Ann ->
   TypecheckedUnisonFile Symbol Ann ->
   Map Reference.Id ReferenceType ->
   Names ->
   Map ForwardName (Referent, Name) ->
   Transaction (UnisonFile Symbol Ann)
-buildBigUnisonFile c tuf dependents names ctorNames =
-  addDefinitionsToUnisonFile c names ctorNames dependents (UF.discardTypes tuf)
+buildBigUnisonFile abort c tuf dependents names ctorNames =
+  addDefinitionsToUnisonFile abort c names ctorNames dependents (UF.discardTypes tuf)
 
--- | @addDefinitionsToUnisonFile codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
+-- | @addDefinitionsToUnisonFile abort codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
 -- overwriting anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on
 -- the left-hand-side of the equals" (but yes type decls don't really have a LHS).
 --
 -- TODO: find a better module for this function, as it's used in a couple places
 addDefinitionsToUnisonFile ::
+  (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
   Names ->
   Map ForwardName (Referent, Name) ->
   Map Reference.Id ReferenceType ->
   UnisonFile Symbol Ann ->
   Transaction (UnisonFile Symbol Ann)
-addDefinitionsToUnisonFile c names ctorNames dependents initialUnisonFile =
+addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile =
   -- for each dependent, add its definition with all its names to the UnisonFile
   foldM addComponent initialUnisonFile (Map.toList dependents')
   where
@@ -272,7 +278,7 @@ addDefinitionsToUnisonFile c names ctorNames dependents initialUnisonFile =
     addComponent :: UnisonFile Symbol Ann -> (Hash, ReferenceType) -> Transaction (UnisonFile Symbol Ann)
     addComponent uf (h, rt) = case rt of
       Reference.RtTerm -> addTermComponent h uf
-      Reference.RtType -> addDeclComponent h uf
+      Reference.RtType -> addDeclComponent abort h uf
     addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
     addTermComponent h uf = do
       termComponent <- Codebase.unsafeGetTermComponent c h
@@ -292,32 +298,37 @@ addDefinitionsToUnisonFile c names ctorNames dependents initialUnisonFile =
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes
-    addDeclComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
-    addDeclComponent h uf = do
+    addDeclComponent :: (forall a. Output -> Transaction a) -> Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
+    addDeclComponent abort h uf = do
       declComponent <- fromJust <$> Codebase.getDeclComponent h
-      pure $ foldl' addDeclElement uf (zip declComponent [0 ..])
+      foldM addDeclElement uf (zip declComponent [0 ..])
       where
         -- for each name a decl has, update its constructor names according to what exists in the namespace
-        addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> UnisonFile Symbol Ann
+        addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UnisonFile Symbol Ann)
         addDeclElement uf (decl, i) = do
           let declNames = Relation.lookupRan (Reference.Derived h i) names.types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
-          foldl' (addRebuiltDefinition decl) uf declNames
+          foldM (addRebuiltDefinition decl) uf declNames
           where
             -- skip any definitions that already have names, we don't want to overwrite what the user has supplied
+            addRebuiltDefinition :: (Decl Symbol Ann) -> UnisonFile Symbol Ann -> Name -> Transaction (UnisonFile Symbol Ann)
             addRebuiltDefinition decl uf name = case decl of
-              Left ed -> uf {UF.effectDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration $ overwriteConstructorNames name ed.toDataDecl) uf.effectDeclarationsId}
-              Right dd -> uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, overwriteConstructorNames name dd) uf.dataDeclarationsId}
-        overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> DataDeclaration Symbol Ann
+              Left ed ->
+                overwriteConstructorNames name ed.toDataDecl >>= \case
+                  ed' -> pure uf {UF.effectDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed') uf.effectDeclarationsId}
+              Right dd ->
+                overwriteConstructorNames name dd >>= \case
+                  dd' -> pure uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd') uf.dataDeclarationsId}
+        overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
         overwriteConstructorNames name dd =
-          let constructorNames :: [Symbol]
-              constructorNames =
-                Name.toVar . fromJust . Name.stripNamePrefix name
-                  <$> findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name
+          let constructorNames :: Transaction [Symbol]
+              constructorNames = case findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name of
+                Left err -> abort err
+                Right array -> pure $ Name.toVar . fromJust . Name.stripNamePrefix name <$> array
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
-                 in zip3 annotations constructorNames types
-           in over Decl.constructors_ swapConstructorNames dd
+                 in zip3 annotations <$> constructorNames <*> pure types
+           in Lens.traverseOf Decl.constructors_ swapConstructorNames dd
 
 -- | O(r + c * d) touches all the referents (r), and all the NameSegments (d) of all of the Con referents (c)
 forwardCtorNames :: Names -> Map ForwardName (Referent, Name)
@@ -329,7 +340,7 @@ forwardCtorNames names =
     ]
 
 -- | given a decl name, find names for all of its constructors, in order.
-findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> [Name]
+findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> Either Output.Output [Name]
 findCtorNames names forwardCtorNames ctorCount n =
   let declRef = Set.findMin $ Relation.lookupDom n names.types
       f = ForwardName.fromName n
@@ -348,9 +359,10 @@ findCtorNames names forwardCtorNames ctorCount n =
       m = foldl' insertShortest mempty (Foldable.toList center)
       ctorCountGuess = fromMaybe (Map.size m) ctorCount
    in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m) [0 .. fromIntegral ctorCountGuess - 1]
-        then Map.elems m
-        else error $ "incomplete constructor mapping for " ++ show n ++ ": " ++ show (Map.keys m) ++ " out of " ++ show ctorCountGuess
+        then Right $ Map.elems m
+        else Left $ Output.UpdateIncompleteConstructorSet n m ctorCountGuess
 
+-- Used by `findCtorNames` to filter `forwardCtorNames` to a narrow range which will be searched linearly.
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
 -- ForwardName {toList = "foo" :| ["bar","quuy"]}
 incrementLastSegmentChar :: ForwardName -> ForwardName
@@ -367,7 +379,7 @@ incrementLastSegmentChar (ForwardName segments) =
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
        in NameSegment incrementedText
 
-getTermAndDeclNames :: Var v => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
+getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
 getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
   where
     terms = keysToNames $ UF.hashTermsId tuf

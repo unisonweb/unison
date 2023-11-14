@@ -2186,6 +2186,25 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
+  UpdateIncompleteConstructorSet name ctorMap expectedCount ->
+    pure $
+      P.lines
+        [ P.wrap $
+            "I couldn't complete the update because I couldn't find"
+              <> fromString (show expectedCount)
+              <> "constructor(s) for"
+              <> prettyName name
+              <> "where I expected to."
+              <> "I found:"
+              <> fromString (show (Map.toList ctorMap)),
+          "",
+          P.wrap $
+            "You can use"
+              <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName name])
+              <> "and"
+              <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"])
+              <> "to give names to each constructor, and then try again."
+        ]
   UpgradeFailure old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"

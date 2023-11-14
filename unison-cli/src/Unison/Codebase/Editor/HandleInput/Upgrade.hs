@@ -98,7 +98,7 @@ handleUpgrade oldDepName newDepName = do
   --     mything#mything2 = #newfoo + 10
 
   (unisonFile, printPPE) <-
-    Cli.runTransaction do
+    Cli.runTransactionWithRollback \abort -> do
       -- Create a Unison file that contains all of our dependents of things in `lib.old`.
       unisonFile <- do
         dependents <-
@@ -106,6 +106,7 @@ handleUpgrade oldDepName newDepName = do
             (Names.referenceIds namesExcludingLibdeps)
             (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
         addDefinitionsToUnisonFile
+          abort
           codebase
           namesExcludingLibdeps
           constructorNamesExcludingLibdeps
@@ -154,16 +155,16 @@ handleUpgrade oldDepName newDepName = do
       Cli.respond (Output.UpgradeFailure oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
-  Cli.runTransaction (Codebase.addDefsToCodebase codebase typecheckedUnisonFile)
+  branchUpdates <- Cli.runTransactionWithRollback \abort -> do
+    Codebase.addDefsToCodebase codebase typecheckedUnisonFile
+    typecheckedUnisonFileToBranchUpdates
+      abort
+      (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+      typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade
     ( Path.unabsolute projectPath,
-      deleteLibdep oldDepName
-        . Branch.batchUpdates
-          ( typecheckedUnisonFileToBranchUpdates
-              (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
-              typecheckedUnisonFile
-          )
+      deleteLibdep oldDepName . Branch.batchUpdates branchUpdates
     )
   Cli.respond (Output.UpgradeSuccess oldDepName newDepName)
   where

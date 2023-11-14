@@ -49,6 +49,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
@@ -389,6 +390,7 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
+  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) Int
   | UpgradeFailure !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
 
@@ -456,6 +458,7 @@ isFailure o = case o of
   UpdateStartTypechecking -> False
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingSuccess {} -> False
+  UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False
