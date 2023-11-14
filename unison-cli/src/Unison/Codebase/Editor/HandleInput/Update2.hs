@@ -97,6 +97,7 @@ handleUpdate2 = do
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
+  Cli.respond Output.UpdateLookingForDependents
   (pped, bigUf) <- Cli.runTransaction do
     dependents <-
       Ops.dependentsWithinScope
@@ -109,6 +110,8 @@ handleUpdate2 = do
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
+  -- - typecheck it
+  Cli.respond Output.UpdateStartTypechecking
   parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
   prettyParseTypecheck bigUf pped parsingEnv >>= \case
     Left prettyUf -> do

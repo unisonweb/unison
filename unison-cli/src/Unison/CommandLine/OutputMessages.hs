@@ -2175,8 +2175,17 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  UpdateTypecheckingFailure -> pure "Typechecking failed when propagating the update to all the dependents."
-  UpdateTypecheckingSuccess -> pure "I propagated the update and am now saving the results."
+  UpdateLookingForDependents -> pure . P.wrap $ "Okay, I'm searching the branch for code that needs to be updated..."
+  UpdateStartTypechecking -> pure . P.wrap $ "That's done. Now I'm making sure everything typechecks..."
+  UpdateTypecheckingSuccess -> pure . P.wrap $ "Everything typechecks, so I'm saving the results..."
+  UpdateTypecheckingFailure ->
+    pure . P.wrap $
+      "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
+        <> P.newline
+        <> P.newline
+        <> "Once the file is compiling, try"
+        <> makeExample' IP.update
+        <> "again."
   UpgradeFailure old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
@@ -2459,7 +2468,7 @@ displayOutputRewrittenFile ppe fp msg (vs, uf) = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
-foldLine :: IsString s => P.Pretty s
+foldLine :: (IsString s) => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty

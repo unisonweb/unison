@@ -50,6 +50,11 @@ unique type Foo
 ```ucm
 .> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
   foo : Foo -> Nat
   foo = cases
     Bar n   -> n
@@ -57,6 +62,8 @@ unique type Foo
   
   unique type Foo = Bar Nat
 
-  Typechecking failed when propagating the update to all the dependents.
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 ```
