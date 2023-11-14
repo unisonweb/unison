@@ -391,6 +391,8 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
   | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) Int
+  | UpgradeFailure !NameSegment !NameSegment
+  | UpgradeSuccess !NameSegment !NameSegment
 
 -- | What did we create a project branch from?
 --
@@ -620,6 +622,8 @@ isFailure o = case o of
   FailedToFetchLatestReleaseOfBase {} -> True
   HappyCoding {} -> False
   ProjectHasNoReleases {} -> True
+  UpgradeFailure {} -> True
+  UpgradeSuccess {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

@@ -67,6 +67,7 @@ library
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
+      Unison.Codebase.Editor.HandleInput.Upgrade
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
@@ -228,6 +229,7 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -366,6 +368,7 @@ executable cli-integration-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -499,6 +502,7 @@ executable transcripts
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -638,6 +642,7 @@ executable unison
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -780,6 +785,7 @@ test-suite cli-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers

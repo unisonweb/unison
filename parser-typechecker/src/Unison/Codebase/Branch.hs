@@ -33,6 +33,7 @@ module Unison.Codebase.Branch
     -- * properties
     history,
     head,
+    head_,
     headHash,
     children,
     nonEmptyChildren,
@@ -78,6 +79,7 @@ module Unison.Codebase.Branch
 
     -- ** Term/type queries
     deepReferents,
+    deepTermReferences,
     deepTypeReferences,
     consBranchSnapshot,
   )
@@ -120,13 +122,15 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty)
-import Unison.Reference (TypeReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
 import Prelude hiding (head, read, subtract)
 
@@ -142,6 +146,10 @@ instance Hashing.ContentAddressable (Branch0 m) where
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
+
+deepTermReferences :: Branch0 m -> Set TermReference
+deepTermReferences =
+  Set.mapMaybe Referent.toTermReference . deepReferents
 
 deepTypeReferences :: Branch0 m -> Set TypeReference
 deepTypeReferences = R.dom . deepTypes

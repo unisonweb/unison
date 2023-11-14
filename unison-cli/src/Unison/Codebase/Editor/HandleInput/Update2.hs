@@ -2,6 +2,14 @@
 
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
+
+    -- * Misc helpers to be organized later
+    addDefinitionsToUnisonFile,
+    findCtorNames,
+    forwardCtorNames,
+    makeParsingEnv,
+    prettyParseTypecheck,
+    typecheckedUnisonFileToBranchUpdates,
   )
 where
 
@@ -48,6 +56,7 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesWithHistory (NamesWithHistory (NamesWithHistory))
 import Unison.NamesWithHistory qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -62,9 +71,7 @@ import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
-import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
-import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
@@ -74,49 +81,43 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Nametree (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
-
-data Defns terms types = Defns
-  { terms :: !terms,
-    types :: !types
-  }
-  deriving stock (Generic, Show)
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
   Cli.Env {codebase} <- ask
-  -- - confirm all aliases updated together?
   tuf <- Cli.expectLatestTypecheckedFile
 
   -- - get add/updates from TUF
   let termAndDeclNames :: Defns (Set Name) (Set Name) = getTermAndDeclNames tuf
 
-  currentBranch0 <- Cli.getCurrentBranch0
+  currentPath <- Cli.getCurrentPath
+  currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
-
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
   (pped, bigUf) <- Cli.runTransactionWithRollback \abort -> do
     dependents <-
       Ops.dependentsWithinScope
-        (namespaceReferences namesExcludingLibdeps)
+        (Names.referenceIds namesExcludingLibdeps)
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
-    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps
+    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
     let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
 
     pure (pped `PPED.addFallback` tufPped, bigUf)
 
   -- - typecheck it
   Cli.respond Output.UpdateStartTypechecking
-  prettyParseTypecheck bigUf pped >>= \case
+  parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+  prettyParseTypecheck bigUf pped parsingEnv >>= \case
     Left prettyUf -> do
       Cli.Env {isTranscript} <- ask
       maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
@@ -127,25 +128,16 @@ handleUpdate2 = do
       saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
       Cli.respond Output.Success
 
+-- TODO: find a better module for this function, as it's used in a couple places
 prettyParseTypecheck ::
   UnisonFile Symbol Ann ->
   PrettyPrintEnvDecl ->
+  Parser.ParsingEnv Transaction ->
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
-prettyParseTypecheck bigUf pped = do
-  typecheck <- mkTypecheckFnCli
+prettyParseTypecheck bigUf pped parsingEnv = do
+  Cli.Env {codebase} <- ask
   let prettyUf = Output.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
-  rootBranch <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-  Cli.Env {generateUniqueName} <- ask
-  uniqueName <- liftIO generateUniqueName
-  let parsingEnv =
-        Parser.ParsingEnv
-          { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
-          }
   Debug.whenDebug Debug.Update do
     liftIO do
       putStrLn "--- Scratch ---"
@@ -153,48 +145,54 @@ prettyParseTypecheck bigUf pped = do
   Cli.runTransaction do
     Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
       Left {} -> pure $ Left prettyUf
-      Right reparsedUf ->
-        typecheck reparsedUf <&> \case
-          Just reparsedTuf -> Right reparsedTuf
-          Nothing -> Left prettyUf
+      Right reparsedUf -> do
+        typecheckingEnv <-
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] reparsedUf
+        pure case FileParsers.synthesizeFile typecheckingEnv reparsedUf of
+          Result.Result _notes (Just reparsedTuf) -> Right reparsedTuf
+          Result.Result _notes Nothing -> Left prettyUf
 
-mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
-mkTypecheckFnCli = do
-  Cli.Env {codebase, generateUniqueName} <- ask
-  rootBranch <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-  pure (mkTypecheckFn codebase generateUniqueName currentPath parseNames)
-
-mkTypecheckFn ::
-  Codebase.Codebase IO Symbol Ann ->
-  IO Parser.UniqueName ->
-  Path.Absolute ->
-  NamesWithHistory.NamesWithHistory ->
-  UnisonFile Symbol Ann ->
-  Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
-mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
-  uniqueName <- Sqlite.unsafeIO generateUniqueName
-  let parsingEnv =
-        Parser.ParsingEnv
-          { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
-          }
-  typecheckingEnv <-
-    computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-  let Result.Result _notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-  pure maybeTypecheckedUnisonFile
+-- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
+makeParsingEnv :: Path.Absolute -> Names -> Cli (Parser.ParsingEnv Transaction)
+makeParsingEnv path names = do
+  Cli.Env {generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  pure do
+    Parser.ParsingEnv
+      { uniqueNames = uniqueName,
+        uniqueTypeGuid = Cli.loadUniqueTypeGuid path,
+        names = NamesWithHistory {currentNames = names, oldNames = mempty}
+      }
 
 -- save definitions and namespace
 saveTuf :: (Name -> Either Output [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
-  declUpdates <- Cli.runTransactionWithRollback \abort -> do
+  branchUpdates <- Cli.runTransactionWithRollback \abort -> do
     Codebase.addDefsToCodebase codebase tuf
-    makeDeclUpdates abort
-  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates (declUpdates ++ termUpdates))
+    typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
+  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)
+
+-- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
+-- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
+-- `getConstructors` returns the full constructor names of a decl, e.g. "Maybe" -> ["Maybe.Nothing", "Maybe.Just"]
+--
+-- For example, if the file contains
+--
+--     foo.bar.baz = <#foo>
+--
+-- then the returned updates will look like
+--
+--     [ ("foo.bar", insert-term("baz",<#foo>)) ]
+typecheckedUnisonFileToBranchUpdates ::
+  (forall void. Output -> Transaction void) ->
+  (Name -> Either Output [Name]) ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Transaction [(Path, Branch0 m -> Branch0 m)]
+typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
+  declUpdates <- makeDeclUpdates abort
+  pure $ declUpdates ++ termUpdates
   where
     makeDeclUpdates :: forall m. (forall void. Output -> Transaction void) -> Transaction [(Path, Branch0 m -> Branch0 m)]
     makeDeclUpdates abort = do
@@ -248,17 +246,39 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
-buildBigUnisonFile :: (forall a. Output -> Transaction a) -> Codebase IO Symbol Ann -> TypecheckedUnisonFile Symbol Ann -> Map Reference.Id ReferenceType -> Names -> Transaction (UnisonFile Symbol Ann)
-buildBigUnisonFile abort c tuf dependents names =
+buildBigUnisonFile ::
+  (forall a. Output -> Transaction a) ->
+  Codebase IO Symbol Ann ->
+  TypecheckedUnisonFile Symbol Ann ->
+  Map Reference.Id ReferenceType ->
+  Names ->
+  Map ForwardName (Referent, Name) ->
+  Transaction (UnisonFile Symbol Ann)
+buildBigUnisonFile abort c tuf dependents names ctorNames =
+  addDefinitionsToUnisonFile abort c names ctorNames dependents (UF.discardTypes tuf)
+
+-- | @addDefinitionsToUnisonFile abort codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
+-- overwriting anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on
+-- the left-hand-side of the equals" (but yes type decls don't really have a LHS).
+--
+-- TODO: find a better module for this function, as it's used in a couple places
+addDefinitionsToUnisonFile ::
+  (forall void. Output -> Transaction void) ->
+  Codebase IO Symbol Ann ->
+  Names ->
+  Map ForwardName (Referent, Name) ->
+  Map Reference.Id ReferenceType ->
+  UnisonFile Symbol Ann ->
+  Transaction (UnisonFile Symbol Ann)
+addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile =
   -- for each dependent, add its definition with all its names to the UnisonFile
-  foldM addComponent (UF.discardTypes tuf) (Map.toList dependents')
+  foldM addComponent initialUnisonFile (Map.toList dependents')
   where
     dependents' :: Map Hash ReferenceType = Map.mapKeys (\(Reference.Id h _pos) -> h) dependents
     addComponent :: UnisonFile Symbol Ann -> (Hash, ReferenceType) -> Transaction (UnisonFile Symbol Ann)
     addComponent uf (h, rt) = case rt of
       Reference.RtTerm -> addTermComponent h uf
       Reference.RtType -> addDeclComponent abort h uf
-    ctorNames = forwardCtorNames names
     addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
     addTermComponent h uf = do
       termComponent <- Codebase.unsafeGetTermComponent c h
@@ -286,7 +306,7 @@ buildBigUnisonFile abort c tuf dependents names =
         -- for each name a decl has, update its constructor names according to what exists in the namespace
         addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UnisonFile Symbol Ann)
         addDeclElement uf (decl, i) = do
-          let declNames = Relation.lookupRan (Reference.Derived h i) (names.types)
+          let declNames = Relation.lookupRan (Reference.Derived h i) names.types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldM (addRebuiltDefinition decl) uf declNames
           where
@@ -359,13 +379,7 @@ incrementLastSegmentChar (ForwardName segments) =
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
        in NameSegment incrementedText
 
-namespaceReferences :: Names -> Set Reference.Id
-namespaceReferences names = fromTerms <> fromTypes
-  where
-    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran $ Names.terms names)
-    fromTypes = Set.mapMaybe Reference.toId (Relation.ran $ Names.types names)
-
-getTermAndDeclNames :: Var v => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
+getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
 getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
   where
     terms = keysToNames $ UF.hashTermsId tuf
