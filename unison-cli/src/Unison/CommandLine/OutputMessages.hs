@@ -95,6 +95,7 @@ import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -2185,6 +2186,20 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
+  UpgradeFailure old new ->
+    pure . P.wrap $
+      "I couldn't automatically upgrade"
+        <> P.text (NameSegment.toText old)
+        <> "to"
+        <> P.group (P.text (NameSegment.toText new) <> ".")
+  UpgradeSuccess old new ->
+    pure . P.wrap $
+      "I upgraded"
+        <> P.text (NameSegment.toText old)
+        <> "to"
+        <> P.group (P.text (NameSegment.toText new) <> ",")
+        <> "and removed"
+        <> P.group (P.text (NameSegment.toText old) <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2453,7 +2468,7 @@ displayOutputRewrittenFile ppe fp msg (vs, uf) = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
-foldLine :: IsString s => P.Pretty s
+foldLine :: (IsString s) => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty

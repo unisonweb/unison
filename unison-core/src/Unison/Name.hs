@@ -13,6 +13,7 @@ module Unison.Name
     -- * Basic queries
     countSegments,
     isAbsolute,
+    isRelative,
     isPrefixOf,
     beginsWithSegment,
     endsWith,
@@ -122,6 +123,14 @@ cons x name =
 countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
+
+-- | Is this name relative?
+--
+-- /O(1)/.
+isRelative :: Name -> Bool
+isRelative = \case
+  Name Absolute _ -> False
+  Name Relative _ -> True
 
 -- | @beginsWithSegment name segment@ returns whether @name@'s first name segment is @segment@.
 --
