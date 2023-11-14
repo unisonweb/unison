@@ -417,6 +417,7 @@ runTransaction action = do
   liftIO (Codebase.runTransaction codebase action)
 
 -- | Run a transaction that can abort early with an output message.
+-- todo: rename to runTransactionWithReturnEarly
 runTransactionWithRollback :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
 runTransactionWithRollback action = do
   Env {codebase} <- ask
