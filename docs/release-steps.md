@@ -82,3 +82,8 @@ curl -L https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-
 tar -xzf unisonlanguage/ucm.tar.gz -C unisonlanguage
 ./unisonlanguage/ucm
 ```
+
+_Windows manual install:_
+* Recommended: [Set your default Terminal application](https://devblogs.microsoft.com/commandline/windows-terminal-as-your-default-command-line-experience/) to “Windows Terminal”.
+* Download [the release](https://github.com/unisonweb/unison/releases/download/release%2FM5h/ucm-windows.zip) and extract it to a location of your choosing.
+* Run `ucm.exe`
