@@ -80,9 +80,8 @@
         assert nixpkgs-packages.hls.version == versions.hls;
         assert nixpkgs-packages.stack.version == versions.stack;
         assert nixpkgs-packages.hpack.version == versions.hpack;
-        haskell-nix-flake // {
-          inherit nixpkgs-packages;
-          packages = haskell-nix-flake.packages // nixpkgs-packages // {
+        {
+          packages = nixpkgs-packages // {
             build-tools = pkgs.symlinkJoin {
               name = "build-tools";
               paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
@@ -95,7 +94,6 @@
                   devshell-inputs = builtins.concatMap
                     (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
                     [
-                      self.devShells."${system}".only-tools
                       self.devShells."${system}".only-tools-nixpkgs
                     ];
                 in
@@ -103,7 +101,7 @@
             };
           };
 
-          devShells = haskell-nix-flake.devShells // nixpkgs-devShells // {
+          devShells = nixpkgs-devShells // {
             default = self.devShells."${system}".only-tools-nixpkgs;
           };
         });

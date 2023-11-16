@@ -73,5 +73,4 @@ haskell-nix-flake // {
   defaultPackage = haskell-nix-flake.packages."unison-cli:exe:unison";
   inherit (pkgs) unison-project;
   inherit devShells localPackageNames;
-  packages = haskell-nix-flake.packages;
 }
