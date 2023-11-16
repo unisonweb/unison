@@ -102,8 +102,9 @@
             };
           };
 
-          devShells = haskell-nix-flake.devShells // nixpkgs-devShells // {
+          devShells = nixpkgs-devShells // {
             default = self.devShells."${system}".only-tools-nixpkgs;
+            haskell-nix = haskell-nix-flake.devShells;
           };
         });
 }
