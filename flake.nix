@@ -82,6 +82,7 @@
         assert nixpkgs-packages.hpack.version == versions.hpack;
         {
           packages = nixpkgs-packages // {
+            haskell-nix = haskell-nix-flake.packages;
             build-tools = pkgs.symlinkJoin {
               name = "build-tools";
               paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
@@ -101,7 +102,7 @@
             };
           };
 
-          devShells = nixpkgs-devShells // {
+          devShells = haskell-nix-flake.devShells // nixpkgs-devShells // {
             default = self.devShells."${system}".only-tools-nixpkgs;
           };
         });
