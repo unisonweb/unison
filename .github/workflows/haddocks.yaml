@@ -91,8 +91,9 @@ jobs:
           # Erase any stale files
           cd "$GITHUB_WORKSPACE"/haddocks
           rm -rf ./*
-          git checkout --orphan an-empty-branch
+          git checkout --orphan fresh-haddocks-branch
           cp -r "${docs_root}"/* "$GITHUB_WORKSPACE"/haddocks
           git add .
           git commit -m "Regenerated haddocks based on ${GITHUB_SHA}"
-          git push --force origin haddocks
+          # Push the branch with only a single commit over the remote
+          git push --force origin fresh-haddocks-branch:haddocks
