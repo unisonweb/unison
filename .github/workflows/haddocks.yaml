@@ -96,5 +96,5 @@ jobs:
           else
             git add .
             git commit -m "Regenerated haddocks based on ${GITHUB_SHA}"
-            git push
+            git push --force origin haddocks
           fi
