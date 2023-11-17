@@ -60,7 +60,8 @@
               ghc = unstable.haskell.compiler."ghc${versions.ghc}";
               ormolu = exe hpkgs.ormolu;
               hls = unstable.unison-hls;
-              stack = unstable.stack;
+              stack = unstable.unison-stack;
+              unwrapped-stack = unstable.stack;
               hpack = unstable.hpack;
             };
           nixpkgs-devShells = {
@@ -78,7 +79,7 @@
         in
         assert nixpkgs-packages.ormolu.version == versions.ormolu;
         assert nixpkgs-packages.hls.version == versions.hls;
-        assert nixpkgs-packages.stack.version == versions.stack;
+        assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
         assert nixpkgs-packages.hpack.version == versions.hpack;
         {
           packages = nixpkgs-packages // {
