@@ -2474,15 +2474,13 @@ createAuthor =
     []
     I.Visible
     [(Required, noCompletionsArg), (Required, noCompletionsArg)]
-    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
-        <> "creates"
+    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""] <> " "
+        <> P.wrap (" creates "
         <> backtick "alicecoder"
         <> "values in"
         <> backtick "metadata.authors"
         <> "and"
-        <> backtick "metadata.copyrightHolders"
-        <> "."
-    )
+        <> backtick (P.group ("metadata.copyrightHolders" <> "."))))
     ( \case
         symbolStr : authorStr@(_ : _) -> first fromString $ do
           symbol <- Path.definitionNameSegment symbolStr
