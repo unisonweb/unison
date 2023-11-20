@@ -23,6 +23,8 @@ import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Lazy qualified as Lazy.Text
+import Text.Pretty.Simple (pShow)
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -324,7 +326,18 @@ addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile 
           let constructorNames :: Transaction [Symbol]
               constructorNames = case findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name of
                 Left err -> abort err
-                Right array -> pure $ Name.toVar . fromJust . Name.stripNamePrefix name <$> array
+                Right array ->
+                  case traverse (fmap Name.toVar . Name.stripNamePrefix name) array of
+                    Just varArray -> pure varArray
+                    Nothing -> do
+                      traceM "I ran into a situation where a type's constructors didn't match its name,"
+                      traceM "in a spot where I didn't expect to be discovering that.\n\n"
+                      traceM "Type Name:"
+                      traceM . Lazy.Text.unpack $ pShow name
+                      traceM "Constructor Names:"
+                      traceM . Lazy.Text.unpack $ pShow array
+                      error "Sorry for crashing."
+
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
                  in zip3 annotations <$> constructorNames <*> pure types
