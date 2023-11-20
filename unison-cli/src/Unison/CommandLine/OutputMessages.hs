@@ -5,7 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Exception (mask, onException)
+import Control.Exception (catch, finally, mask, throwIO)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
@@ -31,8 +31,10 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, getTemporaryDirectory, removeFile, renameFile)
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, removeFile, renameFile)
+import System.FilePath qualified as FilePath
 import System.IO qualified as IO
+import System.IO.Error (isDoesNotExistError)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -2721,12 +2723,13 @@ displayDefinitionsString maybePath definitions =
               copyLoop
             IO.hClose tmpHandle
             renameFile tmpFilePath path
-      tmpDir <- getTemporaryDirectory
       mask \unmask -> do
-        (tmpFilePath, tmpHandle) <- IO.openTempFile tmpDir "unison-scratch"
-        unmask (withTempFile tmpFilePath tmpHandle) `onException` do
+        (tmpFilePath, tmpHandle) <- IO.openTempFile (FilePath.takeDirectory path) "unison-scratch"
+        unmask (withTempFile tmpFilePath tmpHandle) `finally` do
           IO.hClose tmpHandle
-          removeFile tmpFilePath
+          removeFile tmpFilePath `catch` \case
+            e | isDoesNotExistError e -> pure ()
+            e -> throwIO e
       pure mempty
 
 displayTestResults ::
