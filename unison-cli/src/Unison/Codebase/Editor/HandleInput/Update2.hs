@@ -305,7 +305,7 @@ addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile 
         termNames =
           Set.fromList [v | (v, _, _) <- uf.terms]
             <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) uf.watches
-    isTest = (== Decls.testResultType mempty)
+    isTest = Typechecker.isEqual (Decls.testResultType mempty)
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes
