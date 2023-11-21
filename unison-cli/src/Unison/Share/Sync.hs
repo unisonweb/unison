@@ -22,8 +22,6 @@ where
 
 import Control.Concurrent.STM
 import Control.Lens
-import GHC.IO (unsafePerformIO)
-import System.Environment (lookupEnv)
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -43,12 +41,14 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
+import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
 import Servant.API qualified as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
+import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -74,11 +74,22 @@ import Unison.Util.Monoid (foldMapM)
 
 -- | The maximum number of downloader threads, during a pull.
 maxSimultaneousPullDownloaders :: Int
-maxSimultaneousPullDownloaders = 5
+maxSimultaneousPullDownloaders =
+  unsafePerformIO
+    ( lookupEnv "UNISON_SHARE_MAX_PULL_DOWNLOADERS" <&> \case
+        Nothing -> 5
+        Just n -> read n
+    )
 
 -- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
 maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = 5
+maxSimultaneousPushWorkers =
+  unsafePerformIO
+    ( lookupEnv "UNISON_SHARE_MAX_PUSH_WORKERS" <&> \case
+        Nothing -> 5
+        Just n -> read n
+    )
+{-# NOINLINE maxSimultaneousPushWorkers #-}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -480,7 +491,6 @@ shouldValidateEntities = unsafePerformIO $ do
     Just "true" -> True
     _ -> False
 {-# NOINLINE shouldValidateEntities #-}
-
 
 type WorkerCount =
   TVar Int
