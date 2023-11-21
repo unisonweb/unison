@@ -1,13 +1,13 @@
 
 ## Structural find and replace
 
-Here's a scratch file with some rewrite rules: 
+Here's a scratch file with some rewrite rules:
 
 ```unison
 ---
 title: /private/tmp/rewrites-tmp.u
 ---
-ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7] 
+ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
   @rewrite
@@ -22,17 +22,13 @@ Either.mapRight f = cases
   Left e -> Left e
   Right a -> Right (f a)
 
-rule1 f x = @rewrite 
+rule1 f x = @rewrite
   term x + 1 ==> Nat.increment x
   term (a -> f a) ==> f -- eta reduction
 
 unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do 
-  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
 
 ```
 
@@ -94,13 +90,13 @@ title: /private/tmp/rewrites-tmp.u
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
-woot1to2 x = @rewrite 
+woot1to2 x = @rewrite
   term Woot1.woot1 ==> Woot2.woot2
   term blah ==> blah2
-  signature _ . Woot1 ==> Woot2 
+  signature _ . Woot1 ==> Woot2
 
-wootEx : Nat ->{Woot1} Nat 
-wootEx a = 
+wootEx : Nat ->{Woot1} Nat
+wootEx a =
   _ = !woot1
   blah
 
@@ -125,7 +121,7 @@ Let's apply the rewrite `woot1to2`:
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ```ucm
-.> view wootEx 
+.> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
@@ -139,11 +135,11 @@ This example shows that rewrite rules can to refer to term definitions that only
 ---
 title: /private/tmp/rewrites-tmp.u
 ---
-foo1 = 
+foo1 =
   b = "b"
   123
 
-foo2 = 
+foo2 =
   a = "a"
   233
 
@@ -152,7 +148,7 @@ rule = @rewrite
   term foo1 ==> foo2
   case None ==> Left "89899"
 
-sameFileEx = 
+sameFileEx =
   _ = "ex"
   foo1
 
@@ -162,7 +158,7 @@ sameFileEx =
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ```ucm
-.> view foo1 foo2 sameFileEx 
+.> view foo1 foo2 sameFileEx
 
   foo1 : Nat
   foo1 =
@@ -186,19 +182,19 @@ After adding the rewritten form to the codebase, here's the rewritten definition
 ---
 title: /private/tmp/rewrites-tmp.u
 ---
-bar1 = 
+bar1 =
   b = "bar"
   123
 
-bar2 = 
-  a = 39494 
+bar2 =
+  a = 39494
   233
 
 rule bar2 = @rewrite
   case None ==> Left "oh no"
   term bar1 ==> bar2
 
-sameFileEx = 
+sameFileEx =
   _ = "ex"
   bar1
 
@@ -245,13 +241,13 @@ In this example, the `a` is locally bound by the rule, so it shouldn't capture t
 ---
 title: /private/tmp/rewrites-tmp.u
 ---
-bar2 = 
-  a = 39494 
+bar2 =
+  a = 39494
   233
 
 rule a = @rewrite
   case None ==> Left "oh no"
-  term 233 ==> a 
+  term 233 ==> a
 
 ```
 
@@ -288,6 +284,70 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
   
 
 ```
+## Known issues
+
+```unison
+---
+title: /private/tmp/rewrites-tmp.u
+---
+test> foo = []
+rule = @rewrite term [] ==> []
+
+```
+
+
+Apparently when we parse a test watch, we add a type annotation to it, even if it already has one. This should be fixed in this same PR
+and this comment amended.
+
+```ucm
+.> rewrite rule
+
+  ☝️
+  
+  I found and replaced matches in these definitions: foo
+  
+  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+
+.> load /private/tmp/rewrites-tmp.u
+
+  I found and typechecked these definitions in
+  /private/tmp/rewrites-tmp.u. If you do an `add` or `update`,
+  here's how your codebase would change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : [Result]
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      rule : ∀ elem1 elem.
+               Rewrites (Tuple (RewriteTerm [elem1] [elem]) ())
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    4 | test> foo : [Result]
+    
+
+.> rewrite rule
+
+  ☝️
+  
+  I found and replaced matches in these definitions: foo
+  
+  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+
+```
+```ucm
+.> load /private/tmp/rewrites-tmp.u
+
+  offset=10:
+  unexpected :
+      5 | foo : [Result]
+  
+
+```
 ## Structural find
 
 ```unison
@@ -295,8 +355,8 @@ eitherEx = Left ("hello", "there")
 ```
 
 ```unison
-findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x) 
-findEitherFailure = @rewrite signature a . Either Failure a ==> () 
+findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
+findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
 ```ucm
