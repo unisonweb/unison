@@ -2801,7 +2801,7 @@ upgrade =
     { patternName = "upgrade",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes = [(ZeroPlus, upgradeArg)],
       help =
         P.wrap $
           "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
@@ -3018,6 +3018,14 @@ patchArg =
     { typeName = "patch",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
       globTargets = Set.fromList []
+    }
+
+upgradeArg :: ArgumentType
+upgradeArg =
+  ArgumentType
+    { typeName = "upgrade",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteUpgrade q p),
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
     }
 
 namespaceArg :: ArgumentType
