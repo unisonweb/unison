@@ -80,6 +80,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
@@ -299,9 +300,9 @@ addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile 
             then uf
             else
               let prependTerm to = (v, Ann.External, tm) : to
-              in if isTest tp
-                then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
-                else uf & #terms Lens.%~ prependTerm
+               in if isTest tp
+                    then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
+                    else uf & #terms Lens.%~ prependTerm
         termNames =
           Set.fromList [v | (v, _, _) <- uf.terms]
             <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) uf.watches
