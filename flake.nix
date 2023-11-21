@@ -103,6 +103,10 @@
             };
           };
 
+          apps = haskell-nix-flake.apps // {
+            default = self.apps."${system}"."unison-cli:exe:unison";
+          };
+
           devShells = nixpkgs-devShells // {
             default = self.devShells."${system}".only-tools-nixpkgs;
             haskell-nix = haskell-nix-flake.devShells;
