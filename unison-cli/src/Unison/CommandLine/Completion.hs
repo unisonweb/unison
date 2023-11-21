@@ -298,7 +298,7 @@ prefixCompletePatch ::
   Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
--- | Completes a uograde argument by prefix-matching against the query.
+-- | Completes a upgrade argument by prefix-matching against the query.
 prefixCompleteUpgrade ::
   String ->
   Path.Absolute -> -- Current path
