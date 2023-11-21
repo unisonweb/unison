@@ -296,14 +296,14 @@ prefixCompletePatch ::
   String ->
   Path.Absolute -> -- Current path
   Sqlite.Transaction [Line.Completion]
-prefixCompletePatch = completeWithinNamespace (NESet.singleton UpgradeCompletion)
+prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
 -- | Completes a uograde argument by prefix-matching against the query.
 prefixCompleteUpgrade ::
   String ->
   Path.Absolute -> -- Current path
   Sqlite.Transaction [Line.Completion]
-prefixCompleteUpgrade = completeWithinNamespace (NESet.singleton PatchCompletion)
+prefixCompleteUpgrade = completeWithinNamespace (NESet.singleton UpgradeCompletion)
 
 
 
