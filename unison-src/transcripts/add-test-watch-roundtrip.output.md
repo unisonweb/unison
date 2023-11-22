@@ -9,7 +9,7 @@ Apparently when we add a test watch, we add a type annotation to it, even if it 
 .> add
 
   ⍟ I've added these definitions:
-
+  
     foo : [Result]
 
 .> view foo
