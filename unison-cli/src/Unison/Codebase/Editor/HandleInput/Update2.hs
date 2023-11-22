@@ -28,6 +28,7 @@ import Text.Pretty.Simple (pShow)
 import U.Codebase.Reference (Reference, ReferenceType)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.Builtin.Decls qualified as Decls
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -79,6 +80,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile, UnisonFile)
@@ -88,6 +90,7 @@ import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
+import Unison.WatchKind qualified as WK
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
@@ -287,16 +290,23 @@ addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile 
       pure $ foldl' addTermElement uf (zip termComponent [0 ..])
       where
         addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
-        addTermElement uf ((tm, _tp), i) = do
+        addTermElement uf ((tm, tp), i) = do
           let r :: Referent = Referent.Ref $ Reference.Derived h i
               termNames = Relation.lookupRan r names.terms
-          foldl' (addDefinition tm) uf termNames
-        addDefinition :: Term Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
-        addDefinition tm uf (Name.toVar -> v) =
+          foldl' (addDefinition tm tp) uf termNames
+        addDefinition :: Term Symbol Ann -> Type Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
+        addDefinition tm tp uf (Name.toVar -> v) =
           if Set.member v termNames
             then uf
-            else uf {UF.terms = (v, Ann.External, tm) : uf.terms}
-        termNames = Set.fromList [v | (v, _, _) <- uf.terms]
+            else
+              let prependTerm to = (v, Ann.External, tm) : to
+               in if isTest tp
+                    then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
+                    else uf & #terms Lens.%~ prependTerm
+        termNames =
+          Set.fromList [v | (v, _, _) <- uf.terms]
+            <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) uf.watches
+    isTest = Typechecker.isEqual (Decls.testResultType mempty)
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes

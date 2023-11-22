@@ -2525,6 +2525,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
             | Var.UnnamedWatch _ _ <- Var.typeOf v ->
                 "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
           WK.RegularWatch -> "> " <> pb (hqv v) tm
+          WK.TestWatch -> "test> " <> st (TermPrinter.prettyBindingWithoutTypeSignature sppe (hqv v) tm)
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
     sppe = PPED.suffixifiedPPE ppe'

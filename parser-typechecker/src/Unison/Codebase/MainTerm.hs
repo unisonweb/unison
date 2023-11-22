@@ -67,12 +67,8 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
--- [Result]
-resultArr :: (Ord v) => a -> Type.Type v a
-resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
-
 builtinResultArr :: (Ord v) => a -> Type.Type v a
-builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (resultArr a)
+builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
 
 -- '{io2.IO} [Result]
 builtinTest :: (Ord v) => a -> Type.Type v a
