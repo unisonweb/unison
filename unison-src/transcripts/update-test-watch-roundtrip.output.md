@@ -13,7 +13,7 @@ test> mynamespace.foo.test =
 .> add
 
   ⍟ I've added these definitions:
-
+  
     foo                  : Nat -> Nat
     mynamespace.foo.test : [Result]
 
@@ -29,10 +29,10 @@ foo n = "hello, world!"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       foo : n -> Text
 
 ```
@@ -47,7 +47,7 @@ foo n = "hello, world!"
   test> mynamespace.foo.test =
     n = 2
     if foo n == 2 then [Ok "passed"] else [Fail "wat"]
-
+  
   foo n = "hello, world!"
 
   Typechecking failed. I've updated your scratch file with the
