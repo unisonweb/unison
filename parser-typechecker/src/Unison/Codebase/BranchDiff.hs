@@ -12,11 +12,9 @@ import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.IOSource (isPropagatedValue)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation3 qualified as R3
 import Unison.Util.Relation4 qualified as R4
 
 data DiffType a = Create a | Delete a | Modify a deriving (Show)
@@ -33,9 +31,7 @@ data DiffSlice r = DiffSlice
     tallnamespaceUpdates :: Map Name (Set r, Set r),
     talladds :: Relation r Name,
     tallremoves :: Relation r Name,
-    trenames :: Map r (Set Name, Set Name), -- ref (old, new)
-    taddedMetadata :: Relation3 r Name Metadata.Value,
-    tremovedMetadata :: Relation3 r Name Metadata.Value
+    trenames :: Map r (Set Name, Set Name) -- ref (old, new)
   }
   deriving stock (Generic, Show)
 
@@ -51,10 +47,10 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new
   where
     (terms, types) =
       computeSlices
-        (deepr4ToSlice (Branch.deepTerms old) (Branch.deepTermMetadata old))
-        (deepr4ToSlice (Branch.deepTerms new) (Branch.deepTermMetadata new))
-        (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
-        (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
+        (deepr4ToSlice (Branch.deepTerms old) mempty)
+        (deepr4ToSlice (Branch.deepTerms new) mempty)
+        (deepr4ToSlice (Branch.deepTypes old) mempty)
+        (deepr4ToSlice (Branch.deepTypes new) mempty)
 
 patchDiff :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
@@ -102,9 +98,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
             { tallnamespaceUpdates = nu,
               talladds = allAdds nc nu,
               tallremoves = allRemoves nc nu,
-              trenames = remainingNameChanges nc,
-              taddedMetadata = addedMetadata oldTerms newTerms,
-              tremovedMetadata = removedMetadata oldTerms newTerms
+              trenames = remainingNameChanges nc
             }
     typesOut =
       let nc = allNames oldTypes newTypes
@@ -113,9 +107,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
             { tallnamespaceUpdates = nu,
               talladds = allAdds nc nu,
               tallremoves = allRemoves nc nu,
-              trenames = remainingNameChanges nc,
-              taddedMetadata = addedMetadata oldTypes newTypes,
-              tremovedMetadata = removedMetadata oldTypes newTypes
+              trenames = remainingNameChanges nc
             }
 
     allNames :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
@@ -159,27 +151,6 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
       where
         f (old, new) = old /= new
 
-    addedMetadata :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
-    addedMetadata old new = metadata new `R3.difference` metadata old
-
-    removedMetadata :: (Ord r) => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
-    removedMetadata old new = metadata old `R3.difference` metadata new
-
 -- the namespace updates that aren't propagated
 namespaceUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
-namespaceUpdates s = Map.mapMaybeWithKey f (tallnamespaceUpdates s)
-  where
-    f name (olds, news) =
-      let news' = Set.difference news (Map.findWithDefault mempty name propagated)
-       in if null news' then Nothing else Just (olds, news')
-    propagated = propagatedUpdates s
-
-propagatedUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r)
-propagatedUpdates s =
-  Map.fromList
-    [ (name, news)
-      | (name, (_olds0, news0)) <- Map.toList $ tallnamespaceUpdates s,
-        let news = Set.filter propagated news0
-            propagated rnew = R3.member rnew name isPropagatedValue (taddedMetadata s),
-        not (null news)
-    ]
+namespaceUpdates = tallnamespaceUpdates

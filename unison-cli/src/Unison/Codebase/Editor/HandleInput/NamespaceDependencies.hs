@@ -23,8 +23,6 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term qualified as Term
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation3 qualified as Relation3
-import Unison.Util.Relation4 qualified as Relation4
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
@@ -55,7 +53,7 @@ namespaceDependencies codebase branch = do
 
   let dependenciesToDependents :: Map LabeledDependency (Set Name)
       dependenciesToDependents =
-        Map.unionsWith (<>) (metadata : typeDeps ++ termDeps)
+        Map.unionsWith (<>) (typeDeps ++ termDeps)
   let onlyExternalDeps :: Map LabeledDependency (Set Name)
       onlyExternalDeps =
         Map.filterWithKey
@@ -72,25 +70,3 @@ namespaceDependencies codebase branch = do
     currentBranchTermRefs = Relation.domain (Branch.deepTerms branch)
     currentBranchTypeRefs :: Map Reference (Set Name)
     currentBranchTypeRefs = Relation.domain (Branch.deepTypes branch)
-
-    -- Since metadata is only linked by reference, not by name,
-    -- it's possible that the metadata itself is external to the branch.
-    metadata :: Map LabeledDependency (Set Name)
-    metadata =
-      let typeMetadataRefs :: Map LabeledDependency (Set Name)
-          typeMetadataRefs =
-            (Branch.deepTypeMetadata branch)
-              & Relation4.d234 -- Select only the type and value portions of the metadata
-              & \rel ->
-                let types = Map.mapKeys LD.typeRef $ Relation.range (Relation3.d12 rel)
-                    terms = Map.mapKeys LD.termRef $ Relation.range (Relation3.d13 rel)
-                 in Map.unionWith (<>) types terms
-          termMetadataRefs :: Map LabeledDependency (Set Name)
-          termMetadataRefs =
-            (Branch.deepTermMetadata branch)
-              & Relation4.d234 -- Select only the type and value portions of the metadata
-              & \rel ->
-                let types = Map.mapKeys LD.typeRef $ Relation.range (Relation3.d12 rel)
-                    terms = Map.mapKeys LD.termRef $ Relation.range (Relation3.d13 rel)
-                 in Map.unionWith (<>) types terms
-       in Map.unionWith (<>) typeMetadataRefs termMetadataRefs

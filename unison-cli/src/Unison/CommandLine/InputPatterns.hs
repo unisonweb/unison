@@ -2889,7 +2889,7 @@ validInputs =
       helpTopics,
       history,
       ioTest,
-      link,
+      -- link,
       links,
       load,
       makeStandalone,

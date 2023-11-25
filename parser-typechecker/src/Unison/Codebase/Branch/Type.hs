@@ -74,8 +74,6 @@ data Branch0 m = Branch0
     -- (ref, (name, value)) iff ref has metadata `value` at name `name`
     deepTerms :: Relation Referent Name,
     deepTypes :: Relation Reference Name,
-    deepTermMetadata :: Metadata.R4 Referent Name,
-    deepTypeMetadata :: Metadata.R4 Reference Name,
     deepPaths :: Set Path,
     deepEdits :: Map Name PatchHash
   }
