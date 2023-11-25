@@ -20,6 +20,8 @@ module Unison.Codebase
 
     -- ** Search
     termsOfType,
+    filterTermsByReferenceIdHavingType,
+    filterTermsByReferentHavingType,
     termsMentioningType,
     SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
@@ -155,7 +157,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
@@ -460,6 +462,28 @@ termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
+
+filterTermsByReferentHavingType :: (Var v) => Codebase m v a -> Type v a -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingType c ty = filterTermsByReferentHavingTypeByReference c $ Hashing.typeToReference ty
+
+filterTermsByReferenceIdHavingType :: (Var v) => Codebase m v a -> Type v a -> Set TermReferenceId -> Sqlite.Transaction (Set TermReferenceId)
+filterTermsByReferenceIdHavingType c ty = filterTermsByReferenceIdHavingTypeImpl c (Hashing.typeToReference ty)
+
+-- | Find the subset of `tms` which match the exact type `r` points to.
+filterTermsByReferentHavingTypeByReference :: Codebase m v a -> TypeReference -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingTypeByReference c r tms = do
+  let (builtins, derived) = partitionEithers . map p $ Set.toList tms
+  let builtins' =
+        Set.intersection
+          (Set.fromList builtins)
+          (Rel.lookupDom r Builtin.builtinTermsByType)
+  derived' <- filterTermsByReferentIdHavingTypeImpl c r (Set.fromList derived)
+  pure $ builtins' <> Set.mapMonotonic Referent.fromId derived'
+  where
+    p :: Referent.Referent -> Either Referent.Referent Referent.Id
+    p r = case Referent.toId r of
+      Just rId -> Right rId
+      Nothing -> Left r
 
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
 termsMentioningType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
