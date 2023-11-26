@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.mergeio
+.> builtins.merge
 
   Done.
 

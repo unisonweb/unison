@@ -2,7 +2,6 @@ Test for new Text -> Bytes conversions explicitly using UTF-8 as the encoding
 
 ```ucm:hide
 .> builtins.merge
-.> builtins.mergeio
 .> cd builtin
 ```
 
@@ -31,13 +30,13 @@ greek = "ΑΒΓΔΕ"
 > toUtf8 greek
 ```
 
-We can check that encoding and then decoding should give us back the same `Text` we started with 
+We can check that encoding and then decoding should give us back the same `Text` we started with
 
 ```unison
 checkRoundTrip: Text -> [Result]
-checkRoundTrip t = 
+checkRoundTrip t =
   bytes = toUtf8 t
-  match fromUtf8.impl bytes with 
+  match fromUtf8.impl bytes with
     Left e -> [Result.Fail "could not decode"]
     Right t' -> if t == t' then [Result.Ok "Passed"] else [Result.Fail ("Got: " ++ t' ++ " Expected: " ++ t)]
 

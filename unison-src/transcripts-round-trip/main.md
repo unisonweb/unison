@@ -1,7 +1,7 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ```ucm:hide

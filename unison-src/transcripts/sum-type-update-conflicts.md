@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 First we add a sum-type to the codebase.

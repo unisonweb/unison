@@ -20,7 +20,7 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
 And for a limited time, you can get even more builtin goodies:
 
 ```ucm
-.foo> builtins.mergeio
+.foo>
 .foo> ls
 ```
 

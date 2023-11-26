@@ -1,9 +1,8 @@
 ```ucm:hide
-.> builtins.merge
 .> builtins.mergeio
 ```
 
-We had bugs in the calling conventions for both send and terminate which would 
+We had bugs in the calling conventions for both send and terminate which would
 cause pattern matching on the resulting (Right ()) would cause a runtime error.
 
 
@@ -12,7 +11,7 @@ cause pattern matching on the resulting (Right ()) would cause a runtime error.
 use builtin.io2.Tls newClient send handshake terminate
 
 frank: '{IO} ()
-frank = do 
+frank = do
   socket = assertRight (clientSocket.impl "example.com" "443")
   config = ClientConfig.default "example.com" 0xs
   tls = assertRight (newClient.impl config socket)

@@ -29,13 +29,9 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
 And for a limited time, you can get even more builtin goodies:
 
 ```ucm
-.foo> builtins.mergeio
-
-  Done.
-
 .foo> ls
 
-  1. builtin/ (624 terms, 88 types)
+  1. builtin/ (452 terms, 70 types)
 
 ```
 More typically, you'd start out by pulling `base.

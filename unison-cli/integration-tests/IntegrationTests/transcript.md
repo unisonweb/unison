@@ -3,11 +3,6 @@
 ```ucm:hide
 .> builtins.mergeio
 .> load ./unison-src/transcripts-using-base/base.u
-```
-
-```ucm:hide
-.> builtins.mergeio
-.> load ./unison-src/transcripts-using-base/base.u
 .> add
 ```
 

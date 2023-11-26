@@ -1,7 +1,7 @@
 # Tests for `move.namespace`
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ## Happy path
@@ -60,7 +60,7 @@ b.termInB = 11
 
 Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
-of the moved namespace. 
+of the moved namespace.
 
 ```ucm
 .history> delete.namespace b
@@ -72,7 +72,7 @@ of the moved namespace.
 ```
 
 
-## Moving over an existing branch 
+## Moving over an existing branch
 
 Create some namespace and add some history to them
 
@@ -95,7 +95,7 @@ b.termInB = 11
 .existing> move.namespace a b
 ```
 
-## Moving the Root 
+## Moving the Root
 
 I should be able to move the root into a sub-namespace
 

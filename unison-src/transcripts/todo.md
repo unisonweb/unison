@@ -3,7 +3,7 @@
 ## Simple type-changing update.
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ```unison:hide

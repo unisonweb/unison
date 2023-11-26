@@ -1,7 +1,3 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
 ```unison
 structural ability Exit a where
   exit : a -> b

@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.builtins> builtins.mergeio
+.builtins> builtins.merge
 ```
 
 First we add an ability to the codebase.
