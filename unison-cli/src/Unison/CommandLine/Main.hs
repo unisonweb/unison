@@ -5,6 +5,7 @@ where
 
 import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
+import Control.Concurrent.STM qualified as STM
 import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens (preview, (?~), (^.))
 import Control.Monad.Catch (MonadMask)
@@ -116,7 +117,8 @@ main ::
   Welcome.Welcome ->
   Path.Absolute ->
   Config ->
-  [Either Event Input] ->
+  [Either Event Input {- Initial Inputs -}] ->
+  Maybe (TBQueue Input {- Inputs via API or LSP -}) ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
@@ -126,7 +128,7 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs mayInputQueue runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -207,15 +209,28 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
         readIORef initialInputsRef >>= \case
           h : t -> writeIORef initialInputsRef t >> pure h
           [] ->
-            -- Race the user input and file watch.
-            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
-              Left _ -> do
-                let e = Left <$> atomically (Q.dequeue eventQueue)
+            -- Race the user input, file watch, and external inputs.
+            -- We're mixing STM and IO here, so to avoid lost inputs as best we can
+            -- we race with 'peek' to determine which input we want to commit to, then
+            -- after we've commited we dequeue.
+            -- This could be improved, but it seems to work fine so far.
+            Async.race fromQueue (getInput loopState) >>= \case
+              Left dequeueEvent -> do
                 writeIORef pageOutput False
-                e
-              x -> do
+                atomically dequeueEvent
+              Right x -> do
                 writeIORef pageOutput True
-                pure x
+                pure $ Right x
+        where
+          -- If a queue gets a value, return the action to dequeue and use it.
+          fromQueue :: IO (STM (Either Event Input))
+          fromQueue = atomically do
+            asum
+              [ Q.peek eventQueue $> (Left <$> Q.dequeue eventQueue),
+                case mayInputQueue of
+                  Nothing -> STM.retry
+                  Just inputQueue -> STM.peekTBQueue inputQueue $> (Right <$> STM.readTBQueue inputQueue)
+              ]
 
   let env =
         Cli.Env

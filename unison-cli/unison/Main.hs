@@ -141,6 +141,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         sbrt
                         theCodebase
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                        Nothing
                         serverUrl
                         startPath
                         initRes
@@ -166,6 +167,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                     sbrt
                     theCodebase
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    Nothing
                     serverUrl
                     startPath
                     initRes
@@ -264,6 +266,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                       else void $ swapTMVar rootVar b
               let notifyOnPathChanges :: Path.Absolute -> STM ()
                   notifyOnPathChanges = writeTVar pathVar
+              inputQueue <- newTBQueueIO 100
               -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
               -- when waiting for input on handles, so if we listen for LSP connections it will
               -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
@@ -300,6 +303,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           sbRuntime
                           theCodebase
                           []
+                          (Just inputQueue)
                           (Just baseUrl)
                           (Just startingPath)
                           initRes
@@ -471,6 +475,7 @@ launch ::
   Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
+  Maybe (TBQueue Input.Input) ->
   Maybe Server.BaseUrl ->
   Maybe Path.Absolute ->
   InitResult ->
@@ -478,7 +483,7 @@ launch ::
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch dir config runtime sbRuntime codebase inputs mayInputQueue serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -491,6 +496,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         (fromMaybe defaultInitialPath mayStartingPath)
         config
         inputs
+        mayInputQueue
         runtime
         sbRuntime
         codebase
