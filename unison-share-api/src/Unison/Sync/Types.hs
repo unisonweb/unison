@@ -686,7 +686,8 @@ data UploadEntitiesResponse
   deriving stock (Show, Eq, Ord)
 
 data UploadEntitiesError
-  = UploadEntitiesError'HashMismatchForEntity HashMismatchForEntity
+  = UploadEntitiesError'EntityValidationFailure EntityValidationError
+  | UploadEntitiesError'HashMismatchForEntity HashMismatchForEntity
   | -- | msg, repoInfo
     UploadEntitiesError'InvalidRepoInfo Text RepoInfo
   | UploadEntitiesError'NeedDependencies (NeedDependencies Hash32)
@@ -706,6 +707,8 @@ data HashMismatchForEntity = HashMismatchForEntity
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
+    UploadEntitiesFailure (UploadEntitiesError'EntityValidationFailure err) ->
+      jsonUnion "entity_validation_failure" err
     UploadEntitiesFailure (UploadEntitiesError'HashMismatchForEntity mismatch) ->
       jsonUnion "hash_mismatch_for_entity" mismatch
     UploadEntitiesFailure (UploadEntitiesError'InvalidRepoInfo msg repoInfo) ->
@@ -720,6 +723,7 @@ instance FromJSON UploadEntitiesResponse where
   parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
       "success" -> pure UploadEntitiesSuccess
+      "entity_validation_failure" -> UploadEntitiesFailure . UploadEntitiesError'EntityValidationFailure <$> obj .: "payload"
       "need_dependencies" -> UploadEntitiesFailure . UploadEntitiesError'NeedDependencies <$> obj .: "payload"
       "no_write_permission" -> UploadEntitiesFailure . UploadEntitiesError'NoWritePermission <$> obj .: "payload"
       "hash_mismatch_for_entity" ->
