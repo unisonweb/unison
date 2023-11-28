@@ -52,6 +52,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
@@ -66,6 +67,8 @@ import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
@@ -113,11 +116,17 @@ handleUpdate2 = do
         (Names.referenceIds namesExcludingLibdeps)
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-    pped <- Codebase.hashLength <&> (`PPE.fromNamesDecl` (NamesWithHistory.fromCurrentNames namesIncludingLibdeps))
     bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
-    let tufPped = PPE.fromNamesDecl 8 (Names.NamesWithHistory (UF.typecheckedToNames tuf) mempty)
+    pped <-
+      ( \hlen ->
+          shadowNames
+            hlen
+            (UF.typecheckedToNames tuf)
+            (NamesWithHistory.fromCurrentNames namesIncludingLibdeps)
+        )
+        <$> Codebase.hashLength
 
-    pure (pped `PPED.addFallback` tufPped, bigUf)
+    pure (pped, bigUf)
 
   -- - typecheck it
   Cli.respond Output.UpdateStartTypechecking
@@ -413,11 +422,43 @@ getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> 
     keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
     ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
 
--- namespace:
--- type Foo = Bar Nat
--- baz = 4
--- qux = baz + 1
-
--- unison file:
--- Foo.Bar = 3
--- baz = 5
+-- | Combines 'n' and 'nwh' then creates a ppe, but all references to
+-- any name in 'n' are printed unqualified.
+--
+-- This is useful with the current update strategy where, for all
+-- updates @#old -> #new@ we want to print dependents of #old and
+-- #new, and have all occurrences of #old and #new be printed with the
+-- unqualified name.
+--
+-- For this usecase the names from the scratch file are passed as 'n'
+-- and the names from the codebase are passed in 'nwh'.
+shadowNames :: Int -> Names -> NamesWithHistory -> PrettyPrintEnvDecl
+shadowNames hashLen n nwh =
+  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (Names.NamesWithHistory n mempty <> nwh)
+      unsuffixified = patchPrettyPrintEnv unsuffixified0
+      suffixified = patchPrettyPrintEnv suffixified0
+      patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv
+      patchPrettyPrintEnv PPE.PrettyPrintEnv {termNames, typeNames} =
+        PPE.PrettyPrintEnv
+          { termNames = patch shadowedTermRefs termNames,
+            typeNames = patch shadowedTypeRefs typeNames
+          }
+      patch shadowed f ref =
+        let res = f ref
+         in case Set.member ref shadowed of
+              True -> map (second stripHashQualified) res
+              False -> res
+      stripHashQualified = \case
+        HQ'.HashQualified b _ -> HQ'.NameOnly b
+        HQ'.NameOnly b -> HQ'.NameOnly b
+      shadowedTermRefs =
+        let names = Relation.dom (Names.terms n)
+            NamesWithHistory otherNames _ = nwh
+            otherTermNames = Names.terms otherNames
+         in Relation.ran (Names.terms n) <> foldMap (\a -> Relation.lookupDom a otherTermNames) names
+      shadowedTypeRefs =
+        let names = Relation.dom (Names.types n)
+            NamesWithHistory otherNames _ = nwh
+            otherTypeNames = Names.types otherNames
+         in Relation.ran (Names.types n) <> foldMap (\a -> Relation.lookupDom a otherTypeNames) names
+   in PPED.PrettyPrintEnvDecl unsuffixified suffixified
