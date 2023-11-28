@@ -70,6 +70,8 @@ module U.Codebase.Sqlite.Operations
     -- ** type index
     Q.addTypeToIndexForTerm,
     termsHavingType,
+    filterTermsByReferenceHavingType,
+    filterTermsByReferentHavingType,
 
     -- ** type mentions index
     Q.addTypeMentionsToIndexForTerm,
@@ -1047,6 +1049,24 @@ termsHavingType cTypeRef =
       sIds <- Q.getReferentsByType sTypeRef
       set <- traverse s2cReferentId sIds
       pure (Set.fromList set)
+
+filterTermsByReferenceHavingType :: C.TypeReference -> [C.Reference.Id] -> Transaction [C.Reference.Id]
+filterTermsByReferenceHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferenceId cTermRefIds
+      matches <- Q.filterTermsByReferenceHavingType sTypeRef sTermRefIds
+      traverse s2cReferenceId matches
+
+filterTermsByReferentHavingType :: C.TypeReference -> [C.Referent.Id] -> Transaction [C.Referent.Id]
+filterTermsByReferentHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferentId cTermRefIds
+      matches <- Q.filterTermsByReferentHavingType sTypeRef sTermRefIds
+      traverse s2cReferentId matches
 
 typeReferenceForTerm :: S.Reference.Id -> Transaction S.ReferenceH
 typeReferenceForTerm = Q.getTypeReferenceForReferent . C.Referent.RefId

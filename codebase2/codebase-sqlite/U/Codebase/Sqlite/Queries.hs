@@ -167,6 +167,8 @@ module U.Codebase.Sqlite.Queries
     getReferentsByType,
     getTypeReferenceForReferent,
     getTypeReferencesForComponent,
+    filterTermsByReferenceHavingType,
+    filterTermsByReferentHavingType,
 
     -- ** type mentions index
     addToTypeMentionsIndex,
@@ -1459,6 +1461,76 @@ getTypeReferencesForComponent oId =
         FROM find_type_index
         WHERE term_referent_object_id = :oId
       |]
+
+filterTermsByReferentHavingType :: S.ReferenceH -> [S.Referent.Id] -> Transaction [S.Referent.Id]
+filterTermsByReferentHavingType typ terms = create *> for_ terms insert *> select <* drop
+  where
+    select = queryListRow [sql|
+      SELECT
+        q.term_referent_object_id,
+        q.term_referent_component_index,
+        q.term_referent_constructor_index
+      FROM filter_query q, find_type_index t
+      WHERE t.type_reference_builtin IS :typeBuiltin
+        AND t.type_reference_hash_id IS :typeHashId
+        AND t.type_reference_component_index IS :typeComponentIndex
+        AND t.term_referent_object_id = q.term_referent_object_id
+        AND t.term_referent_component_index = q.term_referent_component_index
+        AND t.term_referent_constructor_index IS q.term_referent_constructor_index
+    |]
+    insert r = execute [sql|
+      INSERT INTO filter_query (
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      ) VALUES (@r, @, @)
+    |]
+    typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
+    typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
+    typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
+    create =  execute
+      [sql|
+        CREATE TEMPORARY TABLE filter_query (
+          term_referent_object_id INTEGER NOT NULL,
+          term_referent_component_index INTEGER NOT NULL,
+          term_referent_constructor_index INTEGER NULL
+        )
+      |]
+    drop =  execute [sql|DROP TABLE filter_query|]
+
+filterTermsByReferenceHavingType :: S.ReferenceH -> [S.Reference.Id] -> Transaction [S.Reference.Id]
+filterTermsByReferenceHavingType typ terms = create *> for_ terms insert *> select <* drop
+  where
+    select = queryListRow [sql|
+      SELECT
+        q.term_reference_object_id,
+        q.term_reference_component_index
+      FROM filter_query q, find_type_index t
+      WHERE t.type_reference_builtin IS :typeBuiltin
+        AND t.type_reference_hash_id IS :typeHashId
+        AND t.type_reference_component_index IS :typeComponentIndex
+        AND t.term_referent_object_id = q.term_reference_object_id
+        AND t.term_referent_component_index = q.term_reference_component_index
+        AND t.term_referent_constructor_index IS NULL
+    |]
+    insert r = execute [sql|
+      INSERT INTO filter_query (
+        term_reference_object_id,
+        term_reference_component_index
+      ) VALUES (@r, @)
+    |]
+    typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
+    typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
+    typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
+    create =  execute
+      [sql|
+        CREATE TEMPORARY TABLE filter_query (
+          term_reference_object_id INTEGER NOT NULL,
+          term_reference_component_index INTEGER NOT NULL
+        )
+      |]
+    drop =  execute [sql|DROP TABLE filter_query|]
+
 
 addToTypeMentionsIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
 addToTypeMentionsIndex tp tm =

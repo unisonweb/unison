@@ -9,9 +9,12 @@ module Unison.Referent
     pattern RefId,
     pattern ConId,
     fold,
+    toId,
     toReference,
     toReferenceId,
     toTermReference,
+    toTermReferenceId,
+    fromId,
     fromTermReference,
     fromTermReferenceId,
     fromText,
@@ -72,6 +75,20 @@ pattern ConId r t = Con' r t
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
 
+toId :: Referent -> Maybe Id
+toId = \case
+  Ref (Reference.ReferenceDerived r) ->
+    Just (RefId r)
+  Con (ConstructorReference (Reference.ReferenceDerived r) i) t ->
+    Just (ConId (ConstructorReference r i) t)
+  _ -> Nothing
+
+fromId :: Id -> Referent
+fromId = \case
+  RefId r -> Ref (Reference.ReferenceDerived r)
+  ConId (ConstructorReference r i) t ->
+    Con (ConstructorReference (Reference.ReferenceDerived r) i) t
+
 -- todo: move these to ShortHash module
 toShortHash :: Referent -> ShortHash
 toShortHash = \case
@@ -106,6 +123,9 @@ toTermReference :: Referent -> Maybe TermReference
 toTermReference = \case
   Con' _ _ -> Nothing
   Ref' reference -> Just reference
+
+toTermReferenceId :: Referent -> Maybe TermReferenceId
+toTermReferenceId r = toTermReference r >>= Reference.toId
 
 -- | Inject a Term Reference into a Referent
 fromTermReference :: TermReference -> Referent

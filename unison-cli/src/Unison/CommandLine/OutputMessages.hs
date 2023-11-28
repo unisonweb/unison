@@ -38,6 +38,7 @@ import System.IO.Error (isDoesNotExistError)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
@@ -119,7 +120,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -798,7 +799,7 @@ notifyUser dir = \case
     putPretty' $
       P.shown (total - n)
         <> " tests left to run, current test: "
-        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty
   TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
     clearCurrentLine
@@ -2679,7 +2680,7 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
                     <> "to replace the definitions currently in this namespace."
               ]
 
-    code :: (TermReference -> Bool) -> Pretty
+    code :: (TermReferenceId -> Bool) -> Pretty
     code isTest =
       P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms isTest)
 
@@ -2691,13 +2692,13 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
         & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
         & map prettyType
 
-    prettyTerms :: (TermReference -> Bool) -> [P.Pretty SyntaxText]
+    prettyTerms :: (TermReferenceId -> Bool) -> [P.Pretty SyntaxText]
     prettyTerms isTest =
       terms
         & Map.toList
         & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
         & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map (\t -> prettyTerm (isTest (t ^. _2)) t)
+        & map (\t -> prettyTerm (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
 
     prettyTerm ::
       Bool ->
@@ -2769,13 +2770,13 @@ displayDefinitionsString maybePath definitions =
 displayTestResults ::
   Bool -> -- whether to show the tip
   PPE.PrettyPrintEnv ->
-  [(Reference, Text)] ->
-  [(Reference, Text)] ->
+  [(TermReferenceId, Text)] ->
+  [(TermReferenceId, Text)] ->
   Pretty
 displayTestResults showTip ppe oksUnsorted failsUnsorted =
   let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
       fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.Ref r)
+      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
       okMsg =
         if null oks
           then mempty

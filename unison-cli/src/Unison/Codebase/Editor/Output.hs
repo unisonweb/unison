@@ -63,7 +63,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -159,15 +159,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
+      -- | what we were trying to do (e.g. "run", "io.test")
       String
-      -- ^ what we were trying to do (e.g. "run", "io.test")
+      -- | name of function
       String
-      -- ^ name of function
+      -- | bad type of function
       (Type Symbol Ann)
-      -- ^ bad type of function
       PPE.PrettyPrintEnv
+      -- | acceptable type(s) of function
       [Type Symbol Ann]
-      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -206,12 +206,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
+      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      -- | Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
-      -- ^ Misses (search terms that returned no hits for terms or types)
+      -- | Hits for types if we are searching for terms or terms if we are searching for types
       [HQ.HashQualified Name]
-      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -253,16 +253,16 @@ data Output
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions DisplayDefinitionsOutput
   | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
-    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText) {- rendered definitions -}
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
+    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
       ShowSuccesses
       ShowFailures
-      [(Reference, Text)] -- oks
-      [(Reference, Text)] -- fails
+      [(TermReferenceId, Text)] -- oks
+      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -370,8 +370,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
+      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
-      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -407,7 +407,7 @@ data CreatedProjectBranchFrom
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
-  { isTest :: TermReference -> Bool,
+  { isTest :: TermReferenceId -> Bool,
     outputFile :: Maybe FilePath,
     prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
     terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),

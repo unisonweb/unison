@@ -26,6 +26,7 @@ import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
+import Data.Tuple qualified as Tuple
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
 import System.Environment (withArgs)
@@ -1860,7 +1861,7 @@ handleDependencies hq = do
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
   #numberedArgs
     .= map (Text.unpack . Reference.toText . snd) types
-    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1994,14 +1995,14 @@ handleIOTest main = do
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
         whenJust (HQ.toName main) \mainName ->
           whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
-            returnMatches [(Reference.fromId ref, typ)]
+            returnMatches [(ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
       Cli.runTransaction do
         forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
           runMaybeT do
-            ref <- MaybeT (pure (Referent.toTermReference ref0))
-            typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
+            ref <- MaybeT (pure (Referent.toTermReferenceId ref0))
+            typ <- MaybeT (loadTypeOfTerm codebase (Referent.fromTermReferenceId ref))
             pure (ref, typ)
 
   ref <-
@@ -2015,12 +2016,12 @@ handleIOTest main = do
         hashLength <- Cli.runTransaction Codebase.hashLength
         let labeledDependencies =
               matches
-                & map (\(ref, _typ) -> LD.termRef ref)
+                & map (\(ref, _typ) -> LD.derivedTerm ref)
                 & Set.fromList
         Cli.returnEarly (LabeledReferenceAmbiguous hashLength main labeledDependencies)
 
   let a = ABT.annotation tm
-      tm = DD.forceTerm a a (Term.ref a ref)
+      tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
   tm' <- evalUnisonTerm False ppe False tm
   Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
@@ -2070,10 +2071,10 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     -- information from the database instead, once it's efficient to do so.
     isTest <- do
       branch <- Cli.getCurrentBranch0
-      pure \ref ->
-        branch
-          & Branch.deepTermMetadata
-          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) IOSource.isTestReference
+      let branchRefs = branch & Branch.deepTerms & Relation.dom & Set.mapMaybe Referent.toTermReferenceId
+      tests <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) branchRefs)
+      pure \r -> Set.member r tests
+
     Cli.respond $
       DisplayDefinitions
         DisplayDefinitionsOutput
@@ -2110,40 +2111,48 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle a @test@ command.
+-- Run pure tests in the current subnamespace.
 handleTest :: TestInput -> Cli ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testTerms <- do
-    branch <- Cli.getCurrentBranch0
-    branch
-      & Branch.deepTermMetadata
-      & R4.restrict34d12 IOSource.isTest
-      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
-      & R.dom
-      & pure
-  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
-      oks results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
-        ]
-      fails results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
-        ]
-  cachedTests <- do
-    fmap Map.fromList do
+  testRefs <-
+    do
+      branch <- Cli.getCurrentBranch0
+      let queryTerms =
+            branch
+              & Branch.deepTerms
+              & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
+              & R.dom
+              & Set.mapMaybe Referent.toTermReferenceId
+      Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) queryTerms)
+
+  cachedTests <-
+    Map.fromList <$> Cli.runTransaction do
       Set.toList testRefs & wither \case
-        Reference.Builtin _ -> pure Nothing
-        r@(Reference.DerivedId rid) -> fmap (r,) <$> Cli.runTransaction (Codebase.getWatch codebase WK.TestWatch rid)
+        rid -> fmap (rid,) <$> Codebase.getWatch codebase WK.TestWatch rid
+  let (oks, fails) = passFails cachedTests
+      passFails :: (Ord r) => Map r (Term v a) -> ([(r, Text)], [(r, Text)])
+      passFails = Tuple.swap . partitionEithers . concat . map p . Map.toList
+        where
+          p :: (r, Term v a) -> [Either (r, Text) (r, Text)]
+          p (r, tm) = case tm of
+            Term.List' ts -> mapMaybe (q r) (toList ts)
+            _ -> []
+          q r = \case
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
+              if
+                | ref == DD.testResultRef ->
+                    if
+                      | cid == DD.okConstructorId -> Just (Right (r, msg))
+                      | cid == DD.failConstructorId -> Just (Left (r, msg))
+                      | otherwise -> Nothing
+                | otherwise -> Nothing
+            _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
     makePrintNamesFromLabeled' $
-      LD.referents testTerms
+      LD.referents (Set.mapMonotonic Referent.fromTermReferenceId testRefs)
         <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
   ppe <- fqnPPE names
   Cli.respond $
@@ -2152,36 +2161,34 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       ppe
       showSuccesses
       showFailures
-      (oks cachedTests)
-      (fails cachedTests)
+      oks
+      fails
   let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
   when (not (Set.null toCompute)) do
     let total = Set.size toCompute
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-      case r of
-        Reference.DerivedId rid ->
-          Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
-            Nothing -> do
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+      Cli.runTransaction (Codebase.getTerm codebase r) >>= \case
+        Nothing -> do
+          hqLength <- Cli.runTransaction Codebase.hashLength
+          Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
+          pure []
+        Just tm -> do
+          Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
+          --                        v don't cache; test cache populated below
+          tm' <- evalPureUnison ppe False tm
+          case tm' of
+            Left e -> do
+              Cli.respond (EvaluationFailure e)
               pure []
-            Just tm -> do
-              Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                        v don't cache; test cache populated below
-              tm' <- evalPureUnison ppe False tm
-              case tm' of
-                Left e -> do
-                  Cli.respond (EvaluationFailure e)
-                  pure []
-                Right tm' -> do
-                  -- After evaluation, cache the result of the test
-                  Cli.runTransaction (Codebase.putWatch WK.TestWatch rid tm')
-                  Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-                  pure [(r, tm')]
-        r -> error $ "unpossible, tests can't be builtins: " <> show r
+            Right tm' -> do
+              -- After evaluation, cache the result of the test
+              Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
+              Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
+              pure [(r, tm')]
 
     let m = Map.fromList computedTests
-    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+        (mOks, mFails) = passFails m
+    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures mOks mFails
   where
     isInLibNamespace :: Name -> Bool
     isInLibNamespace name =

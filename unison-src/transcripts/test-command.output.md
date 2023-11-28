@@ -97,6 +97,7 @@ test2 = [Ok "test2"]
 ```unison
 test3 : [Result]
 test3 = [Ok "test3"]
+test4 = [Ok "test4"]
 ```
 
 ```ucm
@@ -108,6 +109,7 @@ test3 = [Ok "test3"]
     ⍟ These new definitions are ok to `add`:
     
       test3 : [Result]
+      test4 : [Result]
 
 ```
 ```ucm
@@ -126,11 +128,16 @@ test3 = [Ok "test3"]
 
   
 
+  
+
+  
+
     New test results:
   
   ◉ hello.lib.test3   test3
+  ◉ hello.lib.test4   test4
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
   Tip: Use view hello.lib.test3 to view the source of a test.
 
