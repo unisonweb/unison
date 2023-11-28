@@ -72,6 +72,8 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
       docResults name = do
         docRefs <- docsForDefinitionName codebase nameSearch name
         renderDocRefs pped width codebase rt docRefs
+          -- local server currently ignores doc eval errors
+          <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
 
   let fqnPPE = PPED.unsuffixifiedPPE pped
   typeDefinitions <-
