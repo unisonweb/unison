@@ -6,9 +6,7 @@
 unique type Foo = { bar : Nat }
 ```
 
-This shouldn't be an error.
-
-```ucm:error
+```ucm
 .> update
 .> view Foo
 ```

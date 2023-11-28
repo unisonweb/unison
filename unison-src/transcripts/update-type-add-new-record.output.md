@@ -16,8 +16,6 @@ unique type Foo = { bar : Nat }
       Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
-This shouldn't be an error.
-
 ```ucm
 .> update
 
@@ -28,18 +26,10 @@ This shouldn't be an error.
 
   Everything typechecks, so I'm saving the results...
 
-  I couldn't complete the update because I couldn't find 0
-  constructor(s) for Foo where I expected to. I found: []
-  
-  You can use `view Foo` and
-  `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each constructor, and then try again.
+  Done.
 
 .> view Foo
 
-  ⚠️
-  
-  The following names were not found in the codebase. Check your spelling.
-    Foo
+  unique type Foo = { bar : Nat }
 
 ```

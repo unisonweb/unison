@@ -381,9 +381,9 @@ findCtorNames names forwardCtorNames ctorCount n =
       insertShortest m _ = m
       m = foldl' insertShortest mempty (Foldable.toList center)
       ctorCountGuess = fromMaybe (Map.size m) ctorCount
-   in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m) [0 .. fromIntegral ctorCountGuess - 1]
+   in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m . fromIntegral) [0 .. ctorCountGuess - 1]
         then Right $ Map.elems m
-        else Left $ Output.UpdateIncompleteConstructorSet n m ctorCountGuess
+        else Left $ Output.UpdateIncompleteConstructorSet n m ctorCount
 
 -- Used by `findCtorNames` to filter `forwardCtorNames` to a narrow range which will be searched linearly.
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"

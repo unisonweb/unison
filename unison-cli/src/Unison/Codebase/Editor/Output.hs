@@ -390,7 +390,7 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
-  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) Int
+  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
 

@@ -2193,7 +2193,7 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $
             "I couldn't complete the update because I couldn't find"
-              <> fromString (show expectedCount)
+              <> fromString (maybe "" show expectedCount)
               <> "constructor(s) for"
               <> prettyName name
               <> "where I expected to."
