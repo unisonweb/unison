@@ -134,10 +134,10 @@ handleUpdate2 = do
     let smallUf = UF.discardTypes tuf
     let noChanges =
           and
-            [ UF.dataDeclarations smallUf == UF.dataDeclarations bigUf,
-              UF.effectDeclarations smallUf == UF.effectDeclarations bigUf,
-              UF.terms smallUf == UF.terms bigUf, -- no need to sort these, though it wouldn't hurt
-              UF.watches smallUf == UF.watches bigUf
+            [ Map.size (UF.dataDeclarations smallUf) == Map.size (UF.dataDeclarations bigUf),
+              Map.size (UF.effectDeclarations smallUf) == Map.size (UF.effectDeclarations bigUf),
+              length @[] (UF.terms smallUf) == length @[] (UF.terms bigUf),
+              Map.size (UF.watches smallUf) == Map.size (UF.watches bigUf)
             ]
     if noChanges
       then pure tuf
