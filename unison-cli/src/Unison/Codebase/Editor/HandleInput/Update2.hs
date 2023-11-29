@@ -128,19 +128,33 @@ handleUpdate2 = do
 
     pure (pped, bigUf)
 
-  -- - typecheck it
-  Cli.respond Output.UpdateStartTypechecking
-  parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
-  prettyParseTypecheck bigUf pped parsingEnv >>= \case
-    Left prettyUf -> do
-      Cli.Env {isTranscript} <- ask
-      maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
-      Cli.respond (Output.DisplayDefinitionsString maybePath prettyUf)
-      Cli.respond Output.UpdateTypecheckingFailure
-    Right tuf -> do
-      Cli.respond Output.UpdateTypecheckingSuccess
-      saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) tuf
-      Cli.respond Output.Success
+  -- If the new-unison-file-to-typecheck is the same as old-unison-file-that-we-already-typechecked, then don't bother
+  -- typechecking again.
+  secondTuf <- do
+    let smallUf = UF.discardTypes tuf
+    let noChanges =
+          and
+            [ UF.dataDeclarations smallUf == UF.dataDeclarations bigUf,
+              UF.effectDeclarations smallUf == UF.effectDeclarations bigUf,
+              UF.terms smallUf == UF.terms bigUf, -- no need to sort these, though it wouldn't hurt
+              UF.watches smallUf == UF.watches bigUf
+            ]
+    if noChanges
+      then pure tuf
+      else do
+        Cli.respond Output.UpdateStartTypechecking
+        parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+        secondTuf <-
+          prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
+            Cli.Env {isTranscript} <- ask
+            maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
+            Cli.respond (Output.DisplayDefinitionsString maybePath prettyUf)
+            Cli.returnEarly Output.UpdateTypecheckingFailure
+        Cli.respond Output.UpdateTypecheckingSuccess
+        pure secondTuf
+
+  saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) secondTuf
+  Cli.respond Output.Success
 
 -- TODO: find a better module for this function, as it's used in a couple places
 prettyParseTypecheck ::
