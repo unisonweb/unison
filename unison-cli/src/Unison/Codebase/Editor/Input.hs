@@ -182,13 +182,6 @@ data Input
   | -- fetch scheme compiler from a given username and branch
     FetchSchemeCompilerI String String
   | TestI TestInput
-  | -- metadata
-    -- `link metadata definitions` (adds metadata to all of `definitions`)
-    LinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-    UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- links from <type>
-    LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions. If list is empty, prompt a fuzzy search.
     DisplayI OutputLocation [HQ.HashQualified Name]

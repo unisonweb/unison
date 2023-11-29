@@ -580,7 +580,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+              pure $ pure $ C.Branch.MdValues Map.empty
         )
     doTypes ::
       Map Db.TextId (Map S.Reference S.DbMetadataSet) ->
@@ -590,7 +590,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+              pure $ pure $ C.Branch.MdValues Map.empty
         )
     doPatches ::
       Map Db.TextId Db.PatchObjectId ->

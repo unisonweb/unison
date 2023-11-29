@@ -150,8 +150,10 @@ data Output
     Success
   | -- User did `add` or `update` before typechecking a file?
     NoUnisonFile
-  | -- Used in Welcome module to instruct user
+  | -- Outputs the pretty without decoration
     PrintMessage (P.Pretty P.ColorText)
+  | -- Outputs the pretty without decoration
+    PrintFailure (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
@@ -229,7 +231,6 @@ data Output
       [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | ListStructuredFind [HQ.HashQualified Name]
@@ -467,6 +468,7 @@ isFailure o = case o of
   RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
+  PrintFailure {} -> True
   CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
@@ -511,7 +513,6 @@ isFailure o = case o of
   MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
-  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   ListStructuredFind tms -> null tms

@@ -70,7 +70,6 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
@@ -195,7 +194,6 @@ import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
@@ -718,23 +716,6 @@ loop e = do
                   types' :: [(Reference, [HQ'.HashQualified Name])]
                   types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
               Cli.respond $ ListNames global hqLength types' terms'
-            LinkI mdValue srcs -> do
-              description <- inputDescription input
-              manageLinks False srcs [mdValue] Metadata.insert
-              Cli.syncRoot description
-            UnlinkI mdValue srcs -> do
-              description <- inputDescription input
-              manageLinks False srcs [mdValue] Metadata.delete
-              Cli.syncRoot description
-
-            -- > links List.map (.Docs .English)
-            -- > links List.map -- give me all the
-            -- > links Optional License
-            LinksI src mdTypeStr -> do
-              (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
-              #numberedArgs .= fmap (HQ.toString . view _1) out
-              let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
-              Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
               currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
@@ -1089,7 +1070,6 @@ loop e = do
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-              addDefaultMetadata adds
               Cli.syncRoot description
             SaveExecuteResultI resultName -> do
               description <- inputDescription input
@@ -1103,7 +1083,6 @@ loop e = do
               Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
-              addDefaultMetadata adds
               Cli.syncRoot description
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
             PreviewAddI requestedNames -> do
@@ -1547,12 +1526,6 @@ inputDescription input =
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
-    LinkI md defs0 -> do
-      defs <- traverse hqs' defs0
-      pure ("link " <> HQ.toText md <> " " <> Text.intercalate " " defs)
-    UnlinkI md defs0 -> do
-      defs <- traverse hqs' defs0
-      pure ("unlink " <> HQ.toText md <> " " <> Text.intercalate " " defs)
     UpdateBuiltinsI -> pure "builtins.update"
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
@@ -1611,7 +1584,6 @@ inputDescription input =
     StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
-    LinksI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
@@ -2254,52 +2226,6 @@ doDisplay outputLoc names tm = do
       tm
   Cli.respond $ DisplayRendered loc rendered
 
-getLinks ::
-  SrcLoc ->
-  Path.HQSplit' ->
-  Either (Set Reference) (Maybe String) ->
-  Cli
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks srcLoc src =
-  getLinks' src <=< \case
-    Left s -> pure (Just s)
-    Right Nothing -> pure Nothing
-    Right (Just mdTypeStr) -> do
-      typ <- parseType srcLoc mdTypeStr
-      pure (Just (Set.singleton (Hashing.typeToReference typ)))
-
-getLinks' ::
-  Path.HQSplit' -> -- definition to print metadata of
-  Maybe (Set Reference) -> -- return all metadata if empty
-  Cli
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks' src selection0 = do
-  Cli.Env {codebase} <- ask
-  root0 <- Cli.getRootBranch0
-  p <- Path.convert <$> Cli.resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
-  let -- all metadata (type+value) associated with name `src`
-      allMd =
-        R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
-          <> R4.d34 (BranchUtil.getTypeMetadataHQNamed p root0)
-      allMd' = maybe allMd (`R.restrictDom` allMd) selection0
-      -- then list the values after filtering by type
-      allRefs :: Set Reference = R.ran allMd'
-  sigs <- Cli.runTransaction (for (toList allRefs) (loadTypeOfTerm codebase . Referent.Ref))
-  let deps =
-        Set.map LD.termRef allRefs
-          <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
-  let ppeDecl = PPE.unsuffixifiedPPE ppe
-  let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
-  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
-  pure (PPE.suffixifiedPPE ppe, out)
-
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
 doShowTodoOutput patch scopePath = do
@@ -2822,12 +2748,11 @@ displayI prettyPrintNames outputLoc hq = do
       doDisplay outputLoc ns tm
 
 docsI :: SrcLoc -> Names -> Path.HQSplit' -> Cli ()
-docsI srcLoc prettyPrintNames src =
+docsI _srcLoc prettyPrintNames src =
   fileByName
   where
-    {- Given `docs foo`, we look for docs in 3 places, in this order:
+    {- Given `docs foo`, we look for docs in 2 places, in this order:
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
-       (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
     hq :: HQ.HashQualified Name
@@ -2849,22 +2774,7 @@ docsI srcLoc prettyPrintNames src =
           -- the hash back to its full name in the file
           fname' <- pure $ NamesWithHistory.longestTermName 10 (Set.findMin s) fnames
           displayI prettyPrintNames ConsoleLocation fname'
-        _ -> codebaseByMetadata
-
-    codebaseByMetadata :: Cli ()
-    codebaseByMetadata = do
-      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, IOSource.doc2Ref])
-      case out of
-        [] -> codebaseByName
-        [(_name, ref, _tm)] -> do
-          len <- Cli.runTransaction Codebase.branchHashLength
-          let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
-          let tm = Term.ref External ref
-          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
-          doDisplay ConsoleLocation names (Term.unannotate tm)
-        out -> do
-          #numberedArgs .= fmap (HQ.toString . view _1) out
-          Cli.respond $ ListOfLinks ppe out
+        _ -> codebaseByName
 
     codebaseByName :: Cli ()
     codebaseByName = do
@@ -2872,9 +2782,8 @@ docsI srcLoc prettyPrintNames src =
       case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
-          | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
-          -- todo: return a list of links here too
-          | otherwise -> Cli.respond $ ListOfLinks PPE.empty []
+          | Set.size s == 0 -> Cli.respond (PrintFailure "No doc found.")
+          | otherwise -> Cli.respond (PrintFailure "Conflicted docs.")
 
 loadDisplayInfo ::
   Codebase m Symbol Ann ->

@@ -24,7 +24,6 @@ import Unison.Codebase.Branch (Branch0 (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Propagate qualified as Propagate
@@ -199,7 +198,6 @@ handleUpdate input optionalPatch requestedNames = do
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
-  addDefaultMetadata addsAndUpdates
   Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->

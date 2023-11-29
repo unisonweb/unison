@@ -665,8 +665,8 @@ notifyUser dir = \case
         <> "to evaluate something before attempting"
         <> "to save it."
   Success -> pure $ P.bold "Done."
-  PrintMessage pretty -> do
-    pure pretty
+  PrintMessage pretty -> pure pretty
+  PrintFailure pretty -> pure pretty
   CouldntLoadBranch h ->
     pure . P.fatalCallout . P.wrap $
       "I have reason to believe that"
@@ -1020,8 +1020,6 @@ notifyUser dir = \case
       ]
   ListOfDefinitions fscope ppe detailed results ->
     listOfDefinitions fscope ppe detailed results
-  ListOfLinks ppe results ->
-    listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
     if null types && null terms
       then
@@ -3042,33 +3040,6 @@ listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
-
-listOfLinks ::
-  (Var v) => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
-listOfLinks _ [] =
-  pure . P.callout "😶" . P.wrap $
-    "No results. Try using the "
-      <> IP.makeExample IP.link []
-      <> "command to add metadata to a definition."
-listOfLinks ppe results =
-  pure $
-    P.lines
-      [ P.numberedColumn2
-          num
-          [ (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq, typ) <- results
-          ],
-        "",
-        tip $
-          "Try using"
-            <> IP.makeExample IP.display ["1"]
-            <> "to display the first result or"
-            <> IP.makeExample IP.view ["1"]
-            <> "to view its source."
-      ]
-  where
-    num i = P.hiBlack $ P.shown i <> "."
-    prettyType Nothing = "❓ (missing a type for this definition)"
-    prettyType (Just t) = TypePrinter.pretty ppe t
 
 data ShowNumbers = ShowNumbers | HideNumbers
 
