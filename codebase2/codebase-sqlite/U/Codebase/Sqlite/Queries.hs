@@ -2720,6 +2720,7 @@ data EntityLocation
     EntityInMainStorage
   | -- | `temp_entity`
     EntityInTempStorage
+  deriving (Eq, Show, Ord)
 
 -- | Where is an entity stored?
 entityLocation :: Hash32 -> Transaction (Maybe EntityLocation)
