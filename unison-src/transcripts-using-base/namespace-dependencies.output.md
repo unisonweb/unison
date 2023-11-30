@@ -25,24 +25,16 @@ hasMetadata = 3
 
 .dependencies> link .metadata.myMetadata hasMetadata
 
-  Updates:
-  
-    1. dependencies.hasMetadata : Nat
-       + 2. myMetadata : Text
-
-.dependencies> namespace.dependencies
-
-  External dependency   Dependents in .dependencies
-  builtin.Int           1. dependsOnInt
-                        
-  builtin.Nat           2. dependsOnIntAndNat
-                        3. dependsOnNat
-                        4. hasMetadata
-                        
-  builtin.Text          4. hasMetadata
-                        
-  builtin.Nat.drop      2. dependsOnIntAndNat
-                        
-  metadata.myMetadata   4. hasMetadata
-
 ```
+
+```ucm
+.dependencies> add.dependencies> link .metadata.myMetadata hasMetadata.dependencies> namespace.dependencies
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+⚠️
+I don't know how to link. Type `help` or `?` to get help.

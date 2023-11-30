@@ -22,123 +22,13 @@ test1 = [Ok "test1"]
 
 ```
 ```ucm
-.> test
-
-  ✅  
-
-  
-
-  
-
-    New test results:
-  
-  ◉ test1   test1
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view test1 to view the source of a test.
-
-```
-`test` won't descend into the `lib` namespace, but `test.all` will.
-
-```unison
-test2 : [Result]
-test2 = [Ok "test2"]
+.> add.> link .builtin.metadata.isTest test1
 ```
 
-```ucm
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      test2 : [Result]
+🛑
 
-```
-```ucm
-.> test
+The transcript failed due to an error in the stanza above. The error is:
 
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ test1   test1
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view test1 to view the source of a test.
-
-.> test.all
-
-    
-    Cached test results (`help testcache` to learn more)
-    
-    ◉ test1   test1
-    
-    ✅ 1 test(s) passing
-    
-    ✅  
-
-  
-
-  
-
-    New test results:
-  
-  ◉ lib.test2   test2
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view lib.test2 to view the source of a test.
-
-```
-`test` will descend into namespaces named `lib` if they aren't at the top-level, though.
-
-```unison
-test3 : [Result]
-test3 = [Ok "test3"]
-test4 = [Ok "test4"]
-```
-
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      test3 : [Result]
-      test4 : [Result]
-
-```
-```ucm
-.> test
-
-    
-    Cached test results (`help testcache` to learn more)
-    
-    ◉ test1   test1
-    
-    ✅ 1 test(s) passing
-    
-    ✅  
-
-  
-
-  
-
-  
-
-  
-
-    New test results:
-  
-  ◉ hello.lib.test3   test3
-  ◉ hello.lib.test4   test4
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view hello.lib.test3 to view the source of a test.
-
-```
+⚠️
+I don't know how to link. Type `help` or `?` to get help.

@@ -122,91 +122,13 @@ Let's add it to the codebase, and link it to the definition:
 
 .> link docs.List.take builtin.List.take
 
-  Updates:
-  
-    1. builtin.List.take : Nat -> [a] -> [a]
-       + 2. docs.List.take : Doc
-
 ```
-Now that documentation is linked to the definition. We can view it if we like:
 
-```ucm
-.> links builtin.List.take builtin.Doc
 
-  1. docs.List.take : Doc
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
 
-.> display 1
+🛑
 
-  `builtin.List.take n xs` returns the first `n` elements of `xs`.
-  (No need to add line breaks manually. The display command will
-  do wrapping of text for you.  Indent any lines where you don't
-  want it to do this.)
-  
-  ## Examples:
-  
-    List.take.ex1 : [Nat]
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-    🔽
-    ex1 = []
-  
-  
-    List.take.ex2 : [Nat]
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-    🔽
-    ex2 = [1, 2]
-  
+The transcript failed due to an error in the stanza above. The error is:
 
-```
-Or there's also a convenient function, `docs`, which shows the `Doc` values that are linked to a definition. It's implemented in terms of `links` and `display`:
-
-```ucm
-.> docs builtin.List.take
-
-  `builtin.List.take n xs` returns the first `n` elements of `xs`.
-  (No need to add line breaks manually. The display command will
-  do wrapping of text for you.  Indent any lines where you don't
-  want it to do this.)
-  
-  ## Examples:
-  
-    List.take.ex1 : [Nat]
-  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
-    🔽
-    ex1 = []
-  
-  
-    List.take.ex2 : [Nat]
-  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
-    🔽
-    ex2 = [1, 2]
-  
-
-```
-Note that if we view the source of the documentation, the various references are *not* expanded.
-
-```ucm
-.> view docs.List.take
-
-  docs.List.take : Doc
-  docs.List.take =
-    [: `@builtin.List.take n xs` returns the first `n` elements of
-    `xs`. (No need to add line breaks manually. The display command
-    will do wrapping of text for you.  Indent any lines where you
-    don't want it to do this.)
-    
-    ## Examples:
-    
-      @[source] ex1
-      🔽
-      @ex1 = @[evaluate] ex1
-    
-    
-      @[source] ex2
-      🔽
-      @ex2 = @[evaluate] ex2
-    :]
-
-```
+⚠️
+I don't know how to link. Type `help` or `?` to get help.

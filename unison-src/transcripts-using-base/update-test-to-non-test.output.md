@@ -54,9 +54,13 @@ foo = 1
 
 .> links foo
 
-  1. builtin.metadata.isTest : IsTest
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
-
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+⚠️
+I don't know how to links. Type `help` or `?` to get help.

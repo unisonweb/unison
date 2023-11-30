@@ -32,35 +32,16 @@ x = 4
 
 .> links y
 
-  1. #cb9e3iosob : #c23jofurce
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
-
-.> view 1
-
-  #cb9e3iosob : #c23jofurce
-  #cb9e3iosob = #c23jofurce#0
-
 ```
-Well, it's hard to tell from those hashes, but those are right.  We can confirm
-by running `builtins.merge` to have UCM add names for them.
 
 ```ucm
-.> builtins.merge
-
-  Done.
-
-.> links y
-
-  1. builtin.metadata.isPropagated : IsPropagated
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
-
-.> view 1
-
-  builtin.metadata.isPropagated : IsPropagated
-  builtin.metadata.isPropagated = IsPropagated
-
+.> update.old.> links y.> view 1
 ```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+⚠️
+I don't know how to links. Type `help` or `?` to get help.

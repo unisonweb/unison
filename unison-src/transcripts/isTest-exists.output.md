@@ -20,14 +20,16 @@ test> pass = [Ok "Passed"]
 
 .> links pass
 
-  1. builtin.metadata.isTest : IsTest
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
-
-.> display 1
-
-  IsTest
-
 ```
-The definition and type of `isTest should exist.
+
+```ucm
+.> add.> links pass.> display 1
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+⚠️
+I don't know how to links. Type `help` or `?` to get help.

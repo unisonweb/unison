@@ -134,16 +134,6 @@ structural ability X a1 a2 where x : ()
 
   Done.
 
-.ns1> link b fromJust
-
-  Updates:
-  
-    1. ns1.fromJust : Nat
-       + 2. b : Nat
-    
-    3. ns1.fromJust' : Nat
-       + 4. b : Nat
-
 .ns1> fork .ns1 .ns2
 
   Done.
@@ -224,13 +214,6 @@ unique type Y a b = Y a b
     fromJust : Nat
       (The old definition was also named fromJust'.)
 
-.ns2> links fromJust
-
-  1. b : Text
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
-
 .> diff.namespace ns1 ns2
 
   Resolved name conflicts:
@@ -239,30 +222,26 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    9.  fromJust' : Nat
-        - 10. ns1.b : Nat
-        + 11. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y : a -> b -> Y a b
-    14. d   : Nat
-    15. e   : Nat
-    16. f   : Nat
+    8.  unique type Y a b
+    9.  Y.Y : a -> b -> Y a b
+    10. d   : Nat
+    11. e   : Nat
+    12. f   : Nat
   
-    17. patch patch (added 2 updates)
+    13. patch patch (added 2 updates)
 
 .> alias.term ns2.d ns2.d'
 
@@ -284,52 +263,34 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    9.  fromJust' : Nat
-        - 10. ns1.b : Nat
-        + 11. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y  : a -> b -> Y a b
-    14. ┌ d  : Nat
-    15. └ d' : Nat
-    16. e    : Nat
-    17. f    : Nat
+    8.  unique type Y a b
+    9.  Y.Y  : a -> b -> Y a b
+    10. ┌ d  : Nat
+    11. └ d' : Nat
+    12. e    : Nat
+    13. f    : Nat
   
-    18. patch patch (added 2 updates)
+    14. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    19. A     20. A' (added)
+    15. A     16. A' (added)
     
-    21. X    22. X' (added)
-
-.> link ns1.c ns2.f
-
-  Updates:
-  
-    1. ns2.f : Nat
-       + 2. c : Nat
-
-.> link ns2.c ns2.c
-
-  Updates:
-  
-    1. ns2.c : Nat
-       + 2. c : Nat
+    17. X    18. X' (added)
 
 .> diff.namespace ns1 ns2
 
@@ -339,45 +300,34 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  c : Nat
-        + 9.  c : Nat
-    
-    10. fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    11. fromJust' : Nat
-        - 12. ns1.b : Nat
-        + 13. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
+    8.  unique type Y a b
+    9.  Y.Y  : a -> b -> Y a b
+    10. ┌ d  : Nat
+    11. └ d' : Nat
+    12. e    : Nat
+    13. f    : Nat
   
-    20. patch patch (added 2 updates)
+    14. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    21. A     22. A' (added)
+    15. A     16. A' (added)
     
-    23. X    24. X' (added)
-
-.> unlink ns2.b ns2.fromJust
-
-  I didn't make any changes.
+    17. X    18. X' (added)
 
 .> diff.namespace ns1 ns2
 
@@ -387,41 +337,34 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  c : Nat
-        + 9.  c : Nat
-    
-    10. fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    11. fromJust' : Nat
-        - 12. ns1.b : Nat
-        + 13. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
+    8.  unique type Y a b
+    9.  Y.Y  : a -> b -> Y a b
+    10. ┌ d  : Nat
+    11. └ d' : Nat
+    12. e    : Nat
+    13. f    : Nat
   
-    20. patch patch (added 2 updates)
+    14. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    21. A     22. A' (added)
+    15. A     16. A' (added)
     
-    23. X    24. X' (added)
+    17. X    18. X' (added)
 
 .> alias.type ns1.X ns1.X2
 

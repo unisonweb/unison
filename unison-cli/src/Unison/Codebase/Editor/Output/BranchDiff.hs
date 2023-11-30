@@ -29,21 +29,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Relation3 qualified as R3
 import Unison.Util.Set (symmetricDifference)
 
-data MetadataDiff tm = MetadataDiff
-  { addedMetadata :: [tm],
-    removedMetadata :: [tm]
-  }
-  deriving (Ord, Eq, Functor, Foldable, Traversable, Show)
-
-instance Semigroup (MetadataDiff tm) where
-  a <> b =
-    MetadataDiff
-      (addedMetadata a <> addedMetadata b)
-      (removedMetadata a <> removedMetadata b)
-
-instance Monoid (MetadataDiff tm) where
-  mempty = MetadataDiff mempty mempty
-
 data BranchDiffOutput v a = BranchDiffOutput
   { updatedTypes :: [UpdateTypeDisplay v a],
     updatedTerms :: [UpdateTermDisplay v a],
@@ -89,8 +74,7 @@ isEmpty BranchDiffOutput {..} =
 data TermDisplay v a = TermDisplay
   { name :: HashQualified Name,
     ref :: Referent,
-    type_ :: Maybe (Type v a),
-    metadata :: MetadataDiff (MetadataDisplay v a)
+    type_ :: Maybe (Type v a)
   }
   deriving stock (Generic, Show)
 
@@ -106,8 +90,7 @@ instance Ord (TermDisplay v a) where
 data TypeDisplay v a = TypeDisplay
   { name :: HashQualified Name,
     ref :: Reference,
-    decl :: Maybe (DeclOrBuiltin v a),
-    metadata :: MetadataDiff (MetadataDisplay v a)
+    decl :: Maybe (DeclOrBuiltin v a)
   }
   deriving stock (Generic, Show)
 
@@ -189,54 +172,6 @@ toOutput
   names2
   ppe
   (BranchDiff termsDiff typesDiff patchesDiff) = do
-    let -- This calculates the new reference's metadata as:
-        -- adds: now-attached metadata that was missing from
-        --       any of the old references associated with the name
-        -- removes: not-attached metadata that had been attached to any of
-        --       the old references associated with the name
-        getNewMetadataDiff :: (Ord r) => Bool -> DiffSlice r -> Name -> Set r -> r -> MetadataDiff Metadata.Value
-        getNewMetadataDiff hidePropagatedMd s n rs_old r_new =
-          let old_metadatas :: [Set Metadata.Value] =
-                toList . R.toMultimap . R.restrictDom rs_old . R3.lookupD2 n $
-                  BranchDiff.tremovedMetadata s
-              old_intersection :: Set Metadata.Value =
-                foldl' Set.intersection mempty old_metadatas
-              old_union :: Set Metadata.Value =
-                foldl' Set.union mempty old_metadatas
-              new_metadata :: Set Metadata.Value =
-                R.lookupDom n . R3.lookupD1 r_new $ BranchDiff.taddedMetadata s
-              toDelete = if hidePropagatedMd then Set.singleton isPropagatedValue else mempty
-           in MetadataDiff
-                { addedMetadata = toList $ new_metadata `Set.difference` old_intersection `Set.difference` toDelete,
-                  removedMetadata = toList $ old_union `Set.difference` new_metadata `Set.difference` toDelete
-                }
-        -- For the metadata on a definition to have changed, the name
-        -- and the reference must have existed before and the reference
-        -- must not have been removed and the name must not have been removed or added
-        -- or updated 😅
-        -- "getMetadataUpdates" = a defn has been updated via change of metadata
-        getMetadataUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
-        getMetadataUpdates s =
-          Map.fromList
-            [ (n, (Set.singleton r, Set.singleton r)) -- the reference is unchanged
-              | (r, n, v) <-
-                  R3.toList $
-                    BranchDiff.taddedMetadata s
-                      <> BranchDiff.tremovedMetadata s,
-                R.notMember r n (BranchDiff.talladds s),
-                R.notMember r n (BranchDiff.tallremoves s),
-                -- don't count it as a metadata update if it already's already a regular update
-                let (oldRefs, newRefs) =
-                      Map.findWithDefault mempty n (BranchDiff.tallnamespaceUpdates s)
-                 in Set.notMember r oldRefs && Set.notMember r newRefs,
-                --  trenames :: Map r (Set Name, Set Name), -- ref (old, new)
-                case Map.lookup r (BranchDiff.trenames s) of
-                  Nothing -> True
-                  Just (olds, news) ->
-                    Set.notMember n (symmetricDifference olds news),
-                v /= isPropagatedValue
-            ]
-
     let isSimpleUpdate, isNewConflict, isResolvedConflict :: (Eq r) => (Set r, Set r) -> Bool
         isSimpleUpdate (old, new) = Set.size old == 1 && Set.size new == 1
         isNewConflict (_old, new) = Set.size new > 1 -- should already be the case that old /= new
@@ -249,9 +184,6 @@ toOutput
       let -- things where what the name pointed to changed
           nsUpdates :: Map Name (Set Reference, Set Reference) =
             BranchDiff.namespaceUpdates typesDiff
-          -- things where the metadata changed (`uniqueBy` below removes these
-          -- if they were already included in `nsUpdates)
-          metadataUpdates = getMetadataUpdates typesDiff
           loadOld :: Bool -> Name -> Reference -> m (SimpleTypeDisplay v a)
           loadOld forceHQ n r_old =
             (,,)
@@ -265,7 +197,6 @@ toOutput
           loadNew :: Bool -> Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
           loadNew hidePropagatedMd forceHQ n rs_old r_new = do
             decl <- declOrBuiltin r_new
-            metadata <- fillMetadata ppe (getNewMetadataDiff hidePropagatedMd typesDiff n rs_old r_new)
             pure
               TypeDisplay
                 { name =
@@ -273,8 +204,7 @@ toOutput
                       then Names.hqTypeName' hqLen n r_new
                       else Names.hqTypeName hqLen names2 n r_new,
                   ref = r_new,
-                  decl,
-                  metadata
+                  decl
                 }
           loadEntry :: Bool -> (Name, (Set Reference, Set Reference)) -> m (UpdateTypeDisplay v a)
           loadEntry hidePropagatedMd (n, (Set.toList -> [rold], Set.toList -> [rnew]))
@@ -293,10 +223,7 @@ toOutput
        in liftA3
             (,,)
             ( List.sort
-                <$> liftA2
-                  (<>)
-                  (for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True))
-                  (for (Map.toList metadataUpdates) (loadEntry False))
+                <$> for (Map.toList $ Map.filter isSimpleUpdate nsUpdates) (loadEntry True)
             )
             (List.sort <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) (loadEntry True))
             (List.sort <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) (loadEntry True))
@@ -307,9 +234,6 @@ toOutput
       ) <-
       let -- things where what the name pointed to changed
           nsUpdates = BranchDiff.namespaceUpdates termsDiff
-          -- things where the metadata changed (`uniqueBy` below removes these
-          -- if they were already included in `nsUpdates)
-          metadataUpdates = getMetadataUpdates termsDiff
           loadOld forceHQ n r_old =
             (,,)
               <$> pure
@@ -322,7 +246,6 @@ toOutput
           loadNew :: Bool -> Bool -> Name -> Set Referent -> Referent -> m (TermDisplay v a)
           loadNew hidePropagatedMd forceHQ n rs_old r_new = do
             type_ <- typeOf r_new
-            metadata <- fillMetadata ppe (getNewMetadataDiff hidePropagatedMd termsDiff n rs_old r_new)
             pure
               TermDisplay
                 { name =
@@ -330,8 +253,7 @@ toOutput
                       then Names.hqTermName' hqLen n r_new
                       else Names.hqTermName hqLen names2 n r_new,
                   ref = r_new,
-                  type_,
-                  metadata
+                  type_
                 }
           loadEntry :: Bool -> (Name, (Set Referent, Set Referent)) -> m (UpdateTermDisplay v a)
           loadEntry hidePropagatedMd (n, (rs_old, rs_new))
