@@ -131,6 +131,7 @@ data Input
   | AliasTermI HashOrHQSplit' Path.Split'
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
+  | MoveAllI Path.Path' Path.Path'
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'

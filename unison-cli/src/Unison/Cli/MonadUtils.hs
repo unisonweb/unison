@@ -51,6 +51,7 @@ module Unison.Cli.MonadUtils
     updateRoot,
     updateAtM,
     updateAt,
+    updateAndStepAt,
 
     -- * Terms
     getTermsAt,
@@ -87,6 +88,7 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Data.Configurator qualified as Configurator
 import Data.Configurator.Types qualified as Configurator
+import Data.Foldable
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
@@ -445,6 +447,19 @@ updateAt ::
   Cli Bool
 updateAt reason p f = do
   updateAtM reason p (pure . f)
+
+updateAndStepAt ::
+  (Foldable f, Foldable g) =>
+  Text ->
+  f (Path.Absolute, Branch IO -> Branch IO) ->
+  g (Path, Branch0 IO -> Branch0 IO) ->
+  Cli ()
+updateAndStepAt reason updates steps = do
+  root <-
+    (Branch.stepManyAt steps)
+      . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
+      <$> getRootBranch
+  updateRoot root reason
 
 updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =

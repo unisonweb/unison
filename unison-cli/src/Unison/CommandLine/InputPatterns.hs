@@ -678,6 +678,27 @@ renameTerm =
               "`rename.term` takes two arguments, like `rename.term oldname newname`."
     )
 
+moveAll :: InputPattern
+moveAll =
+  InputPattern
+    "move"
+    []
+    I.Visible
+    [ (Required, namespaceOrDefinitionArg),
+      (Required, newNameArg)
+    ]
+    "`move foo bar` renames the term, type, and namespace foo to bar."
+    ( \case
+        [oldName, newName] -> first fromString $ do
+          src <- Path.parsePath' oldName
+          target <- Path.parsePath' newName
+          pure $ Input.MoveAllI src target
+        _ ->
+          Left . P.warnCallout $
+            P.wrap
+              "`move` takes two arguments, like `move oldname newname`."
+    )
+
 renameType :: InputPattern
 renameType =
   InputPattern
@@ -2923,6 +2944,7 @@ validInputs =
       renamePatch,
       renameTerm,
       renameType,
+      moveAll,
       replace,
       reset,
       resetRoot,

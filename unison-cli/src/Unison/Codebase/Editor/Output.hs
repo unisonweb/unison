@@ -195,6 +195,7 @@ data Output
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
+  | MoveNothingFound Path'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
@@ -501,6 +502,7 @@ isFailure o = case o of
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
+  MoveNothingFound {} -> True
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)

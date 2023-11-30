@@ -890,6 +890,8 @@ notifyUser dir = \case
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
+  MoveNothingFound p ->
+    pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath' p <> "."
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->

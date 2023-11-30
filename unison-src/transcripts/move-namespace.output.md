@@ -249,6 +249,8 @@ b.termInB = 11
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
+  Done.
+
 ```
 ## Moving the Root 
 
