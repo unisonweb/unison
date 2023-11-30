@@ -99,10 +99,7 @@ handleUpdate2 :: Cli ()
 handleUpdate2 = do
   Cli.Env {codebase} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
-
-  -- - get add/updates from TUF
-  let termAndDeclNames :: Defns (Set Name) (Set Name) = getTermAndDeclNames tuf
-
+  let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
@@ -197,9 +194,10 @@ saveTuf :: (Name -> Either Output [Name]) -> TypecheckedUnisonFile Symbol Ann ->
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
-  branchUpdates <- Cli.runTransactionWithRollback \abort -> do
-    Codebase.addDefsToCodebase codebase tuf
-    typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
+  branchUpdates <-
+    Cli.runTransactionWithRollback \abort -> do
+      Codebase.addDefsToCodebase codebase tuf
+      typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
   Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
@@ -257,11 +255,14 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
       tuf
         & UF.hashTermsId
         & Map.toList
-        & foldMap \(var, (_, ref, _, _, _)) ->
-          let split = splitVar var
-           in [ BranchUtil.makeAnnihilateTermName split,
-                BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
-              ]
+        & foldMap \(var, (_, ref, wk, _, _)) ->
+          if WK.watchKindShouldBeStoredInDatabase wk
+            then
+              let split = splitVar var
+               in [ BranchUtil.makeAnnihilateTermName split,
+                    BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
+                  ]
+            else []
 
     splitVar :: Symbol -> Path.Split
     splitVar = Path.splitFromName . Name.unsafeFromVar
@@ -425,10 +426,17 @@ incrementLastSegmentChar (ForwardName segments) =
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
        in NameSegment incrementedText
 
+-- @getTermAndDeclNames file@ returns the names of the terms and decls defined in a typechecked Unison file.
 getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
-getTermAndDeclNames tuf = Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
+getTermAndDeclNames tuf =
+  Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
   where
-    terms = keysToNames $ UF.hashTermsId tuf
+    terms =
+      UF.hashTermsId tuf
+        & Map.foldMapWithKey \var (_, _, wk, _, _) ->
+          if WK.watchKindShouldBeStoredInDatabase wk
+            then Set.singleton (Name.unsafeFromVar var)
+            else Set.empty
     effects = keysToNames $ UF.effectDeclarationsId' tuf
     datas = keysToNames $ UF.dataDeclarationsId' tuf
     effectCtors = foldMap ctorsToNames $ fmap (Decl.toDataDecl . snd) $ UF.effectDeclarationsId' tuf
