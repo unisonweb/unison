@@ -8,22 +8,22 @@ where
 
 import Control.Lens ((^.))
 import Data.These (These (..))
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
-import qualified U.Codebase.Sqlite.Queries as Queries
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli (getBranchAt, getCurrentPath, updateAt)
-import qualified Unison.Cli.ProjectUtils as ProjectUtils
-import qualified Unison.Codebase.Branch as Branch (empty)
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Codebase.Path as Path
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli (getBranchAt, getCurrentPath, updateAt)
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch qualified as Branch (empty)
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 
 data CreateFrom
   = CreateFrom'Branch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
@@ -55,7 +55,7 @@ handleBranch sourceI projectAndBranchNames0 = do
       Input.BranchSourceI'CurrentContext ->
         ProjectUtils.getCurrentProjectBranch >>= \case
           Nothing -> CreateFrom'LooseCode <$> Cli.getCurrentPath
-          Just currentBranch -> pure (CreateFrom'Branch currentBranch)
+          Just (currentBranch, _restPath) -> pure (CreateFrom'Branch currentBranch)
       Input.BranchSourceI'Empty -> pure CreateFrom'Nothingness
       Input.BranchSourceI'LooseCodeOrProject (This sourcePath) -> do
         currentPath <- Cli.getCurrentPath
@@ -79,13 +79,12 @@ handleBranch sourceI projectAndBranchNames0 = do
               ProjectAndBranch (Just p) b -> These p b
 
   project <-
-    Cli.runEitherTransaction do
-      Queries.loadProjectByName projectName <&> \case
+    Cli.runTransactionWithRollback \rollback -> do
+      Queries.loadProjectByName projectName & onNothingM do
         -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
-        Nothing -> Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-        Just project -> Right project
+        rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
 
-  doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
+  _ <- doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
   Cli.respond $
     Output.CreatedProjectBranch
@@ -107,32 +106,33 @@ handleBranch sourceI projectAndBranchNames0 = do
 --
 -- This bit of functionality is factored out from the main 'handleBranch' handler because it is also called by the
 -- @release.draft@ command, which essentially just creates a branch, but with some different output for the user.
-doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ()
+--
+-- Returns the branch id of the newly-created branch.
+doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ProjectBranchId
 doCreateBranch createFrom project newBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
-    Cli.runEitherTransaction do
+    Cli.runTransactionWithRollback \rollback -> do
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
-        True ->
-          pure (Left (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName)))
-        False ->
+        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
+        False -> do
           -- Here, we are forking to `foo/bar`, where project `foo` does exist, and it does not have a branch named
           -- `bar`, so the fork will succeed.
-          fmap Right do
-            newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
-            Queries.insertProjectBranch
-              Sqlite.ProjectBranch
-                { projectId,
-                  branchId = newBranchId,
-                  name = newBranchName,
-                  parentBranchId =
-                    -- If we creating the branch from another branch in the same project, mark its parent
-                    case createFrom of
-                      CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-                        | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
-                      _ -> Nothing
-                }
-            pure newBranchId
+          newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
+          Queries.insertProjectBranch
+            Sqlite.ProjectBranch
+              { projectId,
+                branchId = newBranchId,
+                name = newBranchName,
+                parentBranchId =
+                  -- If we creating the branch from another branch in the same project, mark its parent
+                  case createFrom of
+                    CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
+                      | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
+                    _ -> Nothing
+              }
+          Queries.setMostRecentBranch projectId newBranchId
+          pure newBranchId
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
   sourceNamespaceObject <-
@@ -145,3 +145,4 @@ doCreateBranch createFrom project newBranchName description = do
       CreateFrom'Nothingness -> pure Branch.empty
   _ <- Cli.updateAt description newBranchPath (const sourceNamespaceObject)
   Cli.cd newBranchPath
+  pure newBranchId

@@ -53,10 +53,10 @@ unique type a.T = T1 | T2
 ```ucm
 .happy> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    unique type a.T
-    a.termInA : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
@@ -70,14 +70,14 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 
   1. T       (type)
   2. T/      (2 terms)
-  3. termInA (Nat)
+  3. termInA (##Nat)
 
 .happy> history b
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #imgt3sdjum
+  ⊙ 1. #4j747vnmdk
   
     + Adds / updates:
     
@@ -144,10 +144,10 @@ b.termInB = 11
 ```ucm
 .history> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a.termInA : Nat
-    b.termInB : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
 Deleting a namespace should not leave behind any history,
@@ -236,10 +236,10 @@ b.termInB = 11
 ```ucm
 .existing> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a.termInA : Nat
-    b.termInB : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .existing> move.namespace a b
 
@@ -269,7 +269,7 @@ I should be able to move the root into a sub-namespace
 
 .> ls
 
-  1. root/ (619 terms, 85 types)
+  1. root/ (630 terms, 89 types)
 
 .> history
 
@@ -278,13 +278,13 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #hoovbu8ort (start of history)
+  □ 1. #4ussajn1fc (start of history)
 
 ```
 ```ucm
 .> ls .root.at.path
 
-  1. builtin/  (614 terms, 84 types)
+  1. builtin/  (625 terms, 88 types)
   2. existing/ (1 term)
   3. happy/    (3 terms, 1 type)
   4. history/  (1 term)
@@ -294,7 +294,7 @@ I should be able to move the root into a sub-namespace
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #emodith391
+  ⊙ 1. #sm3e1ff3o3
   
     - Deletes:
     
@@ -305,7 +305,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #ik01reu7na
+  ⊙ 2. #r9d6ogmf6k
   
     + Adds / updates:
     
@@ -317,26 +317,26 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #7k3833anrp
+  ⊙ 3. #i3nbnio6so
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #cb1d0922nj
+  ⊙ 4. #38b1mbqlu9
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #mkkmjentg1
+  ⊙ 5. #8unpdmu968
   
     - Deletes:
     
       history.b.termInB
   
-  ⊙ 6. #vome1nopug
+  ⊙ 6. #6keeqlbr7c
   
     + Adds / updates:
     
@@ -347,13 +347,13 @@ I should be able to move the root into a sub-namespace
       Original name   New name(s)
       happy.b.termInA history.a.termInA
   
-  ⊙ 7. #tp0haemol6
+  ⊙ 7. #otsrjrs2el
   
     + Adds / updates:
     
       history.a.termInA history.b.termInB
   
-  ⊙ 8. #em1a9gnksi
+  ⊙ 8. #irbtol8piu
   
     > Moves:
     
@@ -363,7 +363,7 @@ I should be able to move the root into a sub-namespace
       happy.a.T.T2    happy.b.T.T2
       happy.a.termInA happy.b.termInA
   
-  ⊙ 9. #q023bdbqvt
+  ⊙ 9. #s3ppk1c8qc
   
     + Adds / updates:
     
@@ -373,7 +373,7 @@ I should be able to move the root into a sub-namespace
     
       happy.a.T.T
   
-  ⊙ 10. #nc5vbhmasm
+  ⊙ 10. #8qf0jit35s
   
     + Adds / updates:
     
@@ -385,7 +385,7 @@ I should be able to move the root into a sub-namespace
   
   ⠇
   
-  ⊙ 11. #k8pq23ld7i
+  ⊙ 11. #u4v65n4qcl
   
 
 ```
@@ -406,27 +406,26 @@ I should be able to move a sub namespace _over_ the root.
 
 .> ls
 
-  1. b/    (3 terms, 1 type)
-  2. patch (patch)
+  1. b/ (3 terms, 1 type)
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ddf955gbso
+  ⊙ 1. #ur0jj0uuhu
   
     + Adds / updates:
     
       b.T b.T.T1 b.T.T2 b.termInA
   
-  ⊙ 2. #8c8naats2k
+  ⊙ 2. #8a0jmdflfd
   
     - Deletes:
     
       a.T a.T.T1 a.T.T2 a.termInA
   
-  ⊙ 3. #qat4i8g3qm
+  ⊙ 3. #3sbe4c0ql9
   
     + Adds / updates:
     

@@ -45,9 +45,7 @@ Inline code:
 
 `` 1 + 2 ``
 
-`
-"doesn't typecheck" + 1
-`
+`"doesn't typecheck" + 1`
 
 [Link](https://unison-lang.org)
 
@@ -92,5 +90,5 @@ term = 42
 ```
 
 ```api
-GET /api/getDefinition?names=term
+GET /api/non-project-code/getDefinition?names=term
 ```

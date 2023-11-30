@@ -5,14 +5,17 @@ module Unison.Auth.CredentialManager
     CredentialManager,
     newCredentialManager,
     getCredentials,
+    isExpired,
   )
 where
 
+import Control.Monad.Trans.Except
+import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Unison.Auth.CredentialFile
 import Unison.Auth.Types
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
-import qualified UnliftIO
+import UnliftIO qualified
 
 -- | A 'CredentialManager' knows how to load, save, and cache credentials.
 -- It's thread-safe and safe for use across multiple UCM clients.
@@ -34,12 +37,24 @@ modifyCredentials (CredentialManager credsVar) f = do
     pure (newCreds, newCreds)
 
 getCredentials :: (MonadIO m) => CredentialManager -> CodeserverId -> m (Either CredentialFailure CodeserverCredentials)
-getCredentials (CredentialManager credsVar) aud = do
-  creds <- UnliftIO.readMVar credsVar
-  pure $ getCodeserverCredentials aud creds
+getCredentials (CredentialManager credsVar) aud = runExceptT do
+  creds <- lift (UnliftIO.readMVar credsVar)
+  codeserverCreds <- except (getCodeserverCredentials aud creds)
+  lift (isExpired codeserverCreds) >>= \case
+    True -> throwE (ReauthRequired aud)
+    False -> pure codeserverCreds
 
 newCredentialManager :: (MonadIO m) => m CredentialManager
 newCredentialManager = do
   credentials <- atomicallyModifyCredentialsFile id
   credentialsVar <- UnliftIO.newMVar credentials
   pure (CredentialManager credentialsVar)
+
+-- | Checks whether CodeserverCredentials are expired.
+isExpired :: (MonadIO m) => CodeserverCredentials -> m Bool
+isExpired CodeserverCredentials {fetchTime, tokens = Tokens {expiresIn}} = liftIO do
+  now <- getCurrentTime
+  let expTime = addUTCTime expiresIn fetchTime
+  let remainingTime = diffUTCTime expTime now
+  let threshold = expiresIn * 0.1
+  pure (threshold >= remainingTime)

@@ -2,35 +2,38 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.LSP.Types where
 
 import Colog.Core hiding (Lens')
 import Control.Comonad.Cofree (Cofree)
-import qualified Control.Comonad.Cofree as Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.HashMap.Strict as HM
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
+import Data.ByteString.Lazy.Char8 qualified as BSC
 import Data.IntervalMap.Lazy (IntervalMap)
-import qualified Data.IntervalMap.Lazy as IM
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Ki
-import qualified Language.LSP.Logging as LSP
+import Data.IntervalMap.Lazy qualified as IM
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Ki qualified
+import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message (MessageDirection (..), MessageKind (..), Method, TMessage, TNotificationMessage, fromServerNot)
+import Language.LSP.Protocol.Types
 import Language.LSP.Server
-import qualified Language.LSP.Server as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens
+import Language.LSP.Server qualified as LSP
 import Language.LSP.VFS
 import Unison.Codebase
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
@@ -40,16 +43,17 @@ import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Result (Note)
-import qualified Unison.Server.Backend as Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
-import qualified Unison.Syntax.Lexer as Lexer
+import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -80,12 +84,13 @@ data Env = Env
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
-    -- The information we have for each file, which may or may not have a valid parse or
-    -- typecheck.
-    checkedFilesVar :: TVar (Map Uri FileAnalysis),
+    -- The information we have for each file.
+    -- The MVar is filled when analysis finishes, and is emptied whenever
+    -- the file has changed (until it's checked again)
+    checkedFilesVar :: TVar (Map Uri (TMVar FileAnalysis)),
     dirtyFilesVar :: TVar (Set Uri),
     -- A map  of request IDs to an action which kills that request.
-    cancellationMapVar :: TVar (Map SomeLspId (IO ())),
+    cancellationMapVar :: TVar (Map (Int32 |? Text) (IO ())),
     -- A lazily computed map of all valid completion suffixes from the current path.
     completionsVar :: TVar CompletionTree,
     scope :: Ki.Scope
@@ -110,6 +115,14 @@ type FileVersion = Int32
 
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
+data TypeSignatureHint = TypeSignatureHint
+  { name :: Name,
+    referent :: Referent,
+    bindingLocation :: Range,
+    signature :: Type Symbol Ann
+  }
+  deriving (Show)
+
 data FileAnalysis = FileAnalysis
   { fileUri :: Uri,
     fileVersion :: FileVersion,
@@ -120,6 +133,7 @@ data FileAnalysis = FileAnalysis
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
+    typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }
   deriving stock (Show)
@@ -135,10 +149,10 @@ data FileSummary = FileSummary
     dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
     effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
     effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
-    termsBySymbol :: Map Symbol (Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
-    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Term Symbol Ann, Maybe (Type Symbol Ann))),
-    testWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
+    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
+    testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
     fileNames :: Names
   }
   deriving stock (Show)
@@ -171,7 +185,7 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (HM.keys obj) `Set.difference` validKeys
+    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
     when (not . null $ invalidKeys) do
       fail . Text.unpack $
         "Unrecognized configuration key(s): "
@@ -199,10 +213,10 @@ defaultLSPConfig = Config {..}
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
 
-sendNotification :: forall (m :: Method 'FromServer 'Notification). (Message m ~ NotificationMessage m) => NotificationMessage m -> Lsp ()
+sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
 sendNotification notif = do
   sendServerMessage <- asks (resSendMessage . lspContext)
-  liftIO $ sendServerMessage $ FromServerMess (notif ^. method) (notif)
+  liftIO $ sendServerMessage $ fromServerNot notif -- (notif ^. method) notif
 
 data RangedCodeAction = RangedCodeAction
   { -- All the ranges the code action applies
@@ -212,7 +226,7 @@ data RangedCodeAction = RangedCodeAction
   deriving stock (Eq, Show)
 
 instance HasCodeAction RangedCodeAction CodeAction where
-  codeAction = lens _codeAction (\rca ca -> rca {_codeAction = ca})
+  codeAction = lens (\RangedCodeAction {_codeAction} -> _codeAction) (\rca ca -> RangedCodeAction {_codeActionRanges = _codeActionRanges rca, _codeAction = ca})
 
 rangedCodeAction :: Text -> [Diagnostic] -> [Range] -> RangedCodeAction
 rangedCodeAction title diags ranges =
@@ -220,12 +234,12 @@ rangedCodeAction title diags ranges =
     CodeAction
       { _title = title,
         _kind = Nothing,
-        _diagnostics = Just . List $ diags,
+        _diagnostics = Just diags,
         _isPreferred = Nothing,
         _disabled = Nothing,
         _edit = Nothing,
         _command = Nothing,
-        _xdata = Nothing
+        _data_ = Nothing
       }
 
 -- | Provided ranges must not intersect.
@@ -236,7 +250,7 @@ includeEdits uri replacement ranges rca =
         pure $ TextEdit r replacement
       workspaceEdit =
         WorkspaceEdit
-          { _changes = Just $ HM.singleton uri (List edits),
+          { _changes = Just $ Map.singleton uri edits,
             _documentChanges = Nothing,
             _changeAnnotations = Nothing
           }

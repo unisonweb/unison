@@ -5,7 +5,7 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 library:
   when:
     - condition: false
-      other-modules: Paths_network-uri_orphans_sqlite
+      other-modules: Paths_network_uri_orphans_sqlite
   source-dirs: src
 
 dependencies:
@@ -31,6 +31,7 @@ default-extensions:
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
   - LambdaCase
+  - ImportQualifiedPost
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedStrings

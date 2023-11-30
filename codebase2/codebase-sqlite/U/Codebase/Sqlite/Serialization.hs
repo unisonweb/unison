@@ -1,48 +1,86 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module U.Codebase.Sqlite.Serialization where
+module U.Codebase.Sqlite.Serialization
+  ( decomposeBranchFormat,
+    decomposeDeclFormat,
+    decomposePatchFormat,
+    decomposeTermFormat,
+    decomposeWatchFormat,
+    getBranchFormat,
+    getLocalBranch,
+    getDeclElement,
+    getDeclElementNumConstructors,
+    getDeclFormat,
+    getPatchFormat,
+    getTempCausalFormat,
+    getTempDeclFormat,
+    getTempNamespaceFormat,
+    getTempPatchFormat,
+    getTempTermFormat,
+    getTermAndType,
+    getTermFormat,
+    getWatchResultFormat,
+    lookupDeclElement,
+    lookupDeclElementNumConstructors,
+    lookupTermElement,
+    lookupTermElementDiscardingTerm,
+    lookupTermElementDiscardingType,
+    putBranchFormat,
+    putDeclFormat,
+    putPatchFormat,
+    putTempEntity,
+    putTermFormat,
+    putWatchResultFormat,
+    recomposeBranchFormat,
+    recomposeDeclFormat,
+    recomposePatchFormat,
+    recomposeTermFormat,
+    recomposeWatchFormat,
+  )
+where
 
 import Data.Bits (Bits)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Bytes.Get (MonadGet, getByteString, getWord8, runGetS)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.List (elemIndex)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Vector (Vector)
-import qualified U.Codebase.Decl as Decl
+import U.Codebase.Decl qualified as Decl
 import U.Codebase.Kind (Kind)
-import qualified U.Codebase.Kind as Kind
+import U.Codebase.Kind qualified as Kind
 import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
-import qualified U.Codebase.Referent as Referent
-import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
-import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
-import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.Branch.Diff qualified as BranchDiff
+import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
+import U.Codebase.Sqlite.Branch.Full qualified as BranchFull
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.DbId (ObjectId, TextId)
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
-import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
-import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
-import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
+import U.Codebase.Sqlite.Patch.Diff qualified as PatchDiff
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
+import U.Codebase.Sqlite.Patch.Full qualified as PatchFull
+import U.Codebase.Sqlite.Patch.TermEdit qualified as TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as TypeEdit
 import U.Codebase.Sqlite.Symbol (Symbol (..))
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import qualified U.Codebase.Term as Term
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
-import qualified U.Util.Base32Hex as Base32Hex
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Term qualified as Term
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
+import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization hiding (debug)
 import Unison.Hash32 (Hash32)
-import qualified Unison.Hash32 as Hash32
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
-import qualified Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
 
 debug :: Bool
@@ -118,12 +156,20 @@ putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
 getLocalIds :: (MonadGet m) => m LocalIds
 getLocalIds = getLocalIdsWith getVarInt getVarInt
 
+skipLocalIds :: (MonadGet m) => m ()
+skipLocalIds = skipLocalIdsWith @TextId @ObjectId getVarInt getVarInt
+
 getWatchLocalIds :: (MonadGet m) => m WatchLocalIds
 getWatchLocalIds = getLocalIdsWith getVarInt getVarInt
 
 getLocalIdsWith :: (MonadGet m) => m t -> m d -> m (LocalIds' t d)
 getLocalIdsWith getText getDefn =
   LocalIds <$> getVector getText <*> getVector getDefn
+
+skipLocalIdsWith :: forall t d m. (MonadGet m) => m t -> m d -> m ()
+skipLocalIdsWith skipText skipDefn = do
+  skipVector skipText
+  skipVector skipDefn
 
 putUnit :: (Applicative m) => () -> m ()
 putUnit _ = pure ()
@@ -431,12 +477,34 @@ getDeclElement =
         1 -> Decl.Unique <$> getText
         other -> unknownTag "DeclModifier" other
 
+-- | Get the number of constructors in a decl element.
+getDeclElementNumConstructors :: (MonadGet m) => m Int
+getDeclElementNumConstructors = do
+  skipDeclType
+  skipDeclModifier
+  skipDeclTypeVariables
+  getListLength
+  where
+    skipDeclType = void getWord8
+    skipDeclModifier = void getWord8
+    skipDeclTypeVariables = void (getList skipSymbol)
+
 lookupDeclElement ::
   (MonadGet m) => Reference.Pos -> m (LocalIds, DeclFormat.Decl Symbol)
 lookupDeclElement i =
+  lookupDeclElementWith i (getPair getLocalIds getDeclElement)
+
+lookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
+lookupDeclElementNumConstructors i =
+  lookupDeclElementWith i (skipLocalIds *> getDeclElementNumConstructors)
+
+-- Note: the caller is responsible for either consuming the whole decl, or not
+-- parsing anything after a partially-parsed decl
+lookupDeclElementWith :: (MonadGet m) => Reference.Pos -> m a -> m a
+lookupDeclElementWith i get =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup (getPair getLocalIds getDeclElement) $ fromIntegral i
-    other -> unknownTag "lookupDeclElement" other
+    0 -> unsafeFramedArrayLookup get $ fromIntegral @Reference.Pos @Int i
+    other -> unknownTag "lookupDeclElementWith" other
 
 putBranchFormat :: (MonadPut m) => BranchFormat.BranchFormat -> m ()
 putBranchFormat b | debug && trace ("putBranchFormat " ++ show b) False = undefined
@@ -576,64 +644,88 @@ putTypeEdit TypeEdit.Deprecate = putWord8 0
 putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
 
 getBranchFormat :: (MonadGet m) => m BranchFormat.BranchFormat
-getBranchFormat =
+getBranchFormat = getBranchFormat' getBranchFull getBranchDiff
+  where
+    getBranchFull = getBranchFull' getBranchLocalIds
+    getBranchDiff = getBranchDiff' getBranchRef getBranchLocalIds
+    getBranchRef = getVarInt
+
+getBranchFormat' ::
+  forall text defRef patchRef childRef branchRef m.
+  (MonadGet m) =>
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
+getBranchFormat' getBranchFull getBranchDiff =
   getWord8 >>= \case
     0 -> getBranchFull
     1 -> getBranchDiff
     x -> unknownTag "getBranchFormat" x
+
+getBranchFull' ::
+  forall text defRef patchRef childRef branchRef m.
+  (MonadGet m) =>
+  m (BranchFormat.BranchLocalIds' text defRef patchRef childRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
+getBranchFull' getBranchLocalIds =
+  BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
+
+getLocalBranch :: (MonadGet m) => m BranchFull.LocalBranch
+getLocalBranch =
+  BranchFull.Branch
+    <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
+    <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
+    <*> getMap getVarInt getVarInt
+    <*> getMap getVarInt getVarInt
   where
-    getBranchFull :: (MonadGet m) => m BranchFormat.BranchFormat
-    getBranchFull =
-      BranchFormat.Full <$> getBranchLocalIds <*> getLocalBranch
-      where
-        getLocalBranch :: (MonadGet m) => m BranchFull.LocalBranch
-        getLocalBranch =
-          BranchFull.Branch
-            <$> getMap getVarInt (getMap getReferent getMetadataSetFormat)
-            <*> getMap getVarInt (getMap getReference getMetadataSetFormat)
-            <*> getMap getVarInt getVarInt
-            <*> getMap getVarInt getVarInt
-        getMetadataSetFormat :: (MonadGet m) => m BranchFull.LocalMetadataSet
-        getMetadataSetFormat =
-          getWord8 >>= \case
-            0 -> BranchFull.Inline <$> getSet getReference
-            x -> unknownTag "getMetadataSetFormat" x
-    getBranchDiff =
-      BranchFormat.Diff
-        <$> getVarInt
-        <*> getBranchLocalIds
-        <*> getLocalBranchDiff
-      where
-        getLocalBranchDiff :: (MonadGet m) => m BranchDiff.LocalDiff
-        getLocalBranchDiff =
-          BranchDiff.Diff
-            <$> getMap getVarInt (getMap getReferent getDiffOp)
-            <*> getMap getVarInt (getMap getReference getDiffOp)
-            <*> getMap getVarInt getPatchOp
-            <*> getMap getVarInt getChildOp
-        getDiffOp :: (MonadGet m) => m BranchDiff.LocalDefinitionOp
-        getDiffOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.RemoveDef
-            1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
-            2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
-            x -> unknownTag "getDiffOp" x
-        getAddRemove get = do
-          adds <- getMap get (pure True)
-          -- and removes:
-          addToExistingMap get (pure False) adds
-        getPatchOp :: (MonadGet m) => m BranchDiff.LocalPatchOp
-        getPatchOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.PatchRemove
-            1 -> BranchDiff.PatchAddReplace <$> getVarInt
-            x -> unknownTag "getPatchOp" x
-        getChildOp :: (MonadGet m) => m BranchDiff.LocalChildOp
-        getChildOp =
-          getWord8 >>= \case
-            0 -> pure BranchDiff.ChildRemove
-            1 -> BranchDiff.ChildAddReplace <$> getVarInt
-            x -> unknownTag "getChildOp" x
+    getMetadataSetFormat :: (MonadGet m) => m BranchFull.LocalMetadataSet
+    getMetadataSetFormat =
+      getWord8 >>= \case
+        0 -> BranchFull.Inline <$> getSet getReference
+        x -> unknownTag "getMetadataSetFormat" x
+
+getBranchDiff' ::
+  MonadGet m =>
+  m branchRef ->
+  m (BranchFormat.BranchLocalIds' text defRef patchRef childRef) ->
+  m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)
+getBranchDiff' getBranchRef getBranchLocalIds =
+  BranchFormat.Diff
+    <$> getBranchRef
+    <*> getBranchLocalIds
+    <*> getLocalBranchDiff
+
+getLocalBranchDiff :: (MonadGet m) => m BranchDiff.LocalDiff
+getLocalBranchDiff =
+  BranchDiff.Diff
+    <$> getMap getVarInt (getMap getReferent getDiffOp)
+    <*> getMap getVarInt (getMap getReference getDiffOp)
+    <*> getMap getVarInt getPatchOp
+    <*> getMap getVarInt getChildOp
+  where
+    getDiffOp :: (MonadGet m) => m BranchDiff.LocalDefinitionOp
+    getDiffOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.RemoveDef
+        1 -> BranchDiff.AddDefWithMetadata <$> getSet getReference
+        2 -> BranchDiff.AlterDefMetadata <$> getAddRemove getReference
+        x -> unknownTag "getDiffOp" x
+    getAddRemove get = do
+      adds <- getMap get (pure True)
+      -- and removes:
+      addToExistingMap get (pure False) adds
+    getPatchOp :: (MonadGet m) => m BranchDiff.LocalPatchOp
+    getPatchOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.PatchRemove
+        1 -> BranchDiff.PatchAddReplace <$> getVarInt
+        x -> unknownTag "getPatchOp" x
+    getChildOp :: (MonadGet m) => m BranchDiff.LocalChildOp
+    getChildOp =
+      getWord8 >>= \case
+        0 -> pure BranchDiff.ChildRemove
+        1 -> BranchDiff.ChildAddReplace <$> getVarInt
+        x -> unknownTag "getChildOp" x
 
 getBranchLocalIds :: (MonadGet m) => m BranchFormat.BranchLocalIds
 getBranchLocalIds =
@@ -713,15 +805,15 @@ recomposePatchFormat = \case
 decomposeBranchFormat :: (MonadGet m) => m BranchFormat.SyncBranchFormat
 decomposeBranchFormat =
   getWord8 >>= \case
-    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
-    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getRemainingByteString)
+    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getRemainingByteString)
     x -> unknownTag "decomposeBranchFormat" x
 
 recomposeBranchFormat :: (MonadPut m) => BranchFormat.SyncBranchFormat -> m ()
 recomposeBranchFormat = \case
-  BranchFormat.SyncFull li bs ->
+  BranchFormat.SyncFull li (BranchFormat.LocalBranchBytes bs) ->
     putWord8 0 *> putBranchLocalIds li *> putByteString bs
-  BranchFormat.SyncDiff id li bs ->
+  BranchFormat.SyncDiff id li (BranchFormat.LocalBranchBytes bs) ->
     putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
 
 putTempEntity :: (MonadPut m) => TempEntity -> m ()
@@ -738,9 +830,9 @@ putTempEntity = \case
     PatchFormat.SyncDiff parent lids bytes ->
       putWord8 1 *> putSyncDiffPatch parent lids bytes
   Entity.N n -> case n of
-    BranchFormat.SyncFull lids bytes ->
+    BranchFormat.SyncFull lids (BranchFormat.LocalBranchBytes bytes) ->
       putWord8 0 *> putSyncFullNamespace lids bytes
-    BranchFormat.SyncDiff parent lids bytes ->
+    BranchFormat.SyncDiff parent lids (BranchFormat.LocalBranchBytes bytes) ->
       putWord8 1 *> putSyncDiffNamespace parent lids bytes
   Entity.C gdc ->
     putSyncCausal gdc
@@ -827,8 +919,8 @@ getTempPatchFormat =
 getTempNamespaceFormat :: (MonadGet m) => m TempEntity.TempNamespaceFormat
 getTempNamespaceFormat =
   getWord8 >>= \case
-    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getFramedByteString
-    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> getFramedByteString
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getFramedByteString)
+    1 -> BranchFormat.SyncDiff <$> getHash32 <*> getBranchLocalIds <*> (BranchFormat.LocalBranchBytes <$> getFramedByteString)
     tag -> unknownTag "getTempNamespaceFormat" tag
   where
     getBranchLocalIds =
@@ -846,6 +938,11 @@ getTempCausalFormat =
 
 getSymbol :: (MonadGet m) => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
+
+skipSymbol :: (MonadGet m) => m ()
+skipSymbol = do
+  _ :: Word64 <- getVarInt
+  skipText
 
 putSymbol :: (MonadPut m) => Symbol -> m ()
 putSymbol (Symbol n t) = putVarInt n >> putText t

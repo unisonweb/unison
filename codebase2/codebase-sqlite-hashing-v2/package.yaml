@@ -9,6 +9,7 @@ dependencies:
   - bytes
   - bytestring
   - containers
+  - generic-lens
   - lens
   - text
   - unison-codebase
@@ -45,9 +46,11 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RecordWildCards

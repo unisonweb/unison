@@ -18,3 +18,9 @@ test> pass = [Ok "Passed"]
 .> add
 .> test
 ```
+
+```unison
+> Scope.run do
+    freeze! (Scope.arrayOf 0 0)
+
+```

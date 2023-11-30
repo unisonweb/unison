@@ -16,8 +16,8 @@ where
 import Control.Applicative (empty)
 import Control.Monad (when)
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
@@ -43,6 +43,8 @@ data DebugFlag
     Server
   | PatternCoverage
   | PatternCoverageConstraintSolver
+  | KindInference
+  | Update
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -68,6 +70,8 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "SERVER" -> pure Server
       "PATTERN_COVERAGE" -> pure PatternCoverage
       "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
+      "KIND_INFERENCE" -> pure KindInference
+      "UPDATE" -> pure Update
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -118,6 +122,14 @@ debugAnnotations = Annotations `Set.member` debugFlags
 debugServer :: Bool
 debugServer = Server `Set.member` debugFlags
 {-# NOINLINE debugServer #-}
+
+debugKindInference :: Bool
+debugKindInference = KindInference `Set.member` debugFlags
+{-# NOINLINE debugKindInference #-}
+
+debugUpdate :: Bool
+debugUpdate = Update `Set.member` debugFlags
+{-# NOINLINE debugUpdate #-}
 
 debugPatternCoverage :: Bool
 debugPatternCoverage = PatternCoverage `Set.member` debugFlags
@@ -181,3 +193,5 @@ shouldDebug = \case
   Server -> debugServer
   PatternCoverage -> debugPatternCoverage
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver
+  KindInference -> debugKindInference
+  Update -> debugUpdate

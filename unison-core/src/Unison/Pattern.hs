@@ -6,18 +6,18 @@
 module Unison.Pattern where
 
 import Data.List (intercalate)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Type as Type
+import Unison.Referent qualified as Referent
+import Unison.Type qualified as Type
 
 data Pattern loc
   = Unbound loc
@@ -65,6 +65,26 @@ updateDependencies tms p = case p of
   SequenceLiteral loc ps -> SequenceLiteral loc (updateDependencies tms <$> ps)
   SequenceOp loc lhs op rhs ->
     SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
+
+hasSubpattern :: Pattern loc -> Pattern loc -> Bool
+hasSubpattern (Unbound {}) _ = True
+hasSubpattern (Var {}) _ = True
+hasSubpattern needle haystack = needle == haystack || go haystack
+  where
+    go Unbound {} = False
+    go Var {} = False
+    go Int {} = False
+    go Nat {} = False
+    go Float {} = False
+    go Boolean {} = False
+    go Text {} = False
+    go Char {} = False
+    go (Constructor _ _ ps) = any (hasSubpattern needle) ps
+    go (As _ p) = hasSubpattern needle p
+    go (EffectPure _ p) = hasSubpattern needle p
+    go (EffectBind _ _ ps p) = any (hasSubpattern needle) ps || hasSubpattern needle p
+    go (SequenceLiteral _ ps) = any (hasSubpattern needle) ps
+    go (SequenceOp _ ph _ pt) = hasSubpattern needle ph || hasSubpattern needle pt
 
 instance Show (Pattern loc) where
   show (Unbound _) = "Unbound"

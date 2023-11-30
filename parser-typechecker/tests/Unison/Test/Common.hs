@@ -7,23 +7,26 @@ module Unison.Test.Common
   )
 where
 
+import Control.Monad.Writer (tell)
+import Data.Functor.Identity (Identity (..))
 import Data.Sequence (Seq)
-import qualified Data.Text as Text
-import qualified Text.Megaparsec.Error as MPE
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as B
-import qualified Unison.FileParsers as FP
+import Text.Megaparsec.Error qualified as MPE
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as B
+import Unison.FileParsers qualified as FP
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.PrintError (prettyParseError)
 import Unison.Result (Note, Result)
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Syntax.TermParser as TermParser
-import qualified Unison.Syntax.TypeParser as TypeParser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.TypeParser qualified as TypeParser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
-import qualified Unison.Util.Pretty as Pr
+import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
 
 type Term v = Term.Term v Ann
@@ -39,6 +42,7 @@ t s =
     -- . either (error . show ) id
     -- . Type.bindSomeNames B.names0
     . either (error . showParseError s) tweak
+    . runIdentity
     $ Parser.run (Parser.root TypeParser.valueType) s parsingEnv
   where
     tweak = Type.generalizeLowercase mempty
@@ -46,10 +50,10 @@ t s =
 tm :: String -> Term Symbol
 tm s =
   either (error . showParseError s) id
-  -- . Term.bindSomeNames mempty B.names0
-  -- . either (error . showParseError s) id
-  $
-    Parser.run (Parser.root TermParser.term) s parsingEnv
+    -- . Term.bindSomeNames mempty B.names0
+    -- . either (error . showParseError s) id
+    . runIdentity
+    $ Parser.run (Parser.root TermParser.term) s parsingEnv
 
 showParseError ::
   (Var v) =>
@@ -65,13 +69,23 @@ parseAndSynthesizeAsFile ::
   Result
     (Seq (Note Symbol Ann))
     (Either (UnisonFile Symbol Ann) (TypecheckedUnisonFile Symbol Ann))
-parseAndSynthesizeAsFile ambient filename s =
-  FP.parseAndSynthesizeFile
-    ambient
-    (\_deps -> pure B.typeLookup)
-    parsingEnv
-    filename
-    (Text.pack s)
+parseAndSynthesizeAsFile ambient filename s = do
+  file <- Result.fromParsing (runIdentity (Parsers.parseFile filename s parsingEnv))
+  let typecheckingEnv =
+        runIdentity $
+          FP.computeTypecheckingEnvironment
+            (FP.ShouldUseTndr'Yes parsingEnv)
+            ambient
+            (\_deps -> pure B.typeLookup)
+            file
+  case FP.synthesizeFile typecheckingEnv file of
+    Result.Result notes Nothing -> tell notes >> pure (Left file)
+    Result.Result _ (Just typecheckedFile) -> pure (Right typecheckedFile)
 
-parsingEnv :: Parser.ParsingEnv
-parsingEnv = Parser.ParsingEnv mempty B.names
+parsingEnv :: Parser.ParsingEnv Identity
+parsingEnv =
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = B.names
+    }

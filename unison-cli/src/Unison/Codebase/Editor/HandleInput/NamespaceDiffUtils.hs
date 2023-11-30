@@ -5,29 +5,29 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
 where
 
 import Control.Monad.Reader (ask)
-import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
+import Data.Map qualified as Map
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchDiff as BranchDiff
-import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchDiff qualified as BranchDiff
+import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
+import Unison.Codebase.Path qualified as Path
+import Unison.DataDeclaration qualified as DD
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import Unison.Reference (Reference (..))
-import qualified Unison.Reference as Reference
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Sqlite as Sqlite
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
+import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
+import Unison.Server.Backend qualified as Backend
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 
 diffHelper ::

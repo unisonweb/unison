@@ -3,31 +3,30 @@
 module Unison.Codebase.Editor.Output.BranchDiff where
 
 import Control.Lens
-import Data.Generics.Labels ()
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Codebase.BranchDiff (BranchDiff (BranchDiff), DiffSlice)
-import qualified Unison.Codebase.BranchDiff as BranchDiff
-import qualified Unison.Codebase.Metadata as Metadata
-import qualified Unison.Codebase.Patch as P
+import Unison.Codebase.BranchDiff qualified as BranchDiff
+import Unison.Codebase.Metadata qualified as Metadata
+import Unison.Codebase.Patch qualified as P
 import Unison.DataDeclaration (DeclOrBuiltin)
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' (HashQualified)
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource (isPropagatedValue)
 import Unison.Syntax.Name ()
 import Unison.Type (Type)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation3 qualified as R3
 import Unison.Util.Set (symmetricDifference)
 
 data MetadataDiff tm = MetadataDiff

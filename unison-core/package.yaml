@@ -65,7 +65,10 @@ default-extensions:
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

@@ -2,11 +2,11 @@
 
 module Unison.LSP.NotificationHandlers where
 
-import Language.LSP.Types
-import qualified Unison.Debug as Debug
+import Language.LSP.Protocol.Message
+import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 
-initializedHandler :: NotificationMessage 'Initialized -> Lsp ()
+initializedHandler :: TNotificationMessage 'Method_Initialized -> Lsp ()
 initializedHandler _ = pure ()
 
 withDebugging :: (Show m) => (m -> Lsp ()) -> (m -> Lsp ())

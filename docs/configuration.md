@@ -8,6 +8,8 @@
     * [`UNISON_LSP_ENABLED`](#unison_lsp_enabled)
     * [`UNISON_SHARE_HOST`](#unison_share_host)
     * [`UNISON_SHARE_ACCESS_TOKEN`](#unison_share_access_token)
+    * [`UNISON_READONLY`](#unison_readonly)
+    * [`UNISON_ENTITY_VALIDATION`](#unison_entity_validation)
     * [Local Codebase Server](#local-codebase-server)
 * [Codebase Configuration](#codebase-configuration)
 
@@ -94,6 +96,22 @@ E.g.
 
 ```sh
 $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
+```
+
+### `UNISON_READONLY`
+
+Force unison to use readonly connections to codebases.
+
+```sh
+$ UNISON_READONLY="true" ucm
+```
+
+### `UNISON_ENTITY_VALIDATION`
+
+Enable validation of entities pulled from a codebase server.
+
+```sh
+$ UNISON_ENTITY_VALIDATION="true" ucm
 ```
 
 ### Local Codebase Server

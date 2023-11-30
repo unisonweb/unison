@@ -4,16 +4,15 @@ module U.Codebase.Referent where
 
 import Control.Lens (Prism, Traversal)
 import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
-import qualified U.Codebase.Reference as Reference
-import U.Codebase.ShortHash (ShortHash)
-import qualified U.Codebase.ShortHash as SH
+import U.Codebase.Reference qualified as Reference
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 data ConstructorType
   = DataConstructor

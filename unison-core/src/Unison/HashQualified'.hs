@@ -1,19 +1,20 @@
 module Unison.HashQualified' where
 
-import qualified Data.Text as Text
-import qualified Unison.HashQualified as HQ
+import Data.Text qualified as Text
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Convert, Name, Parse)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Prelude hiding (take)
 
+-- | Like Unison.HashQualified, but doesn't support a HashOnly variant
 data HashQualified n = NameOnly n | HashQualified n ShortHash
   deriving stock (Eq, Functor, Generic, Foldable, Ord, Show, Traversable)
 
@@ -49,7 +50,7 @@ nameLength nameToText = Text.length . toTextWith nameToText
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
   n@(NameOnly _) -> n
-  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
+  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.shortenTo i s)
 
 toNameOnly :: HashQualified n -> HashQualified n
 toNameOnly = fromName . toName

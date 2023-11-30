@@ -11,19 +11,20 @@ module Unison.Util.Map
     traverseKeysWith,
     swap,
     upsert,
+    upsertF,
     valuesVector,
   )
 where
 
 import Control.Lens hiding (bimap)
-import qualified Control.Monad as Monad
-import qualified Data.Bifunctor as B
-import qualified Data.Bitraversable as B
+import Control.Monad qualified as Monad
+import Data.Bifunctor qualified as B
+import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
-import Unison.Prelude
+import Data.Vector qualified as Vector
+import Unison.Prelude hiding (bimap)
 
 bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
 bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList
@@ -44,6 +45,11 @@ swap =
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
 upsert f =
   Map.alter (Just . f)
+
+-- | Upsert an element into a map.
+upsertF :: (Functor f, Ord k) => (Maybe v -> f v) -> k -> Map k v -> f (Map k v)
+upsertF f =
+  Map.alterF (fmap Just . f)
 
 valuesVector :: Map k v -> Vector v
 valuesVector =

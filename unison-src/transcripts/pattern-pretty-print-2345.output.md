@@ -183,8 +183,8 @@ doc = cases
 
   throaty : Request {g, Ab} x -> ()
   throaty = cases
-    {a a -> k} -> ()
-    { _ }      -> ()
+    { Ab.a a -> k } -> ()
+    { _ }           -> ()
 
 .> view agitated
 

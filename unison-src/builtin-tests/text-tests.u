@@ -6,9 +6,10 @@ text.tests = do
  !text.conversion.tests
  !text.debug.tests
  !text.matching.tests
--- This is broken under the jit
---  !text.term.tests
  !char.class.tests
+
+text.interpreter.only = do
+ !text.term.tests
 
 text.lit.tests = do
   check "Text empty literal" do
@@ -90,6 +91,11 @@ text.ops.tests = do
   checkEqual "Text.toLowercase (1)" (Text.toLowercase "") ""
   checkEqual "Text.toLowercase (2)" (Text.toLowercase "abcABC123{({})}.") "abcabc123{({})}."
 
+  checkEqual "Text.indexOf (1)" (Text.indexOf "" "hello") (Some 0)
+  checkEqual "Text.indexOf (2)" (Text.indexOf "l" "hello") (Some 2)
+  checkEqual "Text.indexOf (3)" (Text.indexOf "lo" "hello") (Some 3)
+  checkEqual "Text.indexOf (3)" (Text.indexOf "elo" "hello") None
+
 text.conversion.tests = do
   checkEqual "Nat.toText (1)" (Nat.toText 0) "0"
   checkEqual "Nat.toText (2)" (Nat.toText 10) "10"
@@ -129,8 +135,8 @@ text.conversion.tests = do
   checkEqual "Text ut8 roundTrip" (fromUtf8 (toUtf8 "Hello, World!")) "Hello, World!"
 
 text.debug.tests = do
-  checkEqual "Debug.toText (1)" (Debug.toText 3) "3"
-  checkEqual "Debug.toText (2)" (Debug.toText "hello") "\"hello\""
+  checkEqual "Debug.evalToText (1)" (Debug.evalToText 3) "3"
+  checkEqual "Debug.evalToText (2)" (Debug.evalToText "hello") "\"hello\""
 
   catchMsg p = match catchAll p with
     Left (Failure tl msg v) -> msg
@@ -203,7 +209,7 @@ char.class.tests = do
   check "Char.Class: any (2)" do Pattern.isMatch (Text.patterns.char Class.any) "a"
 
   c: Nat -> Char
-  c n = Char.fromNat n
+  c n = Char.fromNat.impl n
 
   run class y n =
     ok = Char.Class.is class

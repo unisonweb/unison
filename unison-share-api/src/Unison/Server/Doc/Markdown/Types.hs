@@ -1,10 +1,9 @@
 module Unison.Server.Doc.Markdown.Types where
 
 import Control.Lens (imap)
-import qualified Data.Char as Char
-import qualified Data.Char as Text
-import qualified Data.Text as Text
-import qualified Unison.Debug as Debug
+import Data.Char qualified as Char
+import Data.Char qualified as Text
+import Data.Text qualified as Text
 import Unison.Prelude
 
 -- | Custom type for converting Docs into Markdown.
@@ -40,7 +39,7 @@ toText = toText' . Paragraph
   where
     toText' :: Markdown -> Text
     toText' =
-      Debug.debug Debug.Temp "Markdown" >>> \case
+      \case
         ThematicBreak -> "\n---"
         Paragraph m -> flattenParagraph m
         BlockQuote m -> "> " <> flattenParagraph m

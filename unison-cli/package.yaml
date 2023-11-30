@@ -12,7 +12,7 @@ ghc-options: -Wall
 dependencies:
   - IntervalMap
   - ListLike
-  - aeson
+  - aeson >= 2.0.0.0
   - aeson-pretty
   - ansi-terminal
   - async
@@ -30,11 +30,11 @@ dependencies:
   - extra
   - filepath
   - free
+  - fsnotify
   - fuzzyfind
   - friendly-time
   - generic-lens
   - haskeline
-  - here
   - http-client >= 0.7.6
   - http-client-tls
   - http-types
@@ -42,8 +42,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp
-  - lsp-types
+  - lsp >= 2.0.0.0
+  - lsp-types >= 2.0.0.0
   - megaparsec
   - memory
   - mtl
@@ -57,9 +57,11 @@ dependencies:
   - pretty-simple
   - process
   - random >= 1.2.0
+  - random-shuffle
   - recover-rtti
   - regex-tdfa
   - semialign
+  - semigroups
   - servant
   - servant-client
   - stm
@@ -67,6 +69,7 @@ dependencies:
   - text-builder
   - text-rope
   - these
+  - these-lens
   - time
   - transformers
   - unison-codebase
@@ -83,6 +86,7 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-nametree
   - unison-util-relation
   - unliftio
   - unordered-containers
@@ -146,6 +150,7 @@ executables:
       - process
       - shellmet
       - unison-cli
+      - silently
 
   cli-integration-tests:
     when:
@@ -184,9 +189,12 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - InstanceSigs
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels

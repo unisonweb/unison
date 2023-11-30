@@ -17,17 +17,17 @@ module Unison.Codebase.Path.Parse
 where
 
 import Control.Lens (over, _1)
-import qualified Control.Lens as Lens
-import Data.Bifunctor (first)
+import Control.Lens qualified as Lens
 import Data.List.Extra (stripPrefix)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Unison.Codebase.Path
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.Lexer as Lexer
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.Lexer qualified as Lexer
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -113,7 +113,7 @@ parseSplit' lastSegment p = do
   seg <- lastSegment rem
   pure (p', seg)
 
-parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' :: String -> Either String (Either ShortHash HQSplit')
 parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"

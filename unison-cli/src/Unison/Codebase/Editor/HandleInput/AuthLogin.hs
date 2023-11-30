@@ -6,21 +6,23 @@ where
 
 import Control.Concurrent.MVar
 import Control.Monad.Reader
-import qualified Crypto.Hash as Crypto
+import Crypto.Hash qualified as Crypto
 import Crypto.Random (getRandomBytes)
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteArray.Encoding as BE
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Aeson qualified as Aeson
+import Data.ByteArray.Encoding qualified as BE
+import Data.ByteString.Char8 qualified as BSC
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (urlEncodedBody)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types
 import Network.URI (URI (..), parseURI)
 import Network.Wai
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
+import Network.Wai qualified as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (getCredentials, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
@@ -37,13 +39,13 @@ import Unison.Auth.Types
   )
 import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase.Editor.Output as Output
-import qualified Unison.Debug as Debug
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Share.Types
-import qualified UnliftIO
-import qualified Web.Browser as Web
+import UnliftIO qualified
+import Web.Browser qualified as Web
 
 ucmOAuthClientID :: ByteString
 ucmOAuthClientID = "ucm"
@@ -94,6 +96,7 @@ authLogin host = do
         -- otherwise the server will shut down prematurely.
         putMVar authResultVar result
         pure respReceived
+  fetchTime <- liftIO getCurrentTime
   tokens@(Tokens {accessToken}) <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -103,7 +106,16 @@ authLogin host = do
       bailOnFailure . liftIO $ UnliftIO.withAsync (Web.openBrowser (show authorizationKickoff)) \_ -> readMVar authResultVar
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
-  let creds = codeserverCredentials discoveryURI tokens userInfo
+  let creds = codeserverCredentials discoveryURI tokens fetchTime userInfo
+  -- Before saving new credentials we clear the temp entity caches,
+  -- this is to handle the case that the user logged into a new user and that they have
+  -- some hashJWTs for a different user around which won't work against the new user
+  -- credentials.
+  --
+  -- It also means that if the server changes signing-keys the user will simply get
+  -- "unauthenticated", call `auth.login`, and that will clear out any hashjwts signed with
+  -- the old key.
+  Cli.runTransaction Q.clearTempEntityTables
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
   pure userInfo

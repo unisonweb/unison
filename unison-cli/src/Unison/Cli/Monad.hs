@@ -30,6 +30,7 @@ module Unison.Cli.Monad
 
     -- * Changing the current directory
     cd,
+    popd,
 
     -- * Communicating output to the user
     respond,
@@ -40,7 +41,7 @@ module Unison.Cli.Monad
 
     -- * Running transactions
     runTransaction,
-    runEitherTransaction,
+    runTransactionWithRollback,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -51,11 +52,10 @@ import Control.Exception (throwIO)
 import Control.Lens (lens, (.=))
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
-import qualified Control.Monad.State.Strict as State
-import qualified Data.Configurator.Types as Configurator
-import Data.Generics.Labels ()
-import qualified Data.List.NonEmpty as List (NonEmpty)
-import qualified Data.List.NonEmpty as List.NonEmpty
+import Control.Monad.State.Strict qualified as State
+import Data.Configurator.Types qualified as Configurator
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
@@ -64,26 +64,28 @@ import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Sqlite as Sqlite
+import Unison.Server.CodebaseServer qualified as Server
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import UnliftIO.STM
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -151,6 +153,9 @@ data Env = Env
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
+    -- | Are we currently running a transcript? Sometimes, it is convenient to know this fact, so we can put more
+    -- information to the terminal to be captured in transcript output.
+    isTranscript :: Bool,
     -- | How to load source code.
     loadSource :: Text -> IO LoadSourceResult,
     -- | What to do with output for the user.
@@ -179,7 +184,10 @@ data LoopState = LoopState
     -- change event for that path (we skip file changes if the file has
     -- just been modified programmatically)
     latestFile :: Maybe (FilePath, Bool),
-    latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile Symbol Ann),
+    -- Nothing means the file didn't parse
+    -- Just (Left) means the file parsed but didn't typecheck
+    -- Just (Right) means the file parsed and typechecked
+    latestTypecheckedFile :: Maybe (Either (UF.UnisonFile Symbol Ann) (UF.TypecheckedUnisonFile Symbol Ann)),
     -- The previous user input. Used to request confirmation of
     -- questionable user commands.
     lastInput :: Maybe Input,
@@ -369,9 +377,27 @@ time label action =
         s = ns / 1_000_000_000
 
 cd :: Path.Absolute -> Cli ()
-cd path =
+cd path = do
+  setMostRecentNamespace path
   State.modify' \state ->
     state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
+
+-- | Pop the latest path off the stack, if it's not the only path in the stack.
+--
+-- Returns whether anything was popped.
+popd :: Cli Bool
+popd = do
+  state <- State.get
+  case List.NonEmpty.uncons (currentPathStack state) of
+    (_, Nothing) -> pure False
+    (_, Just paths) -> do
+      setMostRecentNamespace (List.NonEmpty.head paths)
+      State.put state {currentPathStack = paths}
+      pure True
+
+setMostRecentNamespace :: Path.Absolute -> Cli ()
+setMostRecentNamespace =
+  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toText . Path.toList . Path.unabsolute
 
 respond :: Output -> Cli ()
 respond output = do
@@ -390,7 +416,10 @@ runTransaction action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransaction codebase action)
 
--- | Return early if a transaction returns Left.
-runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
-runEitherTransaction action =
-  runTransaction action & onLeftM returnEarly
+-- | Run a transaction that can abort early with an output message.
+-- todo: rename to runTransactionWithReturnEarly
+runTransactionWithRollback :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
+runTransactionWithRollback action = do
+  Env {codebase} <- ask
+  liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
+    & onLeftM returnEarly

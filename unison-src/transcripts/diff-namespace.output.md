@@ -53,6 +53,8 @@ fslkdjflskdjflksjdf = 663
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .> diff.namespace b1 b2
 
   Resolved name conflicts:
@@ -194,6 +196,8 @@ fromJust = "asldkfjasldkfj"
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```unison
 fromJust = 99
@@ -205,7 +209,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update
+.ns2> update.old
 
   ⍟ I've added these definitions:
   
@@ -218,8 +222,7 @@ unique type Y a b = Y a b
   
     b        : Text
     fromJust : Nat
-      (The old definition was also named fromJust'. I updated
-      this name too.)
+      (The old definition was also named fromJust'.)
 
 .ns2> links fromJust
 
@@ -473,7 +476,7 @@ bdependent = "banana"
 ```
 
 ```ucm
-.ns3> update
+.ns3> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -528,7 +531,7 @@ a = 444
 ```
 
 ```ucm
-.nsy> update
+.nsy> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -540,7 +543,7 @@ a = 555
 ```
 
 ```ucm
-.nsz> update
+.nsz> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -561,6 +564,8 @@ a = 555
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 ```ucm
@@ -587,6 +592,8 @@ a = 555
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.

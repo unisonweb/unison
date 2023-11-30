@@ -1,18 +1,18 @@
 module Unison.Typechecker.Components (minimize, minimize') where
 
 import Control.Arrow ((&&&))
-import Data.Bifunctor (first)
 import Data.Function (on)
 import Data.List (groupBy, sortBy)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as Nel
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import Data.List.NonEmpty qualified as Nel
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Term (Term')
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 
 unordered :: (Var v) => [(v, Term' vt v a)] -> [[(v, Term' vt v a)]]
 unordered = ABT.components
@@ -46,7 +46,10 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
           . sortBy
             (compare `on` fst)
       grouped = group bindings
-      dupes = filter ((> 1) . length . snd) grouped
+      dupes = filter ok grouped
+        where 
+          ok (v, as) | Var.name v == "_" = False
+                     | otherwise         = length as > 1
    in if not $ null dupes
         then Left $ Nel.fromList dupes
         else

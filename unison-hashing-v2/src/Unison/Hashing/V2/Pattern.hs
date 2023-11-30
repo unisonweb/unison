@@ -6,7 +6,7 @@ where
 
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 import Unison.Prelude
 
 data Pattern loc

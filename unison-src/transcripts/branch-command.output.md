@@ -193,7 +193,7 @@ foo/main> branch releases/1.2.3
   Branch names like releases/1.2.3 are reserved for releases.
   
   Tip: to download an existing release, try
-       `branch.clone /releases/1.2.3`.
+       `clone /releases/1.2.3`.
   
   Tip: to draft a new release, try `release.draft 1.2.3`.
 

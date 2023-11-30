@@ -3,40 +3,63 @@
 
 module Unison.Runtime.IOSource where
 
-import Control.Lens (view, _1)
+import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Text.RawString.QQ (r)
-import qualified Unison.Builtin as Builtin
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
-import qualified Unison.Codebase.CodeLookup.Util as CL
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.ConstructorId as DD
-import Unison.FileParsers (parseAndSynthesizeFile)
-import qualified Unison.NamesWithHistory as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.ConstructorId qualified as DD
+import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.PrintError as PrintError
-import qualified Unison.Reference as R
-import qualified Unison.Result as Result
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrintError qualified as PrintError
+import Unison.Reference qualified as R
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Typechecker qualified as Typechecker
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Var as Var
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
 
 debug :: Bool
 debug = False
+
+parsingEnv :: Parser.ParsingEnv Identity
+parsingEnv =
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = Names.NamesWithHistory Builtin.names0 mempty
+    }
+
+typecheckingEnv :: Typechecker.Env Symbol Ann
+typecheckingEnv =
+  runIdentity do
+    computeTypecheckingEnvironment
+      (ShouldUseTndr'Yes parsingEnv)
+      []
+      (\_ -> pure (External <$ Builtin.typeLookup))
+      parsedFile
+
+parsedFile :: UF.UnisonFile Symbol Ann
+parsedFile =
+  case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
+    Left err -> error (Pretty.toAnsiUnbroken (PrintError.prettyParseError sourceString err))
+    Right file -> file
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile =
@@ -45,16 +68,12 @@ typecheckedFile =
 
 typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile' =
-  let tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-      tl = const $ pure (External <$ Builtin.typeLookup)
-      env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
-      r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-   in case decodeResult (Text.unpack source) r of
-        Left str -> error str
-        Right file -> file
+  case synthesizeFile typecheckingEnv parsedFile of
+    Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
+    Result.Result _ (Just file) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
-typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
+typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
 
 termNamed :: String -> R.Reference
 termNamed s =
@@ -500,6 +519,10 @@ constructorName ref cid =
 
 -- .. todo - fill in the rest of these
 
+sourceString :: String
+sourceString =
+  Text.unpack source
+
 source :: Text
 source =
   fromString
@@ -584,7 +607,7 @@ unique[ae4e05d8bede04825145db1a6a2222fdf2d890b3044d86fd4368f53b265de7f9] type Do
   = Svg Text
 
 -- ex: Doc2.term 'List.map
-Doc2.term : 'a -> Doc2.Term
+Doc2.term : ∀ a g1 g. '{g} a ->{g1} Doc2.Term
 Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
@@ -981,23 +1004,6 @@ type EitherResult = Either String TFile
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
-
-decodeResult ::
-  String -> SynthResult -> EitherResult
-decodeResult source (Result.Result notes Nothing) =
-  Left $ showNotes source ppEnv notes
-decodeResult source (Result.Result notes (Just (Left uf))) =
-  let errNames = UF.toNames uf
-   in Left $
-        showNotes
-          source
-          ( PPE.fromNames
-              10
-              (NamesWithHistory.shadowing errNames Builtin.names)
-          )
-          notes
-decodeResult _source (Result.Result _notes (Just (Right uf))) =
-  Right uf
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.fromNames 10 Builtin.names

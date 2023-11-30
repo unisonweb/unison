@@ -59,7 +59,7 @@ Here's what we've done so far:
 .> diff.namespace nothing ns1
 ```
 
-```ucm
+```ucm:error
 .> diff.namespace ns1 ns2
 ```
 
@@ -82,7 +82,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update
+.ns2> update.old
 .ns2> links fromJust
 .> diff.namespace ns1 ns2
 .> alias.term ns2.d ns2.d'
@@ -106,7 +106,7 @@ unique type Y a b = Y a b
 bdependent = "banana"
 ```
 ```ucm
-.ns3> update
+.ns3> update.old
 .> diff.namespace ns2 ns3
 ```
 
@@ -127,13 +127,13 @@ b = a + 1
 a = 444
 ```
 ```ucm
-.nsy> update
+.nsy> update.old
 ```
 ```unison:hide
 a = 555
 ```
 ```ucm
-.nsz> update
+.nsz> update.old
 .> merge nsy nsw
 ```
 ```ucm:error

@@ -8,22 +8,22 @@ module Unison.Cli.UnisonConfigUtils
 where
 
 import Control.Lens
-import qualified Data.Foldable.Extra as Foldable
+import Data.Foldable.Extra qualified as Foldable
 import Data.Sequence (Seq (..))
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Text.Megaparsec as P
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Text.Megaparsec qualified as P
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo (WriteRemoteNamespace (..))
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-import qualified Unison.Codebase.Editor.UriParser as UriParser
+import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
+import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path (Path' (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.NameSegment as NameSegment
+import Unison.Codebase.Path qualified as Path
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 
 configKey :: Text -> Path.Absolute -> Text

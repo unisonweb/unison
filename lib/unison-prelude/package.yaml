@@ -12,8 +12,10 @@ dependencies:
   - base
   - bytestring
   - containers
+  - generic-lens
   - either
   - extra
+  - generic-lens
   - lens
   - mtl
   - pretty-simple
@@ -39,6 +41,7 @@ default-extensions:
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - ScopedTypeVariables

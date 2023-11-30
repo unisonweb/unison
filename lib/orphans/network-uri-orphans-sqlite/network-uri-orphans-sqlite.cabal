@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -18,8 +18,6 @@ source-repository head
 library
   exposed-modules:
       Network.URI.Orphans.Sqlite
-  other-modules:
-      Paths_network_uri_orphans_sqlite
   hs-source-dirs:
       src
   default-extensions:
@@ -36,6 +34,7 @@ library
       FlexibleInstances
       GeneralizedNewtypeDeriving
       LambdaCase
+      ImportQualifiedPost
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedStrings

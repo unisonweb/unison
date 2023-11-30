@@ -33,6 +33,7 @@ module Unison.Codebase.Branch
     -- * properties
     history,
     head,
+    head_,
     headHash,
     children,
     nonEmptyChildren,
@@ -51,6 +52,8 @@ module Unison.Codebase.Branch
     addTermName,
     addTypeName,
     deleteTermName,
+    annihilateTermName,
+    annihilateTypeName,
     deleteTypeName,
     setChildBranch,
     replacePatch,
@@ -76,6 +79,7 @@ module Unison.Codebase.Branch
 
     -- ** Term/type queries
     deepReferents,
+    deepTermReferences,
     deepTypeReferences,
     consBranchSnapshot,
   )
@@ -83,13 +87,12 @@ where
 
 import Control.Lens hiding (children, cons, transform, uncons)
 import Control.Monad.State (State)
-import qualified Control.Monad.State as State
-import Data.Bifunctor (second)
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Semialign as Align
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
+import Control.Monad.State qualified as State
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
+import Data.Semialign qualified as Align
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.HashTags (PatchHash (..))
@@ -107,26 +110,28 @@ import Unison.Codebase.Branch.Type
     namespaceHash,
   )
 import Unison.Codebase.Causal (Causal)
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Hashing.V2 as Hashing (ContentAddressable (contentHash))
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Codebase.Path qualified as Path
+import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty)
-import Unison.Reference (TypeReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation4 as R4
-import qualified Unison.Util.Star3 as Star3
+import Unison.Referent qualified as Referent
+import Unison.Util.List qualified as List
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Set qualified as Set
+import Unison.Util.Star3 qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -141,6 +146,10 @@ instance Hashing.ContentAddressable (Branch0 m) where
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
+
+deepTermReferences :: Branch0 m -> Set TermReference
+deepTermReferences =
+  Set.mapMaybe Referent.toTermReference . deepReferents
 
 deepTypeReferences :: Branch0 m -> Set TypeReference
 deepTypeReferences = R.dom . deepTypes
@@ -694,6 +703,12 @@ deleteTermName r n b
       over terms (Star3.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
+annihilateTermName :: NameSegment -> Branch0 m -> Branch0 m
+annihilateTermName = over terms . Star3.deleteD1
+
+annihilateTypeName :: NameSegment -> Branch0 m -> Branch0 m
+annihilateTypeName = over types . Star3.deleteD1
+
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
   | Star3.memberD1 (r, n) (view types b) =
@@ -748,18 +763,18 @@ consBranchSnapshot headBranch baseBranch =
           (head headBranch & children .~ combinedChildren)
           (_history baseBranch)
   where
-    combineChildren :: These (Branch m) (Branch m) -> Branch m
+    combineChildren :: These (Branch m) (Branch m) -> Maybe (Branch m)
     combineChildren = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> head `consBranchSnapshot` base
-      -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> empty `consBranchSnapshot` base
+      (These base head) -> Just (head `consBranchSnapshot` base)
+      -- This child has been deleted, let it be
+      (This _) -> Nothing
       -- This child didn't exist in the base, we add any changes as a single commit
-      (That head) -> discardHistory head
+      (That head) -> Just (discardHistory head)
     combinedChildren :: Map NameSegment (Branch m)
     combinedChildren =
-      Align.alignWith
-        combineChildren
-        (head baseBranch ^. children)
-        (head headBranch ^. children)
+      Map.mapMaybe combineChildren $
+        Align.align
+          (head baseBranch ^. children)
+          (head headBranch ^. children)

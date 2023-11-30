@@ -12,9 +12,9 @@ where
 
 import Data.Function ((&))
 import Data.Functor ((<&>))
-import qualified Data.Maybe as Maybe
+import Data.Maybe qualified as Maybe
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Util.Monoid (foldMapM)
 
 -- | Get the only member of a set, iff it's a singleton.

@@ -5,7 +5,7 @@ import System.Environment (lookupEnv)
 import System.IO (hClose, hPutStr)
 import System.Process
 import Unison.Prelude
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 
 less :: String -> IO ()

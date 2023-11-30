@@ -38,10 +38,11 @@ module Unison.Share.API.Projects
 where
 
 import Data.Aeson
+import Data.Aeson.Key qualified as Aeson.Key
+import Data.Aeson.KeyMap qualified as Aeson.KeyMap
 import Data.Aeson.Types
-import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid (Endo (..))
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Servant.API
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
@@ -149,6 +150,7 @@ type GetProjectBranchAPI =
     :> QueryParam' '[Required, Strict] "projectId" Text
     :> QueryParam "branchId" Text
     :> QueryParam "branchName" Text
+    :> QueryFlag "includeSquashed" -- If set, include the squashed branch head in the response
     :> Verb 'GET 200 '[JSON] GetProjectBranchResponse
 
 -- | @GET /project-branch@ response.
@@ -320,10 +322,22 @@ instance ToJSON SetProjectBranchHeadResponse where
 ------------------------------------------------------------------------------------------------------------------------
 -- Types
 
+-- | A sem-ver release version without a user, project, or "releases/" prefix.
+-- E.g. "1.2.3"
+type ReleaseVersion = Text
+
+-- | A project branch name segment.
+-- Does not contain a project or contributor segment.
+--
+-- E.g. "main"
+type BranchName = Text
+
 -- | A project.
 data Project = Project
   { projectId :: Text,
-    projectName :: Text
+    projectName :: Text,
+    latestRelease :: Maybe ReleaseVersion,
+    defaultBranch :: Maybe BranchName
   }
   deriving stock (Eq, Show, Generic)
 
@@ -332,13 +346,17 @@ instance FromJSON Project where
     withObject "Project" \o -> do
       projectId <- parseField o "project-id"
       projectName <- parseField o "project-name"
-      pure Project {projectId, projectName}
+      latestRelease <- o .:? "latest-release"
+      defaultBranch <- o .:? "default-branch"
+      pure Project {..}
 
 instance ToJSON Project where
-  toJSON (Project projectId projectName) =
+  toJSON (Project projectId projectName latestRelease defaultBranch) =
     object
       [ "project-id" .= projectId,
-        "project-name" .= projectName
+        "project-name" .= projectName,
+        "latest-release" .= latestRelease,
+        "default-branch" .= defaultBranch
       ]
 
 -- | A project branch.
@@ -347,7 +365,8 @@ data ProjectBranch = ProjectBranch
     projectName :: Text,
     branchId :: Text,
     branchName :: Text,
-    branchHead :: HashJWT
+    branchHead :: HashJWT,
+    squashedBranchHead :: Maybe HashJWT
   }
   deriving stock (Eq, Show, Generic)
 
@@ -359,16 +378,18 @@ instance FromJSON ProjectBranch where
       branchId <- parseField o "branch-id"
       branchName <- parseField o "branch-name"
       branchHead <- parseField o "branch-head"
+      squashedBranchHead <- o .:? "squashed-branch-head"
       pure ProjectBranch {..}
 
 instance ToJSON ProjectBranch where
-  toJSON (ProjectBranch projectId projectName branchId branchName branchHead) =
+  toJSON (ProjectBranch projectId projectName branchId branchName branchHead squashedBranchHead) =
     object
       [ "project-id" .= projectId,
         "project-name" .= projectName,
         "branch-id" .= branchId,
         "branch-name" .= branchName,
-        "branch-head" .= branchHead
+        "branch-head" .= branchHead,
+        "squashed-branch-head" .= squashedBranchHead
       ]
 
 -- | A project id and branch id.
@@ -440,14 +461,14 @@ instance FromJSON Unauthorized where
 -- using this combinator.
 objectWithMaybes :: [Pair] -> [Endo Object] -> Value
 objectWithMaybes nonMaybeFields maybeFields =
-  Object (appEndo (fold maybeFields) (HashMap.fromList nonMaybeFields))
+  Object (appEndo (fold maybeFields) (Aeson.KeyMap.fromList nonMaybeFields))
 
 -- | Like ('.='), but omits the key/value pair if the value is Nothing.
 (.=?) :: (ToJSON a) => Text -> Maybe a -> Endo Object
 k .=? mv =
   case mv of
     Nothing -> mempty
-    Just v -> Endo (HashMap.insert k (toJSON v))
+    Just v -> Endo (Aeson.KeyMap.insert (Aeson.Key.fromText k) (toJSON v))
 
 toSumType :: Text -> Value -> Value
 toSumType typ payload =

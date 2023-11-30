@@ -1,5 +1,3 @@
-{-# LANGUAGE PartialTypeSignatures #-}
-
 -- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
@@ -16,42 +14,43 @@ module Unison.Hashing.V2.Convert
   )
 where
 
+import Control.Applicative
 import Control.Lens (over, _3)
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
-import qualified Control.Monad.Trans.Writer.CPS as Writer
+import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bifunctor (bimap)
-import Data.Bitraversable (bitraverse)
 import Data.Foldable (toList)
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Branch.Type as Memory.Branch
-import qualified Unison.Codebase.Patch as Memory.Patch
-import qualified Unison.Codebase.TermEdit as Memory.TermEdit
-import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
-import qualified Unison.ConstructorReference as Memory.ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.ConstructorType as Memory.ConstructorType
-import qualified Unison.DataDeclaration as Memory.DD
+import Unison.ABT qualified as ABT
+import Unison.Codebase.Branch.Type qualified as Memory.Branch
+import Unison.Codebase.Patch qualified as Memory.Patch
+import Unison.Codebase.TermEdit qualified as Memory.TermEdit
+import Unison.Codebase.TypeEdit qualified as Memory.TypeEdit
+import Unison.ConstructorReference qualified as Memory.ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.ConstructorType qualified as Memory.ConstructorType
+import Unison.DataDeclaration qualified as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
-import qualified Unison.Hashing.V2 as Hashing
-import qualified Unison.Kind as Memory.Kind
-import qualified Unison.NameSegment as Memory.NameSegment
+import Unison.Hashing.V2 qualified as Hashing
+import Unison.Kind qualified as Memory.Kind
+import Unison.NameSegment qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
-import qualified Unison.Pattern as Memory.Pattern
-import qualified Unison.Reference as Memory.Reference
-import qualified Unison.Referent as Memory.Referent
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Term as Memory.Term
-import qualified Unison.Type as Memory.Type
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Star3 as Memory.Star3
+import Unison.Pattern qualified as Memory.Pattern
+import Unison.Reference qualified as Memory.Reference
+import Unison.Referent qualified as Memory.Referent
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Term qualified as Memory.Term
+import Unison.Type qualified as Memory.Type
+import Unison.Util.Map qualified as Map
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as Memory.Star3
 import Unison.Var (Var)
 
 typeToReference :: (Var v) => Memory.Type.Type v a -> Memory.Reference.Reference
@@ -64,22 +63,26 @@ typeToReferenceMentions =
 -- TODO: remove non-prime version
 -- include type in hash
 hashTermComponents ::
-  forall v a.
+  forall v a extra.
   (Var v) =>
-  Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
-  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+  Map v (Memory.Term.Term v a, Memory.Type.Type v a, extra) ->
+  Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
 hashTermComponents mTerms =
-  case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) mTerms) of
+  case h2mTermMap mTerms of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponents hTerms
   where
+    h2mTermMap m =
+      m
+        & traverse (\(trm, typ, extra) -> liftA3 (,,) (m2hTerm trm) (pure $ m2hType typ) (pure extra))
+        & Writer.runWriter
     h2mTermResult ::
       (Ord v) =>
       ( Memory.Reference.Reference ->
         Memory.ConstructorType.ConstructorType
       ) ->
-      (Hashing.ReferenceId, Hashing.Term v a, Hashing.Type v a) ->
-      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
-    h2mTermResult getCtorType (id, tm, typ) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ)
+      (Hashing.ReferenceId, Hashing.Term v a, Hashing.Type v a, extra) ->
+      (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a, extra)
+    h2mTermResult getCtorType (id, tm, typ, extra) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ, extra)
 
 -- | This shouldn't be used when storing terms in the codebase, as it doesn't incorporate the type into the hash.
 --   this should only be used in cases where you just need a way to identify some terms that you have, but won't be

@@ -1,149 +1,115 @@
 {
-  description = "A common environment for unison development";
-
-  inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+  description = "Unison";
+  nixConfig = {
+    extra-substituters = [ "https://unison.cachix.org" ];
+    extra-trusted-public-keys = [
+      "unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="
+    ];
   };
-
-  outputs = { self, flake-utils, nixpkgs }:
-    let
-      ghc-version = "8107";
-      systemAttrs = flake-utils.lib.eachDefaultSystem (system:
+  inputs = {
+    haskellNix.url = "github:input-output-hk/haskell.nix";
+    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
+  };
+  outputs = { self, nixpkgs, flake-utils, haskellNix, flake-compat, nixpkgs-unstable }:
+    flake-utils.lib.eachSystem [
+      "x86_64-linux"
+      "x86_64-darwin"
+      "aarch64-darwin"
+    ]
+      (system:
         let
-          pkgs = nixpkgs.legacyPackages."${system}".extend self.overlay;
-          ghc-version = "8107";
-          ghc = pkgs.haskell.packages."ghc${ghc-version}";
-          nativePackages = pkgs.lib.optionals pkgs.stdenv.isDarwin
-            (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa ]);
-
-          unison-env = pkgs.mkShell {
-            packages = let exports = self.packages."${system}";
-            in with pkgs;
-            [
-              exports.stack
-              exports.hls
-              exports.ormolu
-              exports.ghc
-              pkg-config
-              zlib
-            ] ++ nativePackages;
-            # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
-            shellHook = ''
-              export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-            '';
+          versions = {
+            ghc = "928";
+            ormolu = "0.5.2.0";
+            hls = "2.4.0.0";
+            stack = "2.13.1";
+            hpack = "0.35.2";
           };
-        in {
-
-          apps.repl = flake-utils.lib.mkApp {
-            drv =
-              nixpkgs.legacyPackages."${system}".writeShellScriptBin "repl" ''
-                confnix=$(mktemp)
-                echo "builtins.getFlake (toString $(git rev-parse --show-toplevel))" >$confnix
-                trap "rm $confnix" EXIT
-                nix repl $confnix
-              '';
+          overlays = [
+            haskellNix.overlay
+            (import ./nix/haskell-nix-overlay.nix)
+            (import ./nix/unison-overlay.nix)
+          ];
+          pkgs = import nixpkgs {
+            inherit system overlays;
+            inherit (haskellNix) config;
           };
-
-          pkgs = pkgs;
-
-          devShells.default = unison-env;
-
-          packages = {
-            hls = pkgs.unison-hls;
-            hls-call-hierarchy-plugin = ghc.hls-call-hierarchy-plugin;
-            ormolu = pkgs.ormolu;
-            ghc = pkgs.haskell.compiler."ghc${ghc-version}".override {
-              useLLVM = pkgs.stdenv.isAarch64;
+          haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
+            inherit pkgs versions;
+            inherit (nixpkgs-packages) stack hpack;
+          };
+          unstable = import nixpkgs-unstable {
+            inherit system;
+            overlays = [
+              (import ./nix/unison-overlay.nix)
+              (import ./nix/nixpkgs-overlay.nix { inherit versions; })
+            ];
+          };
+          nixpkgs-packages =
+            let
+              hpkgs = unstable.haskell.packages.ghcunison;
+              exe = unstable.haskell.lib.justStaticExecutables;
+            in
+            {
+              ghc = unstable.haskell.compiler."ghc${versions.ghc}";
+              ormolu = exe hpkgs.ormolu;
+              hls = unstable.unison-hls;
+              stack = unstable.unison-stack;
+              unwrapped-stack = unstable.stack;
+              hpack = unstable.hpack;
             };
-            stack = pkgs.unison-stack;
-            devShell = self.devShells."${system}".default;
-
+          nixpkgs-devShells = {
+            only-tools-nixpkgs = unstable.mkShellNoCC {
+              name = "only-tools-nixpkgs";
+              buildInputs = with nixpkgs-packages; [
+                ghc
+                ormolu
+                hls
+                stack
+                hpack
+              ];
+            };
+          };
+        in
+        assert nixpkgs-packages.ormolu.version == versions.ormolu;
+        assert nixpkgs-packages.hls.version == versions.hls;
+        assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
+        assert nixpkgs-packages.hpack.version == versions.hpack;
+        {
+          packages = nixpkgs-packages // {
+            haskell-nix = haskell-nix-flake.packages;
+            build-tools = pkgs.symlinkJoin {
+              name = "build-tools";
+              paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
+            };
+            all = pkgs.symlinkJoin {
+              name = "all";
+              paths =
+                let
+                  all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" "build-tools" ]);
+                  devshell-inputs = builtins.concatMap
+                    (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
+                    [
+                      self.devShells."${system}".only-tools-nixpkgs
+                    ];
+                in
+                all-other-packages ++ devshell-inputs;
+            };
           };
 
-          defaultPackage = self.packages."${system}".devShell;
+          apps = haskell-nix-flake.apps // {
+            default = self.apps."${system}"."unison-cli:exe:unison";
+          };
+
+          devShells = nixpkgs-devShells // {
+            default = self.devShells."${system}".only-tools-nixpkgs;
+            haskell-nix = haskell-nix-flake.devShells;
+          };
         });
-      topLevelAttrs = {
-        overlay = final: prev: {
-          ormolu = prev.haskell.lib.justStaticExecutables
-            final.haskell.packages."ghc${ghc-version}".ormolu;
-          haskell = with prev.haskell.lib;
-            prev.haskell // {
-              packages = prev.haskell.packages // {
-                "ghc${ghc-version}" = prev.haskell.packages.ghc8107.extend
-                  (hfinal: hprev: {
-                    mkDerivation = drv:
-                      hprev.mkDerivation (drv // {
-                        doCheck = false;
-                        doHaddock = false;
-                        doBenchmark = false;
-                        enableLibraryProfiling = false;
-                        enableExecutableProfiling = false;
-                      });
-                    aeson = hfinal.aeson_2_1_1_0;
-                    lens-aeson = hfinal.lens-aeson_1_2_2;
-                    Cabal = hfinal.Cabal_3_6_3_0;
-                    ormolu = hfinal.ormolu_0_5_0_1;
-                    ghc-lib-parser = hfinal.ghc-lib-parser_9_2_5_20221107;
-                    # avoid deprecated version https://github.com/Avi-D-coder/implicit-hie/issues/50
-                    implicit-hie = hfinal.callHackageDirect {
-                      pkg = "implicit-hie";
-                      ver = "0.1.4.0";
-                      sha256 =
-                        "15qy9vwm8vbnyv47vh6kd50m09vc4vhqbbrhf8gdifrvlxhad69l";
-                    } { };
-                    haskell-language-server = let
-                      p = prev.haskell.lib.overrideCabal
-                        hprev.haskell-language-server (drv: {
-                          # undo terrible nixpkgs hacks
-                          buildDepends =
-                            prev.lib.filter (x: x != hprev.hls-brittany-plugin)
-                            drv.buildDepends;
-                          configureFlags = drv.configureFlags ++ [
-                            "-f-brittany"
-                            "-f-fourmolu"
-                            "-f-floskell"
-                            "-f-stylishhaskell"
-                            "-f-hlint"
-                          ];
-                        });
-                    in p.overrideScope (lfinal: lprev: {
-                      # undo all of the horrible overrideScope in
-                      # nixpkgs configuration files
-                      ormolu = hfinal.ormolu;
-                      ghc-lib-parser = hfinal.ghc-lib-parser;
-                      ghc-lib-parser-ex = hfinal.ghc-lib-parser-ex;
-                      ghc-paths = hfinal.ghc-paths;
-                      aeson = hfinal.aeson;
-                      lsp-types = hfinal.lsp-types;
-                      # null out some dependencies that we drop with cabal flags
-                      hls-fourmolu-plugin = null;
-                      hls-floskell-plugin = null;
-                      hls-brittany-plugin = hfinal.hls-brittany-plugin;
-                      hls-stylish-haskell-plugin = null;
-                      hls-hlint-plugin = null;
-                    });
-                  });
-              };
-            };
-          unison-hls = final.haskell-language-server.override {
-            haskellPackages = final.haskell.packages."ghc${ghc-version}";
-            dynamic = true;
-            supportedGhcVersions = [ ghc-version ];
-          };
-          unison-stack = prev.symlinkJoin {
-            name = "stack";
-            paths = [ final.stack ];
-            buildInputs = [ final.makeWrapper ];
-            postBuild = let
-              flags = [ "--no-nix" "--system-ghc" "--no-install-ghc" ];
-              add-flags =
-                "--add-flags '${prev.lib.concatStringsSep " " flags}'";
-            in ''
-              wrapProgram "$out/bin/stack" ${add-flags}
-            '';
-          };
-        };
-      };
-    in systemAttrs // topLevelAttrs;
 }

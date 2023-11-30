@@ -6,6 +6,7 @@ module Unison.Cli.MonadUtils
 
     -- * Paths
     getCurrentPath,
+    resolvePath,
     resolvePath',
     resolveSplit',
 
@@ -30,7 +31,10 @@ module Unison.Cli.MonadUtils
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
+    expectBranchAtPath,
     expectBranchAtPath',
+    expectBranch0AtPath,
+    expectBranch0AtPath',
     assertNoBranchAtPath',
     branchExistsAtPath',
 
@@ -68,7 +72,11 @@ module Unison.Cli.MonadUtils
 
     -- * Latest touched Unison file
     getLatestFile,
+    getLatestParsedFile,
+    getNamesFromLatestParsedFile,
+    getTermFromLatestParsedFile,
     expectLatestFile,
+    expectLatestParsedFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
   )
@@ -77,37 +85,45 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
-import qualified Data.Configurator as Configurator
-import qualified Data.Configurator.Types as Configurator
-import qualified Data.Set as Set
-import qualified U.Codebase.Branch as V2 (Branch)
-import qualified U.Codebase.Branch as V2Branch
-import qualified U.Codebase.Causal as V2Causal
+import Data.Configurator qualified as Configurator
+import Data.Configurator.Types qualified as Configurator
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2 (Branch)
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Codebase as Codebase
+import Unison.Cli.Monad qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.BranchUtil as BranchUtil
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.HashQualified' as HQ'
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (TypecheckedUnisonFile)
-import qualified Unison.Util.Set as Set
+import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Term qualified as Term
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UFN
+import Unison.Util.Set qualified as Set
+import Unison.Var qualified as Var
 import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -126,6 +142,12 @@ getConfig key = do
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   use #currentPath
+
+-- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
+resolvePath :: Path -> Cli Path.Absolute
+resolvePath path = do
+  currentPath <- getCurrentPath
+  pure (Path.resolve currentPath (Path.Relative path))
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli Path.Absolute
@@ -149,18 +171,19 @@ resolveAbsBranchId = \case
   Right path -> getBranchAt path
 
 -- | V2 version of 'resolveAbsBranchId2'.
-resolveAbsBranchIdV2 :: Input.AbsBranchId -> Sqlite.Transaction (Either Output.Output (V2.Branch Sqlite.Transaction))
-resolveAbsBranchIdV2 = \case
+resolveAbsBranchIdV2 ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  Input.AbsBranchId ->
+  Sqlite.Transaction (V2.Branch Sqlite.Transaction)
+resolveAbsBranchIdV2 rollback = \case
   Left shortHash -> do
-    resolveShortCausalHashToCausalHash shortHash >>= \case
-      Left output -> pure (Left output)
-      Right hash -> succeed (Codebase.expectCausalBranchByCausalHash hash)
+    hash <- resolveShortCausalHashToCausalHash rollback shortHash
+    succeed (Codebase.expectCausalBranchByCausalHash hash)
   Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
   where
     succeed getCausal = do
       causal <- getCausal
-      branch <- V2Causal.value causal
-      pure (Right branch)
+      V2Causal.value causal
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
@@ -179,22 +202,22 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
+    hash <- Cli.runTransactionWithRollback \rollback -> resolveShortCausalHashToCausalHash rollback shortHash
     branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
 
-resolveShortCausalHashToCausalHash :: ShortCausalHash -> Sqlite.Transaction (Either Output.Output CausalHash)
-resolveShortCausalHashToCausalHash shortHash = do
+resolveShortCausalHashToCausalHash ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  ShortCausalHash ->
+  Sqlite.Transaction CausalHash
+resolveShortCausalHashToCausalHash rollback shortHash = do
   hashes <- Codebase.causalHashesByPrefix shortHash
-  case Set.asSingleton hashes of
-    Nothing ->
-      fmap Left do
-        if Set.null hashes
-          then pure (Output.NoBranchWithHash shortHash)
-          else do
-            len <- Codebase.branchHashLength
-            pure (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
-    Just hash -> pure (Right hash)
+  Set.asSingleton hashes & onNothing do
+    if Set.null hashes
+      then rollback (Output.NoBranchWithHash shortHash)
+      else do
+        len <- Codebase.branchHashLength
+        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches
@@ -266,11 +289,26 @@ getMaybeBranchAt path = do
   rootBranch <- getRootBranch
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
+-- | Get the branch at a relative path, or return early if there's no such branch.
+expectBranchAtPath :: Path -> Cli (Branch IO)
+expectBranchAtPath =
+  expectBranchAtPath' . Path' . Right . Path.Relative
+
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
   getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+
+-- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
+expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
+expectBranch0AtPath' =
+  fmap Branch.head . expectBranchAtPath'
+
+-- | Get the branch0 at a relative path, or return early if there's no such branch.
+expectBranch0AtPath :: Path -> Cli (Branch0 IO)
+expectBranch0AtPath =
+  expectBranch0AtPath' . Path' . Right . Path.Relative
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
@@ -482,7 +520,44 @@ expectLatestFile = do
 -- | Get the latest typechecked unison file.
 getLatestTypecheckedFile :: Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 getLatestTypecheckedFile = do
-  use #latestTypecheckedFile
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Right tf) -> Just tf
+    _ -> Nothing
+
+-- | Get the latest parsed unison file.
+getLatestParsedFile :: Cli (Maybe (UnisonFile Symbol Ann))
+getLatestParsedFile = do
+  oe <- use #latestTypecheckedFile
+  pure $ case oe of
+    Just (Left uf) -> Just uf
+    Just (Right tf) -> Just $ UF.discardTypes tf
+    _ -> Nothing
+
+expectLatestParsedFile :: Cli (UnisonFile Symbol Ann)
+expectLatestParsedFile =
+  getLatestParsedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- | Returns a parsed term (potentially with free variables) from the latest file.
+-- This term will refer to other terms in the file by vars, not by hash.
+-- Used to implement rewriting and other refactorings on the current file.
+getTermFromLatestParsedFile :: HQ.HashQualified Name.Name -> Cli (Maybe (Term.Term Symbol Ann))
+getTermFromLatestParsedFile (HQ.NameOnly n) = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> Nothing
+    Just uf ->
+      case UF.typecheckingTerm uf of
+        Term.LetRecNamed' bs _ -> lookup (Var.named (Name.toText n)) bs
+        _ -> Nothing
+getTermFromLatestParsedFile _ = pure Nothing
+
+getNamesFromLatestParsedFile :: Cli Names
+getNamesFromLatestParsedFile = do
+  uf <- getLatestParsedFile
+  pure $ case uf of
+    Nothing -> mempty
+    Just uf -> UFN.toNames uf
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

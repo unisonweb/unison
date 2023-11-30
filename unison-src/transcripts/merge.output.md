@@ -142,6 +142,8 @@ and `quux` namespaces.
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .P0> merge .P2
 
   Here's what's changed in the current namespace after the
@@ -160,6 +162,8 @@ and `quux` namespaces.
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .P0> find
 
@@ -271,7 +275,7 @@ a = "hello world!"
 ```
 
 ```ucm
-.c1b> update
+.c1b> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -302,6 +306,8 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .c1a> todo .c1b.patch
 
   ✅
@@ -322,7 +328,7 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
   a = "hello world!"
   
   f : Text
-  f = '(y -> y) a "woot!"
+  f = (x y -> y) a "woot!"
   
   oog.b : Nat
   oog.b = 230948

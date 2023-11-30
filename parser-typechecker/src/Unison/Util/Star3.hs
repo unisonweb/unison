@@ -2,11 +2,11 @@
 
 module Unison.Util.Star3 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 
 -- Represents a set of (fact, d1, d2, d3), but indexed using a star schema so
 -- it can be efficiently queried from any of the dimensions.
@@ -134,6 +134,24 @@ deletePrimaryD1 (f, x) s =
    in if Set.null otherX
         then Star3 (Set.delete f (fact s)) d1' (R.deleteDom f (d2 s)) (R.deleteDom f (d3 s))
         else s {d1 = d1'}
+
+-- Deletes tuples of the form (_, d1, _, _).
+deleteD1 ::
+  (Ord fact, Ord d1, Ord d2, Ord d3) =>
+  d1 ->
+  Star3 fact d1 d2 d3 ->
+  Star3 fact d1 d2 d3
+deleteD1 x s =
+  let d1' = R.deleteRan x (d1 s)
+      deadFacts = R.lookupRan x (d1 s)
+      newFacts = Set.difference (fact s) deadFacts
+      d2' = R.subtractDom deadFacts (d2 s)
+      d3' = R.subtractDom deadFacts (d3 s)
+   in Star3
+        newFacts
+        d1'
+        d2'
+        d3'
 
 lookupD1 :: (Ord fact, Ord d1) => d1 -> Star3 fact d1 d2 d3 -> Set fact
 lookupD1 x s = R.lookupRan x (d1 s)

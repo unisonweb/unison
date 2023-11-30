@@ -1,41 +1,51 @@
-module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
+module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, AccessorName) where
 
+import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List (isPrefixOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
   ( DataDeclaration,
     EffectDeclaration,
     toDataDecl,
   )
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Dependencies qualified as DD
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.Prelude
+import Unison.Name qualified as Name
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.Reference (Reference (DerivedId))
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.HashQualified as HQ (toString, toVar, unsafeFromString)
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference (Reference, Reference' (DerivedId))
+import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
-import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
+import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Type qualified as Type
 import Unison.Util.Pretty (Pretty)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
+
+type AccessorName = HQ.HashQualified Name
+
+prettyDeclW ::
+  (Var v) =>
+  PrettyPrintEnvDecl ->
+  Reference ->
+  HQ.HashQualified Name ->
+  DD.Decl v a ->
+  Writer [AccessorName] (Pretty SyntaxText)
+prettyDeclW ppe r hq d = case d of
+  Left e -> pure $ prettyEffectDecl ppe r hq e
+  Right dd -> prettyDataDecl ppe r hq dd
 
 prettyDecl ::
   (Var v) =>
@@ -44,13 +54,11 @@ prettyDecl ::
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
-prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl (suffixifiedPPE ppe) r hq e
-  Right dd -> prettyDataDecl ppe r hq dd
+prettyDecl ppe r hq d = fst . runWriter $ prettyDeclW ppe r hq d
 
 prettyEffectDecl ::
   (Var v) =>
-  PrettyPrintEnv ->
+  PrettyPrintEnvDecl ->
   Reference ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
@@ -59,7 +67,7 @@ prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT ::
   (Var v) =>
-  PrettyPrintEnv ->
+  PrettyPrintEnvDecl ->
   CT.ConstructorType ->
   Reference ->
   HQ.HashQualified Name ->
@@ -73,9 +81,9 @@ prettyGADT env ctorType r name dd =
         (DD.constructors' dd)
   where
     constructor (n, (_, _, t)) =
-      prettyPattern env ctorType name (ConstructorReference r n)
+      prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-          `P.hang` TypePrinter.prettySyntax env t
+          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -102,24 +110,34 @@ prettyDataDecl ::
   Reference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Pretty SyntaxText
+  Writer [AccessorName] (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $
-    constructor
-      <$> zip
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+    <$> constructor
+      `traverse` zip
         [0 ..]
         (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
-      Nothing -> prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)
+      Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
       Just ts -> case fieldNames unsuffixifiedPPE r name dd of
         Nothing ->
-          P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)) "      " $
-            P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
-        Just fs ->
-          P.group $
+          pure
+            . P.group
+            . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
+            $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
+        Just fs -> do
+          tell
+            [ case accessor of
+                Nothing -> HQ.NameOnly $ declName `Name.joinDot` fieldName
+                Just accessor -> HQ.NameOnly $ declName `Name.joinDot` fieldName `Name.joinDot` accessor
+              | HQ.NameOnly declName <- [name],
+                HQ.NameOnly fieldName <- fs,
+                accessor <- [Nothing, Just "set", Just "modify"]
+            ]
+          pure . P.group $
             fmt S.DelimiterChar "{ "
               <> P.sep
                 (fmt S.DelimiterChar "," <> " " `P.orElse` "\n      ")
@@ -159,28 +177,7 @@ fieldNames env r name dd = do
     _ -> Nothing
   let vars :: [v]
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
-  let accessors :: [(v, Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-  let typeLookup :: TypeLookup v ()
-      typeLookup =
-        TypeLookup
-          { TypeLookup.typeOfTerms = mempty,
-            TypeLookup.dataDecls = Map.singleton r (void dd),
-            TypeLookup.effectDecls = mempty
-          }
-  let typecheckingEnv :: Typechecker.Env v ()
-      typecheckingEnv =
-        Typechecker.Env
-          { Typechecker._ambientAbilities = mempty,
-            Typechecker._typeLookup = typeLookup,
-            Typechecker._termsByShortname = mempty
-          }
-  accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
-    for accessors \(v, trm) ->
-      case Result.result (Typechecker.synthesize env typecheckingEnv trm) of
-        Nothing -> Nothing
-        Just typ -> Just (v, trm, typ)
-  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
+  hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes

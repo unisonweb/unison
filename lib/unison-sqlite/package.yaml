@@ -67,6 +67,7 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses

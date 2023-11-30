@@ -35,19 +35,19 @@ module Unison.PatternMatchCoverage
   )
 where
 
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Debug.Trace
 import Unison.Debug
 import Unison.Pattern (Pattern)
 import Unison.PatternMatchCoverage.Class (Pmc (..))
 import Unison.PatternMatchCoverage.Desugar (desugarMatch)
 import Unison.PatternMatchCoverage.GrdTree (prettyGrdTree)
-import qualified Unison.PatternMatchCoverage.NormalizedConstraints as NC
+import Unison.PatternMatchCoverage.NormalizedConstraints qualified as NC
 import Unison.PatternMatchCoverage.PmGrd (prettyPmGrd)
 import Unison.PatternMatchCoverage.Solve (classify, expandSolution, generateInhabitants, uncoverAnnotate)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Util.Pretty qualified as P
 
 -- | Perform pattern match coverage checking on a match expression
 checkMatch ::

@@ -1,10 +1,10 @@
 module Main (main) where
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import EasyTest
 import System.IO.CodePage (withCP65001)
 import Unison.Prelude
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.Bytes qualified as Bytes
 
 main :: IO ()
 main =

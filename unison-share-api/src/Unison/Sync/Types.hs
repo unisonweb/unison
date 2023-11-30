@@ -62,28 +62,29 @@ module Unison.Sync.Types
     HashMismatchForEntity (..),
     InvalidParentage (..),
     NeedDependencies (..),
+    EntityValidationError (..),
   )
 where
 
 import Control.Lens (both, traverseOf)
 import Data.Aeson
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Bifoldable
-import Data.Bifunctor
 import Data.Bitraversable
 import Data.ByteArray.Encoding (Base (Base64), convertFromBase, convertToBase)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map.NonEmpty (NEMap)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import U.Codebase.Sqlite.Branch.Format (LocalBranchBytes (..))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
 import Unison.Share.API.Hash (HashJWT)
-import qualified Unison.Util.Set as Set
+import Unison.Util.Set qualified as Set
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Misc. types
@@ -372,7 +373,7 @@ data Namespace text hash = Namespace
     defnLookup :: [hash],
     patchLookup :: [hash],
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
+    bytes :: LocalBranchBytes
   }
   deriving stock (Eq, Ord, Show)
 
@@ -392,7 +393,7 @@ instance Bitraversable Namespace where
       <*> pure b
 
 instance (ToJSON text, ToJSON hash) => ToJSON (Namespace text hash) where
-  toJSON (Namespace textLookup defnLookup patchLookup childLookup bytes) =
+  toJSON (Namespace textLookup defnLookup patchLookup childLookup (LocalBranchBytes bytes)) =
     object
       [ "text_lookup" .= textLookup,
         "defn_lookup" .= defnLookup,
@@ -408,7 +409,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (Namespace text hash) where
     patchLookup <- obj .: "patch_lookup"
     childLookup <- obj .: "child_lookup"
     Base64Bytes bytes <- obj .: "bytes"
-    pure Namespace {..}
+    pure Namespace {bytes = LocalBranchBytes bytes, ..}
 
 data NamespaceDiff text hash = NamespaceDiff
   { parent :: hash,
@@ -416,12 +417,12 @@ data NamespaceDiff text hash = NamespaceDiff
     defnLookup :: [hash],
     patchLookup :: [hash],
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
-    bytes :: ByteString
+    bytes :: LocalBranchBytes
   }
   deriving stock (Eq, Ord, Show)
 
 instance (ToJSON text, ToJSON hash) => ToJSON (NamespaceDiff text hash) where
-  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup bytes) =
+  toJSON (NamespaceDiff parent textLookup defnLookup patchLookup childLookup (LocalBranchBytes bytes)) =
     object
       [ "parent" .= parent,
         "text_lookup" .= textLookup,
@@ -439,7 +440,7 @@ instance (FromJSON text, FromJSON hash) => FromJSON (NamespaceDiff text hash) wh
     patchLookup <- obj .: "patch_lookup"
     childLookup <- obj .: "child_lookup"
     Base64Bytes bytes <- obj .: "bytes"
-    pure NamespaceDiff {..}
+    pure NamespaceDiff {bytes = LocalBranchBytes bytes, ..}
 
 namespaceDiffHashes_ :: (Applicative m) => (hash -> m hash') -> NamespaceDiff text hash -> m (NamespaceDiff text hash')
 namespaceDiffHashes_ f (NamespaceDiff {..}) = do
@@ -591,6 +592,7 @@ data DownloadEntitiesError
     DownloadEntitiesUserNotFound Text
   | -- | project shorthand
     DownloadEntitiesProjectNotFound Text
+  | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
 
 instance ToJSON DownloadEntitiesResponse where
@@ -600,6 +602,7 @@ instance ToJSON DownloadEntitiesResponse where
     DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo msg repoInfo) -> jsonUnion "invalid_repo_info" (msg, repoInfo)
     DownloadEntitiesFailure (DownloadEntitiesUserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
     DownloadEntitiesFailure (DownloadEntitiesProjectNotFound projectShorthand) -> jsonUnion "project_not_found" projectShorthand
+    DownloadEntitiesFailure (DownloadEntitiesEntityValidationFailure err) -> jsonUnion "entity_validation_failure" err
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
@@ -610,6 +613,38 @@ instance FromJSON DownloadEntitiesResponse where
       "user_not_found" -> DownloadEntitiesFailure . DownloadEntitiesUserNotFound <$> obj .: "payload"
       "project_not_found" -> DownloadEntitiesFailure . DownloadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
+
+-- | The ways in which validating an entity may fail.
+data EntityValidationError
+  = EntityHashMismatch EntityType HashMismatchForEntity
+  | UnsupportedEntityType Hash32 EntityType
+  | InvalidByteEncoding Hash32 EntityType Text {- decoding err msg -}
+  deriving stock (Show, Eq, Ord)
+  deriving anyclass (Exception)
+
+instance ToJSON EntityValidationError where
+  toJSON = \case
+    EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
+    UnsupportedEntityType hash typ -> jsonUnion "unsupported_entity_type" (object ["hash" .= hash, "type" .= typ])
+    InvalidByteEncoding hash typ errMsg -> jsonUnion "invalid_byte_encoding" (object ["hash" .= hash, "type" .= typ, "error" .= errMsg])
+
+instance FromJSON EntityValidationError where
+  parseJSON = Aeson.withObject "EntityValidationError" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "mismatched_hash" -> do
+        typ <- obj .: "payload" >>= (.: "type")
+        mismatch <- obj .: "payload" >>= (.: "mismatch")
+        pure (EntityHashMismatch typ mismatch)
+      "unsupported_entity_type" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        pure (UnsupportedEntityType hash typ)
+      "invalid_byte_encoding" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        errMsg <- obj .: "payload" >>= (.: "error")
+        pure (InvalidByteEncoding hash typ errMsg)
+      t -> failText $ "Unexpected EntityValidationError type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
@@ -699,8 +734,10 @@ instance FromJSON HashMismatchForEntity where
   parseJSON =
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
-        <$> obj .: "supplied"
-        <*> obj .: "computed"
+        <$> obj
+          .: "supplied"
+        <*> obj
+          .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path

@@ -6,35 +6,36 @@ module Unison.Codebase.Editor.HandleInput.MetadataUtils
 where
 
 import Control.Lens
+import Control.Monad.Except
 import Control.Monad.Reader (ask)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.UnisonConfigUtils (defaultMetadataKey)
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
+import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.Codebase.Metadata as Metadata
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.CommandLine.InputPatterns as InputPatterns
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Codebase.Editor.SlurpComponent qualified as SC
+import Unison.Codebase.Metadata qualified as Metadata
+import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
+import Unison.HashQualified qualified as HQ
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Syntax.Name as Name (unsafeFromVar)
-import qualified Unison.Util.Monoid as Monoid
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Set as Set
+import Unison.Referent qualified as Referent
+import Unison.Server.Backend qualified as Backend
+import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Relation qualified as R
+import Unison.Util.Set qualified as Set
 
 -- Add default metadata to all added types and terms in a slurp component.
 --
@@ -118,7 +119,7 @@ manageLinks silent srcs' metadataNames op = do
               ppe
               diff
 
--- | Resolve a metadata name to its type/value, or return early if no such metadata is found.
+-- | Resolve a metadata name to its type/value, or fail if it's missing or ambiguous.
 resolveMetadata :: HQ.HashQualified Name -> Cli (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
@@ -131,14 +132,15 @@ resolveMetadata name = do
         Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
 
   terms <- getHQTerms name
-  ref <-
-    case Set.asSingleton terms of
-      Just (Referent.Ref ref) -> pure ref
-      -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
-      _ -> Cli.returnEarly (MetadataAmbiguous name ppe (Set.toList terms))
-  Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref)) <&> \case
-    Just ty -> Right (Hashing.typeToReference ty, ref)
-    Nothing -> Left (MetadataMissingType ppe (Referent.Ref ref))
+  runExceptT $ do
+    ref <-
+      case Set.asSingleton terms of
+        Just (Referent.Ref ref) -> pure ref
+        -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
+        _ -> throwError (MetadataAmbiguous name ppe (Set.toList terms))
+    lift (Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref))) >>= \case
+      Just ty -> pure (Hashing.typeToReference ty, ref)
+      Nothing -> throwError (MetadataMissingType ppe (Referent.Ref ref))
 
 resolveDefaultMetadata :: Path.Absolute -> Cli [String]
 resolveDefaultMetadata path = do

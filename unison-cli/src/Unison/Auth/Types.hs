@@ -25,12 +25,12 @@ where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson (FromJSON (..), KeyValue ((.=)), ToJSON (..), (.:), (.:?))
-import qualified Data.Aeson as Aeson
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import Data.Time (NominalDiffTime)
+import Data.Aeson qualified as Aeson
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Time (NominalDiffTime, UTCTime)
 import Network.URI
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import Unison.Prelude
 import Unison.Share.Types
 
@@ -176,6 +176,8 @@ instance FromJSON UserInfo where
 data CodeserverCredentials = CodeserverCredentials
   { -- The most recent set of authentication tokens
     tokens :: Tokens,
+    -- When the auth tokens were fetched
+    fetchTime :: UTCTime,
     -- URI where the discovery document for this codeserver can be fetched.
     discoveryURI :: URI,
     userInfo :: UserInfo
@@ -183,9 +185,10 @@ data CodeserverCredentials = CodeserverCredentials
   deriving (Eq)
 
 instance ToJSON CodeserverCredentials where
-  toJSON (CodeserverCredentials tokens discoveryURI userInfo) =
+  toJSON (CodeserverCredentials tokens fetchTime discoveryURI userInfo) =
     Aeson.object
       [ "tokens" .= tokens,
+        "fetch_time" .= fetchTime,
         "discovery_uri" .= show discoveryURI,
         "user_info" .= userInfo
       ]
@@ -195,6 +198,7 @@ instance FromJSON CodeserverCredentials where
     Aeson.withObject "CodeserverCredentials" $ \v ->
       do
         tokens <- v .: "tokens"
+        fetchTime <- v .: "fetch_time"
         discoveryURIString <- v .: "discovery_uri"
         discoveryURI <- case parseURI discoveryURIString of
           Nothing -> fail "discovery_uri is not a valid URI"
@@ -205,8 +209,8 @@ instance FromJSON CodeserverCredentials where
 emptyCredentials :: Credentials
 emptyCredentials = Credentials mempty defaultProfileName
 
-codeserverCredentials :: URI -> Tokens -> UserInfo -> CodeserverCredentials
-codeserverCredentials discoveryURI tokens userInfo = CodeserverCredentials {discoveryURI, tokens, userInfo}
+codeserverCredentials :: URI -> Tokens -> UTCTime -> UserInfo -> CodeserverCredentials
+codeserverCredentials discoveryURI tokens fetchTime userInfo = CodeserverCredentials {discoveryURI, fetchTime, tokens, userInfo}
 
 getCodeserverCredentials :: CodeserverId -> Credentials -> Either CredentialFailure CodeserverCredentials
 getCodeserverCredentials host (Credentials {credentials, activeProfile}) =

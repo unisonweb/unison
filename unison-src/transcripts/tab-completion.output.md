@@ -1,8 +1,6 @@
 # Tab Completion
 
-
 Test that tab completion works as expected.
-
 
 ## Tab Complete Command Names
 
@@ -20,6 +18,7 @@ Test that tab completion works as expected.
    delete.namespace
    delete.namespace.force
    delete.patch
+   delete.project
    delete.term
    delete.term-replacement
    delete.term.verbose
@@ -132,5 +131,43 @@ unique type subnamespace.AType = A | B
     subnamespace.AType.
   * subnamespace.someName
   * subnamespace.someOtherName
+
+```
+Tab Complete Delete Subcommands
+
+```unison
+unique type Foo = A | B
+add : a -> a
+add b = b
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Foo
+      add : a -> a
+
+```
+```ucm
+.> update.old
+
+  ⍟ I've added these definitions:
+  
+    unique type Foo
+    add : a -> a
+
+.> debug.tab-complete delete.type Foo
+
+  * Foo
+    Foo.
+
+.> debug.tab-complete delete.term add
+
+  * add
 
 ```

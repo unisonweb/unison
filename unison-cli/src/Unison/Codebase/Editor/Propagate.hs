@@ -5,62 +5,62 @@ module Unison.Codebase.Editor.Propagate
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.Reader (ask)
-import qualified Data.Graph as Graph
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified U.Codebase.Sqlite.Queries as Queries
-import qualified Unison.Builtin as Builtin
+import Data.Graph qualified as Graph
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Names as Branch
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.TermEdit (TermEdit (..))
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TermEdit.Typing as TermEdit
+import Unison.Codebase.TermEdit qualified as TermEdit
+import Unison.Codebase.TermEdit.Typing qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit (..))
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as Decl
-import Unison.FileParsers (synthesizeFile')
+import Unison.DataDeclaration qualified as Decl
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Reference (Reference (..), TermReference, TypeReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference (Reference, Reference' (..), TermReference, TypeReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Result as Result
-import qualified Unison.Runtime.IOSource as IOSource
-import qualified Unison.Sqlite as Sqlite
+import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Typechecker as Typechecker
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (UnisonFile (..))
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Set as Set
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Relation qualified as R
+import Unison.Util.Set qualified as Set
+import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
@@ -296,8 +296,8 @@ propagate patch b = case validatePatch patch of
           collectEdits es@Edits {..} seen todo = case Map.minView todo of
             Nothing -> pure es
             Just (r, todo) -> case r of
-              Reference.Builtin _ -> collectEdits es seen todo
-              Reference.DerivedId _ -> go r todo
+              ReferenceBuiltin _ -> collectEdits es seen todo
+              ReferenceDerived _ -> go r todo
             where
               debugCtors =
                 unlines
@@ -324,7 +324,7 @@ propagate patch b = case validatePatch patch of
                       (Just edits', seen') -> do
                         -- plan to update the dependents of this component too
                         dependents <- case r of
-                          Reference.Builtin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
+                          ReferenceBuiltin {} -> Codebase.dependents Queries.ExcludeOwnComponent r
                           Reference.Derived h _i -> Codebase.dependentsOfComponent h
                         let todo' = todo <> getOrdered dependents
                         collectEdits edits' seen' todo'
@@ -373,7 +373,7 @@ propagate patch b = case validatePatch patch of
                       )
                     seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
                     writeTypes = traverse_ $ \case
-                      (Reference.DerivedId id, tp) -> Codebase.putTypeDeclaration codebase id tp
+                      (ReferenceDerived id, tp) -> Codebase.putTypeDeclaration codebase id tp
                       _ -> error "propagate: Expected DerivedId"
                     !newCtorMappings =
                       let r = propagateCtorMapping componentMap hashedComponents'
@@ -433,7 +433,7 @@ propagate patch b = case validatePatch patch of
                         toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
                         writeTerms =
                           traverse_ \case
-                            (Reference.DerivedId id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
+                            (ReferenceDerived id, (tm, tp)) -> Codebase.putTerm codebase id tm tp
                             _ -> error "propagate: Expected DerivedId"
                     writeTerms
                       [(r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff]
@@ -502,7 +502,7 @@ propagate patch b = case validatePatch patch of
       Nothing -> pure mempty
       Just r -> do
         unhashed <- unhashTermComponent' codebase (Reference.idToHash r)
-        pure $ fmap (over _1 Reference.DerivedId) unhashed
+        pure $ fmap (over _1 ReferenceDerived) unhashed
 
     unhashTermComponent' ::
       Codebase m Symbol Ann ->
@@ -522,7 +522,7 @@ propagate patch b = case validatePatch patch of
                 [(v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m']
 
     verifyTermComponent ::
-      Codebase m Symbol Ann ->
+      Codebase IO Symbol Ann ->
       Map Symbol (Reference, Term Symbol Ann, a) ->
       Edits Symbol ->
       Sqlite.Transaction (Maybe (Map Symbol (Reference, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)))
@@ -547,22 +547,20 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
+                  ( componentMap
+                      & Map.toList
+                      & fmap
+                        ( \(v, (_ref, tm, _)) ->
+                            (v, External, tm)
+                        )
+                  )
                   mempty
-          typecheckResult <- typecheckFile codebase [] file
-          pure
-            . fmap UF.hashTerms
-            $ runIdentity (Result.toMaybe typecheckResult)
-              >>= hush
-
-typecheckFile ::
-  Codebase m Symbol Ann ->
-  [Type Symbol Ann] ->
-  UF.UnisonFile Symbol Ann ->
-  Sqlite.Transaction (Result.Result (Seq (Result.Note Symbol Ann)) (Either x (UF.TypecheckedUnisonFile Symbol Ann)))
-typecheckFile codebase ambient file = do
-  typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  pure . fmap Right $ synthesizeFile' ambient (typeLookup <> Builtin.typeLookup) file
+          typecheckingEnv <- Cli.computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] file
+          let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file
+          Result.result typecheckResult
+            & fmap UF.hashTerms
+            & (fmap . fmap) (\(_ann, ref, wk, tm, tp) -> (ref, wk, tm, tp))
+            & pure
 
 -- TypecheckFile file ambient -> liftIO $ typecheck' ambient codebase file
 unhashTypeComponent :: Reference -> Sqlite.Transaction (Map Symbol (Reference, Decl Symbol Ann))

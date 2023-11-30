@@ -233,6 +233,40 @@ test> Text.tests.patterns =
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
 
   ]
+
+
+test> Text.tests.indexOf =
+   haystack = "01020304" ++ "05060708" ++ "090a0b0c01"
+   needle1 = "01"
+   needle2 = "02"
+   needle3 = "0304"
+   needle4 = "05"
+   needle5 = "0405"
+   needle6 = "0c"
+   needle7 = haystack
+   needle8 = "lopez"
+   needle9 = ""
+   checks [
+     Text.indexOf needle1 haystack == Some 0,
+     Text.indexOf needle2 haystack == Some 2,
+     Text.indexOf needle3 haystack == Some 4,
+     Text.indexOf needle4 haystack == Some 8,
+     Text.indexOf needle5 haystack == Some 6,
+     Text.indexOf needle6 haystack == Some 22,
+     Text.indexOf needle7 haystack == Some 0,
+     Text.indexOf needle8 haystack == None,
+     Text.indexOf needle9 haystack == Some 0,
+   ]
+   
+test> Text.tests.indexOfEmoji = 
+  haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
+  needle1 = "👏"
+  needle2 = "👏 "
+  checks [
+    Text.indexOf needle1 haystack == Some 5,
+    Text.indexOf needle2 haystack == Some 5,
+  ]
+
 ```
 
 ## `Bytes` functions
@@ -270,6 +304,28 @@ test> Bytes.tests.fromBase64UrlUnpadded =
            '(fromUtf8
               (raiseMessage () (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ")))) == Right "hello world"
          , isLeft (Bytes.fromBase64UrlUnpadded (toUtf8 "aGVsbG8gd29ybGQ="))]
+
+test> Bytes.tests.indexOf =
+   haystack = 0xs01020304 ++ 0xs05060708 ++ 0xs090a0b0c01
+   needle1 = 0xs01
+   needle2 = 0xs02
+   needle3 = 0xs0304
+   needle4 = 0xs05
+   needle5 = 0xs0405
+   needle6 = 0xs0c
+   needle7 = haystack
+   needle8 = 0xsffffff
+   checks [
+     Bytes.indexOf needle1 haystack == Some 0,
+     Bytes.indexOf needle2 haystack == Some 1,
+     Bytes.indexOf needle3 haystack == Some 2,
+     Bytes.indexOf needle4 haystack == Some 4,
+     Bytes.indexOf needle5 haystack == Some 3,
+     Bytes.indexOf needle6 haystack == Some 11,
+     Bytes.indexOf needle7 haystack == Some 0,
+     Bytes.indexOf needle8 haystack == None,
+
+   ]
 
 ```
 
@@ -338,6 +394,11 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 openFile1 t = openFile t
 openFile2 t = openFile1 t
 
+validateSandboxedSimpl ok v =
+  match Value.validateSandboxed ok v with
+    Right [] -> true
+    _ -> false
+
 openFiles =
   [ not (validateSandboxed [] openFile)
   , not (validateSandboxed [] openFile1)
@@ -358,27 +419,76 @@ openFile]
   
     ⍟ These new definitions are ok to `add`:
     
-      Sandbox.test1 : [Result]
-      Sandbox.test2 : [Result]
-      Sandbox.test3 : [Result]
-      openFile1     : Text -> FileMode ->{IO, Exception} Handle
-      openFile2     : Text -> FileMode ->{IO, Exception} Handle
-      openFiles     : [Boolean]
+      Sandbox.test1          : [Result]
+      Sandbox.test2          : [Result]
+      Sandbox.test3          : [Result]
+      openFile1              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFile2              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFiles              : [Boolean]
+      validateSandboxedSimpl : [Link.Term]
+                               -> Value
+                               ->{IO} Boolean
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    10 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+    15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
     ✅ Passed Passed
   
-    11 | test> Sandbox.test2 = checks openFiles
+    16 | test> Sandbox.test2 = checks openFiles
     
     ✅ Passed Passed
   
-    12 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+    17 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
     
     ✅ Passed Passed
+
+```
+```unison
+openFilesIO = do
+  checks
+    [ not (validateSandboxedSimpl [] (value openFile))
+    , not (validateSandboxedSimpl [] (value openFile1))
+    , not (validateSandboxedSimpl [] (value openFile2))
+    , sandboxLinks (termLink openFile)
+        == sandboxLinks (termLink openFile1)
+    , sandboxLinks (termLink openFile1)
+        == sandboxLinks (termLink openFile2)
+    ]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      openFilesIO : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    openFilesIO : '{IO} [Result]
+
+.> io.test openFilesIO
+
+    New test results:
+  
+  ◉ openFilesIO   Passed
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view openFilesIO to view the source of a test.
 
 ```
 ## Universal hash functions
@@ -405,7 +515,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
     1 | > Universal.murmurHash 1
           ⧩
-          5006114823290027883
+          1208954131003843843
   
     2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
     
@@ -429,6 +539,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Bytes.tests.at                      Passed
   ◉ Bytes.tests.compression             Passed
   ◉ Bytes.tests.fromBase64UrlUnpadded   Passed
+  ◉ Bytes.tests.indexOf                 Passed
   ◉ Int.tests.arithmetic                Passed
   ◉ Int.tests.bitTwiddling              Passed
   ◉ Int.tests.conversions               Passed
@@ -440,13 +551,15 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test3                       Passed
   ◉ test.rtjqan7bcs                     Passed
   ◉ Text.tests.alignment                Passed
+  ◉ Text.tests.indexOf                  Passed
+  ◉ Text.tests.indexOfEmoji             Passed
   ◉ Text.tests.literalsEq               Passed
   ◉ Text.tests.patterns                 Passed
   ◉ Text.tests.repeat                   Passed
   ◉ Text.tests.takeDropAppend           Passed
   ◉ Universal.murmurHash.tests          Passed
   
-  ✅ 24 test(s) passing
+  ✅ 27 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

@@ -3,73 +3,74 @@ module Unison.Server.NameSearch.Sqlite
     typeReferencesByShortHash,
     termReferentsByShortHash,
     NameSearch (..),
-    scopedNameSearch,
+    nameSearchForPerspective,
   )
 where
 
 import Control.Lens
-import qualified Data.Set as Set
-import U.Codebase.HashTags (BranchHash)
-import qualified U.Codebase.Sqlite.NamedRef as NamedRef
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified Unison.Builtin as Builtin
+import Data.Set qualified as Set
+import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
+import U.Codebase.Sqlite.NamedRef qualified as NamedRef
+import U.Codebase.Sqlite.Operations qualified as Ops
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Path
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.LabeledDependency as LD
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.HashQualified' qualified as HQ'
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Server.NameSearch (NameSearch (..), Search (..))
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.ShortHash as SH
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Util.Set as Set
+import Unison.Server.SearchResult qualified as SR
+import Unison.ShortHash qualified as SH
+import Unison.Sqlite qualified as Sqlite
+import Unison.Util.Set qualified as Set
 
 data SearchStrategy
   = ExactMatch
   | SuffixMatch
   deriving (Show, Eq)
 
-scopedNameSearch :: Codebase m v a -> BranchHash -> Path -> NameSearch Sqlite.Transaction
-scopedNameSearch codebase rootHash path =
+nameSearchForPerspective :: Codebase m v a -> Ops.NamesPerspective -> (NameSearch Sqlite.Transaction)
+nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToMountedNameLookup} = do
   NameSearch {typeSearch, termSearch}
   where
+    -- Some searches will provide a fully-qualified name, so we need to strip off the
+    -- mount-path before we search or it will fail to find anything.
+    stripMountPathPrefix :: Name -> Name
+    stripMountPathPrefix name = Name.tryStripReversedPrefix name (reverse $ coerce pathToMountedNameLookup)
     typeSearch =
       Search
         { lookupNames = lookupNamesForTypes,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes . fmap stripMountPathPrefix,
           makeResult = \hqname r names -> pure $ SR.typeResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReference
         }
     termSearch =
       Search
         { lookupNames = lookupNamesForTerms,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms,
+          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms . fmap stripMountPathPrefix,
           makeResult = \hqname r names -> pure $ SR.termResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReferent
         }
 
-    pathText :: Text
-    pathText = Path.toText path
     lookupNamesForTypes :: Reference -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTypes ref = do
-      names <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 ref) Nothing
+      names <- Ops.typeNamesForRefWithinNamespace namesPerspective (Cv.reference1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Reference.toShortHash ref))
         & Set.fromList
         & pure
     lookupNamesForTerms :: Referent -> Sqlite.Transaction (Set (HQ'.HashQualified Name))
     lookupNamesForTerms ref = do
-      names <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 ref) Nothing
+      names <- Ops.termNamesForRefWithinNamespace namesPerspective (Cv.referent1to2 ref) Nothing
       names
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
@@ -101,11 +102,10 @@ scopedNameSearch codebase rootHash path =
     hqTermSearch searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
-          let fqn = Path.prefixName (Path.Absolute path) name
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.termRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.termNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+              ExactMatch -> Ops.termRefsForExactName namesPerspective (coerce $ Name.reverseSegments name)
+              SuffixMatch -> Ops.termNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
               ( \(NamedRef.ref -> (ref, mayCT)) ->
@@ -114,10 +114,10 @@ scopedNameSearch codebase rootHash path =
             & Set.fromList
             & pure
         HQ'.HashQualified name sh -> do
-          let fqn = Path.prefixName (Path.Absolute path) name
+          let fqn = fullyQualifyName name
           termRefs <- termReferentsByShortHash codebase sh
           Set.forMaybe termRefs \termRef -> do
-            matches <- Ops.termNamesForRefWithinNamespace rootHash pathText (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.termNamesForRefWithinNamespace namesPerspective (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
@@ -130,28 +130,32 @@ scopedNameSearch codebase rootHash path =
     hqTypeSearch searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
-          let fqn = Path.prefixName (Path.Absolute path) name
+          let fqn = fullyQualifyName name
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.typeRefsForExactName rootHash (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.typeNamesBySuffix rootHash pathText (coerce $ Name.reverseSegments name)
+              ExactMatch -> Ops.typeRefsForExactName namesPerspective (coerce $ Name.reverseSegments fqn)
+              SuffixMatch -> Ops.typeNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap (Cv.reference2to1 . NamedRef.ref)
             & Set.fromList
             & pure
         HQ'.HashQualified name sh -> do
-          let fqn = Path.prefixName (Path.Absolute path) name
+          let fqn = fullyQualifyName name
           typeRefs <- typeReferencesByShortHash sh
           Set.forMaybe typeRefs \typeRef -> do
-            matches <- Ops.typeNamesForRefWithinNamespace rootHash pathText (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
+            matches <- Ops.typeNamesForRefWithinNamespace namesPerspective (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
             if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
               then pure (Just typeRef)
               else pure Nothing
 
-    reversedSegmentsToName :: NamedRef.ReversedSegments -> Name
+    reversedSegmentsToName :: ReversedName -> Name
     reversedSegmentsToName = Name.fromReverseSegments . coerce
+
+    -- Fully qualify a name by prepending the current namespace perspective's path
+    fullyQualifyName :: Name -> Name
+    fullyQualifyName name = Path.prefixName (Path.Absolute (Path.fromList . coerce $ pathToMountedNameLookup)) name
 
 -- | Look up types in the codebase by short hash, and include builtins.
 typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)

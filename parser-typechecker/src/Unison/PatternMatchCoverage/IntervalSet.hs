@@ -22,11 +22,11 @@ where
 import Data.Coerce (coerce)
 import Data.Function (on)
 import Data.IntMap (IntMap)
-import qualified Data.IntMap.Strict as IntMap
+import Data.IntMap.Strict qualified as IntMap
 import Data.List (sortOn)
 import Data.Maybe (catMaybes, fromMaybe, maybeToList)
 import Prelude hiding (foldr, map, null)
-import qualified Prelude
+import Prelude qualified
 
 newtype IntervalSet = IntervalSet {unIntervalSet :: IntMap Int}
   deriving stock (Show, Eq, Ord)

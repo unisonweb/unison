@@ -1,0 +1,529 @@
+
+-- A very simple example to start 
+simplestPossibleExample = 1 + 1
+
+-- Destructuring binds
+-- Regression test for https://github.com/unisonweb/unison/issues/2337
+
+structural type Fix_2337 = Fix_2337 Boolean Boolean
+
+Fix_2337.f : Fix_2337 -> Boolean
+Fix_2337.f x = let
+  (Fix_2337.Fix_2337 a b) = x
+  a
+
+-- Parens around infix patterns
+-- Regression test for https://github.com/unisonweb/unison/issues/2224
+
+fix_2224 : [()] -> ()
+fix_2224 xs = match xs with
+  x +: (x' +: rest) -> x
+  _ -> ()
+
+fix_2224a : [()] -> ()
+fix_2224a xs = match xs with
+  (rest :+ x') :+ x -> ()
+  _ -> ()
+
+fix_2224b : [[()]] -> ()
+fix_2224b xs = match xs with
+  (rest :+ (rest' :+ x)) -> x
+  _ -> ()
+
+-- Type application inserts necessary parens
+-- Regression test for https://github.com/unisonweb/unison/issues/2392
+
+structural ability Fix_2392 where zonk : Nat
+structural type Fix_2392a x y = Oog Nat Nat (Nat, Nat)
+
+Fix_2392.f : Nat -> Fix_2392a ('{Fix_2392} a) ('{Fix_2392} b) -> Nat
+Fix_2392.f n _ = n
+
+-- Long lines with repeated operators
+-- Regression test for https://github.com/unisonweb/unison/issues/1035
+
+fix_1035 : Text
+fix_1035 =
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
+
+-- Emphasis in docs inserts the right number of underscores
+-- Regression test for https://github.com/unisonweb/unison/issues/2408
+
+fix_2048 = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+
+-- Parenthesized let-block with operator
+-- Regression test for https://github.com/unisonweb/unison/issues/1778
+
+(|>) : a -> (a ->{e} b) -> {e} b
+a |> f = f a
+
+handler_1778 : a -> Request {Abort} a -> a
+handler_1778 default = cases
+  { a }        -> a
+  {abort -> _} -> default
+
+Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+Abort.toOptional thunk = '(toOptional! thunk)
+
+Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
+Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+
+Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+Abort.toDefault! default thunk =
+  h x = Abort.toDefault! (handler_1778 default x) thunk
+  handle (thunk ()) with h
+
+fix_1778 = 
+  '(let
+     abort
+     0) |> Abort.toOptional
+
+-- Line breaks before 'let
+-- Regression test for https://github.com/unisonweb/unison/issues/1536
+
+fix_1536 = 'let
+ y = 0
+ y
+
+-- Raw codeblocks add indentation
+-- Regression test for https://github.com/unisonweb/unison/issues/2271
+
+fix_2271 : Doc2
+fix_2271 =
+  {{ # Full doc body indented
+  
+    ``` raw
+    myVal1 = 42 
+    myVal2 = 43
+    myVal4 = 44
+    ```
+    
+    ``` raw
+    indented1= "hi"
+    indented2="this is two indents"
+    ```
+    
+    I am two spaces over 
+  }}
+
+
+-- Unison Cloud roundtrip issues
+
+-- Guard patterns on long lines
+
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+somethingVeryLong = let
+  go x =
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+      _ -> 2
+  go (SomethingUnusuallyLong "one" "two" "three")
+
+-- Nested fences
+
+nested_fences : Doc2
+nested_fences =
+  {{ ```` raw
+  ```unison
+  r = "boopydoo"
+  ```
+  ```` }}
+
+
+-- Indent long pattern lists to avoid virtual semicolon
+-- Regression test for https://github.com/unisonweb/unison/issues/3627
+
+fix_3627 = cases
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa Nat.+ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+-- Avoid capture of local variables when selecting names for references
+-- Regression test for https://github.com/unisonweb/unison/issues/525
+
+-- Ex 1: 'quaffle' is a unique term suffix, but 'exampleTerm' binds 'quaffle'
+-- as a local name, so the pretty-printer should use the longer name
+Fix_525.bar.quaffle = 32
+
+-- Notice this won't typecheck if we write 'quaffle' instead of 'Fix_525.bar.quaffle'
+-- because 'quaffle' (the local variable) has type `Text`
+fix_525_exampleTerm : Text -> Nat
+fix_525_exampleTerm quaffle = Fix_525.bar.quaffle + 1
+
+-- This demonstrates the same thing for types.
+-- exampleType's signature locally binds the 'qualifiedName' type parameter,
+-- so the pretty-printer should use the longer name 'Fully.qualifiedName' 
+structural type Fully.qualifiedName = Dontcare () Nat
+
+structural type Id a = Id a
+
+fix_525_exampleType : forall qualifiedName . Id qualifiedName -> Id Fully.qualifiedName
+fix_525_exampleType z = Id (Dontcare () 19)
+
+-- We'd get a type error if `exampleTerm` or `exampleType` didn't round-trip, but it typechecks okay!
+
+-- Use clauses can't introduce shadowing 
+
+use_clauses_example : Int -> Text -> Nat
+use_clauses_example oo quaffle = 
+  Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+
+use_clauses_example2 : Int -> Nat
+use_clauses_example2 oo =
+  quaffle = "hi"
+  Fix_525.bar.quaffle + Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+
+-- Notice there's a local name 'quaffle' of type `Text``, but the function refers to 'Fix_525.bar.quaffle' of type `Nat`.
+
+-- This just shows that we don't insert a `use Fix_525.bar.quaffle`, even though it's referenced multiple times, since this would case shadowing.
+
+-- Use clauses aren't pushed down too far
+-- We push `use` clauses down to the nearest enclosing let or let rec block so they're close to where they're used:
+
+Foo.bar.qux1 = 42
+Foo'.bar.qux1 = "43" -- ensures qux1 is not a unique suffix
+
+Foo.bar.qux2 = 44
+Foo'.bar.qux2 = "45"
+
+Foo.bar.qux3 = 46
+Foo'.bar.qux3 = "47"
+
+ex1 = 
+  a = Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex2 = 
+  a = 
+    -- use Foo.bar qux3 will get pushed in here since it's already a multiline block
+    z = 203993
+    Foo.bar.qux3 + Foo.bar.qux3
+  Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
+
+ex3 = 
+  a = do
+    -- use clause gets pushed in here
+    x = Foo.bar.qux3 + Foo.bar.qux3
+    x + x
+  ()
+
+ex3a = 
+  a = do Foo.bar.qux3 + Foo.bar.qux3 -- use clause will get pulled up to top level
+  ()
+
+-- Make sure use clauses don't show up before a soft hang 
+-- Regression test for https://github.com/unisonweb/unison/issues/3883
+
+structural type UUID = UUID Nat (Nat, Nat)
+
+UUID.random : 'UUID
+UUID.random = do UUID 0 (0,0)
+
+UUID.randomUUIDBytes : 'Bytes
+UUID.randomUUIDBytes = do
+  (UUID a (b,_)) = !UUID.random
+  (encodeNat64be a) ++ (encodeNat64be b)
+
+-- Raw string round trip
+-- Regression test for https://github.com/unisonweb/unison/issues/3973
+
+raw_a = "a\nb"
+raw_b = """
+  a
+  b
+  c -- note blank line
+
+  """
+raw_c = """
+ignored (wonky case)
+Use an extra blank line if you'd like a trailing newline. Like so:
+
+"""
+raw_d = """
+  ignored (works great)
+  Use an extra blank line if you'd like a trailing newline. Like so:
+
+  """
+
+-- Fix for wonky treatment of abilities with multi-segment constructor names 
+-- Regression test for https://github.com/unisonweb/unison/issues/3239
+
+structural ability Zoink where
+  yay.there : Text -> Nat
+  nay : Text -> (Nat,Nat) -> Nat
+
+
+-- Regression tests for https://github.com/unisonweb/unison/issues/2650
+
+fix_2650 =
+  addNumbers: 'Nat
+  addNumbers = 'let
+    use Nat +
+    y = 12
+    13 + y
+  !addNumbers
+
+fix_2650a tvar fun = ()
+
+fix_2650b tvar =
+  '(fix_2650a tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+
+fix_2650c = cases
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+  _ -> ()
+
+structural ability Abort where
+  abort : a
+
+-- Multiline expressions in multiliine lists
+multiline_fn a b c d e f g h i j = 42
+
+multiline_list = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1, multiline_fn 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ]
+
+softhang a b = 42
+
+softhang_a x = do
+  a = 1
+  b = 2
+  softhang a 'let
+    c = 3
+    a + b
+
+softhang_b x = do
+  a = 1
+  b = 2
+  softhang (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200 + 1300 + 1400 + 1500) 'let
+    c = 3
+    a + b
+
+softhang_c x = do
+  a = 1
+  b = 2
+  1 + softhang a do
+    c = 3
+    a + b
+
+softhang_d x = do
+  a = 1
+  b = 2
+  c = softhang do
+    c = 3
+    a + b
+  c
+
+-- Multi-line lambda let
+-- Regression test for #3110 and #3801
+
+fix_3110a x f =
+  _ = 99
+  ()
+
+ignore x = ()
+
+fix_3110b : ()
+fix_3110b =
+  fix_3110a [1, 2, 3] let x -> let
+    y = Nat.increment x
+    ()
+
+fix_3110c = fix_3110a [1, 2, 3] let x -> ignore (Nat.increment x)
+
+fix_3110d = fix_3110a [1, 2, 3] do x -> do
+  y = Nat.increment x
+  ()
+
+-- Destructuring bind in delay or lambda
+-- Regression test for https://github.com/unisonweb/unison/issues/3710
+
+fix_3710 = do
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+fix_3710a = let
+  (a,b) = (1,2)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+fix_3710b x = let
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+fix_3710c x = do
+  (a,b) = (1,x)
+  (c,d) = (3,4)
+  (e,f) = (5,6)
+  (a,b,c,d,e,f)
+
+fix_3710d x = match x with
+  Some x -> x
+  None -> bug "oops"
+
+-- Use soft hangs after `with` and `=` and in last argument of function application
+
+softhang21 = handle
+  x = 1
+  y = abort
+  x + y
+  with cases
+    { a } -> a
+    { Abort.abort -> _ } -> 0
+
+softhang21a = handle
+  x = 1
+  y = abort
+  x + y
+  with cases
+    { a } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+    { Abort.abort -> _ } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+
+softhang2 x f = 0 
+
+softhang22 = softhang2 [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> n + 100
+
+catchAll x = 
+  99
+
+softhang23 = do
+  catchAll do
+    x = 1
+    y = 2
+    x + y
+
+softhang24 = do match 0 with
+  0 -> 0
+  1 -> 1
+  n -> n
+
+softhang25 = match Nat.increment 1 with
+  2 -> "yay"
+  n -> "oh no"
+
+softhang26 = softhang2 [1,2,3,4] cases
+  0 -> 1
+  n -> n + 1
+
+forkAt loc c = 
+  x = 99
+  390439034 
+
+softhang27 somewhere = forkAt somewhere do
+  x = 1
+  y = 2 
+  x + y
+
+softhang28 = softhang2 [0,1,2,3,4,5] cases
+  0 -> 0
+  1 -> 1
+  n -> forkAt 0 (n + n + n + n + n + n + n + n + n + n + n)
+
+-- Weirdness reported by Stew with super long lines
+
+longlines x = 
+  u = 92393
+  x
+
+longlines_helper x = do x
+
+longlines1 = do 
+  longlines !(longlines_helper "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
+
+longlines2 =
+  ("adsf",
+    '(Text.toUtf8
+       "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"))
+
+test3 = do
+  run : forall a . Nat -> a
+  run x = bug x
+  runrun = 42
+  a = "asldkfj"
+  b = "asdflkjasdf"
+  do do run runrun do do runrun
+
+-- Regression test for https://github.com/unisonweb/unison/issues/4239
+-- `n` was replaced by `error` but should not be. Instead, render as if
+-- a second param, _, had been provided in the definition. 
+(>>>>) : Nat -> Nat -> ()
+(>>>>) n = cases
+  _ -> bug ""
+
+-- regression test for https://github.com/unisonweb/unison/issues/4272
+-- where constructors with at least one argument don't get printed correctly
+-- this would previously get printed as `Join.Join`
+structural type foo.Join =
+  Table | Join Boolean | Values [Nat]
+
+fix_4352 = {{``+1``}}
+
+-- regression test to make sure we don't use soft hang between a `do` and `match`
+-- if there's imports that have been inserted there
+
+structural ability Ask a where 
+  ask : a 
+
+Decode.remainder : '{Ask (Optional Bytes)} Bytes
+Decode.remainder = do 
+  use Bytes ++
+  match ask with
+    None -> Bytes.empty
+    Some b -> b ++ !Decode.remainder
+
+structural type HandlerWebSocket x y z p q = HandlerWebSocket x
+
+fix_4340 = HandlerWebSocket cases
+  1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+  _ -> abort
+
+fix_4258 x y z = 
+  _ = "fix_4258"
+  ()
+
+fix_4258_example = fix_4258 1 () 2
+
+-- previously, lexer was emitting virtual semicolons inside parens, which
+-- led to some very odd parse errors in cases like these
+
+stew_issue = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '(Debug "Failed " -- virtual semicolon here was tripping up parser 
+                  42))
+stew_issue2 = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '("Failed " ++ 
+           toText 42))
+
+stew_issue3 = 
+  id x = x
+  error x = ()
+  (++) a b = 0
+  blah x y = 99
+  toText a = a
+  configPath = 0
+  Debug a b = ()
+  error
+    (Debug None '("Failed to get timestamp of config file " ++ 
+           toText configPath))

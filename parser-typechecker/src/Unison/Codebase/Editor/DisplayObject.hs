@@ -3,10 +3,9 @@
 module Unison.Codebase.Editor.DisplayObject where
 
 import Data.Bifoldable
-import Data.Bifunctor
 import Data.Bitraversable
 import Unison.Prelude
-import Unison.ShortHash
+import Unison.ShortHash (ShortHash)
 
 data DisplayObject b a = BuiltinObject b | MissingObject ShortHash | UserObject a
   deriving (Eq, Ord, Show, Functor, Generic, Foldable, Traversable)

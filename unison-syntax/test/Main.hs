@@ -1,8 +1,14 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Main (main) where
 
+import Data.Maybe (fromJust)
+import Data.Text qualified as Text
 import EasyTest
 import System.IO.CodePage (withCP65001)
-import qualified Unison.ShortHash as ShortHash
+import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.Lexer
 
 main :: IO ()
@@ -81,8 +87,8 @@ test =
         ],
       t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"],
       -- idents with hashes
-      t "foo#bar" [WordyId "foo" (Just (ShortHash.unsafeFromText "#bar"))],
-      t "+#bar" [SymbolyId "+" (Just (ShortHash.unsafeFromText "#bar"))],
+      t "foo#bar" [WordyId "foo" (Just "#bar")],
+      t "+#bar" [SymbolyId "+" (Just "#bar")],
       -- note - these are all the same, just with different spacing
       let ex1 = "if x then y else z"
           ex2 = unlines ["if", "  x", "then", "  y", "else z"]
@@ -214,3 +220,6 @@ t s expected =
             note $ "expected: " ++ show expected
             note $ "actual  : " ++ show actual
             crash "actual != expected"
+
+instance IsString ShortHash where
+  fromString = fromJust . ShortHash.fromText . Text.pack

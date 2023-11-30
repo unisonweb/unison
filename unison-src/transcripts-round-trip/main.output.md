@@ -1,765 +1,171 @@
-This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added here as regression tests. Add tests at the bottom of this
-
-## How to use this transcript: checking round-trip for inline definitions
+This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
 ```unison
-x = 1 + 1
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    x : Nat
-
-.> edit x
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    x : Nat
-    x =
-      use Nat +
-      1 + 1
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When         Root Hash     Action
-  1.   now          #88srvru2o0   add
-  2.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  3.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
+---
+title: /private/tmp/roundtrip.u
+---
+x = ()
 
 ```
-Resetting the namespace after each example ensures they don't interact at all, which is probably what you want.
 
-The `load` command which does parsing and typechecking of the `edit`'d definitions needs to be in a separate stanza from the `edit` command.
 
 ```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      x : Nat
-
-```
-## How to use this transcript: checking round-trip for definitions from a file
-
-Examples can also be loaded from `.u` files:
-
-```ucm
-.> load unison-src/transcripts-round-trip/ex2.u
 
   I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/ex2.u. If you do an `add` or
-  `update`, here's how your codebase would change:
+  /private/tmp/roundtrip.u. If you do an `add` or `update`,
+  here's how your codebase would change:
   
     ⍟ These new definitions are ok to `add`:
     
-      b : Nat
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    b : Nat
+      x : ()
 
 ```
-When loading definitions from a file, an empty stanza like this will ensure that this empty file is where the definitions being `edit`'d will get dumped.
-
-```unison
--- empty scratch file, `edit` will target this
-```
-
-Without the above stanza, the `edit` will send the definition to the most recently loaded file, which would be `ex2.u`, making the transcript not idempotent.
+So we can see the pretty-printed output:
 
 ```ucm
-.> edit b
+.a1> edit 1-1000
 
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /private/tmp/roundtrip.u
   
-    b : Nat
-    b = 92384
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When         Root Hash     Action
-  1.   now          #a16i2glj04   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #88srvru2o0   add
-  4.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  5.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural ability Abort where abort : {Abort} a
     
-      b : Nat
-
-```
-No reason you can't load a bunch of definitions from a single `.u` file in one go, the only thing that's annoying is you'll have to `find` and then `edit 1-11` in the transcript to load all the definitions into the file.
-
-## Destructuring binds
-
-Regression test for https://github.com/unisonweb/unison/issues/2337
-
-```unison
-unique type Blah = Blah Boolean Boolean
-
-f : Blah -> Boolean
-f x = let
-  (Blah.Blah a b) = x
-  a
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    unique type Blah
-    f : Blah -> Boolean
-
-.> edit Blah f
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    unique type Blah
-      = Blah Boolean Boolean
+    structural ability Ask a where ask : {Ask a} a
     
-    f : Blah -> Boolean
-    f = cases Blah a b -> a
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When         Root Hash     Action
-  1.   now          #8pc9a0uci4   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #a16i2glj04   add
-  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now          #88srvru2o0   add
-  6.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  7.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural type Fix_2337
+      = Fix_2337 Boolean Boolean
     
-      unique type Blah
-      f : Blah -> Boolean
-
-```
-## Parens around infix patterns
-
-Regression test for https://github.com/unisonweb/unison/issues/2224
-
-```unison
-f : [()] -> ()
-f xs = match xs with
-  x +: (x' +: rest) -> x
-  _ -> ()
-
-g : [()] -> ()
-g xs = match xs with
-  (rest :+ x') :+ x -> ()
-  _ -> ()
-
-h : [[()]] -> ()
-h xs = match xs with
-  (rest :+ (rest' :+ x)) -> x
-  _ -> ()
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    f : [()] -> ()
-    g : [()] -> ()
-    h : [[()]] -> ()
-
-.> edit f g
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    f : [()] -> ()
-    f = cases
-      x +: (x' +: rest) -> x
-      _                 -> ()
+    structural ability Fix_2392 where zonk : {Fix_2392} Nat
     
-    g : [()] -> ()
-    g = cases
-      rest :+ x' :+ x -> ()
-      _               -> ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When         Root Hash     Action
-  1.   now          #psi40d6du2   add
-  2.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.   now          #8pc9a0uci4   add
-  4.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.   now          #a16i2glj04   add
-  6.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.   now          #88srvru2o0   add
-  8.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  9.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural type Fix_2392a x y
+      = Oog Nat Nat (Nat, Nat)
     
-      f : [()] -> ()
-      g : [()] -> ()
-
-```
-## Type application inserts necessary parens
-
-Regression test for https://github.com/unisonweb/unison/issues/2392
-
-```unison
-unique ability Zonk where zonk : Nat
-unique type Foo x y =
-
-foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-foo n _ = n
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    unique type Foo x y
-    unique ability Zonk
-    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-
-.> edit foo Zonk Foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    unique type Foo x y
-      = 
+    structural type foo.Join
+      = Join Boolean
+      | Table
+      | Values [Nat]
     
-    unique ability Zonk where zonk : {Zonk} Nat
+    structural type Fully.qualifiedName
+      = Dontcare () Nat
     
-    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-    foo n _ = n
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-        When         Root Hash     Action
-  1.    now          #9i8g6b1m8k   add
-  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now          #psi40d6du2   add
-  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now          #8pc9a0uci4   add
-  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now          #a16i2glj04   add
-  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now          #88srvru2o0   add
-  10.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  11.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    structural type HandlerWebSocket x y z p q
+      = HandlerWebSocket x
     
-      unique type Foo x y
-      unique ability Zonk
-      foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
-
-```
-## Long lines with repeated operators
-
-Regression test for https://github.com/unisonweb/unison/issues/1035
-
-```unison
-foo : Text
-foo =
-  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-.> edit foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    foo : Text
-    foo =
+    structural type Id a
+      = Id a
+    
+    structural type SomethingUnusuallyLong
+      = SomethingUnusuallyLong Text Text Text
+    
+    structural type UUID
+      = UUID Nat (Nat, Nat)
+    
+    structural ability Zoink where
+      nay : Text -> (Nat, Nat) ->{Zoink} Nat
+      yay.there : Text ->{Zoink} Nat
+    
+    (>>>>) : Nat -> Nat -> ()
+    (>>>>) n = cases _ -> bug ""
+    
+    Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+    Abort.toDefault! default thunk =
+      h x = Abort.toDefault! (handler_1778 default x) thunk
+      handle !thunk with h
+    
+    Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+    Abort.toOptional thunk = do toOptional! thunk
+    
+    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
+    Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+    
+    catchAll : x -> Nat
+    catchAll x = 99
+    
+    Decode.remainder : '{Ask (Optional Bytes)} Bytes
+    Decode.remainder = do
+      use Bytes ++
+      match ask with
+        None   -> Bytes.empty
+        Some b -> b ++ !Decode.remainder
+    
+    ex1 : Nat
+    ex1 =
+      use Foo.bar qux1 qux3
+      use Nat +
+      a = qux3 + qux3
+      qux1 + qux1 + Foo.bar.qux2
+    
+    ex2 : Nat
+    ex2 =
+      use Foo.bar qux1
+      use Nat +
+      a =
+        use Foo.bar qux3
+        z = 203993
+        qux3 + qux3
+      qux1 + qux1 + Foo.bar.qux2
+    
+    ex3 : ()
+    ex3 =
+      a = do
+        use Foo.bar qux3
+        use Nat +
+        x = qux3 + qux3
+        x + x
+      ()
+    
+    ex3a : ()
+    ex3a =
+      use Foo.bar qux3
+      use Nat +
+      a = do qux3 + qux3
+      ()
+    
+    fix_1035 : Text
+    fix_1035 =
       use Text ++
       "aaaaaaaaaaaaaaaaaaaaaa"
         ++ "bbbbbbbbbbbbbbbbbbbbbb"
         ++ "cccccccccccccccccccccc"
         ++ "dddddddddddddddddddddd"
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
-  
-    `fork 2 .old`             
-    `fork #c5i2vql0hi .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #c5i2vql0hi`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-        When         Root Hash     Action
-  1.    now          #mqg8tqk7i6   add
-  2.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  3.    now          #9i8g6b1m8k   add
-  4.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  5.    now          #psi40d6du2   add
-  6.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  7.    now          #8pc9a0uci4   add
-  8.    now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  9.    now          #a16i2glj04   add
-  10.   now          #c5i2vql0hi   reset-root #c5i2vql0hi
-  11.   now          #88srvru2o0   add
-  12.   1 secs ago   #c5i2vql0hi   builtins.mergeio
-  13.                #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
-
-.> reset-root 2
-
-  Done.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
     
-      foo : Text
-
-```
-## Emphasis in docs inserts the right number of underscores
-
-Regression test for https://github.com/unisonweb/unison/issues/2408
-
-```unison
-myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    myDoc : Doc2
-
-.> edit myDoc
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    myDoc : Doc2
-    myDoc =
-      {{
-      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
-      ~~MY~TEXT~~ **MY*TEXT**
-      }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. myDoc : Doc2
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_1536 : 'Nat
+    fix_1536 = do
+      y = 0
+      y
     
-      myDoc : Doc2
-
-```
-## Parenthesized let-block with operator
-
-Regression test for https://github.com/unisonweb/unison/issues/1778
-
-```unison
-structural ability base.Abort where
-  abort : a
-
-(|>) : a -> (a ->{e} b) -> {e} b
-a |> f = f a
-
-handler : a -> Request {Abort} a -> a
-handler default = cases
-  { a }        -> a
-  {abort -> _} -> default
-
-Abort.toOptional : '{g, Abort} a -> '{g} Optional a
-Abort.toOptional thunk = '(toOptional! thunk)
-
-Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
-Abort.toOptional! thunk = toDefault! None '(Some !thunk)
-
-Abort.toDefault! : a -> '{g, Abort} a ->{g} a
-Abort.toDefault! default thunk =
-  h x = Abort.toDefault! (handler default x) thunk
-  handle (thunk ()) with h
-
-x = '(let
-  abort
-  0) |> Abort.toOptional
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    structural ability base.Abort
-    Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
-    Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
-    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-    handler           : a -> Request {Abort} a -> a
-    x                 : 'Optional Nat
-    |>                : a -> (a ->{e} b) ->{e} b
-
-.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    structural ability base.Abort where abort : {base.Abort} a
-    
-    Abort.toDefault! : a -> '{g, Abort} a ->{g} a
-    Abort.toDefault! default thunk =
-      h x = Abort.toDefault! (handler default x) thunk
-      handle !thunk with h
-    
-    Abort.toOptional : '{g, Abort} a -> '{g} Optional a
-    Abort.toOptional thunk = '(toOptional! thunk)
-    
-    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-    Abort.toOptional! thunk = toDefault! None '(Some !thunk)
-    
-    handler : a -> Request {Abort} a -> a
-    handler default = cases
-      { a }        -> a
-      {abort -> _} -> default
-    
-    x : 'Optional Nat
-    x =
+    fix_1778 : 'Optional Nat
+    fix_1778 =
       (do
         abort
         0) |> toOptional
     
-    (|>) : a -> (a ->{e} b) ->{e} b
-    a |> f = f a
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. structural ability base.Abort
-    2. base.Abort.abort  : {#b589mbg492} a
-    3. handler           : a -> Request {#b589mbg492} a -> a
-    4. Abort.toDefault!  : a -> '{g, #b589mbg492} a ->{g} a
-    5. Abort.toOptional  : '{g, #b589mbg492} a
-                         -> '{g} Optional a
-    6. Abort.toOptional! : '{g, #b589mbg492} a ->{g} Optional a
-    7. x                 : 'Optional Nat
-    8. |>                : a -> (a ->{e} b) ->{e} b
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_2048 : Doc2
+    fix_2048 =
+      {{
+      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
+      ~~MY~TEXT~~ **MY*TEXT**
+      }}
     
-      structural ability base.Abort
-      Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
-      Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
-      Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-      handler           : a -> Request {Abort} a -> a
-      x                 : 'Optional Nat
-      |>                : a -> (a ->{e} b) ->{e} b
-
-```
-## Line breaks before 'let
-
-Regression test for https://github.com/unisonweb/unison/issues/1536
-
-```unison
-r = 'let
- y = 0
- y
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    r : 'Nat
-
-.> edit r
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    r : 'Nat
-    r = do
-      y = 0
-      y
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. r : 'Nat
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_2224 : [()] -> ()
+    fix_2224 = cases
+      x +: (x' +: rest) -> x
+      _                 -> ()
     
-      r : 'Nat
-
-```
-## Raw codeblocks add indentation
-
-Regression test for https://github.com/unisonweb/unison/issues/2271
-
-```ucm
-.> load unison-src/transcripts-round-trip/docTest2.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/docTest2.u. If you do an
-  `add` or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_2224a : [()] -> ()
+    fix_2224a = cases
+      rest :+ x' :+ x -> ()
+      _               -> ()
     
-      docTest2 : Doc2
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    docTest2 : Doc2
-
-```
-```unison
-x = 2
-```
-
-```ucm
-.> edit docTest2
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    docTest2 : Doc2
-    docTest2 =
+    fix_2224b : [[()]] -> ()
+    fix_2224b = cases
+      rest :+ (rest' :+ x) -> x
+      _                    -> ()
+    
+    fix_2271 : Doc2
+    fix_2271 =
       {{ # Full doc body indented
       
         ``` raw
@@ -774,363 +180,193 @@ x = 2
         ```
         
         I am two spaces over }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
-
-.> add
-
-  ⊡ Ignored previously added definitions: docTest2
-
-```
-## Unison Cloud roundtrip issues
-
-Regression tests for  https://github.com/unisonweb/unison/issues/2650
-
-```unison
-broken =
-    addNumbers: 'Nat
-    addNumbers = 'let
-      use Nat +
-      y = 12
-      13 + y
-    !addNumbers
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken : Nat
-
-.> edit broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    broken : Nat
-    broken =
+    
+    Fix_2337.f : Fix_2337 -> Boolean
+    Fix_2337.f = cases Fix_2337 a b -> a
+    
+    Fix_2392.f :
+      Nat -> Fix_2392a ('{Fix_2392} a) ('{Fix_2392} b) -> Nat
+    Fix_2392.f n _ = n
+    
+    fix_2650 : Nat
+    fix_2650 =
       addNumbers : 'Nat
       addNumbers = do
         use Nat +
         y = 12
         13 + y
       !addNumbers
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken : Nat
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
     
-      broken : Nat
-
-```
-```unison
-tvarmodify tvar fun = ()
-
-broken tvar =
-  '(tvarmodify tvar (cases
-     Some _ -> "oh boy isn't this a very very very very very very very long string?"
-     None -> ""))
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken     : tvar -> () -> ()
-    tvarmodify : tvar -> fun -> ()
-
-.> edit tvarmodify broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    broken : tvar -> () -> ()
-    broken tvar =
-      '(tvarmodify
-          tvar
-          (cases
-            Some _ ->
-              "oh boy isn't this a very very very very very very very long string?"
-            None -> ""))
+    fix_2650a : tvar -> fun -> ()
+    fix_2650a tvar fun = ()
     
-    tvarmodify : tvar -> fun -> ()
-    tvarmodify tvar fun = ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken     : tvar -> () -> ()
-    2. tvarmodify : tvar -> fun -> ()
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_2650b : tvar -> '()
+    fix_2650b tvar =
+      do
+        fix_2650a tvar cases
+          Some _ ->
+            "oh boy isn't this a very very very very very very very long string?"
+          None -> ""
     
-      broken     : tvar -> '()
-      tvarmodify : tvar -> fun -> ()
-
-```
-```unison
-broken = cases
-  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
-  _ -> ()
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    broken : Optional Nat -> ()
-
-.> edit broken
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    broken : Optional Nat -> ()
-    broken = cases
+    fix_2650c : Optional Nat -> ()
+    fix_2650c = cases
       Some
         loooooooooooooooooooooooooooooooooooooooooooooooooooooooong| loooooooooooooooooooooooooooooooooooooooooooooooooooooooong
         == 1  ->
         ()
       _ -> ()
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. broken : Optional Nat -> ()
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
     
-      broken : Optional Nat -> ()
-
-```
-## Guard patterns on long lines
-
-```unison
-structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
-
-foo = let
-  go x =
-    'match (a -> a) x with
-      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
-        lijaefliejalfijelfj == aefilaeifhlei -> 0
-      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
-        lijaefliejalfijelfj == liaehjffeafijij -> 1
-      _ -> 2
-  go (SomethingUnusuallyLong "one" "two" "three")
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    structural type SomethingUnusuallyLong
-    foo : 'Nat
-
-.> edit SomethingUnusuallyLong foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    structural type SomethingUnusuallyLong
-      = SomethingUnusuallyLong Text Text Text
+    fix_3110a : x -> f -> ()
+    fix_3110a x f =
+      _ = 99
+      ()
     
-    foo : 'Nat
-    foo =
-      go x =
-        do
-          match (a -> a) x with
-            SomethingUnusuallyLong
-              lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
-              | lijaefliejalfijelfj == aefilaeifhlei    -> 0
-              | lijaefliejalfijelfj == liaehjffeafijij  -> 1
-            _ -> 2
-      go (SomethingUnusuallyLong "one" "two" "three")
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. structural type SomethingUnusuallyLong
-    2. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
-                                                     -> Text
-                                                     -> Text
-                                                     -> #p9dp5r8ff6
-    3. foo                                           : 'Nat
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_3110b : ()
+    fix_3110b =
+      fix_3110a
+        [1, 2, 3] (x -> let
+          y = Nat.increment x
+          ())
     
-      structural type SomethingUnusuallyLong
-      foo : 'Nat
-
-```
-## Nested fences
-
-```ucm
-.> load unison-src/transcripts-round-trip/nested.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/nested.u. If you do an `add`
-  or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_3110c : ()
+    fix_3110c =
+      fix_3110a [1, 2, 3] (x -> ignore (Nat.increment x))
     
-      nested : Doc2
-
-.> add
-
-  ⍟ I've added these definitions:
-  
-    nested : Doc2
-
-```
-```ucm
-.> edit nested
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/unison-src/transcripts-round-trip/nested.u
-  
-    nested : Doc2
-    nested =
-      {{ ```` raw
-      ```unison
-      r = "boopydoo"
-      ```
-      ```` }}
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. nested : Doc2
-
-```
-```ucm
-.> load unison-src/transcripts-round-trip/nested.u
-
-  I found and typechecked these definitions in
-  unison-src/transcripts-round-trip/nested.u. If you do an `add`
-  or `update`, here's how your codebase would change:
-  
-    ⍟ These new definitions are ok to `add`:
+    fix_3110d : ()
+    fix_3110d = fix_3110a [1, 2, 3] '(x -> do
+        y = Nat.increment x
+        ())
     
-      nested : Doc2
-
-```
-## Multiline expressions in multiliine lists
-
-```unison
-foo a b c d e f g h i j = 42
-
-use Nat +
-x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
-    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ]
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
-    x   : [Nat]
-
-.> edit foo x
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    foo : a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
-    foo a b c d e f g h i j = 42
+    fix_3627 : Nat -> Nat -> Nat
+    fix_3627 = cases
+      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          Nat.+ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     
-    x : [Nat]
-    x =
+    fix_3710 : '(Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710 = do
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710a : (Nat, Nat, Nat, Nat, Nat, Nat)
+    fix_3710a =
+      (a, b) = (1, 2)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710b : x -> (Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710b x =
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710c : x -> '(Nat, x, Nat, Nat, Nat, Nat)
+    fix_3710c x = do
+      (a, b) = (1, x)
+      (c, d) = (3, 4)
+      (e, f) = (5, 6)
+      (a, b, c, d, e, f)
+    
+    fix_3710d : Optional a -> a
+    fix_3710d = cases
+      Some x -> x
+      None   -> bug "oops"
+    
+    fix_4258 : x -> y -> z -> ()
+    fix_4258 x y z =
+      _ = "fix_4258"
+      ()
+    
+    fix_4258_example : ()
+    fix_4258_example = fix_4258 1 () 2
+    
+    fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
+    fix_4340 = 
+      HandlerWebSocket cases
+        1 ->
+          "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+        _ -> abort
+    
+    fix_4352 : Doc2
+    fix_4352 = {{ `` +1 `` }}
+    
+    Fix_525.bar.quaffle : Nat
+    Fix_525.bar.quaffle = 32
+    
+    fix_525_exampleTerm : Text -> Nat
+    fix_525_exampleTerm quaffle =
+      use Nat +
+      Fix_525.bar.quaffle + 1
+    
+    fix_525_exampleType :
+      Id qualifiedName -> Id Fully.qualifiedName
+    fix_525_exampleType z = Id (Dontcare () 19)
+    
+    Foo.bar.qux1 : Nat
+    Foo.bar.qux1 = 42
+    
+    Foo.bar.qux2 : Nat
+    Foo.bar.qux2 = 44
+    
+    Foo.bar.qux3 : Nat
+    Foo.bar.qux3 = 46
+    
+    Foo'.bar.qux1 : Text
+    Foo'.bar.qux1 = "43"
+    
+    Foo'.bar.qux2 : Text
+    Foo'.bar.qux2 = "45"
+    
+    Foo'.bar.qux3 : Text
+    Foo'.bar.qux3 = "47"
+    
+    forkAt : loc -> c -> Nat
+    forkAt loc c =
+      x = 99
+      390439034
+    
+    handler_1778 : a -> Request {Abort} a -> a
+    handler_1778 default = cases
+      { a }          -> a
+      { abort -> _ } -> default
+    
+    ignore : x -> ()
+    ignore x = ()
+    
+    longlines : x -> x
+    longlines x =
+      u = 92393
+      x
+    
+    longlines1 : 'Text
+    longlines1 =
+      do
+        longlines
+          (longlines_helper
+            "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break"
+            ())
+    
+    longlines2 : (Text, '{g} Bytes)
+    longlines2 =
+      ( "adsf"
+      , '(toUtf8
+            "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
+      )
+    
+    longlines_helper : x -> 'x
+    longlines_helper x = do x
+    
+    multiline_fn :
+      a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> Nat
+    multiline_fn a b c d e f g h i j = 42
+    
+    multiline_list : [Nat]
+    multiline_list =
       use Nat +
       [ 1
           + 1
@@ -1150,8 +386,8 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
           + 1
           + 1
           + 1
-          + 1,
-        foo
+          + 1
+      , multiline_fn
           12939233
           2102020
           329292
@@ -1161,599 +397,345 @@ x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
           72020202
           820202
           920202
-          1020202 ]
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. foo : a
-           -> b
-           -> c
-           -> d
-           -> e
-           -> f
-           -> g
-           -> h
-           -> i
-           -> j
-           -> Nat
-    2. x   : [Nat]
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+          1020202
+      ]
     
-      foo : a
-            -> b
-            -> c
-            -> d
-            -> e
-            -> f
-            -> g
-            -> h
-            -> i
-            -> j
-            -> Nat
-      x   : [Nat]
-
-```
-## Delayed computations passed to a function as the last argument
-
-When a delayed computation block is passed to a function as the last argument
-in a context where the ambient precedence is low enough, we can elide parentheses
-around it and use a "soft hang" to put the `'let` on the same line as the function call.
-This looks nice.
-
-    forkAt usEast do
-      x = thing1
-      y = thing2
-      ...
-
-vs the not as pretty but still correct:
-
-    forkAt
-      usEast
-      (do
-          x = thing1
-          y = thing2
-          ...)
-
-Okay, here's the test, showing that we use the prettier version when possible:
-
-```unison
-(+) a b = ##Nat.+ a b
-
-foo a b = 42
-
-bar0 x = do
-  a = 1
-  b = 2
-  foo a 'let
-    c = 3
-    a + b
-
-bar1 x = do
-  a = 1
-  b = 2
-  foo (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200 + 1300 + 1400 + 1500) 'let
-    c = 3
-    a + b
-
-bar2 x = do
-  a = 1
-  b = 2
-  1 + foo a do
-    c = 3
-    a + b
-
-bar3 x = do
-  a = 1
-  b = 2
-  c = foo do
-    c = 3
-    a + b
-  c
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +    : Nat -> Nat -> Nat
-    bar0 : x -> () -> Nat
-    bar1 : x -> () -> Nat
-    bar2 : x -> () -> Nat
-    bar3 : x -> () -> b -> Nat
-    foo  : a -> b -> Nat
-
-.> edit foo bar0 bar1 bar2 bar3
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    bar0 : x -> () -> Nat
-    bar0 x = do
+    nested_fences : Doc2
+    nested_fences =
+      {{ ```` raw
+      ```unison
+      r = "boopydoo"
+      ```
+      ```` }}
+    
+    raw_a : Text
+    raw_a =
+      """
+      a
+      b
+      """
+    
+    raw_b : Text
+    raw_b =
+      """
+      a
+      b
+      c -- note blank line
+      
+      """
+    
+    raw_c : Text
+    raw_c =
+      """
+      ignored (wonky case)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+    
+    raw_d : Text
+    raw_d =
+      """
+      ignored (works great)
+      Use an extra blank line if you'd like a trailing newline. Like so:
+      
+      """
+    
+    simplestPossibleExample : Nat
+    simplestPossibleExample =
+      use Nat +
+      1 + 1
+    
+    softhang : a -> b -> Nat
+    softhang a b = 42
+    
+    softhang2 : x -> f -> Nat
+    softhang2 x f = 0
+    
+    softhang21 : Nat
+    softhang21 =
+      use Nat +
+      handle
+        x = 1
+        y = abort
+        x + y
+      with cases
+        { a }          -> a
+        { abort -> _ } -> 0
+    
+    softhang21a : Text
+    softhang21a =
+      use Nat +
+      handle
+        x = 1
+        y = abort
+        x + y
+      with cases
+        { a } ->
+          "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+        { abort -> _ } ->
+          "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
+    
+    softhang22 : Nat
+    softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
+      0 -> 0
+      1 -> 1
+      n -> n Nat.+ 100
+    
+    softhang23 : 'Nat
+    softhang23 = do
+      use Nat +
+      catchAll do
+        x = 1
+        y = 2
+        x + y
+    
+    softhang24 : 'Nat
+    softhang24 = do match 0 with
+      0 -> 0
+      1 -> 1
+      n -> n
+    
+    softhang25 : Text
+    softhang25 = match Nat.increment 1 with
+      2 -> "yay"
+      n -> "oh no"
+    
+    softhang26 : Nat
+    softhang26 = softhang2 [1, 2, 3, 4] cases
+      0 -> 1
+      n -> n Nat.+ 1
+    
+    softhang27 : somewhere -> Nat
+    softhang27 somewhere = forkAt somewhere do
+      use Nat +
+      x = 1
+      y = 2
+      x + y
+    
+    softhang28 : Nat
+    softhang28 = 
+      softhang2 [0, 1, 2, 3, 4, 5] cases
+        0 -> 0
+        1 -> 1
+        n ->
+          forkAt
+            0
+            (n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n
+              Nat.+ n)
+    
+    softhang_a : x -> 'Nat
+    softhang_a x = do
+      use Nat +
       a = 1
       b = 2
-      foo a do
+      softhang a do
         c = 3
         a + b
     
-    bar1 : x -> () -> Nat
-    bar1 x =
+    softhang_b : x -> 'Nat
+    softhang_b x =
       do
+        use Nat +
         a = 1
         b = 2
-        foo
+        softhang
           (100
-            + 200
-            + 300
-            + 400
-            + 500
-            + 600
-            + 700
-            + 800
-            + 900
-            + 1000
-            + 1100
-            + 1200
-            + 1300
-            + 1400
-            + 1500)
+          + 200
+          + 300
+          + 400
+          + 500
+          + 600
+          + 700
+          + 800
+          + 900
+          + 1000
+          + 1100
+          + 1200
+          + 1300
+          + 1400
+          + 1500)
           do
-            c = 3
-            a + b
+          c = 3
+          a + b
     
-    bar2 : x -> () -> Nat
-    bar2 x = do
+    softhang_c : x -> 'Nat
+    softhang_c x = do
+      use Nat +
       a = 1
       b = 2
-      1 + (foo a do
+      1 + (softhang a do
         c = 3
         a + b)
     
-    bar3 : x -> () -> b -> Nat
-    bar3 x = do
+    softhang_d : x -> '(b -> Nat)
+    softhang_d x = do
+      use Nat +
       a = 1
       b = 2
-      c =
-        foo do
-          c = 3
-          a + b
+      c = softhang do
+        c = 3
+        a + b
       c
     
-    foo : a -> b -> Nat
-    foo a b = 42
+    somethingVeryLong : 'Nat
+    somethingVeryLong =
+      go x =
+        do
+          match (a -> a) x with
+            SomethingUnusuallyLong
+              lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
+              | lijaefliejalfijelfj == aefilaeifhlei    -> 0
+              | lijaefliejalfijelfj == liaehjffeafijij  -> 1
+            _ -> 2
+      go (SomethingUnusuallyLong "one" "two" "three")
+    
+    stew_issue : ()
+    stew_issue =
+      error x = ()
+      a ++ b = 0
+      toText a = a
+      Debug : a -> b -> ()
+      Debug a b = ()
+      error (Debug None '(Debug "Failed " 42))
+    
+    stew_issue2 : ()
+    stew_issue2 =
+      error x = ()
+      a ++ b = 0
+      toText a = a
+      Debug : a -> b -> ()
+      Debug a b = ()
+      error (Debug None '("Failed " ++ toText 42))
+    
+    stew_issue3 : ()
+    stew_issue3 =
+      id x = x
+      error x = ()
+      a ++ b = 0
+      blah x y = 99
+      toText a = a
+      configPath = 0
+      Debug a b = ()
+      error
+        (Debug None '("Failed to get timestamp of config file "
+            ++ toText configPath))
+    
+    test3 : '('('r))
+    test3 = do
+      run : Nat -> a
+      run x = bug x
+      runrun = 42
+      a = "asldkfj"
+      b = "asdflkjasdf"
+      ''(run runrun ''runrun)
+    
+    use_clauses_example : Int -> Text -> Nat
+    use_clauses_example oo quaffle =
+      use Nat +
+      Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+    
+    use_clauses_example2 : Int -> Nat
+    use_clauses_example2 oo =
+      use Nat +
+      quaffle = "hi"
+      Fix_525.bar.quaffle
+        + Fix_525.bar.quaffle
+        + Fix_525.bar.quaffle
+        + 1
+    
+    UUID.random : 'UUID
+    UUID.random = do UUID 0 (0, 0)
+    
+    UUID.randomUUIDBytes : 'Bytes
+    UUID.randomUUIDBytes = do
+      use Bytes ++
+      (UUID a (b, _)) = !random
+      encodeNat64be a ++ encodeNat64be b
+    
+    (|>) : a -> (a ->{e} b) ->{e} b
+    a |> f = f a
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +    : Nat -> Nat -> Nat
-    2. bar0 : x -> () -> Nat
-    3. bar1 : x -> () -> Nat
-    4. bar2 : x -> () -> Nat
-    5. bar3 : x -> () -> b -> Nat
-    6. foo  : a -> b -> Nat
-
 ```
+This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
+
 ```ucm
-.> load scratch.u
+.> diff.namespace a1 a2
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar0 : x -> 'Nat
-      bar1 : x -> 'Nat
-      bar2 : x -> 'Nat
-      bar3 : x -> '(b -> Nat)
-      foo  : a -> b -> Nat
+  The namespaces are identical.
 
 ```
-# Lambda as the last argument where the bound var is not free in the body
+Now check that definitions in 'reparses.u' at least parse on round trip:
 
-If a lambda's argument is not free in the body, the term printer counts this as
-a "delay" instead of a lambda. This test makes sure that detecting this
-condition lines up with the printing, so we don't detect a delay but then
-go ahead and print it as a normal lambda.
+This just makes 'roundtrip.u' the latest scratch file.
 
 ```unison
-(+) a b = ##Nat.+ a b
+---
+title: /private/tmp/roundtrip.u
+---
+x = ()
 
-afun x f = f x
-
-roundtripLastLam =
-  afun "foo" (n -> let
-    _ = 1 + 1
-    3
-  )
 ```
 
+
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +                : Nat -> Nat -> Nat
-    afun             : x -> (x ->{g} t) ->{g} t
-    roundtripLastLam : Nat
-
-.> edit roundtripLastLam afun
+.a3> edit 1-5000
 
   ☝️
   
   I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
+  /private/tmp/roundtrip.u
   
-    afun : x -> (x ->{g} t) ->{g} t
-    afun x f = f x
+    explanationOfThisFile : Text
+    explanationOfThisFile =
+      """
+      Put definitions in here that are expected to
+      parse with a different hash after pretty-printing.
+      """
     
-    roundtripLastLam : Nat
-    roundtripLastLam =
-      afun "foo" do
-        _ = 1 + 1
-        3
+    sloppyDocEval : Doc2
+    sloppyDocEval =
+      use Nat +
+      {{
+      Here's an example of an eval block that's technically a
+      lambda but should print as a backticked block (since old
+      docs in the wild still use this format).
+      
+      ```
+      1 + 1
+      ```
+      }}
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
 
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +                : Nat -> Nat -> Nat
-    2. afun             : x -> (x ->{g} t) ->{g} t
-    3. roundtripLastLam : Nat
-
 ```
+These are currently all expected to have different hashes on round trip.
+
 ```ucm
-.> load scratch.u
+.> diff.namespace a3 a3_old
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  Updates:
   
-    ⍟ These new definitions are ok to `add`:
-    
-      afun             : x -> (x ->{g} t) ->{g} t
-      roundtripLastLam : Nat
+    1. sloppyDocEval : Doc2
+       ↓
+    2. sloppyDocEval : Doc2
 
 ```
-# Comment out builtins in the edit command
+## Other regression tests not covered by above
+
+### Comment out builtins in the edit command
 
 Regression test for https://github.com/unisonweb/unison/pull/3548
 
-```ucm
-.> alias.term ##Nat.+ plus
-
-  Done.
-
-.> edit plus
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    -- builtin plus : builtin.Nat -> builtin.Nat -> builtin.Nat
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Name changes:
-  
-    Original            Changes
-    1. builtin.Nat.+    2. plus (added)
-
-```
-```ucm
-.> load scratch.u
-
-  I loaded scratch.u and didn't find anything.
-
-```
-# Indent long pattern lists to avoid virtual semicolon
-
-Regression test for https://github.com/unisonweb/unison/issues/3627
-
-```unison
-(+) a b = ##Nat.+ a b
-
-foo = cases
-  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
-   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    +   : Nat -> Nat -> Nat
-    foo : Nat -> Nat -> Nat
-
-.> edit foo
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    foo : Nat -> Nat -> Nat
-    foo = cases
-      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
-        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ->
-        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. +   : Nat -> Nat -> Nat
-    2. foo : Nat -> Nat -> Nat
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Nat -> Nat -> Nat
-
-```
-# Multi-line lambda let
-
-Regression test for #3110 and #3801
-
-```unison
-foreach x f = 
-  _ = List.map f x
-  ()
-
-ignore x = ()
-
-test1 : ()
-test1 =
-  foreach [1, 2, 3] let x -> let
-      y = Nat.increment x
-      ()
-
-test2 = foreach [1, 2, 3] let x -> ignore (Nat.increment x) 
-
-test3 = foreach [1, 2, 3] do x -> do
-  y = Nat.increment x
-  ()
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foreach : [a] -> (a ->{e} t) ->{e} ()
-    ignore  : x -> ()
-    test1   : ()
-    test2   : ()
-    test3   : ()
-
-.> edit test1 test2 test3 foreach ignore
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    foreach : [a] -> (a ->{e} t) ->{e} ()
-    foreach x f =
-      _ = List.map f x
-      ()
-    
-    ignore : x -> ()
-    ignore x = ()
-    
-    test1 : ()
-    test1 =
-      foreach
-        [1, 2, 3] (x -> let
-          y = Nat.increment x
-          ())
-    
-    test2 : ()
-    test2 = foreach [1, 2, 3] (x -> ignore (Nat.increment x))
-    
-    test3 : ()
-    test3 =
-      foreach
-        [1, 2, 3] '(x -> do
-            y = Nat.increment x
-            ())
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. foreach : [a] -> (a ->{e} t) ->{e} ()
-    2. ignore  : x -> ()
-    3. test1   : ()
-    4. test2   : ()
-    5. test3   : ()
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foreach : [a] -> (a ->{e} t) ->{e} ()
-      ignore  : x -> ()
-      test1   : ()
-      test2   : ()
-      test3   : ()
-
-```
-# Destructuring bind in delay or lambda
-
-Regression test for https://github.com/unisonweb/unison/issues/3710
-
-```unison
-d1 = do
-  (a,b) = (1,2)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d2 = let
-  (a,b) = (1,2)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d3 x = let
-  (a,b) = (1,x)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d4 x = do
-  (a,b) = (1,x)
-  (c,d) = (3,4)
-  (e,f) = (5,6)
-  (a,b,c,d,e,f)
-
-d5 x = match x with
-  Some x -> x
-  None -> bug "oops"
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
-    d5 : Optional a -> a
-
-.> edit d1 d2 d3 d4 d5
-
-  ☝️
-  
-  I added these definitions to the top of
-  /Users/runar/work/unison/scratch.u
-  
-    d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    d1 = do
-      (a, b) = (1, 2)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    d2 =
-      (a, b) = (1, 2)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    d3 x =
-      (a, b) = (1, x)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
-    d4 x = do
-      (a, b) = (1, x)
-      (c, d) = (3, 4)
-      (e, f) = (5, 6)
-      (a, b, c, d, e, f)
-    
-    d5 : Optional a -> a
-    d5 = cases
-      Some x -> x
-      None   -> bug "oops"
-  
-  You can edit them there, then do `update` to replace the
-  definitions currently in this namespace.
-
-.> undo
-
-  Here are the changes I undid
-  
-  Added definitions:
-  
-    1. d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-    2. d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-    3. d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-    4. d4 : x -> () -> (Nat, x, Nat, Nat, Nat, Nat)
-    5. d5 : Optional a -> a
-
-```
-```ucm
-.> load scratch.u
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      d1 : '(Nat, Nat, Nat, Nat, Nat, Nat)
-      d2 : (Nat, Nat, Nat, Nat, Nat, Nat)
-      d3 : x -> (Nat, x, Nat, Nat, Nat, Nat)
-      d4 : x -> '(Nat, x, Nat, Nat, Nat, Nat)
-      d5 : Optional a -> a
-
-```

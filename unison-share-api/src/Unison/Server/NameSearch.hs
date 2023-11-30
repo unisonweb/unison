@@ -1,15 +1,15 @@
 module Unison.Server.NameSearch where
 
 import Control.Lens
-import qualified Data.List as List
-import qualified Data.Set as Set
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Data.List qualified as List
+import Data.Set qualified as Set
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Server.SearchResult as SR
+import Unison.Server.SearchResult qualified as SR
 
 -- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
 --

@@ -2,15 +2,15 @@
 
 module Unison.Typechecker.TypeError where
 
-import Data.Bifunctor (second)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
-import qualified Unison.Typechecker.Extractor as Ex
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
+import Unison.Typechecker.Extractor qualified as Ex
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
 import Prelude hiding (all, and, or)
@@ -106,6 +106,7 @@ data TypeError v loc
       }
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
+  | KindInferenceFailure (KindError v loc)
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -150,7 +151,8 @@ allErrors =
       unknownTerm,
       duplicateDefinitions,
       redundantPattern,
-      uncoveredPatterns
+      uncoveredPatterns,
+      kindInferenceFailure
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
@@ -162,6 +164,11 @@ redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
 redundantPattern = do
   ploc <- Ex.redundantPattern
   pure (RedundantPattern ploc)
+
+kindInferenceFailure :: Ex.ErrorExtractor v a (TypeError v a)
+kindInferenceFailure = do
+  ke <- Ex.kindInferenceFailure
+  pure (KindInferenceFailure ke)
 
 uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
 uncoveredPatterns = do

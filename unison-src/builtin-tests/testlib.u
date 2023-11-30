@@ -17,7 +17,7 @@ Tests.checkEqual msg a1 a2 =
     Left e -> exception msg e
     Right true -> pass msg
     Right false ->
-      fail msg (Debug.toText a1 ++ " is not equal to: " ++ Debug.toText a2)
+      fail msg (Debug.evalToText a1 ++ " is not equal to: " ++ Debug.evalToText a2)
 
 Tests.main : '{IO,Exception,Tests} () -> '{IO,Exception} ()
 Tests.main suite = do
@@ -26,6 +26,7 @@ Tests.main suite = do
 
 Tests.run : '{IO,Exception,Tests} () ->{IO,Exception} Boolean
 Tests.run suite =
+  use Nat +
   h passed failed = cases
     { _ } -> (passed, failed) 
     { pass msg -> k } -> 

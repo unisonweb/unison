@@ -3,24 +3,24 @@
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.HashQualified as HQ
+import Unison.Builtin.Decls qualified as DD
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser.Ann as Parser.Ann
+import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Referent as Referent
-import qualified Unison.Syntax.HashQualified as HQ (fromString)
+import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualified qualified as HQ (fromString)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 data MainTerm v
   = NotAFunctionName String
@@ -67,12 +67,8 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
--- [Result]
-resultArr :: (Ord v) => a -> Type.Type v a
-resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
-
 builtinResultArr :: (Ord v) => a -> Type.Type v a
-builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (resultArr a)
+builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
 
 -- '{io2.IO} [Result]
 builtinTest :: (Ord v) => a -> Type.Type v a

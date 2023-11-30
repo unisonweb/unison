@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Output
   ( Output (..),
+    AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
     DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
@@ -16,67 +17,69 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
-import qualified Servant.Client as Servant (ClientError)
-import qualified System.Console.Haskeline as Completion
+import Servant.Client qualified as Servant (ClientError)
+import System.Console.Haskeline qualified as Completion
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Sqlite.Project as Sqlite
-import qualified U.Codebase.Sqlite.ProjectBranch as Sqlite
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import qualified Unison.Cli.Share.Projects.Types as Share
+import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
+import Unison.Codebase.Editor.Output.BranchDiff qualified as BD
 import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
-import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.Codebase.Editor.SlurpResult qualified as SR
+import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
-import qualified Unison.CommandLine.InputPattern as Input
+import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration (Decl)
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResult' (SearchResult')
-import qualified Unison.Share.Sync.Types as Sync
+import Unison.Share.Sync.Types qualified as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
-import qualified Unison.Sync.Types as Share (DownloadEntitiesError, UploadEntitiesError)
-import qualified Unison.Syntax.Parser as Parser
+import Unison.Sync.Types qualified as Share (DownloadEntitiesError, UploadEntitiesError)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Pretty as P
+import Unison.Typechecker.Context qualified as Context
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type ListDetailed = Bool
 
@@ -92,9 +95,22 @@ data NumberedOutput
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMerge (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePropagate (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePreview (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName)) Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMerge
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePropagate
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      Path.Path'
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
+  | ShowDiffAfterMergePreview
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      Path.Absolute
+      PPE.PrettyPrintEnv
+      (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -115,7 +131,17 @@ data NumberedOutput
   | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
-  | BothLocalProjectAndProjectBranchExist ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | AmbiguousReset AmbiguousReset'Argument (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path) (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | List all direct dependencies which don't have any names in the current branch
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
+
+data AmbiguousReset'Argument
+  = AmbiguousReset'Hash
+  | AmbiguousReset'Target
 
 --  | ShowDiff
 
@@ -133,15 +159,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
+      -- | what we were trying to do (e.g. "run", "io.test")
       String
-      -- ^ what we were trying to do (e.g. "run", "io.test")
+      -- | name of function
       String
-      -- ^ name of function
+      -- | bad type of function
       (Type Symbol Ann)
-      -- ^ bad type of function
       PPE.PrettyPrintEnv
+      -- | acceptable type(s) of function
       [Type Symbol Ann]
-      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -157,7 +183,7 @@ data Output
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
   | LabeledReferenceNotFound (HQ.HashQualified Name)
   | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
-  | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
+  | TermAmbiguous PPE.PrettyPrintEnv (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortCausalHash (Set ShortCausalHash)
   | BadNamespace String String
@@ -180,12 +206,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
+      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      -- | Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
-      -- ^ Misses (search terms that returned no hits for terms or types)
+      -- | Hits for types if we are searching for terms or terms if we are searching for types
       [HQ.HashQualified Name]
-      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -206,7 +232,9 @@ data Output
   | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
-  | -- show the result of add/update
+  | ListStructuredFind [HQ.HashQualified Name]
+  | -- ListStructuredFind patternMatchingUsages termBodyUsages
+    -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
@@ -224,15 +252,17 @@ data Output
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions DisplayDefinitionsOutput
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
+  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
+    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
       ShowSuccesses
       ShowFailures
-      [(Reference, Text)] -- oks
-      [(Reference, Text)] -- fails
+      [(TermReferenceId, Text)] -- oks
+      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -240,13 +270,14 @@ data Output
     BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ShareError ShareError
-  | ViewOnShare WriteShareRemoteNamespace
+  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
+  | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
@@ -256,30 +287,26 @@ data Output
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (PullTarget (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+    MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | PreviewMergeAlreadyUpToDate
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path.Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
-  | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
-    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
-  | -- | List all direct dependencies which don't have any names in the current branch
-    ListNamespaceDependencies
-      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
-      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
+    ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -303,7 +330,7 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
-  | CreatedProject ProjectName ProjectBranchName
+  | CreatedProject Bool {- randomly-generated name? -} ProjectName
   | CreatedProjectBranch CreatedProjectBranchFrom (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | CreatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
@@ -311,6 +338,8 @@ data Output
     RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
+  | InvalidStructuredFindReplace (HQ.HashQualified Name)
+  | InvalidStructuredFind (HQ.HashQualified Name)
   | ProjectNameAlreadyExists ProjectName
   | ProjectNameRequiresUserSlug ProjectName -- invariant: this project name doesn't have a user slug :)
   | ProjectAndBranchNameAlreadyExists (ProjectAndBranch ProjectName ProjectBranchName)
@@ -319,7 +348,8 @@ data Output
   | -- there's no remote project associated with branch, nor any of its parent branches
     NoAssociatedRemoteProject URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- there's no remote branch associated with branch
-    NoAssociatedRemoteProjectBranch URI (ProjectAndBranch ProjectName ProjectBranchName)
+    NoAssociatedRemoteProjectBranch URI (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+  | LocalProjectDoesntExist ProjectName
   | LocalProjectBranchDoesntExist (ProjectAndBranch ProjectName ProjectBranchName)
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
@@ -337,6 +367,32 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
+  | CalculatingDiff
+  | -- | The `local` in a `clone remote local` is ambiguous
+    AmbiguousCloneLocal
+      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      (ProjectAndBranch ProjectName ProjectBranchName)
+  | -- | The `remote` in a `clone remote local` is ambiguous
+    AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
+  | ClonedProjectBranch
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      (ProjectAndBranch ProjectName ProjectBranchName)
+  | RenamedProject ProjectName ProjectName
+  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol Ann)
+  | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
+  | CantRenameBranchTo ProjectBranchName
+  | FetchingLatestReleaseOfBase
+  | FailedToFetchLatestReleaseOfBase
+  | HappyCoding
+  | ProjectHasNoReleases ProjectName
+  | UpdateLookingForDependents
+  | UpdateStartTypechecking
+  | UpdateTypecheckingFailure
+  | UpdateTypecheckingSuccess
+  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) (Maybe Int)
+  | UpgradeFailure !NameSegment !NameSegment
+  | UpgradeSuccess !NameSegment !NameSegment
 
 -- | What did we create a project branch from?
 --
@@ -351,7 +407,7 @@ data CreatedProjectBranchFrom
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
-  { isTest :: TermReference -> Bool,
+  { isTest :: TermReferenceId -> Bool,
     outputFile :: Maybe FilePath,
     prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
     terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
@@ -371,6 +427,7 @@ data ShareError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
   | ShareErrorUploadEntities Share.UploadEntitiesError
+  | ShareExpectedSquashedHead
 
 data HistoryTail
   = EndOfLog CausalHash
@@ -397,6 +454,14 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  UpdateLookingForDependents -> False
+  UpdateStartTypechecking -> False
+  UpdateTypecheckingFailure {} -> True
+  UpdateTypecheckingSuccess {} -> False
+  UpdateIncompleteConstructorSet {} -> True
+  AmbiguousCloneLocal {} -> True
+  AmbiguousCloneRemote {} -> True
+  ClonedProjectBranch {} -> False
   NoLastRunResult {} -> True
   SaveTermNameConflict {} -> True
   RunResult {} -> False
@@ -449,6 +514,7 @@ isFailure o = case o of
   ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
+  ListStructuredFind tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
   TypeErrors {} -> True
@@ -458,6 +524,7 @@ isFailure o = case o of
   Evaluated {} -> False
   Typechecked {} -> False
   DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
+  DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
@@ -472,6 +539,7 @@ isFailure o = case o of
   MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
+  AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
@@ -481,6 +549,7 @@ isFailure o = case o of
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
   PullSuccessful {} -> False
+  AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
@@ -494,7 +563,6 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False
-  ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
@@ -520,12 +588,15 @@ isFailure o = case o of
   CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
+  InvalidStructuredFindReplace {} -> True
+  InvalidStructuredFind {} -> True
   ProjectNameAlreadyExists {} -> True
   ProjectNameRequiresUserSlug {} -> True
   NotOnProjectBranch {} -> True
   NoAssociatedRemoteProject {} -> True
   NoAssociatedRemoteProjectBranch {} -> True
   ProjectAndBranchNameAlreadyExists {} -> True
+  LocalProjectDoesntExist {} -> True
   LocalProjectBranchDoesntExist {} -> True
   LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
@@ -542,10 +613,22 @@ isFailure o = case o of
   UploadedEntities {} -> False
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
+  CalculatingDiff {} -> False
+  RenamedProject {} -> False
+  OutputRewrittenFile {} -> False
+  RenamedProjectBranch {} -> False
+  CantRenameBranchTo {} -> True
+  FetchingLatestReleaseOfBase {} -> False
+  FailedToFetchLatestReleaseOfBase {} -> True
+  HappyCoding {} -> False
+  ProjectHasNoReleases {} -> True
+  UpgradeFailure {} -> True
+  UpgradeSuccess {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
-  BothLocalProjectAndProjectBranchExist {} -> True
+  AmbiguousReset {} -> True
+  AmbiguousSwitch {} -> True
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
@@ -562,5 +645,6 @@ isNumberedFailure = \case
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
-  ShowDiffNamespace {} -> False
+  ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
+  ListNamespaceDependencies {} -> False
   TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)

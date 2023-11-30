@@ -10,7 +10,7 @@ import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.PmLit
 import Unison.PatternMatchCoverage.Pretty
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.Syntax.TypePrinter as TypePrinter
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Type (Type)
 import Unison.Util.Pretty
 import Unison.Var (Var)

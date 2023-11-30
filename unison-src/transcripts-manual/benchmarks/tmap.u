@@ -13,12 +13,10 @@ main = do
   _a7 = timeit "TVar Map concurrent (4)" '(gos_TVar_Map 4 (atomically '(TVar.new Map.empty)) N)
   _a8 = timeit "TVar Map concurrent (8)" '(gos_TVar_Map 8 (atomically '(TVar.new Map.empty)) N)
   _a9 = timeit "TVar Map concurrent (16)" '(gos_TVar_Map 16 (atomically '(TVar.new Map.empty)) N)
-  _a10 = timeit "TVar Map concurrent (32)" '(gos_TVar_Map 32 (atomically '(TVar.new Map.empty)) N)
   _a12 = timeit "TMap.concurrent(2)" '(gos 2 (atomically TMap.empty) N)
   _a13 = timeit "TMap.concurrent(4)" '(gos 4 (atomically TMap.empty) N)
   _a14 = timeit "TMap.concurrent(8)" '(gos 8 (atomically TMap.empty) N)
   _a15 = timeit "TMap.concurrent(16)" '(gos 16 (atomically TMap.empty) N)
-  _a16 = timeit "TMap.concurrent(32)" '(gos 32 (atomically TMap.empty) N)
   ()
 
 baseline m n = 

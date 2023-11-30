@@ -50,7 +50,6 @@ dependencies:
   - filelock
   - filepath
   - fingertree
-  - fsnotify
   - fuzzyfind
   - free
   - generic-lens
@@ -58,7 +57,6 @@ dependencies:
   - hashable
   - hashtables
   - haskeline
-  - here
   - http-client
   - http-media
   - http-types
@@ -101,7 +99,7 @@ dependencies:
   - stm
   - tagged
   - temporary
-  - terminal-size
+  - terminal-size >= 0.3.3
   - text
   - text-short
   - these
@@ -124,15 +122,19 @@ dependencies:
   - unison-util-base32hex
   - unison-util-bytes
   - unison-util-cache
+  - unison-util-nametree
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization
   - unliftio
+  - uuid
   - uri-encode
   - utf8-string
   - vector
   - wai
   - warp
+  - witch
+  - witherable
   - x509
   - x509-store
   - x509-system
@@ -175,9 +177,11 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

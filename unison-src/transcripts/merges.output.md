@@ -86,6 +86,8 @@ y = "hello"
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .master> view y
 
   y : Text
@@ -113,13 +115,13 @@ it's still in the `history` of the parent namespace and can be resurrected at an
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #2ucmgkreva
+  ⊙ 1. #733ouv89e4
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #5ahcapm5eg
+  ⊙ 2. #nomh416gj1
   
     + Adds / updates:
     
@@ -130,26 +132,26 @@ it's still in the `history` of the parent namespace and can be resurrected at an
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #403b6ntlev
+  ⊙ 3. #bsnvm0os4j
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #o3h55vioaa
+  ⊙ 4. #gipijd9j3c
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #ol1danrgme
+  ⊙ 5. #2dhojv53dl
   
     + Adds / updates:
     
       x
   
-  □ 6. #hq8vnubo19 (start of history)
+  □ 6. #gndb53fevj (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -225,15 +227,10 @@ master.frobnicate n = n + 1
 ```ucm
 .> update
 
-  ⍟ I've added these definitions:
-  
-    master.frobnicate : Nat -> Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    master.y : Text
-      (The old definition was also named feature2.y. I updated
-      this name too.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> view master.y
 
@@ -267,6 +264,8 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

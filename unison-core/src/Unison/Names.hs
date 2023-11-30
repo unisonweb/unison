@@ -30,6 +30,7 @@ module Unison.Names
     restrictReferences,
     refTermsNamed,
     refTermsHQNamed,
+    referenceIds,
     termReferences,
     termReferents,
     typeReferences,
@@ -51,31 +52,31 @@ module Unison.Names
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Text.FuzzyFind as FZF
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
+import Unison.ConstructorType qualified as CT
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import qualified Unison.Name as Name
+import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, TypeReference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
+import Unison.ShortHash qualified as SH
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Set as Set (mapMaybe)
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set (mapMaybe)
 import Prelude hiding (filter, map)
-import qualified Prelude
+import Prelude qualified
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References.
@@ -149,6 +150,14 @@ fuzzyFind nameToText query names =
                       (Just mempty)
                       query
             )
+
+-- | Get all (untagged) term/type references ids in a @Names@.
+referenceIds :: Names -> Set Reference.Id
+referenceIds Names {terms, types} =
+  fromTerms <> fromTypes
+  where
+    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran terms)
+    fromTypes = Set.mapMaybe Reference.toId (Relation.ran types)
 
 termReferences :: Names -> Set TermReference
 termReferences Names {..} = Set.map Referent.toReference $ R.ran terms

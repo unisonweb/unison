@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -35,6 +35,7 @@ library
       Unison.Codebase
       Unison.Codebase.Branch
       Unison.Codebase.Branch.BranchDiff
+      Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
       Unison.Codebase.Branch.Raw
@@ -75,16 +76,13 @@ library
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema8To9
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema9To10
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -93,11 +91,26 @@ library
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.UniqueTypeGuidLookup
       Unison.Codebase.Verbosity
-      Unison.Codebase.Watch
       Unison.CodebasePath
+      Unison.DataDeclaration.Dependencies
       Unison.FileParsers
       Unison.Hashing.V2.Convert
+      Unison.KindInference
+      Unison.KindInference.Constraint.Context
+      Unison.KindInference.Constraint.Pretty
+      Unison.KindInference.Constraint.Provenance
+      Unison.KindInference.Constraint.Solved
+      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.Unsolved
+      Unison.KindInference.Error
+      Unison.KindInference.Error.Pretty
+      Unison.KindInference.Generate
+      Unison.KindInference.Generate.Monad
+      Unison.KindInference.Solve
+      Unison.KindInference.Solve.Monad
+      Unison.KindInference.UVar
       Unison.Parsers
       Unison.PatternMatchCoverage
       Unison.PatternMatchCoverage.Class
@@ -124,8 +137,10 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
+      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
@@ -145,6 +160,7 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
+      Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
@@ -195,9 +211,11 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -241,14 +259,12 @@ library
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -291,7 +307,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -314,15 +330,19 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp
+    , witch
+    , witherable
     , x509
     , x509-store
     , x509-system
@@ -351,7 +371,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
-      Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
       Unison.Test.Type
@@ -382,9 +401,11 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -431,14 +452,12 @@ test-suite parser-typechecker-tests
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
     , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -482,7 +501,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -506,15 +525,19 @@ test-suite parser-typechecker-tests
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp
+    , witch
+    , witherable
     , x509
     , x509-store
     , x509-system

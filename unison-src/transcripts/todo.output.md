@@ -20,7 +20,7 @@ structural type MyType = MyType Text
 ```
 
 ```ucm
-.simple> update
+.simple> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -103,6 +103,8 @@ structural type MyType = MyType Int
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.
 
@@ -173,7 +175,7 @@ foo = 802
 
 ```
 ```ucm
-.lhs> update
+.lhs> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -267,7 +269,7 @@ even = 17
 
 ```
 ```ucm
-.cycle2> update
+.cycle2> update.old
 
   ⍟ I've updated these names to your new definition:
   

@@ -6,44 +6,47 @@
 module Unison.LSP where
 
 import Colog.Core (LogAction (LogAction))
-import qualified Colog.Core as Colog
+import Colog.Core qualified as Colog
 import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
 import GHC.IO.Exception (ioe_errno)
-import qualified Ki
-import qualified Language.LSP.Logging as LSP
+import Ki qualified
+import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
+import Language.LSP.Protocol.Utils.SMethodMap
+import Language.LSP.Protocol.Utils.SMethodMap qualified as SMM
 import Language.LSP.Server
-import Language.LSP.Types
-import Language.LSP.Types.SMethodMap
-import qualified Language.LSP.Types.SMethodMap as SMM
 import Language.LSP.VFS
-import qualified Network.Simple.TCP as TCP
+import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn)
 import Unison.Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Debug as Debug
+import Unison.Debug qualified as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
+import Unison.LSP.CodeLens (codeLensHandler)
+import Unison.LSP.Commands (executeCommandHandler, supportedCommands)
 import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
-import qualified Unison.LSP.Configuration as Config
-import qualified Unison.LSP.FileAnalysis as Analysis
+import Unison.LSP.Configuration qualified as Config
+import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
-import qualified Unison.LSP.HandlerUtils as Handlers
+import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
-import qualified Unison.LSP.NotificationHandlers as Notifications
+import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
-import qualified Unison.LSP.VFS as VFS
+import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPED
-import qualified Unison.Server.NameSearch.FromNames as NameSearch
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
@@ -125,8 +128,8 @@ lspDoInitialize ::
   STM (Branch IO) ->
   STM (Path.Absolute) ->
   LanguageContextEnv Config ->
-  Message 'Initialize ->
-  IO (Either ResponseError Env)
+  Msg.TMessage 'Msg.Method_Initialize ->
+  IO (Either Msg.ResponseError Env)
 lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext _initMsg = do
   -- TODO: some of these should probably be MVars so that we correctly wait for names and
   -- things to be generated before serving requests.
@@ -153,24 +156,26 @@ lspStaticHandlers =
     }
 
 -- | LSP request handlers
-lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Request)
+lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Msg.Request)
 lspRequestHandlers =
   mempty
-    & SMM.insert STextDocumentHover (mkHandler hoverHandler)
-    & SMM.insert STextDocumentCodeAction (mkHandler codeActionHandler)
-    & SMM.insert STextDocumentFoldingRange (mkHandler foldingRangeRequest)
-    & SMM.insert STextDocumentCompletion (mkHandler completionHandler)
-    & SMM.insert SCompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert Msg.SMethod_TextDocumentHover (mkHandler hoverHandler)
+    & SMM.insert Msg.SMethod_TextDocumentCodeAction (mkHandler codeActionHandler)
+    & SMM.insert Msg.SMethod_TextDocumentCodeLens (mkHandler codeLensHandler)
+    & SMM.insert Msg.SMethod_WorkspaceExecuteCommand (mkHandler executeCommandHandler)
+    & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
+    & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
+    & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
       forall m.
-      (Show (RequestMessage m), Show (ResponseMessage m), Show (ResponseResult m)) =>
-      ( ( RequestMessage m ->
-          (Either ResponseError (ResponseResult m) -> Lsp ()) ->
+      (Show (Msg.TRequestMessage m), Show (Msg.TResponseMessage m), Show (Msg.MessageResult m)) =>
+      ( ( Msg.TRequestMessage m ->
+          (Either Msg.ResponseError (Msg.MessageResult m) -> Lsp ()) ->
           Lsp ()
         ) ->
-        ClientMessageHandler Lsp 'Request m
+        ClientMessageHandler Lsp 'Msg.Request m
       )
     mkHandler h =
       h
@@ -179,15 +184,15 @@ lspRequestHandlers =
         & ClientMessageHandler
 
 -- | LSP notification handlers
-lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Notification)
+lspNotificationHandlers :: SMethodMap (ClientMessageHandler Lsp 'Msg.Notification)
 lspNotificationHandlers =
   mempty
-    & SMM.insert STextDocumentDidOpen (ClientMessageHandler VFS.lspOpenFile)
-    & SMM.insert STextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
-    & SMM.insert STextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
-    & SMM.insert SInitialized (ClientMessageHandler Notifications.initializedHandler)
-    & SMM.insert SCancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
-    & SMM.insert SWorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
+    & SMM.insert Msg.SMethod_TextDocumentDidOpen (ClientMessageHandler VFS.lspOpenFile)
+    & SMM.insert Msg.SMethod_TextDocumentDidClose (ClientMessageHandler VFS.lspCloseFile)
+    & SMM.insert Msg.SMethod_TextDocumentDidChange (ClientMessageHandler VFS.lspChangeFile)
+    & SMM.insert Msg.SMethod_Initialized (ClientMessageHandler Notifications.initializedHandler)
+    & SMM.insert Msg.SMethod_CancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
+    & SMM.insert Msg.SMethod_WorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO
@@ -199,14 +204,18 @@ lspInterpretHandler env@(Env {lspContext}) =
     fromIO m = liftIO m
 
 lspOptions :: Options
-lspOptions = defaultOptions {textDocumentSync = Just $ textDocSyncOptions}
+lspOptions =
+  defaultOptions
+    { optTextDocumentSync = Just $ textDocSyncOptions,
+      optExecuteCommandCommands = Just supportedCommands
+    }
   where
     textDocSyncOptions =
       TextDocumentSyncOptions
         { -- Clients should send file open/close messages so the VFS can handle them
           _openClose = Just True,
           -- Clients should send file change messages so the VFS can handle them
-          _change = Just TdSyncIncremental,
+          _change = Just TextDocumentSyncKind_Incremental,
           -- Clients should tell us when files are saved
           _willSave = Just False,
           -- If we implement a pre-save hook we can enable this.

@@ -60,7 +60,7 @@ promiseSequentialTest = do
   checkEqual "Once the Promise is full, tryRead is the same as read" v3 (Some v2)
 
 millis = 1000
-sleep_ n = unsafeRun! do sleep n
+sleep_ n = unsafeRun! do sleepMicroseconds n
 
 promiseConcurrentTest = do
   use Nat eq
@@ -145,4 +145,17 @@ fullTest = do
   ignore (spawnN numThreads '(thread iterations))
   result = Ref.read state
   checkEqual "The state of the counter is consistent " result expected
+
+concurrency.interpreter.only = Tests.main do
+  ref = IO.ref None
+  t = fork do
+    match catchAll do sleep_ (400 * millis) with
+      Left (Failure f _ _) -> unsafeRun! do Ref.write ref (Some f)
+      _ -> ()
+  sleep_ (200 * millis)
+  kill_ t
+  sleep_ (300 * millis)
+  v = Ref.read ref
+  expected = Some (typeLink ThreadKilledFailure)
+  checkEqual "Thread killed, finalisers with typeLink" v expected
 

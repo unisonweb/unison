@@ -1,47 +1,47 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnicodeSyntax #-}
+module Unison.FileParsers
+  ( ShouldUseTndr (..),
+    computeTypecheckingEnvironment,
+    synthesizeFile,
+  )
+where
 
-module Unison.FileParsers where
-
-import Control.Lens (view, _3)
+import Control.Lens
 import Control.Monad.State (evalStateT)
-import Control.Monad.Writer (tell)
-import Data.Bifunctor (first)
-import qualified Data.Foldable as Foldable
+import Data.Foldable qualified as Foldable
 import Data.List (partition)
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
-import Data.Text (unpack)
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as Blank
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Blank qualified as Blank
+import Unison.Builtin qualified as Builtin
+import Unison.Name qualified as Name
+import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parsers as Parsers
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Referent as Referent
-import Unison.Result (CompilerBug (..), Note (..), Result, ResultT, pattern Result)
-import qualified Unison.Result as Result
-import qualified Unison.Syntax.Name as Name (toText, unsafeFromVar)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Typechecker.Context as Context
+import Unison.Referent qualified as Referent
+import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
+import Unison.Result qualified as Result
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as Rel
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile (definitionLocation)
+import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
+import Unison.WatchKind (WatchKind)
 
 type Term v = Term.Term v Ann
 
@@ -49,11 +49,9 @@ type Type v = Type.Type v Ann
 
 type UnisonFile v = UF.UnisonFile v Ann
 
-type Result' v = Result (Seq (Note v Ann))
-
-debug :: Bool
-debug = False
-
+-- each round of TDNR emits its own TopLevelComponent notes, so we remove
+-- duplicates (based on var name and location), preferring the later note as
+-- that will have the latest typechecking info
 convertNotes :: (Ord v) => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes bugs es is) =
   (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is')
@@ -62,101 +60,89 @@ convertNotes (Typechecker.Notes bugs es is) =
     f (_, Context.TopLevelComponent cs) = Right [v | (v, _, _) <- cs]
     f (i, _) = Left i
 
--- each round of TDNR emits its own TopLevelComponent notes, so we remove
--- duplicates (based on var name and location), preferring the later note as
--- that will have the latest typechecking info
+-- | Should we use type-directed name resolution?
+data ShouldUseTndr m
+  = ShouldUseTndr'No
+  | ShouldUseTndr'Yes (Parser.ParsingEnv m)
 
-parseAndSynthesizeFile ::
+-- | Compute a typechecking environment, given:
+--
+--     * Whether or not to use type-directed name resolution during type checking.
+--     * The abilities that are considered to already have ambient handlers.
+--     * A function to compute a @TypeLookup@ for the given set of type- or term-references.
+--     * The parsing environment that was used to parse the parsed Unison file.
+--     * The parsed Unison file for which the typechecking environment is applicable.
+computeTypecheckingEnvironment ::
   (Var v, Monad m) =>
+  ShouldUseTndr m ->
   [Type v] ->
   (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  Parser.ParsingEnv ->
-  FilePath ->
-  Text ->
-  ResultT
-    (Seq (Note v Ann))
-    m
-    (Either (UF.UnisonFile v Ann) (UF.TypecheckedUnisonFile v Ann))
-parseAndSynthesizeFile ambient typeLookupf env filePath src = do
-  when debug $ traceM "parseAndSynthesizeFile"
-  uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
-  let names0 = NamesWithHistory.currentNames (Parser.names env)
-  (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
-  let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
-  tell notes' $> maybe (Left uf) Right r
-
-type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
-
-resolveNames ::
-  (Var v, Monad m) =>
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
-  Names.Names ->
   UnisonFile v ->
-  ResultT
-    (Seq (Note v Ann))
-    m
-    (Term v, TDNRMap v, TL.TypeLookup v Ann)
-resolveNames typeLookupf preexistingNames uf = do
-  let tm = UF.typecheckingTerm uf
-      possibleDeps =
-        [ (Name.toText name, Var.name v, r)
-          | (name, r) <- Rel.toList (Names.terms preexistingNames),
-            v <- Set.toList (Term.freeVars tm),
-            name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
-        ]
-      possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-  tl <- lift . lift $ fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
-  -- For populating the TDNR environment, we pick definitions
-  -- from the namespace and from the local file whose full name
-  -- has a suffix that equals one of the free variables in the file.
-  -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
-  -- the file has definitons [utils.zonk, utils.blah] and
-  -- the file has free variables [bar.baz, zonk].
-  --
-  -- In this case, [foo.bar.baz, utils.zonk] are used to create
-  -- the TDNR environment.
-  let fqnsByShortName =
-        List.multimap $
-          -- external TDNR possibilities
-          [ (shortname, nr)
-            | (name, shortname, r) <- possibleDeps,
-              typ <- toList $ TL.typeOfReferent tl r,
-              let nr = Typechecker.NamedReference name typ (Right r)
-          ]
-            <>
-            -- local file TDNR possibilities
-            [ (Var.name v, nr)
-              | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
+  m (Typechecker.Env v Ann)
+computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
+  case shouldUseTndr of
+    ShouldUseTndr'No -> do
+      tl <- typeLookupf (UF.dependencies uf)
+      pure
+        Typechecker.Env
+          { _ambientAbilities = ambientAbilities,
+            _typeLookup = tl,
+            _termsByShortname = Map.empty
+          }
+    ShouldUseTndr'Yes parsingEnv -> do
+      let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
+          tm = UF.typecheckingTerm uf
+          possibleDeps =
+            [ (Name.toText name, Var.name v, r)
+              | (name, r) <- Rel.toList (Names.terms preexistingNames),
                 v <- Set.toList (Term.freeVars tm),
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
-                typ <- toList $ TL.typeOfReferent tl r,
-                let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
             ]
-  pure (tm, fqnsByShortName, tl)
-
-synthesizeFile' ::
-  forall v.
-  (Var v) =>
-  [Type v] ->
-  TL.TypeLookup v Ann ->
-  UnisonFile v ->
-  Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile' ambient tl uf =
-  synthesizeFile ambient tl mempty uf $ UF.typecheckingTerm uf
+          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
+      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
+      -- For populating the TDNR environment, we pick definitions
+      -- from the namespace and from the local file whose full name
+      -- has a suffix that equals one of the free variables in the file.
+      -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
+      -- the file has definitons [utils.zonk, utils.blah] and
+      -- the file has free variables [bar.baz, zonk].
+      --
+      -- In this case, [foo.bar.baz, utils.zonk] are used to create
+      -- the TDNR environment.
+      let fqnsByShortName =
+            List.multimap $
+              -- external TDNR possibilities
+              [ (shortname, nr)
+                | (name, shortname, r) <- possibleDeps,
+                  typ <- toList $ TL.typeOfReferent tl r,
+                  let nr = Typechecker.NamedReference name typ (Right r)
+              ]
+                <>
+                -- local file TDNR possibilities
+                [ (Var.name v, nr)
+                  | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
+                    v <- Set.toList (Term.freeVars tm),
+                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
+                    typ <- toList $ TL.typeOfReferent tl r,
+                    let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                ]
+      pure
+        Typechecker.Env
+          { _ambientAbilities = ambientAbilities,
+            _typeLookup = tl,
+            _termsByShortname = fqnsByShortName
+          }
 
 synthesizeFile ::
-  forall v.
-  (Var v) =>
-  [Type v] ->
-  TL.TypeLookup v Ann ->
-  TDNRMap v ->
+  forall m v.
+  (Monad m, Var v) =>
+  Typechecker.Env v Ann ->
   UnisonFile v ->
-  Term v ->
-  Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile ambient tl fqnsByShortName uf term = do
-  let -- substitute Blanks for any remaining free vars in UF body
+  ResultT (Seq (Note v Ann)) m (UF.TypecheckedUnisonFile v Ann)
+synthesizeFile env0 uf = do
+  let term = UF.typecheckingTerm uf
+      -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
-      env0 = Typechecker.Env ambient tl fqnsByShortName
       unisonFilePPE =
         ( PPE.fromNames
             10
@@ -165,7 +151,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
-  Result (convertNotes notes) mayType >>= \_typ -> do
+  Result.makeResult (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let topLevelBindings :: Map v (Term v)
@@ -181,7 +167,7 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
               [t | Context.TopLevelComponent t <- infos]
             where
               vars (v, _, _) = v
-          addTypesToTopLevelBindings :: (v, c, c1) -> Result (Seq (Note v Ann)) (v, Term v, c)
+          addTypesToTopLevelBindings :: (v, c, c1) -> ResultT (Seq (Note v Ann)) m (v, Term v, c)
           addTypesToTopLevelBindings (v, typ, _redundant) = do
             tm <- case Map.lookup v topLevelBindings of
               Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
@@ -191,14 +177,21 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
        in traverse (traverse addTypesToTopLevelBindings) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
     let doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
-    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
+    let tdnredTlcs =
+          topLevelComponents
+            & (fmap . fmap)
+              ( \vtt ->
+                  vtt
+                    & doTdnrInComponent
+                    & \(v, t, tp) -> (v, fromMaybe (error $ "Symbol from typechecked file not present in parsed file" <> show v) (definitionLocation v uf), t, tp)
+              )
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v, _, _) -> Set.member v watchedVars)
-        watchedVars = Set.fromList [v | (v, _) <- UF.allWatches uf]
+        isWatch = all (\(v, _, _, _) -> Set.member v watchedVars)
+        watchedVars = Set.fromList [v | (v, _a, _) <- UF.allWatches uf]
         tlcKind [] = error "empty TLC, should never occur"
-        tlcKind tlc@((v, _, _) : _) =
-          let hasE k =
-                elem v . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+        tlcKind tlc@((v, _, _, _) : _) =
+          let hasE :: WatchKind -> Bool
+              hasE k = elem v . fmap (view _1) $ Map.findWithDefault [] k (UF.watches uf)
            in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                 Nothing -> error "wat"
                 Just kind -> (kind, tlc)

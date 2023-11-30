@@ -3,9 +3,9 @@
 module Unison.Util.Text.Pattern where
 
 import Data.Char (isAlphaNum, isControl, isLetter, isLower, isMark, isNumber, isPrint, isPunctuation, isSeparator, isSpace, isSymbol, isUpper)
-import qualified Data.Text as DT
+import Data.Text qualified as DT
 import Unison.Util.Text (Text)
-import qualified Unison.Util.Text as Text
+import Unison.Util.Text qualified as Text
 
 data Pattern
   = Join [Pattern] -- sequencing of patterns

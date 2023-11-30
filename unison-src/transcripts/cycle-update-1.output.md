@@ -49,10 +49,14 @@ ping _ = !pong + 3
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    ping : 'Nat
-    pong : 'Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 .> view ping pong
 

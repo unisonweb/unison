@@ -15,37 +15,39 @@ module Unison.Codebase.BranchUtil
     makeSetBranch,
     makeAddTypeName,
     makeDeleteTypeName,
+    makeAnnihilateTypeName,
     makeAddTermName,
     makeDeleteTermName,
+    makeAnnihilateTermName,
     makeDeletePatch,
     makeReplacePatch,
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Codebase.Branch (Branch, Branch0)
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Metadata (Metadata)
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
-import qualified Unison.HashQualified' as HQ'
+import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import qualified Unison.Names as Names
+import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.ShortHash as SH
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation4 as R4
-import qualified Unison.Util.Star3 as Star3
+import Unison.Referent qualified as Referent
+import Unison.ShortHash qualified as SH
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as R
+import Unison.Util.Relation4 qualified as R4
+import Unison.Util.Star3 qualified as Star3
 
 -- | Creates a branch containing all of the given names, with a single history node.
 fromNames :: (Monad m) => Names -> Branch m
@@ -91,7 +93,7 @@ getTermMetadataAt (path, _) r b = Set.fromList <$> List.multimap mdList
     mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
     terms = Branch._terms $ Branch.getAt0 path b
 
-getType :: Path.HQSplit -> Branch0 m -> Set Reference
+getType :: Path.HQSplit -> Branch0 m -> Set Reference.TypeReference
 getType (p, hq) b = case hq of
   NameOnly n -> Star3.lookupD1 n types
   HashQualified n sh -> filter sh $ Star3.lookupD1 n types
@@ -118,6 +120,12 @@ makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
 makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
+
+makeAnnihilateTermName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeAnnihilateTermName (p, name) = (p, Branch.annihilateTermName name)
+
+makeAnnihilateTypeName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeAnnihilateTypeName (p, name) = (p, Branch.annihilateTypeName name)
 
 makeReplacePatch :: (Applicative m) => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)

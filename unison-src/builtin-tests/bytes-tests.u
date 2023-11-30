@@ -1,3 +1,4 @@
+use base.Text toUtf8
 
 bytes.tests = do
   !bytes.lit.tests
@@ -11,6 +12,8 @@ bytes.tests = do
   !bytes.zlib.compress.tests
   !bytes.zlib.decompress.tests
   !bytes.toFromBases
+  !bytes.decodeNats
+  !bytes.encodeNats
 
 bytes.lit.tests = do
   check "Bytes empty literal" do
@@ -21,7 +24,7 @@ bytes.lit.tests = do
     true
 
 bytes.debug.tests = do
- checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
+ checkEqual "Debug.evalToText on Bytes" (Debug.evalToText 0xs68656c6c6f) "0xs68656c6c6f"
 
 bytes.conversion.tests = do
   use base Bytes.fromList Bytes.toList
@@ -108,6 +111,11 @@ bytes.ops.tests = do
   checkEqual "Bytes.at (3)" (Bytes.at 1 0xs) None
   checkEqual "Bytes.at (4)" (Bytes.at 5 0xs010203) None
 
+  checkEqual "Bytes.indexOf (1)" (Bytes.indexOf 0xs 0xs0102030304) (Some 0)
+  checkEqual "Bytes.indexOf (2)" (Bytes.indexOf 0xs03 0xs0102030304) (Some 2)
+  checkEqual "Bytes.indexOf (3)" (Bytes.indexOf 0xs0304 0xs0102030304) (Some 3)
+  checkEqual "Bytes.indexOf (3)" (Bytes.indexOf 0xs020304 0xs0102030304) None
+
 -- Haskell and Racket produce slightly different byte output
 -- for gzip compress (in the header, racket reports the OS as "unix"
 -- while Haskell for some reason claims to be Acorn RISCOS),
@@ -165,3 +173,31 @@ bytes.toFromBases = do
     -- checkLeft "from base64 fail" (Bytes.fromBase64 (toUtf8 "aaaa"))
     -- checkLeft "from base64Url fail" (fromBase64UrlUnpadded (toUtf8 "aaaa"))
     checkLeft "from base32 fail" (Bytes.fromBase32 (toUtf8 "aaaa"))
+
+bytes.decodeNats = do
+    checkEqual "decodeNat16be 1" (base.Bytes.decodeNat16be 0xs0001aa) (Some (1, 0xsaa))
+    checkEqual "decodeNat16be 10000" (base.Bytes.decodeNat16be 0xs2710bb) (Some (10000, 0xsbb))
+    checkEqual "decodeNat16le 1" (base.Bytes.decodeNat16le 0xs0100cc) (Some (1, 0xscc))
+    checkEqual "decodeNat16le 10000" (base.Bytes.decodeNat16le 0xs1027dd) (Some (10000, 0xsdd))
+    checkEqual "decodeNat32be 1" (base.Bytes.decodeNat32be 0xs00000001) (Some (1, 0xs))
+    checkEqual "decodeNat32be 1000000000" (base.Bytes.decodeNat32be 0xs3b9aca00) (Some (1000000000, 0xs))
+    checkEqual "decodeNat32le 1" (base.Bytes.decodeNat32le 0xs01000000) (Some (1, 0xs))
+    checkEqual "decodeNat32le 1000000000" (base.Bytes.decodeNat32le 0xs00ca9a3b) (Some (1000000000, 0xs))
+    checkEqual "decodeNat64be 1" (base.Bytes.decodeNat64be 0xs0000000000000001) (Some (1, 0xs))
+    checkEqual "decodeNat64be 10000000000000000" (base.Bytes.decodeNat64be 0xs002386f26fc10000) (Some (10000000000000000, 0xs))
+    checkEqual "decodeNat64le 1" (base.Bytes.decodeNat64le 0xs0100000000000000) (Some (1, 0xs))
+    checkEqual "decodeNat64le 10000000000000000" (base.Bytes.decodeNat64le 0xs0000c16ff2862300) (Some (10000000000000000, 0xs))
+
+bytes.encodeNats = do
+    checkEqual "encodeNat16be 1" (base.Bytes.encodeNat16be 1) 0xs0001
+    checkEqual "encodeNat16be 10000" (base.Bytes.encodeNat16be 10000) 0xs2710
+    checkEqual "encodeNat16le 1" (base.Bytes.encodeNat16le 1) 0xs0100
+    checkEqual "encodeNat16le 10000" (base.Bytes.encodeNat16le 10000) 0xs1027
+    checkEqual "encodeNat32be 1" (base.Bytes.encodeNat32be 1) 0xs00000001
+    checkEqual "encodeNat32be 1000000000" (base.Bytes.encodeNat32be 1000000000) 0xs3b9aca00
+    checkEqual "encodeNat32le 1" (base.Bytes.encodeNat32le 1) 0xs01000000
+    checkEqual "encodeNat32le 1000000000" (base.Bytes.encodeNat32le 1000000000) 0xs00ca9a3b
+    checkEqual "encodeNat64be 1" (base.Bytes.encodeNat64be 1) 0xs0000000000000001
+    checkEqual "encodeNat64be 10000000000000000" (base.Bytes.encodeNat64be 10000000000000000) 0xs002386f26fc10000
+    checkEqual "encodeNat64le 1" (base.Bytes.encodeNat64le 1) 0xs0100000000000000
+    checkEqual "encodeNat64le 10000000000000000" (base.Bytes.encodeNat64le 10000000000000000) 0xs0000c16ff2862300

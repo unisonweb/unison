@@ -1,17 +1,17 @@
 module Unison.Codebase.Editor.RemoteRepo where
 
 import Control.Lens (Lens')
-import qualified Control.Lens as Lens
-import qualified Data.Text as Text
+import Control.Lens qualified as Lens
+import Data.Text qualified as Text
 import Data.Void (absurd)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import qualified Unison.Codebase.ShortCausalHash as SCH
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
-import qualified Unison.Util.Monoid as Monoid
+import Unison.Util.Monoid qualified as Monoid
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
@@ -111,7 +111,7 @@ data ReadRemoteNamespace a
   | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
     -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
     ReadShare'ProjectBranch !a
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Functor, Show, Generic)
 
 data ReadGitRemoteNamespace = ReadGitRemoteNamespace
   { repo :: !ReadGitRepo,

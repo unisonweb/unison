@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -22,6 +22,7 @@ library
       Unison.Prelude
       Unison.Util.Alternative
       Unison.Util.Lens
+      Unison.Util.List
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
@@ -38,6 +39,7 @@ library
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -51,6 +53,7 @@ library
     , containers
     , either
     , extra
+    , generic-lens
     , lens
     , mtl
     , pretty-simple

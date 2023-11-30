@@ -23,32 +23,31 @@ module Unison.Builtin
   )
 where
 
-import Data.Bifunctor (first, second)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Text.Regex.TDFA as RE
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Builtin.Terms as TD
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Text.Regex.TDFA qualified as RE
+import Unison.Builtin.Decls qualified as DD
+import Unison.Builtin.Terms qualified as TD
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.Reference as R
-import qualified Unison.Referent as Referent
+import Unison.Reference qualified as R
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Name as Name (unsafeFromText, unsafeFromVar)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.Util.Relation as Rel
-import qualified Unison.Var as Var
+import Unison.Syntax.Name qualified as Name (unsafeFromText, unsafeFromVar)
+import Unison.Type qualified as Type
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Util.Relation qualified as Rel
+import Unison.Var qualified as Var
 
 type DataDeclaration = DD.DataDeclaration Symbol Ann
 
@@ -73,7 +72,7 @@ names0 = Names terms types
           ]
         <> Rel.fromList
           [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
-            | (v, i) <- Map.toList $ TD.builtinTermsRef
+            | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
@@ -95,8 +94,8 @@ typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinDataDecls)
-    (Map.fromList . map (first R.DerivedId) $ map snd builtinEffectDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
+    (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
 constructorType r =
@@ -481,6 +480,7 @@ builtinsSrc =
     B "Text.++" $ text --> text --> text,
     B "Text.take" $ nat --> text --> text,
     B "Text.drop" $ nat --> text --> text,
+    B "Text.indexOf" $ text --> text --> optionalt nat,
     B "Text.size" $ text --> nat,
     B "Text.repeat" $ nat --> text --> text,
     B "Text.==" $ text --> text --> boolean,
@@ -531,6 +531,7 @@ builtinsSrc =
     B "Bytes.take" $ nat --> bytes --> bytes,
     B "Bytes.drop" $ nat --> bytes --> bytes,
     B "Bytes.at" $ nat --> bytes --> optionalt nat,
+    B "Bytes.indexOf" $ bytes --> bytes --> optionalt nat,
     B "Bytes.toList" $ bytes --> list nat,
     B "Bytes.size" $ bytes --> nat,
     B "Bytes.flatten" $ bytes --> bytes,
@@ -833,6 +834,12 @@ ioBuiltins =
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
     ),
+    ("sandboxLinks", termLink --> io (list termLink)),
+    ( "Value.validateSandboxed",
+      list termLink
+        --> value
+        --> io (eithert (list termLink) (list termLink))
+    ),
     ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls),
     ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls),
     ("Tls.handshake.impl.v3", tls --> iof unit),
@@ -857,6 +864,7 @@ ioBuiltins =
     ("Clock.internals.realtime.v1", unit --> iof timeSpec),
     ("Clock.internals.sec.v1", timeSpec --> int),
     ("Clock.internals.nsec.v1", timeSpec --> nat),
+    ("Clock.internals.systemTimeZone.v1", int --> io (tuple [int, nat, text])),
     ( "IO.array",
       forall1 "a" $ \a ->
         nat --> io (marrayt iot a)
@@ -874,7 +882,8 @@ ioBuiltins =
     ( "IO.tryEval",
       forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
-    )
+    ),
+    ("IO.randomBytes", nat --> io bytes)
   ]
 
 mvarBuiltins :: [(Text, Type)]
@@ -904,6 +913,13 @@ codeBuiltins =
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
     ("Code.lookup", termLink --> io (optionalt code)),
     ("Code.display", text --> code --> text),
+    ( "Code.validateLinks",
+      list (tuple [termLink, code])
+        --> Type.effect
+          ()
+          [DD.exceptionType ()]
+          (eithert (list termLink) (list termLink))
+    ),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
