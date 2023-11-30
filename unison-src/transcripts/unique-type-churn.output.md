@@ -82,10 +82,6 @@ unique type A = A ()
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
   Done.
 
 .> names A
@@ -124,10 +120,6 @@ Note that `A` is back to its original hash.
 
   Okay, I'm searching the branch for code that needs to be
   updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
 
   Done.
 
