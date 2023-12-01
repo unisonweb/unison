@@ -525,10 +525,7 @@ lexemes' eof =
               ex <- CP.space *> lexemes' end
               pure ex
 
-        -- general idea is these can push onto layout stack
-        -- and pop, 
         docClose = [] <$ lit "}}"
-        -- and this can pop from layout stack
         docOpen = [] <$ lit "{{"
         
         link =
