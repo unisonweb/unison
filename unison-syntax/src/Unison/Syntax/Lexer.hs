@@ -547,7 +547,7 @@ lexemes' eof =
                 -- pop items off the layout stack up to the nearest enclosing
                 -- syntax.docTransclude.
                 ts <- lexemes' (P.lookAhead ([] <$ lit "}}"));
-                S.modify (\env -> env { inLayout = inLayout env });
+                S.modify (\env -> env { inLayout = inLayout env0 });
                 pure ts
               }
               <+> close ["syntax.docTransclude"] (lit "}}")
