@@ -17,7 +17,8 @@ import Data.Zip qualified as Zip
 import Language.LSP.Protocol.Lens (HasCodeAction (codeAction), HasIsPreferred (isPreferred), HasRange (range), HasUri (uri))
 import Language.LSP.Protocol.Lens qualified as LSPTypes
 import Language.LSP.Protocol.Types
-  ( Diagnostic,
+  ( CodeLens (..),
+    Diagnostic,
     Position,
     Range,
     TextDocumentIdentifier (TextDocumentIdentifier),
@@ -28,11 +29,14 @@ import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime as Runtime
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.HashQualified qualified as HQ
 import Unison.KindInference.Error qualified as KindInference
+import Unison.LSP.Commands qualified as Commands
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
@@ -65,6 +69,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
@@ -106,13 +111,15 @@ checkFile doc = runMaybeT do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
             pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+  ppedForFile <- lift $ ppedForFileHelper parsedFile typecheckedFile
+  let fileSummary = mkFileSummary parsedFile typecheckedFile
   (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
+  runPrompts <- getRunPrompts typecheckedFile
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
-  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
-  let fileSummary = mkFileSummary parsedFile typecheckedFile
+  let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints fileUri ppedForFile <$> parsedFile <*> typecheckedFile)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
@@ -121,7 +128,8 @@ checkFile doc = runMaybeT do
         (errDiagnostics <> conflictWarningDiagnostics)
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
+  let codeLenses = runPrompts
+  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, codeLenses, ..}
   pure fileAnalysis
 
 -- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
@@ -257,6 +265,30 @@ analyseFile fileUri srcText notes = do
   pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
   (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
+
+-- | Compute prompts to 'run' definitions in the file for definitions which match the 'main'
+-- signature.
+getRunPrompts :: Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Lsp [CodeLens]
+getRunPrompts Nothing = pure mempty
+getRunPrompts (Just (UF.TypecheckedUnisonFileId {hashTermsId})) = do
+  rt <- asks runtime
+  pure $
+    hashTermsId
+      & Map.toList
+      & mapMaybe \(v, (ann, _ref, _wk, _trm, typ)) -> do
+        guard $ Typechecker.fitsScheme typ (Runtime.mainType rt)
+        range <- annToRange ann
+        name <- Name.fromText (Var.name v)
+        let newRangeEnd =
+              range ^. LSPTypes.start
+                & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
+        let newRange = range & LSPTypes.end .~ newRangeEnd
+        pure $
+          rangedCodeAction
+            ("Run " <> Name.toText name)
+            []
+            [newRange]
+            & codeAction . isPreferred ?~ True
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
 -- codebase.
@@ -521,30 +553,45 @@ ppedForFileHelper uf tf = do
           filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
        in filePPED `PPED.addFallback` codebasePPED
 
-mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
-mkTypeSignatureHints parsedFile typecheckedFile = do
-  let symbolsWithoutTypeSigs :: Map Symbol Ann
-      symbolsWithoutTypeSigs =
-        UF.terms parsedFile
-          & mapMaybe
-            ( \(v, ann, trm) -> do
-                -- We only want hints for terms without a user signature
-                guard (isNothing $ Term.getTypeAnnotation trm)
-                pure (v, ann)
-            )
-          & Map.fromList
-      typeHints =
-        typecheckedFile
-          & UF.hashTermsId
-          & Zip.zip symbolsWithoutTypeSigs
-          & imapMaybe
-            ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
-                name <- Name.fromText (Var.name v)
-                range <- annToRange ann
-                let newRangeEnd =
-                      range ^. LSPTypes.start
-                        & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
-                let newRange = range & LSPTypes.end .~ newRangeEnd
-                pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
-            )
-   in typeHints
+mkTypeSignatureHints :: Uri -> PPED.PrettyPrintEnvDecl -> UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol CodeLens
+mkTypeSignatureHints fileUri pped parsedFile typecheckedFile =
+  typeHints
+  where
+    symbolsWithoutTypeSigs :: Map Symbol Ann
+    symbolsWithoutTypeSigs =
+      UF.terms parsedFile
+        & mapMaybe
+          ( \(v, ann, trm) -> do
+              -- We only want hints for terms without a user signature
+              guard (isNothing $ Term.getTypeAnnotation trm)
+              pure (v, ann)
+          )
+        & Map.fromList
+    typeHints :: (Map Symbol CodeLens)
+    typeHints =
+      typecheckedFile
+        & UF.hashTermsId
+        & Zip.zip symbolsWithoutTypeSigs
+        & imapMaybe
+          ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
+              name <- Name.fromText (Var.name v)
+              range <- annToRange ann
+              let newRangeEnd =
+                    range ^. LSPTypes.start
+                      & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
+              let newRange = range & LSPTypes.end .~ newRangeEnd
+              let ppe = PPED.suffixifiedPPE pped
+              let referent = Referent.fromTermReferenceId ref
+              let rendered = case TypePrinter.prettySignaturesCT ppe [(referent, HQ.NameOnly name, typ)] of
+                    [sig] -> Text.pack . Pretty.toPlain 80 $ sig
+                    _ -> error "codeLensHandler: prettySignaturesCT returned more than one signature"
+              let insertLocation =
+                    range
+                      & LSPTypes.start . LSPTypes.character .~ 0
+                      & LSPTypes.end . LSPTypes.character .~ 0
+              pure $
+                CodeLens
+                  newRange
+                  (Just $ Commands.replaceText rendered $ Commands.TextReplacement insertLocation "Insert type signature" (rendered <> "\n") fileUri)
+                  Nothing
+          )

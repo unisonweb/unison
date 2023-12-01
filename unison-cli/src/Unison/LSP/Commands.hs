@@ -17,6 +17,16 @@ import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
 
+data UnisonCommand = UnisonCommand
+  { -- | The command identifier
+    command :: Text,
+    handler :: _
+  }
+
+commands :: [UnisonCommand]
+commands =
+  []
+
 supportedCommands :: [Text]
 supportedCommands = ["replaceText"]
 
@@ -25,7 +35,10 @@ replaceText ::
   Text ->
   TextReplacement ->
   Command
-replaceText title tr = Command title "replaceText" (Just [Aeson.toJSON tr])
+replaceText title tr = Command title "unison.replaceText" (Just [Aeson.toJSON tr])
+
+run :: Text -> Command
+run symbol = Command ("Run " <> symbol) "unison.run" (Just [Aeson.toJSON symbol])
 
 data TextReplacement = TextReplacement
   { range :: Range,
@@ -64,7 +77,7 @@ executeCommandHandler m respond =
     let args = m ^. params . arguments
     let invalidCmdErr = throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
     case cmd of
-      "replaceText" -> case args of
+      "unison.replaceText" -> case args of
         Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do
           let params =
                 ApplyWorkspaceEditParams
