@@ -1717,7 +1717,8 @@ topicNameArg =
   ArgumentType
     { typeName = "topic",
       suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 codebaseServerNameArg :: ArgumentType
@@ -1725,7 +1726,8 @@ codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
       suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 helpTopics :: InputPattern
@@ -2474,13 +2476,17 @@ createAuthor =
     []
     I.Visible
     [(Required, noCompletionsArg), (Required, noCompletionsArg)]
-    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""] <> " "
-        <> P.wrap (" creates "
-        <> backtick "alicecoder"
-        <> "values in"
-        <> backtick "metadata.authors"
-        <> "and"
-        <> backtick (P.group ("metadata.copyrightHolders" <> "."))))
+    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+        <> " "
+        <> P.wrap
+          ( " creates "
+              <> backtick "alicecoder"
+              <> "values in"
+              <> backtick "metadata.authors"
+              <> "and"
+              <> backtick (P.group ("metadata.copyrightHolders" <> "."))
+          )
+    )
     ( \case
         symbolStr : authorStr@(_ : _) -> first fromString $ do
           symbol <- Path.definitionNameSegment symbolStr
@@ -2966,7 +2972,8 @@ commandNameArg =
   ArgumentType
     { typeName = "command",
       suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 exactDefinitionArg :: ArgumentType
@@ -2974,7 +2981,8 @@ exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
+      fzfResolver = Nothing
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
@@ -2982,7 +2990,8 @@ fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
+      fzfResolver = Nothing
     }
 
 definitionQueryArg :: ArgumentType
@@ -2993,7 +3002,8 @@ exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
-      globTargets = Set.fromList [Globbing.Type]
+      globTargets = Set.fromList [Globbing.Type],
+      fzfResolver = Nothing
     }
 
 exactDefinitionTypeOrTermQueryArg :: ArgumentType
@@ -3001,7 +3011,8 @@ exactDefinitionTypeOrTermQueryArg =
   ArgumentType
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term]
+      globTargets = Set.fromList [Globbing.Term],
+      fzfResolver = Nothing
     }
 
 exactDefinitionTermQueryArg :: ArgumentType
@@ -3009,7 +3020,8 @@ exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
-      globTargets = Set.fromList [Globbing.Term]
+      globTargets = Set.fromList [Globbing.Term],
+      fzfResolver = Nothing
     }
 
 patchArg :: ArgumentType
@@ -3017,7 +3029,8 @@ patchArg =
   ArgumentType
     { typeName = "patch",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      globTargets = Set.fromList []
+      globTargets = Set.fromList [],
+      fzfResolver = Nothing
     }
 
 namespaceArg :: ArgumentType
@@ -3025,7 +3038,8 @@ namespaceArg =
   ArgumentType
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = Set.fromList [Globbing.Namespace]
+      globTargets = Set.fromList [Globbing.Namespace],
+      fzfResolver = Nothing
     }
 
 namespaceOrDefinitionArg :: ArgumentType
@@ -3036,7 +3050,8 @@ namespaceOrDefinitionArg =
         namespaces <- prefixCompleteNamespace q p
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
-      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
+      fzfResolver = Nothing
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
@@ -3048,7 +3063,8 @@ newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 noCompletionsArg :: ArgumentType
@@ -3056,7 +3072,8 @@ noCompletionsArg =
   ArgumentType
     { typeName = "word",
       suggestions = noCompletions,
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 -- Arya: I could imagine completions coming from previous pulls
@@ -3074,7 +3091,8 @@ gitUrlArg =
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 -- | Refers to a namespace on some remote code host.
@@ -3093,7 +3111,8 @@ remoteNamespaceArg =
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> do
                 sharePathCompletion http input,
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 -- | A project name, branch name, or both.
@@ -3143,7 +3162,8 @@ projectAndBranchNamesArg includeCurrentBranch =
                         fmap (filterOutCurrentBranch path projectId) do
                           Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
                 pure (map (projectBranchToCompletion projectName) branches),
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Nothing
     }
   where
     handleAmbiguousComplete ::
@@ -3284,7 +3304,8 @@ projectBranchNameArg =
   ArgumentType
     { typeName = "project-branch-name",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Nothing
     }
 
 -- [project/]branch
@@ -3293,7 +3314,8 @@ projectBranchNameWithOptionalProjectNameArg =
   ArgumentType
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Nothing
     }
 
 -- | A project name.
@@ -3306,7 +3328,8 @@ projectNameArg =
           Codebase.runTransaction codebase do
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Nothing
     }
   where
     projectToCompletion :: Sqlite.Project -> Completion

@@ -7,7 +7,6 @@ import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens (preview, (?~), (^.))
-import Control.Monad.Catch (MonadMask)
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -56,28 +55,27 @@ import UnliftIO qualified
 import UnliftIO.STM
 
 getUserInput ::
-  forall m v a.
-  (MonadIO m, MonadMask m) =>
-  Codebase m v a ->
+  forall v a.
+  Codebase IO v a ->
   AuthenticatedHttpClient ->
-  IO (Branch m) ->
+  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
-  m Input
+  IO Input
 getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
   where
     -- Catch ctrl-c and simply re-render the prompt.
-    haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+    haskelineCtrlCHandling :: Line.InputT IO b -> Line.InputT IO b
     haskelineCtrlCHandling act = do
       -- We return a Maybe result to ensure we don't nest an action within the masked exception
       -- handler.
       Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
         Nothing -> haskelineCtrlCHandling act
         Just a -> pure a
-    go :: Line.InputT m Input
+    go :: Line.InputT IO Input
     go = do
       promptString <-
         case preview projectBranchPathPrism currentPath of
@@ -107,7 +105,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
                 liftIO $ putPrettyLn msg
                 go
               Right i -> pure i
-    settings :: Line.Settings m
+    settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 

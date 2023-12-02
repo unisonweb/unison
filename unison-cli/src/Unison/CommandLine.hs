@@ -34,11 +34,15 @@ import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
 import Data.ListLike (ListLike)
 import Data.Map qualified as Map
+import Data.Semialign qualified as Align
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Data.These (These (..))
 import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
@@ -47,6 +51,7 @@ import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO.STM
@@ -108,7 +113,7 @@ nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo = emojiNote "😶"
 
 parseInput ::
-  IO (Branch0 m) ->
+  IO (Branch0 IO) ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
   -- | Numbered arguments
@@ -119,6 +124,11 @@ parseInput ::
   [String] ->
   IO (Either (P.Pretty CT.ColorText) Input)
 parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
+  let getCurrentBranch0 :: IO (Branch0 IO)
+      getCurrentBranch0 = do
+        rootBranch <- getRoot
+        pure $ Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+
   case segments of
     [] -> throwE ""
     command : args -> case Map.lookup command patterns of
@@ -139,7 +149,8 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
                 Just [] -> throwE $ "No matches for: " <> fromString arg
                 Just matches -> pure matches
             else pure [arg]
-        except $ parse (concat expandedGlobs)
+        resolvedArgs <- lift $ fzfResolve getCurrentBranch0 pat (concat expandedGlobs)
+        except $ parse resolvedArgs
       Nothing ->
         throwE
           . warn
@@ -168,6 +179,19 @@ expandNumber numberedArgs s = case expandedNumber of
             ("", "", [from, to]) ->
               (\x y -> [x .. y]) <$> readMay from <*> readMay to
             _ -> Nothing
+
+fzfResolve :: (IO (Branch0 IO)) -> InputPattern -> [String] -> IO [String]
+fzfResolve getCurrentBranch pat args =
+  (Align.align (argTypes pat) args) & foldMapM \case
+    This (opt, argType) ->
+      fromMaybe [] <$> runMaybeT do
+        InputPattern.FZFResolver {argDescription, search} <- hoistMaybe $ InputPattern.fzfResolver argType
+        guard (opt `elem` [InputPattern.Required, InputPattern.OnePlus])
+        liftIO $ Text.putStrLn $ argDescription
+        currentBranch <- liftIO getCurrentBranch
+        MaybeT . fmap (Just . fmap Text.unpack) $ search currentBranch
+    That arg -> pure [arg]
+    These _ arg -> pure [arg]
 
 prompt :: String
 prompt = "> "
