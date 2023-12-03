@@ -43,6 +43,7 @@ import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
+import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
 import Unison.CommandLine.InputPattern qualified as I
@@ -52,6 +53,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Position qualified as Position
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
@@ -378,7 +380,7 @@ view =
     "view"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
           P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
@@ -416,7 +418,7 @@ display =
     "display"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ "`display foo` prints a rendered version of the term `foo`.",
           "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
@@ -2982,7 +2984,7 @@ exactDefinitionArg =
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Nothing
+      fzfResolver = Just (Resolvers.fuzzySelectDefinition "definition" Position.Relative)
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType

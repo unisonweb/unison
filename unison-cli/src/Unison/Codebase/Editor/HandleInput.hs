@@ -1861,7 +1861,7 @@ handleDependencies hq = do
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
   #numberedArgs
     .= map (Text.unpack . Reference.toText . snd) types
-      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -2028,23 +2028,14 @@ handleIOTest main = do
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope inputQuery = do
+handleShowDefinition outputLoc showDefinitionScope query = do
   Cli.Env {codebase} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
-  query <-
-    if null inputQuery
-      then do
-        branch <- Cli.getCurrentBranch0
-        fuzzySelectDefinition Relative branch & onNothingM do
-          Cli.returnEarly case outputLoc of
-            ConsoleLocation -> HelpMessage InputPatterns.view
-            _ -> HelpMessage InputPatterns.edit
-      else pure inputQuery
   root <- Cli.getRootBranch
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
-  let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
+  let hasAbsoluteQuery = any (any Name.isAbsolute) query
   (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
@@ -2080,7 +2071,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
         DisplayDefinitionsOutput
           { isTest,
             outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE,
+            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName query) unbiasedPPE,
             terms,
             types
           }
@@ -2142,12 +2133,12 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
           q r = \case
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
               if
-                | ref == DD.testResultRef ->
-                    if
-                      | cid == DD.okConstructorId -> Just (Right (r, msg))
-                      | cid == DD.failConstructorId -> Just (Left (r, msg))
-                      | otherwise -> Nothing
-                | otherwise -> Nothing
+                  | ref == DD.testResultRef ->
+                      if
+                          | cid == DD.okConstructorId -> Just (Right (r, msg))
+                          | cid == DD.failConstructorId -> Just (Left (r, msg))
+                          | otherwise -> Nothing
+                  | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
