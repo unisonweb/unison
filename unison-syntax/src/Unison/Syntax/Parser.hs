@@ -76,6 +76,7 @@ import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
+import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann (Ann (..))
@@ -108,7 +109,8 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
-    names :: NamesWithHistory
+    names :: NamesWithHistory,
+    namesForTDNR :: Names
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)

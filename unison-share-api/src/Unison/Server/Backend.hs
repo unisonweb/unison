@@ -262,10 +262,15 @@ suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
+data LibInclusion
+  = ExcludeLibs
+  | IncludeLibs
+  | IncludeTransitiveLibs
+
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: Branch m -> Path -> Names
-namesForBranch root scope = currentPathNames
+namesForBranch :: LibInclusion -> Branch m -> Path -> Names
+namesForBranch libInclusion root scope = currentPathNames
   where
     currentBranch = fromMaybe Branch.empty $ Branch.getAt scope root
     currentBranch0 = Branch.head currentBranch
