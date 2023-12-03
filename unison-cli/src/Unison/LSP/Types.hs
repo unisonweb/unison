@@ -81,6 +81,7 @@ data Env = Env
     parseNamesCache :: IO NamesWithHistory,
     tdnrNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
+    noTransitiveDepsPPEDCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
@@ -166,6 +167,9 @@ getCodebaseCompletions = asks completionsVar >>= readTVarIO
 
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO
+
+getNoTransitiveDepsPPED :: Lsp PrettyPrintEnvDecl
+getNoTransitiveDepsPPED = asks noTransitiveDepsPPEDCache >>= liftIO
 
 getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO

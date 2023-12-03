@@ -23,13 +23,14 @@ import UnliftIO.STM
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
+  TVar PrettyPrintEnvDecl ->
   TVar NamesWithHistory ->
   TVar Names ->
   TVar (NameSearch Sqlite.Transaction) ->
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar tdnrNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
+ucmWorker ppeVar noTransitiveDepsPPEDVar parseNamesVar tdnrNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
@@ -38,10 +39,12 @@ ucmWorker ppeVar parseNamesVar tdnrNamesVar nameSearchCacheVar getLatestRoot get
         let noTransitiveNames = Backend.namesForBranch IncludeDirectDependencies currentRoot (Path.unabsolute currentPath)
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let ppe = PPE.fromNamesDecl hl parseNames
+        let noTransitiveDepsPPE = PPE.fromNamesDecl hl (NamesWithHistory.fromCurrentNames noTransitiveNames)
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar tdnrNamesVar noTransitiveNames
           writeTVar ppeVar ppe
+          writeTVar noTransitiveDepsPPEDVar noTransitiveDepsPPE
           writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
