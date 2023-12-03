@@ -8,6 +8,7 @@ import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
+import Unison.Names (Names)
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
@@ -22,20 +23,23 @@ import UnliftIO.STM
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
   TVar NamesWithHistory ->
+  TVar Names ->
   TVar (NameSearch Sqlite.Transaction) ->
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
+ucmWorker ppeVar parseNamesVar tdnrNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) currentRoot
+        let tdnrNames = Backend.tdnrNamesForBranch currentRoot (Path.unabsolute currentPath)
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
           writeTVar parseNamesVar parseNames
+          writeTVar tdnrNamesVar tdnrNames
           writeTVar ppeVar ppe
           writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
