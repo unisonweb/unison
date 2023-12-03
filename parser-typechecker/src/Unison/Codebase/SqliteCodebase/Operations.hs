@@ -50,7 +50,6 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
-import Unison.Names.Scoped (ScopedNames (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -518,7 +517,7 @@ filterReferentsHavingTypeImpl ::
 filterReferentsHavingTypeImpl doGetDeclType typRef termRefs =
   Ops.filterTermsByReferentHavingType (Cv.reference1to2 typRef) (Cv.referentid1to2 <$> toList termRefs)
     >>= traverse (Cv.referentid2to1 doGetDeclType)
-      <&> Set.fromList
+    <&> Set.fromList
 
 -- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int
@@ -588,7 +587,7 @@ namesAtPath ::
   BranchHash ->
   -- Include names from the project which contains this path.
   Path ->
-  Transaction ScopedNames
+  Transaction Names
 namesAtPath bh path = do
   let namesRoot = PathSegments . coerce . Path.toList $ path
   namesPerspective@Ops.NamesPerspective {relativePerspective} <- Ops.namesPerspectiveForRootAndPath bh namesRoot
@@ -596,22 +595,12 @@ namesAtPath bh path = do
   NamesInPerspective {termNamesInPerspective, typeNamesInPerspective} <- Ops.allNamesInPerspective namesPerspective
   let termsInPath = convertTerms termNamesInPerspective
   let typesInPath = convertTypes typeNamesInPerspective
-  let rootTerms = Rel.fromList termsInPath
-  let rootTypes = Rel.fromList typesInPath
-  let absoluteRootNames = Names.makeAbsolute $ Names {terms = rootTerms, types = rootTypes}
   let relativeScopedNames =
-        case relativePath of
-          Path.Empty -> (Names.makeRelative $ absoluteRootNames)
-          p ->
-            let reversedPathSegments = reverse . Path.toList $ p
-                relativeTerms = mapMaybe (stripPathPrefix reversedPathSegments) termsInPath
-                relativeTypes = mapMaybe (stripPathPrefix reversedPathSegments) typesInPath
-             in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
-  pure $
-    ScopedNames
-      { relativeScopedNames,
-        absoluteRootNames
-      }
+        let reversedPathSegments = reverse . Path.toList $ relativePath
+            relativeTerms = mapMaybe (stripPathPrefix reversedPathSegments) termsInPath
+            relativeTypes = mapMaybe (stripPathPrefix reversedPathSegments) typesInPath
+         in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
+  pure relativeScopedNames
   where
     convertTypes names =
       names <&> \(S.NamedRef {reversedSegments, ref}) ->
