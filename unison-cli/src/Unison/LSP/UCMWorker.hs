@@ -13,6 +13,7 @@ import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.Server.Backend (DependencyInclusion (IncludeDirectDependencies))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
@@ -34,18 +35,18 @@ ucmWorker ppeVar parseNamesVar tdnrNamesVar nameSearchCacheVar getLatestRoot get
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) currentRoot
-        let tdnrNames = Backend.tdnrNamesForBranch currentRoot (Path.unabsolute currentPath)
+        let noTransitiveNames = Backend.namesForBranch IncludeDirectDependencies currentRoot (Path.unabsolute currentPath)
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
           writeTVar parseNamesVar parseNames
-          writeTVar tdnrNamesVar tdnrNames
+          writeTVar tdnrNamesVar noTransitiveNames
           writeTVar ppeVar ppe
           writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
+          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames (NamesWithHistory.fromCurrentNames noTransitiveNames))
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath
