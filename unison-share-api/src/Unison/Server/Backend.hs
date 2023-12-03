@@ -44,8 +44,10 @@ module Unison.Server.Backend
     lsAtPath,
     lsBranch,
     mungeSyntaxText,
+    DependencyInclusion (..),
     namesForBranch,
     parseNamesForBranch,
+    tdnrNamesForBranch,
     prettyNamesForBranch,
     resolveCausalHashV2,
     resolveRootBranchHashV2,
@@ -262,19 +264,22 @@ suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
-data LibInclusion
-  = ExcludeLibs
-  | IncludeLibs
-  | IncludeTransitiveLibs
+data DependencyInclusion
+  = ExcludeAllDependencies
+  | IncludeDirectDependencies
+  | IncludeTransitiveDependencies
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: LibInclusion -> Branch m -> Path -> Names
+namesForBranch :: DependencyInclusion -> Branch m -> Path -> Names
 namesForBranch libInclusion root scope = currentPathNames
   where
     currentBranch = fromMaybe Branch.empty $ Branch.getAt scope root
     currentBranch0 = Branch.head currentBranch
-    currentPathNames = Branch.toNames currentBranch0
+    currentPathNames = Branch.toNames $ case libInclusion of
+      ExcludeAllDependencies -> Branch.withoutLib currentBranch0
+      IncludeDirectDependencies -> Branch.withoutTransitiveLibs currentBranch0
+      IncludeTransitiveDependencies -> currentBranch0
 
 basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root nameScope =
@@ -282,10 +287,13 @@ basicSuffixifiedNames hashLength root nameScope =
    in suffixifyNames hashLength names0
 
 parseNamesForBranch :: Branch m -> Path -> Names
-parseNamesForBranch root = namesForBranch root
+parseNamesForBranch root = namesForBranch IncludeTransitiveDependencies root
+
+tdnrNamesForBranch :: Branch m -> Path -> Names
+tdnrNamesForBranch root = namesForBranch IncludeDirectDependencies root
 
 prettyNamesForBranch :: Branch m -> Path -> Names
-prettyNamesForBranch root = namesForBranch root
+prettyNamesForBranch root = namesForBranch IncludeTransitiveDependencies root
 
 shallowPPE :: (MonadIO m) => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -1109,7 +1117,8 @@ scopedNamesForBranchHash codebase mbh path = do
         when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
         lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
-        flip namesForBranch path <$> resolveCausalHash (Just rootCausalHash) codebase
+        resolveCausalHash (Just rootCausalHash) codebase <&> \b ->
+          namesForBranch IncludeTransitiveDependencies b path
 
   let ppe = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames names)
   pure (names, ppe)

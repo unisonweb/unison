@@ -48,7 +48,7 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ, tdnrNames)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
@@ -1383,6 +1383,7 @@ loadUnisonFile sourceName text = do
       rootBranch <- Cli.getRootBranch
       currentPath <- Cli.getCurrentPath
       let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) rootBranch
+      let namesForTDNR = Backend.tdnrNamesForBranch rootBranch (Path.unabsolute currentPath)
       State.modify' \loopState ->
         loopState
           & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -1393,7 +1394,8 @@ loadUnisonFile sourceName text = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names = parseNames
+                names = parseNames,
+                namesForTDNR
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
@@ -2928,6 +2930,7 @@ parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
+  namesForTDNR <- tdnrNames
   let names =
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
@@ -2936,7 +2939,8 @@ parseType input src = do
         Parser.ParsingEnv
           { uniqueNames = mempty,
             uniqueTypeGuid = \_ -> pure Nothing,
-            names
+            names,
+            namesForTDNR
           }
   typ <-
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->

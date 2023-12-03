@@ -2,6 +2,7 @@
 module Unison.Cli.NamesUtils
   ( basicParseNames,
     basicPrettyPrintNamesA,
+    tdnrNames,
     displayNames,
     findHistoricalHQs,
     getBasicPrettyPrintNames,
@@ -33,6 +34,12 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
+tdnrNames :: Cli Names
+tdnrNames = do
+  root' <- Cli.getRootBranch
+  currentPath' <- Cli.getCurrentPath
+  pure $ Backend.namesForBranch Backend.IncludeDirectDependencies root' (Path.unabsolute currentPath')
+
 basicParseNames :: Cli Names
 basicParseNames = basicNames'
 
@@ -44,7 +51,7 @@ basicNames' :: Cli Names
 basicNames' = do
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  pure $ Backend.namesForBranch root' (Path.unabsolute currentPath')
+  pure $ Backend.namesForBranch Backend.IncludeTransitiveDependencies root' (Path.unabsolute currentPath')
 
 -- | Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::

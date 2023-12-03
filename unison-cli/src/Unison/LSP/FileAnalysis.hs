@@ -84,6 +84,7 @@ checkFile doc = runMaybeT do
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getParseNames
+  namesForTDNR <- lift getTDNRNames
   let sourceName = getUri $ doc ^. uri
   let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
@@ -94,7 +95,8 @@ checkFile doc = runMaybeT do
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
+            names = parseNames,
+            namesForTDNR
           }
   (notes, parsedFile, typecheckedFile) <- do
     liftIO do

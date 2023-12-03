@@ -137,11 +137,12 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   dirtyFilesVar <- newTVarIO mempty
   ppedCacheVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
+  tdnrNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newTVarIO mempty
   nameSearchCacheVar <- newTVarIO $ NameSearch.makeNameSearch 0 mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
+  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, tdnrNamesCache = readTVarIO tdnrNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
   Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestBranch latestPath)
