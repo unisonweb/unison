@@ -67,13 +67,25 @@
           nixpkgs-devShells = {
             only-tools-nixpkgs = unstable.mkShellNoCC {
               name = "only-tools-nixpkgs";
-              buildInputs = with nixpkgs-packages; [
-                ghc
-                ormolu
-                hls
-                stack
-                hpack
-              ];
+              buildInputs =
+                let
+                  build-tools = with nixpkgs-packages; [
+                    ghc
+                    ormolu
+                    hls
+                    stack
+                    hpack
+                  ];
+                  native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
+                    (with pkgs.darwin.apple_sdk.frameworks;
+                    [ Cocoa ]);
+                  c-deps = with pkgs;
+                    [ pkg-config zlib glibcLocales ];
+                in
+                build-tools ++ c-deps ++ native-packages;
+              shellHook = ''
+                export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
+              '';
             };
           };
         in
