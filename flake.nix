@@ -65,7 +65,7 @@
               hpack = unstable.hpack;
             };
           nixpkgs-devShells = {
-            only-tools-nixpkgs = unstable.mkShellNoCC {
+            only-tools-nixpkgs = unstable.mkShell {
               name = "only-tools-nixpkgs";
               buildInputs =
                 let
