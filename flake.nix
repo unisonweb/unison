@@ -77,9 +77,9 @@
                     hpack
                   ];
                   native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
-                    (with pkgs.darwin.apple_sdk.frameworks;
+                    (with unstable.darwin.apple_sdk.frameworks;
                     [ Cocoa ]);
-                  c-deps = with pkgs;
+                  c-deps = with unstable;
                     [ pkg-config zlib glibcLocales ];
                 in
                 build-tools ++ c-deps ++ native-packages;
