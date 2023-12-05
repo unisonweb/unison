@@ -481,23 +481,23 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
--- Tries to shorten `fqn` to the smallest suffix that still refers
--- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
+-- Uses an efficient logarithmic lookup in the provided relation.
 -- The returned `Name` may refer to multiple hashes if the original FQN
 -- did as well.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. (Ord r) => Name -> r -> R.Relation Name r -> Name
-shortestUniqueSuffix fqn r rel =
+shortestUniqueSuffix :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+shortestUniqueSuffix fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
-    allowed :: Set r
-    allowed =
+    allRefs :: Set r
+    allRefs =
       R.lookupDom fqn rel
     isOk :: Name -> Bool
     isOk suffix =
-      (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      Set.size rs == 1 || rs == allRefs
       where
         rs :: Set r
         rs =
