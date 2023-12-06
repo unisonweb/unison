@@ -377,7 +377,7 @@ So we can see the pretty-printed output:
     fix_525_exampleTerm : Text -> Nat
     fix_525_exampleTerm quaffle =
       use Nat +
-      Fix_525.bar.quaffle + 1
+      bar.quaffle + 1
     
     fix_525_exampleType :
       Id qualifiedName -> Id Fully.qualifiedName
@@ -717,16 +717,13 @@ So we can see the pretty-printed output:
     use_clauses_example : Int -> Text -> Nat
     use_clauses_example oo quaffle =
       use Nat +
-      Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+      bar.quaffle + bar.quaffle + 1
     
     use_clauses_example2 : Int -> Nat
     use_clauses_example2 oo =
       use Nat +
       quaffle = "hi"
-      Fix_525.bar.quaffle
-        + Fix_525.bar.quaffle
-        + Fix_525.bar.quaffle
-        + 1
+      bar.quaffle + bar.quaffle + bar.quaffle + 1
     
     UUID.random : 'UUID
     UUID.random = do UUID 0 (0, 0)
