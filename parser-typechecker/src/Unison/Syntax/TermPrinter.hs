@@ -18,6 +18,8 @@ import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
+import Data.List qualified as List
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
@@ -36,6 +38,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -488,16 +491,16 @@ pretty0
               -}
               (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
                 px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
-                pure . paren (p >= 11 || isBlock x && p >= 3) $ 
+                pure . paren (p >= 11 || isBlock x && p >= 3) $
                   fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
               (Apps' f (unsnoc -> Just (args, lastArg)), _)
                 | isSoftHangable lastArg -> do
-                  fun <- goNormal 9 f
-                  args' <- traverse (goNormal 10) args
-                  lastArg' <- goNormal 0 lastArg
-                  let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
-                  pure . paren (p >= 3) $
-                    PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
+                    fun <- goNormal 9 f
+                    args' <- traverse (goNormal 10) args
+                    lastArg' <- goNormal 0 lastArg
+                    let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
+                    pure . paren (p >= 3) $
+                      PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Ands' xs lastArg, _) ->
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
@@ -2139,8 +2142,22 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
       Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
+    tweak :: Set Name -> (HQ'.HashQualified Name, HQ'.HashQualified Name) -> (HQ'.HashQualified Name, HQ'.HashQualified Name)
     tweak used (fullName, HQ'.NameOnly suffixedName)
-      | Set.member suffixedName used = (fullName, fullName)
+      | Set.member suffixedName used =
+          let revFQNSegments :: NEL.NonEmpty NameSegment
+              revFQNSegments = Name.reverseSegments (HQ'.toName fullName)
+              minimallySuffixed :: HQ'.HashQualified Name
+              minimallySuffixed =
+                revFQNSegments
+                  & NEL.inits
+                  & NEL.tail
+                  & mapMaybe (fmap Name.fromReverseSegments . NEL.nonEmpty)
+                  & List.drop (Name.countSegments suffixedName)
+                  & filter ((\n -> n `Set.notMember` used))
+                  & listToMaybe
+                  & maybe fullName HQ'.NameOnly
+           in (fullName, minimallySuffixed)
     tweak _ p = p
     varToName v = toList (Name.fromText (Var.name v))
 
