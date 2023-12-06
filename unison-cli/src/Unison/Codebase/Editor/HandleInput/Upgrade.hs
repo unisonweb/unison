@@ -33,17 +33,23 @@ import Unison.Codebase.Editor.HandleInput.Update2
   )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import Unison.PrettyPrintEnv.Names qualified as PPE.Names
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite (Transaction)
 import Unison.UnisonFile qualified as UnisonFile
+import Unison.Util.Relation qualified as Relation
 import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
@@ -61,14 +67,12 @@ handleUpgrade oldDepName newDepName = do
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  let currentV1BranchWithoutOldAndNewDeps = deleteLibdep newDepName currentV1BranchWithoutOldDep
   oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
   _newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
   let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
   let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
   let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
-  let namesExcludingOldAndNewDeps = Branch.toNames currentV1BranchWithoutOldAndNewDeps
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -113,27 +117,9 @@ handleUpgrade oldDepName newDepName = do
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let namesToPPED = PPED.fromNamesDecl hashLength . NamesWithHistory.fromCurrentNames
-      let printPPE1 = namesToPPED namesExcludingOldDep
-      -- These "fake names" are all of things in `lib.old`, with the `old` segment swapped out for `new`
-      --
-      -- If we fall back to this second PPE, we know we have a reference in `fakeNames` (i.e. a reference originally
-      -- from `old`, and found nowhere else in our project+libdeps), but we have to include
-      -- `namesExcludingOldAndNewDeps` as well, so that we don't over-suffixify.
-      --
-      -- For example, consider the names
-      --
-      --   #old = lib.new.foobaloo
-      --   #thing = my.project.foobaloo
-      --
-      -- Were we to fall back on this PPE looking up a name for #old, we'd not want to return "foobaloo", but rather
-      -- "new.foobaloo".
-      let fakeNames =
-            oldDepV1Branch
-              & Branch.toNames
-              & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
-      let printPPE2 = namesToPPED (namesExcludingOldAndNewDeps <> fakeNames)
-      pure (unisonFile, printPPE1 `PPED.addFallback` printPPE2)
+      let primaryPPE = makeOldDepPPE newDepName namesExcludingOldDep oldDepV1Branch
+      let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
+      pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
   typecheckedUnisonFile <-
@@ -155,12 +141,13 @@ handleUpgrade oldDepName newDepName = do
       Cli.respond (Output.UpgradeFailure oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
-  branchUpdates <- Cli.runTransactionWithRollback \abort -> do
-    Codebase.addDefsToCodebase codebase typecheckedUnisonFile
-    typecheckedUnisonFileToBranchUpdates
-      abort
-      (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
-      typecheckedUnisonFile
+  branchUpdates <-
+    Cli.runTransactionWithRollback \abort -> do
+      Codebase.addDefsToCodebase codebase typecheckedUnisonFile
+      typecheckedUnisonFileToBranchUpdates
+        abort
+        (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+        typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade
     ( Path.unabsolute projectPath,
@@ -171,6 +158,98 @@ handleUpgrade oldDepName newDepName = do
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
+
+-- `makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch` makes a PPE(D) that only knows how to render `old` deps;
+-- other names should be provided by some fallback PPE.
+--
+-- How we render `old` deps is rather subtle and complicated, but the basic idea is that an `upgrade old new` ought to
+-- render all of the old things like `lib.old.foo#oldfoo` as `lib.new.foo` to be parsed and typechecked.
+--
+-- To render some reference #foo, if it's not a reference that's directly part of old's API (i.e. it has some name in
+-- `lib.old.*` that isn't in one of old's deps `lib.old.lib.*`, then return the empty list of names. (Again, the
+-- fallback PPE will ultimately provide a name for such a #foo).
+--
+-- Otherwise, we have some #foo that has at least one name in `lib.old.*`; say it's called `lib.old.foo`. The goal is to
+-- render this as `lib.new.foo`, regardless of how many other aliases #foo has in the namespace. (It may be the case
+-- that #foo has a name outside of the libdeps, like `my.name.for.foo`, or maybe it has a name in another dependency
+-- entirely, like `lib.otherdep.othername`).
+makeOldDepPPE :: NameSegment -> Names -> Branch0 m -> PrettyPrintEnvDecl
+makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
+  let makePPE suffixifyTerms suffixifyTypes =
+        PrettyPrintEnv
+          { termNames = \ref ->
+              if Set.member ref termsDirectlyInOldDep
+                then
+                  -- Say ref is #oldfoo, with two names in `old`:
+                  --
+                  --   [ lib.old.foo, lib.old.fooalias ]
+                  --
+                  -- We start from that same list of names with `new` swapped in for `old`:
+                  --
+                  --   [ lib.new.foo, lib.new.fooalias ]
+                  Names.namesForReferent fakeNames ref
+                    & Set.toList
+                    -- We manually lift those to hashless hash-qualified names, which isn't a very significant
+                    -- implementation detail, we just happen to not want hashes, even if the old name like "lib.old.foo"
+                    -- was conflicted in `old`.
+                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                    -- We find the shortest unique suffix of each name in a naming context which:
+                    --
+                    --   1. Starts from all names, minus the entire `lib.old` namespace.
+                    --
+                    --   2. Deletes every name for references directly in `lib.old` (i.e. in `lib.old.*` without having
+                    --      to descend into some `lib.old.lib.*`.
+                    --
+                    --      For example, if there's both
+                    --
+                    --        lib.old.foo#oldfoo
+                    --        someAlias#oldfoo
+                    --
+                    --      then (again, because #oldfoo has a name directly in `lib.old`), we delete names like
+                    --      `someAlias#oldfoo`.
+                    --
+                    --   3. Adds back in names like `lib.new.*` for every hash directly referenced in `lib.old.*`, which
+                    --      would be
+                    --
+                    --        [ lib.new.foo#oldfoo, lib.new.fooalias#oldfoo ]
+                    & suffixifyTerms
+                    & PPE.Names.prioritize
+                else [],
+            typeNames = \ref ->
+              if Set.member ref typesDirectlyInOldDep
+                then
+                  Names.namesForReference fakeNames ref
+                    & Set.toList
+                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                    & suffixifyTypes
+                    & PPE.Names.prioritize
+                else []
+          }
+   in PrettyPrintEnvDecl
+        { unsuffixifiedPPE = makePPE id id,
+          suffixifiedPPE =
+            makePPE
+              ( PPE.Names.shortestUniqueSuffixes $
+                  namesExcludingOldDep
+                    & Names.terms
+                    & Relation.subtractRan termsDirectlyInOldDep
+                    & Relation.union (Names.terms fakeNames)
+              )
+              ( PPE.Names.shortestUniqueSuffixes $
+                  namesExcludingOldDep
+                    & Names.types
+                    & Relation.subtractRan typesDirectlyInOldDep
+                    & Relation.union (Names.types fakeNames)
+              )
+        }
+  where
+    oldDepWithoutItsDeps = over Branch.children (Map.delete Name.libSegment) oldDepBranch
+    termsDirectlyInOldDep = Branch.deepReferents oldDepWithoutItsDeps
+    typesDirectlyInOldDep = Branch.deepTypeReferences oldDepWithoutItsDeps
+    fakeNames =
+      oldDepWithoutItsDeps
+        & Branch.toNames
+        & Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment]))
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
