@@ -15,4 +15,5 @@ mything = lib.old.foo + 100
 myproject/main> update
 myproject/main> upgrade old new
 myproject/main> view mything
+myproject/main> view bar
 ```

@@ -38,4 +38,9 @@ myproject/main> view mything
     use Nat +
     foo + 100
 
+myproject/main> view bar
+
+  bar : Nat
+  bar = 141
+
 ```
