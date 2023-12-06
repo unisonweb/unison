@@ -150,7 +150,14 @@ handleUpgrade oldDepName newDepName = do
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
       Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
       Cli.Env {isTranscript} <- ask
-      maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
+      maybePath <-
+        if isTranscript
+          then pure Nothing
+          else do
+            maybeLatestFile <- Cli.getLatestFile
+            case maybeLatestFile of
+              Nothing -> pure (Just "scratch.u")
+              Just (file, _) -> pure (Just file)
       Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
       Cli.respond (Output.UpgradeFailure oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
