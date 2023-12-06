@@ -71,7 +71,10 @@ import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
+import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
+import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
+import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
 import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
@@ -783,58 +786,12 @@ loop e = do
                 d = Referent.Ref . Reference.DerivedId
                 base :: Path.Split' = (Path.relativeEmpty', "metadata")
                 authorPath' = base |> "authors" |> authorNameSegment
-            MoveTermI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTerms <- Cli.getTermsAt src
-              srcTerm <-
-                Set.asSingleton srcTerms & onNothing do
-                  if Set.null srcTerms
-                    then Cli.returnEarly (TermNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
-              dest <- Cli.resolveSplit' dest'
-              destTerms <- Cli.getTermsAt (Path.convert dest)
-              when (not (Set.null destTerms)) do
-                Cli.returnEarly (TermAlreadyExists dest' destTerms)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTermMetadataAt p srcTerm root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-                  BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
-                ]
-              Cli.respond Success
-            MoveTypeI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTypes <- Cli.getTypesAt src
-              srcType <-
-                Set.asSingleton srcTypes & onNothing do
-                  if Set.null srcTypes
-                    then Cli.returnEarly (TypeNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
-              dest <- Cli.resolveSplit' dest'
-              destTypes <- Cli.getTypesAt (Path.convert dest)
-              when (not (Set.null destTypes)) do
-                Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTypeMetadataAt p srcType root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-                  BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
-                ]
-              Cli.respond Success
+            MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
+            MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
+            MoveAllI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
+              desc <- inputDescription input
+              handleMoveAll hasConfirmed src' dest' desc
             DeleteI dtarget -> case dtarget of
               DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
               DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
@@ -1477,6 +1434,10 @@ inputDescription input =
       src <- p' src0
       dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
+    MoveAllI src0 dest0 -> do
+      src <- p' src0
+      dest <- p' dest0
+      pure ("move " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
       dest <- ps' dest0
@@ -1861,7 +1822,7 @@ handleDependencies hq = do
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
   #numberedArgs
     .= map (Text.unpack . Reference.toText . snd) types
-      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -2142,12 +2103,12 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
           q r = \case
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
               if
-                | ref == DD.testResultRef ->
-                    if
-                      | cid == DD.okConstructorId -> Just (Right (r, msg))
-                      | cid == DD.failConstructorId -> Just (Left (r, msg))
-                      | otherwise -> Nothing
-                | otherwise -> Nothing
+                  | ref == DD.testResultRef ->
+                      if
+                          | cid == DD.okConstructorId -> Just (Right (r, msg))
+                          | cid == DD.failConstructorId -> Just (Left (r, msg))
+                          | otherwise -> Nothing
+                  | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
