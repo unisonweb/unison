@@ -1,5 +1,3 @@
-{-# LANGUAGE PackageImports #-}
-
 module Unison.Util.Nametree
   ( -- * Nametree
     Nametree (..),
@@ -21,6 +19,7 @@ import Data.List.NonEmpty (NonEmpty, pattern (:|))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Semialign (Semialign (alignWith), Unzip (unzipWith), Zip (zipWith))
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..), these)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -28,7 +27,6 @@ import Unison.NameSegment
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import "semigroups" Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Prelude hiding (zipWith)
 
 -- | A nametree has a value, and a collection of children nametrees keyed by name segment.
