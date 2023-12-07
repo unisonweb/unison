@@ -34,6 +34,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified' qualified as HQ'
+import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
@@ -47,8 +48,12 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Reference (TermReference, TypeReference)
+import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.UnisonFile qualified as UnisonFile
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Witch (unsafeFrom)
 
@@ -67,8 +72,10 @@ handleUpgrade oldDepName newDepName = do
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
-  _newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
+  oldDepV1Branch <- over Branch.children (Map.delete Name.libSegment) <$> Cli.expectBranch0AtPath' oldDepPath
+  let oldDepWithoutItsDeps = over Branch.children (Map.delete Name.libSegment) oldDepV1Branch
+
+  newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
   let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
   let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
@@ -101,14 +108,43 @@ handleUpgrade oldDepName newDepName = do
   --
   --     mything#mything2 = #newfoo + 10
 
+  let newDepWithoutDeps = over Branch.children (Map.delete Name.libSegment) newDepV1Branch
+  let filterUnchangedTerms :: Relation Referent Name -> Set TermReference
+      filterUnchangedTerms oldTerms =
+        let phi ref oldNames = case Referent.toTermReference ref of
+              Nothing -> Set.empty
+              Just termRef ->
+                let newNames = Relation.lookupDom ref newTerms
+                 in case newNames `Set.disjoint` oldNames of
+                      True -> Set.singleton termRef
+                      False -> Set.empty
+         in Map.foldMapWithKey phi $
+              Relation.domain oldTerms
+        where
+          newTerms = Branch.deepTerms newDepWithoutDeps
+
+  let filterUnchangedTypes :: Relation TypeReference Name -> Set TypeReference
+      filterUnchangedTypes oldTypes =
+        let phi typeRef oldNames =
+              let newNames = Relation.lookupDom typeRef newTypes
+               in case newNames `Set.disjoint` oldNames of
+                    True -> Set.singleton typeRef
+                    False -> Set.empty
+         in Map.foldMapWithKey phi $
+              Relation.domain oldTypes
+        where
+          newTypes = Branch.deepTypes newDepWithoutDeps
+
   (unisonFile, printPPE) <-
     Cli.runTransactionWithRollback \abort -> do
-      -- Create a Unison file that contains all of our dependents of things in `lib.old`.
+      -- Create a Unison file that contains all of our dependents of modified defns of `lib.old`. todo: twiddle
       unisonFile <- do
         dependents <-
           Operations.dependentsWithinScope
             (Names.referenceIds namesExcludingLibdeps)
-            (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
+            ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutItsDeps)
+                <> filterUnchangedTypes (Branch.deepTypes oldDepV1Branch)
+            )
         addDefinitionsToUnisonFile
           abort
           codebase
@@ -117,7 +153,7 @@ handleUpgrade oldDepName newDepName = do
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let primaryPPE = makeOldDepPPE newDepName namesExcludingOldDep oldDepV1Branch
+      let primaryPPE = makeOldDepPPE newDepName namesExcludingOldDep oldDepWithoutItsDeps
       let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
@@ -179,14 +215,14 @@ makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
         PrettyPrintEnv
           { termNames = \ref ->
               if Set.member ref termsDirectlyInOldDep
-                then
-                  -- Say ref is #oldfoo, with two names in `old`:
-                  --
-                  --   [ lib.old.foo, lib.old.fooalias ]
-                  --
-                  -- We start from that same list of names with `new` swapped in for `old`:
-                  --
-                  --   [ lib.new.foo, lib.new.fooalias ]
+                then -- Say ref is #oldfoo, with two names in `old`:
+                --
+                --   [ lib.old.foo, lib.old.fooalias ]
+                --
+                -- We start from that same list of names with `new` swapped in for `old`:
+                --
+                --   [ lib.new.foo, lib.new.fooalias ]
+
                   Names.namesForReferent fakeNames ref
                     & Set.toList
                     -- We manually lift those to hashless hash-qualified names, which isn't a very significant
