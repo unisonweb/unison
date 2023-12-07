@@ -560,7 +560,7 @@ loop e = do
               let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch NamesWithHistory.ExactName docName
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch NamesWithHistory.IncludeSuffixes docName
                 for docRefs $ \docRef -> do
                   Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
