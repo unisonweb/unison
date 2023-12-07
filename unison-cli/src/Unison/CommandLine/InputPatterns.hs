@@ -6,7 +6,6 @@ module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
 import Control.Lens.Cons qualified as Cons
-import Data.Char (isSpace)
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
@@ -21,7 +20,6 @@ import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
-import Text.Megaparsec.Char qualified as Megaparsec
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -47,6 +45,7 @@ import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath)
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.Globbing qualified as Globbing
@@ -61,7 +60,6 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
-import Unison.Project qualified as Project
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
 import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
 import Unison.Util.ColorText qualified as CT
@@ -1179,9 +1177,9 @@ forkLocal =
     ]
     (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     ( \case
-        [src, dest] -> first fromString $ do
-          src <- Input.parseBranchId src
-          dest <- Path.parsePath' dest
+        [src, dest] -> do
+          src <- Input.parseBranchId2 src
+          dest <- parseBranchRelativePath dest
           pure $ Input.ForkLocalBranchI src dest
         _ -> Left (I.help forkLocal)
     )
@@ -3616,33 +3614,3 @@ showErrorItem :: Megaparsec.ErrorItem (Megaparsec.Token Text) -> String
 showErrorItem (Megaparsec.Tokens ts) = Megaparsec.showTokens (Proxy @Text) ts
 showErrorItem (Megaparsec.Label label) = NE.toList label
 showErrorItem Megaparsec.EndOfInput = "end of input"
-
-parseBranchRelativePath :: String -> Either (P.Pretty CT.ColorText) (These (These ProjectName ProjectBranchName) Path.Relative)
-parseBranchRelativePath str =
-  case Megaparsec.parse branchRelativePathParser "<none>" (Text.pack str) of
-    Left e -> Left (P.string (Megaparsec.errorBundlePretty e))
-    Right x -> Right x
-
-branchRelativePathParser :: Megaparsec.Parsec Void Text (These (These ProjectName ProjectBranchName) Path.Relative)
-branchRelativePathParser =
-  asum
-    [fullPath, currentBranchRootPath]
-  where
-    relPath = do
-      pathStr <- Megaparsec.takeWhile1P (Just "path char") (not . isSpace)
-      case Path.parsePath' (Text.unpack pathStr) of
-        Left err -> fail err
-        Right (Path.Path' inner) -> case inner of
-          Left _ -> fail "Expected a relative path but found an absolute path"
-          Right x -> pure x
-
-    fullPath = do
-      projectAndBranchNames <-  Project.projectAndBranchNamesParser ProjectBranchSpecifier'Name
-      optional (Megaparsec.char ':') >>= \case
-        Nothing -> pure (This projectAndBranchNames)
-        Just _ -> do
-          These projectAndBranchNames <$> relPath
-
-    currentBranchRootPath = do
-      _ <- Megaparsec.char ':'
-      That <$> relPath
