@@ -241,7 +241,7 @@ lookupHQRef searchType which isPrefixOf hq NamesWithHistory {currentNames, oldNa
           Set.filter (isPrefixOf sh) (R.ran ns)
   where
     doSearch = case searchType of
-      IncludeSuffixes -> Name.searchBySuffix
+      IncludeSuffixes -> Name.searchByRankedSuffix
       ExactName -> Relation.lookupDom
     currentRefs = which currentNames
     oldRefs = which oldNames
