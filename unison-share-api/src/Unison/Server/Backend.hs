@@ -996,14 +996,15 @@ evalDocRef rt codebase r = do
 docsForDefinitionName ::
   Codebase IO Symbol Ann ->
   NameSearch Sqlite.Transaction ->
+  NamesWithHistory.SearchType ->
   Name ->
   IO [TermReference]
-docsForDefinitionName codebase (NameSearch {termSearch}) name = do
+docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
   let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
-        lookupRelativeHQRefs' termSearch NamesWithHistory.ExactName (HQ'.NameOnly name)
+        lookupRelativeHQRefs' termSearch searchType (HQ'.NameOnly name)
     filterForDocs (toList refs)
   where
     filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]

@@ -70,7 +70,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- docsForDefinitionName codebase nameSearch name
+        docRefs <- docsForDefinitionName codebase nameSearch NamesWithHistory.ExactName name
         renderDocRefs pped width codebase rt docRefs
 
   let fqnPPE = PPED.unsuffixifiedPPE pped
