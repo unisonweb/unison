@@ -714,8 +714,8 @@ loop e = do
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = NamesWithHistory.lookupHQTerm query names
-                  types = NamesWithHistory.lookupHQType query names
+                  terms = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes query names
+                  types = NamesWithHistory.lookupHQType NamesWithHistory.IncludeSuffixes query names
                   terms' :: [(Referent, [HQ'.HashQualified Name])]
                   terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
                   types' :: [(Reference, [HQ'.HashQualified Name])]
@@ -1663,7 +1663,7 @@ lookupRewrite onErr prepare rule = do
   ot <- case ot of
     Just _ -> pure ot
     Nothing -> do
-      case NamesWithHistory.lookupHQTerm rule currentNames of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes rule currentNames of
         s
           | Set.size s == 1,
             Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
@@ -1960,7 +1960,7 @@ handleIOTest main = do
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
       Cli.runTransaction do
-        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
+        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes main parseNames)) \ref0 ->
           runMaybeT do
             ref <- MaybeT (pure (Referent.toTermReferenceId ref0))
             typ <- MaybeT (loadTypeOfTerm codebase (Referent.fromTermReferenceId ref))
@@ -2763,7 +2763,7 @@ displayI prettyPrintNames outputLoc hq = do
   case addWatch (HQ.toString hq) latestTypecheckedFile of
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
-          results = NamesWithHistory.lookupHQTerm hq parseNames
+          results = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq parseNames
       pped <- prettyPrintEnvDecl parseNames
       ref <-
         Set.asSingleton results & onNothing do
@@ -2804,7 +2804,7 @@ docsI srcLoc prettyPrintNames src =
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
-      case NamesWithHistory.lookupHQTerm dotDoc fnames of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc fnames of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
@@ -2830,7 +2830,7 @@ docsI srcLoc prettyPrintNames src =
     codebaseByName :: Cli ()
     codebaseByName = do
       parseNames <- basicParseNames
-      case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
