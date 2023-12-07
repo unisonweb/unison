@@ -80,8 +80,12 @@
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
 module Unison.Codebase.Branch.DeclCoherencyCheck
-  ( IncoherentDeclReason (..),
+  ( -- * Decl coherency check
+    IncoherentDeclReason (..),
     checkDeclCoherency,
+
+    -- * Branch-to-Nametree conversion utils
+    namespaceToNametree,
   )
 where
 
@@ -97,8 +101,11 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
+import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
+import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -111,7 +118,10 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
 import Unison.Util.Nametree (Defns (..), Nametree (..))
+import Unison.Util.Relation qualified as Relation
+import Unison.Util.Star3 qualified as Star3
 import Witch (unsafeFrom)
+import Prelude hiding (zipWith)
 
 data IncoherentDeclReason
   = -- | A second naming of a constructor was discovered underneath a decl's name, e.g.
@@ -229,3 +239,38 @@ data WhatHappened a
   = UninhabitedDecl
   | InhabitedDecl !a
   deriving stock (Functor, Show)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Conversions from V1 branches ("namespace") to nametree
+--
+-- These functions exist primarily because `checkDeclCoherency` was written first against the idealized `Nametree` type.
+-- However, we actually (currently, anyway) call these from a context in which we have a V1 branch already loaded into
+-- memory.
+--
+-- So, we could either:
+--
+--   1. Convert v1 branch to nametree, then call `checkDeclCoherency` with that nametree
+--   2. Rewrite `checkDeclCoherency` to crawl v1 branches instead of nametrees
+--
+-- We currently implement (1), even though it's more memory-intensive. The hope is that over time v1 branches will be
+-- refined to resemble the idealized nametree type anyway.
+
+namespaceToNametree ::
+  Branch0 m ->
+  Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)))
+namespaceToNametree namespace =
+  zipWith Defns (namespaceTermsToNametree namespace) (namespaceTypesToNametree namespace)
+
+namespaceTermsToNametree :: Branch0 m -> Nametree (Map NameSegment (Set Referent))
+namespaceTermsToNametree namespace =
+  Nametree
+    { value = Relation.range (Star3.d1 (Branch._terms namespace)),
+      children = namespaceTermsToNametree . Branch.head <$> (Branch._children namespace)
+    }
+
+namespaceTypesToNametree :: Branch0 m -> Nametree (Map NameSegment (Set TypeReference))
+namespaceTypesToNametree namespace =
+  Nametree
+    { value = Relation.range (Star3.d1 (Branch._types namespace)),
+      children = namespaceTypesToNametree . Branch.head <$> (Branch._children namespace)
+    }
