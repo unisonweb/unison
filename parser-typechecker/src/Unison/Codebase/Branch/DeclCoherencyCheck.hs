@@ -86,6 +86,7 @@ module Unison.Codebase.Branch.DeclCoherencyCheck
 
     -- * Branch-to-Nametree conversion utils
     namespaceToNametree,
+    assertNametreeHasNoConflictedNames,
   )
 where
 
@@ -117,8 +118,9 @@ import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
-import Unison.Util.Nametree (Defns (..), Nametree (..))
+import Unison.Util.Nametree (Defns (..), Nametree (..), traverseNametreeWithName)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
 import Witch (unsafeFrom)
 import Prelude hiding (zipWith)
@@ -274,3 +276,18 @@ namespaceTypesToNametree namespace =
     { value = Relation.range (Star3.d1 (Branch._types namespace)),
       children = namespaceTypesToNametree . Branch.head <$> (Branch._children namespace)
     }
+
+-- | Assert that a nametree has no conflicted names.
+-- If the nametree does have a conflicted name, returns one of them arbitrarily.
+-- If it doesn't, returns the refined nametree (with one ref per name).
+assertNametreeHasNoConflictedNames ::
+  Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))) ->
+  Either Name (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
+assertNametreeHasNoConflictedNames =
+  traverseNametreeWithName \names Defns {terms, types} -> do
+    let assertUnconflicted :: NameSegment -> Set ref -> Either Name ref
+        assertUnconflicted name refs =
+          case Set.asSingleton refs of
+            Nothing -> Left (Name.fromReverseSegments (name :| names))
+            Just ref -> Right ref
+    Defns <$> Map.traverseWithKey assertUnconflicted terms <*> Map.traverseWithKey assertUnconflicted types
