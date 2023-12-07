@@ -560,7 +560,7 @@ loop e = do
               let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch NamesWithHistory.ExactName docName
                 for docRefs $ \docRef -> do
                   Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
@@ -937,7 +937,7 @@ loop e = do
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
               QueryResult fromMisses' fromHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
-              QueryResult toMisses' toHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [to] 
+              QueryResult toMisses' toHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
