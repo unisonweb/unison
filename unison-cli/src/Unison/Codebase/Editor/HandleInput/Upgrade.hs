@@ -72,8 +72,7 @@ handleUpgrade oldDepName newDepName = do
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  oldDepV1Branch <- over Branch.children (Map.delete Name.libSegment) <$> Cli.expectBranch0AtPath' oldDepPath
-  let oldDepWithoutItsDeps = over Branch.children (Map.delete Name.libSegment) oldDepV1Branch
+  oldDepWithoutItsDeps <- over Branch.children (Map.delete Name.libSegment) <$> Cli.expectBranch0AtPath' oldDepPath
 
   newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
@@ -143,7 +142,7 @@ handleUpgrade oldDepName newDepName = do
           Operations.dependentsWithinScope
             (Names.referenceIds namesExcludingLibdeps)
             ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutItsDeps)
-                <> filterUnchangedTypes (Branch.deepTypes oldDepV1Branch)
+                <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutItsDeps)
             )
         addDefinitionsToUnisonFile
           abort
