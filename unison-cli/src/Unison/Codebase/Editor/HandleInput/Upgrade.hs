@@ -11,6 +11,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import U.Codebase.CacheTransaction (cacheTransaction)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -21,6 +22,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
@@ -49,6 +51,7 @@ import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite (Transaction)
 import Unison.UnisonFile qualified as UnisonFile
+import Unison.Util.Cache qualified as Cache
 import Unison.Util.Relation qualified as Relation
 import Witch (unsafeFrom)
 
@@ -65,14 +68,21 @@ handleUpgrade oldDepName newDepName = do
   let oldDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, oldDepName]))
   let newDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newDepName]))
 
-  currentV1Branch <- Cli.getBranch0At projectPath
-  let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  oldDepV1Branch <- Cli.expectBranch0AtPath' oldDepPath
-  _newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
+  currentBranch <- Cli.getBranch0At projectPath
+  let currentBranchWithoutOldDep = deleteLibdep oldDepName currentBranch
+  let currentBranchWithoutLibdeps = deleteLibdeps currentBranch
+  oldDepBranch <- Cli.expectBranch0AtPath' oldDepPath
+  _newDepBranch <- Cli.expectBranch0AtPath' newDepPath
 
-  let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
-  let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
-  let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
+  let namesWithoutOldDep = Branch.toNames currentBranchWithoutOldDep
+  let namesWithoutLibdeps = Branch.toNames currentBranchWithoutLibdeps
+  let constructorNamesWithoutLibdeps = forwardCtorNames namesWithoutLibdeps
+
+  currentNametree <-
+    currentBranch
+      & DeclCoherencyCheck.namespaceToNametree
+      & DeclCoherencyCheck.assertNametreeHasNoConflictedNames
+      & onLeft wundefined
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -101,27 +111,33 @@ handleUpgrade oldDepName newDepName = do
   --
   --     mything#mything2 = #newfoo + 10
 
+  declNumConstructorsCache <- Cache.semispaceCache 4096
   (unisonFile, printPPE) <-
-    Cli.runTransactionWithRollback \abort -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
+      DeclCoherencyCheck.checkDeclCoherency
+        (cacheTransaction declNumConstructorsCache Operations.expectDeclNumConstructors)
+        currentNametree
+        & onLeftM wundefined
+
       -- Create a Unison file that contains all of our dependents of things in `lib.old`.
       unisonFile <- do
         dependents <-
           Operations.dependentsWithinScope
-            (Names.referenceIds namesExcludingLibdeps)
-            (Branch.deepTermReferences oldDepV1Branch <> Branch.deepTypeReferences oldDepV1Branch)
+            (Names.referenceIds namesWithoutLibdeps)
+            (Branch.deepTermReferences oldDepBranch <> Branch.deepTypeReferences oldDepBranch)
         addDefinitionsToUnisonFile
           abort
           codebase
-          namesExcludingLibdeps
-          constructorNamesExcludingLibdeps
+          namesWithoutLibdeps
+          constructorNamesWithoutLibdeps
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let primaryPPE = makeOldDepPPE newDepName namesExcludingOldDep oldDepV1Branch
-      let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
+      let primaryPPE = makeOldDepPPE newDepName namesWithoutOldDep oldDepBranch
+      let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesWithoutOldDep)
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
-  parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
+  parsingEnv <- makeParsingEnv projectPath namesWithoutOldDep
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
       -- Small race condition: since picking a branch name and creating the branch happen in different
@@ -134,7 +150,7 @@ handleUpgrade oldDepName newDepName = do
           temporaryBranchName
           textualDescriptionOfUpgrade
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
-      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
+      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentBranchWithoutOldDep)
       Cli.Env {isTranscript} <- ask
       maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
       Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
@@ -142,11 +158,11 @@ handleUpgrade oldDepName newDepName = do
       Cli.returnEarlyWithoutOutput
 
   branchUpdates <-
-    Cli.runTransactionWithRollback \abort -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       Codebase.addDefsToCodebase codebase typecheckedUnisonFile
       typecheckedUnisonFileToBranchUpdates
         abort
-        (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+        (findCtorNames namesWithoutLibdeps constructorNamesWithoutLibdeps Nothing)
         typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade
@@ -159,7 +175,7 @@ handleUpgrade oldDepName newDepName = do
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
 
--- `makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch` makes a PPE(D) that only knows how to render `old` deps;
+-- `makeOldDepPPE newDepName namesWithoutOldDep oldDepBranch` makes a PPE(D) that only knows how to render `old` deps;
 -- other names should be provided by some fallback PPE.
 --
 -- How we render `old` deps is rather subtle and complicated, but the basic idea is that an `upgrade old new` ought to
@@ -174,19 +190,19 @@ handleUpgrade oldDepName newDepName = do
 -- that #foo has a name outside of the libdeps, like `my.name.for.foo`, or maybe it has a name in another dependency
 -- entirely, like `lib.otherdep.othername`).
 makeOldDepPPE :: NameSegment -> Names -> Branch0 m -> PrettyPrintEnvDecl
-makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
+makeOldDepPPE newDepName namesWithoutOldDep oldDepBranch =
   let makePPE suffixifyTerms suffixifyTypes =
         PrettyPrintEnv
           { termNames = \ref ->
               if Set.member ref termsDirectlyInOldDep
-                then
-                  -- Say ref is #oldfoo, with two names in `old`:
-                  --
-                  --   [ lib.old.foo, lib.old.fooalias ]
-                  --
-                  -- We start from that same list of names with `new` swapped in for `old`:
-                  --
-                  --   [ lib.new.foo, lib.new.fooalias ]
+                then -- Say ref is #oldfoo, with two names in `old`:
+                --
+                --   [ lib.old.foo, lib.old.fooalias ]
+                --
+                -- We start from that same list of names with `new` swapped in for `old`:
+                --
+                --   [ lib.new.foo, lib.new.fooalias ]
+
                   Names.namesForReferent fakeNames ref
                     & Set.toList
                     -- We manually lift those to hashless hash-qualified names, which isn't a very significant
@@ -230,13 +246,13 @@ makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
           suffixifiedPPE =
             makePPE
               ( PPE.Names.shortestUniqueSuffixes $
-                  namesExcludingOldDep
+                  namesWithoutOldDep
                     & Names.terms
                     & Relation.subtractRan termsDirectlyInOldDep
                     & Relation.union (Names.terms fakeNames)
               )
               ( PPE.Names.shortestUniqueSuffixes $
-                  namesExcludingOldDep
+                  namesWithoutOldDep
                     & Names.types
                     & Relation.subtractRan typesDirectlyInOldDep
                     & Relation.union (Names.types fakeNames)
@@ -283,3 +299,7 @@ findTemporaryBranchName projectId oldDepName newDepName = do
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
   over (Branch.children . ix Name.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
+
+deleteLibdeps :: Branch0 m -> Branch0 m
+deleteLibdeps =
+  over Branch.children (Map.delete Name.libSegment)

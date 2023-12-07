@@ -134,7 +134,7 @@ resolveImplicitSource includeSquashed =
     Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
     Just (localProjectAndBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
-        Cli.runTransactionWithRollback \rollback -> do
+        Cli.runTransactionWithReturnEarly \abort -> do
           let localProjectId = localProjectAndBranch ^. #project . #projectId
           let localBranchId = localProjectAndBranch ^. #branch . #branchId
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
@@ -146,7 +146,7 @@ resolveImplicitSource includeSquashed =
                   remoteProjectId
                   remoteBranchId
               pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName)
-            _ -> rollback (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
+            _ -> abort (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
       remoteBranch <-
         ProjectUtils.expectRemoteProjectBranchById includeSquashed $
           ProjectAndBranch

@@ -86,6 +86,7 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-cache
   - unison-util-nametree
   - unison-util-relation
   - unliftio

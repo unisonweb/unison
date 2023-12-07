@@ -177,9 +177,9 @@ resolveAbsBranchIdV2 ::
   (forall void. Output.Output -> Sqlite.Transaction void) ->
   Input.AbsBranchId ->
   Sqlite.Transaction (V2.Branch Sqlite.Transaction)
-resolveAbsBranchIdV2 rollback = \case
+resolveAbsBranchIdV2 abort = \case
   Left shortHash -> do
-    hash <- resolveShortCausalHashToCausalHash rollback shortHash
+    hash <- resolveShortCausalHashToCausalHash abort shortHash
     succeed (Codebase.expectCausalBranchByCausalHash hash)
   Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
   where
@@ -204,7 +204,7 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hash <- Cli.runTransactionWithRollback \rollback -> resolveShortCausalHashToCausalHash rollback shortHash
+    hash <- Cli.runTransactionWithReturnEarly \abort -> resolveShortCausalHashToCausalHash abort shortHash
     branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
 
@@ -212,14 +212,14 @@ resolveShortCausalHashToCausalHash ::
   (forall void. Output.Output -> Sqlite.Transaction void) ->
   ShortCausalHash ->
   Sqlite.Transaction CausalHash
-resolveShortCausalHashToCausalHash rollback shortHash = do
+resolveShortCausalHashToCausalHash abort shortHash = do
   hashes <- Codebase.causalHashesByPrefix shortHash
   Set.asSingleton hashes & onNothing do
     if Set.null hashes
-      then rollback (Output.NoBranchWithHash shortHash)
+      then abort (Output.NoBranchWithHash shortHash)
       else do
         len <- Codebase.branchHashLength
-        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
+        abort (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches

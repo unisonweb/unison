@@ -229,8 +229,8 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
 
     go project branch = do
       void $
-        Cli.runTransactionWithRollback \rollback ->
-          assertLocalProjectBranchDoesntExist rollback (ProjectAndBranch project branch)
+        Cli.runTransactionWithReturnEarly \abort ->
+          assertLocalProjectBranchDoesntExist abort (ProjectAndBranch project branch)
       pure (ProjectAndBranch project branch)
 
 -- `cloneInto command local remote` clones `remote` into `local`, which is believed to not exist yet, but may (because
@@ -261,10 +261,10 @@ cloneInto localProjectBranch remoteProjectBranch = do
     Right () -> Cli.respond (Output.DownloadedEntities numDownloaded)
 
   localProjectAndBranch <-
-    Cli.runTransactionWithRollback \rollback -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       -- Repeat the check from before, because (although it's highly unlikely) we could have a name conflict after
       -- downloading the remote branch
-      maybeLocalProject <- assertLocalProjectBranchDoesntExist rollback localProjectBranch
+      maybeLocalProject <- assertLocalProjectBranchDoesntExist abort localProjectBranch
       -- Create the local project (if necessary), and create the local branch
       (localProjectId, localProjectName) <-
         case maybeLocalProject of
@@ -326,7 +326,7 @@ assertLocalProjectBranchDoesntExist ::
   (forall void. Output.Output -> Sqlite.Transaction void) ->
   ProjectAndBranch LocalProjectKey ProjectBranchName ->
   Sqlite.Transaction (Either ProjectName Sqlite.Project)
-assertLocalProjectBranchDoesntExist rollback = \case
+assertLocalProjectBranchDoesntExist abort = \case
   ProjectAndBranch (LocalProjectKey'Name projectName) branchName ->
     Queries.loadProjectByName projectName >>= \case
       Nothing -> pure (Left projectName)
@@ -336,4 +336,4 @@ assertLocalProjectBranchDoesntExist rollback = \case
     go project branchName =
       Queries.projectBranchExistsByName (project ^. #projectId) branchName >>= \case
         False -> pure (Right project)
-        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
+        True -> abort (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))

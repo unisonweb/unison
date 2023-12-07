@@ -62,16 +62,16 @@ switchToProjectAndBranchByTheseNames :: These ProjectName ProjectBranchName -> C
 switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
   branch <- case projectAndBranchNames0 of
     This projectName ->
-      Cli.runTransactionWithRollback \rollback -> do
+      Cli.runTransactionWithReturnEarly \abort -> do
         project <-
           Queries.loadProjectByName projectName & onNothingM do
-            rollback (Output.LocalProjectDoesntExist projectName)
+            abort (Output.LocalProjectDoesntExist projectName)
         Queries.loadMostRecentBranch (project ^. #projectId) >>= \case
           Nothing -> do
             let branchName = unsafeFrom @Text "main"
             branch <-
               Queries.loadProjectBranchByName (project ^. #projectId) branchName & onNothingM do
-                rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+                abort (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
             setMostRecentBranch branch
           Just branchId ->
             Queries.loadProjectBranch (project ^. #projectId) branchId >>= \case
@@ -79,10 +79,10 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
               Just branch -> pure branch
     _ -> do
       projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
-      Cli.runTransactionWithRollback \rollback -> do
+      Cli.runTransactionWithReturnEarly \abort -> do
         branch <-
           Queries.loadProjectBranchByNames projectName branchName & onNothingM do
-            rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+            abort (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
         setMostRecentBranch branch
   Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId)))
   where

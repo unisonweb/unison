@@ -19,14 +19,14 @@ handleBranches :: Maybe ProjectName -> Cli ()
 handleBranches maybeProjectName = do
   maybeCurrentProjectIds <- ProjectUtils.getCurrentProjectIds
   (project, branches) <-
-    Cli.runTransactionWithRollback \rollback -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       project <-
         case maybeProjectName of
           Just projectName -> do
             Queries.loadProjectByName projectName & onNothingM do
-              rollback (Output.LocalProjectDoesntExist projectName)
+              abort (Output.LocalProjectDoesntExist projectName)
           Nothing -> do
-            ProjectAndBranch projectId _ <- maybeCurrentProjectIds & onNothing (rollback Output.NotOnProjectBranch)
+            ProjectAndBranch projectId _ <- maybeCurrentProjectIds & onNothing (abort Output.NotOnProjectBranch)
             Queries.expectProject projectId
       branches <- Queries.loadAllProjectBranchInfo (project ^. #projectId)
       pure (project, branches)

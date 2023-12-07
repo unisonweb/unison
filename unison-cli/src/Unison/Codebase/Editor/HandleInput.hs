@@ -1870,9 +1870,9 @@ handleDiffNamespaceToPatch description input = do
   absBranchId2 <- Cli.resolveBranchIdToAbsBranchId (input ^. #branchId2)
 
   patch <- do
-    Cli.runTransactionWithRollback \rollback -> do
-      branch1 <- Cli.resolveAbsBranchIdV2 rollback absBranchId1
-      branch2 <- Cli.resolveAbsBranchIdV2 rollback absBranchId2
+    Cli.runTransactionWithReturnEarly \abort -> do
+      branch1 <- Cli.resolveAbsBranchIdV2 abort absBranchId1
+      branch2 <- Cli.resolveAbsBranchIdV2 abort absBranchId2
       branchDiff <- V2Branch.Diff.diffBranches branch1 branch2 >>= V2Branch.Diff.nameBasedDiff
       termEdits <-
         (branchDiff ^. #terms)

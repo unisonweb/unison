@@ -26,8 +26,8 @@ handleBranchRename newBranchName = do
   let projectName = project ^. #name
   let oldBranchName = branch ^. #name
   when (oldBranchName /= newBranchName) do
-    Cli.runTransactionWithRollback \rollback -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       Queries.loadProjectBranchByName (project ^. #projectId) newBranchName >>= \case
-        Just _ -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch projectName newBranchName))
+        Just _ -> abort (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch projectName newBranchName))
         Nothing -> Queries.renameProjectBranch (project ^. #projectId) (branch ^. #branchId) newBranchName
   Cli.respond (Output.RenamedProjectBranch projectName oldBranchName newBranchName)

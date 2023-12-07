@@ -41,7 +41,7 @@ module Unison.Cli.Monad
 
     -- * Running transactions
     runTransaction,
-    runTransactionWithRollback,
+    runTransactionWithReturnEarly,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -417,9 +417,8 @@ runTransaction action = do
   liftIO (Codebase.runTransaction codebase action)
 
 -- | Run a transaction that can abort early with an output message.
--- todo: rename to runTransactionWithReturnEarly
-runTransactionWithRollback :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
-runTransactionWithRollback action = do
+runTransactionWithReturnEarly :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
+runTransactionWithReturnEarly action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
     & onLeftM returnEarly

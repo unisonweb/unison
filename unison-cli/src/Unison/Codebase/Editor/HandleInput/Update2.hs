@@ -107,7 +107,7 @@ handleUpdate2 = do
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
-  (pped, bigUf) <- Cli.runTransactionWithRollback \abort -> do
+  (pped, bigUf) <- Cli.runTransactionWithReturnEarly \abort -> do
     dependents <-
       Ops.dependentsWithinScope
         (Names.referenceIds namesExcludingLibdeps)
@@ -195,7 +195,7 @@ saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
   branchUpdates <-
-    Cli.runTransactionWithRollback \abort -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       Codebase.addDefsToCodebase codebase tuf
       typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
   Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)

@@ -79,10 +79,10 @@ handleBranch sourceI projectAndBranchNames0 = do
               ProjectAndBranch (Just p) b -> These p b
 
   project <-
-    Cli.runTransactionWithRollback \rollback -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       Queries.loadProjectByName projectName & onNothingM do
         -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
-        rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+        abort (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
 
   _ <- doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
@@ -112,9 +112,9 @@ doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> C
 doCreateBranch createFrom project newBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
-    Cli.runTransactionWithRollback \rollback -> do
+    Cli.runTransactionWithReturnEarly \abort -> do
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
-        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
+        True -> abort (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
         False -> do
           -- Here, we are forking to `foo/bar`, where project `foo` does exist, and it does not have a branch named
           -- `bar`, so the fork will succeed.
