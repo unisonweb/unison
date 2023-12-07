@@ -27,7 +27,7 @@ module Unison.Server.Backend
     basicSuffixifiedNames,
     bestNameForTerm,
     bestNameForType,
-    definitionsBySuffixes,
+    definitionsByName,
     displayType,
     docsInBranchToHtmlFiles,
     expandShortCausalHash,
@@ -756,9 +756,10 @@ fixupNamesRelative root names =
 hqNameQuery ::
   Codebase m v Ann ->
   NameSearch Sqlite.Transaction ->
+  NamesWithHistory.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction QueryResult
-hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
+hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -783,7 +784,7 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
 
   -- Now do the actual name query
-  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
+  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch searchType name) (applySearch termSearch searchType name))
   let (misses, hits) =
         zipWith
           ( \hqname results ->
@@ -1002,8 +1003,7 @@ docsForDefinitionName codebase (NameSearch {termSearch}) name = do
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
-        -- TODO: Should replace this with an exact name lookup.
-        lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
+        lookupRelativeHQRefs' termSearch NamesWithHistory.ExactName (HQ'.NameOnly name)
     filterForDocs (toList refs)
   where
     filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -1229,14 +1229,15 @@ data IncludeCycles
   = IncludeCycles
   | DontIncludeCycles
 
-definitionsBySuffixes ::
+definitionsByName ::
   Codebase m Symbol Ann ->
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
+  NamesWithHistory.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction DefinitionResults
-definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- hqNameQuery codebase nameSearch query
+definitionsByName codebase nameSearch includeCycles searchType query = do
+  QueryResult misses results <- hqNameQuery codebase nameSearch searchType query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)

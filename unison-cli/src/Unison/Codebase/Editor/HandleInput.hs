@@ -238,7 +238,7 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
             patch <- Cli.getPatchAt patchPath'
-            QueryResult misses allHits <- hqNameQuery [from]
+            QueryResult misses allHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
             let tpRefs = Set.fromList $ typeReferences allHits
                 tmRefs = Set.fromList $ termReferences allHits
                 (hits, opHits) =
@@ -936,8 +936,8 @@ loop e = do
 
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
-              QueryResult fromMisses' fromHits <- hqNameQuery [from]
-              QueryResult toMisses' toHits <- hqNameQuery [to]
+              QueryResult fromMisses' fromHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
+              QueryResult toMisses' toHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [to] 
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -2024,7 +2024,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
@@ -3057,8 +3057,8 @@ loadTypeOfTerm _ Referent.Con {} =
   error $
     reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
-hqNameQuery :: [HQ.HashQualified Name] -> Cli QueryResult
-hqNameQuery query = do
+hqNameQuery :: NamesWithHistory.SearchType -> [HQ.HashQualified Name] -> Cli QueryResult
+hqNameQuery searchType query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
@@ -3066,7 +3066,7 @@ hqNameQuery query = do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
     let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-    Backend.hqNameQuery codebase nameSearch query
+    Backend.hqNameQuery codebase nameSearch searchType query
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.

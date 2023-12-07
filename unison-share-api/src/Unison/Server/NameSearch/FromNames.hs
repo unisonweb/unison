@@ -13,7 +13,7 @@ makeTypeSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Referen
 makeTypeSearch len names =
   Search
     { lookupNames = \ref -> pure $ NamesWithHistory.typeName len ref names,
-      lookupRelativeHQRefs' = \n -> pure $ NamesWithHistory.lookupRelativeHQType' NamesWithHistory.ExactName n names,
+      lookupRelativeHQRefs' = \searchType n -> pure $ NamesWithHistory.lookupRelativeHQType' searchType n names,
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = \hqname r names -> pure $ SR.typeResult hqname r names
     }
@@ -23,7 +23,7 @@ makeTermSearch :: (Applicative m) => Int -> NamesWithHistory -> Search m Referen
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> pure $ NamesWithHistory.termName len ref names,
-      lookupRelativeHQRefs' = \n -> pure $ NamesWithHistory.lookupRelativeHQTerm' NamesWithHistory.ExactName n names,
+      lookupRelativeHQRefs' = \searchType n -> pure $ NamesWithHistory.lookupRelativeHQTerm' searchType n names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = \hqname r names -> pure $ SR.termResult hqname r names
     }
