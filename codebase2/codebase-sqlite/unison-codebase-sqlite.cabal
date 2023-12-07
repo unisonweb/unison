@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -29,6 +29,7 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Branch
+      U.Codebase.CacheTransaction
       U.Codebase.Causal.Squash
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
