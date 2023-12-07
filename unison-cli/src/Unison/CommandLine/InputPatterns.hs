@@ -19,7 +19,7 @@ import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
-import Text.Megaparsec qualified as P
+import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -3535,7 +3535,7 @@ projectNameArg =
 
 parsePullSource :: Text -> Maybe (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
 parsePullSource =
-  P.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
+  Megaparsec.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
@@ -3550,7 +3550,7 @@ parsePushSource sourceStr =
 -- | Parse a push target.
 parsePushTarget :: String -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
 parsePushTarget target =
-  case P.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
+  case Megaparsec.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
     Nothing -> Left (I.help push)
     Just path -> Right path
 
@@ -3572,7 +3572,7 @@ parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitR
 parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse (UriParser.writeGitRepo <* P.eof) label (Text.pack input))
+    (Megaparsec.parse (UriParser.writeGitRepo <* Megaparsec.eof) label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
@@ -3593,23 +3593,23 @@ explainRemote pushPull =
   where
     gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
-showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
-showErrorFancy (P.ErrorFail msg) = msg
-showErrorFancy (P.ErrorIndentation ord ref actual) =
+showErrorFancy :: (Megaparsec.ShowErrorComponent e) => Megaparsec.ErrorFancy e -> String
+showErrorFancy (Megaparsec.ErrorFail msg) = msg
+showErrorFancy (Megaparsec.ErrorIndentation ord ref actual) =
   "incorrect indentation (got "
-    <> show (P.unPos actual)
+    <> show (Megaparsec.unPos actual)
     <> ", should be "
     <> p
-    <> show (P.unPos ref)
+    <> show (Megaparsec.unPos ref)
     <> ")"
   where
     p = case ord of
       LT -> "less than "
       EQ -> "equal to "
       GT -> "greater than "
-showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+showErrorFancy (Megaparsec.ErrorCustom a) = Megaparsec.showErrorComponent a
 
-showErrorItem :: P.ErrorItem (P.Token Text) -> String
-showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
-showErrorItem (P.Label label) = NE.toList label
-showErrorItem P.EndOfInput = "end of input"
+showErrorItem :: Megaparsec.ErrorItem (Megaparsec.Token Text) -> String
+showErrorItem (Megaparsec.Tokens ts) = Megaparsec.showTokens (Proxy @Text) ts
+showErrorItem (Megaparsec.Label label) = NE.toList label
+showErrorItem Megaparsec.EndOfInput = "end of input"
