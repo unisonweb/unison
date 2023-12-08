@@ -10,6 +10,7 @@ module Unison.CommandLine.Completion
     prefixCompleteTerm,
     prefixCompleteType,
     prefixCompletePatch,
+    prefixCompleteUpgrade,
     noCompletions,
     prefixCompleteNamespace,
     -- Unused for now, but may be useful later
@@ -88,6 +89,7 @@ data CompletionType
   | TermCompletion
   | TypeCompletion
   | PatchCompletion
+  | UpgradeCompletion
   deriving (Show, Eq, Ord)
 
 -- | The empty completor.
@@ -295,6 +297,15 @@ prefixCompletePatch ::
   Path.Absolute -> -- Current path
   Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
+
+-- | Completes a upgrade argument by prefix-matching against the query.
+prefixCompleteUpgrade ::
+  String ->
+  Path.Absolute -> -- Current path
+  Sqlite.Transaction [Line.Completion]
+prefixCompleteUpgrade = completeWithinNamespace (NESet.singleton UpgradeCompletion)
+
+
 
 -- | Renders a completion option with the prefix matching the query greyed out.
 prettyCompletionWithQueryPrefix ::
