@@ -82,7 +82,7 @@ handleUpgrade oldDepName newDepName = do
     currentBranch
       & DeclCoherencyCheck.namespaceToNametree
       & DeclCoherencyCheck.assertNametreeHasNoConflictedNames
-      & onLeft wundefined
+      & onLeft \name -> Cli.returnEarly (Output.NamespaceHasConflictedName name)
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -117,7 +117,7 @@ handleUpgrade oldDepName newDepName = do
       DeclCoherencyCheck.checkDeclCoherency
         (cacheTransaction declNumConstructorsCache Operations.expectDeclNumConstructors)
         currentNametree
-        & onLeftM wundefined
+        & onLeftM \reason -> abort (Output.NamespaceHasIncoherentDecl reason)
 
       -- Create a Unison file that contains all of our dependents of things in `lib.old`.
       unisonFile <- do

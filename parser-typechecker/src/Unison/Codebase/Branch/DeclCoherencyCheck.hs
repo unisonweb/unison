@@ -86,6 +86,7 @@ module Unison.Codebase.Branch.DeclCoherencyCheck
 
     -- * Branch-to-Nametree conversion utils
     namespaceToNametree,
+    ConflictedName (..),
     assertNametreeHasNoConflictedNames,
   )
 where
@@ -104,6 +105,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Semialign (zipWith)
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -112,9 +114,11 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
@@ -122,8 +126,9 @@ import Unison.Util.Nametree (Defns (..), Nametree (..), traverseNametreeWithName
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
-import Witch (unsafeFrom)
+import Witch (unsafeFrom, unsafeInto)
 import Prelude hiding (zipWith)
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 
 data IncoherentDeclReason
   = -- | A second naming of a constructor was discovered underneath a decl's name, e.g.
@@ -132,7 +137,8 @@ data IncoherentDeclReason
     --   Foo.Bar#Foo#0
     --   Foo.Some.Other.Name.For.Bar#Foo#0
     IncoherentDeclReason'ConstructorAlias !Name !Name
-  | IncoherentDeclReason'MissingConstructorName !Name
+  | -- | A type is missing a name for a constructor
+    IncoherentDeclReason'MissingConstructorName !Name !ConstructorId
   | IncoherentDeclReason'NestedDeclAlias !Name
   | IncoherentDeclReason'NoConstructorNames !Name
   | IncoherentDeclReason'StrayConstructor !Name
@@ -169,7 +175,14 @@ checkDeclCoherency loadDeclNumConstructors =
                 where
                   g :: Maybe MaybeConstructorName -> Either IncoherentDeclReason (Maybe MaybeConstructorName)
                   g = \case
-                    Nothing -> error "didnt put expected constructor id"
+                    Nothing ->
+                      error . Text.unpack . Text.unlines $
+                        [ "  checkDeclCoherency:",
+                          "  found constructor: " <> Name.toText (fullName name),
+                          "  with constructor id: " <> tShow conId,
+                          "  of decl: " <> Reference.idToText typeRef,
+                          "  but we were only expecting constructor ids: " <> tShow (IntMap.keys expected)
+                        ]
                     Just NoConstructorNameYet -> Right (Just (YesConstructorName (fullName name)))
                     Just (YesConstructorName firstName) -> Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
 
@@ -203,8 +216,8 @@ checkDeclCoherency loadDeclNumConstructors =
                 let (fromJust -> maybeConstructorNames, expectedConstructors1) =
                       Map.deleteLookup typeRef expectedConstructors
                 constructorNames <-
-                  unMaybeConstructorNames maybeConstructorNames & onNothing do
-                    Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
+                  unMaybeConstructorNames maybeConstructorNames & onLeft \conId -> do
+                    Except.throwError (IncoherentDeclReason'MissingConstructorName typeName conId)
                 #expectedConstructors .= expectedConstructors1
                 #declNames %= \declNames ->
                   foldr (BiMultimap.insert typeName) declNames constructorNames
@@ -228,14 +241,14 @@ data MaybeConstructorName
   = NoConstructorNameYet
   | YesConstructorName !Name
 
-unMaybeConstructorNames :: IntMap MaybeConstructorName -> Maybe [Name]
+unMaybeConstructorNames :: IntMap MaybeConstructorName -> Either ConstructorId [Name]
 unMaybeConstructorNames =
-  traverse f . IntMap.elems
+  traverse f . IntMap.toList
   where
-    f :: MaybeConstructorName -> Maybe Name
+    f :: (Int, MaybeConstructorName) -> Either ConstructorId Name
     f = \case
-      NoConstructorNameYet -> Nothing
-      YesConstructorName name -> Just name
+      (conId, NoConstructorNameYet) -> Left (unsafeInto conId)
+      (_, YesConstructorName name) -> Right name
 
 data WhatHappened a
   = UninhabitedDecl
@@ -277,17 +290,23 @@ namespaceTypesToNametree namespace =
       children = namespaceTypesToNametree . Branch.head <$> (Branch._children namespace)
     }
 
+data ConflictedName
+  = ConflictedTermName !Name !(Set Referent) -- invariant: 2+ refs
+  | ConflictedTypeName !Name !(Set TypeReference) -- invariant: 2+ refs
+
 -- | Assert that a nametree has no conflicted names.
 -- If the nametree does have a conflicted name, returns one of them arbitrarily.
 -- If it doesn't, returns the refined nametree (with one ref per name).
 assertNametreeHasNoConflictedNames ::
   Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))) ->
-  Either Name (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
+  Either ConflictedName (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
 assertNametreeHasNoConflictedNames =
   traverseNametreeWithName \names Defns {terms, types} -> do
-    let assertUnconflicted :: NameSegment -> Set ref -> Either Name ref
-        assertUnconflicted name refs =
+    let assertUnconflicted :: (Name -> Set ref -> ConflictedName) -> NameSegment -> Set ref -> Either ConflictedName ref
+        assertUnconflicted conflicted name refs =
           case Set.asSingleton refs of
-            Nothing -> Left (Name.fromReverseSegments (name :| names))
+            Nothing -> Left (conflicted (Name.fromReverseSegments (name :| names)) refs)
             Just ref -> Right ref
-    Defns <$> Map.traverseWithKey assertUnconflicted terms <*> Map.traverseWithKey assertUnconflicted types
+    Defns
+      <$> Map.traverseWithKey (assertUnconflicted ConflictedTermName) terms
+      <*> Map.traverseWithKey (assertUnconflicted ConflictedTypeName) types

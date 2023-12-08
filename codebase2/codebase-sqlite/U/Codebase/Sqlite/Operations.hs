@@ -543,10 +543,14 @@ expectDeclByReference r@(C.Reference.Id h i) = do
     >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
     >>= uncurry Q.s2cDecl
 
+-- expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
+-- expectDeclNumConstructors (C.Reference.Id h i) = do
+--   oid <- Q.expectObjectIdForPrimaryHash h
+--   Q.expectDeclObject oid (bustedDecodeDeclElementNumConstructors i)
+
 expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
-expectDeclNumConstructors (C.Reference.Id h i) = do
-  oid <- Q.expectObjectIdForPrimaryHash h
-  Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
+expectDeclNumConstructors ref =
+  length . C.constructorTypes <$> expectDeclByReference ref
 
 -- * Branch transformation
 

@@ -9,7 +9,7 @@ module U.Codebase.Sqlite.Serialization
     getBranchFormat,
     getLocalBranch,
     getDeclElement,
-    getDeclElementNumConstructors,
+    bustedGetDeclElementNumConstructors,
     getDeclFormat,
     getPatchFormat,
     getTempCausalFormat,
@@ -21,7 +21,7 @@ module U.Codebase.Sqlite.Serialization
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
-    lookupDeclElementNumConstructors,
+    bustedLookupDeclElementNumConstructors,
     lookupTermElement,
     lookupTermElementDiscardingTerm,
     lookupTermElementDiscardingType,
@@ -478,8 +478,11 @@ getDeclElement =
         other -> unknownTag "DeclModifier" other
 
 -- | Get the number of constructors in a decl element.
-getDeclElementNumConstructors :: (MonadGet m) => m Int
-getDeclElementNumConstructors = do
+--
+-- FIXME why is this busted? for now, we just don't call it (instead getting num constructors by decoding the whole
+-- thing and taking the length of the constructor list), but it would be more efficient to fix this
+bustedGetDeclElementNumConstructors :: (MonadGet m) => m Int
+bustedGetDeclElementNumConstructors = do
   skipDeclType
   skipDeclModifier
   skipDeclTypeVariables
@@ -494,9 +497,9 @@ lookupDeclElement ::
 lookupDeclElement i =
   lookupDeclElementWith i (getPair getLocalIds getDeclElement)
 
-lookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
-lookupDeclElementNumConstructors i =
-  lookupDeclElementWith i (skipLocalIds *> getDeclElementNumConstructors)
+bustedLookupDeclElementNumConstructors :: (MonadGet m) => Reference.Pos -> m Int
+bustedLookupDeclElementNumConstructors i =
+  lookupDeclElementWith i (skipLocalIds *> bustedGetDeclElementNumConstructors)
 
 -- Note: the caller is responsible for either consuming the whole decl, or not
 -- parsing anything after a partially-parsed decl

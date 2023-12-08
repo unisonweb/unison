@@ -115,13 +115,11 @@ handleUpdate2 = do
     -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
     bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
     pped <-
-      ( \hlen ->
-          shadowNames
-            hlen
-            (UF.typecheckedToNames tuf)
-            (NamesWithHistory.fromCurrentNames namesIncludingLibdeps)
-        )
-        <$> Codebase.hashLength
+      Codebase.hashLength <&> \hlen ->
+        shadowNames
+          hlen
+          (UF.typecheckedToNames tuf)
+          (NamesWithHistory.fromCurrentNames namesIncludingLibdeps)
 
     pure (pped, bigUf)
 

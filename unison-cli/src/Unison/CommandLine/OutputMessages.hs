@@ -46,6 +46,7 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
+import Unison.Codebase.Branch.DeclCoherencyCheck (ConflictedName (..), IncoherentDeclReason (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -89,6 +90,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
@@ -2224,6 +2226,54 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toText new) <> ",")
         <> "and removed"
         <> P.group (P.text (NameSegment.toText old) <> ".")
+  NamespaceHasConflictedName conflicted ->
+    pure $
+      P.wrap
+        ( "The current namespace has an ambiguous name for a"
+            <> case conflicted of
+              ConflictedTermName {} -> "term:"
+              ConflictedTypeName {} -> "type:"
+        )
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( let f toHQ = map (P.syntaxToColor . prettyHashQualified . toHQ) . Set.toList
+             in P.numberedList case conflicted of
+                  ConflictedTermName name refs -> f (HQ.fromNamedReferent name) refs
+                  ConflictedTypeName name refs -> f (HQ.fromNamedReference name) refs
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "Please rename one of them with"
+              <> P.group
+                ( ( case conflicted of
+                      ConflictedTermName {} -> IP.makeExample' IP.renameTerm
+                      ConflictedTypeName {} -> IP.makeExample' IP.renameType
+                  )
+                    <> ","
+                )
+              <> "then try again."
+          )
+  NamespaceHasIncoherentDecl reason ->
+    pure case reason of
+      IncoherentDeclReason'ConstructorAlias _ _ -> "ConstructorAlias"
+      IncoherentDeclReason'MissingConstructorName typeName conId ->
+        P.wrap
+          ( "The type"
+              <> prettyName typeName
+              <> "is missing a name for its constructor with id"
+              <> P.text (tShow @ConstructorId conId)
+          )
+          <> P.newline
+          <> P.newline
+          <> P.wrap
+            ( "Please provide a name for it, then try again."
+            )
+      IncoherentDeclReason'NestedDeclAlias _ -> "NestedDeclAlias"
+      IncoherentDeclReason'NoConstructorNames _ -> "NoConstructorNames"
+      IncoherentDeclReason'StrayConstructor _ -> "StrayConstructor"
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
