@@ -72,7 +72,7 @@ handleUpgrade oldDepName newDepName = do
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  oldDepWithoutItsDeps <- over Branch.children (Map.delete Name.libSegment) <$> Cli.expectBranch0AtPath' oldDepPath
+  oldDep <- Cli.expectBranch0AtPath' oldDepPath
 
   newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
@@ -141,8 +141,8 @@ handleUpgrade oldDepName newDepName = do
         dependents <-
           Operations.dependentsWithinScope
             (Names.referenceIds namesExcludingLibdeps)
-            ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutItsDeps)
-                <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutItsDeps)
+            ( filterUnchangedTerms (Branch.deepTerms oldDep)
+                <> filterUnchangedTypes (Branch.deepTypes oldDep)
             )
         addDefinitionsToUnisonFile
           abort
@@ -152,7 +152,7 @@ handleUpgrade oldDepName newDepName = do
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let primaryPPE = makeOldDepPPE newDepName namesExcludingOldDep oldDepWithoutItsDeps
+      let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep
       let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
@@ -194,8 +194,8 @@ handleUpgrade oldDepName newDepName = do
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
 
--- `makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch` makes a PPE(D) that only knows how to render `old` deps;
--- other names should be provided by some fallback PPE.
+-- `makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDepBranch` makes a PPE(D) that only knows how to render
+-- `old` direct defns; other names should be provided by some fallback PPE.
 --
 -- How we render `old` deps is rather subtle and complicated, but the basic idea is that an `upgrade old new` ought to
 -- render all of the old things like `lib.old.foo#oldfoo` as `lib.new.foo` to be parsed and typechecked.
@@ -208,20 +208,23 @@ handleUpgrade oldDepName newDepName = do
 -- render this as `lib.new.foo`, regardless of how many other aliases #foo has in the namespace. (It may be the case
 -- that #foo has a name outside of the libdeps, like `my.name.for.foo`, or maybe it has a name in another dependency
 -- entirely, like `lib.otherdep.othername`).
-makeOldDepPPE :: NameSegment -> Names -> Branch0 m -> PrettyPrintEnvDecl
-makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
+makeOldDepPPE :: NameSegment -> NameSegment -> Names -> Branch0 m -> PrettyPrintEnvDecl
+makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDepBranch =
   let makePPE suffixifyTerms suffixifyTypes =
         PrettyPrintEnv
           { termNames = \ref ->
-              if Set.member ref termsDirectlyInOldDep
-                then -- Say ref is #oldfoo, with two names in `old`:
+              case ( Set.member ref termsDirectlyInOldDep,
+                     Set.member ref oldTerms,
+                     Relation.memberRan ref (terms namesExcludingOldDep)
+                   ) of
+                (True, _, _) ->
+                -- Say ref is #oldfoo, with two names in `old`:
                 --
                 --   [ lib.old.foo, lib.old.fooalias ]
                 --
                 -- We start from that same list of names with `new` swapped in for `old`:
                 --
                 --   [ lib.new.foo, lib.new.fooalias ]
-
                   Names.namesForReferent fakeNames ref
                     & Set.toList
                     -- We manually lift those to hashless hash-qualified names, which isn't a very significant
@@ -249,16 +252,29 @@ makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
                     --        [ lib.new.foo#oldfoo, lib.new.fooalias#oldfoo ]
                     & suffixifyTerms
                     & PPE.Names.prioritize
-                else [],
+                (False, True, False) ->
+                  Names.namesForReferent (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) $ Branch.toNames oldDepBranch) ref
+                    & Set.toList
+                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                    & PPE.Names.prioritize
+                _ -> [],
             typeNames = \ref ->
-              if Set.member ref typesDirectlyInOldDep
-                then
+              case ( Set.member ref typesDirectlyInOldDep,
+                     Set.member ref oldTypes,
+                     Relation.memberRan ref (types namesExcludingOldDep)
+                   ) of
+                (True, _, _) ->
                   Names.namesForReference fakeNames ref
                     & Set.toList
                     & map (\name -> (HQ'.fromName name, HQ'.fromName name))
                     & suffixifyTypes
                     & PPE.Names.prioritize
-                else []
+                (False, True, False) ->
+                  Names.namesForReference (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) $ Branch.toNames oldDepBranch) ref
+                    & Set.toList
+                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                    & PPE.Names.prioritize
+                _ -> []
           }
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE id id,
@@ -278,6 +294,8 @@ makeOldDepPPE newDepName namesExcludingOldDep oldDepBranch =
               )
         }
   where
+    oldTypes = Branch.deepTypeReferences oldDepBranch
+    oldTerms = Branch.deepReferents oldDepBranch
     oldDepWithoutItsDeps = over Branch.children (Map.delete Name.libSegment) oldDepBranch
     termsDirectlyInOldDep = Branch.deepReferents oldDepWithoutItsDeps
     typesDirectlyInOldDep = Branch.deepTypeReferences oldDepWithoutItsDeps
