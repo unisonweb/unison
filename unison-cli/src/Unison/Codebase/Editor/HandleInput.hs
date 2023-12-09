@@ -562,14 +562,15 @@ loop e = do
               mdText <- liftIO $ do
                 docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
                 for docRefs $ \docRef -> do
-                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+                  Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
               absPath <- Path.unabsolute <$> Cli.resolvePath' namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              pure ()
             AliasTermI src' dest' -> do
               Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'

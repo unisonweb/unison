@@ -388,5 +388,5 @@ markdownDocsForFQN fileUri fqn =
     liftIO $ do
       docRefs <- Backend.docsForDefinitionName codebase nameSearch name
       for docRefs $ \docRef -> do
-        Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+        Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
         pure . Md.toText $ Md.toMarkdown doc

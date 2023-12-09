@@ -204,6 +204,7 @@ import Unison.Util.Set qualified as Set
 import Unison.Util.SyntaxText qualified as UST
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
+import UnliftIO qualified
 import UnliftIO.Environment qualified as Env
 
 type SyntaxText = UST.SyntaxText' Reference
@@ -955,17 +956,22 @@ evalDocRef ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
-  IO (Doc.EvaluatedDoc Symbol)
+  -- Evaluation always produces a doc, (it just might have error messages in it).
+  -- We still return the errors for logging and debugging.
+  IO (Doc.EvaluatedDoc Symbol, [Rt.Error])
 evalDocRef rt codebase r = do
   let tm = Term.ref () r
-  Doc.evalDoc terms typeOf eval decls tm
+  errsVar <- UnliftIO.newTVarIO []
+  evalResult <- Doc.evalDoc terms typeOf (eval errsVar) decls tm
+  errs <- UnliftIO.readTVarIO errsVar
+  pure (evalResult, errs)
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
       fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.getTerm codebase r)
 
     typeOf r = fmap void <$> Codebase.runTransaction codebase (Codebase.getTypeOfReferent codebase r)
-    eval (Term.amap (const mempty) -> tm) = do
+    eval errsVar (Term.amap (const mempty) -> tm) = do
       -- We use an empty ppe for evalutation, it's only used for adding additional context to errors.
       let evalPPE = PPE.empty
       let codeLookup = Codebase.toCodeLookup codebase
@@ -977,12 +983,17 @@ evalDocRef rt codebase r = do
         _ -> do
           case r of
             -- don't cache when there were decompile errors
-            Just (errs, tmr) | null errs ->
-              Codebase.runTransaction codebase do
-                Codebase.putWatch
-                  WK.RegularWatch
-                  (Hashing.hashClosedTerm tm)
-                  (Term.amap (const mempty) tmr)
+            Just (errs, tmr)
+              | null errs ->
+                  Codebase.runTransaction codebase do
+                    Codebase.putWatch
+                      WK.RegularWatch
+                      (Hashing.hashClosedTerm tm)
+                      (Term.amap (const mempty) tmr)
+              | otherwise -> do
+                  UnliftIO.atomically $ do
+                    UnliftIO.modifyTVar errsVar (errs ++)
+                    pure ()
             _ -> pure ()
       pure $ r <&> Term.amap (const mempty) . snd
 
@@ -1022,14 +1033,14 @@ renderDocRefs ::
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   t TermReference ->
-  IO (t (HashQualifiedName, UnisonHash, Doc.Doc))
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [Rt.Error]))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
-  for eDocs \(ref, eDoc) -> do
+  for eDocs \(ref, (eDoc, docEvalErrs)) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
     let hash = Reference.toText ref
     let renderedDoc = Doc.renderDoc pped eDoc
-    pure (name, hash, renderedDoc)
+    pure (name, hash, renderedDoc, docEvalErrs)
 
 docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
@@ -1037,7 +1048,9 @@ docsInBranchToHtmlFiles ::
   Branch IO ->
   Path ->
   FilePath ->
-  IO ()
+  -- Returns any doc evaluation errors which may have occurred.
+  -- Note that all docs will still be rendered even if there are errors.
+  IO [Rt.Error]
 docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
@@ -1053,13 +1066,17 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPED.fromNamesDecl hqLength printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
-  liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
+  liftIO $
+    docs & foldMapM \(name, text, doc, errs) -> do
+      renderDocToHtmlFile docNamesByRef directory (name, text, doc)
+      pure errs
   where
     renderDoc' ppe runtime codebase (docReferent, name) = do
       let docReference = Referent.toReference docReferent
-      doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
+      (eDoc, errs) <- evalDocRef runtime codebase docReference
+      let renderedDoc = Doc.renderDoc ppe eDoc
       let hash = Reference.toText docReference
-      pure (name, hash, doc)
+      pure (name, hash, renderedDoc, errs)
 
     cleanPath :: FilePath -> FilePath
     cleanPath filePath =
