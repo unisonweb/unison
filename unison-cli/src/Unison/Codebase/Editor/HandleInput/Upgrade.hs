@@ -55,6 +55,7 @@ import Unison.Sqlite (Transaction)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
@@ -73,6 +74,8 @@ handleUpgrade oldDepName newDepName = do
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
   oldDep <- Cli.expectBranch0AtPath' oldDepPath
+  let oldDepWithoutDeps = over Branch.children (Map.delete Name.libSegment) oldDep
+  let oldTransitiveDeps = fromMaybe Branch.empty0 $ fmap Branch.head $ Map.lookup Name.libSegment (oldDep ^. Branch.children)
 
   newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
@@ -134,6 +137,19 @@ handleUpgrade oldDepName newDepName = do
         where
           newTypes = Branch.deepTypes newDepWithoutDeps
 
+  let filterTransitiveTerms :: Relation Referent Name -> Set TermReference
+      filterTransitiveTerms oldTerms =
+        Relation.dom oldTerms
+          & Set.mapMaybe \referent -> do
+            ref <- Referent.toTermReference referent
+            guard (not $ Relation.memberDom referent (Branch.deepTerms currentV1BranchWithoutOldDep))
+            pure ref
+
+  let filterTransitiveTypes :: Relation TypeReference Name -> Set TypeReference
+      filterTransitiveTypes oldTypes =
+        Relation.dom oldTypes
+          & Set.filter \typ -> not (Relation.memberDom typ (Branch.deepTypes currentV1BranchWithoutOldDep))
+
   (unisonFile, printPPE) <-
     Cli.runTransactionWithRollback \abort -> do
       -- Create a Unison file that contains all of our dependents of modified defns of `lib.old`. todo: twiddle
@@ -141,8 +157,10 @@ handleUpgrade oldDepName newDepName = do
         dependents <-
           Operations.dependentsWithinScope
             (Names.referenceIds namesExcludingLibdeps)
-            ( filterUnchangedTerms (Branch.deepTerms oldDep)
-                <> filterUnchangedTypes (Branch.deepTypes oldDep)
+            ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
+                <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
+                <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
+                <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
             )
         addDefinitionsToUnisonFile
           abort
@@ -218,13 +236,13 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDepBranch =
                      Relation.memberRan ref (terms namesExcludingOldDep)
                    ) of
                 (True, _, _) ->
-                -- Say ref is #oldfoo, with two names in `old`:
-                --
-                --   [ lib.old.foo, lib.old.fooalias ]
-                --
-                -- We start from that same list of names with `new` swapped in for `old`:
-                --
-                --   [ lib.new.foo, lib.new.fooalias ]
+                  -- Say ref is #oldfoo, with two names in `old`:
+                  --
+                  --   [ lib.old.foo, lib.old.fooalias ]
+                  --
+                  -- We start from that same list of names with `new` swapped in for `old`:
+                  --
+                  --   [ lib.new.foo, lib.new.fooalias ]
                   Names.namesForReferent fakeNames ref
                     & Set.toList
                     -- We manually lift those to hashless hash-qualified names, which isn't a very significant
