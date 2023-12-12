@@ -231,41 +231,47 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
   let makePPE suffixifyTerms suffixifyTypes =
         PrettyPrintEnv
           { termNames = \ref ->
-              case ( Set.member ref (Branch.deepReferents oldDepWithoutDeps),
-                     Set.member ref (Branch.deepReferents newDepWithoutDeps),
-                     Set.member ref (Branch.deepReferents oldDep),
-                     Relation.memberRan ref (Names.terms namesExcludingOldDep)
-                   ) of
-                (True, True, _, _) ->
-                  Names.namesForReferent fakeNames ref
-                    & Set.toList
-                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                    & suffixifyTerms
-                    & PPE.Names.prioritize
-                (_, _, True, False) ->
-                  Names.namesForReferent (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
-                    & Set.toList
-                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                    & PPE.Names.prioritize
-                _ -> [],
+              let oldDirectNames = Relation.lookupDom ref (Branch.deepTerms oldDepWithoutDeps)
+                  newDirectRefsForOldDirectNames =
+                    Relation.range (Branch.deepTerms newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
+               in case ( Set.null oldDirectNames,
+                         Map.null newDirectRefsForOldDirectNames,
+                         Set.member ref (Branch.deepReferents oldDep),
+                         Relation.memberRan ref (Names.terms namesExcludingOldDep)
+                       ) of
+                    (False, False, _, _) ->
+                      Names.namesForReferent fakeNames ref
+                        & Set.toList
+                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                        & suffixifyTerms
+                        & PPE.Names.prioritize
+                    (_, _, True, False) ->
+                      Names.namesForReferent (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
+                        & Set.toList
+                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                        & PPE.Names.prioritize
+                    _ -> [],
             typeNames = \ref ->
-              case ( Set.member ref (Branch.deepTypeReferences oldDepWithoutDeps),
-                     Set.member ref (Branch.deepTypeReferences newDepWithoutDeps),
-                     Set.member ref (Branch.deepTypeReferences oldDep),
-                     Relation.memberRan ref (Names.types namesExcludingOldDep)
-                   ) of
-                (True, True, _, _) ->
-                  Names.namesForReference fakeNames ref
-                    & Set.toList
-                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                    & suffixifyTypes
-                    & PPE.Names.prioritize
-                (_, _, True, False) ->
-                  Names.namesForReference (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
-                    & Set.toList
-                    & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                    & PPE.Names.prioritize
-                _ -> []
+              let oldDirectNames = Relation.lookupDom ref (Branch.deepTypes oldDepWithoutDeps)
+                  newDirectRefsForOldDirectNames =
+                    Relation.range (Branch.deepTypes newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
+               in case ( Set.null oldDirectNames,
+                         Map.null newDirectRefsForOldDirectNames,
+                         Set.member ref (Branch.deepTypeReferences oldDep),
+                         Relation.memberRan ref (Names.types namesExcludingOldDep)
+                       ) of
+                    (True, True, _, _) ->
+                      Names.namesForReference fakeNames ref
+                        & Set.toList
+                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                        & suffixifyTypes
+                        & PPE.Names.prioritize
+                    (_, _, True, False) ->
+                      Names.namesForReference (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
+                        & Set.toList
+                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
+                        & PPE.Names.prioritize
+                    _ -> []
           }
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE id id,
