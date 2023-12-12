@@ -246,7 +246,7 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
                         & suffixifyTerms
                         & PPE.Names.prioritize
                     (_, _, True, False) ->
-                      Names.namesForReferent (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
+                      Names.namesForReferent prefixedOldNames ref
                         & Set.toList
                         & map (\name -> (HQ'.fromName name, HQ'.fromName name))
                         & PPE.Names.prioritize
@@ -260,14 +260,14 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
                          Set.member ref (Branch.deepTypeReferences oldDep),
                          Relation.memberRan ref (Names.types namesExcludingOldDep)
                        ) of
-                    (True, True, _, _) ->
+                    (False, False, _, _) ->
                       Names.namesForReference fakeNames ref
                         & Set.toList
                         & map (\name -> (HQ'.fromName name, HQ'.fromName name))
                         & suffixifyTypes
                         & PPE.Names.prioritize
                     (_, _, True, False) ->
-                      Names.namesForReference (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames) ref
+                      Names.namesForReference prefixedOldNames ref
                         & Set.toList
                         & map (\name -> (HQ'.fromName name, HQ'.fromName name))
                         & PPE.Names.prioritize
@@ -282,6 +282,7 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
         }
   where
     oldNames = Branch.toNames oldDep
+    prefixedOldNames = Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames
     fakeNames = Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment])) oldNames
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
