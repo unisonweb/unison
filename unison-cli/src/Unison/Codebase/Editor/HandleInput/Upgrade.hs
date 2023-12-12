@@ -79,7 +79,8 @@ handleUpgrade oldDepName newDepName = do
 
   newDepV1Branch <- Cli.expectBranch0AtPath' newDepPath
 
-  let namesExcludingLibdeps = Branch.toNames (currentV1Branch & over Branch.children (Map.delete Name.libSegment))
+  let namesExcludingLibdeps = Branch.toNames (Branch.withoutLib currentV1Branch)
+  let namesExcludingTransitiveLibdeps = Branch.toNames (Branch.withoutTransitiveLibs currentV1Branch)
   let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
   let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
 
@@ -174,7 +175,7 @@ handleUpgrade oldDepName newDepName = do
       let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
-  parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
+  parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep namesExcludingTransitiveLibdeps
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
       -- Small race condition: since picking a branch name and creating the branch happen in different

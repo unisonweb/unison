@@ -41,8 +41,8 @@ diffHelper before after =
     currentPath <- Cli.getCurrentPath
     hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
-    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
-    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+    let names = Backend.namesForBranch Backend.IncludeTransitiveDependencies rootBranch (Path.unabsolute currentPath)
+    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory names mempty)
     fmap (ppe,) do
       OBranchDiff.toOutput
         (Cli.runTransaction . Codebase.getTypeOfReferent codebase)

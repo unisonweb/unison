@@ -53,7 +53,7 @@ completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR . InL) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
-    ppe <- PPED.suffixifiedPPE <$> lift globalPPED
+    ppe <- PPED.suffixifiedPPE <$> lift getNoTransitiveDepsPPED
     codebaseCompletions <- lift getCodebaseCompletions
     Config {maxCompletions} <- lift getConfig
     let defMatches = matchCompletions codebaseCompletions prefix

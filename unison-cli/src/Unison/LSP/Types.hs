@@ -79,7 +79,9 @@ data Env = Env
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
     parseNamesCache :: IO NamesWithHistory,
+    tdnrNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
+    noTransitiveDepsPPEDCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
     vfsVar :: MVar VFS,
@@ -166,11 +168,18 @@ getCodebaseCompletions = asks completionsVar >>= readTVarIO
 globalPPED :: Lsp PrettyPrintEnvDecl
 globalPPED = asks ppedCache >>= liftIO
 
+getNoTransitiveDepsPPED :: Lsp PrettyPrintEnvDecl
+getNoTransitiveDepsPPED = asks noTransitiveDepsPPEDCache >>= liftIO
+
 getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO
 
 getParseNames :: Lsp NamesWithHistory
 getParseNames = asks parseNamesCache >>= liftIO
+
+getTDNRNames :: Lsp Names
+getTDNRNames = do
+  asks tdnrNamesCache >>= liftIO
 
 data Config = Config
   { -- 'Nothing' will load ALL available completions, which is slower, but may provide a better

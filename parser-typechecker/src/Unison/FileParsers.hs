@@ -92,13 +92,14 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
     ShouldUseTndr'Yes parsingEnv -> do
       let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
           tm = UF.typecheckingTerm uf
-          possibleDeps =
+          possibleDeps fromNames =
             [ (Name.toText name, Var.name v, r)
-              | (name, r) <- Rel.toList (Names.terms preexistingNames),
+              | (name, r) <- Rel.toList (Names.terms fromNames),
                 v <- Set.toList (Term.freeVars tm),
                 name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
             ]
-          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
+          possibleTDNRDeps = possibleDeps (Parser.namesForTDNR parsingEnv)
+          possibleRefs = Referent.toReference . view _3 <$> possibleDeps preexistingNames
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
       -- For populating the TDNR environment, we pick definitions
       -- from the namespace and from the local file whose full name
@@ -113,7 +114,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             List.multimap $
               -- external TDNR possibilities
               [ (shortname, nr)
-                | (name, shortname, r) <- possibleDeps,
+                | (name, shortname, r) <- possibleTDNRDeps,
                   typ <- toList $ TL.typeOfReferent tl r,
                   let nr = Typechecker.NamedReference name typ (Right r)
               ]

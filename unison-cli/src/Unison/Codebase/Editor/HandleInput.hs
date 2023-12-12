@@ -48,7 +48,7 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ, tdnrNames)
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
@@ -711,7 +711,7 @@ loop e = do
                   else do
                     currentBranch <- Cli.getCurrentBranch0
                     let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+                    let pped = Backend.getCurrentPrettyNames hqLength currentPath' root
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
@@ -827,12 +827,12 @@ loop e = do
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
-                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      ppeDecl <- currentPrettyPrintEnvDecl
                       pure do
                         Cli.respond Success
                         Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                     (False, Try) -> do
-                      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+                      ppeDecl <- currentPrettyPrintEnvDecl
                       Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                       Cli.returnEarlyWithoutOutput
                 parentPathAbs <- Cli.resolvePath' parentPath
@@ -877,7 +877,7 @@ loop e = do
                       Backend.basicSuffixifiedNames
                         schLength
                         currentBranch
-                        (Backend.AllNames (Path.unabsolute pathArgAbs))
+                        (Path.unabsolute pathArgAbs)
               Cli.respond $ ListShallow buildPPE entries
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
@@ -1185,7 +1185,7 @@ loop e = do
                 Just b -> do
                   externalDependencies <-
                     Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
                   Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
@@ -1340,7 +1340,8 @@ loadUnisonFile sourceName text = do
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
       rootBranch <- Cli.getRootBranch
       currentPath <- Cli.getCurrentPath
-      let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
+      let parseNames = Backend.getCurrentParseNames (Path.unabsolute currentPath) rootBranch
+      let namesForTDNR = Backend.tdnrNamesForBranch rootBranch (Path.unabsolute currentPath)
       State.modify' \loopState ->
         loopState
           & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -1351,7 +1352,8 @@ loadUnisonFile sourceName text = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names = parseNames
+                names = parseNames,
+                namesForTDNR
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
@@ -1727,9 +1729,9 @@ handleFindI isVerbose fscope ws input = do
       getNames findScope =
         let cp = Path.unabsolute currentPath'
             nameScope = case findScope of
-              FindLocal -> Backend.Within cp
-              FindLocalAndDeps -> Backend.Within cp
-              FindGlobal -> Backend.AllNames cp
+              FindLocal -> cp
+              FindLocalAndDeps -> cp
+              FindGlobal -> undefined -- TODO: get global names here
             scopeFilter = case findScope of
               FindLocal ->
                 let f n =
@@ -1791,7 +1793,7 @@ handleDependencies hq = do
   Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
-  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.WithinStrict
+  ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
   results <- for (toList lds) \ld -> do
@@ -1832,7 +1834,7 @@ handleDependents hq = do
   lds <- resolveHQToLabeledDependencies hq
   -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
   -- rather than the shortest possible unambiguous name.
-  pped <- currentPrettyPrintEnvDecl Backend.WithinStrict
+  pped <- currentPrettyPrintEnvDecl
   let fqppe = PPE.unsuffixifiedPPE pped
   let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
@@ -2009,9 +2011,9 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
   (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
-      let namingScope = Backend.AllNames currentPath'
+      let namingScope = currentPath'
       let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
-      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      let ppe = Backend.getCurrentPrettyNames hqLength currentPath' root
       pure (parseNames, ppe)
     (_, ShowDefinitionGlobal) -> do
       let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
@@ -2021,7 +2023,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
       let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
+      let ppe = Backend.getCurrentPrettyNames hqLength currentPath' root
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
@@ -2701,7 +2703,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         DeleteOutput'NoDiff -> do
           Cli.respond Success
     else do
-      ppeDecl <- currentPrettyPrintEnvDecl Backend.Within
+      ppeDecl <- currentPrettyPrintEnvDecl
       let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
       Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
 
@@ -2890,6 +2892,7 @@ parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
+  namesForTDNR <- tdnrNames
   let names =
         NamesWithHistory.push
           (NamesWithHistory.currentNames names0)
@@ -2898,7 +2901,8 @@ parseType input src = do
         Parser.ParsingEnv
           { uniqueNames = mempty,
             uniqueTypeGuid = \_ -> pure Nothing,
-            names
+            names,
+            namesForTDNR
           }
   typ <-
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
@@ -3065,7 +3069,7 @@ hqNameQuery searchType query = do
   currentPath <- Cli.getCurrentPath
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
-    let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
+    let parseNames = Backend.parseNamesForBranch root' (Path.unabsolute currentPath)
     let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch searchType query
 

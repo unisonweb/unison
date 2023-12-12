@@ -2,6 +2,7 @@
 module Unison.Cli.NamesUtils
   ( basicParseNames,
     basicPrettyPrintNamesA,
+    tdnrNames,
     displayNames,
     findHistoricalHQs,
     getBasicPrettyPrintNames,
@@ -16,7 +17,6 @@ import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
@@ -34,20 +34,24 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
-basicParseNames :: Cli Names
-basicParseNames =
-  fst <$> basicNames' Backend.Within
-
-basicPrettyPrintNamesA :: Cli Names
-basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
-
--- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: (Path -> Backend.NameScoping) -> Cli (Names, Names)
-basicNames' nameScoping = do
+tdnrNames :: Cli Names
+tdnrNames = do
   root' <- Cli.getRootBranch
   currentPath' <- Cli.getCurrentPath
-  let (parse, pretty, _local) = Backend.namesForBranch root' (nameScoping $ Path.unabsolute currentPath')
-  pure (parse, pretty)
+  pure $ Backend.namesForBranch Backend.IncludeDirectDependencies root' (Path.unabsolute currentPath')
+
+basicParseNames :: Cli Names
+basicParseNames = basicNames'
+
+basicPrettyPrintNamesA :: Cli Names
+basicPrettyPrintNamesA = basicNames'
+
+-- implementation detail of basicParseNames and basicPrettyPrintNames
+basicNames' :: Cli Names
+basicNames' = do
+  root' <- Cli.getRootBranch
+  currentPath' <- Cli.getCurrentPath
+  pure $ Backend.namesForBranch Backend.IncludeTransitiveDependencies root' (Path.unabsolute currentPath')
 
 -- | Produce a `Names` needed to display all the hashes used in the given file.
 displayNames ::
@@ -106,7 +110,7 @@ getBasicPrettyPrintNames :: Cli Names
 getBasicPrettyPrintNames = do
   rootBranch <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
-  pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
+  pure (Backend.prettyNamesForBranch rootBranch (Path.unabsolute currentPath))
 
 makeHistoricalParsingNames :: Set (HQ.HashQualified Name) -> Cli NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do

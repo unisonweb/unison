@@ -136,15 +136,17 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
   ppedCacheVar <- newTVarIO PPED.empty
+  noTransitiveDepsPPEDVar <- newTVarIO PPED.empty
   parseNamesCacheVar <- newTVarIO mempty
+  tdnrNamesCacheVar <- newTVarIO mempty
   currentPathCacheVar <- newTVarIO Path.absoluteEmpty
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newTVarIO mempty
   nameSearchCacheVar <- newTVarIO $ NameSearch.makeNameSearch 0 mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
+  let env = Env {ppedCache = readTVarIO ppedCacheVar, noTransitiveDepsPPEDCache = readTVarIO noTransitiveDepsPPEDVar, parseNamesCache = readTVarIO parseNamesCacheVar, tdnrNamesCache = readTVarIO tdnrNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar noTransitiveDepsPPEDVar parseNamesCacheVar tdnrNamesCacheVar nameSearchCacheVar latestBranch latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically

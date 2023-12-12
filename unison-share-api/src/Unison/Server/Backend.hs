@@ -16,7 +16,6 @@ module Unison.Server.Backend
     BackendEnv (..),
     TypeEntry (..),
     FoundRef (..),
-    NameScoping (..),
     IncludeCycles (..),
     DefinitionResults (..),
 
@@ -45,8 +44,10 @@ module Unison.Server.Backend
     lsAtPath,
     lsBranch,
     mungeSyntaxText,
+    DependencyInclusion (..),
     namesForBranch,
     parseNamesForBranch,
+    tdnrNamesForBranch,
     prettyNamesForBranch,
     resolveCausalHashV2,
     resolveRootBranchHashV2,
@@ -75,7 +76,6 @@ module Unison.Server.Backend
     resolveRootBranchHash,
     shallowPPE,
     isTestResultList,
-    toAllNames,
     fixupNamesRelative,
 
     -- * Re-exported for Share Server
@@ -151,7 +151,6 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
-import Unison.Names.Scoped qualified as ScopedNames
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
@@ -266,52 +265,36 @@ suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength names =
   PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
 
+data DependencyInclusion
+  = ExcludeAllDependencies
+  | IncludeDirectDependencies
+  | IncludeTransitiveDependencies
+
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
-namesForBranch root scope =
-  (parseNames0, prettyPrintNames0, currentPathNames)
+namesForBranch :: DependencyInclusion -> Branch m -> Path -> Names
+namesForBranch libInclusion root scope = currentPathNames
   where
-    path :: Path
-    includeAllNames :: Bool
-    (path, includeAllNames) = case scope of
-      AllNames path -> (path, True)
-      Within path -> (path, False)
-      WithinStrict path -> (path, False)
-    root0 = Branch.head root
-    currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
+    currentBranch = fromMaybe Branch.empty $ Branch.getAt scope root
     currentBranch0 = Branch.head currentBranch
-    currentPathNames = Branch.toNames currentBranch0
-    -- all names, but with local names in their relative form only, rather
-    -- than absolute; external names appear as absolute
-    currentAndExternalNames =
-      currentPathNames
-        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
-      where
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
-        rootNames = Branch.toNames root0
-        pathPrefixed = case Path.toName path of
-          Nothing -> const mempty
-          Just pathName -> Names.prefix0 pathName
-    -- parsing should respond to local and absolute names
-    parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
-    -- pretty-printing should use local names where available
-    prettyPrintNames0 =
-      if includeAllNames
-        then currentAndExternalNames
-        else currentPathNames
+    currentPathNames = Branch.toNames $ case libInclusion of
+      ExcludeAllDependencies -> Branch.withoutLib currentBranch0
+      IncludeDirectDependencies -> Branch.withoutTransitiveLibs currentBranch0
+      IncludeTransitiveDependencies -> currentBranch0
 
-basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
+basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root nameScope =
   let names0 = prettyNamesForBranch root nameScope
    in suffixifyNames hashLength names0
 
-parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
+parseNamesForBranch :: Branch m -> Path -> Names
+parseNamesForBranch root = namesForBranch IncludeTransitiveDependencies root
 
-prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
+tdnrNamesForBranch :: Branch m -> Path -> Names
+tdnrNamesForBranch root = namesForBranch IncludeDirectDependencies root
+
+prettyNamesForBranch :: Branch m -> Path -> Names
+prettyNamesForBranch root = namesForBranch IncludeTransitiveDependencies root
 
 shallowPPE :: (MonadIO m) => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
 shallowPPE codebase b = do
@@ -699,40 +682,11 @@ lsBranch codebase b0 = do
       ++ branchEntries
       ++ patchEntries
 
--- currentPathNames :: Path -> Names
--- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
-
--- | Configure how names will be constructed and filtered.
---   this is typically used when fetching names for printing source code or when finding
---   definitions by name.
-data NameScoping
-  = -- | Find all names, making any names which are children of this path,
-    -- otherwise leave them absolute.
-    AllNames Path
-  | -- | Filter returned names to only include names within this path.
-    Within Path
-  | -- | Like `Within`, but does not include a fallback
-    WithinStrict Path
-
-toAllNames :: NameScoping -> NameScoping
-toAllNames (AllNames p) = AllNames p
-toAllNames (Within p) = AllNames p
-toAllNames (WithinStrict p) = AllNames p
-
-getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPED.PrettyPrintEnvDecl
+getCurrentPrettyNames :: Int -> Path -> Branch m -> PPED.PrettyPrintEnvDecl
 getCurrentPrettyNames hashLen scope root =
-  case scope of
-    WithinStrict _ -> primary
-    _ ->
-      PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
-      where
-        backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
-  where
-    primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
+  PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
 
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames :: Path -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
   NamesWithHistory (parseNamesForBranch root scope) mempty
 
@@ -1063,7 +1017,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       hqLength <- Codebase.hashLength
       pure (docTermsWithNames, hqLength)
   let docNamesByRef = Map.fromList docTermsWithNames
-  let printNames = prettyNamesForBranch root (AllNames currentPath)
+  let printNames = prettyNamesForBranch root currentPath
   let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
   let ppe = PPED.fromNamesDecl hqLength printNamesWithHistory
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
@@ -1175,28 +1129,17 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
   haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  (parseNames, localNames) <-
+  names <-
     if shouldUseNamesIndex
       then do
         when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
-        lift . Codebase.runTransaction codebase $ indexNames rootBranchHash
+        lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
-        (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
-        pure (parseNames, localNames)
+        resolveCausalHash (Just rootCausalHash) codebase <&> \b ->
+          namesForBranch IncludeTransitiveDependencies b path
 
-  let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
-  pure (localNames, mkPPE localPPE globalPPE)
-  where
-    mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
-    mkPPE primary addFallback =
-      PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE addFallback)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
-    indexNames :: BranchHash -> Sqlite.Transaction (Names, Names)
-    indexNames bh = do
-      scopedNames <- Codebase.namesAtPath bh path
-      pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
+  let ppe = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames names)
+  pure (names, ppe)
 
 resolveCausalHash ::
   (Monad m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)

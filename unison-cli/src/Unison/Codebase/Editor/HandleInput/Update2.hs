@@ -13,7 +13,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (over, (^.))
+import Control.Lens ((^.))
 import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
@@ -80,6 +80,7 @@ import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.Parser (ParsingEnv (namesForTDNR))
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -103,7 +104,8 @@ handleUpdate2 = do
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
-  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
+  let namesExcludingLibdeps = Branch.toNames $ Branch.withoutLib currentBranch0
+  let namesExcludingTransitiveLibdeps = Branch.toNames $ Branch.withoutLib currentBranch0
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
@@ -140,7 +142,7 @@ handleUpdate2 = do
       then pure tuf
       else do
         Cli.respond Output.UpdateStartTypechecking
-        parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+        parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps namesExcludingTransitiveLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
             Cli.Env {isTranscript} <- ask
@@ -178,15 +180,16 @@ prettyParseTypecheck bigUf pped parsingEnv = do
           Result.Result _notes Nothing -> Left prettyUf
 
 -- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
-makeParsingEnv :: Path.Absolute -> Names -> Cli (Parser.ParsingEnv Transaction)
-makeParsingEnv path names = do
+makeParsingEnv :: Path.Absolute -> Names -> Names -> Cli (Parser.ParsingEnv Transaction)
+makeParsingEnv path parseNames namesForTDNR = do
   Cli.Env {generateUniqueName} <- ask
   uniqueName <- liftIO generateUniqueName
   pure do
     Parser.ParsingEnv
       { uniqueNames = uniqueName,
         uniqueTypeGuid = Cli.loadUniqueTypeGuid path,
-        names = NamesWithHistory {currentNames = names, oldNames = mempty}
+        names = NamesWithHistory {currentNames = parseNames, oldNames = mempty},
+        namesForTDNR
       }
 
 -- save definitions and namespace
