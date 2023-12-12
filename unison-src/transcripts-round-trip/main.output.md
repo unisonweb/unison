@@ -295,13 +295,89 @@ So we can see the pretty-printed output:
     fix_4352 : Doc2
     fix_4352 = {{ `` +1 `` }}
     
+    fix_4384 : Doc2
+    fix_4384 = {{ {{ docExampleBlock 0 '2 }} }}
+    
+    fix_4384a : Doc2
+    fix_4384a =
+      use Nat +
+      {{ {{ docExampleBlock 0 '(1 + 1) }} }}
+    
+    fix_4384b : Doc2
+    fix_4384b = {{ {{ docExampleBlock 0 '99 }} }}
+    
+    fix_4384c : Doc2
+    fix_4384c =
+      use Nat +
+      {{ {{ docExampleBlock 0 do
+        x = 1
+        y = 2
+        x + y }} }}
+    
+    fix_4384d : Doc2
+    fix_4384d =
+      {{
+      {{
+      docExampleBlock 0 '[ 1
+        , 2
+        , 3
+        , 4
+        , 5
+        , 6
+        , 7
+        , 8
+        , 9
+        , 10
+        , 11
+        , 12
+        , 13
+        , 14
+        , 15
+        , 16
+        , 17
+        , 18
+        ] }}
+      }}
+    
+    fix_4384e : Doc2
+    fix_4384e =
+      id : x -> x
+      id x = x
+      {{
+      {{
+      docExampleBlock
+        0
+        (id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          id
+          (x -> 0)) }}
+      }}
+    
     Fix_525.bar.quaffle : Nat
     Fix_525.bar.quaffle = 32
     
     fix_525_exampleTerm : Text -> Nat
     fix_525_exampleTerm quaffle =
       use Nat +
-      Fix_525.bar.quaffle + 1
+      bar.quaffle + 1
     
     fix_525_exampleType :
       Id qualifiedName -> Id Fully.qualifiedName
@@ -641,16 +717,13 @@ So we can see the pretty-printed output:
     use_clauses_example : Int -> Text -> Nat
     use_clauses_example oo quaffle =
       use Nat +
-      Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
+      bar.quaffle + bar.quaffle + 1
     
     use_clauses_example2 : Int -> Nat
     use_clauses_example2 oo =
       use Nat +
       quaffle = "hi"
-      Fix_525.bar.quaffle
-        + Fix_525.bar.quaffle
-        + Fix_525.bar.quaffle
-        + 1
+      bar.quaffle + bar.quaffle + bar.quaffle + 1
     
     UUID.random : 'UUID
     UUID.random = do UUID 0 (0, 0)

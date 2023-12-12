@@ -53,6 +53,11 @@ foo = +5
 ```ucm
 .> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
   bar : Nat
   bar =
     use Nat +
@@ -61,6 +66,8 @@ foo = +5
   foo : Int
   foo = +5
 
-  Typechecking failed when propagating the update to all the dependents.
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 ```

@@ -6,6 +6,7 @@ module Unison.Cli.MonadUtils
 
     -- * Paths
     getCurrentPath,
+    resolvePath,
     resolvePath',
     resolveSplit',
 
@@ -30,7 +31,10 @@ module Unison.Cli.MonadUtils
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
+    expectBranchAtPath,
     expectBranchAtPath',
+    expectBranch0AtPath,
+    expectBranch0AtPath',
     assertNoBranchAtPath',
     branchExistsAtPath',
 
@@ -47,6 +51,7 @@ module Unison.Cli.MonadUtils
     updateRoot,
     updateAtM,
     updateAt,
+    updateAndStepAt,
 
     -- * Terms
     getTermsAt,
@@ -83,6 +88,7 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Data.Configurator qualified as Configurator
 import Data.Configurator.Types qualified as Configurator
+import Data.Foldable
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
@@ -138,6 +144,12 @@ getConfig key = do
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   use #currentPath
+
+-- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
+resolvePath :: Path -> Cli Path.Absolute
+resolvePath path = do
+  currentPath <- getCurrentPath
+  pure (Path.resolve currentPath (Path.Relative path))
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli Path.Absolute
@@ -279,11 +291,26 @@ getMaybeBranchAt path = do
   rootBranch <- getRootBranch
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
+-- | Get the branch at a relative path, or return early if there's no such branch.
+expectBranchAtPath :: Path -> Cli (Branch IO)
+expectBranchAtPath =
+  expectBranchAtPath' . Path' . Right . Path.Relative
+
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
   getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+
+-- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
+expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
+expectBranch0AtPath' =
+  fmap Branch.head . expectBranchAtPath'
+
+-- | Get the branch0 at a relative path, or return early if there's no such branch.
+expectBranch0AtPath :: Path -> Cli (Branch0 IO)
+expectBranch0AtPath =
+  expectBranch0AtPath' . Path' . Right . Path.Relative
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
@@ -420,6 +447,19 @@ updateAt ::
   Cli Bool
 updateAt reason p f = do
   updateAtM reason p (pure . f)
+
+updateAndStepAt ::
+  (Foldable f, Foldable g) =>
+  Text ->
+  f (Path.Absolute, Branch IO -> Branch IO) ->
+  g (Path, Branch0 IO -> Branch0 IO) ->
+  Cli ()
+updateAndStepAt reason updates steps = do
+  root <-
+    (Branch.stepManyAt steps)
+      . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
+      <$> getRootBranch
+  updateRoot root reason
 
 updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =

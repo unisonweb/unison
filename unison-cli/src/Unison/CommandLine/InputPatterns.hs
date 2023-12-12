@@ -49,6 +49,8 @@ import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
 import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
@@ -674,6 +676,27 @@ renameTerm =
           Left . P.warnCallout $
             P.wrap
               "`rename.term` takes two arguments, like `rename.term oldname newname`."
+    )
+
+moveAll :: InputPattern
+moveAll =
+  InputPattern
+    "move"
+    []
+    I.Visible
+    [ (Required, namespaceOrDefinitionArg),
+      (Required, newNameArg)
+    ]
+    "`move foo bar` renames the term, type, and namespace foo to bar."
+    ( \case
+        [oldName, newName] -> first fromString $ do
+          src <- Path.parsePath' oldName
+          target <- Path.parsePath' newName
+          pure $ Input.MoveAllI src target
+        _ ->
+          Left . P.warnCallout $
+            P.wrap
+              "`move` takes two arguments, like `move oldname newname`."
     )
 
 renameType :: InputPattern
@@ -2472,15 +2495,13 @@ createAuthor =
     []
     I.Visible
     [(Required, noCompletionsArg), (Required, noCompletionsArg)]
-    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
-        <> "creates"
+    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""] <> " "
+        <> P.wrap (" creates "
         <> backtick "alicecoder"
         <> "values in"
         <> backtick "metadata.authors"
         <> "and"
-        <> backtick "metadata.copyrightHolders"
-        <> "."
-    )
+        <> backtick (P.group ("metadata.copyrightHolders" <> "."))))
     ( \case
         symbolStr : authorStr@(_ : _) -> first fromString $ do
           symbol <- Path.definitionNameSegment symbolStr
@@ -2795,6 +2816,31 @@ releaseDraft =
         _ -> Left (showPatternHelp releaseDraft)
     }
 
+upgrade :: InputPattern
+upgrade =
+  InputPattern
+    { patternName = "upgrade",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [],
+      help =
+        P.wrap $
+          "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
+      parse =
+        maybeToEither (I.help upgrade) . \args -> do
+          [oldString, newString] <- Just args
+          old <- parseRelativeNameSegment oldString
+          new <- parseRelativeNameSegment newString
+          Just (Input.UpgradeI old new)
+    }
+  where
+    parseRelativeNameSegment :: String -> Maybe NameSegment
+    parseRelativeNameSegment string = do
+      name <- Name.fromText (Text.pack string)
+      guard (Name.isRelative name)
+      segment NE.:| [] <- Just (Name.reverseSegments name)
+      Just segment
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -2898,6 +2944,7 @@ validInputs =
       renamePatch,
       renameTerm,
       renameType,
+      moveAll,
       replace,
       reset,
       resetRoot,
@@ -2916,6 +2963,7 @@ validInputs =
       updateBuiltins,
       updateOld,
       updateOldNoPatch,
+      upgrade,
       view,
       viewGlobal,
       viewPatch,

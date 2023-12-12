@@ -32,7 +32,6 @@ test2 = [Ok "test2"]
 
 ```ucm:hide
 .lib> add
-.lib> link .builtin.metadata.isTest test2
 ```
 
 ```ucm
@@ -45,6 +44,7 @@ test2 = [Ok "test2"]
 ```unison
 test3 : [Result]
 test3 = [Ok "test3"]
+test4 = [Ok "test4"]
 ```
 
 ```ucm:hide

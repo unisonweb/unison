@@ -26,6 +26,7 @@ import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
+import Data.Tuple qualified as Tuple
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
 import System.Environment (withArgs)
@@ -70,7 +71,10 @@ import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
+import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
+import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
+import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
 import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
@@ -85,6 +89,7 @@ import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMai
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
+import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -233,7 +238,7 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
             patch <- Cli.getPatchAt patchPath'
-            QueryResult misses allHits <- hqNameQuery [from]
+            QueryResult misses allHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
             let tpRefs = Set.fromList $ typeReferences allHits
                 tmRefs = Set.fromList $ termReferences allHits
                 (hits, opHits) =
@@ -555,16 +560,17 @@ loop e = do
               let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch NamesWithHistory.IncludeSuffixes docName
                 for docRefs $ \docRef -> do
-                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+                  Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
               absPath <- Path.unabsolute <$> Cli.resolvePath' namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              pure ()
             AliasTermI src' dest' -> do
               Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -709,8 +715,8 @@ loop e = do
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = NamesWithHistory.lookupHQTerm query names
-                  types = NamesWithHistory.lookupHQType query names
+                  terms = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes query names
+                  types = NamesWithHistory.lookupHQType NamesWithHistory.IncludeSuffixes query names
                   terms' :: [(Referent, [HQ'.HashQualified Name])]
                   terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
                   types' :: [(Reference, [HQ'.HashQualified Name])]
@@ -781,58 +787,12 @@ loop e = do
                 d = Referent.Ref . Reference.DerivedId
                 base :: Path.Split' = (Path.relativeEmpty', "metadata")
                 authorPath' = base |> "authors" |> authorNameSegment
-            MoveTermI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTerms <- Cli.getTermsAt src
-              srcTerm <-
-                Set.asSingleton srcTerms & onNothing do
-                  if Set.null srcTerms
-                    then Cli.returnEarly (TermNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
-              dest <- Cli.resolveSplit' dest'
-              destTerms <- Cli.getTermsAt (Path.convert dest)
-              when (not (Set.null destTerms)) do
-                Cli.returnEarly (TermAlreadyExists dest' destTerms)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTermMetadataAt p srcTerm root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-                  BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
-                ]
-              Cli.respond Success
-            MoveTypeI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTypes <- Cli.getTypesAt src
-              srcType <-
-                Set.asSingleton srcTypes & onNothing do
-                  if Set.null srcTypes
-                    then Cli.returnEarly (TypeNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
-              dest <- Cli.resolveSplit' dest'
-              destTypes <- Cli.getTypesAt (Path.convert dest)
-              when (not (Set.null destTypes)) do
-                Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTypeMetadataAt p srcType root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-                  BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
-                ]
-              Cli.respond Success
+            MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
+            MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
+            MoveAllI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
+              desc <- inputDescription input
+              handleMoveAll hasConfirmed src' dest' desc
             DeleteI dtarget -> case dtarget of
               DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
               DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
@@ -977,8 +937,8 @@ loop e = do
 
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
-              QueryResult fromMisses' fromHits <- hqNameQuery [from]
-              QueryResult toMisses' toHits <- hqNameQuery [to]
+              QueryResult fromMisses' fromHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
+              QueryResult toMisses' toHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -1348,6 +1308,7 @@ loop e = do
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
+            UpgradeI old new -> handleUpgrade old new
 
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
@@ -1474,6 +1435,10 @@ inputDescription input =
       src <- p' src0
       dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
+    MoveAllI src0 dest0 -> do
+      src <- p' src0
+      dest <- p' dest0
+      pure ("move " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
       dest <- ps' dest0
@@ -1578,6 +1543,7 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
+    UpgradeI old new -> pure (Text.unwords ["upgrade", NameSegment.toText old, NameSegment.toText new])
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1698,7 +1664,7 @@ lookupRewrite onErr prepare rule = do
   ot <- case ot of
     Just _ -> pure ot
     Nothing -> do
-      case NamesWithHistory.lookupHQTerm rule currentNames of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes rule currentNames of
         s
           | Set.size s == 1,
             Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
@@ -1991,14 +1957,14 @@ handleIOTest main = do
       whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
         whenJust (HQ.toName main) \mainName ->
           whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
-            returnMatches [(Reference.fromId ref, typ)]
+            returnMatches [(ref, typ)]
 
       -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
       Cli.runTransaction do
-        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
+        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes main parseNames)) \ref0 ->
           runMaybeT do
-            ref <- MaybeT (pure (Referent.toTermReference ref0))
-            typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
+            ref <- MaybeT (pure (Referent.toTermReferenceId ref0))
+            typ <- MaybeT (loadTypeOfTerm codebase (Referent.fromTermReferenceId ref))
             pure (ref, typ)
 
   ref <-
@@ -2012,12 +1978,12 @@ handleIOTest main = do
         hashLength <- Cli.runTransaction Codebase.hashLength
         let labeledDependencies =
               matches
-                & map (\(ref, _typ) -> LD.termRef ref)
+                & map (\(ref, _typ) -> LD.derivedTerm ref)
                 & Set.fromList
         Cli.returnEarly (LabeledReferenceAmbiguous hashLength main labeledDependencies)
 
   let a = ABT.annotation tm
-      tm = DD.forceTerm a a (Term.ref a ref)
+      tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
   tm' <- evalUnisonTerm False ppe False tm
   Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
@@ -2059,7 +2025,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
@@ -2067,10 +2033,10 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     -- information from the database instead, once it's efficient to do so.
     isTest <- do
       branch <- Cli.getCurrentBranch0
-      pure \ref ->
-        branch
-          & Branch.deepTermMetadata
-          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) IOSource.isTestReference
+      let branchRefs = branch & Branch.deepTerms & Relation.dom & Set.mapMaybe Referent.toTermReferenceId
+      tests <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) branchRefs)
+      pure \r -> Set.member r tests
+
     Cli.respond $
       DisplayDefinitions
         DisplayDefinitionsOutput
@@ -2107,40 +2073,48 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle a @test@ command.
+-- Run pure tests in the current subnamespace.
 handleTest :: TestInput -> Cli ()
 handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testTerms <- do
-    branch <- Cli.getCurrentBranch0
-    branch
-      & Branch.deepTermMetadata
-      & R4.restrict34d12 IOSource.isTest
-      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
-      & R.dom
-      & pure
-  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
-      oks results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
-        ]
-      fails results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
-        ]
-  cachedTests <- do
-    fmap Map.fromList do
+  testRefs <-
+    do
+      branch <- Cli.getCurrentBranch0
+      let queryTerms =
+            branch
+              & Branch.deepTerms
+              & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
+              & R.dom
+              & Set.mapMaybe Referent.toTermReferenceId
+      Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) queryTerms)
+
+  cachedTests <-
+    Map.fromList <$> Cli.runTransaction do
       Set.toList testRefs & wither \case
-        Reference.Builtin _ -> pure Nothing
-        r@(Reference.DerivedId rid) -> fmap (r,) <$> Cli.runTransaction (Codebase.getWatch codebase WK.TestWatch rid)
+        rid -> fmap (rid,) <$> Codebase.getWatch codebase WK.TestWatch rid
+  let (oks, fails) = passFails cachedTests
+      passFails :: (Ord r) => Map r (Term v a) -> ([(r, Text)], [(r, Text)])
+      passFails = Tuple.swap . partitionEithers . concat . map p . Map.toList
+        where
+          p :: (r, Term v a) -> [Either (r, Text) (r, Text)]
+          p (r, tm) = case tm of
+            Term.List' ts -> mapMaybe (q r) (toList ts)
+            _ -> []
+          q r = \case
+            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
+              if
+                  | ref == DD.testResultRef ->
+                      if
+                          | cid == DD.okConstructorId -> Just (Right (r, msg))
+                          | cid == DD.failConstructorId -> Just (Left (r, msg))
+                          | otherwise -> Nothing
+                  | otherwise -> Nothing
+            _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <-
     makePrintNamesFromLabeled' $
-      LD.referents testTerms
+      LD.referents (Set.mapMonotonic Referent.fromTermReferenceId testRefs)
         <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
   ppe <- fqnPPE names
   Cli.respond $
@@ -2149,36 +2123,34 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
       ppe
       showSuccesses
       showFailures
-      (oks cachedTests)
-      (fails cachedTests)
+      oks
+      fails
   let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
   when (not (Set.null toCompute)) do
     let total = Set.size toCompute
     computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-      case r of
-        Reference.DerivedId rid ->
-          Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
-            Nothing -> do
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId rid)
+      Cli.runTransaction (Codebase.getTerm codebase r) >>= \case
+        Nothing -> do
+          hqLength <- Cli.runTransaction Codebase.hashLength
+          Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
+          pure []
+        Just tm -> do
+          Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
+          --                        v don't cache; test cache populated below
+          tm' <- evalPureUnison ppe False tm
+          case tm' of
+            Left e -> do
+              Cli.respond (EvaluationFailure e)
               pure []
-            Just tm -> do
-              Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                        v don't cache; test cache populated below
-              tm' <- evalPureUnison ppe False tm
-              case tm' of
-                Left e -> do
-                  Cli.respond (EvaluationFailure e)
-                  pure []
-                Right tm' -> do
-                  -- After evaluation, cache the result of the test
-                  Cli.runTransaction (Codebase.putWatch WK.TestWatch rid tm')
-                  Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-                  pure [(r, tm')]
-        r -> error $ "unpossible, tests can't be builtins: " <> show r
+            Right tm' -> do
+              -- After evaluation, cache the result of the test
+              Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
+              Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
+              pure [(r, tm')]
 
     let m = Map.fromList computedTests
-    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
+        (mOks, mFails) = passFails m
+    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures mOks mFails
   where
     isInLibNamespace :: Name -> Bool
     isInLibNamespace name =
@@ -2792,7 +2764,7 @@ displayI prettyPrintNames outputLoc hq = do
   case addWatch (HQ.toString hq) latestTypecheckedFile of
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
-          results = NamesWithHistory.lookupHQTerm hq parseNames
+          results = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq parseNames
       pped <- prettyPrintEnvDecl parseNames
       ref <-
         Set.asSingleton results & onNothing do
@@ -2833,7 +2805,7 @@ docsI srcLoc prettyPrintNames src =
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
-      case NamesWithHistory.lookupHQTerm dotDoc fnames of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc fnames of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
@@ -2859,7 +2831,7 @@ docsI srcLoc prettyPrintNames src =
     codebaseByName :: Cli ()
     codebaseByName = do
       parseNames <- basicParseNames
-      case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
+      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
         s
           | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
           | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
@@ -3086,8 +3058,8 @@ loadTypeOfTerm _ Referent.Con {} =
   error $
     reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
-hqNameQuery :: [HQ.HashQualified Name] -> Cli QueryResult
-hqNameQuery query = do
+hqNameQuery :: NamesWithHistory.SearchType -> [HQ.HashQualified Name] -> Cli QueryResult
+hqNameQuery searchType query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
@@ -3095,7 +3067,7 @@ hqNameQuery query = do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
     let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-    Backend.hqNameQuery codebase nameSearch query
+    Backend.hqNameQuery codebase nameSearch searchType query
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.

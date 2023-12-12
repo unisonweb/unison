@@ -25,6 +25,8 @@ unique type Foo = Bar Nat
   Done.
 
 ```
+Now we've set up a situation where the constructor is not where it's supposed to be; it's somewhere else.
+
 ```unison
 unique type Foo = Bar Nat Nat
 ```
@@ -41,6 +43,23 @@ unique type Foo = Bar Nat Nat
       unique type Foo
 
 ```
-Bug: this update crashes ucm. Oops we can't even capture that in a transcript.
+Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`) doesn't really exist, it's just showing up due to a pretty-printer bug.
 
-# .> update
+```ucm
+.> view Foo
+
+  unique type Foo = Stray.Bar Nat
+
+.> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  I couldn't complete the update because I couldn't find 1
+  constructor(s) for Foo where I expected to. I found: []
+  
+  You can use `view Foo` and
+  `alias.term <hash> Foo.<ConstructorName>` to give names to
+  each constructor, and then try again.
+
+```

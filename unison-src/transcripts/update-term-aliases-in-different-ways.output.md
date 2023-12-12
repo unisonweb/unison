@@ -59,7 +59,8 @@ bar = 7
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

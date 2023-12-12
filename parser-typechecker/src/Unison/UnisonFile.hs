@@ -7,6 +7,7 @@ module Unison.UnisonFile
   ( -- * UnisonFile
     UnisonFile (..),
     pattern UnisonFile,
+    emptyUnisonFile,
     allWatches,
     dataDeclarations,
     declsToTypeLookup,
@@ -64,6 +65,16 @@ import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind, pattern TestWatch)
+
+-- | An empty Unison file.
+emptyUnisonFile :: UnisonFile v a
+emptyUnisonFile =
+  UnisonFileId
+    { dataDeclarationsId = Map.empty,
+      effectDeclarationsId = Map.empty,
+      terms = [],
+      watches = Map.empty
+    }
 
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId

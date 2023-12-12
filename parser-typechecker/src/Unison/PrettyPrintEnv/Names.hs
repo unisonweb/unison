@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
+module Unison.PrettyPrintEnv.Names
+  ( fromNames,
+    fromSuffixNames,
+    prioritize,
+    shortestUniqueSuffixes,
+  )
+where
 
 import Data.Set qualified as Set
 import Unison.HashQualified' qualified as HQ'
@@ -46,16 +52,16 @@ fromSuffixNames len names = PrettyPrintEnv terms' types'
       NamesWithHistory.termName len r names
         & Set.toList
         & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes r (Names.terms $ NamesWithHistory.currentNames names)
+        & shortestUniqueSuffixes (Names.terms $ NamesWithHistory.currentNames names)
         & prioritize
     types' r =
       NamesWithHistory.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes r (Names.types $ NamesWithHistory.currentNames names)
+        & shortestUniqueSuffixes (Names.types $ NamesWithHistory.currentNames names)
         & prioritize
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given
 -- relation.
-shortestUniqueSuffixes :: (Ord ref) => ref -> Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
-shortestUniqueSuffixes ref rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name ref rel))
+shortestUniqueSuffixes :: (Ord ref) => Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
+shortestUniqueSuffixes rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name rel))

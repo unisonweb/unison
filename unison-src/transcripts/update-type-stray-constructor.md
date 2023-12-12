@@ -12,10 +12,15 @@ unique type Foo = Bar Nat
 .> move.term Foo.Bar Stray.Bar
 ```
 
+Now we've set up a situation where the constructor is not where it's supposed to be; it's somewhere else.
+
 ```unison
 unique type Foo = Bar Nat Nat
 ```
 
-Bug: this update crashes ucm. Oops we can't even capture that in a transcript.
+Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`) doesn't really exist, it's just showing up due to a pretty-printer bug.
 
-# .> update
+```ucm:error
+.> view Foo
+.> update
+```

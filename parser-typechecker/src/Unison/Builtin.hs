@@ -516,6 +516,7 @@ builtinsSrc =
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.replicate" $ forall1 "a" (\a -> nat --> nat --> pat a --> pat a),
     B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.captureAs" $ forall1 "a" (\a -> a --> pat a --> pat a),
     B "Pattern.join" $ forall1 "a" (\a -> list (pat a) --> pat a),
     B "Pattern.or" $ forall1 "a" (\a -> pat a --> pat a --> pat a),
     -- Pattern.run : Pattern a -> a -> Optional ([a], a)

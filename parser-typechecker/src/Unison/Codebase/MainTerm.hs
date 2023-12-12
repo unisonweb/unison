@@ -39,7 +39,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
+      let refs = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
         [] -> pure (NotFound mainName)
@@ -67,12 +67,8 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
--- [Result]
-resultArr :: (Ord v) => a -> Type.Type v a
-resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
-
 builtinResultArr :: (Ord v) => a -> Type.Type v a
-builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (resultArr a)
+builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
 
 -- '{io2.IO} [Result]
 builtinTest :: (Ord v) => a -> Type.Type v a
