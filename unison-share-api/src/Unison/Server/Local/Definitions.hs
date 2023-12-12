@@ -66,11 +66,11 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
-    definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+    definitionsByName codebase nameSearch DontIncludeCycles NamesWithHistory.ExactName [query]
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- docsForDefinitionName codebase nameSearch name
+        docRefs <- docsForDefinitionName codebase nameSearch NamesWithHistory.ExactName name
         renderDocRefs pped width codebase rt docRefs
           -- local server currently ignores doc eval errors
           <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)

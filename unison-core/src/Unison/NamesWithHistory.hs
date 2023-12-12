@@ -1,6 +1,32 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.NamesWithHistory where
+module Unison.NamesWithHistory
+  ( NamesWithHistory (..),
+    fromCurrentNames,
+    filterTypes,
+    diff,
+    push,
+    shadowing,
+    lookupHQType,
+    lookupHQType',
+    lookupHQTerm,
+    lookupHQTerm',
+    lookupRelativeHQType,
+    lookupRelativeHQType',
+    lookupRelativeHQTerm,
+    lookupRelativeHQTerm',
+    hasTermNamed,
+    hasTypeNamed,
+    typeName,
+    termNamesByLength,
+    longestTermName,
+    termName,
+    importing,
+    lookupHQPattern,
+    Diff (..),
+    SearchType (..),
+  )
+where
 
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
@@ -21,6 +47,13 @@ import Unison.ShortHash (ShortHash)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
+
+-- | Whether to search for exact matches or to find definitions by a suffix of their name.
+data SearchType
+  = IncludeSuffixes
+  | ExactName
+  deriving (Eq, Ord, Show)
 
 -- | NamesWithHistory contains two sets of 'Names',
 -- One represents names which are currently assigned,
@@ -120,63 +153,63 @@ shadowing prio (NamesWithHistory current old) =
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
 -- returning types with absolute names.
-lookupRelativeHQType :: HashQualified Name -> NamesWithHistory -> Set Reference
-lookupRelativeHQType hq ns@NamesWithHistory {..} =
-  let rs = lookupHQType hq ns
+lookupRelativeHQType :: SearchType -> HashQualified Name -> NamesWithHistory -> Set Reference
+lookupRelativeHQType searchType hq ns@NamesWithHistory {..} =
+  let rs = lookupHQType searchType hq ns
       keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types currentNames))
    in case Set.filter keep rs of
         rs'
           | Set.null rs' -> rs
           | otherwise -> rs'
 
-lookupRelativeHQType' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
-lookupRelativeHQType' =
-  lookupRelativeHQType . HQ'.toHQ
+lookupRelativeHQType' :: SearchType -> HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
+lookupRelativeHQType' searchType =
+  lookupRelativeHQType searchType . HQ'.toHQ
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified'.
-lookupHQType :: HashQualified Name -> NamesWithHistory -> Set Reference
-lookupHQType =
-  lookupHQRef Names.types Reference.isPrefixOf
+lookupHQType :: SearchType -> HashQualified Name -> NamesWithHistory -> Set Reference
+lookupHQType searchType =
+  lookupHQRef searchType Names.types Reference.isPrefixOf
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQType'.
-lookupHQType' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
-lookupHQType' =
-  lookupHQType . HQ'.toHQ
+lookupHQType' :: SearchType -> HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
+lookupHQType' searchType =
+  lookupHQType searchType . HQ'.toHQ
 
-hasTermNamed :: Name -> NamesWithHistory -> Bool
-hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
+hasTermNamed :: SearchType -> Name -> NamesWithHistory -> Bool
+hasTermNamed searchType n ns = not (Set.null $ lookupHQTerm searchType (HQ.NameOnly n) ns)
 
-hasTypeNamed :: Name -> NamesWithHistory -> Bool
-hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
+hasTypeNamed :: SearchType -> Name -> NamesWithHistory -> Bool
+hasTypeNamed searchType n ns = not (Set.null $ lookupHQType searchType (HQ.NameOnly n) ns)
 
 -- Find all terms whose name has a suffix matching the provided `HashQualified`,
 -- returning terms with relative names if they exist, and otherwise
 -- returning terms with absolute names.
-lookupRelativeHQTerm :: HashQualified Name -> NamesWithHistory -> Set Referent
-lookupRelativeHQTerm hq ns@NamesWithHistory {..} =
-  let rs = lookupHQTerm hq ns
+lookupRelativeHQTerm :: SearchType -> HashQualified Name -> NamesWithHistory -> Set Referent
+lookupRelativeHQTerm searchType hq ns@NamesWithHistory {..} =
+  let rs = lookupHQTerm searchType hq ns
       keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms currentNames))
    in case Set.filter keep rs of
         rs'
           | Set.null rs' -> rs
           | otherwise -> rs'
 
-lookupRelativeHQTerm' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
-lookupRelativeHQTerm' =
-  lookupRelativeHQTerm . HQ'.toHQ
+lookupRelativeHQTerm' :: SearchType -> HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
+lookupRelativeHQTerm' searchType =
+  lookupRelativeHQTerm searchType . HQ'.toHQ
 
 -- | Find all terms whose name has a suffix matching the provided 'HashQualified'.
 --
 -- If the hash-qualified name does not include a hash, then only current names are searched. Otherwise, old names are
 -- searched, too, if searching current names produces no hits.
-lookupHQTerm :: HashQualified Name -> NamesWithHistory -> Set Referent
-lookupHQTerm =
-  lookupHQRef Names.terms Referent.isPrefixOf
+lookupHQTerm :: SearchType -> HashQualified Name -> NamesWithHistory -> Set Referent
+lookupHQTerm searchType =
+  lookupHQRef searchType Names.terms Referent.isPrefixOf
 
 -- | Find all terms whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQTerm'.
-lookupHQTerm' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
-lookupHQTerm' =
-  lookupHQTerm . HQ'.toHQ
+lookupHQTerm' :: SearchType -> HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
+lookupHQTerm' searchType =
+  lookupHQTerm searchType . HQ'.toHQ
 
 -- Helper that unifies looking up a set of references/referents by a hash-qualified suffix.
 --
@@ -184,6 +217,7 @@ lookupHQTerm' =
 lookupHQRef ::
   forall r.
   (Ord r) =>
+  SearchType ->
   -- | A projection of types or terms from a Names.
   (Names -> Relation Name r) ->
   -- | isPrefixOf, for references or referents
@@ -192,20 +226,23 @@ lookupHQRef ::
   HashQualified Name ->
   NamesWithHistory ->
   Set r
-lookupHQRef which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
+lookupHQRef searchType which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
   case hq of
-    HQ.NameOnly n -> Name.searchByRankedSuffix n currentRefs
+    HQ.NameOnly n -> doSearch n currentRefs
     HQ.HashQualified n sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r
         matches ns =
-          Set.filter (isPrefixOf sh) (Name.searchByRankedSuffix n ns)
+          Set.filter (isPrefixOf sh) (doSearch n ns)
     HQ.HashOnly sh -> matches currentRefs `orIfEmpty` matches oldRefs
       where
         matches :: Relation Name r -> Set r
         matches ns =
           Set.filter (isPrefixOf sh) (R.ran ns)
   where
+    doSearch = case searchType of
+      IncludeSuffixes -> Name.searchByRankedSuffix
+      ExactName -> Relation.lookupDom
     currentRefs = which currentNames
     oldRefs = which oldNames
 
@@ -261,14 +298,15 @@ termName length r NamesWithHistory {..} =
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
 lookupHQPattern ::
+  SearchType ->
   HQ.HashQualified Name ->
   CT.ConstructorType ->
   NamesWithHistory ->
   Set ConstructorReference
-lookupHQPattern hq ctt names =
+lookupHQPattern searchType hq ctt names =
   Set.fromList
     [ r
-      | Referent.Con r ct <- toList $ lookupHQTerm hq names,
+      | Referent.Con r ct <- toList $ lookupHQTerm searchType hq names,
         ct == ctt
     ]
 

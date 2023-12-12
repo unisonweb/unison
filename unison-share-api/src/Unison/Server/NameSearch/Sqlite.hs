@@ -22,6 +22,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
+import Unison.NamesWithHistory (SearchType (ExactName, IncludeSuffixes))
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
@@ -32,11 +33,6 @@ import Unison.Server.SearchResult qualified as SR
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Set qualified as Set
-
-data SearchStrategy
-  = ExactMatch
-  | SuffixMatch
-  deriving (Show, Eq)
 
 nameSearchForPerspective :: Codebase m v a -> Ops.NamesPerspective -> (NameSearch Sqlite.Transaction)
 nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToMountedNameLookup} = do
@@ -49,14 +45,14 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
     typeSearch =
       Search
         { lookupNames = lookupNamesForTypes,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTypes . fmap stripMountPathPrefix,
+          lookupRelativeHQRefs' = \searchType n -> hqTypeSearch searchType . fmap stripMountPathPrefix $ n,
           makeResult = \hqname r names -> pure $ SR.typeResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReference
         }
     termSearch =
       Search
         { lookupNames = lookupNamesForTerms,
-          lookupRelativeHQRefs' = lookupRelativeHQRefsForTerms . fmap stripMountPathPrefix,
+          lookupRelativeHQRefs' = \searchType n -> hqTermSearch searchType . fmap stripMountPathPrefix $ n,
           makeResult = \hqname r names -> pure $ SR.termResult hqname r names,
           matchesNamedRef = HQ'.matchesNamedReferent
         }
@@ -75,37 +71,16 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
         & fmap (\segments -> HQ'.HashQualified (reversedSegmentsToName segments) (Referent.toShortHash ref))
         & Set.fromList
         & pure
-    -- This is a bit messy, but the existing 'lookupRelativeHQRefs' semantics
-    -- will return ONLY exact matches if any exist, otherwise it falls back on
-    -- suffix search, so we maintain that behaviour here. It would probably be better
-    -- to have separate functions in the Search type for each of these, and be more explicit
-    -- about desired behaviour at the call-site.
-    lookupRelativeHQRefsForTerms :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
-    lookupRelativeHQRefsForTerms hqName = do
-      exact <- hqTermSearch ExactMatch hqName
-      if Set.null exact
-        then do
-          hqTermSearch SuffixMatch hqName
-        else do
-          pure exact
-    lookupRelativeHQRefsForTypes :: HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
-    lookupRelativeHQRefsForTypes hqName = do
-      exact <- hqTypeSearch ExactMatch hqName
-      if Set.null exact
-        then do
-          hqTypeSearch SuffixMatch hqName
-        else do
-          pure exact
     -- Search the codebase for matches to the given hq name.
     -- Supports either an exact match or a suffix match.
-    hqTermSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
+    hqTermSearch :: SearchType -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Referent)
     hqTermSearch searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.termRefsForExactName namesPerspective (coerce $ Name.reverseSegments name)
-              SuffixMatch -> Ops.termNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
+              ExactName -> Ops.termRefsForExactName namesPerspective (coerce $ Name.reverseSegments name)
+              IncludeSuffixes -> Ops.termNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap
               ( \(NamedRef.ref -> (ref, mayCT)) ->
@@ -120,21 +95,21 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
             matches <- Ops.termNamesForRefWithinNamespace namesPerspective (Cv.referent1to2 termRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
-            if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
+            if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactName) matches
               then pure (Just termRef)
               else pure Nothing
 
     -- Search the codebase for matches to the given hq name.
     -- Supports either an exact match or a suffix match.
-    hqTypeSearch :: SearchStrategy -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
+    hqTypeSearch :: SearchType -> HQ'.HashQualified Name -> Sqlite.Transaction (Set Reference)
     hqTypeSearch searchStrat hqName = do
       case hqName of
         HQ'.NameOnly name -> do
           let fqn = fullyQualifyName name
           namedRefs <-
             case searchStrat of
-              ExactMatch -> Ops.typeRefsForExactName namesPerspective (coerce $ Name.reverseSegments fqn)
-              SuffixMatch -> Ops.typeNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
+              ExactName -> Ops.typeRefsForExactName namesPerspective (coerce $ Name.reverseSegments fqn)
+              IncludeSuffixes -> Ops.typeNamesBySuffix namesPerspective (coerce $ Name.reverseSegments name)
           namedRefs
             & fmap (Cv.reference2to1 . NamedRef.ref)
             & Set.fromList
@@ -146,7 +121,7 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
             matches <- Ops.typeNamesForRefWithinNamespace namesPerspective (Cv.reference1to2 typeRef) (Just . coerce $ Name.reverseSegments name)
             -- Return a valid ref if at least one match was found. Require that it be an exact
             -- match if specified.
-            if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactMatch) matches
+            if any (\n -> coerce (Name.reverseSegments fqn) == n || searchStrat /= ExactName) matches
               then pure (Just typeRef)
               else pure Nothing
 
