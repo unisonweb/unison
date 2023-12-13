@@ -146,8 +146,10 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
 
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
+  Cli.Env {runtime} <- ask
   parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
   ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
+  let isIOTest typ = NESet.member typ $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
   (fails, oks) <-
     refs & foldMapM \(ref, typ) -> do
@@ -187,40 +189,6 @@ handleAllIOTests = do
           pure (fails, oks)
       Cli.respond $ TestResults Output.NewlyComputed ppe True True oks fails
 
--- handleIOTestsByRefs :: Set (HQ.HashQualified Name) -> Cli ()
--- handleIOTestsByRefs mains = do
---   Cli.Env {runtime} <- ask
-
---   let testType = Runtime.ioTestType runtime
---   parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
---   -- use suffixed names for resolving the argument to display
---   ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
---   let oks results =
---         [ (r, msg)
---           | (r, Term.List' ts) <- results,
---             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
---             cid == DD.okConstructorId && ref == DD.testResultRef
---         ]
---       fails results =
---         [ (r, msg)
---           | (r, Term.List' ts) <- results,
---             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
---             cid == DD.failConstructorId && ref == DD.testResultRef
---         ]
-
---   matches <- resolveHQNames parseNames mains
---   for_ matches \(ref, typ) -> do
---     if Typechecker.isSubtype typ testType
---       then pure ref
---       else Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe [testType])
-
---   let a = ABT.annotation tm
---       tm = DD.forceTerm a a (Term.refId a ref)
---   -- Don't cache IO tests
---   tm' <- RuntimeUtils.evalUnisonTerm False ppe False tm
---   Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
---   where
-
 resolveHQNames :: NamesWithHistory -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
 resolveHQNames parseNames hqNames =
   Set.fromList <$> do
@@ -243,9 +211,6 @@ resolveHQNames parseNames hqNames =
           ref <- hoistMaybe (Referent.toTermReferenceId ref0)
           typ <- MaybeT (Codebase.getTypeOfReferent codebase (Referent.fromTermReferenceId ref))
           pure (ref, typ)
-
-isIOTest :: Type.Type Symbol Ann -> Bool
-isIOTest = undefined
 
 runIOTest :: PPE.PrettyPrintEnv -> Reference.Id -> Cli ([(Reference.Id, Text)], [(Reference.Id, Text)])
 runIOTest ppe ref = do

@@ -3,6 +3,8 @@
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
+import Data.Foldable qualified as Foldable
+import Data.List.NonEmpty qualified as NEList
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Unison.Builtin.Decls qualified as DD
@@ -69,10 +71,15 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
-builtinResultArr :: (Ord v) => a -> Type.Type v a
-builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
-
--- '{io2.IO} [Result]
-builtinIOTestTypes :: (Ord v) => a -> NESet (Type.Type v a)
+-- | All possible IO'ish test types, e.g.
+-- '{IO, Exception} [Result]
+-- '{IO} [Result]
+-- '{Exception} [Result]
+builtinIOTestTypes :: forall v a. (Ord v, Var v) => a -> NESet (Type.Type v a)
 builtinIOTestTypes a =
-  NESet.singleton (Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a))
+  NESet.powerSet ioTestEffects
+    & NESet.map (delayedResultWithEffects . Foldable.toList)
+  where
+    ioTestEffects = NESet.fromList (Type.builtinIO a NEList.:| [DD.exceptionType a])
+    delayed = Type.arrow a (Type.ref a DD.unitRef)
+    delayedResultWithEffects es = delayed (Type.effect a es (DD.testResultType a))
