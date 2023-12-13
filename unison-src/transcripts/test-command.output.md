@@ -115,30 +115,12 @@ test4 = [Ok "test4"]
 ```ucm
 .> test
 
-    
-    Cached test results (`help testcache` to learn more)
-    
-    ◉ test1   test1
-    
-    ✅ 1 test(s) passing
-    
-    ✅  
-
+  Cached test results (`help testcache` to learn more)
   
-
+  ◉ test1   test1
   
-
+  ✅ 1 test(s) passing
   
-
-  
-
-    New test results:
-  
-  ◉ hello.lib.test3   test3
-  ◉ hello.lib.test4   test4
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view hello.lib.test3 to view the source of a test.
+  Tip: Use view test1 to view the source of a test.
 
 ```

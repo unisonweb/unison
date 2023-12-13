@@ -9,6 +9,7 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe (mapMaybeT)
+import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
@@ -46,6 +47,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
@@ -149,12 +151,12 @@ handleIOTest main = do
   Cli.Env {runtime} <- ask
   parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
   ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
-  let isIOTest typ = NESet.member typ $ Runtime.ioTestTypes runtime
+  let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
   (fails, oks) <-
     refs & foldMapM \(ref, typ) -> do
       when (not $ isIOTest typ) do
-        Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe [])
+        Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe (Foldable.toList $ Runtime.ioTestTypes runtime))
       runIOTest ppe ref
   Cli.respond $ TestResults Output.NewlyComputed ppe True True oks fails
 
