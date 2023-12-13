@@ -42,7 +42,7 @@ import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
-import Unison.Codebase.MainTerm (builtinMain, builtinTest)
+import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
 import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
@@ -727,7 +727,7 @@ startRuntime sandboxed runtimeHost version = do
             putNat w
             putStoredCache sto,
         mainType = builtinMain External,
-        ioTestType = builtinTest External
+        ioTestTypes = builtinIOTestTypes External
       }
 
 withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a

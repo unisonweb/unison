@@ -2359,6 +2359,24 @@ ioTest =
         _ -> Left $ showPatternHelp ioTest
     }
 
+ioTestAll :: InputPattern
+ioTestAll =
+  InputPattern
+    { patternName = "io.test.all",
+      aliases = ["test.io.all"],
+      visibility = I.Visible,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test.all`",
+              "Runs all tests which use IO within the scope of the current namespace."
+            )
+          ],
+      parse = \case
+        [] -> Right Input.IOTestAllI
+        _ -> Left $ showPatternHelp ioTest
+    }
+
 makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
@@ -2495,13 +2513,17 @@ createAuthor =
     []
     I.Visible
     [(Required, noCompletionsArg), (Required, noCompletionsArg)]
-    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""] <> " "
-        <> P.wrap (" creates "
-        <> backtick "alicecoder"
-        <> "values in"
-        <> backtick "metadata.authors"
-        <> "and"
-        <> backtick (P.group ("metadata.copyrightHolders" <> "."))))
+    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+        <> " "
+        <> P.wrap
+          ( " creates "
+              <> backtick "alicecoder"
+              <> "values in"
+              <> backtick "metadata.authors"
+              <> "and"
+              <> backtick (P.group ("metadata.copyrightHolders" <> "."))
+          )
+    )
     ( \case
         symbolStr : authorStr@(_ : _) -> first fromString $ do
           symbol <- Path.definitionNameSegment symbolStr
@@ -2910,6 +2932,7 @@ validInputs =
       helpTopics,
       history,
       ioTest,
+      ioTestAll,
       link,
       links,
       load,

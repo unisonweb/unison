@@ -26,7 +26,6 @@ import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
-import Data.Tuple qualified as Tuple
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
 import System.Environment (withArgs)
@@ -85,7 +84,9 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
+import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
@@ -1083,7 +1084,7 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath patchPath)
               branchPath <- Cli.resolvePath' branchPath'
               doShowTodoOutput patch branchPath
-            TestI testInput -> handleTest testInput
+            TestI testInput -> Tests.handleTest testInput
             PropagatePatchI patchPath scopePath' -> do
               description <- inputDescription input
               patch <- Cli.getPatchAt patchPath
@@ -1120,7 +1121,8 @@ loop e = do
             GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
             FetchSchemeCompilerI name branch ->
               doFetchCompiler name branch
-            IOTestI main -> handleIOTest main
+            IOTestI main -> Tests.handleIOTest main
+            IOTestAllI -> Tests.handleAllIOTests
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
             --   checkTodo
@@ -1508,6 +1510,7 @@ inputDescription input =
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
+    IOTestAllI -> pure "io.test.all"
     LinkI md defs0 -> do
       defs <- traverse hqs' defs0
       pure ("link " <> HQ.toText md <> " " <> Text.intercalate " " defs)
@@ -1929,64 +1932,6 @@ handleDiffNamespaceToPatch description input = do
     makeTypeEdit (Conversions.reference2to1 -> oldRef) newRefs =
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
-handleIOTest :: HQ.HashQualified Name -> Cli ()
-handleIOTest main = do
-  Cli.Env {codebase, runtime} <- ask
-
-  let testType = Runtime.ioTestType runtime
-  parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
-  -- use suffixed names for resolving the argument to display
-  ppe <- suffixifiedPPE parseNames
-  let oks results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
-        ]
-      fails results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
-        ]
-
-  matches <-
-    Cli.label \returnMatches -> do
-      -- First, look at the terms in the latest typechecked file for a name-match.
-      whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
-        whenJust (HQ.toName main) \mainName ->
-          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
-            returnMatches [(ref, typ)]
-
-      -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
-      Cli.runTransaction do
-        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
-          runMaybeT do
-            ref <- MaybeT (pure (Referent.toTermReferenceId ref0))
-            typ <- MaybeT (loadTypeOfTerm codebase (Referent.fromTermReferenceId ref))
-            pure (ref, typ)
-
-  ref <-
-    case matches of
-      [] -> Cli.returnEarly (NoMainFunction (HQ.toString main) ppe [testType])
-      [(ref, typ)] ->
-        if Typechecker.isSubtype typ testType
-          then pure ref
-          else Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe [testType])
-      _ -> do
-        hashLength <- Cli.runTransaction Codebase.hashLength
-        let labeledDependencies =
-              matches
-                & map (\(ref, _typ) -> LD.derivedTerm ref)
-                & Set.fromList
-        Cli.returnEarly (LabeledReferenceAmbiguous hashLength main labeledDependencies)
-
-  let a = ABT.annotation tm
-      tm = DD.forceTerm a a (Term.refId a ref)
-  -- Don't cache IO tests
-  tm' <- evalUnisonTerm False ppe False tm
-  Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
-
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope inputQuery = do
@@ -2071,92 +2016,6 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
 
--- | Handle a @test@ command.
--- Run pure tests in the current subnamespace.
-handleTest :: TestInput -> Cli ()
-handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
-  Cli.Env {codebase} <- ask
-
-  testRefs <-
-    do
-      branch <- Cli.getCurrentBranch0
-      let queryTerms =
-            branch
-              & Branch.deepTerms
-              & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
-              & R.dom
-              & Set.mapMaybe Referent.toTermReferenceId
-      Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) queryTerms)
-
-  cachedTests <-
-    Map.fromList <$> Cli.runTransaction do
-      Set.toList testRefs & wither \case
-        rid -> fmap (rid,) <$> Codebase.getWatch codebase WK.TestWatch rid
-  let (oks, fails) = passFails cachedTests
-      passFails :: (Ord r) => Map r (Term v a) -> ([(r, Text)], [(r, Text)])
-      passFails = Tuple.swap . partitionEithers . concat . map p . Map.toList
-        where
-          p :: (r, Term v a) -> [Either (r, Text) (r, Text)]
-          p (r, tm) = case tm of
-            Term.List' ts -> mapMaybe (q r) (toList ts)
-            _ -> []
-          q r = \case
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
-              if
-                  | ref == DD.testResultRef ->
-                      if
-                          | cid == DD.okConstructorId -> Just (Right (r, msg))
-                          | cid == DD.failConstructorId -> Just (Left (r, msg))
-                          | otherwise -> Nothing
-                  | otherwise -> Nothing
-            _ -> Nothing
-  let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-  names <-
-    makePrintNamesFromLabeled' $
-      LD.referents (Set.mapMonotonic Referent.fromTermReferenceId testRefs)
-        <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
-  ppe <- fqnPPE names
-  Cli.respond $
-    TestResults
-      stats
-      ppe
-      showSuccesses
-      showFailures
-      oks
-      fails
-  let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-  when (not (Set.null toCompute)) do
-    let total = Set.size toCompute
-    computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-      Cli.runTransaction (Codebase.getTerm codebase r) >>= \case
-        Nothing -> do
-          hqLength <- Cli.runTransaction Codebase.hashLength
-          Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
-          pure []
-        Just tm -> do
-          Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-          --                        v don't cache; test cache populated below
-          tm' <- evalPureUnison ppe False tm
-          case tm' of
-            Left e -> do
-              Cli.respond (EvaluationFailure e)
-              pure []
-            Right tm' -> do
-              -- After evaluation, cache the result of the test
-              Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
-              Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-              pure [(r, tm')]
-
-    let m = Map.fromList computedTests
-        (mOks, mFails) = passFails m
-    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures mOks mFails
-  where
-    isInLibNamespace :: Name -> Bool
-    isInLibNamespace name =
-      case Name.segments name of
-        "lib" Nel.:| _ : _ -> True
-        _ -> False
-
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -2193,7 +2052,7 @@ doDisplay outputLoc names tm = do
       useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          RuntimeUtils.evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2204,7 +2063,7 @@ doDisplay outputLoc names tm = do
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
+      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . Codebase.getTypeOfReferent codebase $ r
   rendered <-
     DisplayValues.displayTerm
       ppe
@@ -2251,7 +2110,7 @@ getLinks' src selection0 = do
       allMd' = maybe allMd (`R.restrictDom` allMd) selection0
       -- then list the values after filtering by type
       allRefs :: Set Reference = R.ran allMd'
-  sigs <- Cli.runTransaction (for (toList allRefs) (loadTypeOfTerm codebase . Referent.Ref))
+  sigs <- Cli.runTransaction (for (toList allRefs) (Codebase.getTypeOfReferent codebase . Referent.Ref))
   let deps =
         Set.map LD.termRef allRefs
           <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
@@ -2517,7 +2376,7 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-          () <$ evalUnisonTerm False ppe False tm
+          () <$ RuntimeUtils.evalUnisonTerm False ppe False tm
       | otherwise ->
           Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
@@ -2772,7 +2631,7 @@ displayI prettyPrintNames outputLoc hq = do
               then SearchTermsNotFound [hq]
               else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
-      tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
+      tm <- RuntimeUtils.evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- PPE.biasTo bias <$> executePPE unisonFile
@@ -2821,7 +2680,7 @@ docsI srcLoc prettyPrintNames src =
           len <- Cli.runTransaction Codebase.branchHashLength
           let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
-          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
+          tm <- RuntimeUtils.evalUnisonTerm True (PPE.fromNames len names) True tm
           doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
           #numberedArgs .= fmap (HQ.toString . view _1) out
@@ -2873,10 +2732,6 @@ lexedSource name src = do
 suffixifiedPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
 suffixifiedPPE ns =
   Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
-
-fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
-fqnPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: SrcLoc -> String -> Cli (Type Symbol Ann)
 parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ
@@ -3046,17 +2901,6 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: Codebase m Symbol Ann -> Referent -> Sqlite.Transaction (Maybe (Type Symbol Ann))
-loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
-loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.getTypeDeclaration codebase r
-  case decl of
-    Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
-    Nothing -> pure Nothing
-loadTypeOfTerm _ Referent.Con {} =
-  error $
-    reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
-
 hqNameQuery :: [HQ.HashQualified Name] -> Cli QueryResult
 hqNameQuery query = do
   Cli.Env {codebase} <- ask
@@ -3178,84 +3022,13 @@ evalUnisonFile sandbox ppe unisonFile args = do
     (nts, errs, map) <-
       Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
         Cli.returnEarly (EvaluationFailure err)
-    when (not $ null errs) (displayDecompileErrors errs)
+    when (not $ null errs) (RuntimeUtils.displayDecompileErrors errs)
     for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
       -- only update the watch cache when there are no errors
       when (not isHit && null errs) do
         let value' = Term.amap (\() -> Ann.External) value
         Cli.runTransaction (Codebase.putWatch kind hash value')
     pure (nts, map)
-
-evalPureUnison ::
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
-  where
-    tm' =
-      Term.iff
-        a
-        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
-        tm
-        (Term.app a (Term.builtin a "bug") (Term.text a msg))
-    a = ABT.annotation tm
-    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
-    msg = "pure code can't perform I/O"
-
-displayDecompileErrors :: [Runtime.Error] -> Cli ()
-displayDecompileErrors errs = Cli.respond (PrintMessage msg)
-  where
-    msg =
-      P.lines $
-        [ P.warnCallout "I had trouble decompiling some results.",
-          "",
-          "The following errors were encountered:"
-        ]
-          ++ fmap (P.indentN 2) errs
-
--- | Evaluate a single closed definition.
-evalUnisonTermE ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
-evalUnisonTermE sandbox ppe useCache tm = do
-  Cli.Env {codebase, runtime, sandboxedRuntime} <- ask
-  let theRuntime = if sandbox then sandboxedRuntime else runtime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe theRuntime tm)
-  when useCache do
-    case r of
-      Right (errs, tmr)
-        -- don't cache when there were errors
-        | null errs ->
-            Cli.runTransaction do
-              Codebase.putWatch
-                WK.RegularWatch
-                (Hashing.hashClosedTerm tm)
-                (Term.amap (const Ann.External) tmr)
-        | otherwise -> displayDecompileErrors errs
-      Left _ -> pure ()
-  pure $ r <&> Term.amap (\() -> Ann.External) . snd
-
--- | Evaluate a single closed definition.
-evalUnisonTerm ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Term Symbol Ann)
-evalUnisonTerm sandbox ppe useCache tm =
-  evalUnisonTermE sandbox ppe useCache tm & onLeftM \err ->
-    Cli.returnEarly (EvaluationFailure err)
 
 -- Hack alert
 --

@@ -3,6 +3,8 @@
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -71,6 +73,6 @@ builtinResultArr :: (Ord v) => a -> Type.Type v a
 builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
 
 -- '{io2.IO} [Result]
-builtinTest :: (Ord v) => a -> Type.Type v a
-builtinTest a =
-  Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)
+builtinIOTestTypes :: (Ord v) => a -> NESet (Type.Type v a)
+builtinIOTestTypes a =
+  NESet.singleton (Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a))
