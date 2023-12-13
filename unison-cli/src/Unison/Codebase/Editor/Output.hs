@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -391,9 +392,11 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
-  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) (Maybe Int)
+  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+
+data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --

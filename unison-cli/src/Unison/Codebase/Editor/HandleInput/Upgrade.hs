@@ -163,6 +163,7 @@ handleUpgrade oldDepName newDepName = do
                 <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
             )
         addDefinitionsToUnisonFile
+          Output.UOUUpgrade
           abort
           codebase
           namesExcludingLibdeps
@@ -206,7 +207,7 @@ handleUpgrade oldDepName newDepName = do
       Codebase.addDefsToCodebase codebase typecheckedUnisonFile
       typecheckedUnisonFileToBranchUpdates
         abort
-        (findCtorNames namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+        (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
         typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade

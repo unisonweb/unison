@@ -150,7 +150,7 @@ handleUpdate2 = do
         Cli.respond Output.UpdateTypecheckingSuccess
         pure secondTuf
 
-  saveTuf (findCtorNames namesExcludingLibdeps ctorNames Nothing) secondTuf
+  saveTuf (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf
   Cli.respond Output.Success
 
 -- TODO: find a better module for this function, as it's used in a couple places
@@ -284,7 +284,7 @@ buildBigUnisonFile ::
   Map ForwardName (Referent, Name) ->
   Transaction (UnisonFile Symbol Ann)
 buildBigUnisonFile abort c tuf dependents names ctorNames =
-  addDefinitionsToUnisonFile abort c names ctorNames dependents (UF.discardTypes tuf)
+  addDefinitionsToUnisonFile Output.UOUUpdate abort c names ctorNames dependents (UF.discardTypes tuf)
 
 -- | @addDefinitionsToUnisonFile abort codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
 -- overwriting anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on
@@ -292,6 +292,7 @@ buildBigUnisonFile abort c tuf dependents names ctorNames =
 --
 -- TODO: find a better module for this function, as it's used in a couple places
 addDefinitionsToUnisonFile ::
+  Output.UpdateOrUpgrade ->
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
   Names ->
@@ -299,7 +300,7 @@ addDefinitionsToUnisonFile ::
   Map Reference.Id ReferenceType ->
   UnisonFile Symbol Ann ->
   Transaction (UnisonFile Symbol Ann)
-addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile =
+addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialUnisonFile =
   -- for each dependent, add its definition with all its names to the UnisonFile
   foldM addComponent initialUnisonFile (Map.toList dependents')
   where
@@ -358,7 +359,7 @@ addDefinitionsToUnisonFile abort c names ctorNames dependents initialUnisonFile 
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
         overwriteConstructorNames name dd =
           let constructorNames :: Transaction [Symbol]
-              constructorNames = case findCtorNames names ctorNames (Just $ Decl.constructorCount dd) name of
+              constructorNames = case findCtorNames operation names ctorNames (Just $ Decl.constructorCount dd) name of
                 Left err -> abort err
                 Right array ->
                   case traverse (fmap Name.toVar . Name.stripNamePrefix name) array of
@@ -387,8 +388,8 @@ forwardCtorNames names =
     ]
 
 -- | given a decl name, find names for all of its constructors, in order.
-findCtorNames :: Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> Either Output.Output [Name]
-findCtorNames names forwardCtorNames ctorCount n =
+findCtorNames :: Output.UpdateOrUpgrade -> Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> Either Output.Output [Name]
+findCtorNames operation names forwardCtorNames ctorCount n =
   let declRef = Set.findMin $ Relation.lookupDom n names.types
       f = ForwardName.fromName n
       (_, centerRight) = Map.split f forwardCtorNames
@@ -407,7 +408,7 @@ findCtorNames names forwardCtorNames ctorCount n =
       ctorCountGuess = fromMaybe (Map.size m) ctorCount
    in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m . fromIntegral) [0 .. ctorCountGuess - 1]
         then Right $ Map.elems m
-        else Left $ Output.UpdateIncompleteConstructorSet n m ctorCount
+        else Left $ Output.UpdateIncompleteConstructorSet operation n m ctorCount
 
 -- Used by `findCtorNames` to filter `forwardCtorNames` to a narrow range which will be searched linearly.
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"

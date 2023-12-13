@@ -2191,25 +2191,27 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
-  UpdateIncompleteConstructorSet name ctorMap expectedCount ->
-    pure $
-      P.lines
-        [ P.wrap $
-            "I couldn't complete the update because I couldn't find"
-              <> fromString (maybe "" show expectedCount)
-              <> "constructor(s) for"
-              <> prettyName name
-              <> "where I expected to."
-              <> "I found:"
-              <> fromString (show (Map.toList ctorMap)),
-          "",
-          P.wrap $
-            "You can use"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName name])
-              <> "and"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"])
-              <> "to give names to each constructor, and then try again."
-        ]
+  UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
+    let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
+     in pure $
+          P.lines
+            [ P.wrap $
+                "I couldn't complete the"
+                  <> operationName
+                  <> "because the type"
+                  <> prettyName typeName
+                  <> "has unnamed constructors."
+                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
+              "",
+              P.wrap $
+                "You can use"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName typeName])
+                  <> "and"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName typeName <> ".<ConstructorName>"])
+                  <> "to give names to each constructor, and then try the"
+                  <> operationName
+                  <> "again."
+            ]
   UpgradeFailure old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
