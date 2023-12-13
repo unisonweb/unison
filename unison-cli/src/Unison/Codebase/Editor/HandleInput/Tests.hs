@@ -54,23 +54,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
 
-evalPureUnison ::
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm = RuntimeUtils.evalUnisonTermE False ppe useCache tm'
-  where
-    tm' =
-      Term.iff
-        a
-        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
-        tm
-        (Term.app a (Term.builtin a "bug") (Term.text a msg))
-    a = ABT.annotation tm
-    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
-    msg = "pure code can't perform I/O"
-
 fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
 fqnPPE ns =
   Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
@@ -131,7 +114,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         Just tm -> do
           Cli.respond $ TestIncrementalOutputStart ppe (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- evalPureUnison ppe False tm
+          tm' <- RuntimeUtils.evalPureUnison ppe False tm
           case tm' of
             Left e -> do
               Cli.respond (EvaluationFailure e)

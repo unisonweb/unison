@@ -1,12 +1,14 @@
 module Unison.Codebase.Editor.HandleInput.RuntimeUtils
   ( evalUnisonTerm,
     evalUnisonTermE,
+    evalPureUnison,
     displayDecompileErrors,
   )
 where
 
 import Control.Lens
 import Control.Monad.Reader (ask)
+import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -18,6 +20,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -77,3 +80,20 @@ evalUnisonTerm ::
 evalUnisonTerm sandbox ppe useCache tm =
   evalUnisonTermE sandbox ppe useCache tm & onLeftM \err ->
     Cli.returnEarly (EvaluationFailure err)
+
+evalPureUnison ::
+  PPE.PrettyPrintEnv ->
+  Bool ->
+  Term Symbol Ann ->
+  Cli (Either Runtime.Error (Term Symbol Ann))
+evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
+  where
+    tm' =
+      Term.iff
+        a
+        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
+        tm
+        (Term.app a (Term.builtin a "bug") (Term.text a msg))
+    a = ABT.annotation tm
+    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
+    msg = "pure code can't perform I/O"
