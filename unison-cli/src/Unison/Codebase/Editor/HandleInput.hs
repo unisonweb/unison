@@ -75,7 +75,7 @@ import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
 import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
-import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
+import Unison.Codebase.Editor.HandleInput.NamespaceDependencies (handleNamespaceDependencies)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
@@ -1177,16 +1177,7 @@ loop e = do
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
-            NamespaceDependenciesI namespacePath' -> do
-              Cli.Env {codebase} <- ask
-              path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
-              Cli.getMaybeBranchAt path >>= \case
-                Nothing -> Cli.respond $ BranchEmpty (WhichBranchEmptyPath (Path.absoluteToPath' path))
-                Just b -> do
-                  externalDependencies <-
-                    Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-                  Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
+            NamespaceDependenciesI path -> handleNamespaceDependencies path
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)

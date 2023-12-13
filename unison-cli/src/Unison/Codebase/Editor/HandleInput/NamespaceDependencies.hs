@@ -1,30 +1,50 @@
 module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
-  ( namespaceDependencies,
+  ( handleNamespaceDependencies,
   )
 where
 
+import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term qualified as Term
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Relation4 qualified as Relation4
+
+handleNamespaceDependencies :: Maybe Path.Path' -> Cli.Cli ()
+handleNamespaceDependencies namespacePath' = do
+  Cli.Env {codebase} <- ask
+  path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
+  branch <-
+    Cli.getMaybeBranch0At path & onNothingM do
+      Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath (Path.absoluteToPath' path)))
+  externalDependencies <-
+    Cli.runTransaction (namespaceDependencies codebase branch)
+  ppe <- PPED.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
+  Cli.respondNumbered $ Output.ListNamespaceDependencies ppe path externalDependencies
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
