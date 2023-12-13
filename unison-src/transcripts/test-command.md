@@ -11,6 +11,10 @@ test1 : [Result]
 test1 = [Ok "test1"]
 ```
 
+```ucm:hide
+.> add
+```
+
 ```ucm
 .> test
 ```
@@ -18,8 +22,8 @@ test1 = [Ok "test1"]
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ```unison
-test2 : [Result]
-test2 = [Ok "test2"]
+testInLib : [Result]
+testInLib = [Ok "testInLib"]
 ```
 
 ```ucm:hide
@@ -31,19 +35,8 @@ test2 = [Ok "test2"]
 .> test.all
 ```
 
-`test` will descend into namespaces named `lib` if they aren't at the top-level, though.
-
-```unison
-test3 : [Result]
-test3 = [Ok "test3"]
-test4 = [Ok "test4"]
-```
-
-```ucm:hide
-.hello.lib> add
-.hello.lib> link .builtin.metadata.isTest test3
-```
+`test` WILL run tests within `lib` if ucm is cd'd inside.
 
 ```ucm
-.> test
+.lib> test
 ```
