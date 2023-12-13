@@ -255,16 +255,11 @@ lookupHQRef searchType which isPrefixOf hq NamesWithHistory {currentNames, oldNa
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up
 -- each of its "old" names and hash-qualify them.
 typeName :: Int -> Reference -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-typeName length r NamesWithHistory {..} =
-  if R.memberRan r . Names.types $ currentNames
-    then
-      Set.map
-        (\n -> if isConflicted n then hq n else HQ'.fromName n)
-        (R.lookupRan r . Names.types $ currentNames)
-    else Set.map hq (R.lookupRan r . Names.types $ oldNames)
-  where
-    hq n = HQ'.take length (HQ'.fromNamedReference n r)
-    isConflicted n = R.manyDom n (Names.types currentNames)
+typeName len ref NamesWithHistory {currentNames, oldNames} =
+  let currentTypeNames = Names.hqNamesForTypeReference len ref currentNames
+   in if Set.null currentTypeNames
+        then Set.map (\n -> HQ'.take len (HQ'.fromNamedReference n ref)) (R.lookupRan ref . Names.types $ oldNames)
+        else currentTypeNames
 
 -- List of names for a referent, longer names (by number of segments) first.
 termNamesByLength :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Name]
@@ -282,16 +277,11 @@ longestTermName length r ns =
     (h : _) -> Name.convert h
 
 termName :: Int -> Referent -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-termName length r NamesWithHistory {..} =
-  if R.memberRan r . Names.terms $ currentNames
-    then
-      Set.map
-        (\n -> if isConflicted n then hq n else HQ'.fromName n)
-        (R.lookupRan r . Names.terms $ currentNames)
-    else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
-  where
-    hq n = HQ'.take length (HQ'.fromNamedReferent n r)
-    isConflicted n = R.manyDom n (Names.terms currentNames)
+termName len ref NamesWithHistory {currentNames, oldNames} =
+  let currentTermNames = Names.hqNamesForReferent len ref currentNames
+   in if Set.null currentTermNames
+        then Set.map (\n -> HQ'.take len (HQ'.fromNamedReferent n ref)) (R.lookupRan ref . Names.terms $ oldNames)
+        else currentTermNames
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names

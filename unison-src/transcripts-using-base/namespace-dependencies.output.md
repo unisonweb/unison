@@ -18,10 +18,10 @@ hasMetadata = 3
 
   ⍟ I've added these definitions:
   
-    dependsOnInt       : Int
-    dependsOnIntAndNat : Nat
-    dependsOnNat       : Nat
-    hasMetadata        : Nat
+    dependsOnInt       : ##Int
+    dependsOnIntAndNat : ##Nat
+    dependsOnNat       : ##Nat
+    hasMetadata        : ##Nat
 
 .dependencies> link .metadata.myMetadata hasMetadata
 

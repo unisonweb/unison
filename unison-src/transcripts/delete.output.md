@@ -68,7 +68,7 @@ foo = 1
 
   ⍟ I've added these definitions:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 ```unison
@@ -82,7 +82,7 @@ foo = 2
 
   ⍟ I've added these definitions:
   
-    foo : Nat
+    foo : ##Nat
 
 .a> merge .b
 

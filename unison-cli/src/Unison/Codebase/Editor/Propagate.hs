@@ -173,8 +173,8 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
     typeNamesMatch typeMapping oldType newType =
       Map.lookup oldType typeMapping == Just newType
         || unqualifiedNamesMatch
-          (Names.namesForReference rootNames oldType)
-          (Names.namesForReference rootNames oldType)
+          (Names.namesForTypeReference rootNames oldType)
+          (Names.namesForTypeReference rootNames oldType)
 
     ctorMapping ::
       Map v (Reference, Decl v a) ->
@@ -249,7 +249,7 @@ propagate patch b = case validatePatch patch of
           -- could just become show r if we don't care
           let rns =
                 Names.namesForReferent rootNames (Referent.Ref r)
-                  <> Names.namesForReference rootNames r
+                  <> Names.namesForTypeReference rootNames r
            in case toList rns of
                 [] -> show r
                 n : _ -> show n

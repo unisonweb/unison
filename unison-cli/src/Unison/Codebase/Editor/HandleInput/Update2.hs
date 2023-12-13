@@ -62,7 +62,6 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (NamesWithHistory))
 import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -119,7 +118,7 @@ handleUpdate2 = do
           shadowNames
             hlen
             (UF.typecheckedToNames tuf)
-            (NamesWithHistory.fromCurrentNames namesIncludingLibdeps)
+            namesIncludingLibdeps
         )
         <$> Codebase.hashLength
 
@@ -445,7 +444,7 @@ getTermAndDeclNames tuf =
     keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
     ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
 
--- | Combines 'n' and 'nwh' then creates a ppe, but all references to
+-- | Combines 'n' and 'n2' then creates a ppe, but all references to
 -- any name in 'n' are printed unqualified.
 --
 -- This is useful with the current update strategy where, for all
@@ -454,10 +453,10 @@ getTermAndDeclNames tuf =
 -- unqualified name.
 --
 -- For this usecase the names from the scratch file are passed as 'n'
--- and the names from the codebase are passed in 'nwh'.
-shadowNames :: Int -> Names -> NamesWithHistory -> PrettyPrintEnvDecl
-shadowNames hashLen n nwh =
-  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (Names.NamesWithHistory n mempty <> nwh)
+-- and the names from the codebase are passed in 'n2'.
+shadowNames :: Int -> Names -> Names -> PrettyPrintEnvDecl
+shadowNames hashLen n n2 =
+  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (n <> n2)
       unsuffixified = patchPrettyPrintEnv unsuffixified0
       suffixified = patchPrettyPrintEnv suffixified0
       patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv
@@ -476,12 +475,10 @@ shadowNames hashLen n nwh =
         HQ'.NameOnly b -> HQ'.NameOnly b
       shadowedTermRefs =
         let names = Relation.dom (Names.terms n)
-            NamesWithHistory otherNames _ = nwh
-            otherTermNames = Names.terms otherNames
+            otherTermNames = Names.terms n2
          in Relation.ran (Names.terms n) <> foldMap (\a -> Relation.lookupDom a otherTermNames) names
       shadowedTypeRefs =
         let names = Relation.dom (Names.types n)
-            NamesWithHistory otherNames _ = nwh
-            otherTypeNames = Names.types otherNames
+            otherTypeNames = Names.types n2
          in Relation.ran (Names.types n) <> foldMap (\a -> Relation.lookupDom a otherTypeNames) names
    in PPED.PrettyPrintEnvDecl unsuffixified suffixified

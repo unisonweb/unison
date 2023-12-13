@@ -33,7 +33,7 @@ And then we add it.
   ⍟ I've added these definitions:
   
     unique type Foo
-    fooToInt : Foo -> Int
+    fooToInt : Foo -> ##Int
 
 .subpath> find.verbose
 
@@ -44,7 +44,7 @@ And then we add it.
      Foo.Foo : Foo
      
   3. -- #4lcpsef0pconupgdboml883pi87fimsmlrcihnm0f2nvnboj3c8qikuebsrrpuoildl8vigcplgm9crfge5mddijb531utsjcuob5oo
-     fooToInt : Foo -> Int
+     fooToInt : Foo -> ##Int
      
   
 
@@ -129,8 +129,8 @@ Add that to the codebase:
 
   ⍟ I've added these definitions:
   
-    otherTerm : Optional baz -> Optional baz
-    someTerm  : Optional foo -> Optional foo
+    otherTerm : #nirp5os0q6 baz -> #nirp5os0q6 baz
+    someTerm  : #nirp5os0q6 foo -> #nirp5os0q6 foo
 
 .> cd .
 
@@ -162,7 +162,7 @@ Update...
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : Optional x -> Optional x
+    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
 
 .> cd .
 
@@ -225,8 +225,8 @@ We'll make two copies of this namespace.
 
   ⍟ I've added these definitions:
   
-    otherTerm : Optional baz -> Optional baz
-    someTerm  : Optional foo -> Optional foo
+    otherTerm : #nirp5os0q6 baz -> #nirp5os0q6 baz
+    someTerm  : #nirp5os0q6 foo -> #nirp5os0q6 foo
 
 .subpath> fork one two
 
@@ -262,7 +262,7 @@ someTerm _ = None
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : Optional x -> Optional x
+    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
 
 ```
 The other namespace should be left alone.

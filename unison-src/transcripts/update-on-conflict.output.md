@@ -79,7 +79,7 @@ x = 3
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      x : Nat
+      x : ##Nat
 
 ```
 ```ucm

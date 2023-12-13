@@ -13,7 +13,7 @@ someterm = 18
 
   ⍟ I've added these definitions:
   
-    someterm : Nat
+    someterm : ##Nat
 
 ```
 Now, the `branch` demo:

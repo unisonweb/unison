@@ -32,16 +32,17 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
+        let parseNamesWithHistory = NamesWithHistory.fromCurrentNames parseNames
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
-          writeTVar parseNamesVar parseNames
+          writeTVar parseNamesVar parseNamesWithHistory
           writeTVar ppeVar ppe
-          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
+          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNamesWithHistory)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
+          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNamesWithHistory)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath

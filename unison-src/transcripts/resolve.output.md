@@ -24,7 +24,7 @@ a.foo = 42
   
     ⍟ These new definitions are ok to `add`:
     
-      a.foo : Nat
+      a.foo : ##Nat
 
 ```
 ```ucm
@@ -32,7 +32,7 @@ a.foo = 42
 
   ⍟ I've added these definitions:
   
-    a.foo : Nat
+    a.foo : ##Nat
 
 ```
 We'll fork the namespace `a` into a new namespace `b`, so we can edit the two concurrently.
@@ -70,7 +70,7 @@ foo = 43
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
@@ -78,7 +78,7 @@ foo = 43
 
   ⍟ I've updated these names to your new definition:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 And make a different change in the `b` namespace:
@@ -100,7 +100,7 @@ foo = 44
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
@@ -108,7 +108,7 @@ foo = 44
 
   ⍟ I've updated these names to your new definition:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:

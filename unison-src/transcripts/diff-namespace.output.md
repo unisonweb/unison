@@ -9,7 +9,7 @@ x = 23
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 .b1> alias.term x fslkdjflskdjflksjdf
 
@@ -35,7 +35,7 @@ fslkdjflskdjflksjdf = 663
 
   ⍟ I've added these definitions:
   
-    fslkdjflskdjflksjdf : Nat
+    fslkdjflskdjflksjdf : ##Nat
 
 .> merge b0 b1
 
@@ -120,11 +120,11 @@ structural ability X a1 a2 where x : ()
   
     structural type A a
     structural ability X a1 a2
-    b          : Nat
-    bdependent : Nat
-    c          : Nat
-    fromJust   : Nat
-    helloWorld : Text
+    b          : ##Nat
+    bdependent : ##Nat
+    c          : ##Nat
+    fromJust   : ##Nat
+    helloWorld : ##Text
 
 .ns1> alias.term fromJust fromJust'
 
@@ -178,7 +178,7 @@ fromJust = "asldkfjasldkfj"
 
   ⍟ I've added these definitions:
   
-    fromJust : Text
+    fromJust : ##Text
 
 .> merge ns1b ns1
 
@@ -214,19 +214,19 @@ unique type Y a b = Y a b
   ⍟ I've added these definitions:
   
     unique type Y a b
-    d : Nat
-    e : Nat
-    f : Nat
+    d : ##Nat
+    e : ##Nat
+    f : ##Nat
   
   ⍟ I've updated these names to your new definition:
   
-    b        : Text
-    fromJust : Nat
+    b        : ##Text
+    fromJust : ##Nat
       (The old definition was also named fromJust'.)
 
 .ns2> links fromJust
 
-  1. b : Text
+  1. b : ##Text
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
@@ -480,7 +480,7 @@ bdependent = "banana"
 
   ⍟ I've updated these names to your new definition:
   
-    bdependent : Text
+    bdependent : ##Text
 
 .> diff.namespace ns2 ns3
 
@@ -514,8 +514,8 @@ b = a + 1
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    b : Nat
+    a : ##Nat
+    b : ##Nat
 
 .> fork nsx nsy
 
@@ -535,7 +535,7 @@ a = 444
 
   ⍟ I've updated these names to your new definition:
   
-    a : Nat
+    a : ##Nat
 
 ```
 ```unison
@@ -547,7 +547,7 @@ a = 555
 
   ⍟ I've updated these names to your new definition:
   
-    a : Nat
+    a : ##Nat
 
 .> merge nsy nsw
 
@@ -650,7 +650,7 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : Nat
+      x : ##Nat
 
 ```
 ```ucm
@@ -660,7 +660,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 ```
 ```unison
@@ -675,7 +675,7 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : Nat
+      y : ##Nat
 
 ```
 ```ucm
@@ -683,7 +683,7 @@ y = 2
 
   ⍟ I've added these definitions:
   
-    y : Nat
+    y : ##Nat
 
 .hashdiff> history
 

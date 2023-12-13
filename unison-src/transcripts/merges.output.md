@@ -70,7 +70,7 @@ y = "hello"
 
   ⍟ I've added these definitions:
   
-    y : Text
+    y : ##Text
 
 .master> merge .feature1
 

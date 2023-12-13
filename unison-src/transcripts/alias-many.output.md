@@ -743,20 +743,20 @@ I want to incorporate a few more from another namespace:
 .runar> find
 
   1.  List.adjacentPairs : [a] -> [(a, a)]
-  2.  List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
-  3.  List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
-  4.  List.chunk : Nat -> [a] -> [[a]]
-  5.  List.chunksOf : Nat -> [a] -> [[a]]
-  6.  List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
-  7.  List.first : [a] -> Optional a
-  8.  List.init : [a] -> Optional [a]
+  2.  List.all : (a ->{g} ##Boolean) -> [a] ->{g} ##Boolean
+  3.  List.any : (a ->{g} ##Boolean) -> [a] ->{g} ##Boolean
+  4.  List.chunk : ##Nat -> [a] -> [[a]]
+  5.  List.chunksOf : ##Nat -> [a] -> [[a]]
+  6.  List.dropWhile : (a ->{g} ##Boolean) -> [a] ->{g} [a]
+  7.  List.first : [a] -> #nirp5os0q6 a
+  8.  List.init : [a] -> #nirp5os0q6 [a]
   9.  List.intersperse : a -> [a] -> [a]
-  10. List.isEmpty : [a] -> Boolean
-  11. List.last : [a] -> Optional a
-  12. List.replicate : Nat -> a -> [a]
-  13. List.splitAt : Nat -> [a] -> ([a], [a])
-  14. List.tail : [a] -> Optional [a]
-  15. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
+  10. List.isEmpty : [a] -> ##Boolean
+  11. List.last : [a] -> #nirp5os0q6 a
+  12. List.replicate : ##Nat -> a -> [a]
+  13. List.splitAt : ##Nat -> [a] -> ([a], [a])
+  14. List.tail : [a] -> #nirp5os0q6 [a]
+  15. List.takeWhile : (a ->{𝕖} ##Boolean) -> [a] ->{𝕖} [a]
   
 
 .runar> alias.many 1-15 .mylib
@@ -791,32 +791,32 @@ I want to incorporate a few more from another namespace:
 
 .mylib> find
 
-  1.  Doc.Blob : Text -> Doc
-  2.  Doc.Evaluate : Term -> Doc
-  3.  Doc.Join : [Doc] -> Doc
-  4.  Doc.Link : Link -> Doc
-  5.  Doc.Signature : Term -> Doc
-  6.  Doc.Source : Link -> Doc
+  1.  Doc.Blob : ##Text -> #p65rcethk2
+  2.  Doc.Evaluate : ##Link.Term -> #p65rcethk2
+  3.  Doc.Join : [#p65rcethk2] -> #p65rcethk2
+  4.  Doc.Link : #f4b37niu61 -> #p65rcethk2
+  5.  Doc.Signature : ##Link.Term -> #p65rcethk2
+  6.  Doc.Source : #f4b37niu61 -> #p65rcethk2
   7.  structural type Either a b
   8.  Either.Left : a -> Either a b
   9.  Either.Right : b -> Either a b
   10. structural ability Exception
-  11. Exception.raise : Failure ->{Exception} x
+  11. Exception.raise : #r29dja8j9d ->{Exception} x
   12. List.adjacentPairs : [a] -> [(a, a)]
-  13. List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
-  14. List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
-  15. List.chunk : Nat -> [a] -> [[a]]
-  16. List.chunksOf : Nat -> [a] -> [[a]]
-  17. List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
-  18. List.first : [a] -> Optional a
-  19. List.init : [a] -> Optional [a]
+  13. List.all : (a ->{g} ##Boolean) -> [a] ->{g} ##Boolean
+  14. List.any : (a ->{g} ##Boolean) -> [a] ->{g} ##Boolean
+  15. List.chunk : ##Nat -> [a] -> [[a]]
+  16. List.chunksOf : ##Nat -> [a] -> [[a]]
+  17. List.dropWhile : (a ->{g} ##Boolean) -> [a] ->{g} [a]
+  18. List.first : [a] -> #nirp5os0q6 a
+  19. List.init : [a] -> #nirp5os0q6 [a]
   20. List.intersperse : a -> [a] -> [a]
-  21. List.isEmpty : [a] -> Boolean
-  22. List.last : [a] -> Optional a
-  23. List.replicate : Nat -> a -> [a]
-  24. List.splitAt : Nat -> [a] -> ([a], [a])
-  25. List.tail : [a] -> Optional [a]
-  26. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
+  21. List.isEmpty : [a] -> ##Boolean
+  22. List.last : [a] -> #nirp5os0q6 a
+  23. List.replicate : ##Nat -> a -> [a]
+  24. List.splitAt : ##Nat -> [a] -> ([a], [a])
+  25. List.tail : [a] -> #nirp5os0q6 [a]
+  26. List.takeWhile : (a ->{𝕖} ##Boolean) -> [a] ->{𝕖} [a]
   
 
 ```

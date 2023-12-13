@@ -6,8 +6,7 @@ module Unison.Cli.NamesUtils
     findHistoricalHQs,
     getBasicPrettyPrintNames,
     makeHistoricalParsingNames,
-    makePrintNamesFromLabeled',
-    makeShadowedPrintNamesFromHQ,
+    makeShadowedPrintNames,
   )
 where
 
@@ -19,18 +18,15 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
-import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
 import Unison.Server.Backend qualified as Backend
 import Unison.Syntax.Name qualified as Name (toString, unsafeFromString)
 import Unison.UnisonFile (TypecheckedUnisonFile)
-import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
@@ -50,15 +46,9 @@ basicNames' nameScoping = do
   pure (parse, pretty)
 
 -- | Produce a `Names` needed to display all the hashes used in the given file.
-displayNames ::
-  (Var v) =>
-  TypecheckedUnisonFile v a ->
-  Cli NamesWithHistory
+displayNames :: (Var v) => TypecheckedUnisonFile v a -> Cli Names
 displayNames unisonFile =
-  -- voodoo
-  makeShadowedPrintNamesFromLabeled
-    (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames unisonFile)
+  makeShadowedPrintNames (UF.typecheckedToNames unisonFile)
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
@@ -121,30 +111,7 @@ makeHistoricalParsingNames lexedHQs = do
           <> fixupNamesRelative currentPath rawHistoricalNames
       )
 
-makePrintNamesFromLabeled' :: Set LabeledDependency -> Cli NamesWithHistory
-makePrintNamesFromLabeled' deps = do
-  root' <- Cli.getRootBranch
-  curPath <- Cli.getCurrentPath
-  (_missing, rawHistoricalNames) <-
-    liftIO $
-      Branch.findHistoricalRefs
-        deps
-        root'
-  basicNames <- basicPrettyPrintNamesA
-  pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
-
-makeShadowedPrintNamesFromHQ :: Set (HQ.HashQualified Name) -> Names -> Cli NamesWithHistory
-makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
-  rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames <- basicPrettyPrintNamesA
-  currentPath <- Cli.getCurrentPath
-  -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
-  pure $
-    NamesWithHistory.shadowing
-      shadowing
-      (NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames))
-
-makeShadowedPrintNamesFromLabeled :: Set LabeledDependency -> Names -> Cli NamesWithHistory
-makeShadowedPrintNamesFromLabeled deps shadowing =
-  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
+makeShadowedPrintNames :: Names -> Cli Names
+makeShadowedPrintNames shadowing = do
+  currentBranch0 <- Cli.getCurrentBranch0
+  pure (shadowing `Names.unionLeft` Branch.toNames currentBranch0)

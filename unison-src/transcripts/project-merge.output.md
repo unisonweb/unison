@@ -28,7 +28,7 @@ zonk = 0
 
   ⍟ I've added these definitions:
   
-    zonk : Nat
+    zonk : ##Nat
 
 .> project.create-empty foo
 
@@ -82,7 +82,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    bonk : Nat
+    bonk : ##Nat
 
 ```
 ```ucm
@@ -139,7 +139,7 @@ xonk = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      xonk : Nat
+      xonk : ##Nat
 
 ```
 ```ucm
@@ -147,7 +147,7 @@ bar/main> add
 
   ⍟ I've added these definitions:
   
-    xonk : Nat
+    xonk : ##Nat
 
 bar/topic> merge /main
 

@@ -128,7 +128,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 .> fork trunk alice
 
@@ -152,9 +152,9 @@ neatoFun x = x
 
   ⍟ I've added these definitions:
   
-    bodaciousNumero : Nat
+    bodaciousNumero : ##Nat
     neatoFun        : x -> x
-    radNumber       : Nat
+    radNumber       : ##Nat
 
 .alice> rename.term radNumber superRadNumber
 
@@ -178,9 +178,9 @@ no more = no more
 
   ⍟ I've added these definitions:
   
-    babyDon'tHurtMe : Text
+    babyDon'tHurtMe : ##Text
     no              : more -> r
-    whatIsLove      : Text
+    whatIsLove      : ##Text
 
 ```
 At this point, Alice and Bob both have some history beyond what's in trunk:

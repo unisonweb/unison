@@ -127,7 +127,7 @@ bonk = 5
 
   ⍟ I've added these definitions:
   
-    bonk : Nat
+    bonk : ##Nat
 
 .z> move bonk zonk
 
@@ -152,7 +152,7 @@ bonk.zonk = 5
   
     ⍟ These new definitions are ok to `add`:
     
-      bonk.zonk : Nat
+      bonk.zonk : ##Nat
         (also named zonk)
 
 ```
@@ -163,7 +163,7 @@ bonk.zonk = 5
 
   ⍟ I've added these definitions:
   
-    bonk.zonk : Nat
+    bonk.zonk : ##Nat
 
 .a> move bonk zonk
 

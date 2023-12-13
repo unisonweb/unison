@@ -25,7 +25,7 @@ structural type MyType = MyType Text
   ⍟ I've updated these names to your new definition:
   
     structural type MyType
-    x : Int
+    x : ##Int
 
 .simple> todo
 
@@ -34,13 +34,13 @@ structural type MyType = MyType Text
   The namespace has 2 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    structural type MyType#68k40ra7l7
-    x#gjmq673r1v : Nat
+    structural type #68k40ra7l7
+    #gjmq673r1v : ##Nat
   
   I recommend working on them in the following order:
   
-  1. useMyType : Nat
-  2. useX      : Nat
+  1. useMyType : ##Nat
+  2. useX      : ##Nat
   
   
 
@@ -116,7 +116,7 @@ structural type MyType = MyType Int
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The type 1. .builtin.Unit was replaced with
+    The type 1. #00nv2kob8f was replaced with
       2. MyType#68k40ra7l7
       3. MyType#eo6rj0lj1b
     The term 4. #gjmq673r1v was replaced with
@@ -147,7 +147,7 @@ foo = 801
   
     ⍟ These new definitions are ok to `add`:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
@@ -155,7 +155,7 @@ foo = 801
 
   ⍟ I've added these definitions:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 ```unison
@@ -171,7 +171,7 @@ foo = 802
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
@@ -179,7 +179,7 @@ foo = 802
 
   ⍟ I've updated these names to your new definition:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 ```unison
@@ -194,7 +194,7 @@ oldfoo = 801
   
     ⍟ These new definitions are ok to `add`:
     
-      oldfoo : Nat
+      oldfoo : ##Nat
 
 ```
 ```ucm
@@ -202,7 +202,7 @@ oldfoo = 801
 
   ⍟ I've added these definitions:
   
-    oldfoo : Nat
+    oldfoo : ##Nat
 
 .lhs> view.patch patch
 
@@ -284,7 +284,7 @@ even = 17
   The namespace has 1 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    even#kkohl7ba1e : Nat -> Boolean
+    #kkohl7ba1e : Nat -> Boolean
   
   I recommend working on them in the following order:
   

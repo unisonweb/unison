@@ -35,10 +35,10 @@ quux.x = 4
 
   ⍟ I've added these definitions:
   
-    baz.x  : Nat
-    foo.w  : Nat
-    foo.x  : Nat
-    quux.x : Nat
+    baz.x  : ##Nat
+    foo.w  : ##Nat
+    foo.x  : ##Nat
+    quux.x : ##Nat
 
 ```
 Now P0 has 3 sub-namespaces.
@@ -68,9 +68,9 @@ quux.y = 333
 
   ⍟ I've added these definitions:
   
-    bar.y  : Nat
-    foo.y  : Nat
-    quux.y : Nat
+    bar.y  : ##Nat
+    foo.y  : ##Nat
+    quux.y : ##Nat
 
 .P1> delete.term.verbose foo.w
 
@@ -95,7 +95,7 @@ foo.z = +28348
 
   ⍟ I've added these definitions:
   
-    foo.z : Int
+    foo.z : ##Int
 
 .P2> delete.namespace baz
 
@@ -107,9 +107,9 @@ foo.z = +28348
 
 .P2> find
 
-  1. foo.w : Nat
-  2. foo.x : Nat
-  3. foo.z : Int
+  1. foo.w : ##Nat
+  2. foo.x : ##Nat
+  3. foo.z : ##Int
   
 
 ```
@@ -167,11 +167,11 @@ and `quux` namespaces.
 
 .P0> find
 
-  1. bar.y : Nat
-  2. foo.x : Nat
-  3. foo.y : Nat
-  4. foo.z : Int
-  5. quux.y : Nat
+  1. bar.y : ##Nat
+  2. foo.x : ##Nat
+  3. foo.y : ##Nat
+  4. foo.z : ##Int
+  5. quux.y : ##Nat
   
 
 .P0> view foo.x foo.y foo.z bar.y quux.y
@@ -240,8 +240,8 @@ f = (x y -> y) a "woot!"
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    f : Text
+    a : ##Nat
+    f : ##Text
 
 .> fork c1 c1a
 
@@ -264,8 +264,8 @@ In `c1a`, we add new definitions, `b` and `c`.
 
   ⍟ I've added these definitions:
   
-    oog.b : Nat
-    oog.c : Nat
+    oog.b : ##Nat
+    oog.c : ##Nat
 
 ```
 In `c1b`, we update the definition `a`, which is used by `f`.
@@ -279,7 +279,7 @@ a = "hello world!"
 
   ⍟ I've updated these names to your new definition:
   
-    a : Text
+    a : ##Text
 
 ```
 Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`, and the new definitions `b` and `c`:
@@ -316,10 +316,10 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
 
 .c1a> find
 
-  1. a : Text
-  2. f : Text
-  3. oog.b : Nat
-  4. oog.c : Nat
+  1. a : ##Text
+  2. f : ##Text
+  3. oog.b : ##Nat
+  4. oog.c : ##Nat
   
 
 .c1a> view 1-4

@@ -18,8 +18,8 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    b : Nat
+    a : ##Nat
+    b : ##Nat
 
 .a> alias.term b aaa.but.more.segments
 
@@ -71,8 +71,8 @@ d = c + 10
 
   ⍟ I've added these definitions:
   
-    c : Nat
-    d : Nat
+    c : ##Nat
+    d : ##Nat
 
 .a3> merge .a2 .a3
 
@@ -1576,9 +1576,9 @@ a = 10
 
   ⍟ I've added these definitions:
   
-    a                   : Nat
-    deeply.nested.term  : Nat
-    deeply.nested.value : Nat
+    a                   : ##Nat
+    deeply.nested.term  : ##Nat
+    deeply.nested.value : ##Nat
 
 -- Despite being saved with name `a`, 
 -- the pretty printer should prefer the suffixified 'deeply.nested.value name' over the shallow 'a'.
@@ -1605,7 +1605,7 @@ other.value = 20
   
     ⍟ These new definitions are ok to `add`:
     
-      other.value : Nat
+      other.value : ##Nat
 
 ```
 ```ucm
@@ -1613,7 +1613,7 @@ other.value = 20
 
   ⍟ I've added these definitions:
   
-    other.value : Nat
+    other.value : ##Nat
 
 -- nested.value should be preferred over the shorter name `a` due to biasing
 -- because `deeply.nested.value` is nearby to the term being viewed.

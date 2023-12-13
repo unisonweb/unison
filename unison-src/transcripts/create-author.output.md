@@ -12,8 +12,8 @@ def2 = 2
 
   ⍟ I've added these definitions:
   
-    def1 : Nat
-    def2 : Nat
+    def1 : ##Nat
+    def2 : ##Nat
 
 .foo> create.author alicecoder "Alice McGee"
 

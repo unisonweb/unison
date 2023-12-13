@@ -47,6 +47,11 @@ namespaceDependencies codebase branch = do
       let typeDeps = Set.map LD.typeRef $ DD.typeDependencies (DD.asDataDecl decl)
       pure $ foldMap (`Map.singleton` names) typeDeps
 
+  -- For each (referent, set name) in deepTerms,
+  --   if it's a builtin, throw it away
+  --   if it's a constructor, throw it away
+  --   otherwise decode the term and call `termDependencies` on it to get a set of term/type dependencies
+  --   make a mapping (dependency => names) for each dependency (i.e. if mything depends on #baseListMap, #baseListMap => { "mything" })
   termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
     refId <- MaybeT . pure $ Referent.toReferenceId termRef
     term <- MaybeT $ Codebase.getTerm codebase refId
@@ -56,6 +61,8 @@ namespaceDependencies codebase branch = do
   let dependenciesToDependents :: Map LabeledDependency (Set Name)
       dependenciesToDependents =
         Map.unionsWith (<>) (metadata : typeDeps ++ termDeps)
+
+  -- filter the mapping `dependency => name set`, retaining only the dependencies that are not somewhere in deepTerms/deepTypes
   let onlyExternalDeps :: Map LabeledDependency (Set Name)
       onlyExternalDeps =
         Map.filterWithKey

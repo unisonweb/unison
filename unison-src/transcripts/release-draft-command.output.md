@@ -38,7 +38,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    someterm : Nat
+    someterm : ##Nat
 
 ```
 Now, the `release.draft` demo:

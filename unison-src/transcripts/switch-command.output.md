@@ -54,7 +54,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    someterm : Nat
+    someterm : ##Nat
 
 foo/main> branch bar
 

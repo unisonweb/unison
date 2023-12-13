@@ -150,9 +150,9 @@ myLibrary.h x = x + 3
 
 .myLibrary> find
 
-  1. f : Nat -> Nat
-  2. g : Nat -> Nat
-  3. h : Nat -> Nat
+  1. f : ##Nat -> ##Nat
+  2. g : ##Nat -> ##Nat
+  3. h : ##Nat -> ##Nat
   
 
 .myLibrary> link .alice 1-3
@@ -170,21 +170,21 @@ myLibrary.h x = x + 3
 
 .myLibrary> links f
 
-  1. .alice : Author
+  1. #q7avmbk73c : #345f3nptqq
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
 
 .myLibrary> links g
 
-  1. .alice : Author
+  1. #q7avmbk73c : #345f3nptqq
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
 
 .myLibrary> links h
 
-  1. .alice : Author
+  1. #q7avmbk73c : #345f3nptqq
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.

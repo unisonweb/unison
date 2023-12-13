@@ -33,8 +33,8 @@ structural type Y = Two Nat Nat
   
     structural type X
     structural type Y
-    x : Nat
-    y : Nat
+    x : ##Nat
+    y : ##Nat
 
 ```
 Test that replace works with terms
@@ -58,16 +58,16 @@ Test that replace works with types
 .scratch> find
 
   1. structural type X
-  2. x : Nat
-  3. X.One : Nat -> Nat -> X
+  2. x : ##Nat
+  3. X.One : ##Nat -> ##Nat -> X
   4. structural type Y
-  5. y : Nat
-  6. Y.Two : Nat -> Nat -> X
+  5. y : ##Nat
+  6. Y.Two : ##Nat -> ##Nat -> X
   
 
 .scratch> view.patch patch
 
-  Edited Types: 1. X#68k40ra7l7 -> 3. X
+  Edited Types: 1. #68k40ra7l7 -> 3. X
   
   Edited Terms: 2. #gjmq673r1v -> 4. x
   

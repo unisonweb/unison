@@ -39,8 +39,10 @@ module Unison.Names
     unionLeft,
     unionLeftName,
     unionLeftRef,
-    namesForReference,
     namesForReferent,
+    hqNamesForReferent,
+    namesForTypeReference,
+    hqNamesForTypeReference,
     shadowTerms,
     importing,
     constructorsForType,
@@ -285,14 +287,30 @@ typesNamed = flip R.lookupDom . types
 namesForReferent :: Names -> Referent -> Set Name
 namesForReferent names r = R.lookupRan r (terms names)
 
-namesForReference :: Names -> TypeReference -> Set Name
-namesForReference names r = R.lookupRan r (types names)
+-- | Like 'namesForReferent', but hash-qualifies conflicted names.
+hqNamesForReferent :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
+hqNamesForReferent len ref Names {terms} =
+  R.lookupRan ref terms & Set.map \name ->
+    if R.manyDom name terms
+      then HQ'.take len (HQ'.fromNamedReferent name ref)
+      else HQ'.fromName name
+
+namesForTypeReference :: Names -> TypeReference -> Set Name
+namesForTypeReference names r = R.lookupRan r (types names)
+
+-- | Like 'namesForTypeReference', but hash-qualifies conflicted names.
+hqNamesForTypeReference :: Int -> TypeReference -> Names -> Set (HQ'.HashQualified Name)
+hqNamesForTypeReference len ref Names {types} =
+  R.lookupRan ref types & Set.map \name ->
+    if R.manyDom name types
+      then HQ'.take len (HQ'.fromNamedReference name ref)
+      else HQ'.fromName name
 
 termAliases :: Names -> Name -> Referent -> Set Name
 termAliases names n r = Set.delete n $ namesForReferent names r
 
 typeAliases :: Names -> Name -> TypeReference -> Set Name
-typeAliases names n r = Set.delete n $ namesForReference names r
+typeAliases names n r = Set.delete n $ namesForTypeReference names r
 
 addType :: Name -> TypeReference -> Names -> Names
 addType n r = (<> fromTypes [(n, r)])

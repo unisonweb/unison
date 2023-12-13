@@ -1,6 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
-
 module Unison.Test.UnisonSources where
 
 import Control.Exception (throwIO)
@@ -15,7 +12,7 @@ import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -46,7 +43,7 @@ type SynthResult =
 type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames Common.hqLength Builtin.names
+ppEnv = PPE.fromNames Common.hqLength Builtin.names0
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left e) = crash e
@@ -105,7 +102,7 @@ decodeResult source (Result notes (Just (Left uf))) =
           source
           ( PPE.fromNames
               Common.hqLength
-              (NamesWithHistory.shadowing errNames Builtin.names)
+              (errNames `Names.unionLeft` Builtin.names0)
           )
           notes
 decodeResult _source (Result _notes (Just (Right uf))) =

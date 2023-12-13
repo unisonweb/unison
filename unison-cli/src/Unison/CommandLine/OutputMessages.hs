@@ -2569,7 +2569,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
+    dppe = PPE.fromNames 8 (UF.toNames uf)
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 

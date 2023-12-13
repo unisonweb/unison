@@ -146,7 +146,7 @@ synthesizeFile env0 uf = do
       unisonFilePPE =
         ( PPE.fromNames
             10
-            (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
+            (UF.toNames uf `Names.unionLeft` Builtin.names0)
         )
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm

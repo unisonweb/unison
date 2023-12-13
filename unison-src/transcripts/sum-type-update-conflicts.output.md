@@ -65,8 +65,8 @@ is removed in the same update that the new term is being added.
 
   ⍟ I've added these definitions:
   
-    X.x        : Text
-    dependsOnX : Nat
+    X.x        : ##Text
+    dependsOnX : ##Nat
   
   ⍟ I've updated these names to your new definition:
   

@@ -29,7 +29,7 @@ unique type a.T = T
   ⍟ I've added these definitions:
   
     unique type a.T
-    a.termInA : Nat
+    a.termInA : ##Nat
 
 ```
 ```unison
@@ -47,7 +47,7 @@ unique type a.T = T1 | T2
       new definition:
     
       unique type a.T
-      a.termInA : Nat
+      a.termInA : ##Nat
 
 ```
 ```ucm
@@ -108,8 +108,8 @@ b.termInB = 10
   
     ⍟ These new definitions are ok to `add`:
     
-      a.termInA : Nat
-      b.termInB : Nat
+      a.termInA : ##Nat
+      b.termInB : ##Nat
 
 ```
 ```ucm
@@ -119,8 +119,8 @@ b.termInB = 10
 
   ⍟ I've added these definitions:
   
-    a.termInA : Nat
-    b.termInB : Nat
+    a.termInA : ##Nat
+    b.termInB : ##Nat
 
 ```
 ```unison
@@ -137,8 +137,8 @@ b.termInB = 11
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      a.termInA : Nat
-      b.termInB : Nat
+      a.termInA : ##Nat
+      b.termInB : ##Nat
 
 ```
 ```ucm
@@ -200,8 +200,8 @@ b.termInB = 10
   
     ⍟ These new definitions are ok to `add`:
     
-      a.termInA : Nat
-      b.termInB : Nat
+      a.termInA : ##Nat
+      b.termInB : ##Nat
 
 ```
 ```ucm
@@ -211,8 +211,8 @@ b.termInB = 10
 
   ⍟ I've added these definitions:
   
-    a.termInA : Nat
-    b.termInB : Nat
+    a.termInA : ##Nat
+    b.termInB : ##Nat
 
 ```
 ```unison
@@ -229,8 +229,8 @@ b.termInB = 11
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      a.termInA : Nat
-      b.termInB : Nat
+      a.termInA : ##Nat
+      b.termInB : ##Nat
 
 ```
 ```ucm

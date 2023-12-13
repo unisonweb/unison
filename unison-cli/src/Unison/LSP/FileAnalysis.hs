@@ -43,7 +43,6 @@ import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
@@ -514,11 +513,11 @@ ppedForFileHelper uf tf = do
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesDecl hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
       let fileNames = UF.toNames uf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesDecl hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint

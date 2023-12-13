@@ -173,7 +173,7 @@ X.x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      X.x : Nat
+      X.x : ##Nat
 
 ```
 ```ucm
@@ -183,7 +183,7 @@ X.x = 1
 
   ⍟ I've added these definitions:
   
-    X.x : Nat
+    X.x : ##Nat
 
 ```
 ```unison
