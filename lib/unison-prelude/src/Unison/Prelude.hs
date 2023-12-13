@@ -9,6 +9,12 @@ module Unison.Prelude
     tShow,
     wundefined,
 
+    -- * @Bool@ control flow
+    onFalse,
+    onFalseM,
+    onTrue,
+    onTrueM,
+
     -- * @Maybe@ control flow
     onNothing,
     onNothingM,
@@ -53,7 +59,8 @@ import Data.Foldable as X (fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Functor.Identity as X
-import Data.Generics.Labels () -- #labelSyntax for generics-derived lenses
+-- #labelSyntax for generics-derived lenses
+import Data.Generics.Labels ()
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)
@@ -92,6 +99,36 @@ altSum = foldl' (<|>) empty
 -- | Like 'foldMap' but for Alternative.
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
+
+-- |
+-- > condition & onFalse do
+-- >   shortCircuit
+onFalse :: (Applicative m) => m () -> Bool -> m ()
+onFalse action = \case
+  False -> action
+  True -> pure ()
+
+-- |
+-- > action & onFalseM do
+-- >   shortCircuit
+onFalseM :: (Monad m) => m () -> m Bool -> m ()
+onFalseM x y =
+  y >>= onFalse x
+
+-- |
+-- > condition & onTrue do
+-- >   shortCircuit
+onTrue :: (Applicative m) => m () -> Bool -> m ()
+onTrue action = \case
+  True -> action
+  False -> pure ()
+
+-- |
+-- > action & onTrueM do
+-- >   shortCircuit
+onTrueM :: (Monad m) => m () -> m Bool -> m ()
+onTrueM x y =
+  y >>= onTrue x
 
 -- | E.g.
 --
