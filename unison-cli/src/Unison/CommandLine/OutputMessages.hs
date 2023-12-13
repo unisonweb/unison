@@ -2198,8 +2198,8 @@ notifyUser dir = \case
             [ P.wrap $
                 "I couldn't complete the"
                   <> operationName
-                  <> "because one of your types,"
-                  <> P.group (prettyName typeName <> ",")
+                  <> "because the type"
+                  <> prettyName typeName
                   <> "has unnamed constructors."
                   <> "(I currently need each constructor to have a name somewhere under the type name.)",
               "",
