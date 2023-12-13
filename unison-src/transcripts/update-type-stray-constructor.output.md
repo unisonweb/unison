@@ -56,10 +56,8 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
   updated...
 
   I couldn't complete the update because one of your types, Foo,
-  has unnamed constructors.
-  
-  I currently need each constructor to have a name somewhere
-  under the type name.
+  has unnamed constructors. (I currently need each constructor
+  to have a name somewhere under the type name.)
   
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to

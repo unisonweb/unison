@@ -2200,9 +2200,8 @@ notifyUser dir = \case
                   <> operationName
                   <> "because one of your types,"
                   <> P.group (prettyName typeName <> ",")
-                  <> "has unnamed constructors.",
-              "",
-              P.wrap $ "I currently need each constructor to have a name somewhere under the type name.",
+                  <> "has unnamed constructors."
+                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
               "",
               P.wrap $
                 "You can use"
