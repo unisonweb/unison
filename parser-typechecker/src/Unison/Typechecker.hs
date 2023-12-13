@@ -32,8 +32,10 @@ import Control.Monad.State
     modify,
   )
 import Control.Monad.Writer
+import Data.Foldable
 import Data.Map qualified as Map
 import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
@@ -229,17 +231,15 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
   case catMaybes resolutions of
     [] -> pure oldType
     rs ->
-      let goAgain =
-            any ((== 1) . length . dedupe . filter Context.isExact . suggestions) rs
-       in if goAgain
-            then do
-              traverse_ substSuggestion rs
-              synthesizeAndResolve ppe tdnrEnv
-            else do
-              -- The type hasn't changed
-              liftResult $ suggest rs
-              pure oldType
+      applySuggestions rs >>= \case
+        True -> do
+          synthesizeAndResolve ppe tdnrEnv
+        False -> do
+          -- The type hasn't changed
+          liftResult $ suggest rs
+          pure oldType
   where
+
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
       for_ vtts $ \(v, typ, _) ->
@@ -268,23 +268,50 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
         Var.MissingResult -> v
         _ -> Var.named name
 
-    substSuggestion :: Resolution v loc -> TDNR f v loc ()
+    extractSubstitution :: [Context.Suggestion v loc] -> Maybe (Either v Referent)
+    extractSubstitution suggestions =
+      let groupedByName :: [([Name.Name], Either v Referent)] =
+            map (\(a, b) -> (b, a))
+              . Map.toList
+              . fmap Set.toList
+              . foldl'
+                ( \b Context.Suggestion {suggestionName, suggestionReplacement} ->
+                    Map.insertWith
+                      Set.union
+                      suggestionReplacement
+                      (Set.singleton (Name.unsafeFromText suggestionName))
+                      b
+                )
+                Map.empty
+              $ filter Context.isExact suggestions
+          matches :: Set (Either v Referent) = Name.preferShallowLibDepth groupedByName
+       in case toList matches of
+            [x] -> Just x
+            _ -> Nothing
+
+    applySuggestions :: [Resolution v loc] -> TDNR f v loc Bool
+    applySuggestions = foldlM phi False
+      where
+        phi b a = do
+          didSub <- substSuggestion a
+          pure $! b || didSub
+
+    substSuggestion :: Resolution v loc -> TDNR f v loc Bool
     substSuggestion
       ( Resolution
           name
           _
           loc
           v
-          ( filter Context.isExact ->
-              [Context.Suggestion _ _ replacement Context.Exact]
-            )
+          (extractSubstitution -> Just replacement)
         ) =
         do
           modify (substBlank (Text.unpack name) loc solved)
           lift . btw $ Context.Decision (suggestedVar v name) loc solved
+          pure True
         where
           solved = either (Term.var loc) (Term.fromReferent loc) replacement
-    substSuggestion _ = pure ()
+    substSuggestion _ = pure False
 
     -- Resolve a `Blank` to a term
     substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
