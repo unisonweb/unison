@@ -43,7 +43,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
+      let refs = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
         [] -> pure (NotFound mainName)

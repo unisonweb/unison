@@ -192,7 +192,7 @@ resolveHQNames parseNames hqNames =
     getNameFromCodebase parseNames main = do
       Cli.Env {codebase} <- ask
       mapMaybeT Cli.runTransaction do
-        (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) & altMap \ref0 -> do
+        (Set.toList (NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes main parseNames)) & altMap \ref0 -> do
           ref <- hoistMaybe (Referent.toTermReferenceId ref0)
           typ <- MaybeT (Codebase.getTypeOfReferent codebase (Referent.fromTermReferenceId ref))
           pure (ref, typ)

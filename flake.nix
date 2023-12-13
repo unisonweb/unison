@@ -65,15 +65,27 @@
               hpack = unstable.hpack;
             };
           nixpkgs-devShells = {
-            only-tools-nixpkgs = unstable.mkShellNoCC {
+            only-tools-nixpkgs = unstable.mkShell {
               name = "only-tools-nixpkgs";
-              buildInputs = with nixpkgs-packages; [
-                ghc
-                ormolu
-                hls
-                stack
-                hpack
-              ];
+              buildInputs =
+                let
+                  build-tools = with nixpkgs-packages; [
+                    ghc
+                    ormolu
+                    hls
+                    stack
+                    hpack
+                  ];
+                  native-packages = pkgs.lib.optionals pkgs.stdenv.isDarwin
+                    (with unstable.darwin.apple_sdk.frameworks;
+                    [ Cocoa ]);
+                  c-deps = with unstable;
+                    [ pkg-config zlib glibcLocales ];
+                in
+                build-tools ++ c-deps ++ native-packages;
+              shellHook = ''
+                export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
+              '';
             };
           };
         in

@@ -55,11 +55,12 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  I couldn't complete the update because I couldn't find 1
-  constructor(s) for Foo where I expected to. I found: []
+  I couldn't complete the update because the type Foo has
+  unnamed constructors. (I currently need each constructor to
+  have a name somewhere under the type name.)
   
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each constructor, and then try again.
+  each constructor, and then try the update again.
 
 ```

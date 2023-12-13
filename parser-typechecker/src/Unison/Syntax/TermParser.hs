@@ -111,7 +111,7 @@ typeLink' :: (Monad m, Var v) => P v m (L.Token Reference)
 typeLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case NamesWithHistory.lookupHQType (L.payload id) ns of
+  case NamesWithHistory.lookupHQType NamesWithHistory.IncludeSuffixes (L.payload id) ns of
     s
       | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise -> customFailure $ UnknownType id s
@@ -120,7 +120,7 @@ termLink' :: (Monad m, Var v) => P v m (L.Token Referent)
 termLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case NamesWithHistory.lookupHQTerm (L.payload id) ns of
+  case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes (L.payload id) ns of
     s
       | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise -> customFailure $ UnknownTerm id s
@@ -129,7 +129,7 @@ link' :: (Monad m, Var v) => P v m (Either (L.Token Reference) (L.Token Referent
 link' = do
   id <- hqPrefixId
   ns <- asks names
-  case (NamesWithHistory.lookupHQTerm (L.payload id) ns, NamesWithHistory.lookupHQType (L.payload id) ns) of
+  case (NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes (L.payload id) ns, NamesWithHistory.lookupHQType NamesWithHistory.IncludeSuffixes (L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
     (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
     (s, s2) -> customFailure $ UnknownId id s s2
@@ -279,7 +279,7 @@ parsePattern = label "pattern" root
       names <- asks names
       -- probably should avoid looking up in `names` if `L.payload tok`
       -- starts with a lowercase
-      case NamesWithHistory.lookupHQPattern (L.payload tok) ct names of
+      case NamesWithHistory.lookupHQPattern NamesWithHistory.IncludeSuffixes (L.payload tok) ct names of
         s
           | Set.null s -> die tok s
           | Set.size s > 1 -> die tok s
@@ -420,7 +420,7 @@ resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of
     HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    _ -> case NamesWithHistory.lookupHQTerm (L.payload tok) names of
+    _ -> case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes (L.payload tok) names of
       s
         | Set.null s -> failCommitted $ UnknownTerm tok s
         | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
@@ -1151,7 +1151,7 @@ substImports ns imports =
     -- not in Names, but in a later term binding
       [ (suffix, Type.var () full)
         | (suffix, full) <- imports,
-          NamesWithHistory.hasTypeNamed (Name.unsafeFromVar full) ns
+          NamesWithHistory.hasTypeNamed NamesWithHistory.IncludeSuffixes (Name.unsafeFromVar full) ns
       ]
 
 block' :: (Monad m, Var v) => IsTop -> String -> P v m (L.Token ()) -> P v m (L.Token ()) -> TermP v m
