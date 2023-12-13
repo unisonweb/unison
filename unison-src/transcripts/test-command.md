@@ -19,6 +19,12 @@ test1 = [Ok "test1"]
 .> test
 ```
 
+Tests should be cached if unchanged.
+
+```ucm
+.> test
+```
+
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ```unison

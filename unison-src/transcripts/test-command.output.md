@@ -36,6 +36,20 @@ test1 = [Ok "test1"]
   Tip: Use view test1 to view the source of a test.
 
 ```
+Tests should be cached if unchanged.
+
+```ucm
+.> test
+
+  Cached test results (`help testcache` to learn more)
+  
+  ◉ test1   test1
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view test1 to view the source of a test.
+
+```
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ```unison
