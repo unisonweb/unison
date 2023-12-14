@@ -3,7 +3,6 @@
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
-import Data.Foldable qualified as Foldable
 import Data.List.NonEmpty qualified as NEList
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
@@ -74,12 +73,12 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
 -- | All possible IO'ish test types, e.g.
 -- '{IO, Exception} [Result]
 -- '{IO} [Result]
--- '{Exception} [Result]
 builtinIOTestTypes :: forall v a. (Ord v, Var v) => a -> NESet (Type.Type v a)
 builtinIOTestTypes a =
-  NESet.powerSet ioTestEffects
-    & NESet.map (delayedResultWithEffects . Foldable.toList)
+  NESet.fromList
+    ( delayedResultWithEffects ([Type.builtinIO a, DD.exceptionType a])
+        NEList.:| [delayedResultWithEffects ([Type.builtinIO a])]
+    )
   where
-    ioTestEffects = NESet.fromList (Type.builtinIO a NEList.:| [DD.exceptionType a])
     delayed = Type.arrow a (Type.ref a DD.unitRef)
     delayedResultWithEffects es = delayed (Type.effect a es (DD.testResultType a))

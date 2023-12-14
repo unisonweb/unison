@@ -10,10 +10,6 @@ ioAndExceptionTest : '{IO, Exception} [Result]
 ioAndExceptionTest = do 
   [Ok "Success"]
 
-exceptionTest : '{Exception} [Result]
-exceptionTest = do 
-  [Ok "Success"]
-
 ioTest : '{IO} [Result]
 ioTest = do 
   [Ok "Success"]
@@ -31,7 +27,6 @@ Run a IO tests one by one
 
 ```ucm
 .> io.test ioAndExceptionTest
-.> io.test exceptionTest
 .> io.test ioTest
 ```
 

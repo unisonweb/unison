@@ -6,10 +6,6 @@ ioAndExceptionTest : '{IO, Exception} [Result]
 ioAndExceptionTest = do 
   [Ok "Success"]
 
-exceptionTest : '{Exception} [Result]
-exceptionTest = do 
-  [Ok "Success"]
-
 ioTest : '{IO} [Result]
 ioTest = do 
   [Ok "Success"]
@@ -31,16 +27,6 @@ Run a IO tests one by one
   ✅ 1 test(s) passing
   
   Tip: Use view ioAndExceptionTest to view the source of a test.
-
-.> io.test exceptionTest
-
-    New test results:
-  
-  ◉ exceptionTest   Success
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view exceptionTest to view the source of a test.
 
 .> io.test ioTest
 
@@ -80,18 +66,13 @@ Run a IO tests one by one
 
   
 
-  
-
-  
-
     New test results:
   
-  ◉ exceptionTest        Success
   ◉ ioAndExceptionTest   Success
   ◉ ioTest               Success
   
-  ✅ 3 test(s) passing
+  ✅ 2 test(s) passing
   
-  Tip: Use view exceptionTest to view the source of a test.
+  Tip: Use view ioAndExceptionTest to view the source of a test.
 
 ```
