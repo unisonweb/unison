@@ -1091,34 +1091,12 @@ loop e = do
               scopePath <- Cli.resolvePath' scopePath'
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
-            ExecuteI main args -> do
-              (unisonFile, mainResType) <- do
-                (sym, term, typ, otyp) <- getTerm main
-                uf <- createWatcherFile sym term typ
-                pure (uf, otyp)
-              ppe <- executePPE unisonFile
-              (_, xs) <- evalUnisonFile False ppe unisonFile args
-              mainRes :: Term Symbol () <-
-                let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
-                 in case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
-                      Nothing ->
-                        error
-                          ( "impossible: we manually added the watcher "
-                              <> show magicMainWatcherString
-                              <> " with 'createWatcherFile', but it isn't here."
-                          )
-                      Just x -> pure (stripUnisonFileReferences unisonFile x)
-              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
-              Cli.respond (RunResult ppe mainRes)
-            MakeStandaloneI output main -> do
-              Cli.Env {codebase, runtime} <- ask
-              (ref, ppe) <- resolveMainRef main
-              let codeLookup = () <$ Codebase.toCodeLookup codebase
-              whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                Cli.returnEarly (EvaluationFailure err)
+            ExecuteI main args -> doExecute False main args
+            MakeStandaloneI output main -> doCompile False output main
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
-            GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
+            GenSchemeLibsI mdir ->
+              doGenerateSchemeBoot True Nothing mdir
             FetchSchemeCompilerI name branch ->
               doFetchCompiler name branch
             IOTestI main -> handleIOTest main
@@ -1320,7 +1298,7 @@ loadUnisonFile sourceName text = do
   pped <- prettyPrintEnvDecl names
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Typechecked sourceName ppe sr unisonFile
-  (bindings, e) <- evalUnisonFile False ppe unisonFile []
+  (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
   let e' = Map.map go e
       go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
   when (not (null e')) do
@@ -1520,13 +1498,11 @@ inputDescription input =
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $
-        "run.native "
-          <> HQ.toText nm
-          <> " "
-          <> Text.unwords (fmap Text.pack args)
+      pure $ "run.native " <> Text.unwords (fmap Text.pack (nm : args))
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
-    GenSchemeLibsI -> pure "compile.native.genlibs"
+    GenSchemeLibsI mdir ->
+      pure $
+        "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
     FetchSchemeCompilerI name branch ->
       pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
@@ -2468,10 +2444,11 @@ getSchemeStaticLibDir =
       liftIO $
         getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
 
-doGenerateSchemeBoot :: Bool -> Maybe PPE.PrettyPrintEnv -> Cli ()
-doGenerateSchemeBoot force mppe = do
+doGenerateSchemeBoot
+  :: Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
+doGenerateSchemeBoot force mppe mdir = do
   ppe <- maybe basicPPE pure mppe
-  dir <- getSchemeGenLibDir
+  dir <- maybe getSchemeGenLibDir pure mdir
   let bootf = dir </> "unison" </> "boot-generated.ss"
       swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
@@ -2587,10 +2564,50 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
-doRunAsScheme main args = do
-  fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme fullpath args
+doExecute :: Bool -> String -> [String] -> Cli ()
+doExecute native main args = do
+  (unisonFile, mainResType) <- do
+    (sym, term, typ, otyp) <- getTerm main
+    uf <- createWatcherFile sym term typ
+    pure (uf, otyp)
+  ppe <- executePPE unisonFile
+  let mode | native = Native | otherwise = Permissive
+  (_, xs) <- evalUnisonFile mode ppe unisonFile args
+  mainRes :: Term Symbol () <-
+    case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
+      Nothing ->
+        error
+          ( "impossible: we manually added the watcher "
+              <> show magicMainWatcherString
+              <> " with 'createWatcherFile', but it isn't here."
+          )
+      Just x -> pure (stripUnisonFileReferences unisonFile x)
+  #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
+  Cli.respond (RunResult ppe mainRes)
+  where
+  bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
+    (watchKind, term1)
+
+doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
+doCompile native output main = do
+  Cli.Env {codebase, runtime, nativeRuntime} <- ask
+  let theRuntime | native = nativeRuntime
+                 | otherwise = runtime
+  (ref, ppe) <- resolveMainRef main
+  let codeLookup = () <$ Codebase.toCodeLookup codebase
+      outf | native = output
+           | otherwise = output <> ".uc"
+  whenJustM
+    (liftIO $
+      Runtime.compileTo theRuntime codeLookup ppe ref outf)
+    (Cli.returnEarly . EvaluationFailure)
+
+doRunAsScheme :: String -> [String] -> Cli ()
+doRunAsScheme main0 args = case HQ.fromString main0 of
+  Just main -> do
+    fullpath <- generateSchemeFile True main0 main
+    runScheme fullpath args
+  Nothing -> Cli.respond $ BadName main0
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
@@ -2600,7 +2617,7 @@ generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
-  doGenerateSchemeBoot False $ Just ppe
+  doGenerateSchemeBoot False (Just ppe) Nothing
   cacheDir <- getCacheDir
   liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
   let scratch = out ++ ".scm"
@@ -2777,7 +2794,7 @@ displayI prettyPrintNames outputLoc hq = do
       doDisplay outputLoc parseNames (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- PPE.biasTo bias <$> executePPE unisonFile
-      (_, watches) <- evalUnisonFile True ppe unisonFile []
+      (_, watches) <- evalUnisonFile Sandboxed ppe unisonFile []
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> HQ.toString hq)
       ns <- displayNames unisonFile
@@ -3141,6 +3158,8 @@ synthesizeForce typeOfFunc = do
         )
     Identity (Just typ, _) -> typ
 
+data EvalMode = Sandboxed | Permissive | Native
+
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned
 -- has the form:
@@ -3158,7 +3177,7 @@ synthesizeForce typeOfFunc = do
 -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
 -- of the same watches instantaneous.
 evalUnisonFile ::
-  Bool ->
+  EvalMode ->
   PPE.PrettyPrintEnv ->
   TypecheckedUnisonFile Symbol Ann ->
   [String] ->
@@ -3166,9 +3185,12 @@ evalUnisonFile ::
     ( [(Symbol, Term Symbol ())],
       Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
     )
-evalUnisonFile sandbox ppe unisonFile args = do
-  Cli.Env {codebase, runtime, sandboxedRuntime} <- ask
-  let theRuntime = if sandbox then sandboxedRuntime else runtime
+evalUnisonFile mode ppe unisonFile args = do
+  Cli.Env {codebase, runtime, sandboxedRuntime, nativeRuntime} <- ask
+  let theRuntime = case mode of
+        Sandboxed -> sandboxedRuntime
+        Permissive -> runtime
+        Native -> nativeRuntime
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do

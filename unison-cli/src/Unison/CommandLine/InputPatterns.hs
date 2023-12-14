@@ -2394,8 +2394,7 @@ runScheme =
         ]
     )
     ( \case
-        (main : args) ->
-          flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
+        (main : args) -> Right $ Input.ExecuteSchemeI main args
         _ -> Left $ showPatternHelp runScheme
     )
 
@@ -2426,9 +2425,9 @@ schemeLibgen =
     "compile.native.genlibs"
     []
     I.Visible
-    []
+    [(Optional, noCompletionsArg)]
     ( P.wrapColumn2
-        [ ( makeExample schemeLibgen [],
+        [ ( makeExample schemeLibgen ["[targetDir]"],
             "Generates libraries necessary for scheme compilation.\n\n\
             \There is no need to run this before"
               <> P.group (makeExample compileScheme [])
@@ -2442,7 +2441,8 @@ schemeLibgen =
         ]
     )
     ( \case
-        [] -> pure Input.GenSchemeLibsI
+        [] -> pure $ Input.GenSchemeLibsI Nothing
+        [dir] -> pure . Input.GenSchemeLibsI $ Just dir
         _ -> Left $ showPatternHelp schemeLibgen
     )
 
