@@ -172,6 +172,8 @@ data Input
     SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme

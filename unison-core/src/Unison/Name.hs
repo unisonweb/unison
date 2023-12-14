@@ -336,12 +336,12 @@ searchBySuffix suffix rel =
 searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
 searchByRankedSuffix suffix rel =
   let rs = searchBySuffix suffix rel
-  in case Set.size rs <= 1 of
-    True -> rs
-    False ->
-      let ok name = compareSuffix suffix name == EQ
-          withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
-      in preferShallowLibDepth withNames
+   in case Set.size rs <= 1 of
+        True -> rs
+        False ->
+          let ok name = compareSuffix suffix name == EQ
+              withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
+           in preferShallowLibDepth withNames
 
 -- | precondition: input list is deduped, and so is the Name list in
 -- the tuple
@@ -350,11 +350,10 @@ preferShallowLibDepth = \case
   [] -> Set.empty
   [x] -> Set.singleton (snd x)
   rs ->
-    let 
-      byDepth = List.multimap (map (first minLibs) rs)
-      libCount = length . filter (== libSegment) . toList . reverseSegments
-      minLibs [] = 0
-      minLibs ns = minimum (map libCount ns)
+    let byDepth = List.multimap (map (first minLibs) rs)
+        libCount = length . filter (== libSegment) . toList . reverseSegments
+        minLibs [] = 0
+        minLibs ns = minimum (map libCount ns)
      in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
           Nothing -> Set.fromList (map snd rs)
           Just rs -> Set.fromList rs

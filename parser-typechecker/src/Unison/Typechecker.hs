@@ -239,7 +239,6 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
           liftResult $ suggest rs
           pure oldType
   where
-
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
       for_ vtts $ \(v, typ, _) ->
