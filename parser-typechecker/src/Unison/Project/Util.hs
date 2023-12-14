@@ -7,6 +7,7 @@ module Unison.Project.Util
     projectBranchPathPrism,
     projectContextFromPath,
     pattern UUIDNameSegment,
+    ProjectContext (..),
   )
 where
 
@@ -126,7 +127,7 @@ projectBranchPathPrism =
 data ProjectContext
   = LooseCodePath Path.Absolute
   | ProjectBranchPath ProjectId ProjectBranchId Path.Path {- path from branch root -}
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 projectContextFromPath :: Path.Absolute -> ProjectContext
 projectContextFromPath path =

@@ -17,10 +17,12 @@ import Data.These (These (..))
 import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
+import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Cli.Pretty (prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
@@ -54,6 +56,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
+import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
 import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
 import Unison.Util.ColorText qualified as CT
@@ -857,7 +860,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectAndBranchNamesArg True)],
+      argTypes = [(Required, projectAndBranchNamesArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
@@ -870,6 +873,13 @@ deleteBranch =
             Right projectAndBranch -> Right (Input.DeleteI (DeleteTarget'ProjectBranch projectAndBranch))
         _ -> Left (showPatternHelp deleteBranch)
     }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyWithinCurrentProject,
+          branchInclusion = AllBranches
+        }
 
 deleteTermReplacement :: InputPattern
 deleteTermReplacement = deleteReplacement True
@@ -2495,13 +2505,17 @@ createAuthor =
     []
     I.Visible
     [(Required, noCompletionsArg), (Required, noCompletionsArg)]
-    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""] <> " "
-        <> P.wrap (" creates "
-        <> backtick "alicecoder"
-        <> "values in"
-        <> backtick "metadata.authors"
-        <> "and"
-        <> backtick (P.group ("metadata.copyrightHolders" <> "."))))
+    ( makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
+        <> " "
+        <> P.wrap
+          ( " creates "
+              <> backtick "alicecoder"
+              <> "values in"
+              <> backtick "metadata.authors"
+              <> "and"
+              <> backtick (P.group ("metadata.copyrightHolders" <> "."))
+          )
+    )
     ( \case
         symbolStr : authorStr@(_ : _) -> first fromString $ do
           symbol <- Path.definitionNameSegment symbolStr
@@ -2654,7 +2668,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Optional, projectAndBranchNamesArg False)],
+      argTypes = [(Optional, projectAndBranchNamesArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
@@ -2669,6 +2683,13 @@ projectSwitch =
             Right projectAndBranch -> Right (Input.ProjectSwitchI $ Just projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)
     }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = True,
+          projectInclusion = AllProjects,
+          branchInclusion = ExcludeCurrentBranch
+        }
 
 projectsInputPattern :: InputPattern
 projectsInputPattern =
@@ -3118,72 +3139,109 @@ remoteNamespaceArg =
       globTargets = mempty
     }
 
--- | A project name, branch name, or both.
-projectAndBranchNamesArg :: Bool -> ArgumentType
-projectAndBranchNamesArg includeCurrentBranch =
-  ArgumentType
-    { typeName = "project-and-branch-names",
-      suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient path ->
-        case Text.uncons input of
-          -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
-          -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
-          -- if the input begins with a forward slash, just rip it off and treat the rest as the branch prefix.
-          Just ('/', input1) -> handleBranchesComplete input1 codebase path
-          _ ->
-            case tryFrom input of
-              -- This case handles inputs like "", "@", and possibly other things that don't look like a valid project
-              -- or branch, but are a valid prefix of one
-              Left _err -> handleAmbiguousComplete input codebase path
-              Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase path
-              -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
-              -- to suggest branches in that project as autocompletions.
-              --
-              -- Conceivably, with some other syntax, it may be possible to unambiguously parse a project name, while
-              -- still wanting to suggest full project names (e.g. I type "PROJECT=foo<tab>" to get a list of projects
-              -- that begin with "foo"), but because that's not how our syntax works today, we don't inspect the input
-              -- string for a trailing forward slash.
-              Right (ProjectAndBranchNames'Unambiguous (This projectName)) -> do
-                branches <-
-                  Codebase.runTransaction codebase do
-                    Queries.loadProjectByName projectName >>= \case
-                      Nothing -> pure []
-                      Just project -> do
-                        let projectId = project ^. #projectId
-                        fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId Nothing
-                pure (map (projectBranchToCompletion projectName) branches)
-              -- This branch is probably dead due to intercepting inputs that begin with "/" above
-              Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
-                handleBranchesComplete (into @Text branchName) codebase path
-              Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
-                branches <-
-                  Codebase.runTransaction codebase do
-                    Queries.loadProjectByName projectName >>= \case
-                      Nothing -> pure []
-                      Just project -> do
-                        let projectId = project ^. #projectId
-                        fmap (filterOutCurrentBranch path projectId) do
-                          Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
-                pure (map (projectBranchToCompletion projectName) branches),
-      globTargets = Set.empty
-    }
+data ProjectInclusion = OnlyWithinCurrentProject | OnlyOutsideCurrentProject | AllProjects
+  deriving stock (Eq, Ord, Show)
+
+data BranchInclusion = ExcludeCurrentBranch | AllBranches
+  deriving stock (Eq, Ord, Show)
+
+projectsByPrefix :: MonadIO m => ProjectInclusion -> Codebase m v a -> Path.Absolute -> Text -> m [(ProjectId, ProjectName)]
+projectsByPrefix projectInclusion codebase path query = do
+  allProjectMatches <- Codebase.runTransaction codebase do
+    Queries.loadAllProjectsBeginningWith (Just query)
+      <&> map (\(Sqlite.Project projId projName) -> (projId, projName))
+  let projectCtx = projectContextFromPath path
+  pure $ case (projectCtx, projectInclusion) of
+    (_, AllProjects) -> allProjectMatches
+    (LooseCodePath {}, _) -> allProjectMatches
+    (ProjectBranchPath currentProjectId _branchId _path, OnlyWithinCurrentProject) -> allProjectMatches & filter \(projId, _) -> projId == currentProjectId
+    (ProjectBranchPath currentProjectId _branchId _path, OnlyOutsideCurrentProject) -> allProjectMatches & filter \(projId, _) -> projId /= currentProjectId
+
+data ProjectBranchSuggestionsConfig = ProjectBranchSuggestionsConfig
+  { -- Whether projects (without branches) should be considered possible completions.
+    showProjectCompletions :: Bool,
+    -- Whether to include projects/branches within the current project, only outside the
+    -- current project, or either.
+    projectInclusion :: ProjectInclusion,
+    -- Whether to include the current branch as a possible completion.
+    branchInclusion :: BranchInclusion
+  }
+
+projectAndOrBranchSuggestions ::
+  (MonadIO m) =>
+  ProjectBranchSuggestionsConfig ->
+  String ->
+  Codebase m v a ->
+  AuthenticatedHttpClient ->
+  Path.Absolute -> -- Current path
+  m [Line.Completion]
+projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
+  case Text.uncons input of
+    -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
+    -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
+    -- if the input begins with a forward slash, just rip it off and treat the rest as the branch prefix.
+    Just ('/', input1) -> handleBranchesComplete input1 codebase path
+    _ ->
+      case tryInto @ProjectAndBranchNames input of
+        -- This case handles inputs like "", "@", and possibly other things that don't look like a valid project
+        -- or branch, but are a valid prefix of one
+        Left _err -> handleAmbiguousComplete input codebase
+        Right (ProjectAndBranchNames'Ambiguous _ _) -> handleAmbiguousComplete input codebase
+        -- Here we assume that if we've unambiguously parsed a project, it ended in a forward slash, so we're ready
+        -- to suggest branches in that project as autocompletions.
+        --
+        -- Conceivably, with some other syntax, it may be possible to unambiguously parse a project name, while
+        -- still wanting to suggest full project names (e.g. I type "PROJECT=foo<tab>" to get a list of projects
+        -- that begin with "foo"), but because that's not how our syntax works today, we don't inspect the input
+        -- string for a trailing forward slash.
+        Right (ProjectAndBranchNames'Unambiguous (This projectName)) -> do
+          branches <-
+            Codebase.runTransaction codebase do
+              Queries.loadProjectByName projectName >>= \case
+                Nothing -> pure []
+                Just project -> do
+                  let projectId = project ^. #projectId
+                  fmap filterBranches do
+                    Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+          pure (map (projectBranchToCompletion projectName) branches)
+        -- This branch is probably dead due to intercepting inputs that begin with "/" above
+        Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
+          handleBranchesComplete (into @Text branchName) codebase path
+        Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
+          branches <-
+            Codebase.runTransaction codebase do
+              Queries.loadProjectByName projectName >>= \case
+                Nothing -> pure []
+                Just project -> do
+                  let projectId = project ^. #projectId
+                  fmap filterBranches do
+                    Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
+          pure (map (projectBranchToCompletion projectName) branches)
   where
+    input = Text.strip . Text.pack $ inputStr
+
+    (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath path of
+      LooseCodePath {} -> (Nothing, Nothing)
+      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+
     handleAmbiguousComplete ::
       MonadIO m =>
       Text ->
       Codebase m v a ->
-      Path.Absolute ->
       m [Completion]
-    handleAmbiguousComplete input codebase path = do
+    handleAmbiguousComplete input codebase = do
       (branches, projects) <-
         Codebase.runTransaction codebase do
           branches <-
-            case preview ProjectUtils.projectBranchPathPrism path of
+            case mayCurrentProjectId of
               Nothing -> pure []
-              Just (ProjectAndBranch currentProjectId _, _) ->
-                fmap (filterOutCurrentBranch path currentProjectId) do
+              Just currentProjectId ->
+                fmap filterBranches do
                   Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
-          projects <- Queries.loadAllProjectsBeginningWith (Just input)
+          projects <- case (projectInclusion config, mayCurrentProjectId) of
+            (OnlyWithinCurrentProject, Just currentProjectId) -> Queries.loadProject currentProjectId <&> maybeToList
+            (OnlyWithinCurrentProject, Nothing) -> pure []
+            _ -> Queries.loadAllProjectsBeginningWith (Just input) <&> filterProjects
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
       let projectCompletions = map projectToCompletion projects
@@ -3263,16 +3321,27 @@ projectAndBranchNamesArg includeCurrentBranch =
           Nothing -> pure []
           Just (ProjectAndBranch currentProjectId _, _) ->
             Codebase.runTransaction codebase do
-              fmap (filterOutCurrentBranch path currentProjectId) do
+              fmap filterBranches do
                 Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
 
-    filterOutCurrentBranch :: Path.Absolute -> ProjectId -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
-    filterOutCurrentBranch path projectId =
-      case (includeCurrentBranch, preview ProjectUtils.projectBranchPathPrism path) of
-        (False, Just (ProjectAndBranch currentProjectId currentBranchId, _))
-          | projectId == currentProjectId -> filter (\(branchId, _) -> branchId /= currentBranchId)
-        _ -> id
+    filterBranches :: [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+    filterBranches branches =
+      case (mayCurrentBranchId, branchInclusion config) of
+        (_, AllBranches) -> branches
+        (Nothing, _) -> branches
+        (Just currentBranchId, ExcludeCurrentBranch) -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
+
+    filterProjects :: [Sqlite.Project] -> [Sqlite.Project]
+    filterProjects projects =
+      case (mayCurrentProjectId, projectInclusion config) of
+        (_, AllProjects) -> projects
+        (Nothing, _) -> projects
+        (Just currentProjId, OnlyOutsideCurrentProject) -> projects & filter (\Sqlite.Project {projectId} -> projectId /= currentProjId)
+        (Just currentBranchId, OnlyWithinCurrentProject) ->
+          projects
+            & List.find (\Sqlite.Project {projectId} -> projectId == currentBranchId)
+            & maybeToList
 
     currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
     currentProjectBranchToCompletion (_, branchName) =
@@ -3299,6 +3368,16 @@ projectAndBranchNamesArg includeCurrentBranch =
         }
       where
         stringProjectName = Text.unpack (into @Text (project ^. #name) <> "/")
+
+-- | A project name, branch name, or both.
+projectAndBranchNamesArg :: ProjectBranchSuggestionsConfig -> ArgumentType
+projectAndBranchNamesArg config =
+  ArgumentType
+    { typeName = "project-and-branch-names",
+      suggestions = projectAndOrBranchSuggestions config,
+      globTargets = Set.empty
+    }
+  where
 
 -- | A project branch name.
 projectBranchNameArg :: ArgumentType
