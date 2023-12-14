@@ -31,7 +31,6 @@ module Unison.Cli.MonadUtils
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
-    getMaybeBranch0At,
     expectBranchAtPath,
     expectBranchAtPath',
     expectBranch0AtPath,
@@ -291,11 +290,6 @@ getMaybeBranchAt :: Path.Absolute -> Cli (Maybe (Branch IO))
 getMaybeBranchAt path = do
   rootBranch <- getRootBranch
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
-
--- | Get the maybe-branch0 at an absolute path.
-getMaybeBranch0At :: Path.Absolute -> Cli (Maybe (Branch0 IO))
-getMaybeBranch0At path =
-  fmap Branch.head <$> getMaybeBranchAt path
 
 -- | Get the branch at a relative path, or return early if there's no such branch.
 expectBranchAtPath :: Path -> Cli (Branch IO)
