@@ -39,10 +39,6 @@ hasMetadata = 3
                         3. dependsOnNat
                         4. hasMetadata
                         
-  builtin.Text          4. hasMetadata
-                        
   builtin.Nat.drop      2. dependsOnIntAndNat
-                        
-  metadata.myMetadata   4. hasMetadata
 
 ```

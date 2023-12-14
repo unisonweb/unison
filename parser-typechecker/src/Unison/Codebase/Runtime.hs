@@ -4,6 +4,7 @@
 module Unison.Codebase.Runtime where
 
 import Data.Map qualified as Map
+import Data.Set.NonEmpty (NESet)
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
@@ -42,7 +43,7 @@ data Runtime v = Runtime
       FilePath ->
       IO (Maybe Error),
     mainType :: Type v Ann,
-    ioTestType :: Type v Ann
+    ioTestTypes :: NESet (Type v Ann)
   }
 
 type IsCacheHit = Bool

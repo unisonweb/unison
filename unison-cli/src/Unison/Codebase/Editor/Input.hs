@@ -172,14 +172,16 @@ data Input
     SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name) [String]
+    ExecuteSchemeI String [String]
   | -- compile to a scheme file
     CompileSchemeI String (HQ.HashQualified Name)
-  | -- generate scheme libraries
-    GenSchemeLibsI
+  | -- generate scheme libraries, optional target directory
+    GenSchemeLibsI (Maybe String)
   | -- fetch scheme compiler from a given username and branch
     FetchSchemeCompilerI String String
   | TestI TestInput

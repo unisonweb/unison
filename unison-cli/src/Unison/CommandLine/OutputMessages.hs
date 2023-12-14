@@ -795,15 +795,15 @@ notifyUser dir = \case
           ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
-  TestIncrementalOutputStart ppe (n, total) r _src -> do
+  TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
         <> " tests left to run, current test: "
         <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty
-  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r isOk -> do
     clearCurrentLine
-    if isTestOk result
+    if isOk
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
@@ -921,7 +921,7 @@ notifyUser dir = \case
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs to be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -2918,7 +2918,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2933,7 +2933,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -3738,16 +3738,6 @@ prettyDiff diff =
                 ]
             else mempty
         ]
-
-isTestOk :: Term v Ann -> Bool
-isTestOk tm = case tm of
-  Term.List' ts -> all isSuccess ts
-    where
-      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
-        cid == DD.okConstructorId
-          && ref == DD.testResultRef
-      isSuccess _ = False
-  _ -> False
 
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.

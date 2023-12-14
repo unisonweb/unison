@@ -2432,6 +2432,24 @@ ioTest =
         _ -> Left $ showPatternHelp ioTest
     }
 
+ioTestAll :: InputPattern
+ioTestAll =
+  InputPattern
+    { patternName = "io.test.all",
+      aliases = ["test.io.all"],
+      visibility = I.Visible,
+      argTypes = [],
+      help =
+        P.wrapColumn2
+          [ ( "`io.test.all`",
+              "Runs all tests which use IO within the scope of the current namespace."
+            )
+          ],
+      parse = \case
+        [] -> Right Input.IOTestAllI
+        _ -> Left $ showPatternHelp ioTest
+    }
+
 makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
@@ -2467,8 +2485,7 @@ runScheme =
         ]
     )
     ( \case
-        (main : args) ->
-          flip Input.ExecuteSchemeI args <$> parseHashQualifiedName main
+        (main : args) -> Right $ Input.ExecuteSchemeI main args
         _ -> Left $ showPatternHelp runScheme
     )
 
@@ -2499,9 +2516,9 @@ schemeLibgen =
     "compile.native.genlibs"
     []
     I.Visible
-    []
+    [(Optional, noCompletionsArg)]
     ( P.wrapColumn2
-        [ ( makeExample schemeLibgen [],
+        [ ( makeExample schemeLibgen ["[targetDir]"],
             "Generates libraries necessary for scheme compilation.\n\n\
             \There is no need to run this before"
               <> P.group (makeExample compileScheme [])
@@ -2515,7 +2532,8 @@ schemeLibgen =
         ]
     )
     ( \case
-        [] -> pure Input.GenSchemeLibsI
+        [] -> pure $ Input.GenSchemeLibsI Nothing
+        [dir] -> pure . Input.GenSchemeLibsI $ Just dir
         _ -> Left $ showPatternHelp schemeLibgen
     )
 
@@ -3011,6 +3029,7 @@ validInputs =
       helpTopics,
       history,
       ioTest,
+      ioTestAll,
       link,
       links,
       load,
