@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   )
 where
 
+import Control.Lens (over)
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import Data.Map qualified as Map
@@ -20,11 +21,10 @@ import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
-import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite qualified as Sqlite
@@ -59,34 +59,36 @@ handleNamespaceDependencies namespacePath' = do
 namespaceDependencies :: Codebase m Symbol a -> Branch0 m -> Sqlite.Transaction (Map LabeledDependency (Set Name))
 namespaceDependencies codebase branch = do
   typeDeps <-
-    for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
-      refId <- MaybeT . pure $ Reference.toId typeRef
-      decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
-      let typeDeps = Set.map LD.typeRef $ DD.typeDependencies (DD.asDataDecl decl)
-      pure $ foldMap (`Map.singleton` names) typeDeps
+    for (Map.toList (Relation.domain (Branch.deepTypes branchWithoutLibdeps))) \(typeRef, names) ->
+      fmap (fromMaybe Map.empty) . runMaybeT $ do
+        refId <- MaybeT . pure $ Reference.toId typeRef
+        decl <- MaybeT $ Codebase.getTypeDeclaration codebase refId
+        let typeDeps = Set.map LD.typeRef $ DD.typeDependencies (DD.asDataDecl decl)
+        pure $ foldMap (`Map.singleton` names) typeDeps
 
-  termDeps <- for (Map.toList currentBranchTermRefs) $ \(termRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
-    refId <- MaybeT . pure $ Referent.toReferenceId termRef
-    term <- MaybeT $ Codebase.getTerm codebase refId
-    let termDeps = Term.labeledDependencies term
-    pure $ foldMap (`Map.singleton` names) termDeps
+  termDeps <-
+    for (Map.toList (Relation.domain (Branch.deepTerms branchWithoutLibdeps))) \(termRef, names) ->
+      fmap (fromMaybe Map.empty) . runMaybeT $ do
+        refId <- MaybeT . pure $ Referent.toReferenceId termRef
+        term <- MaybeT $ Codebase.getTerm codebase refId
+        let termDeps = Term.labeledDependencies term
+        pure $ foldMap (`Map.singleton` names) termDeps
 
   let dependenciesToDependents :: Map LabeledDependency (Set Name)
       dependenciesToDependents =
         Map.unionsWith (<>) (typeDeps ++ termDeps)
+
   let onlyExternalDeps :: Map LabeledDependency (Set Name)
       onlyExternalDeps =
         Map.filterWithKey
           ( \x _ ->
               LD.fold
-                (`Map.notMember` currentBranchTypeRefs)
-                (`Map.notMember` currentBranchTermRefs)
+                (\k -> not (Relation.memberDom k (Branch.deepTypes branch)))
+                (\k -> not (Relation.memberDom k (Branch.deepTerms branch)))
                 x
           )
           dependenciesToDependents
+
   pure onlyExternalDeps
   where
-    currentBranchTermRefs :: Map Referent (Set Name)
-    currentBranchTermRefs = Relation.domain (Branch.deepTerms branch)
-    currentBranchTypeRefs :: Map Reference (Set Name)
-    currentBranchTypeRefs = Relation.domain (Branch.deepTypes branch)
+    branchWithoutLibdeps = branch & over Branch.children (Map.delete Name.libSegment)
