@@ -6,6 +6,7 @@
 
 module Unison.Runtime.Decompile
   ( decompile
+  , DecompResult
   , DecompError (..)
   , renderDecompError
   ) where
