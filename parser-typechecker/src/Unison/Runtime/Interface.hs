@@ -30,8 +30,8 @@ import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
-import Data.List qualified as L
 import Data.IORef
+import Data.List qualified as L
 import Data.Map.Strict qualified as Map
 import Data.Sequence qualified as Seq (fromList)
 import Data.Set as Set
@@ -45,11 +45,11 @@ import Data.Set as Set
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
 import System.Process
-  ( proc,
+  ( CreateProcess (..),
+    StdStream (..),
+    proc,
     waitForProcess,
     withCreateProcess,
-    CreateProcess(..),
-    StdStream(..)
   )
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -72,7 +72,7 @@ import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroup,
     putGroup,
-    serializeValue
+    serializeValue,
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
@@ -412,25 +412,25 @@ loadDeps cl ppe ctx tyrs tmrs = do
   out@(_, rgrp) <- loadCode cl ppe ctx tmrs
   out <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
-compileValue :: Reference -> [(Reference, SuperGroup Symbol)]  -> Value
+compileValue :: Reference -> [(Reference, SuperGroup Symbol)] -> Value
 compileValue base =
   flip pair (rf base) . ANF.BLit . List . Seq.fromList . fmap cpair
   where
-  rf = ANF.BLit . TmLink . RF.Ref
-  cons x y = Data RF.pairRef 0 [] [x, y]
-  tt = Data RF.unitRef 0 [] []
-  code sg = ANF.BLit (Code sg)
-  pair x y = cons x (cons y tt)
-  cpair (r, sg) = pair (rf r) (code sg)
+    rf = ANF.BLit . TmLink . RF.Ref
+    cons x y = Data RF.pairRef 0 [] [x, y]
+    tt = Data RF.unitRef 0 [] []
+    code sg = ANF.BLit (Code sg)
+    pair x y = cons x (cons y tt)
+    cpair (r, sg) = pair (rf r) (code sg)
 
 decompileCtx ::
   EnumMap Word64 Reference -> EvalCtx -> Closure -> DecompResult Symbol
 decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
   where
-  ib = intermedToBase ctx
-  fr = floatRemap ctx
-  ir = intermedRemap ctx
-  dt = decompTm ctx
+    ib = intermedToBase ctx
+    fr = floatRemap ctx
+    ir = intermedRemap ctx
+    dt = decompTm ctx
 
 nativeEval ::
   IORef EvalCtx ->
@@ -648,12 +648,12 @@ backReferenceTm ws frs irs dcm c i = do
   Map.lookup i bs
 
 schemeProc :: [String] -> CreateProcess
-schemeProc args = (proc "native-compiler/bin/runner" args)
-  { std_in = CreatePipe
-  , std_out = Inherit
-  , std_err = Inherit
-  }
-
+schemeProc args =
+  (proc "native-compiler/bin/runner" args)
+    { std_in = CreatePipe,
+      std_out = Inherit,
+      std_err = Inherit
+    }
 
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
@@ -678,21 +678,22 @@ nativeEvalInContext _ ctx codes base = do
   let bytes = serializeValue . compileValue base $ codes
 
       decodeResult (Left msg) = pure . Left $ fromString msg
-      decodeResult (Right val) = reifyValue cc val >>= \case
-        Left _ -> pure . Left $ "missing references from result"
-        Right cl -> case decompileCtx crs ctx cl of
-          (errs, dv) -> pure $ Right (listErrors errs, dv)
+      decodeResult (Right val) =
+        reifyValue cc val >>= \case
+          Left _ -> pure . Left $ "missing references from result"
+          Right cl -> case decompileCtx crs ctx cl of
+            (errs, dv) -> pure $ Right (listErrors errs, dv)
 
       callout (Just pin) _ _ ph = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
         BS.hPut pin bytes
         UnliftIO.hClose pin
         let unit = Data RF.unitRef 0 [] []
-            sunit = Data RF.pairRef 0 [] [unit,unit]
+            sunit = Data RF.pairRef 0 [] [unit, unit]
         waitForProcess ph
         decodeResult $ Right sunit
-        -- TODO: actualy receive output from subprocess
-        -- decodeResult . deserializeValue =<< BS.hGetContents pout
+      -- TODO: actualy receive output from subprocess
+      -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
   withCreateProcess (schemeProc []) callout

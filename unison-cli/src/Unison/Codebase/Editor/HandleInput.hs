@@ -2444,8 +2444,8 @@ getSchemeStaticLibDir =
       liftIO $
         getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
 
-doGenerateSchemeBoot
-  :: Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
+doGenerateSchemeBoot ::
+  Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
 doGenerateSchemeBoot force mppe mdir = do
   ppe <- maybe basicPPE pure mppe
   dir <- maybe getSchemeGenLibDir pure mdir
@@ -2585,21 +2585,24 @@ doExecute native main args = do
   #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
   Cli.respond (RunResult ppe mainRes)
   where
-  bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
-    (watchKind, term1)
+    bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
+      (watchKind, term1)
 
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do
   Cli.Env {codebase, runtime, nativeRuntime} <- ask
-  let theRuntime | native = nativeRuntime
-                 | otherwise = runtime
+  let theRuntime
+        | native = nativeRuntime
+        | otherwise = runtime
   (ref, ppe) <- resolveMainRef main
   let codeLookup = () <$ Codebase.toCodeLookup codebase
-      outf | native = output
-           | otherwise = output <> ".uc"
+      outf
+        | native = output
+        | otherwise = output <> ".uc"
   whenJustM
-    (liftIO $
-      Runtime.compileTo theRuntime codeLookup ppe ref outf)
+    ( liftIO $
+        Runtime.compileTo theRuntime codeLookup ppe ref outf
+    )
     (Cli.returnEarly . EvaluationFailure)
 
 doRunAsScheme :: String -> [String] -> Cli ()
