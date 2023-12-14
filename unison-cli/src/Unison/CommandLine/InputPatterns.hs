@@ -1,7 +1,6 @@
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Unison.CommandLine.InputPatterns where
 
