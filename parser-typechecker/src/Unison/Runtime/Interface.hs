@@ -914,7 +914,7 @@ startRuntime sandboxed runtimeHost version = do
         evaluate = interpEval activeThreads cleanupThreads ctxVar,
         compileTo = interpCompile version ctxVar,
         mainType = builtinMain External,
-        ioTestType = builtinTest External
+        ioTestTypes = builtinIOTestTypes External
       }
 
 startNativeRuntime :: Text -> IO (Runtime Symbol)
