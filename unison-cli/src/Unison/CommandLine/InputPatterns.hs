@@ -1,6 +1,8 @@
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+
 module Unison.CommandLine.InputPatterns where
 
 import Control.Lens (preview, (^.))
@@ -46,7 +48,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
 import Unison.CommandLine.Globbing qualified as Globbing
-import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
+import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
 import Unison.JitInfo qualified as JitInfo
@@ -1168,8 +1170,8 @@ reset =
     "reset"
     []
     I.Visible
-    [ (Required, namespaceArg),
-      (Optional, namespaceArg)
+    [ (Required, namespaceOrProjectBranchArg config),
+      (Optional, namespaceOrProjectBranchArg config)
     ]
     ( P.wrapColumn2
         [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
@@ -1204,6 +1206,12 @@ reset =
             (Left _, Right pr) -> Just (That pr)
             (Right bid, Left _) -> Just (This bid)
             (Right bid, Right pr) -> Just (These bid pr)
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 -- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
@@ -1377,7 +1385,7 @@ push =
     "push"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push` command merges a local project or namespace into a remote project or namespace.",
@@ -1421,6 +1429,13 @@ push =
               pushBehavior = PushBehavior.RequireNonEmpty,
               syncMode = SyncMode.ShortCircuit
             }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 pushCreate :: InputPattern
 pushCreate =
@@ -1428,7 +1443,7 @@ pushCreate =
     "push.create"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push.create` command pushes a local namespace to an empty remote namespace.",
@@ -1470,6 +1485,13 @@ pushCreate =
               pushBehavior = PushBehavior.RequireEmpty,
               syncMode = SyncMode.ShortCircuit
             }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 pushForce :: InputPattern
 pushForce =
@@ -1477,7 +1499,7 @@ pushForce =
     "unsafe.force-push"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
     \args -> do
       sourceTarget <-
@@ -1498,6 +1520,13 @@ pushForce =
               pushBehavior = PushBehavior.ForcePush,
               syncMode = SyncMode.ShortCircuit
             }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 pushExhaustive :: InputPattern
 pushExhaustive =
@@ -1505,7 +1534,7 @@ pushExhaustive =
     "debug.push-exhaustive"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap $
             "The "
@@ -1536,6 +1565,13 @@ pushExhaustive =
               pushBehavior = PushBehavior.RequireNonEmpty,
               syncMode = SyncMode.Complete
             }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 squashMerge :: InputPattern
 squashMerge =
@@ -1543,11 +1579,11 @@ squashMerge =
     { patternName = "merge.squash",
       aliases = ["squash"],
       visibility = I.Visible,
-      argTypes = [(Required, namespaceArg), (Required, namespaceArg)],
+      argTypes = [(Required, namespaceOrProjectBranchArg suggestionsConfig), (Required, namespaceOrProjectBranchArg suggestionsConfig)],
       help =
         P.wrap $
           makeExample squashMerge ["src", "dest"]
-            <> "merges `src` namespace into `dest`,"
+            <> "merges `src` namespace or branch into the `dest` namespace or branch,"
             <> "discarding the history of `src` in the process."
             <> "The resulting `dest` will have (at most) 1"
             <> "additional history entry.",
@@ -1559,6 +1595,13 @@ squashMerge =
             Just $ Input.MergeLocalBranchI src dest Branch.SquashMerge
           _ -> Nothing
     }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 mergeLocal :: InputPattern
 mergeLocal =
@@ -1566,8 +1609,8 @@ mergeLocal =
     "merge"
     []
     I.Visible
-    [ (Required, namespaceArg),
-      (Optional, namespaceArg)
+    [ (Required, namespaceOrProjectBranchArg config),
+      (Optional, namespaceOrProjectBranchArg config)
     ]
     ( P.column2
         [ ( "`merge foo/bar baz/qux`",
@@ -1600,6 +1643,13 @@ mergeLocal =
           Just $ Input.MergeLocalBranchI src dest Branch.RegularMerge
         _ -> Nothing
     )
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
@@ -1618,7 +1668,7 @@ diffNamespace =
     "diff.namespace"
     []
     I.Visible
-    [(Required, namespaceArg), (Optional, namespaceArg)]
+    [(Required, namespaceOrProjectBranchArg suggestionsConfig), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.column2
         [ ( "`diff.namespace before after`",
             P.wrap
@@ -1640,6 +1690,13 @@ diffNamespace =
           pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 previewMergeLocal :: InputPattern
 previewMergeLocal =
@@ -1647,7 +1704,7 @@ previewMergeLocal =
     "merge.preview"
     []
     I.Visible
-    [(Required, namespaceArg), (Optional, namespaceArg)]
+    [(Required, namespaceOrProjectBranchArg suggestionsConfig), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.column2
         [ ( "`merge.preview src`",
             "shows how the current namespace will change after a `merge src`."
@@ -1667,6 +1724,13 @@ previewMergeLocal =
           pure $ Input.PreviewMergeLocalBranchI src dest
         _ -> Nothing
     )
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 replaceEdit ::
   ( HQ.HashQualified Name ->
@@ -2652,7 +2716,7 @@ projectRenameInputPattern =
     { patternName = "project.rename",
       aliases = ["rename.project"],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes = [(Required, projectNameArg)],
       help =
         P.wrapColumn2
           [ ("`project.rename foo`", "renames the current project to `foo`")
@@ -2671,7 +2735,8 @@ projectSwitch =
       argTypes = [(Optional, projectAndBranchNamesArg suggestionsConfig)],
       help =
         P.wrapColumn2
-          [ ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
+          [ ("`switch`", "opens an interactive selector to pick a project and branch"),
+            ("`switch foo/bar`", "switches to the branch `bar` in the project `foo`"),
             ("`switch foo/`", "switches to the last branch you visited in the project `foo`"),
             ("`switch /bar`", "switches to the branch `bar` in the current project")
           ],
@@ -2708,7 +2773,7 @@ branchesInputPattern =
     { patternName = "branches",
       aliases = ["list.branch", "ls.branch", "branch.list"],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes = [(Optional, projectNameArg)],
       help =
         P.wrapColumn2
           [ ("`branches`", "lists all branches in the current project"),
@@ -2726,7 +2791,10 @@ branchInputPattern =
     { patternName = "branch",
       aliases = ["branch.create", "create.branch"],
       visibility = I.Visible,
-      argTypes = [],
+      argTypes =
+        [ (Required, projectBranchNameArg suggestionsConfig),
+          (Optional, newBranchNameArg)
+        ],
       help =
         P.wrapColumn2
           [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
@@ -2750,6 +2818,19 @@ branchInputPattern =
             Just (Input.BranchI Input.BranchSourceI'CurrentContext projectAndBranch)
           _ -> Nothing
     }
+  where
+    newBranchNameArg =
+      ArgumentType
+        { typeName = "new-branch",
+          suggestions = \_ _ _ _ -> pure [],
+          globTargets = mempty
+        }
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 branchEmptyInputPattern :: InputPattern
 branchEmptyInputPattern =
@@ -3071,6 +3152,21 @@ namespaceArg =
       globTargets = Set.fromList [Globbing.Namespace]
     }
 
+-- | Usually you'll want one or the other, but some commands like 'merge' support both right
+-- now.
+namespaceOrProjectBranchArg :: ProjectBranchSuggestionsConfig -> ArgumentType
+namespaceOrProjectBranchArg config =
+  ArgumentType
+    { typeName = "namespace or branch",
+      suggestions =
+        let namespaceSuggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p)
+         in unionSuggestions
+              [ projectAndOrBranchSuggestions config,
+                namespaceSuggestions
+              ],
+      globTargets = mempty
+    }
+
 namespaceOrDefinitionArg :: ArgumentType
 namespaceOrDefinitionArg =
   ArgumentType
@@ -3377,14 +3473,13 @@ projectAndBranchNamesArg config =
       suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty
     }
-  where
 
 -- | A project branch name.
-projectBranchNameArg :: ArgumentType
-projectBranchNameArg =
+projectBranchNameArg :: ProjectBranchSuggestionsConfig -> ArgumentType
+projectBranchNameArg config =
   ArgumentType
     { typeName = "project-branch-name",
-      suggestions = \_ _ _ _ -> pure [],
+      suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty
     }
 
