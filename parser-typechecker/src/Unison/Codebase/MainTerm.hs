@@ -3,6 +3,9 @@
 -- | Find a computation of type '{IO} () in the codebase.
 module Unison.Codebase.MainTerm where
 
+import Data.List.NonEmpty qualified as NEList
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -39,7 +42,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
+      let refs = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
         [] -> pure (NotFound mainName)
@@ -67,10 +70,15 @@ builtinMainWithResultType a res = Type.arrow a (Type.ref a DD.unitRef) io
   where
     io = Type.effect a [Type.builtinIO a, DD.exceptionType a] res
 
-builtinResultArr :: (Ord v) => a -> Type.Type v a
-builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (DD.testResultType a)
-
--- '{io2.IO} [Result]
-builtinTest :: (Ord v) => a -> Type.Type v a
-builtinTest a =
-  Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)
+-- | All possible IO'ish test types, e.g.
+-- '{IO, Exception} [Result]
+-- '{IO} [Result]
+builtinIOTestTypes :: forall v a. (Ord v, Var v) => a -> NESet (Type.Type v a)
+builtinIOTestTypes a =
+  NESet.fromList
+    ( delayedResultWithEffects ([Type.builtinIO a, DD.exceptionType a])
+        NEList.:| [delayedResultWithEffects ([Type.builtinIO a])]
+    )
+  where
+    delayed = Type.arrow a (Type.ref a DD.unitRef)
+    delayedResultWithEffects es = delayed (Type.effect a es (DD.testResultType a))

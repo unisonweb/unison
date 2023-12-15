@@ -117,6 +117,7 @@ main ::
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
@@ -124,7 +125,7 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope $ do
@@ -230,6 +231,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                in putPrettyNonempty p $> args,
             runtime,
             sandboxedRuntime = sbRuntime,
+            nativeRuntime = nRuntime,
             serverBaseUrl,
             ucmVersion
           }

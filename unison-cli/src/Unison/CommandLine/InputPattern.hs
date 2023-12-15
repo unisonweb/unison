@@ -13,9 +13,12 @@ module Unison.CommandLine.InputPattern
     -- * Currently Unused
     minArgs,
     maxArgs,
+    unionSuggestions,
+    suggestionFallbacks,
   )
 where
 
+import Data.List.Extra qualified as List
 import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -25,6 +28,7 @@ import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
 
 -- InputPatterns accept some fixed number of Required arguments of various
@@ -122,3 +126,51 @@ maxArgs ip@(fmap fst . argTypes -> args) = go args
           <> show (patternName ip)
           <> "): "
           <> show args
+
+-- | Union suggestions from all possible completions
+unionSuggestions ::
+  forall m v a.
+  (MonadIO m) =>
+  [ ( String ->
+      Codebase m v a ->
+      AuthenticatedHttpClient ->
+      Path.Absolute ->
+      m [Line.Completion]
+    )
+  ] ->
+  ( String ->
+    Codebase m v a ->
+    AuthenticatedHttpClient ->
+    Path.Absolute ->
+    m [Line.Completion]
+  )
+unionSuggestions suggesters inp codebase httpClient path = do
+  suggesters & foldMapM \suggester ->
+    suggester inp codebase httpClient path
+      & fmap List.nubOrd
+
+-- | Try the first completer, if it returns no suggestions, try the second, etc.
+suggestionFallbacks ::
+  forall m v a.
+  (MonadIO m) =>
+  [ ( String ->
+      Codebase m v a ->
+      AuthenticatedHttpClient ->
+      Path.Absolute ->
+      m [Line.Completion]
+    )
+  ] ->
+  ( String ->
+    Codebase m v a ->
+    AuthenticatedHttpClient ->
+    Path.Absolute ->
+    m [Line.Completion]
+  )
+suggestionFallbacks suggesters inp codebase httpClient path = go suggesters
+  where
+    go (s : rest) = do
+      suggestions <- s inp codebase httpClient path
+      if null suggestions
+        then go rest
+        else pure suggestions
+    go [] = pure []

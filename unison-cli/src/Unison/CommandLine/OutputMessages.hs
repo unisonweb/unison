@@ -795,15 +795,15 @@ notifyUser dir = \case
           ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
-  TestIncrementalOutputStart ppe (n, total) r _src -> do
+  TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
         <> " tests left to run, current test: "
         <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty
-  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r isOk -> do
     clearCurrentLine
-    if isTestOk result
+    if isOk
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
@@ -890,6 +890,8 @@ notifyUser dir = \case
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
+  MoveNothingFound p ->
+    pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath' p <> "."
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
@@ -919,7 +921,7 @@ notifyUser dir = \case
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs to be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -2189,25 +2191,27 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
-  UpdateIncompleteConstructorSet name ctorMap expectedCount ->
-    pure $
-      P.lines
-        [ P.wrap $
-            "I couldn't complete the update because I couldn't find"
-              <> fromString (maybe "" show expectedCount)
-              <> "constructor(s) for"
-              <> prettyName name
-              <> "where I expected to."
-              <> "I found:"
-              <> fromString (show (Map.toList ctorMap)),
-          "",
-          P.wrap $
-            "You can use"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName name])
-              <> "and"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"])
-              <> "to give names to each constructor, and then try again."
-        ]
+  UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
+    let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
+     in pure $
+          P.lines
+            [ P.wrap $
+                "I couldn't complete the"
+                  <> operationName
+                  <> "because the type"
+                  <> prettyName typeName
+                  <> "has unnamed constructors."
+                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
+              "",
+              P.wrap $
+                "You can use"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName typeName])
+                  <> "and"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName typeName <> ".<ConstructorName>"])
+                  <> "to give names to each constructor, and then try the"
+                  <> operationName
+                  <> "again."
+            ]
   UpgradeFailure old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
@@ -2914,7 +2918,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2929,7 +2933,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -3734,16 +3738,6 @@ prettyDiff diff =
                 ]
             else mempty
         ]
-
-isTestOk :: Term v Ann -> Bool
-isTestOk tm = case tm of
-  Term.List' ts -> all isSuccess ts
-    where
-      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
-        cid == DD.okConstructorId
-          && ref == DD.testResultRef
-      isSuccess _ = False
-  _ -> False
 
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.

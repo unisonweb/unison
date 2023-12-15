@@ -85,6 +85,9 @@ import UnliftIO qualified
 import UnliftIO.Directory (getHomeDirectory)
 import Version qualified
 
+type Runtimes =
+  (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
+
 main :: IO ()
 main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
   -- Replace the default exception handler with one that pretty-prints.
@@ -128,7 +131,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
                   getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                    withRuntimes RTI.OneOff \(rt, sbrt, nrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpRootNotifier _ = pure ()
                       let noOpPathNotifier _ = pure ()
@@ -139,6 +142,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                         config
                         rt
                         sbrt
+                        nrt
                         theCodebase
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                         serverUrl
@@ -153,7 +157,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
               getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                withRuntimes RTI.OneOff \(rt, sbrt, nrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpRootNotifier _ = pure ()
                   let noOpPathNotifier _ = pure ()
@@ -164,6 +168,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                     config
                     rt
                     sbrt
+                    nrt
                     theCodebase
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                     serverUrl
@@ -243,7 +248,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingPath shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
               startingPath <- case isHeadless of
                 WithCLI -> do
                   -- If the user didn't provide a starting path on the command line, put them in the most recent
@@ -298,6 +303,7 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                           config
                           runtime
                           sbRuntime
+                          nRuntime
                           theCodebase
                           []
                           (Just baseUrl)
@@ -309,11 +315,12 @@ main = withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
                   Exit -> do Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: RTI.RuntimeHost -> ((RTI.Runtime Symbol, RTI.Runtime Symbol) -> IO a) -> IO a
+    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
     withRuntimes mode action =
       RTI.withRuntime False mode Version.gitDescribeWithDate \runtime -> do
-        RTI.withRuntime True mode Version.gitDescribeWithDate \sbRuntime -> do
-          action (runtime, sbRuntime)
+        RTI.withRuntime True mode Version.gitDescribeWithDate \sbRuntime ->
+          action . (runtime,sbRuntime,)
+            =<< RTI.startNativeRuntime Version.gitDescribeWithDate
     withConfig :: Maybe CodebasePathOption -> (Config -> IO a) -> IO a
     withConfig mCodePathOption action = do
       UnliftIO.bracket
@@ -469,6 +476,7 @@ launch ::
   Config ->
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
+  Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
@@ -478,7 +486,7 @@ launch ::
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -493,6 +501,7 @@ launch dir config runtime sbRuntime codebase inputs serverBaseUrl mayStartingPat
         inputs
         runtime
         sbRuntime
+        nRuntime
         codebase
         serverBaseUrl
         ucmVersion

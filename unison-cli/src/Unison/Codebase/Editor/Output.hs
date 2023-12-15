@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -159,15 +160,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      -- | what we were trying to do (e.g. "run", "io.test")
       String
-      -- | name of function
+      -- ^ what we were trying to do (e.g. "run", "io.test")
       String
-      -- | bad type of function
+      -- ^ name of function
       (Type Symbol Ann)
+      -- ^ bad type of function
       PPE.PrettyPrintEnv
-      -- | acceptable type(s) of function
       [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -195,6 +196,7 @@ data Output
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
+  | MoveNothingFound Path'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
@@ -206,12 +208,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
-      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- | Misses (search terms that returned no hits for terms or types)
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
       [HQ.HashQualified Name]
-      -- | Hits for types if we are searching for terms or terms if we are searching for types
+      -- ^ Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -254,8 +256,8 @@ data Output
     DisplayDefinitions DisplayDefinitionsOutput
   | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
     DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
@@ -370,8 +372,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
-      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -390,9 +392,11 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
-  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) (Maybe Int)
+  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+
+data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -501,6 +505,7 @@ isFailure o = case o of
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
+  MoveNothingFound {} -> True
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)

@@ -201,7 +201,7 @@ fzfResolve getCurrentBranch pat args =
       fromMaybe [] <$> runMaybeT do
         InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
         liftIO $ Text.putStrLn $ argDescription
-        currentBranch <- liftIO getCurrentBranch
+        currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
         options <- liftIO $ getOptions currentBranch
         guard . not . null $ options
         results <- fold <$> lift (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
