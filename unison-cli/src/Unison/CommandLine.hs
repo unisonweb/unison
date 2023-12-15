@@ -41,6 +41,7 @@ import Data.These (These (..))
 import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
@@ -50,7 +51,10 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project.Util (ProjectContext, projectContextFromPath)
+import Unison.Symbol (Symbol)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
@@ -114,6 +118,7 @@ nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo = emojiNote "😶"
 
 parseInput ::
+  Codebase IO Symbol Ann ->
   IO (Branch0 IO) ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
@@ -124,11 +129,12 @@ parseInput ::
   -- | command:arguments
   [String] ->
   IO (Either (P.Pretty CT.ColorText) Input)
-parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
+parseInput codebase getRoot currentPath numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
         rootBranch <- getRoot
         pure $ Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+  let projCtx = projectContextFromPath currentPath
 
   case segments of
     [] -> throwE ""
@@ -150,7 +156,7 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
                 Just [] -> throwE $ "No matches for: " <> fromString arg
                 Just matches -> pure matches
             else pure [arg]
-        resolvedArgs <- lift $ fzfResolve getCurrentBranch0 pat (concat expandedGlobs)
+        resolvedArgs <- lift $ fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)
         except $ parse resolvedArgs
       Nothing ->
         throwE
@@ -181,8 +187,8 @@ expandNumber numberedArgs s = case expandedNumber of
               (\x y -> [x .. y]) <$> readMay from <*> readMay to
             _ -> Nothing
 
-fzfResolve :: (IO (Branch0 IO)) -> InputPattern -> [String] -> IO [String]
-fzfResolve getCurrentBranch pat args =
+fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO [String]
+fzfResolve codebase projCtx getCurrentBranch pat args =
   (Align.align (argTypes pat) args) & foldMapM \case
     This argDesc@(opt, _)
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
@@ -202,7 +208,7 @@ fzfResolve getCurrentBranch pat args =
         InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
         liftIO $ Text.putStrLn $ argDescription
         currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
-        options <- liftIO $ getOptions currentBranch
+        options <- liftIO $ getOptions codebase projCtx currentBranch
         guard . not . null $ options
         results <- fold <$> lift (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
         pure . fmap Text.unpack $ results

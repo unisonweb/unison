@@ -864,7 +864,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectAndBranchNamesArg suggestionsConfig)],
+      argTypes = [(Required, projectBranchNameArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
@@ -3199,7 +3199,7 @@ namespaceOrProjectBranchArg config =
                 namespaceSuggestions
               ],
       globTargets = mempty,
-      fzfResolver = Nothing
+      fzfResolver = Just $ Resolvers.multiResolver "Select a namespace or branch:" [Resolvers.projectBranchOptions, Resolvers.namespaceOptions Position.Relative]
     }
 
 namespaceOrDefinitionArg :: ArgumentType
@@ -3513,7 +3513,7 @@ projectAndBranchNamesArg config =
     { typeName = "project-and-branch-names",
       suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty,
-      fzfResolver = Nothing
+      fzfResolver = Just $ Resolvers.multiResolver "Select a project or branch:" [Resolvers.projectBranchOptions, Resolvers.projectNameOptions]
     }
 
 -- | A project branch name.
@@ -3523,7 +3523,7 @@ projectBranchNameArg config =
     { typeName = "project-branch-name",
       suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty,
-      fzfResolver = Nothing
+      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
     }
 
 -- [project/]branch
@@ -3533,7 +3533,7 @@ projectBranchNameWithOptionalProjectNameArg =
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty,
-      fzfResolver = Nothing
+      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
     }
 
 -- | A project name.
@@ -3547,7 +3547,7 @@ projectNameArg =
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
       globTargets = Set.empty,
-      fzfResolver = Nothing
+      fzfResolver = Just $ Resolvers.multiResolver "Select a project:" [Resolvers.projectNameOptions]
     }
   where
     projectToCompletion :: Sqlite.Project -> Completion

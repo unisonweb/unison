@@ -55,8 +55,7 @@ import UnliftIO qualified
 import UnliftIO.STM
 
 getUserInput ::
-  forall v a.
-  Codebase IO v a ->
+  Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
   IO (Branch IO) ->
   Path.Absolute ->
@@ -100,7 +99,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go

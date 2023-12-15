@@ -360,7 +360,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                         rootVar <- use #root
                         numberedArgs <- use #numberedArgs
                         let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
                           Right input -> pure $ Right input
