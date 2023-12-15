@@ -19,27 +19,16 @@ where
 import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
-import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
+import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Pretty qualified as P
 
-data FZFResolver = FZFResolver
-  { argDescription :: Text,
-    search :: Branch0 IO -> IO [Text]
-  }
-
-instance Show FZFResolver where
-  show _ = "<FZFResolver>"
-
 -- InputPatterns accept some fixed number of Required arguments of various
 -- types, followed by a variable number of a single type of argument.
---
--- Options with 'Maybe FZFResolver' are required arguments that can be
--- filled via interactive fzf if they are not provided.
 data IsOptional
   = Required -- 1, at the start
   | Optional -- 0 or 1, at the end
@@ -73,6 +62,8 @@ data ArgumentType = ArgumentType
     -- | Select which targets glob patterns may expand into for this argument.
     -- An empty set disables globbing.
     globTargets :: Set Globbing.TargetType,
+    -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
+    -- available.
     fzfResolver :: Maybe FZFResolver
   }
 

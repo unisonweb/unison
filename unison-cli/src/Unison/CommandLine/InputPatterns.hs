@@ -43,6 +43,7 @@ import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
+import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..))
@@ -2984,7 +2985,7 @@ exactDefinitionArg =
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Just (Resolvers.fuzzySelectDefinition "definition" Position.Relative)
+      fzfResolver = Just (FZFResolver {argDescription = "Select a definition to view:", getOptions = Resolvers.definitionOptions Position.Relative})
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
@@ -3053,7 +3054,8 @@ namespaceOrDefinitionArg =
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
       globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
-      fzfResolver = Nothing
+      fzfResolver =
+        Just $ Resolvers.multiResolver "Select a namespace or definition:" [Resolvers.definitionOptions Position.Relative, Resolvers.namespaceOptions Position.Relative]
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.

@@ -46,6 +46,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
@@ -187,19 +188,24 @@ fzfResolve getCurrentBranch pat args =
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
           fuzzyFillArg argDesc
       | otherwise -> pure []
-    -- Allow fuzzy-filling optional arguments too if '-' is passed.
-    These argDesc "-" -> fuzzyFillArg argDesc
+    -- Allow fuzzy-filling optional arguments too if '!' is passed.
+    These argDesc "!" -> fuzzyFillArg argDesc
+    -- If someone tries to fzf an arg that's not configured for it, just  fail to fzf
+    -- rather than passing a bad arg.
+    That "!" -> pure []
     That arg -> pure [arg]
     These _ arg -> pure [arg]
   where
     fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO [String])
     fuzzyFillArg (opt, argType) =
       fromMaybe [] <$> runMaybeT do
-        InputPattern.FZFResolver {argDescription, search} <- hoistMaybe $ InputPattern.fzfResolver argType
-        guard (opt `elem` [InputPattern.Required, InputPattern.OnePlus])
+        InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
         liftIO $ Text.putStrLn $ argDescription
         currentBranch <- liftIO getCurrentBranch
-        MaybeT . fmap (Just . fmap Text.unpack) $ search (multiSelectForOptional opt) currentBranch
+        options <- liftIO $ getOptions currentBranch
+        guard . not . null $ options
+        results <- fold <$> lift (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
+        pure . fmap Text.unpack $ results
 
     multiSelectForOptional :: InputPattern.IsOptional -> Bool
     multiSelectForOptional = \case
