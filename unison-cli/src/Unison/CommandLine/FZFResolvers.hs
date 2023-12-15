@@ -1,6 +1,8 @@
 module Unison.CommandLine.FZFResolvers
   ( FZFResolver (..),
     definitionOptions,
+    termDefinitionOptions,
+    typeDefinitionOptions,
     namespaceOptions,
     fuzzySelectFromList,
     multiResolver,
@@ -20,6 +22,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as Relation
 
 type OptionFetcher = Branch0 IO -> IO [Text]
@@ -34,15 +37,30 @@ instance Show FZFResolver where
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-definitionOptions :: Position -> OptionFetcher
-definitionOptions pos searchBranch0 = liftIO do
+genericDefinitionOptions :: Bool -> Bool -> Position -> OptionFetcher
+genericDefinitionOptions includeTerms includeTypes pos searchBranch0 = liftIO do
   let termsAndTypes =
-        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
-          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
+        Monoid.whenM includeTerms Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
+          <> Monoid.whenM includeTypes Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
   termsAndTypes
     & Set.toList
     & map (HQ.toText . fmap (Name.setPosition pos))
     & pure
+
+-- | Select a definition from the given branch.
+-- Returned names will match the provided 'Position' type.
+definitionOptions :: Position -> OptionFetcher
+definitionOptions = genericDefinitionOptions True True
+
+-- | Select a term definition from the given branch.
+-- Returned names will match the provided 'Position' type.
+termDefinitionOptions :: Position -> OptionFetcher
+termDefinitionOptions = genericDefinitionOptions True False
+
+-- | Select a type definition from the given branch.
+-- Returned names will match the provided 'Position' type.
+typeDefinitionOptions :: Position -> OptionFetcher
+typeDefinitionOptions = genericDefinitionOptions False True
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.

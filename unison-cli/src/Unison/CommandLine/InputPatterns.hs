@@ -1811,18 +1811,19 @@ edit =
 
 topicNameArg :: ArgumentType
 topicNameArg =
-  ArgumentType
-    { typeName = "topic",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
-      globTargets = mempty,
-      fzfResolver = Nothing
-    }
+  let topics = Map.keys helpTopicsMap
+   in ArgumentType
+        { typeName = "topic",
+          suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
+          globTargets = mempty,
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a topic:" (Text.pack <$> topics)
+        }
 
 codebaseServerNameArg :: ArgumentType
 codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
+      suggestions = \_ _ _ _ -> pure [],
       globTargets = mempty,
       fzfResolver = Nothing
     }
@@ -3111,12 +3112,13 @@ commandNames = visibleInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType
-    { typeName = "command",
-      suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
-      globTargets = mempty,
-      fzfResolver = Nothing
-    }
+  let options = commandNames <> Map.keys helpTopicsMap
+   in ArgumentType
+        { typeName = "command",
+          suggestions = \q _ _ _ -> pure (exactComplete q options),
+          globTargets = mempty,
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a command:" (Text.pack <$> options)
+        }
 
 exactDefinitionArg :: ArgumentType
 exactDefinitionArg =
@@ -3124,7 +3126,7 @@ exactDefinitionArg =
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Just (FZFResolver {argDescription = "Select a definition to view:", getOptions = Resolvers.definitionOptions Position.Relative})
+      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
@@ -3133,7 +3135,7 @@ fuzzyDefinitionQueryArg =
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Nothing
+      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
     }
 
 definitionQueryArg :: ArgumentType
@@ -3145,7 +3147,7 @@ exactDefinitionTypeQueryArg =
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
       globTargets = Set.fromList [Globbing.Type],
-      fzfResolver = Nothing
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a type:", getOptions = Resolvers.typeDefinitionOptions Position.Relative}
     }
 
 exactDefinitionTypeOrTermQueryArg :: ArgumentType
@@ -3154,7 +3156,7 @@ exactDefinitionTypeOrTermQueryArg =
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term],
-      fzfResolver = Nothing
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a term or type:", getOptions = Resolvers.definitionOptions Position.Relative}
     }
 
 exactDefinitionTermQueryArg :: ArgumentType
@@ -3163,7 +3165,7 @@ exactDefinitionTermQueryArg =
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       globTargets = Set.fromList [Globbing.Term],
-      fzfResolver = Nothing
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a term:", getOptions = Resolvers.termDefinitionOptions Position.Relative}
     }
 
 patchArg :: ArgumentType
@@ -3181,7 +3183,7 @@ namespaceArg =
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = Set.fromList [Globbing.Namespace],
-      fzfResolver = Nothing
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a namespace:", getOptions = Resolvers.namespaceOptions Position.Relative}
     }
 
 -- | Usually you'll want one or the other, but some commands like 'merge' support both right
