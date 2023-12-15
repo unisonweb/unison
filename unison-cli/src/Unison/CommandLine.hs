@@ -183,15 +183,30 @@ expandNumber numberedArgs s = case expandedNumber of
 fzfResolve :: (IO (Branch0 IO)) -> InputPattern -> [String] -> IO [String]
 fzfResolve getCurrentBranch pat args =
   (Align.align (argTypes pat) args) & foldMapM \case
-    This (opt, argType) ->
+    This argDesc@(opt, _)
+      | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
+          fuzzyFillArg argDesc
+      | otherwise -> pure []
+    -- Allow fuzzy-filling optional arguments too if '-' is passed.
+    These argDesc "-" -> fuzzyFillArg argDesc
+    That arg -> pure [arg]
+    These _ arg -> pure [arg]
+  where
+    fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO [String])
+    fuzzyFillArg (opt, argType) =
       fromMaybe [] <$> runMaybeT do
         InputPattern.FZFResolver {argDescription, search} <- hoistMaybe $ InputPattern.fzfResolver argType
         guard (opt `elem` [InputPattern.Required, InputPattern.OnePlus])
         liftIO $ Text.putStrLn $ argDescription
         currentBranch <- liftIO getCurrentBranch
-        MaybeT . fmap (Just . fmap Text.unpack) $ search currentBranch
-    That arg -> pure [arg]
-    These _ arg -> pure [arg]
+        MaybeT . fmap (Just . fmap Text.unpack) $ search (multiSelectForOptional opt) currentBranch
+
+    multiSelectForOptional :: InputPattern.IsOptional -> Bool
+    multiSelectForOptional = \case
+      InputPattern.Required -> False
+      InputPattern.Optional -> False
+      InputPattern.OnePlus -> True
+      InputPattern.ZeroPlus -> True
 
 prompt :: String
 prompt = "> "
