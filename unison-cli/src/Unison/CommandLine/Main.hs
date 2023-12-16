@@ -142,7 +142,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
     UnliftIO.concurrently_
       (UnliftIO.evaluate root)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
-  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
+  initialState <- Cli.loopState0 initialRootCausalHash rootVar initialPath
   Ki.fork_ scope $ do
     let loop lastRoot = do
           -- This doesn't necessarily notify on _every_ update, but the LSP only needs the

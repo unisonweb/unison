@@ -67,7 +67,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import Unison.Cli.LoopCache (LoopCache)
+import Unison.Cli.LoopCache qualified as LoopCache
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -78,10 +78,8 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project.Util (ProjectContext)
 import Unison.Project.Util qualified as ProjectUtil
 import Unison.Server.CodebaseServer qualified as Server
@@ -205,7 +203,7 @@ data LoopState = LoopState
     -- captures the state of dependencies when the last run occurred
     lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann),
     projectContext :: ProjectContext,
-    loopCache :: TMVar LoopCache
+    loopCache :: LoopCache.LoopCacheVar
   }
   deriving stock (Generic)
 
@@ -225,7 +223,7 @@ instance
 -- | Create an initial loop state given a root branch and the current path.
 loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> IO LoopState
 loopState0 lastSavedRootHash b p = do
-  cacheVar <- newEmptyTMVarIO
+  cacheVar <- LoopCache.newLoopCacheVar
   pure $
     LoopState
       { root = b,

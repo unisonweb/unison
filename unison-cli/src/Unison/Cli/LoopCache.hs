@@ -2,6 +2,7 @@ module Unison.Cli.LoopCache
   ( newLoopCacheVar,
     getLoopCache,
     LoopCache (..),
+    LoopCacheVar,
   )
 where
 
