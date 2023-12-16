@@ -6,6 +6,7 @@ module Unison.Project.Util
     projectPathPrism,
     projectBranchPathPrism,
     projectContextFromPath,
+    projectRootPathFromContext,
     pattern UUIDNameSegment,
     ProjectContext (..),
   )
@@ -136,3 +137,12 @@ projectContextFromPath path =
       ProjectBranchPath projectId branchId restPath
     Nothing ->
       LooseCodePath path
+
+-- | Get the project root path from a project context.
+-- If inside a project, it'll be the path to the root of the project branch.
+-- If in loose code, it'll be the full path.
+projectRootPathFromContext :: ProjectContext -> Path.Absolute
+projectRootPathFromContext = \case
+  LooseCodePath path -> path
+  ProjectBranchPath projectId branchId _ ->
+    review projectBranchPathPrism (ProjectAndBranch {project = projectId, branch = branchId}, Path.empty)

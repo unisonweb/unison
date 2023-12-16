@@ -38,6 +38,7 @@ module Unison.Codebase
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
+    getBranchAtPath,
     expectBranchForHash,
     putBranch,
     SqliteCodebase.Operations.causalHashesByPrefix,
@@ -227,6 +228,16 @@ getShallowCausalAtPath path mayCausal = do
       case V2Branch.childAt ns b of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
         Just childCausal -> getShallowCausalAtPath p (Just childCausal)
+
+-- | Get a v1 branch from the root following the given path.
+getBranchAtPath ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  Path.Absolute ->
+  m (Branch m)
+getBranchAtPath codebase path = do
+  V2Causal.Causal {causalHash} <- runTransaction codebase $ getShallowCausalAtPath (Path.unabsolute path) Nothing
+  expectBranchForHash codebase causalHash
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.

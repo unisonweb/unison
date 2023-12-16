@@ -67,6 +67,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Cli.LoopCache (LoopCache)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -77,8 +78,12 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Project.Util (ProjectContext)
+import Unison.Project.Util qualified as ProjectUtil
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -198,7 +203,9 @@ data LoopState = LoopState
     numberedArgs :: NumberedArgs,
     -- The result of the last run, along with a unison file that
     -- captures the state of dependencies when the last run occurred
-    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann)
+    lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann),
+    projectContext :: ProjectContext,
+    loopCache :: TMVar LoopCache
   }
   deriving stock (Generic)
 
@@ -216,18 +223,22 @@ instance
       )
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
+loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> IO LoopState
 loopState0 lastSavedRootHash b p = do
-  LoopState
-    { root = b,
-      lastSavedRootHash = lastSavedRootHash,
-      currentPathStack = pure p,
-      latestFile = Nothing,
-      latestTypecheckedFile = Nothing,
-      lastInput = Nothing,
-      numberedArgs = [],
-      lastRunResult = Nothing
-    }
+  cacheVar <- newEmptyTMVarIO
+  pure $
+    LoopState
+      { root = b,
+        lastSavedRootHash = lastSavedRootHash,
+        currentPathStack = pure p,
+        latestFile = Nothing,
+        latestTypecheckedFile = Nothing,
+        lastInput = Nothing,
+        numberedArgs = [],
+        lastRunResult = Nothing,
+        projectContext = ProjectUtil.projectContextFromPath p,
+        loopCache = cacheVar
+      }
 
 -- | Run a @Cli@ action down to @IO@.
 runCli :: Env -> LoopState -> Cli a -> IO (ReturnType a, LoopState)
