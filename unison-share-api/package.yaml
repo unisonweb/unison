@@ -14,6 +14,7 @@ dependencies:
   - async
   - base
   - binary
+  - bytes
   - bytestring
   - containers
   - directory
@@ -42,10 +43,12 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
   - unison-core
   - unison-core1
   - unison-hash
   - unison-hash-orphans-aeson
+  - unison-hashing-v2
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer

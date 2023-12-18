@@ -18,6 +18,8 @@ import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
+import Data.List qualified as List
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
@@ -36,6 +38,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -488,16 +491,16 @@ pretty0
               -}
               (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
                 px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
-                pure . paren (p >= 11 || isBlock x && p >= 3) $ 
+                pure . paren (p >= 11 || isBlock x && p >= 3) $
                   fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
               (Apps' f (unsnoc -> Just (args, lastArg)), _)
                 | isSoftHangable lastArg -> do
-                  fun <- goNormal 9 f
-                  args' <- traverse (goNormal 10) args
-                  lastArg' <- goNormal 0 lastArg
-                  let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
-                  pure . paren (p >= 3) $
-                    PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
+                    fun <- goNormal 9 f
+                    args' <- traverse (goNormal 10) args
+                    lastArg' <- goNormal 0 lastArg
+                    let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
+                    pure . paren (p >= 3) $
+                      PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Ands' xs lastArg, _) ->
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
@@ -2116,8 +2119,9 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
 -- Algorithm is the following:
 --   1. Form the set of all local variables used anywhere in the term
 --   2. When picking a name for a term, see if it is contained in this set.
---      If yes, use the qualified name for the term (which PPE conveniently provides)
---      If no, use the suffixed name for the term
+--      If yes: use a minimally qualified name which is longer than the suffixed name,
+--              but doesn't conflict with any local vars.
+--      If no: use the suffixed name for the term
 --
 -- The algorithm does the same for type references in signatures.
 --
@@ -2139,8 +2143,26 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
       Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
+    tweak :: Set Name -> (HQ'.HashQualified Name, HQ'.HashQualified Name) -> (HQ'.HashQualified Name, HQ'.HashQualified Name)
     tweak used (fullName, HQ'.NameOnly suffixedName)
-      | Set.member suffixedName used = (fullName, fullName)
+      | Set.member suffixedName used =
+          let revFQNSegments :: NEL.NonEmpty NameSegment
+              revFQNSegments = Name.reverseSegments (HQ'.toName fullName)
+              minimallySuffixed :: HQ'.HashQualified Name
+              minimallySuffixed =
+                revFQNSegments
+                  -- Get all suffixes (it's inits instead of tails because name segments are in reverse order)
+                  & NEL.inits
+                  -- Drop the empty 'init'
+                  & NEL.tail
+                  & mapMaybe (fmap Name.fromReverseSegments . NEL.nonEmpty) -- Convert back into names
+                  -- Drop the suffixes that we know are shorter than the suffixified name
+                  & List.drop (Name.countSegments suffixedName)
+                  -- Drop the suffixes that are equal to local variables
+                  & filter ((\n -> n `Set.notMember` used))
+                  & listToMaybe
+                  & maybe fullName HQ'.NameOnly
+           in (fullName, minimallySuffixed)
     tweak _ p = p
     varToName v = toList (Name.fromText (Var.name v))
 

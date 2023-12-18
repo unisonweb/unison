@@ -236,6 +236,8 @@
 
     builtin-Char.Class.is
     builtin-Char.Class.is:termlink
+    builtin-Pattern.captureAs
+    builtin-Pattern.captureAs:termlink
     builtin-Pattern.isMatch
     builtin-Pattern.isMatch:termlink
     builtin-IO.fileExists.impl.v3
@@ -708,6 +710,7 @@
   (define-builtin-link Universal.<=)
   (define-builtin-link Universal.compare)
   (define-builtin-link Universal.murmurHash)
+  (define-builtin-link Pattern.captureAs)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
 
@@ -819,6 +822,9 @@
 
     (define-unison (builtin-Char.Class.is cc c)
       (pattern-match? cc (string->chunked-string (string c))))
+
+    (define-unison (builtin-Pattern.captureAs c p)
+      (capture-as c p))
 
     (define-unison (builtin-Pattern.isMatch p s)
       (pattern-match? p s))

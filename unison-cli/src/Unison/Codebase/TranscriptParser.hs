@@ -201,19 +201,21 @@ withTranscriptRunner ::
   (TranscriptRunner -> m r) ->
   m r
 withTranscriptRunner verbosity ucmVersion configFile action = do
-  withRuntimes \runtime sbRuntime -> withConfig \config -> do
+  withRuntimes \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
-    withRuntimes :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntimes ::
+      (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime -> do
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime -> do
           action runtime sbRuntime
+            =<< liftIO (RTI.startNativeRuntime ucmVersion)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -235,11 +237,12 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Maybe Config ->
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
+run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   unless (isSilent verbosity) . putPrettyLn $
@@ -502,6 +505,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
             notifyNumbered = printNumbered,
             runtime,
             sandboxedRuntime = sbRuntime,
+            nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
             ucmVersion
           }

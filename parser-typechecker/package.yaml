@@ -53,7 +53,6 @@ dependencies:
   - fuzzyfind
   - free
   - generic-lens
-  - generic-monoid
   - hashable
   - hashtables
   - haskeline
@@ -90,6 +89,7 @@ dependencies:
   - safe
   - safe-exceptions
   - semialign
+  - semigroups
   - servant
   - servant-client
   - servant-docs

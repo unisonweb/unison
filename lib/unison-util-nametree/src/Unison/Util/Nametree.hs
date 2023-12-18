@@ -156,7 +156,7 @@ data Defns terms types = Defns
     types :: !types
   }
   deriving stock (Generic, Show)
-  deriving (Semigroup) via GenericSemigroupMonoid (Defns terms types)
+  deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f (Defns terms types) =

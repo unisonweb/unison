@@ -10,6 +10,7 @@
 module Unison.Runtime.Interface
   ( startRuntime,
     withRuntime,
+    startNativeRuntime,
     standalone,
     runStandalone,
     StoredCache,
@@ -23,13 +24,16 @@ import Control.Concurrent.STM as STM
 import Control.Monad
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
-import Data.Bytes.Put (MonadPut, runPutL)
+import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
 import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
+import Data.List qualified as L
 import Data.Map.Strict qualified as Map
+import Data.Sequence qualified as Seq (fromList)
 import Data.Set as Set
   ( filter,
     fromList,
@@ -40,9 +44,16 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
+import System.Process
+  ( CreateProcess (..),
+    StdStream (..),
+    proc,
+    waitForProcess,
+    withCreateProcess,
+  )
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
-import Unison.Codebase.MainTerm (builtinMain, builtinTest)
+import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
 import Unison.Codebase.Runtime (Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
@@ -56,9 +67,13 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
 import Unison.Referent qualified as RF (pattern Ref)
-import Unison.Runtime.ANF
-import Unison.Runtime.ANF.Rehash (rehashGroups)
-import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
+import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
+import Unison.Runtime.ANF.Serialize as ANF
+  ( getGroup,
+    putGroup,
+    serializeValue,
+  )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
@@ -88,6 +103,7 @@ import Unison.Runtime.Machine
     refNumTm,
     refNumsTm,
     refNumsTy,
+    reifyValue,
   )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
@@ -218,6 +234,37 @@ recursiveRefDeps seen cl (RF.DerivedId i) =
     Nothing -> pure mempty
 recursiveRefDeps _ _ _ = pure mempty
 
+recursiveIRefDeps ::
+  Map.Map Reference (SuperGroup Symbol) ->
+  Set Reference ->
+  [Reference] ->
+  Set Reference
+recursiveIRefDeps cl seen0 rfs = srfs <> foldMap f rfs
+  where
+    seen = seen0 <> srfs
+    srfs = Set.fromList rfs
+    f = foldMap (recursiveGroupDeps cl seen) . flip Map.lookup cl
+
+recursiveGroupDeps ::
+  Map.Map Reference (SuperGroup Symbol) ->
+  Set Reference ->
+  SuperGroup Symbol ->
+  Set Reference
+recursiveGroupDeps cl seen0 grp = deps <> recursiveIRefDeps cl seen depl
+  where
+    depl = Prelude.filter (`Set.notMember` seen0) $ groupTermLinks grp
+    deps = Set.fromList depl
+    seen = seen0 <> deps
+
+recursiveIntermedDeps ::
+  Map.Map Reference (SuperGroup Symbol) ->
+  [Reference] ->
+  [(Reference, SuperGroup Symbol)]
+recursiveIntermedDeps cl rfs = mapMaybe f $ Set.toList ds
+  where
+    ds = recursiveIRefDeps cl mempty rfs
+    f rf = fmap (rf,) (Map.lookup rf cl)
+
 collectDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
@@ -312,13 +359,45 @@ performRehash rgrp0 ctx =
         Left (msg, refs) -> error $ unpack msg ++ ": " ++ show refs
         Right p -> p
 
+loadCode ::
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  EvalCtx ->
+  [Reference] ->
+  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
+loadCode cl ppe ctx tmrs = do
+  igs <- readTVarIO (intermed $ ccache ctx)
+  q <-
+    refNumsTm (ccache ctx) <&> \m r -> case r of
+      RF.DerivedId {}
+        | Just r <- baseToIntermed ctx r -> r `Map.notMember` m
+        | Just r <- floatToIntermed ctx r -> r `Map.notMember` m
+        | otherwise -> True
+      _ -> False
+  let (new, old) = L.partition q tmrs
+      odeps = recursiveIntermedDeps igs $ toIntermed ctx <$> old
+  itms <-
+    traverse (\r -> (RF.unsafeId r,) <$> resolveTermRef cl r) new
+  let im = Tm.unhashComponent (Map.fromList itms)
+      (subvs, rgrp0, rbkr) = intermediateTerms ppe ctx im
+      lubvs r = case Map.lookup r subvs of
+        Just r -> r
+        Nothing -> error "loadCode: variable missing for float refs"
+      vm = Map.mapKeys RF.DerivedId . Map.map (lubvs . fst) $ im
+      int b r = if b then r else toIntermed ctx r
+      (ctx', _, rgrp) =
+        performRehash
+          (fmap (overGroupLinks int) rgrp0)
+          (floatRemapAdd vm ctx)
+  return (backrefAdd rbkr ctx', rgrp ++ odeps)
+
 loadDeps ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO EvalCtx
+  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -328,31 +407,99 @@ loadDeps cl ppe ctx tyrs tmrs = do
         r `Map.notMember` dspec ctx
           || r `Map.notMember` m
       _ -> False
-  q <-
-    refNumsTm (ccache ctx) <&> \m r -> case r of
-      RF.DerivedId {}
-        | Just r <- baseToIntermed ctx r -> r `Map.notMember` m
-        | Just r <- floatToIntermed ctx r -> r `Map.notMember` m
-        | otherwise -> True
-      _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
-  itms <-
-    traverse (\r -> (RF.unsafeId r,) <$> resolveTermRef cl r) $
-      Prelude.filter q tmrs
-  let im = Tm.unhashComponent (Map.fromList itms)
-      (subvs, rgrp0, rbkr) = intermediateTerms ppe ctx im
-      lubvs r = case Map.lookup r subvs of
-        Just r -> r
-        Nothing -> error "loadDeps: variable missing for float refs"
-      vm = Map.mapKeys RF.DerivedId . Map.map (lubvs . fst) $ im
-      int b r = if b then r else toIntermed ctx r
-      (ctx', _, rgrp) =
-        performRehash
-          (fmap (overGroupLinks int) rgrp0)
-          (floatRemapAdd vm ctx)
-      tyAdd = Set.fromList $ fst <$> tyrs
-  backrefAdd rbkr ctx'
-    <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
+  let tyAdd = Set.fromList $ fst <$> tyrs
+  out@(_, rgrp) <- loadCode cl ppe ctx tmrs
+  out <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
+
+compileValue :: Reference -> [(Reference, SuperGroup Symbol)] -> Value
+compileValue base =
+  flip pair (rf base) . ANF.BLit . List . Seq.fromList . fmap cpair
+  where
+    rf = ANF.BLit . TmLink . RF.Ref
+    cons x y = Data RF.pairRef 0 [] [x, y]
+    tt = Data RF.unitRef 0 [] []
+    code sg = ANF.BLit (Code sg)
+    pair x y = cons x (cons y tt)
+    cpair (r, sg) = pair (rf r) (code sg)
+
+decompileCtx ::
+  EnumMap Word64 Reference -> EvalCtx -> Closure -> DecompResult Symbol
+decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
+  where
+    ib = intermedToBase ctx
+    fr = floatRemap ctx
+    ir = intermedRemap ctx
+    dt = decompTm ctx
+
+nativeEval ::
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Term Symbol ->
+  IO (Either Error ([Error], Term Symbol))
+nativeEval ctxVar cl ppe tm = catchInternalErrors $ do
+  ctx <- readIORef ctxVar
+  (tyrs, tmrs) <- collectDeps cl tm
+  (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
+  (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
+  writeIORef ctxVar ctx
+  nativeEvalInContext ppe ctx (codes ++ tcodes) base
+
+interpEval ::
+  ActiveThreads ->
+  IO () ->
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Term Symbol ->
+  IO (Either Error ([Error], Term Symbol))
+interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
+  catchInternalErrors $ do
+    ctx <- readIORef ctxVar
+    (tyrs, tmrs) <- collectDeps cl tm
+    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+    (ctx, _, init) <- prepareEvaluation ppe tm ctx
+    initw <- refNumTm (ccache ctx) init
+    writeIORef ctxVar ctx
+    evalInContext ppe ctx activeThreads initw
+      `UnliftIO.finally` cleanupThreads
+
+nativeCompile ::
+  Text ->
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Reference ->
+  FilePath ->
+  IO (Maybe Error)
+nativeCompile _version ctxVar cl ppe base path = tryM $ do
+  ctx <- readIORef ctxVar
+  (tyrs, tmrs) <- collectRefDeps cl base
+  (_, codes) <- loadDeps cl ppe ctx tyrs tmrs
+  nativeCompileCodes codes base path
+
+interpCompile ::
+  Text ->
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Reference ->
+  FilePath ->
+  IO (Maybe Error)
+interpCompile version ctxVar cl ppe rf path = tryM $ do
+  ctx <- readIORef ctxVar
+  (tyrs, tmrs) <- collectRefDeps cl rf
+  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+  let cc = ccache ctx
+      lk m = flip Map.lookup m =<< baseToIntermed ctx rf
+  Just w <- lk <$> readTVarIO (refTm cc)
+  sto <- standalone cc w
+  BL.writeFile path . runPutL $ do
+    serialize $ version
+    serialize $ RF.showShort 8 rf
+    putNat w
+    putStoredCache sto
 
 backrefLifted ::
   Reference ->
@@ -461,13 +608,13 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, Word64)
+  IO (EvalCtx, [(Reference, SuperGroup Symbol)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rgrp (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
       "Error in prepareEvaluation, cache is missing: " <> show missing
-  (,) (backrefAdd rbkr ctx') <$> refNumTm (ccache ctx') rmn
+  pure (backrefAdd rbkr ctx', rgrp, rmn)
   where
     (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
     int b r = if b then r else toIntermed ctx r
@@ -500,6 +647,73 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
+schemeProc :: [String] -> CreateProcess
+schemeProc args =
+  (proc "native-compiler/bin/runner" args)
+    { std_in = CreatePipe,
+      std_out = Inherit,
+      std_err = Inherit
+    }
+
+-- Note: this currently does not support yielding values; instead it
+-- just produces a result appropriate for unitary `run` commands. The
+-- reason is that the executed code can cause output to occur, which
+-- would interfere with using stdout to communicate the final value
+-- back from the subprocess. We need a side channel to support both
+-- output effects and result communication.
+--
+-- Strictly speaking, this also holds for input. Input effects will
+-- just get EOF in this scheme, because the code communication has
+-- taken over the input. This could probably be without a side
+-- channel, but a side channel is probably better.
+nativeEvalInContext ::
+  PrettyPrintEnv ->
+  EvalCtx ->
+  [(Reference, SuperGroup Symbol)] ->
+  Reference ->
+  IO (Either Error ([Error], Term Symbol))
+nativeEvalInContext _ ctx codes base = do
+  let cc = ccache ctx
+  crs <- readTVarIO $ combRefs cc
+  let bytes = serializeValue . compileValue base $ codes
+
+      decodeResult (Left msg) = pure . Left $ fromString msg
+      decodeResult (Right val) =
+        reifyValue cc val >>= \case
+          Left _ -> pure . Left $ "missing references from result"
+          Right cl -> case decompileCtx crs ctx cl of
+            (errs, dv) -> pure $ Right (listErrors errs, dv)
+
+      callout (Just pin) _ _ ph = do
+        BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
+        BS.hPut pin bytes
+        UnliftIO.hClose pin
+        let unit = Data RF.unitRef 0 [] []
+            sunit = Data RF.pairRef 0 [] [unit, unit]
+        waitForProcess ph
+        decodeResult $ Right sunit
+      -- TODO: actualy receive output from subprocess
+      -- decodeResult . deserializeValue =<< BS.hGetContents pout
+      callout _ _ _ _ =
+        pure . Left $ "withCreateProcess didn't provide handles"
+  withCreateProcess (schemeProc []) callout
+
+nativeCompileCodes ::
+  [(Reference, SuperGroup Symbol)] ->
+  Reference ->
+  FilePath ->
+  IO ()
+nativeCompileCodes codes base path = do
+  let bytes = serializeValue . compileValue base $ codes
+      callout (Just pin) _ _ ph = do
+        BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
+        BS.hPut pin bytes
+        UnliftIO.hClose pin
+        waitForProcess ph
+        pure ()
+      callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
+  withCreateProcess (schemeProc ["-o", path]) callout
+
 evalInContext ::
   PrettyPrintEnv ->
   EvalCtx ->
@@ -510,16 +724,7 @@ evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
-      decom =
-        decompile
-          (intermedToBase ctx)
-          ( backReferenceTm
-              crs
-              (floatRemap ctx)
-              (intermedRemap ctx)
-              (decompTm ctx)
-          )
-
+      decom = decompileCtx crs ctx
       finish = fmap (first listErrors . decom)
 
       prettyError (PE _ p) = p
@@ -706,28 +911,22 @@ startRuntime sandboxed runtimeHost version = do
   pure $
     Runtime
       { terminate = pure (),
-        evaluate = \cl ppe tm -> catchInternalErrors $ do
-          ctx <- readIORef ctxVar
-          (tyrs, tmrs) <- collectDeps cl tm
-          ctx <- loadDeps cl ppe ctx tyrs tmrs
-          (ctx, init) <- prepareEvaluation ppe tm ctx
-          writeIORef ctxVar ctx
-          evalInContext ppe ctx activeThreads init `UnliftIO.finally` cleanupThreads,
-        compileTo = \cl ppe rf path -> tryM $ do
-          ctx <- readIORef ctxVar
-          (tyrs, tmrs) <- collectRefDeps cl rf
-          ctx <- loadDeps cl ppe ctx tyrs tmrs
-          let cc = ccache ctx
-              lk m = flip Map.lookup m =<< baseToIntermed ctx rf
-          Just w <- lk <$> readTVarIO (refTm cc)
-          sto <- standalone cc w
-          BL.writeFile path . runPutL $ do
-            serialize $ version
-            serialize $ RF.showShort 8 rf
-            putNat w
-            putStoredCache sto,
+        evaluate = interpEval activeThreads cleanupThreads ctxVar,
+        compileTo = interpCompile version ctxVar,
         mainType = builtinMain External,
-        ioTestType = builtinTest External
+        ioTestTypes = builtinIOTestTypes External
+      }
+
+startNativeRuntime :: Text -> IO (Runtime Symbol)
+startNativeRuntime version = do
+  ctxVar <- newIORef =<< baseContext False
+  pure $
+    Runtime
+      { terminate = pure (),
+        evaluate = nativeEval ctxVar,
+        compileTo = nativeCompile version ctxVar,
+        mainType = builtinMain External,
+        ioTestTypes = builtinIOTestTypes External
       }
 
 withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a

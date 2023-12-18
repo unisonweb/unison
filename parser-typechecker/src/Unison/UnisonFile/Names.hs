@@ -108,7 +108,7 @@ variableCanonicalizer vs =
     suffix <- Name.suffixes n
     pure (Var.named (Name.toText suffix), v)
   where
-    done xs = Map.fromList [ (k, v) | (k, nubOrd -> [v]) <- Map.toList xs ]
+    done xs = Map.fromList [ (k, v) | (k, nubOrd -> [v]) <- Map.toList xs ] <> Map.fromList [(v,v) | v <- vs]
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)

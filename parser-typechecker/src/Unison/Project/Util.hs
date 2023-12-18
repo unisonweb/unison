@@ -5,7 +5,9 @@ module Unison.Project.Util
     projectBranchSegment,
     projectPathPrism,
     projectBranchPathPrism,
-    pattern UUIDNameSegment
+    projectContextFromPath,
+    pattern UUIDNameSegment,
+    ProjectContext (..),
   )
 where
 
@@ -118,3 +120,19 @@ projectBranchPathPrism =
         "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : restPath ->
           Just (ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}, Path.fromList restPath)
         _ -> Nothing
+
+-- | The project information about the current path.
+-- NOTE: if the user has cd'd into the project storage area but NOT into a branch, (where they shouldn't ever
+-- be), this will result in a LooseCodePath.
+data ProjectContext
+  = LooseCodePath Path.Absolute
+  | ProjectBranchPath ProjectId ProjectBranchId Path.Path {- path from branch root -}
+  deriving stock (Eq, Show)
+
+projectContextFromPath :: Path.Absolute -> ProjectContext
+projectContextFromPath path =
+  case path ^? projectBranchPathPrism of
+    Just (ProjectAndBranch {project = projectId, branch = branchId}, restPath) ->
+      ProjectBranchPath projectId branchId restPath
+    Nothing ->
+      LooseCodePath path

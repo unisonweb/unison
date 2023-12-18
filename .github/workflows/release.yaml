@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (E.g. M4 or M4a)'
+        description: 'Release Version (E.g. M4 or M4a or 0.4.1)'
         required: true
         type: string
       target:

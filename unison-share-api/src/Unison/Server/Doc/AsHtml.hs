@@ -468,6 +468,7 @@ toHtml docNamesByRef document =
                           go ("poster", p) = [LB.makeAttribute "poster" p]
                           go ("autoplay", "true") = [LB.makeAttribute "autoplay" "autoplay"]
                           go ("loop", "true") = [loop_ "loop"]
+                          go ("controls", "true") = [loop_ "controls"]
                           go ("muted", "true") = [LB.makeAttribute "muted" "muted"]
                           go _ = []
                    in pure $ video_ attrs' $ mapM_ source sources

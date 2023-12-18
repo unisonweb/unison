@@ -203,6 +203,9 @@ text.matching.tests = do
   checkEqual "Pattern api (22)"  (isMatch (join [many letter, eof]) "aaaaabbbb") true
   checkEqual "Pattern api (23)"  (isMatch (join [many letter, eof]) "aaaaabbbb1") false
   checkEqual "Pattern api (24)"  (isMatch (join [literal "abra", many (literal "cadabra")]) "abracadabracadabra") true
+  checkEqual "Pattern api (25)"
+    (run (captureAs "goodbye" (literal "hello")) "hello")
+    (Some (["goodbye"], ""))
 
 char.class.tests = do
   check "Char.Class: any" do Char.Class.is Class.any ?a

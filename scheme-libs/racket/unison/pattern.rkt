@@ -36,6 +36,7 @@
           [join* (-> chunked-list? pattern?)]
           [choice (-> pattern? pattern? ... pattern?)]
           [capture (-> pattern? pattern?)]
+          [capture-as (-> any/c pattern? pattern?)]
           [many (-> pattern? pattern?)]
           [replicate (-> pattern? exact-nonnegative-integer? exact-nonnegative-integer? pattern?)]
           ;; Only valid pattern? in the functions below is p:char
@@ -56,6 +57,7 @@
 (struct p:join (pats) #:transparent)
 (struct p:or (left right) #:transparent)
 (struct p:capture (pat) #:transparent)
+(struct p:capture-as (cap pat) #:transparent)
 (struct p:many (pat) #:transparent)
 (struct p:replicate (pat min-count count))
 
@@ -124,6 +126,8 @@
            (p:or (pattern-pat pat) (loop pats))])))]))
 
 (define (capture pat) (make-pattern (p:capture (pattern-pat pat))))
+(define (capture-as cap pat)
+  (make-pattern (p:capture-as cap (pattern-pat pat))))
 (define (many pat) (make-pattern (p:many (pattern-pat pat))))
 (define (replicate pat n m) (make-pattern (p:replicate (pattern-pat pat) n m)))
 
@@ -218,6 +222,20 @@
                  (ok cstr* (chunked-list-add-last captures* capture))]
                 [else
                  (fail)]))])]
+
+        [(p:capture-as cap pat)
+         (cond
+           [in-capture?
+             (recur pat #t ok)]
+           [else
+             (define pat-m (recur pat #t done))
+             (λ (cstr captures)
+               (define-values [cstr* captures*] (pat-m cstr captures))
+               (cond
+                 [cstr*
+                  (ok cstr* (chunked-list-add-last captures* cap))]
+                 [else
+                  (fail)]))])]
 
         [(p:many (p:char 'any))
          (λ (cstr captures)

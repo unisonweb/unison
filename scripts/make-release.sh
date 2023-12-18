@@ -17,6 +17,8 @@ usage() {
     echo ""
     echo "E.g."
     echo "$0 M4a"
+    echo ""
+    echo "The latest release is: $(git tag --list 'release/*' | sort -r | head -n 1 | sed 's/release\///')"
 }
 
 if [[ -z "$1" ]] ; then
@@ -29,8 +31,8 @@ if ! command -V "gh" >/dev/null 2>&1; then
    exit 1
 fi
 
-if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
- echo "Version tag must be of the form 'M4' or 'M4a'"
+if ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
+ echo "Version tag must be of the form 'x.y.z' where x, y, and z are nonnegative integers."
  usage
  exit 1
 fi

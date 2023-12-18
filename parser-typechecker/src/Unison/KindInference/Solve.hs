@@ -219,7 +219,7 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
       [] -> case b of
         True -> dbg "go" acc (go False [])
         False -> for acc \c ->
-          addConstraint c >>= \case
+          dbgSingle "failed to add constraint" c addConstraint >>= \case
             Left x -> pure x
             Right () -> error "impossible"
       c : cs ->
@@ -238,6 +238,19 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
           ppe <- asks prettyPrintEnv
           tracePretty (P.hang (P.bold hdr) (prettyConstraints ppe (map (review _Generated) cs))) (f cs)
         False -> f cs
+
+    dbgSingle ::
+      forall a.
+      P.Pretty P.ColorText ->
+      GeneratedConstraint v loc ->
+      (GeneratedConstraint v loc -> Solve v loc a) ->
+      Solve v loc a
+    dbgSingle hdr c f =
+      case shouldDebug KindInference of
+        True -> do
+          ppe <- asks prettyPrintEnv
+          tracePretty (P.hang (P.bold hdr) (prettyConstraintD' ppe (review _Generated c))) (f c)
+        False -> f c
 
 -- | Add a single constraint, returning an error if there is a
 -- contradictory constraint

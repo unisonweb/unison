@@ -131,6 +131,7 @@ data Input
   | AliasTermI HashOrHQSplit' Path.Split'
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
+  | MoveAllI Path.Path' Path.Path'
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
@@ -171,14 +172,16 @@ data Input
     SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name) [String]
+    ExecuteSchemeI String [String]
   | -- compile to a scheme file
     CompileSchemeI String (HQ.HashQualified Name)
-  | -- generate scheme libraries
-    GenSchemeLibsI
+  | -- generate scheme libraries, optional target directory
+    GenSchemeLibsI (Maybe String)
   | -- fetch scheme compiler from a given username and branch
     FetchSchemeCompilerI String String
   | TestI TestInput

@@ -14,7 +14,7 @@ nested.names.x = 42
 ```
 
 ```api
--- Should find names by suffix
+-- Should NOT find names by suffix
 GET /api/non-project-code/getDefinition?names=x
 
 -- Term names should strip relativeTo prefix.

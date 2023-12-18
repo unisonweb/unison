@@ -5,13 +5,14 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Runtime.Decompile
-  ( decompile
-  , DecompError (..)
-  , renderDecompError
-  ) where
+  ( decompile,
+    DecompResult,
+    DecompError (..),
+    renderDecompError,
+  )
+where
 
 import Data.Set (singleton)
-import Prelude hiding (lines)
 import Unison.ABT (substs)
 import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -64,10 +65,11 @@ import Unison.Type
     typeLinkRef,
   )
 import Unison.Util.Bytes qualified as By
-import Unison.Util.Pretty (lit, indentN, lines, wrap, syntaxToColor)
+import Unison.Util.Pretty (indentN, lines, lit, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
 import Unsafe.Coerce -- for Int -> Double
+import Prelude hiding (lines)
 
 con :: (Var v) => Reference -> Word64 -> Term v ()
 con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)

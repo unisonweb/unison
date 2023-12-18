@@ -62,10 +62,6 @@ bar = 7
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
   Done.
 
 .> view foo bar

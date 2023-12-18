@@ -241,7 +241,7 @@ declComponentConstraintTree decls = do
     -- Add a kind variable for every datatype
     declKind <- pushType (Type.ref (DD.annotation $ asDataDecl decl) ref)
     pure (ref, decl, declKind)
-  cts <- for decls \(ref, decl, declKind) -> do
+  (declConstraints, constructorConstraints) <- unzip <$> for decls \(ref, decl, declKind) -> do
     let declAnn = DD.annotation $ asDataDecl decl
     let declType = Type.ref declAnn ref
     -- Unify the datatype with @k_1 -> ... -> k_n -> *@ where @n@ is
@@ -275,8 +275,8 @@ declComponentConstraintTree decls = do
     let finalDeclConstraints = case decl of
           Left _effectDecl -> Constraint (IsAbility fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
           Right _dataDecl -> Constraint (IsType fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
-    pure (StrictOrder finalDeclConstraints constructorConstraints)
-  pure (Node cts)
+    pure (finalDeclConstraints, constructorConstraints)
+  pure (Node declConstraints `StrictOrder` Node constructorConstraints)
 
 -- | This is a helper to unify the kind constraints on type variables
 -- across a decl's constructors.

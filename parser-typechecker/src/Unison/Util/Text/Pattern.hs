@@ -11,6 +11,7 @@ data Pattern
   = Join [Pattern] -- sequencing of patterns
   | Or Pattern Pattern -- left-biased choice: tries second pattern only if first fails
   | Capture Pattern -- capture all the text consumed by the inner pattern, discarding its subcaptures
+  | CaptureAs Text Pattern -- capture the given text, discarding its subcaptures, and name the capture
   | Many Pattern -- zero or more repetitions (at least 1 can be written: Join [p, Many p])
   | Replicate Int Int Pattern -- m to n occurrences of a pattern, optional = 0-1
   | Eof -- succeed if given the empty text, fail otherwise
@@ -121,6 +122,14 @@ compile (Char Any) !err !success = go
       rem
         | Text.size t > Text.size rem -> success acc rem
         | otherwise -> err acc rem
+compile (CaptureAs t p) !err !success = go
+  where
+    err' _ _ acc0 t0 = err acc0 t0
+    success' _ rem acc0 _ = success (pushCapture t acc0) rem
+    compiled = compile p err' success'
+    go acc t = compiled acc t acc t
+
+
 compile (Capture (Many (Char Any))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
@@ -128,6 +137,7 @@ compile (Capture c) !err !success = go
     success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
+
 compile (Or p1 p2) err success = cp1
   where
     cp2 = compile p2 err success

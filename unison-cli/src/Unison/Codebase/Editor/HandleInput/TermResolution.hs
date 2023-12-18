@@ -25,6 +25,7 @@ import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.NamesWithHistory
   ( NamesWithHistory (..),
+    SearchType (..),
     lookupHQTerm,
   )
 import Unison.Parser.Ann (Ann)
@@ -41,7 +42,7 @@ addHistory :: Names -> NamesWithHistory
 addHistory names = NamesWithHistory names mempty
 
 lookupTerm :: HQ.HashQualified Name -> Names -> [Referent]
-lookupTerm hq parseNames = toList (lookupHQTerm hq hnames)
+lookupTerm hq parseNames = toList (lookupHQTerm IncludeSuffixes hq hnames)
   where
     hnames = addHistory parseNames
 

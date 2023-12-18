@@ -367,13 +367,13 @@ lookupDom' x r = M.lookup x (domain r)
 lookupRan' :: (Ord b) => b -> Relation a b -> Maybe (Set a)
 lookupRan' y r = M.lookup y (range r)
 
--- | True if the element @ x @ exists in the domain of @ r @.
+-- | True if the element exists in the domain.
 memberDom :: (Ord a) => a -> Relation a b -> Bool
-memberDom x r = isJust $ lookupDom' x r
+memberDom x r = M.member x (domain r)
 
 -- | True if the element exists in the range.
 memberRan :: (Ord b) => b -> Relation a b -> Bool
-memberRan y r = isJust $ lookupRan' y r
+memberRan y r = M.member y (range r)
 
 filterDom :: (Ord a, Ord b) => (a -> Bool) -> Relation a b -> Relation a b
 filterDom f r = S.filter f (dom r) <| r

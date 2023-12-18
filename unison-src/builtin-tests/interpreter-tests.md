@@ -54,6 +54,7 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> alias.term ##Pattern.captureAs Pattern.captureAs
 .> load unison-src/builtin-tests/text-tests.u
 .> add
 ```

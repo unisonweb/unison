@@ -71,7 +71,8 @@ namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
     (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
     let mayReadmeRef = Backend.findDocInBranch readmeNames shallowBranch
     renderedReadme <- for mayReadmeRef \readmeRef -> do
-      eDoc <- liftIO $ evalDocRef runtime codebase readmeRef
+      -- Local server currently ignores eval errors.
+      (eDoc, _evalErrs) <- liftIO $ evalDocRef runtime codebase readmeRef
       pure $ Doc.renderDoc ppe eDoc
     let causalHash = v2CausalBranchToUnisonHash namespaceCausal
     pure $ NamespaceDetails namespacePath causalHash renderedReadme

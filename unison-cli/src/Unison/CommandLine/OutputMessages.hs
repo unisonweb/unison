@@ -5,7 +5,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Exception (mask, onException)
+import Control.Exception (catch, finally, mask, throwIO)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
@@ -31,11 +31,14 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, getTemporaryDirectory, removeFile, renameFile)
+import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, removeFile, renameFile)
+import System.FilePath qualified as FilePath
 import System.IO qualified as IO
+import System.IO.Error (isDoesNotExistError)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
@@ -117,7 +120,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -792,15 +795,15 @@ notifyUser dir = \case
           ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
-  TestIncrementalOutputStart ppe (n, total) r _src -> do
+  TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
         <> " tests left to run, current test: "
-        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty
-  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r isOk -> do
     clearCurrentLine
-    if isTestOk result
+    if isOk
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
@@ -887,6 +890,8 @@ notifyUser dir = \case
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
+  MoveNothingFound p ->
+    pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath' p <> "."
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
@@ -916,7 +921,7 @@ notifyUser dir = \case
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs to be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -2186,25 +2191,27 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
-  UpdateIncompleteConstructorSet name ctorMap expectedCount ->
-    pure $
-      P.lines
-        [ P.wrap $
-            "I couldn't complete the update because I couldn't find"
-              <> fromString (show expectedCount)
-              <> "constructor(s) for"
-              <> prettyName name
-              <> "where I expected to."
-              <> "I found:"
-              <> fromString (show (Map.toList ctorMap)),
-          "",
-          P.wrap $
-            "You can use"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName name])
-              <> "and"
-              <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"])
-              <> "to give names to each constructor, and then try again."
-        ]
+  UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
+    let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
+     in pure $
+          P.lines
+            [ P.wrap $
+                "I couldn't complete the"
+                  <> operationName
+                  <> "because the type"
+                  <> prettyName typeName
+                  <> "has unnamed constructors."
+                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
+              "",
+              P.wrap $
+                "You can use"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName typeName])
+                  <> "and"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName typeName <> ".<ConstructorName>"])
+                  <> "to give names to each constructor, and then try the"
+                  <> operationName
+                  <> "again."
+            ]
   UpgradeFailure old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
@@ -2261,6 +2268,7 @@ prettyDownloadEntitiesError = \case
   Share.DownloadEntitiesInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
   Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
+  Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationError err
 
 prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
 prettyFastForwardPathError path = \case
@@ -2357,6 +2365,38 @@ prettyTransportError = \case
     responseRequestId :: Servant.Response -> Maybe Text
     responseRequestId =
       fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
+
+prettyEntityValidationError :: Share.EntityValidationError -> Pretty
+prettyEntityValidationError = \case
+  Share.EntityHashMismatch typ (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType typ <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash typ ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash <> " of type " <> prettyEntityType typ <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash typ err ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType typ <> " entity with the hash " <> prettyHash32 hash <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text err
+      ]
+
+prettyEntityType :: Share.EntityType -> Pretty
+prettyEntityType = \case
+  Share.TermComponentType -> "term component"
+  Share.DeclComponentType -> "type component"
+  Share.PatchType -> "patch"
+  Share.PatchDiffType -> "patch diff"
+  Share.NamespaceType -> "namespace"
+  Share.NamespaceDiffType -> "namespace diff"
+  Share.CausalType -> "causal"
 
 invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
 invalidRepoInfo err repoInfo =
@@ -2523,6 +2563,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
             | Var.UnnamedWatch _ _ <- Var.typeOf v ->
                 "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
           WK.RegularWatch -> "> " <> pb (hqv v) tm
+          WK.TestWatch -> "test> " <> st (TermPrinter.prettyBindingWithoutTypeSignature sppe (hqv v) tm)
           w -> P.string w <> "> " <> pb (hqv v) tm
     st = P.syntaxToColor
     sppe = PPED.suffixifiedPPE ppe'
@@ -2643,7 +2684,7 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
                     <> "to replace the definitions currently in this namespace."
               ]
 
-    code :: (TermReference -> Bool) -> Pretty
+    code :: (TermReferenceId -> Bool) -> Pretty
     code isTest =
       P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms isTest)
 
@@ -2655,13 +2696,13 @@ displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv 
         & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
         & map prettyType
 
-    prettyTerms :: (TermReference -> Bool) -> [P.Pretty SyntaxText]
+    prettyTerms :: (TermReferenceId -> Bool) -> [P.Pretty SyntaxText]
     prettyTerms isTest =
       terms
         & Map.toList
         & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
         & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map (\t -> prettyTerm (isTest (t ^. _2)) t)
+        & map (\t -> prettyTerm (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
 
     prettyTerm ::
       Bool ->
@@ -2721,24 +2762,25 @@ displayDefinitionsString maybePath definitions =
               copyLoop
             IO.hClose tmpHandle
             renameFile tmpFilePath path
-      tmpDir <- getTemporaryDirectory
       mask \unmask -> do
-        (tmpFilePath, tmpHandle) <- IO.openTempFile tmpDir "unison-scratch"
-        unmask (withTempFile tmpFilePath tmpHandle) `onException` do
+        (tmpFilePath, tmpHandle) <- IO.openTempFile (FilePath.takeDirectory path) "unison-scratch"
+        unmask (withTempFile tmpFilePath tmpHandle) `finally` do
           IO.hClose tmpHandle
-          removeFile tmpFilePath
+          removeFile tmpFilePath `catch` \case
+            e | isDoesNotExistError e -> pure ()
+            e -> throwIO e
       pure mempty
 
 displayTestResults ::
   Bool -> -- whether to show the tip
   PPE.PrettyPrintEnv ->
-  [(Reference, Text)] ->
-  [(Reference, Text)] ->
+  [(TermReferenceId, Text)] ->
+  [(TermReferenceId, Text)] ->
   Pretty
 displayTestResults showTip ppe oksUnsorted failsUnsorted =
   let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
       fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.Ref r)
+      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
       okMsg =
         if null oks
           then mempty
@@ -2876,7 +2918,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2891,7 +2933,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)
@@ -3696,16 +3738,6 @@ prettyDiff diff =
                 ]
             else mempty
         ]
-
-isTestOk :: Term v Ann -> Bool
-isTestOk tm = case tm of
-  Term.List' ts -> all isSuccess ts
-    where
-      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
-        cid == DD.okConstructorId
-          && ref == DD.testResultRef
-      isSuccess _ = False
-  _ -> False
 
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.

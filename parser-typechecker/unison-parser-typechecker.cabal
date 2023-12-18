@@ -261,7 +261,6 @@ library
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -298,6 +297,7 @@ library
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -454,7 +454,6 @@ test-suite parser-typechecker-tests
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -491,6 +490,7 @@ test-suite parser-typechecker-tests
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs

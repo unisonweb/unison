@@ -48,6 +48,8 @@
   describe-value
   decode-value
 
+  top-exn-handler
+
   reference->termlink
   reference->typelink
   referent->termlink
@@ -567,3 +569,25 @@
 
 (define (unison-seq . l)
   (vector->chunked-list (list->vector l)))
+
+; Top level exception handler, moved from being generated in unison.
+; The in-unison definition was effectively just literal scheme code
+; represented as a unison data type, with some names generated from
+; codebase data.
+;
+; Note: the ref-4n0fgs00 stuff is probably not ultimately correct, but
+; is how things work for now.
+(define (top-exn-handler rq)
+  (request-case rq
+    [pure (x)
+      (match x
+        [(unison-data r 0 (list))
+         (eq? r unison-unit:link)
+         (display "")]
+        [else
+          (display (describe-value x))])]
+    [ref-4n0fgs00
+      [0 (f)
+       (control 'ref-4n0fgs00 k
+         (let ([disp (describe-value f)])
+           (raise (make-exn:bug "builtin.bug" disp))))]]))

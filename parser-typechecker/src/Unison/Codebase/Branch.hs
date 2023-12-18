@@ -69,6 +69,8 @@ module Unison.Codebase.Branch
     modifyAt,
     modifyAtM,
     children0,
+    withoutLib,
+    withoutTransitiveLibs,
 
     -- * Branch terms/types/edits
 
@@ -132,6 +134,7 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
+import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -143,6 +146,34 @@ instance AsEmpty (Branch m) where
 
 instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
+
+-- | Remove any lib subtrees reachable within the branch.
+-- Note: This DOES affect the hash.
+withoutLib :: Branch0 m -> Branch0 m
+withoutLib Branch0 {..} =
+  let newChildren =
+        _children
+          & imapMaybe
+            ( \nameSegment child ->
+                if nameSegment == Name.libSegment
+                  then Nothing
+                  else Just (child & head_ %~ withoutLib)
+            )
+   in branch0 _terms _types newChildren _edits
+
+-- | Remove any transitive libs reachable within the branch.
+-- Note: This DOES affect the hash.
+withoutTransitiveLibs :: Branch0 m -> Branch0 m
+withoutTransitiveLibs Branch0 {..} =
+  let newChildren =
+        _children
+          & imapMaybe
+            ( \nameSegment child ->
+                if nameSegment == Name.libSegment
+                  then Just (child & head_ %~ withoutLib)
+                  else Just (child & head_ %~ withoutTransitiveLibs)
+            )
+   in branch0 _terms _types newChildren _edits
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms

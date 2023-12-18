@@ -71,7 +71,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -352,6 +352,14 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             termsOfTypeImpl =
               CodebaseOps.termsOfTypeImpl getDeclType
 
+            filterTermsByReferentIdHavingTypeImpl :: Reference -> Set Referent.Id -> Sqlite.Transaction (Set Referent.Id)
+            filterTermsByReferentIdHavingTypeImpl =
+              CodebaseOps.filterReferentsHavingTypeImpl getDeclType
+
+            filterTermsByReferenceIdHavingTypeImpl :: Reference -> Set TermReferenceId -> Sqlite.Transaction (Set TermReferenceId)
+            filterTermsByReferenceIdHavingTypeImpl =
+              CodebaseOps.filterReferencesHavingTypeImpl
+
             termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
             termsMentioningTypeImpl =
               CodebaseOps.termsMentioningTypeImpl getDeclType
@@ -382,6 +390,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
+                  filterTermsByReferenceIdHavingTypeImpl,
+                  filterTermsByReferentIdHavingTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root

@@ -503,6 +503,23 @@ termsMentioningTypeImpl doGetDeclType r =
   Ops.termsMentioningType (Cv.reference1to2 r)
     >>= Set.traverse (Cv.referentid2to1 doGetDeclType)
 
+filterReferencesHavingTypeImpl :: Reference -> Set Reference.Id -> Transaction (Set Reference.Id)
+filterReferencesHavingTypeImpl typRef termRefs =
+  Ops.filterTermsByReferenceHavingType (Cv.reference1to2 typRef) (Cv.referenceid1to2 <$> toList termRefs)
+    <&> fmap Cv.referenceid2to1
+    <&> Set.fromList
+
+filterReferentsHavingTypeImpl ::
+  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+  Reference ->
+  Set Referent.Id ->
+  Transaction (Set Referent.Id)
+filterReferentsHavingTypeImpl doGetDeclType typRef termRefs =
+  Ops.filterTermsByReferentHavingType (Cv.reference1to2 typRef) (Cv.referentid1to2 <$> toList termRefs)
+    >>= traverse (Cv.referentid2to1 doGetDeclType)
+      <&> Set.fromList
+
 -- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int
 hashLength = pure 10

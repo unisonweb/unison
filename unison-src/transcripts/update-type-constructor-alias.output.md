@@ -49,10 +49,6 @@ Bug: we leave `Foo.BarAlias` in the namespace with a nameless decl.
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
   Done.
 
 .> find.verbose

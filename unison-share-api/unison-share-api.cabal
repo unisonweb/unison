@@ -45,6 +45,7 @@ library
       Unison.Server.Types
       Unison.Sync.API
       Unison.Sync.Common
+      Unison.Sync.EntityValidation
       Unison.Sync.Types
       Unison.Util.Find
   hs-source-dirs:
@@ -86,6 +87,7 @@ library
     , async
     , base
     , binary
+    , bytes
     , bytestring
     , containers
     , directory
@@ -114,10 +116,12 @@ library
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
     , unison-hash
     , unison-hash-orphans-aeson
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -63,7 +64,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -195,6 +196,7 @@ data Output
   | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
+  | MoveNothingFound Path'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
@@ -253,16 +255,16 @@ data Output
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
     DisplayDefinitions DisplayDefinitionsOutput
   | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
-    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText) {- rendered definitions -}
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term Symbol Ann)
+    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
       ShowSuccesses
       ShowFailures
-      [(Reference, Text)] -- oks
-      [(Reference, Text)] -- fails
+      [(TermReferenceId, Text)] -- oks
+      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -390,9 +392,11 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
-  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) Int
+  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+
+data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -407,7 +411,7 @@ data CreatedProjectBranchFrom
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
 data DisplayDefinitionsOutput = DisplayDefinitionsOutput
-  { isTest :: TermReference -> Bool,
+  { isTest :: TermReferenceId -> Bool,
     outputFile :: Maybe FilePath,
     prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
     terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
@@ -501,6 +505,7 @@ isFailure o = case o of
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
+  MoveNothingFound {} -> True
   TermNotFound' {} -> True
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
