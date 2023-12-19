@@ -3,6 +3,8 @@ module Unison.LSP.UCMWorker where
 import Control.Monad.Reader
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names.Cache qualified as NamesCache
 import Unison.Codebase.Path qualified as Path
 import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
@@ -11,8 +13,7 @@ import Unison.LSP.VFS qualified as VFS
 import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.PrettyPrintEnvDecl
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
-import Unison.Server.Backend qualified as Backend
+import Unison.Project.Util (projectContextFromPath, projectRootPathFromContext)
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Sqlite qualified as Sqlite
@@ -26,22 +27,25 @@ ucmWorker ::
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
+ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
+        let projectContext = projectContextFromPath currentPath
+        let projectRootPath = projectRootPathFromContext projectContext
+        causalHash <- fmap Branch.headHash . liftIO $ Codebase.getBranchAtPath codebase projectRootPath
+        NamesCache.BranchNames {branchNames = projectNames, branchPPED = pped} <- liftIO $ NamesCache.expectNamesForBranch codebase causalHash
+        let projectNamesWH = NamesWithHistory.fromCurrentNames projectNames
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let ppe = PPE.fromNamesDecl hl parseNames
         atomically $ do
-          writeTVar parseNamesVar parseNames
-          writeTVar ppeVar ppe
-          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
+          writeTVar parseNamesVar projectNamesWH
+          writeTVar ppedVar pped
+          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl projectNamesWH)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
+          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames projectNamesWH)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath
