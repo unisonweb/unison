@@ -528,7 +528,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           onHalt = do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
-  initialLoopState <- (Cli.loopState0 initialRootCausalHash rootVar initialPath)
+  let initialLoopState = Cli.loopState0 initialRootCausalHash rootVar initialPath
   loop initialLoopState
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b

@@ -38,6 +38,7 @@ library
       Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
+      Unison.Codebase.Branch.Names.Cache
       Unison.Codebase.Branch.Raw
       Unison.Codebase.Branch.Type
       Unison.Codebase.BranchDiff

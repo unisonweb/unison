@@ -1934,8 +1934,8 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = PPED.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
-      pped <- Cli.currentProjectPPED
-      names <- Cli.currentProjectNames
+      pped <- Cli.projectRootPPED
+      names <- Cli.projectRootNames
       pure (NamesWithoutHistory.fromCurrentNames names, pped)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names

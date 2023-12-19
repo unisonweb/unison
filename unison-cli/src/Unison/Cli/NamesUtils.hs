@@ -1,6 +1,7 @@
 -- | Utilities that have to do with constructing names objects.
 module Unison.Cli.NamesUtils
-  ( currentProjectNames,
+  ( projectRootNames,
+    projectRootNamesWithoutTransitiveLibs,
     basicParseNames,
     basicPrettyPrintNamesA,
     displayNames,
@@ -13,11 +14,14 @@ module Unison.Cli.NamesUtils
 where
 
 import Control.Lens
+import Control.Monad.Reader
 import Data.Set qualified as Set
-import Unison.Cli.LoopCache (LoopCache (LoopCache, projectBranchNamesWithoutTransitiveLibs))
-import Unison.Cli.Monad (Cli, getLoopCache)
+import Unison.Cli.Monad (Cli)
+import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Branch.Names.Cache qualified as NamesCache
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
@@ -36,13 +40,25 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
-currentProjectNames :: Cli Names
-currentProjectNames = do
-  LoopCache {projectBranchNamesWithoutTransitiveLibs} <- getLoopCache
-  pure projectBranchNamesWithoutTransitiveLibs
+projectRootNames :: Cli Names
+projectRootNames = do
+  Cli.Env {codebase} <- ask
+  causalHash <- Branch.headHash <$> Cli.getProjectRootBranch
+  NamesCache.BranchNames {branchNames} <- liftIO $ NamesCache.expectNamesForBranch codebase causalHash
+  pure branchNames
 
+projectRootNamesWithoutTransitiveLibs :: Cli Names
+projectRootNamesWithoutTransitiveLibs = do
+  Cli.Env {codebase} <- ask
+  causalHash <- Branch.headHash <$> Cli.getProjectRootBranch
+  NamesCache.BranchNames {branchNamesWithoutTransitiveLibs} <- liftIO $ NamesCache.expectNamesForBranch codebase causalHash
+  pure branchNamesWithoutTransitiveLibs
+
+-- | This is kept around as an alias for backwards compatibility, but it's a bit imprecise
+-- about the intent. In new code use a more specific combinator like 'projectRootNames' or
+-- 'projectRootNamesWithoutTransitiveLibs' to be clear about exactly which names you want.
 basicParseNames :: Cli Names
-basicParseNames = currentProjectNames
+basicParseNames = projectRootNames
 
 basicPrettyPrintNamesA :: Cli Names
 basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
