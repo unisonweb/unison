@@ -1342,7 +1342,6 @@ magicMainWatcherString = "main"
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
       dest <- p' dest0
@@ -1549,6 +1548,7 @@ inputDescription input =
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
+    SaveExecuteResultI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat

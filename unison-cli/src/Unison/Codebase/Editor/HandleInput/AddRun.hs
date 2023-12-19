@@ -7,6 +7,7 @@ import Control.Lens (use)
 import Control.Monad.Reader (ask)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -21,6 +22,8 @@ import Unison.Codebase.Editor.Output (Output (NoLastRunResult, SaveTermNameConfl
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
@@ -32,7 +35,6 @@ import Unison.UnisonFile qualified as UF
 
 handleAddRun :: Input -> Name -> Cli ()
 handleAddRun input resultName = do
-  description <- wundefined -- inputDescription input
   let resultVar = Name.toVar resultName
   uf <- addSavedTermToUnisonFile resultName
   Cli.Env {codebase} <- ask
@@ -44,7 +46,7 @@ handleAddRun input resultName = do
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
   ppe <- prettyPrintEnvDecl =<< displayNames uf
   addDefaultMetadata adds
-  Cli.syncRoot description
+  Cli.syncRoot (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
 
 addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
