@@ -201,7 +201,7 @@ fzfResolve codebase projCtx getCurrentBranch pat args =
     These argDesc "!" -> fuzzyFillArg argDesc
     -- If someone tries to fzf an arg that's not configured for it, just  fail to fzf
     -- rather than passing a bad arg.
-    That "!" -> pure $ Just []
+    That "!" -> pure $ Nothing
     That arg -> pure $ Just [arg]
     These _ arg -> pure $ Just [arg]
   where
