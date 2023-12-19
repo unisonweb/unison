@@ -51,12 +51,10 @@ addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
 addSavedTermToUnisonFile resultName = do
   let resultSymbol = Name.toVar resultName
   (trm, typ, uf) <-
-    use #lastRunResult >>= \case
-      Nothing -> Cli.returnEarly NoLastRunResult
-      Just x -> pure x
-  case Map.lookup resultSymbol (UF.hashTermsId uf) of
-    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
-    Nothing -> pure ()
+    use #lastRunResult & onNothingM do
+      Cli.returnEarly NoLastRunResult
+  whenJust (Map.lookup resultSymbol (UF.hashTermsId uf)) \_ -> do
+    Cli.returnEarly (SaveTermNameConflict resultName)
   pure $
     UF.typecheckedUnisonFile
       (UF.dataDeclarationsId' uf)
