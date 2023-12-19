@@ -103,7 +103,10 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
-              Right i -> pure i
+              Right Nothing -> do
+                -- Ctrl-c or some input cancel, re-run the prompt
+                go
+              Right (Just i) -> pure i
     settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath

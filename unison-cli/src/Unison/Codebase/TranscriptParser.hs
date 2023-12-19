@@ -363,7 +363,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                         liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
-                          Right input -> pure $ Right input
+                          -- No input received from this line, try again.
+                          Right Nothing -> awaitInput
+                          Right (Just input) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)

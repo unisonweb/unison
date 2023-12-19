@@ -128,7 +128,9 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  IO (Either (P.Pretty CT.ColorText) Input)
+  -- Returns either an error message or the parsed input.
+  -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
+  IO (Either (P.Pretty CT.ColorText) (Maybe Input))
 parseInput codebase getRoot currentPath numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
@@ -156,8 +158,10 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
                 Just [] -> throwE $ "No matches for: " <> fromString arg
                 Just matches -> pure matches
             else pure [arg]
-        resolvedArgs <- lift $ fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)
-        except $ parse resolvedArgs
+        lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
+          Nothing -> pure Nothing
+          Just [] -> pure Nothing
+          Just resolvedArgs -> fmap Just . except . parse $ resolvedArgs
       Nothing ->
         throwE
           . warn
@@ -187,31 +191,31 @@ expandNumber numberedArgs s = case expandedNumber of
               (\x y -> [x .. y]) <$> readMay from <*> readMay to
             _ -> Nothing
 
-fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO [String]
+fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Maybe [String])
 fzfResolve codebase projCtx getCurrentBranch pat args =
   (Align.align (argTypes pat) args) & foldMapM \case
     This argDesc@(opt, _)
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
           fuzzyFillArg argDesc
-      | otherwise -> pure []
+      | otherwise -> pure $ Just []
     -- Allow fuzzy-filling optional arguments too if '!' is passed.
     These argDesc "!" -> fuzzyFillArg argDesc
     -- If someone tries to fzf an arg that's not configured for it, just  fail to fzf
     -- rather than passing a bad arg.
-    That "!" -> pure []
-    That arg -> pure [arg]
-    These _ arg -> pure [arg]
+    That "!" -> pure $ Just []
+    That arg -> pure $ Just [arg]
+    These _ arg -> pure $ Just [arg]
   where
-    fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO [String])
+    fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO (Maybe [String]))
     fuzzyFillArg (opt, argType) =
-      fromMaybe [] <$> runMaybeT do
+      runMaybeT do
         InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
         liftIO $ Text.putStrLn $ argDescription
         currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
         options <- liftIO $ getOptions codebase projCtx currentBranch
         guard . not . null $ options
-        results <- fold <$> lift (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
-        pure . fmap Text.unpack $ results
+        results <- MaybeT (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
+        pure (Text.unpack <$> results)
 
     multiSelectForOptional :: InputPattern.IsOptional -> Bool
     multiSelectForOptional = \case
