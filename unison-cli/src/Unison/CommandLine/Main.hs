@@ -93,7 +93,8 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
                           _ -> (Just . P.green . P.shown) restPath
                       ]
                   )
-      line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
+      let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
+      line <- Line.getInputLine fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
@@ -106,7 +107,10 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
               Right Nothing -> do
                 -- Ctrl-c or some input cancel, re-run the prompt
                 go
-              Right (Just i) -> pure i
+              Right (Just (expandedArgs, i)) -> do
+                when (expandedArgs /= ws) $ do
+                  liftIO . putStrLn $ fullPrompt <> unwords expandedArgs
+                pure i
     settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath

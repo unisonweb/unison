@@ -128,9 +128,9 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  -- Returns either an error message or the parsed input.
+  -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
-  IO (Either (P.Pretty CT.ColorText) (Maybe Input))
+  IO (Either (P.Pretty CT.ColorText) (Maybe ([String], Input)))
 parseInput codebase getRoot currentPath numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
@@ -160,7 +160,9 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
             else pure [arg]
         lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
           Nothing -> pure Nothing
-          Just resolvedArgs -> fmap Just . except . parse $ resolvedArgs
+          Just resolvedArgs -> do
+            parsedInput <- except . parse $ resolvedArgs
+            pure $ Just (command : resolvedArgs, parsedInput)
       Nothing ->
         throwE
           . warn
