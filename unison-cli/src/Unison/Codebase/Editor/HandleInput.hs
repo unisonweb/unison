@@ -1943,11 +1943,8 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
     -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
     -- information from the database instead, once it's efficient to do so.
-    isTest <- do
-      branch <- Cli.getCurrentBranch0
-      let branchRefs = branch & Branch.deepTerms & Relation.dom & Set.mapMaybe Referent.toTermReferenceId
-      tests <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) branchRefs)
-      pure \r -> Set.member r tests
+    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+    let isTest r = Set.member r testRefs
 
     Cli.respond $
       DisplayDefinitions
