@@ -1,11 +1,13 @@
 -- | Utilities that have to do with constructing pretty-print environments, given stateful information in the Cli monad
 -- state/environment, such as the current path.
 module Unison.Cli.PrettyPrintUtils
-  ( prettyPrintEnvDecl,
+  ( currentProjectPPED,
+    prettyPrintEnvDecl,
     currentPrettyPrintEnvDecl,
   )
 where
 
+import Unison.Cli.LoopCache (LoopCache (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -29,3 +31,7 @@ currentPrettyPrintEnvDecl scoping = do
   currentPath <- Cli.getCurrentPath
   hqLen <- Cli.runTransaction Codebase.hashLength
   pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
+
+currentProjectPPED :: Cli PPE.PrettyPrintEnvDecl
+currentProjectPPED = do
+  projectBranchPPEDNamesWithoutTransitiveLibs <$> Cli.getLoopCache

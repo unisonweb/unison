@@ -48,7 +48,9 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
@@ -145,6 +147,7 @@ import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as NamesWithoutHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -1931,10 +1934,9 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let ppe = PPED.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
-      currentBranch <- Cli.getCurrentBranch0
-      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
-      let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
-      pure (currentNames, ppe)
+      pped <- Cli.currentProjectPPED
+      names <- Cli.currentProjectNames
+      pure (NamesWithoutHistory.fromCurrentNames names, pped)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)

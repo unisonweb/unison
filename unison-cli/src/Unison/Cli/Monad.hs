@@ -7,7 +7,7 @@ module Unison.Cli.Monad
     ReturnType (..),
     runCli,
 
-    -- * Envronment
+    -- * Environment
     Env (..),
 
     -- * Immutable state
@@ -43,6 +43,9 @@ module Unison.Cli.Monad
     runTransaction,
     runTransactionWithRollback,
 
+    -- * Internal methods for implementing caching
+    getLoopCache,
+
     -- * Misc types
     LoadSourceResult (..),
   )
@@ -51,11 +54,12 @@ where
 import Control.Exception (throwIO)
 import Control.Lens (lens, (.=))
 import Control.Monad.Reader (MonadReader (..))
-import Control.Monad.State.Strict (MonadState)
+import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
 import Data.Configurator.Types qualified as Configurator
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.List.NonEmpty qualified as NEList
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
@@ -80,7 +84,7 @@ import Unison.Debug qualified as Debug
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Project.Util (ProjectContext)
+import Unison.Project.Util (ProjectContext, projectContextFromPath)
 import Unison.Project.Util qualified as ProjectUtil
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
@@ -203,7 +207,7 @@ data LoopState = LoopState
     -- captures the state of dependencies when the last run occurred
     lastRunResult :: Maybe (Term Symbol Ann, Type Symbol Ann, UF.TypecheckedUnisonFile Symbol Ann),
     projectContext :: ProjectContext,
-    loopCache :: LoopCache.LoopCacheVar
+    loopCacheVar :: LoopCache.LoopCacheVar
   }
   deriving stock (Generic)
 
@@ -235,7 +239,7 @@ loopState0 lastSavedRootHash b p = do
         numberedArgs = [],
         lastRunResult = Nothing,
         projectContext = ProjectUtil.projectContextFromPath p,
-        loopCache = cacheVar
+        loopCacheVar = cacheVar
       }
 
 -- | Run a @Cli@ action down to @IO@.
@@ -433,3 +437,9 @@ runTransactionWithRollback action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
     & onLeftM returnEarly
+
+getLoopCache :: Cli LoopCache.LoopCache
+getLoopCache = do
+  Env {codebase} <- ask
+  LoopState {currentPathStack = currentPath NEList.:| _, loopCacheVar} <- get
+  liftIO $ LoopCache.getLoopCache codebase (projectContextFromPath currentPath) loopCacheVar

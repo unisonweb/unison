@@ -1,6 +1,7 @@
 -- | Utilities that have to do with constructing names objects.
 module Unison.Cli.NamesUtils
-  ( basicParseNames,
+  ( currentProjectNames,
+    basicParseNames,
     basicPrettyPrintNamesA,
     displayNames,
     findHistoricalHQs,
@@ -13,7 +14,8 @@ where
 
 import Control.Lens
 import Data.Set qualified as Set
-import Unison.Cli.Monad (Cli)
+import Unison.Cli.LoopCache (LoopCache (LoopCache, projectBranchNamesWithoutTransitiveLibs))
+import Unison.Cli.Monad (Cli, getLoopCache)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path (Path)
@@ -34,9 +36,13 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var (Var)
 
+currentProjectNames :: Cli Names
+currentProjectNames = do
+  LoopCache {projectBranchNamesWithoutTransitiveLibs} <- getLoopCache
+  pure projectBranchNamesWithoutTransitiveLibs
+
 basicParseNames :: Cli Names
-basicParseNames =
-  fst <$> basicNames' Backend.Within
+basicParseNames = currentProjectNames
 
 basicPrettyPrintNamesA :: Cli Names
 basicPrettyPrintNamesA = snd <$> basicNames' Backend.AllNames
