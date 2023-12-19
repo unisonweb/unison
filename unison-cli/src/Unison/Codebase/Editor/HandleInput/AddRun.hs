@@ -15,7 +15,6 @@ import Unison.Cli.NamesUtils (displayNames)
 import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (Output (NoLastRunResult, SaveTermNameConflict, SlurpOutput))
@@ -45,7 +44,6 @@ handleAddRun input resultName = do
   Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
   ppe <- prettyPrintEnvDecl =<< displayNames uf
-  addDefaultMetadata adds
   Cli.syncRoot (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
 
