@@ -160,7 +160,6 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
             else pure [arg]
         lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
           Nothing -> pure Nothing
-          Just [] -> pure Nothing
           Just resolvedArgs -> fmap Just . except . parse $ resolvedArgs
       Nothing ->
         throwE
@@ -215,6 +214,9 @@ fzfResolve codebase projCtx getCurrentBranch pat args =
         options <- liftIO $ getOptions codebase projCtx currentBranch
         guard . not . null $ options
         results <- MaybeT (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
+        -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing execution
+        -- with no arguments.
+        guard . not . null $ results
         pure (Text.unpack <$> results)
 
     multiSelectForOptional :: InputPattern.IsOptional -> Bool
