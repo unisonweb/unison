@@ -370,13 +370,7 @@ arrayToChunk bs = case BA.convert bs :: Block Word8 of
 chunkFromArray = arrayToChunk
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
-fromBase16 bs = case traverse convert (chunks bs) of
-  Left e -> Left (Text.pack e)
-  Right bs -> Right (fromChunks bs)
-  where
-    convert b =
-      BE.convertFromBase BE.Base16 (chunkToArray @BA.Bytes b)
-        <&> arrayToChunk @BA.Bytes
+fromBase16 = fromBase BE.Base16
 
 toBase32, toBase64, toBase64UrlUnpadded :: Bytes -> Bytes
 toBase32 = toBase BE.Base32
