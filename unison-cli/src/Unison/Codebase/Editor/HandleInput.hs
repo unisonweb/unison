@@ -63,6 +63,7 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
@@ -1050,21 +1051,7 @@ loop e = do
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
               Cli.syncRoot description
-            SaveExecuteResultI resultName -> do
-              description <- inputDescription input
-              let resultVar = Name.toVar resultName
-              uf <- addSavedTermToUnisonFile resultName
-              Cli.Env {codebase} <- ask
-              currentPath <- Cli.getCurrentPath
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
-              let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
-              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              ppe <- prettyPrintEnvDecl =<< displayNames uf
-              addDefaultMetadata adds
-              Cli.syncRoot description
-              Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            SaveExecuteResultI resultName -> handleAddRun input resultName
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -2816,23 +2803,6 @@ addWatch watchName (Just uf) = do
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
-
-addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
-addSavedTermToUnisonFile resultName = do
-  let resultSymbol = Name.toVar resultName
-  (trm, typ, uf) <-
-    use #lastRunResult >>= \case
-      Nothing -> Cli.returnEarly NoLastRunResult
-      Just x -> pure x
-  case Map.lookup resultSymbol (UF.hashTermsId uf) of
-    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
-    Nothing -> pure ()
-  pure $
-    UF.typecheckedUnisonFile
-      (UF.dataDeclarationsId' uf)
-      (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
-      (UF.watchComponents uf)
 
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
