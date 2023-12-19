@@ -330,6 +330,8 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | DebugDisplayFuzzyOptions String [String {- arg description, options -}]
+  | DebugFuzzyOptionsNoResolver
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -584,6 +586,8 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  DebugDisplayFuzzyOptions {} -> False
+  DebugFuzzyOptionsNoResolver {} -> True
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False

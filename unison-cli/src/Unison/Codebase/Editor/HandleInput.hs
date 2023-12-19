@@ -123,6 +123,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -156,6 +157,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
+import Unison.Project.Util (projectContextFromPath)
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -1175,6 +1177,21 @@ loop e = do
               let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
+            DebugFuzzyOptionsI command args -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
+              let projCtx = projectContextFromPath currentPath
+              case Map.lookup command InputPatterns.patternMap of
+                Just (IP.InputPattern {argTypes}) -> do
+                  zip argTypes args & Monoid.foldMapM \case
+                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "!") -> do
+                      results <- liftIO $ getOptions codebase projCtx currentBranch
+                      Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
+                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "!") -> do
+                      Cli.respond DebugFuzzyOptionsNoResolver
+                    _ -> pure ()
+                Nothing -> Cli.respond DebugFuzzyOptionsNoResolver
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1529,6 +1546,7 @@ inputDescription input =
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
+    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat

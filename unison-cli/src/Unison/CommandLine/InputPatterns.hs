@@ -1374,11 +1374,31 @@ debugTabCompletion =
     [(ZeroPlus, noCompletionsArg)]
     ( P.lines
         [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
-          P.wrap $ "Completions which are finished are prefixed with a *"
+          P.wrap $ "Completions which are finished are prefixed with a * represent finished completions."
         ]
     )
     ( \inputs ->
         Right $ Input.DebugTabCompletionI inputs
+    )
+
+debugFuzzyOptions :: InputPattern
+debugFuzzyOptions =
+  InputPattern
+    "debug.fuzzy-options"
+    []
+    I.Hidden
+    [(OnePlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's fuzzy-options within transcripts.",
+          P.wrap $ "Write a command invocation with ! for any args you'd like to see completion options for.",
+          P.wrap $ "E.g. `debug.fuzzy-options view !`",
+          P.wrap $ "or `debug.fuzzy-options merge - !`"
+        ]
+    )
+    ( \case
+        (cmd : args) ->
+          Right $ Input.DebugFuzzyOptionsI cmd args
+        _ -> Left (I.help debugFuzzyOptions)
     )
 
 push :: InputPattern
@@ -2996,6 +3016,7 @@ validInputs =
       debugNameDiff,
       debugNumberedArgs,
       debugTabCompletion,
+      debugFuzzyOptions,
       delete,
       deleteBranch,
       deleteProject,
