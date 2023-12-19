@@ -120,7 +120,7 @@ getTerm' mainName =
       checkType ty f = do
         Cli.Env {runtime} <- ask
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> f (synthesizeForce ty)
+          True -> f $! synthesizeForce ty
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
