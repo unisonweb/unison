@@ -1185,13 +1185,14 @@ loop e = do
               case Map.lookup command InputPatterns.patternMap of
                 Just (IP.InputPattern {argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
-                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "!") -> do
+                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
                       results <- liftIO $ getOptions codebase projCtx currentBranch
                       Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
-                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "!") -> do
+                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
                       Cli.respond DebugFuzzyOptionsNoResolver
                     _ -> pure ()
-                Nothing -> Cli.respond DebugFuzzyOptionsNoResolver
+                Nothing -> do
+                  Cli.respond DebugFuzzyOptionsNoResolver
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)

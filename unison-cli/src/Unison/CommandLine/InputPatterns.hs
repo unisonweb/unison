@@ -1390,9 +1390,10 @@ debugFuzzyOptions =
     [(OnePlus, noCompletionsArg)]
     ( P.lines
         [ P.wrap $ "This command can be used to test and debug ucm's fuzzy-options within transcripts.",
-          P.wrap $ "Write a command invocation with ! for any args you'd like to see completion options for.",
-          P.wrap $ "E.g. `debug.fuzzy-options view !`",
-          P.wrap $ "or `debug.fuzzy-options merge - !`"
+          P.wrap $ "Write a command invocation with _ for any args you'd like to see completion options for.",
+          P.wrap $ "We use _ instead of ! because ! will be expanded by the input parser before it hits the command itself.",
+          P.wrap $ "E.g. `debug.fuzzy-options view _`",
+          P.wrap $ "or `debug.fuzzy-options merge - _`"
         ]
     )
     ( \case

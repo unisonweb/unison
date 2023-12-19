@@ -1838,7 +1838,10 @@ notifyUser dir = \case
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
-  DebugDisplayFuzzyOptions argDesc fuzzyOptions -> pure $ P.lines (P.string argDesc : (P.string <$> fuzzyOptions))
+  DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
+    pure $
+      P.lines
+        [P.string argDesc, P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
   DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
   ClearScreen -> do
     ANSI.clearScreen

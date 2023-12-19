@@ -82,6 +82,7 @@ namespaceOptions pos _codebase _projCtx searchBranch0 = do
         Absolute -> Path' . Left . Path.Absolute
   searchBranch0
     & Branch.deepPaths
+    & Set.delete (Path.empty {- The current path just renders as an empty string which isn't a valid arg -})
     & Set.toList
     & map (Path.toText' . intoPath')
     & pure
