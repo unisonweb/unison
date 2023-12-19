@@ -65,8 +65,12 @@ extra-deps:
 - row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
 
 ghc-options:
+  # https://github.com/haskell/statistics/issues/173
+ statistics: -fsimpl-tick-factor=10000
+
  # All packages
- "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
+ "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info -fsimpl-tick-factor=1000 #-freverse-errors
 
  # See https://github.com/haskell/haskell-language-server/issues/208
  "$everything": -haddock
+
