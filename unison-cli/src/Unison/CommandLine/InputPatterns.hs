@@ -2094,7 +2094,7 @@ viewPatch =
     "view.patch"
     []
     I.Visible
-    [(Required, patchArg)]
+    [(Optional, patchArg)]
     ( P.wrapColumn2
         [ ( makeExample' viewPatch,
             "Lists all the edits in the default patch."
