@@ -5,7 +5,7 @@ where
 
 import Control.Lens (use)
 import Control.Monad.Reader (ask)
-import Data.Map qualified as Map
+import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.Cli.Monad (Cli)
