@@ -710,7 +710,7 @@ moveAll :: InputPattern
 moveAll =
   InputPattern
     "move"
-    []
+    ["rename"]
     I.Visible
     [ (Required, namespaceOrDefinitionArg),
       (Required, newNameArg)

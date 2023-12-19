@@ -29,7 +29,6 @@ import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
-import System.Environment (withArgs)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcessWithExitCode, shell)
@@ -48,11 +47,10 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled')
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
-import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
+import Unison.Cli.TypeCheck (typecheckTerm)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -64,12 +62,14 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -103,7 +103,6 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
-import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
@@ -128,7 +127,6 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
-import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -188,7 +186,6 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Type.Names qualified as Type
 import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -208,6 +205,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1001,16 +999,7 @@ loop e = do
                 ([_], tos, [], []) -> ambiguous to tos
                 ([], [], [_], tos) -> ambiguous to tos
                 (_, _, _, _) -> error "unpossible"
-            LoadI maybePath -> do
-              latestFile <- Cli.getLatestFile
-              path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly NoUnisonFile)
-              Cli.Env {loadSource} <- ask
-              contents <-
-                liftIO (loadSource (Text.pack path)) >>= \case
-                  Cli.InvalidSourceNameError -> Cli.returnEarly $ InvalidSourceName path
-                  Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
-                  Cli.LoadSuccess contents -> pure contents
-              loadUnisonFile (Text.pack path) contents
+            LoadI maybePath -> handleLoad maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
@@ -1027,21 +1016,7 @@ loop e = do
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
               addDefaultMetadata adds
               Cli.syncRoot description
-            SaveExecuteResultI resultName -> do
-              description <- inputDescription input
-              let resultVar = Name.toVar resultName
-              uf <- addSavedTermToUnisonFile resultName
-              Cli.Env {codebase} <- ask
-              currentPath <- Cli.getCurrentPath
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
-              let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
-              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              ppe <- prettyPrintEnvDecl =<< displayNames uf
-              addDefaultMetadata adds
-              Cli.syncRoot description
-              Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            SaveExecuteResultI resultName -> handleAddRun input resultName
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1069,7 +1044,7 @@ loop e = do
               scopePath <- Cli.resolvePath' scopePath'
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
-            ExecuteI main args -> doExecute False main args
+            ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
@@ -1274,81 +1249,9 @@ loop e = do
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
 
-loadUnisonFile :: Text -> Text -> Cli ()
-loadUnisonFile sourceName text = do
-  let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-  unisonFile <- withFile sourceName (text, lexed)
-  currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-  names <- displayNames unisonFile
-  pped <- prettyPrintEnvDecl names
-  let ppe = PPE.suffixifiedPPE pped
-  Cli.respond $ Typechecked sourceName ppe sr unisonFile
-  (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
-  let e' = Map.map go e
-      go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-  when (not (null e')) do
-    Cli.respond $ Evaluated text ppe bindings e'
-  #latestTypecheckedFile .= Just (Right unisonFile)
-  where
-    withFile ::
-      Text ->
-      (Text, [L.Token L.Lexeme]) ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile sourceName (text, tokens) = do
-      let getHQ = \case
-            L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.Hash sh -> Just (HQ.HashOnly sh)
-            _ -> Nothing
-          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-      rootBranch <- Cli.getRootBranch
-      currentPath <- Cli.getCurrentPath
-      let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-      State.modify' \loopState ->
-        loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names = parseNames
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      maybeTypecheckedUnisonFile & onNothing do
-        ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
-        ppe <- suffixifiedPPE ns
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (TypeErrors currentPath text ppe tes)
-        when (not (null cbs)) do
-          Cli.respond (CompilerBugs text ppe cbs)
-        Cli.returnEarlyWithoutOutput
-
-magicMainWatcherString :: String
-magicMainWatcherString = "main"
-
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
       dest <- p' dest0
@@ -1556,6 +1459,7 @@ inputDescription input =
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
+    SaveExecuteResultI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
@@ -1928,11 +1832,8 @@ handleShowDefinition outputLoc showDefinitionScope query = do
     -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
     -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
     -- information from the database instead, once it's efficient to do so.
-    isTest <- do
-      branch <- Cli.getCurrentBranch0
-      let branchRefs = branch & Branch.deepTerms & Relation.dom & Set.mapMaybe Referent.toTermReferenceId
-      tests <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) branchRefs)
-      pure \r -> Set.member r tests
+    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+    let isTest r = Set.member r testRefs
 
     Cli.respond $
       DisplayDefinitions
@@ -2399,30 +2300,6 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-doExecute :: Bool -> String -> [String] -> Cli ()
-doExecute native main args = do
-  (unisonFile, mainResType) <- do
-    (sym, term, typ, otyp) <- getTerm main
-    uf <- createWatcherFile sym term typ
-    pure (uf, otyp)
-  ppe <- executePPE unisonFile
-  let mode | native = Native | otherwise = Permissive
-  (_, xs) <- evalUnisonFile mode ppe unisonFile args
-  mainRes :: Term Symbol () <-
-    case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
-      Nothing ->
-        error
-          ( "impossible: we manually added the watcher "
-              <> show magicMainWatcherString
-              <> " with 'createWatcherFile', but it isn't here."
-          )
-      Just x -> pure (stripUnisonFileReferences unisonFile x)
-  #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
-  Cli.respond (RunResult ppe mainRes)
-  where
-    bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
-      (watchKind, term1)
-
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do
   Cli.Env {codebase, runtime, nativeRuntime} <- ask
@@ -2769,11 +2646,6 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   where
     refs = BranchUtil.getTerm (p, hq) b
 
-data GetTermResult
-  = NoTermWithThatName
-  | TermHasBadType (Type Symbol Ann)
-  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
-
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
 -- variable name and the new typechecked file.
@@ -2802,95 +2674,6 @@ addWatch watchName (Just uf) = do
             )
     _ -> addWatch watchName Nothing
 
-addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
-addSavedTermToUnisonFile resultName = do
-  let resultSymbol = Name.toVar resultName
-  (trm, typ, uf) <-
-    use #lastRunResult >>= \case
-      Nothing -> Cli.returnEarly NoLastRunResult
-      Just x -> pure x
-  case Map.lookup resultSymbol (UF.hashTermsId uf) of
-    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
-    Nothing -> pure ()
-  pure $
-    UF.typecheckedUnisonFile
-      (UF.dataDeclarationsId' uf)
-      (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
-      (UF.watchComponents uf)
-
--- | Look up runnable term with the given name in the codebase or
--- latest typechecked unison file. Return its symbol, term, type, and
--- the type of the evaluated term.
-getTerm :: String -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
-getTerm main =
-  getTerm' main >>= \case
-    NoTermWithThatName -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-      Cli.returnEarly $ NoMainFunction main ppe [mainType]
-    TermHasBadType ty -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-      Cli.returnEarly $ BadMainFunction "run" main ty ppe [mainType]
-    GetTermSuccess x -> pure x
-
-getTerm' :: String -> Cli GetTermResult
-getTerm' mainName =
-  let getFromCodebase = do
-        Cli.Env {codebase, runtime} <- ask
-
-        parseNames <- basicParseNames
-        let loadTypeOfTerm ref = Cli.runTransaction (Codebase.getTypeOfTerm codebase ref)
-        mainToFile
-          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
-        where
-          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
-          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
-          mainToFile (MainTerm.Success hq tm typ) =
-            let v = Var.named (HQ.toText hq)
-             in checkType typ \otyp ->
-                  pure (GetTermSuccess (v, tm, typ, otyp))
-      getFromFile uf = do
-        let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-        case mainComponent of
-          [(v, _, tm, ty)] ->
-            checkType ty \otyp ->
-              let runMain = DD.forceTerm a a (Term.var a v)
-                  v2 = Var.freshIn (Set.fromList [v]) v
-                  a = ABT.annotation tm
-               in pure (GetTermSuccess (v2, runMain, ty, otyp))
-          _ -> getFromCodebase
-      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
-      checkType ty f = do
-        Cli.Env {runtime} <- ask
-        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> f (synthesizeForce ty)
-          False -> pure (TermHasBadType ty)
-   in Cli.getLatestTypecheckedFile >>= \case
-        Nothing -> getFromCodebase
-        Just uf -> getFromFile uf
-
--- | Produce a typechecked unison file where the given term is the
--- only watcher, with the watch type set to 'magicMainWatcherString'.
-createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
-createWatcherFile v tm typ =
-  Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
-    Just uf ->
-      let v2 = Var.freshIn (Set.fromList [v]) v
-       in pure $
-            UF.typecheckedUnisonFile
-              (UF.dataDeclarationsId' uf)
-              (UF.effectDeclarationsId' uf)
-              (UF.topLevelComponents' uf)
-              -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, External, tm, typ)])]
-
 executePPE ::
   (Var v) =>
   TypecheckedUnisonFile v a ->
@@ -2908,120 +2691,6 @@ hqNameQuery searchType query = do
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
     let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch searchType query
-
--- | synthesize the type of forcing a term
---
--- precondition: @fitsScheme typeOfFunc Runtime.mainType@ is satisfied
-synthesizeForce :: Type Symbol Ann -> Type Symbol Ann
-synthesizeForce typeOfFunc = do
-  let term :: Term Symbol Ann
-      term = Term.ref External ref
-      ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
-      env =
-        Typechecker.Env
-          { Typechecker._ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
-            Typechecker._typeLookup = tl <> Builtin.typeLookup,
-            Typechecker._termsByShortname = Map.empty
-          }
-      tl =
-        TypeLookup.TypeLookup
-          { TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc,
-            TypeLookup.dataDecls = Map.empty,
-            TypeLookup.effectDecls = Map.empty
-          }
-  case Result.runResultT
-    ( Typechecker.synthesize
-        PPE.empty
-        Typechecker.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
-        env
-        (DD.forceTerm External External term)
-    ) of
-    Identity (Nothing, notes) ->
-      error
-        ( unlines
-            [ "synthesizeForce fails although fitsScheme passed",
-              "Input Type:",
-              show typeOfFunc,
-              "Notes:",
-              show notes
-            ]
-        )
-    Identity (Just typ, _) -> typ
-
-data EvalMode = Sandboxed | Permissive | Native
-
--- | Evaluate all watched expressions in a UnisonFile and return
--- their results, keyed by the name of the watch variable. The tuple returned
--- has the form:
---   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
---
--- where
---   `hash` is the hash of the original watch expression definition
---   `ann` gives the location of the watch expression
---   `sourceTerm` is a closed term (no free vars) for the watch expression
---   `evaluatedTerm` is the result of evaluating that `sourceTerm`
---   `isCacheHit` is True if the result was computed by just looking up
---   in a cache
---
--- It's expected that the user of this action might add the
--- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
--- of the same watches instantaneous.
-evalUnisonFile ::
-  EvalMode ->
-  PPE.PrettyPrintEnv ->
-  TypecheckedUnisonFile Symbol Ann ->
-  [String] ->
-  Cli
-    ( [(Symbol, Term Symbol ())],
-      Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
-    )
-evalUnisonFile mode ppe unisonFile args = do
-  Cli.Env {codebase, runtime, sandboxedRuntime, nativeRuntime} <- ask
-  let theRuntime = case mode of
-        Sandboxed -> sandboxedRuntime
-        Permissive -> runtime
-        Native -> nativeRuntime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  Cli.with_ (withArgs args) do
-    (nts, errs, map) <-
-      Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
-        Cli.returnEarly (EvaluationFailure err)
-    when (not $ null errs) (RuntimeUtils.displayDecompileErrors errs)
-    for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
-      -- only update the watch cache when there are no errors
-      when (not isHit && null errs) do
-        let value' = Term.amap (\() -> Ann.External) value
-        Cli.runTransaction (Codebase.putWatch kind hash value')
-    pure (nts, map)
-
--- Hack alert
---
--- After we evaluate a term all vars are transformed into references,
--- but we want to feed this result into 'slurpFile' which won't add
--- dependencies that are referenced by hash. The hacky solution for
--- now is to convert all references that match a variable defined
--- within the unison file to variable references. This is hacky both
--- because we needlessly flip-flopping between var and reference
--- representations, and because we might unexpectedly add a term from
--- the local file if it has the same hash as a term in the codebase.
-stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
-stripUnisonFileReferences unisonFile term =
-  let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
-      alg () = \case
-        ABT.Var x -> ABT.var x
-        ABT.Cycle x -> ABT.cycle x
-        ABT.Abs v x -> ABT.abs v x
-        ABT.Tm t -> case t of
-          Term.Ref ref
-            | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
-          x -> ABT.tm x
-   in ABT.cata alg term
 
 looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
 looseCodeOrProjectToPath = \case

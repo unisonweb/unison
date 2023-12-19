@@ -134,9 +134,9 @@ main ::
 main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
-  _ <- Ki.fork scope $ do
+  _ <- Ki.fork scope do
     root <- Codebase.getRootBranch codebase
-    atomically $ do
+    atomically do
       -- Try putting the root, but if someone else as already written over the root, don't
       -- overwrite it.
       void $ tryPutTMVar rootVar root
@@ -147,7 +147,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
       (UnliftIO.evaluate root)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
-  Ki.fork_ scope $ do
+  Ki.fork_ scope do
     let loop lastRoot = do
           -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
           -- most recent version at any given time, so it's fine to skip some intermediate
@@ -250,7 +250,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp

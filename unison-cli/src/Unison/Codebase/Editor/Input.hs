@@ -53,6 +53,7 @@ import Unison.Util.Pretty qualified as P
 data Event
   = UnisonFileChanged SourceName Source
   | IncomingRootBranch (Set CausalHash)
+  deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
 
