@@ -2291,7 +2291,7 @@ debugClearWatchCache =
     "debug.clear-cache"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
 
