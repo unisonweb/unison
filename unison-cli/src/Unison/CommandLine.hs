@@ -191,19 +191,19 @@ expandNumber numberedArgs s = case expandedNumber of
             _ -> Nothing
 
 fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Maybe [String])
-fzfResolve codebase projCtx getCurrentBranch pat args =
+fzfResolve codebase projCtx getCurrentBranch pat args = runMaybeT do
   (Align.align (argTypes pat) args) & foldMapM \case
     This argDesc@(opt, _)
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
-          fuzzyFillArg argDesc
-      | otherwise -> pure $ Just []
+          MaybeT $ fuzzyFillArg argDesc
+      | otherwise -> pure []
     -- Allow fuzzy-filling optional arguments too if '!' is passed.
-    These argDesc "!" -> fuzzyFillArg argDesc
+    These argDesc "!" -> MaybeT $ fuzzyFillArg argDesc
     -- If someone tries to fzf an arg that's not configured for it, just  fail to fzf
     -- rather than passing a bad arg.
-    That "!" -> pure $ Nothing
-    That arg -> pure $ Just [arg]
-    These _ arg -> pure $ Just [arg]
+    That "!" -> empty
+    That arg -> pure [arg]
+    These _ arg -> pure [arg]
   where
     fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO (Maybe [String]))
     fuzzyFillArg (opt, argType) =

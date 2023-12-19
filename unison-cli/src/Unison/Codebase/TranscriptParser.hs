@@ -364,7 +364,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                           -- invalid command is treated as a failure
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
                           -- No input received from this line, try again.
-                          Right Nothing -> awaitInput
+                          Right Nothing -> error (show args)
                           Right (Just input) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
