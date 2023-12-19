@@ -17,6 +17,7 @@ import Control.Monad.State qualified as State
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -122,7 +123,6 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
-import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
@@ -149,7 +149,6 @@ import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
-import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -499,15 +498,7 @@ loop e = do
                 description
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
-            SwitchBranchI maybePath' -> do
-              path' <-
-                maybePath' & onNothing do
-                  root0 <- Cli.getRootBranch0
-                  fuzzySelectNamespace Absolute root0 >>= \case
-                    -- Shouldn't be possible to get multiple paths here, we can just take
-                    -- the first.
-                    Just (p : _) -> pure p
-                    _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
+            SwitchBranchI path' -> do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
@@ -743,18 +734,8 @@ loop e = do
               let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
               Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
-              currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              srcs' <- case srcs of
-                [] -> do
-                  defs <-
-                    fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                      Cli.returnEarly (HelpMessage InputPatterns.docs)
-                  -- HQ names should always parse as a valid split, so we just discard any
-                  -- that don't to satisfy the type-checker.
-                  pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
-                xs -> pure xs
-              for_ srcs' (docsI (show input) basicPrettyPrintNames)
+              for_ srcs (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
               Cli.Env {codebase} <- ask
               initialBranch <- Cli.getCurrentBranch
@@ -847,14 +828,8 @@ loop e = do
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
               DeleteTarget'Project name -> handleDeleteProject name
-            DisplayI outputLoc names' -> do
-              currentBranch0 <- Cli.getCurrentBranch0
+            DisplayI outputLoc names -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              names <- case names' of
-                [] ->
-                  fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                    Cli.returnEarly (HelpMessage InputPatterns.display)
-                ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             FindPatchI -> do
@@ -1920,7 +1895,7 @@ handleDiffNamespaceToPatch description input = do
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> (NonEmpty (HQ.HashQualified Name)) -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope query = do
   Cli.Env {codebase} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
@@ -1947,7 +1922,7 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       pure (currentNames, ppe)
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes (toList query))
   outputPath <- getOutputPath
   when (not (null types && null terms)) do
     -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
@@ -1964,7 +1939,7 @@ handleShowDefinition outputLoc showDefinitionScope query = do
         DisplayDefinitionsOutput
           { isTest,
             outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName query) unbiasedPPE,
+            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPE,
             terms,
             types
           }
@@ -2933,39 +2908,6 @@ hqNameQuery searchType query = do
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
     let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
     Backend.hqNameQuery codebase nameSearch searchType query
-
--- | Select a definition from the given branch.
--- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
-fuzzySelectDefinition pos searchBranch0 = liftIO do
-  let termsAndTypes =
-        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
-          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  let inputs :: [HQ.HashQualified Name]
-      inputs =
-        termsAndTypes
-          & Set.toList
-          & map (fmap (Name.setPosition pos))
-  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText inputs
-
--- | Select a namespace from the given branch.
--- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [Path'])
-fuzzySelectNamespace pos searchBranch0 = liftIO do
-  let intoPath' :: Path -> Path'
-      intoPath' = case pos of
-        Relative -> Path' . Right . Path.Relative
-        Absolute -> Path' . Left . Path.Absolute
-  let inputs :: [Path']
-      inputs =
-        searchBranch0
-          & Branch.deepPaths
-          & Set.toList
-          & map intoPath'
-  Fuzzy.fuzzySelect
-    Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-    tShow
-    inputs
 
 -- | synthesize the type of forcing a term
 --

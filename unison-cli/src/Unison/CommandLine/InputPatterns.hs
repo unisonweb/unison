@@ -397,8 +397,12 @@ view =
               <> "not `List.map.doc` (since ? only matches 1 name segment)."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse parseHashQualifiedName
+            & fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        _ -> Left (I.help view)
     )
 
 viewGlobal :: InputPattern
@@ -413,8 +417,12 @@ viewGlobal =
           "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
-        . traverse parseHashQualifiedName
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse parseHashQualifiedName
+            & fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
+        _ -> Left (I.help viewGlobal)
     )
 
 display :: InputPattern
@@ -429,7 +437,12 @@ display =
           "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
         ]
     )
-    \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
+    \case
+      (x : xs) ->
+        (x NE.:| xs)
+          & traverse parseHashQualifiedName
+          <&> Input.DisplayI Input.ConsoleLocation
+      _ -> Left (I.help display)
 
 displayTo :: InputPattern
 displayTo =
@@ -443,8 +456,10 @@ displayTo =
           <> "prints a rendered version of the term `foo` to the given file."
     )
     \case
-      file : xs ->
-        Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
+      file : (x : xs) ->
+        (x NE.:| xs)
+          & traverse parseHashQualifiedName
+          <&> Input.DisplayI (Input.FileLocation file)
       _ -> Left (I.help displayTo)
 
 docs :: InputPattern
@@ -459,7 +474,13 @@ docs =
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
-    (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse Path.parseHQSplit'
+            & bimap fromString Input.DocsI
+        _ -> Left (I.help docs)
+    )
 
 api :: InputPattern
 api =
@@ -996,9 +1017,7 @@ cd =
         [".."] -> Right Input.UpI
         [p] -> first fromString $ do
           p <- Path.parsePath' p
-          pure . Input.SwitchBranchI $ Just p
-        -- No args will trigger a fuzzy find when handled.
-        [] -> pure (Input.SwitchBranchI Nothing)
+          pure . Input.SwitchBranchI $ p
         _ -> Left (I.help cd)
     )
 
@@ -1826,8 +1845,12 @@ edit =
             "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
           ],
       parse =
-        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-          . traverse parseHashQualifiedName
+        \case
+          (x : xs) ->
+            (x NE.:| xs)
+              & traverse parseHashQualifiedName
+              <&> (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          [] -> Left (I.help edit)
     }
 
 topicNameArg :: ArgumentType
@@ -2776,7 +2799,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Optional, projectAndBranchNamesArg suggestionsConfig)],
+      argTypes = [(Required, projectAndBranchNamesArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`switch`", "opens an interactive selector to pick a project and branch"),
@@ -2785,11 +2808,10 @@ projectSwitch =
             ("`switch /bar`", "switches to the branch `bar` in the current project")
           ],
       parse = \case
-        [] -> Right (Input.ProjectSwitchI Nothing)
         [name] ->
           case tryInto @ProjectAndBranchNames (Text.pack name) of
             Left _ -> Left (showPatternHelp projectSwitch)
-            Right projectAndBranch -> Right (Input.ProjectSwitchI $ Just projectAndBranch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)
     }
   where
