@@ -1806,6 +1806,21 @@ edit =
           . traverse parseHashQualifiedName
     }
 
+editNamespace :: InputPattern
+editNamespace =
+  InputPattern
+    { patternName = "edit.namespace",
+      aliases = [],
+      visibility = I.Visible,
+      argTypes = [(ZeroPlus, namespaceArg)],
+      help =
+        P.lines
+          [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+            "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
+          ],
+      parse = Right . Input.EditNamespaceI . fmap (Path.fromText . Text.pack)
+    }
+
 topicNameArg :: ArgumentType
 topicNameArg =
   ArgumentType
@@ -3012,6 +3027,7 @@ validInputs =
       docs,
       docsToHtml,
       edit,
+      editNamespace,
       execute,
       fetchScheme,
       find,

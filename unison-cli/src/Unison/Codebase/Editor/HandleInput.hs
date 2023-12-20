@@ -1,6 +1,7 @@
+{-# HLINT ignore "Use tuple-section" #-}
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use tuple-section" #-}
 module Unison.Codebase.Editor.HandleInput
   ( loop,
   )
@@ -68,6 +69,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
@@ -84,7 +86,9 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
@@ -204,7 +208,6 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
-import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -853,6 +856,7 @@ loop e = do
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
+            EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
             FindPatchI -> do
               branch <- Cli.getCurrentBranch0
               let patches =
@@ -1468,6 +1472,8 @@ inputDescription input =
     SaveExecuteResultI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
+    EditNamespaceI paths ->
+      pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     ShowReflogI {} -> wat
     SwitchBranchI {} -> wat
     TestI {} -> wat
@@ -1842,29 +1848,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
-  outputPath <- getOutputPath
-  when (not (null types && null terms)) do
-    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-    -- information from the database instead, once it's efficient to do so.
-    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
-    let isTest r = Set.member r testRefs
-
-    Cli.respond $
-      DisplayDefinitions
-        DisplayDefinitionsOutput
-          { isTest,
-            outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE,
-            terms,
-            types
-          }
-  when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for_ outputPath \p -> do
-    -- We set latestFile to be programmatically generated, if we
-    -- are viewing these definitions to a file - this will skip the
-    -- next update for that file (which will happen immediately)
-    #latestFile ?= (p, True)
+  showDefinitions outputLoc unbiasedPPE terms types misses
   where
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
@@ -1872,18 +1856,6 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
         ConsoleLocation -> Backend.DontIncludeCycles
         FileLocation _ -> Backend.IncludeCycles
         LatestFileLocation -> Backend.IncludeCycles
-
-    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
-    getOutputPath :: Cli (Maybe FilePath)
-    getOutputPath =
-      case outputLoc of
-        ConsoleLocation -> pure Nothing
-        FileLocation path -> pure (Just path)
-        LatestFileLocation -> do
-          loopState <- State.get
-          pure case loopState ^. #latestFile of
-            Nothing -> Just "scratch.u"
-            Just (path, _) -> Just path
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)

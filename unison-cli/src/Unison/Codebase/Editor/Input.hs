@@ -243,6 +243,7 @@ data Input
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
+  | EditNamespaceI [Path.Path]
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
