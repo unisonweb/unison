@@ -1427,7 +1427,7 @@ push =
     "push"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push` command merges a local project or namespace into a remote project or namespace.",
