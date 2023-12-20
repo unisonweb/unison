@@ -21,10 +21,14 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Util.Monoid (foldMapM)
 
 handleEditNamespace :: OutputLocation -> [Path] -> Cli ()
-handleEditNamespace outputLoc paths = do
+handleEditNamespace outputLoc inputPaths = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   ppe <- NamesUtils.currentPrettyPrintEnvDecl Within
+  let paths =
+        if null inputPaths
+          then [Path.empty]
+          else inputPaths
   let allNamesToEdit =
         (List.nubOrd paths) & foldMap \path ->
           let b = Branch.withoutLib $ Branch.getAt0 path currentBranch
