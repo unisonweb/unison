@@ -450,7 +450,7 @@ displayTo =
     "display.to"
     []
     I.Visible
-    [(Required, noCompletionsArg), (ZeroPlus, definitionQueryArg)]
+    [(Required, noCompletionsArg), (OnePlus, definitionQueryArg)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
@@ -1344,7 +1344,7 @@ pullExhaustive =
     "debug.pull-exhaustive"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The "
@@ -1485,7 +1485,7 @@ pushCreate =
     "push.create"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push.create` command pushes a local namespace to an empty remote namespace.",
@@ -1495,10 +1495,10 @@ pushCreate =
                 "pushes the contents of the local namespace `local`"
                   <> "into the empty remote namespace `remote`."
               ),
-              ( "`push remote`",
+              ( "`push.create remote`",
                 "publishes the current namespace into the empty remote namespace `remote`"
               ),
-              ( "`push`",
+              ( "`push.create`",
                 "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
                   <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                   <> "then publishes the current namespace to that location."
@@ -1541,7 +1541,7 @@ pushForce =
     "unsafe.force-push"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
     \args -> do
       sourceTarget <-
@@ -1576,7 +1576,7 @@ pushExhaustive =
     "debug.push-exhaustive"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap $
             "The "
@@ -2294,7 +2294,7 @@ debugDumpNamespace =
     "debug.dump-namespace"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespacesI)
 
@@ -2304,7 +2304,7 @@ debugDumpNamespaceSimple =
     "debug.dump-namespace-simple"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
@@ -2527,7 +2527,7 @@ runScheme =
     "run.native"
     []
     I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
             "Executes !main using native compilation via scheme."
