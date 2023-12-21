@@ -19,8 +19,6 @@ module Unison.Codebase.TranscriptParser
 where
 
 import Control.Lens (use, (?~), (^.))
-import Control.Monad.Reader
-import Control.Monad.State
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
@@ -104,9 +102,6 @@ data Hidden = Shown | HideOutput | HideAll
 data UcmLine
   = UcmCommand UcmContext Text
   | UcmComment Text -- Text does not include the '--' prefix.
-
-data EndFence
-  = EndFence FenceType
 
 -- | Where a command is run: either loose code (.foo.bar.baz>) or a project branch (myproject/mybranch>).
 data UcmContext
@@ -273,8 +268,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             \_codeserverID -> pure $ Right accessToken
   seedRef <- newIORef (0 :: Int)
   inputQueue <- Q.newIO
-  cmdQueue <- Q.newIO @(Either EndFence UcmLine)
-  unisonFiles <- newIORef @(Map Cli.SourceName Text) Map.empty
+  cmdQueue <- Q.newIO
+  unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
   hidden <- newIORef Shown
   allowErrors <- newIORef False
@@ -316,47 +311,21 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                 output . (<> "\n") . BL.unpack $ prettyBytes
               Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
 
-      -- If we detect programmatic changes to the transcript, output those to a 'unison' fence
-      -- in the transcript output and clear the 'programmatic changes' flag.
-      trackScratchFileChanges :: Cli ()
-      trackScratchFileChanges = do
-        loopState <- get
-        case Cli.latestFile loopState of
-          Just (scratchFilePath, True) -> do
-            getSource <- asks Cli.loadSource
-            liftIO (getSource $ Text.pack scratchFilePath) >>= \case
-              Cli.InvalidSourceNameError ->
-                liftIO $ dieWithMsg ("Couldn't load changes from invalid source name: " <> scratchFilePath)
-              Cli.LoadError ->
-                liftIO $ dieWithMsg ("Failed to load changes from source name: " <> scratchFilePath)
-              Cli.LoadSuccess scratchFileContents -> do
-                let changedScratchFileFence = "\n```scratch-file-update " <> Text.pack scratchFilePath <> "\n" <> scratchFileContents <> "\n```\n"
-                liftIO . output . Text.unpack $ changedScratchFileFence
-                put $ loopState {Cli.latestFile = Just (scratchFilePath, False)}
-          _ -> pure ()
-
       awaitInput :: Cli (Either Event Input)
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
           -- end of ucm block
-          Just (Left (EndFence "ucm")) -> do
+          Just Nothing -> do
             liftIO (output "\n```\n")
             -- We clear the file cache after each `ucm` stanza, so
             -- that `load` command can read the file written by `edit`
             -- rather than hitting the cache.
             liftIO (writeIORef unisonFiles Map.empty)
-            -- Detect whether the UCM stanza we processed had any programmatic changes to the scratch file.
-            -- If so, output those changes to the transcript output.
-            trackScratchFileChanges
-            liftIO dieIfUnexpectedSuccess
-            awaitInput
-          Just (Left {}) -> do
-            liftIO (output "\n```\n")
-            liftIO dieIfUnexpectedSuccess
+            liftIO dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
-          Just (Right ucmLine) -> do
+          Just (Just ucmLine) -> do
             case ucmLine of
               p@(UcmComment {}) -> do
                 liftIO (output ("\n" <> show p))
@@ -381,7 +350,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                           else Just (ProjectSwitchI (Just $ ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
-                    atomically $ Q.undequeue cmdQueue (Right p)
+                    atomically $ Q.undequeue cmdQueue (Just p)
                     pure (Right switchCommand)
                   Nothing -> do
                     case words . Text.unpack $ lineTxt of
@@ -396,7 +365,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
                           Right input -> pure $ Right input
           Nothing -> do
-            liftIO (dieIfUnexpectedSuccess)
+            liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)
             liftIO (writeIORef allowErrors False)
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
@@ -426,9 +395,10 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (outputEcho $ show s)
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (output "```ucm\n")
-                    atomically . Q.enqueue cmdQueue $ Left $ EndFence "unison"
-                    liftIO (modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt))
-                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                    atomically . Q.enqueue cmdQueue $ Nothing
+                    let sourceName = fromMaybe "scratch.u" filename
+                    liftIO $ writeSourceFile sourceName txt
+                    pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
                     liftIO (for_ apiRequests apiRequest)
@@ -439,8 +409,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (writeIORef hasErrors False)
                     liftIO (output "```ucm")
-                    traverse_ (atomically . Q.enqueue cmdQueue . Right) cmds
-                    atomically . Q.enqueue cmdQueue $ Left $ EndFence "ucm"
+                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                    atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
 
       loadPreviousUnisonBlock name = do
@@ -448,8 +418,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
         case Map.lookup name ufs of
           Just uf ->
             return (Cli.LoadSuccess uf)
-          Nothing -> do
-            liftIO $ putStrLn ("No previous unison block named " ++ show name)
+          Nothing ->
             -- This lets transcripts use the `load` command, as in:
             --
             -- .> load someFile.u
@@ -459,9 +428,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
-      writeSourceFile :: Cli.SourceName -> Text -> IO ()
-      writeSourceFile name contents = do
-        modifyIORef' unisonFiles (Map.insert name contents)
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile name txt = do
+        liftIO (modifyIORef' unisonFiles (Map.insert name txt))
 
       print :: Output.Output -> IO ()
       print o = do
@@ -510,8 +479,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               Text.pack msg
             ]
 
-      dieIfUnexpectedSuccess :: IO ()
-      dieIfUnexpectedSuccess = do
+      dieUnexpectedSuccess :: IO ()
+      dieUnexpectedSuccess = do
         errOk <- readIORef allowErrors
         hasErr <- readIORef hasErrors
         when (errOk && not hasErr) $ do
