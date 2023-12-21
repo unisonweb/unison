@@ -46,6 +46,8 @@ module Unison.Cli.Pretty
     prettyWriteRemoteNamespace,
     shareOrigin,
     unsafePrettyTermResultSigFull',
+    prettyTermDisplayObject,
+    prettyTypeDisplayObject,
   )
 where
 
@@ -100,20 +102,23 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
-import Unison.Syntax.NamePrinter (prettyHashQualified, styleHashQualified')
+import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Pretty qualified as P
@@ -431,3 +436,65 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
+
+prettyTermDisplayObject ::
+  (Var v, Ord a) =>
+  PPED.PrettyPrintEnvDecl ->
+  Reference.Reference ->
+  (DisplayObject (Type v a) (Term v a)) ->
+  P.Pretty P.ColorText
+prettyTermDisplayObject ppe0 termRef termDisplayObj = P.syntaxToColor $
+  case termDisplayObj of
+    MissingObject r -> missing termName r
+    BuiltinObject typ ->
+      P.hang
+        ("builtin " <> prettyHashQualified termName <> " :")
+        (TypePrinter.prettySyntax (ppeBody termRef) typ)
+    UserObject tm -> TermPrinter.prettyBinding (ppeBody termRef) termName tm
+  where
+    ppeBody r = PPE.declarationPPE ppe0 r
+    ppeDecl = PPED.unsuffixifiedPPE ppe0
+    termName = PPE.termName ppeDecl . Referent.Ref $ termRef
+    missing n r =
+      P.wrap
+        ( "-- The name "
+            <> prettyHashQualified n
+            <> " is assigned to the "
+            <> "reference "
+            <> fromString (show r ++ ",")
+            <> "which is missing from the codebase."
+        )
+        <> P.newline
+        <> tip "You might need to repair the codebase manually."
+    tip :: P.Pretty SyntaxText -> P.Pretty SyntaxText
+    tip s = P.column2 [("Tip:", P.wrap s)]
+
+prettyTypeDisplayObject ::
+  (Var v) =>
+  (Ord a1) =>
+  PPED.PrettyPrintEnvDecl ->
+  Reference.Reference ->
+  (DisplayObject () (DD.Decl v a1)) ->
+  P.Pretty P.ColorText
+prettyTypeDisplayObject ppe0 typeRef typeDisplayObject = P.syntaxToColor $
+  case typeDisplayObject of
+    MissingObject r -> missing typeName r
+    BuiltinObject _ -> builtin typeName
+    UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 typeRef) typeRef typeName decl
+  where
+    typeName = PPE.typeName ppeDecl typeRef
+    ppeDecl = PPED.unsuffixifiedPPE ppe0
+    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
+    missing n r =
+      P.wrap
+        ( "-- The name "
+            <> prettyHashQualified n
+            <> " is assigned to the "
+            <> "reference "
+            <> fromString (show r ++ ",")
+            <> "which is missing from the codebase."
+        )
+        <> P.newline
+        <> tip "You might need to repair the codebase manually."
+    tip :: P.Pretty SyntaxText -> P.Pretty SyntaxText
+    tip s = P.column2 [("Tip:", P.wrap s)]

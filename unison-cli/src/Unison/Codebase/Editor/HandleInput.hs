@@ -1724,7 +1724,7 @@ handleDiffNamespaceToPatch description input = do
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope inputQuery = do
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
   query <-
@@ -1767,6 +1767,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
     let isTest r = Set.member r testRefs
 
+    liftIO $ writeSource (Text.pack <$> outputPath) (Cli.PrependSource True _)
     Cli.respond $
       DisplayDefinitions
         DisplayDefinitionsOutput
