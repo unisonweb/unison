@@ -274,7 +274,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
   seedRef <- newIORef (0 :: Int)
   inputQueue <- Q.newIO
   cmdQueue <- Q.newIO @(Either EndFence UcmLine)
-  unisonFiles <- newIORef Map.empty
+  unisonFiles <- newIORef @(Map Cli.SourceName Text) Map.empty
   out <- newIORef mempty
   hidden <- newIORef Shown
   allowErrors <- newIORef False
@@ -459,6 +459,10 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
+      writeSourceFile :: Cli.SourceName -> Text -> IO ()
+      writeSourceFile name contents = do
+        modifyIORef' unisonFiles (Map.insert name contents)
+
       print :: Output.Output -> IO ()
       print o = do
         msg <- notifyUser dir o
@@ -533,6 +537,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
+            writeSource = writeSourceFile,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,

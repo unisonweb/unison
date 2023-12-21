@@ -226,6 +226,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             credentialManager,
             isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
+            writeSource = \fp contents -> writeUtf8 (Text.unpack fp) contents,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
