@@ -219,6 +219,8 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
                 writeIORef pageOutput True
                 pure x
 
+  let foldLine :: Text
+      foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
   let prependToFile :: Bool -> Text -> FilePath -> IO ()
       prependToFile addFold contents fp = do
         exists <- Directory.doesFileExist fp
@@ -226,7 +228,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
           if exists
             then readUtf8 fp
             else pure ""
-        let theFold = if addFold then "\n---\n" else ""
+        let theFold = if addFold then foldLine else ""
         writeUtf8 fp (Text.concat [contents, theFold, existingSource])
 
   let writeSourceFile :: Text -> Cli.WriteSourceAction -> IO ()
