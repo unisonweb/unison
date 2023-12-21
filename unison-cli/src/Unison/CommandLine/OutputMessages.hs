@@ -1941,7 +1941,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch
         <> "already exists."
         <> "You can switch to it with "
-        <> IP.makeExampleEOS IP.projectSwitch [prettyBranchName projectAndBranch]
+        <> IP.makeExampleEOS IP.projectSwitch [prettyProjectAndBranchName projectAndBranch]
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
