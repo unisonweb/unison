@@ -2234,7 +2234,7 @@ dependents =
     "dependents"
     []
     I.Visible
-    []
+    [(Required, definitionQueryArg)]
     "List the named dependents of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
@@ -2245,7 +2245,7 @@ dependencies =
     "dependencies"
     []
     I.Visible
-    []
+    [(Required, definitionQueryArg)]
     "List the dependencies of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
@@ -2392,7 +2392,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    []
+    [(Required, namespaceArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
             "Render all docs contained within a namespace, no matter how deep,"
@@ -2413,7 +2413,7 @@ docToMarkdown =
     "debug.doc-to-markdown"
     []
     I.Visible
-    []
+    [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
         [ ( "`debug.doc-to-markdown term.doc`",
             "Render a doc to markdown."
@@ -2593,7 +2593,7 @@ fetchScheme =
     "compile.native.fetch"
     []
     I.Visible
-    []
+    [(Optional, noCompletionsArg), (Optional, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
             P.lines . fmap P.wrap $
