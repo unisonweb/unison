@@ -53,6 +53,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
+import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
@@ -218,6 +219,23 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
                 writeIORef pageOutput True
                 pure x
 
+  let prependToFile :: Bool -> Text -> FilePath -> IO ()
+      prependToFile addFold contents fp = do
+        exists <- Directory.doesFileExist fp
+        existingSource <-
+          if exists
+            then readUtf8 fp
+            else pure ""
+        let theFold = if addFold then "\n---\n" else ""
+        writeUtf8 fp (Text.concat [contents, theFold, existingSource])
+
+  let writeSourceFile :: Text -> Cli.WriteSourceAction -> IO ()
+      writeSourceFile fp action = do
+        path <- Directory.canonicalizePath (Text.unpack fp)
+        case action of
+          Cli.OverwriteSource contents -> writeUtf8 (Text.unpack fp) contents
+          Cli.PrependSource addFold contents -> prependToFile addFold contents path
+
   let env =
         Cli.Env
           { authHTTPClient,
@@ -226,7 +244,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             credentialManager,
             isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
-            writeSource = \fp contents -> writeUtf8 (Text.unpack fp) contents,
+            writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
