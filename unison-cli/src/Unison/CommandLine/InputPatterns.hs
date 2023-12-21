@@ -468,7 +468,7 @@ docs =
     "docs"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ "`docs foo` shows documentation for the definition `foo`.",
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
