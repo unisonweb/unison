@@ -318,10 +318,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           -- end of ucm block
           Just Nothing -> do
             liftIO (output "\n```\n")
-            -- We clear the file cache after each `ucm` stanza, so
-            -- that `load` command can read the file written by `edit`
-            -- rather than hitting the cache.
-            liftIO (writeIORef unisonFiles Map.empty)
             liftIO dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
