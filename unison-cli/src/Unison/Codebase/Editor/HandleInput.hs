@@ -47,6 +47,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled')
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheckTerm)
@@ -1740,7 +1741,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
-  (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
+  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
       let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
@@ -1756,6 +1757,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
+  let pped = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
@@ -1767,16 +1769,26 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
     let isTest r = Set.member r testRefs
 
-    liftIO $ writeSource (Text.pack <$> outputPath) (Cli.PrependSource True _)
-    Cli.respond $
-      DisplayDefinitions
-        DisplayDefinitionsOutput
-          { isTest,
-            outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE,
-            terms,
-            types
-          }
+    let mayRenderedCode =
+          if (null terms && null types)
+            then Nothing
+            else
+              let renderedCodePretty =
+                    P.syntaxToColor . P.sep "\n\n" $
+                      Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isTest terms
+                  renderedCodeText = Text.pack . P.toPlain 80 $ renderedCodePretty
+               in Just (renderedCodePretty, renderedCodeText)
+
+    case (outputPath, mayRenderedCode) of
+      (_, Nothing) ->
+        -- No definitions to display, print a message indicating we couldn't find any.
+        Cli.respond $ DisplayDefinitions Nothing
+      (Nothing, Just (renderedCodePretty, _)) ->
+        -- No filepath, render code to console.
+        Cli.respond $ DisplayDefinitions (Just renderedCodePretty)
+      (Just fp, Just (renderedCodePretty, renderedCodeText)) -> do
+        liftIO $ writeSource (Text.pack fp) (Cli.PrependSource True renderedCodeText)
+        Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we

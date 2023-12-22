@@ -2,7 +2,6 @@ module Unison.Codebase.Editor.Output
   ( Output (..),
     AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
-    DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
@@ -30,7 +29,6 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
 import Unison.Cli.Share.Projects.Types qualified as Share
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.Codebase.Editor.Output.BranchDiff qualified as BD
@@ -49,7 +47,6 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
-import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -253,9 +250,10 @@ data Output
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions DisplayDefinitionsOutput
+    DisplayDefinitions (Maybe (P.Pretty P.ColorText))
   | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
     DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
+  | LoadedDefinitionsToSourceFile FilePath (P.Pretty P.ColorText)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
   | TestResults
@@ -410,14 +408,6 @@ data CreatedProjectBranchFrom
   | CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
 
-data DisplayDefinitionsOutput = DisplayDefinitionsOutput
-  { isTest :: TermReferenceId -> Bool,
-    outputFile :: Maybe FilePath,
-    prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
-    terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
-    types :: Map Reference (DisplayObject () (Decl Symbol Ann))
-  }
-
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
@@ -528,7 +518,8 @@ isFailure o = case o of
   EvaluationFailure {} -> True
   Evaluated {} -> False
   Typechecked {} -> False
-  DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
+  LoadedDefinitionsToSourceFile {} -> False
+  DisplayDefinitions code -> isNothing code
   DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
