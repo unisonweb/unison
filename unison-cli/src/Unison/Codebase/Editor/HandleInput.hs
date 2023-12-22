@@ -1762,33 +1762,24 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
   outputPath <- getOutputPath
-  when (not (null types && null terms)) do
-    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-    -- information from the database instead, once it's efficient to do so.
-    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
-    let isTest r = Set.member r testRefs
-
-    let mayRenderedCode =
-          if (null terms && null types)
-            then Nothing
-            else
-              let renderedCodePretty =
-                    P.syntaxToColor . P.sep "\n\n" $
-                      Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isTest terms
-                  renderedCodeText = Text.pack . P.toPlain 80 $ renderedCodePretty
-               in Just (renderedCodePretty, renderedCodeText)
-
-    case (outputPath, mayRenderedCode) of
-      (_, Nothing) ->
-        -- No definitions to display, print a message indicating we couldn't find any.
-        Cli.respond $ DisplayDefinitions Nothing
-      (Nothing, Just (renderedCodePretty, _)) ->
-        -- No filepath, render code to console.
-        Cli.respond $ DisplayDefinitions (Just renderedCodePretty)
-      (Just fp, Just (renderedCodePretty, renderedCodeText)) -> do
-        liftIO $ writeSource (Text.pack fp) (Cli.PrependSource True renderedCodeText)
-        Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
+  case outputPath of
+    _ | null types && null terms -> Cli.respond $ DisplayDefinitions Nothing
+    Nothing -> do
+      -- If we're writing to console we don't add test-watch syntax
+      let isTest _ = False
+      -- No filepath, render code to console.
+      let renderedCodePretty = renderCodePretty pped isTest terms types
+      Cli.respond $ DisplayDefinitions (Just renderedCodePretty)
+    Just fp -> do
+      -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
+      -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
+      -- information from the database instead, once it's efficient to do so.
+      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      let isTest r = Set.member r testRefs
+      let renderedCodePretty = renderCodePretty pped isTest terms types
+      let renderedCodeText = Text.pack $ P.toPlain 80 renderedCodePretty
+      liftIO $ writeSource (Text.pack fp) (Cli.PrependSource True renderedCodeText)
+      Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we
@@ -1796,6 +1787,9 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     -- next update for that file (which will happen immediately)
     #latestFile ?= (p, True)
   where
+    renderCodePretty pped isTest terms types =
+      P.syntaxToColor . P.sep "\n\n" $
+        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isTest terms
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
