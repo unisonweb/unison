@@ -63,7 +63,7 @@ handleLoad maybePath = do
 
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
-  Cli.respond $ Output.ReloadingFile sourceName
+  Cli.respond $ Output.LoadingFile sourceName
   let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
   unisonFile <- withFile sourceName (text, lexed)
   currentNames <- Branch.toNames <$> Cli.getCurrentBranch0

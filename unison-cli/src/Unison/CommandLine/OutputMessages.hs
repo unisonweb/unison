@@ -1207,7 +1207,7 @@ notifyUser dir = \case
                 "",
                 P.lines [("  " <> prettyName x) | x <- toList things]
               ]
-  ReloadingFile sourceName -> do
+  LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
   -- TODO: Present conflicting TermEdits and TypeEdits
