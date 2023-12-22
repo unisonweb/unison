@@ -10,6 +10,8 @@ test> pass = [Ok "Passed"]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,6 +41,8 @@ test> pass = [Ok "Passed"]
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
@@ -74,6 +78,8 @@ test> pass = [Ok "Passed"]
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   

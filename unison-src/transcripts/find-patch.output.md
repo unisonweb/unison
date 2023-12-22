@@ -11,6 +11,8 @@ hey = "yello"
 
 ```ucm
 
+  Loading changes detected in test.u.
+
   I found and typechecked these definitions in test.u. If you do
   an `add` or `update`, here's how your codebase would change:
   
@@ -39,6 +41,8 @@ hey = "hello"
 
 
 ```ucm
+
+  Loading changes detected in test.u.
 
   I found and typechecked these definitions in test.u. If you do
   an `add` or `update`, here's how your codebase would change:

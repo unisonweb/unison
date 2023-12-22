@@ -13,6 +13,8 @@ x = 1. -- missing some digits after the decimal
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This number isn't valid syntax: 
   
       1 | x = 1. -- missing some digits after the decimal
@@ -26,6 +28,8 @@ x = 1e -- missing an exponent
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
   
@@ -41,6 +45,8 @@ x = 1e- -- missing an exponent
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This number isn't valid syntax: 
   
       1 | x = 1e- -- missing an exponent
@@ -54,6 +60,8 @@ x = 1E+ -- missing an exponent
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
   
@@ -71,6 +79,8 @@ x = 0xoogabooga -- invalid hex chars
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This number isn't valid syntax: 
   
       1 | x = 0xoogabooga -- invalid hex chars
@@ -84,6 +94,8 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
   
@@ -99,6 +111,8 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This bytes literal isn't valid syntax: 0xsf
   
       1 | x = 0xsf -- odd number of hex chars in a bytes literal
@@ -112,6 +126,8 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This bytes literal isn't valid syntax: 0xsnotvalidhexchars
   
@@ -129,6 +145,8 @@ foo = else -- not matching if
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found a closing 'else' here without a matching 'then'.
   
       1 | foo = else -- not matching if
@@ -141,6 +159,8 @@ foo = then -- unclosed
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found a closing 'then' here without a matching 'if'.
   
       1 | foo = then -- unclosed
@@ -152,6 +172,8 @@ foo = with -- unclosed
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found a closing 'with' here without a matching 'handle' or 'match'.
   
@@ -167,6 +189,8 @@ foo = match 1 with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
     😶
     
@@ -184,6 +208,8 @@ foo = match 1 with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   offset=8:
   unexpected <outdent>
   expecting ",", case match, or pattern guard
@@ -198,6 +224,8 @@ foo = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
     😶
     
@@ -220,6 +248,8 @@ x = match Some a with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   offset=16:
   unexpected <outdent>
   expecting ",", blank, case match, false, pattern guard, or true
@@ -235,6 +265,8 @@ x = match Some a with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   offset=12:
   unexpected ->
@@ -252,6 +284,8 @@ x = match Some a with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   offset=12:
   unexpected |
   expecting newline or semicolon
@@ -268,6 +302,8 @@ x = match Some a with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I expected a non-empty watch expression and not just ">"
   
       2 | >
@@ -282,6 +318,8 @@ use.keyword.in.namespace = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   The identifier used here isn't allowed to be a reserved keyword: 
   
       1 | use.keyword.in.namespace = 1
@@ -294,6 +332,8 @@ a ! b = 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This looks like the start of an expression here 
   
