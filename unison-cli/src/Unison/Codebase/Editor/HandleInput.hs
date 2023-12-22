@@ -1763,6 +1763,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
   outputPath <- getOutputPath
   case outputPath of
+    _ | null terms && null types -> pure ()
     Nothing -> do
       -- If we're writing to console we don't add test-watch syntax
       let isTest _ = False
