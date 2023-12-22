@@ -457,28 +457,30 @@ prettyTypeDisplayObjects pped types =
 
 prettyTermDisplayObjects ::
   PPED.PrettyPrintEnvDecl ->
+  Bool ->
   (TermReferenceId -> Bool) ->
   (Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))) ->
   [P.Pretty SyntaxText]
-prettyTermDisplayObjects pped isTest terms =
+prettyTermDisplayObjects pped isSourceFile isTest terms =
   terms
     & Map.toList
     & map (\(ref, dt) -> (PPE.termName unsuffixifiedPPE (Referent.Ref ref), ref, dt))
     & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (\t -> prettyTerm pped (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
+    & map (\t -> prettyTerm pped (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) isSourceFile t)
   where
     unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
 
 prettyTerm ::
   PPED.PrettyPrintEnvDecl ->
+  Bool {- whether we're printing to a source-file or not. -} ->
   Bool {- Whether the term is a test -} ->
   (HQ.HashQualified Name, Reference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   P.Pretty SyntaxText
-prettyTerm pped isTest (n, r, dt) =
+prettyTerm pped isSourceFile isTest (n, r, dt) =
   case dt of
     MissingObject r -> missingDefinitionMsg n r
     BuiltinObject typ ->
-      P.indent "-- " $
+      commentBuiltin $
         P.hang
           ("builtin " <> prettyHashQualified n <> " :")
           (TypePrinter.prettySyntax (ppeBody n r) typ)
@@ -487,6 +489,10 @@ prettyTerm pped isTest (n, r, dt) =
         then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
         else TermPrinter.prettyBinding (ppeBody n r) n tm
   where
+    commentBuiltin txt =
+      if isSourceFile
+        then P.indent "-- " txt
+        else txt
     ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
 
 prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText

@@ -1767,8 +1767,9 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     Nothing -> do
       -- If we're writing to console we don't add test-watch syntax
       let isTest _ = False
+      let isSourceFile = False
       -- No filepath, render code to console.
-      let renderedCodePretty = renderCodePretty pped isTest terms types
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
       Cli.respond $ DisplayDefinitions (Just renderedCodePretty)
     Just fp -> do
       -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
@@ -1776,20 +1777,21 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       -- information from the database instead, once it's efficient to do so.
       testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
       let isTest r = Set.member r testRefs
-      let renderedCodePretty = renderCodePretty pped isTest terms types
+      let isSourceFile = True
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
       let renderedCodeText = Text.pack $ P.toPlain 80 renderedCodePretty
+
+      -- We set latestFile to be programmatically generated, if we
+      -- are viewing these definitions to a file - this will skip the
+      -- next update for that file (which will happen immediately)
+      #latestFile ?= (fp, True)
       liftIO $ writeSource (Text.pack fp) (Cli.PrependSource True renderedCodeText)
       Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for_ outputPath \p -> do
-    -- We set latestFile to be programmatically generated, if we
-    -- are viewing these definitions to a file - this will skip the
-    -- next update for that file (which will happen immediately)
-    #latestFile ?= (p, True)
   where
-    renderCodePretty pped isTest terms types =
+    renderCodePretty pped isSourceFile isTest terms types =
       P.syntaxToColor . P.sep "\n\n" $
-        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isTest terms
+        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isSourceFile isTest terms
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
