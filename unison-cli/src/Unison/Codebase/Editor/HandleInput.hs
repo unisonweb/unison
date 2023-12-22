@@ -84,6 +84,7 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
@@ -204,7 +205,6 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
-import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
