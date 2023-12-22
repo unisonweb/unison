@@ -773,7 +773,7 @@ notifyUser dir = \case
                 <> makeExample' IP.update
                 <> "to replace the definitions currently in this namespace."
           ]
-  DisplayDefinitions output -> displayDefinitions output
+  DisplayDefinitions code -> pure code
   DisplayDefinitionsString isTranscript definitions -> displayDefinitionsString isTranscript definitions
   OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
@@ -2590,12 +2590,6 @@ displayRendered outputLoc pp =
             "",
             P.indentN 2 pp
           ]
-
-displayDefinitions :: _ -> IO Pretty
-displayDefinitions mayRenderedCode =
-  case mayRenderedCode of
-    Nothing -> pure $ P.callout "😶" "No results to display."
-    Just code -> pure code
 
 displayDefinitionsString :: Maybe FilePath -> Pretty -> IO Pretty
 displayDefinitionsString maybePath definitions =

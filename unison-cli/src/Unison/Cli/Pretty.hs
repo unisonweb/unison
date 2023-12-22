@@ -466,7 +466,7 @@ prettyTermDisplayObjects pped isSourceFile isTest terms =
     & Map.toList
     & map (\(ref, dt) -> (PPE.termName unsuffixifiedPPE (Referent.Ref ref), ref, dt))
     & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (\t -> prettyTerm pped (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) isSourceFile t)
+    & map (\t -> prettyTerm pped isSourceFile (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
   where
     unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
 

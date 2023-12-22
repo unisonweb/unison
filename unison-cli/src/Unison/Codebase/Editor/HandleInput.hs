@@ -1763,14 +1763,13 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes query)
   outputPath <- getOutputPath
   case outputPath of
-    _ | null types && null terms -> Cli.respond $ DisplayDefinitions Nothing
     Nothing -> do
       -- If we're writing to console we don't add test-watch syntax
       let isTest _ = False
       let isSourceFile = False
       -- No filepath, render code to console.
       let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
-      Cli.respond $ DisplayDefinitions (Just renderedCodePretty)
+      Cli.respond $ DisplayDefinitions renderedCodePretty
     Just fp -> do
       -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
       -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this

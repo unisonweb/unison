@@ -250,7 +250,7 @@ data Output
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions (Maybe (P.Pretty P.ColorText))
+    DisplayDefinitions (P.Pretty P.ColorText)
   | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
     DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
   | LoadedDefinitionsToSourceFile FilePath (P.Pretty P.ColorText)
@@ -519,7 +519,7 @@ isFailure o = case o of
   Evaluated {} -> False
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
-  DisplayDefinitions code -> isNothing code
+  DisplayDefinitions {} -> False
   DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
