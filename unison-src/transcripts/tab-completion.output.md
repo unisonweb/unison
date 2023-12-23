@@ -41,6 +41,8 @@ unique type subnamespace.AType = A | B
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -143,6 +145,8 @@ add b = b
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -213,6 +217,8 @@ mybranchsubnamespace.term = 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

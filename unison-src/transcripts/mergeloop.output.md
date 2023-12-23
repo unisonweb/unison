@@ -10,6 +10,8 @@ a = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -35,6 +37,8 @@ b = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -58,6 +62,8 @@ b = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
@@ -77,6 +83,8 @@ a = 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -101,6 +109,8 @@ b = 2
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.

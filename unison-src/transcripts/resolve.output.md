@@ -18,6 +18,8 @@ a.foo = 42
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -63,6 +65,8 @@ foo = 43
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -92,6 +96,8 @@ foo = 44
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

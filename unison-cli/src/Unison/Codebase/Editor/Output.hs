@@ -250,6 +250,7 @@ data Output
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
+  | LoadingFile SourceName
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
@@ -527,6 +528,7 @@ isFailure o = case o of
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True
   Evaluated {} -> False
+  LoadingFile {} -> False
   Typechecked {} -> False
   DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
   DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
