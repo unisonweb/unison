@@ -222,6 +222,8 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 ```ucm
 .> load /private/tmp/rewrites-tmp.u
 
+  Loading changes detected in /private/tmp/rewrites-tmp.u.
+
   I couldn't find any definitions matching the name bar21 inside the namespace .
   
      19 |   bar21
@@ -270,6 +272,8 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 
 ```ucm
 .> load /private/tmp/rewrites-tmp.u
+
+  Loading changes detected in /private/tmp/rewrites-tmp.u.
 
   I couldn't find any definitions matching the name a1 inside the namespace .
   

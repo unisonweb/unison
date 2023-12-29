@@ -7,6 +7,8 @@
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ✅
   
   scratch.u changed.
@@ -32,6 +34,8 @@
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   
@@ -61,6 +65,8 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -79,6 +85,8 @@ test = match true with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
