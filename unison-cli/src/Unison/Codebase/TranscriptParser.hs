@@ -393,7 +393,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (output "```ucm\n")
                     atomically . Q.enqueue cmdQueue $ Nothing
                     let sourceName = fromMaybe "scratch.u" filename
-                    liftIO $ writeSourceFile sourceName (Cli.OverwriteSource txt)
+                    liftIO $ writeSourceFile sourceName txt
                     pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
@@ -424,17 +424,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
-      writeSourceFile :: ScratchFileName -> Cli.WriteSourceAction -> IO ()
-      writeSourceFile fp action = do
-        case action of
-          Cli.PrependSource addFold txt -> do
-            let theFold = case addFold of
-                  True -> "\n---\n"
-                  False -> ""
-            let prepend existing = txt <> theFold <> existing
-            liftIO (modifyIORef' unisonFiles (Map.alter (Just . prepend . fromMaybe "") fp))
-          Cli.OverwriteSource txt -> do
-            liftIO (modifyIORef' unisonFiles (Map.insert fp txt))
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile fp contents = do
+        liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
       print o = do

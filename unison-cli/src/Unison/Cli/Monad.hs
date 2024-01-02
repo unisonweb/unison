@@ -46,7 +46,6 @@ module Unison.Cli.Monad
 
     -- * Misc types
     LoadSourceResult (..),
-    WriteSourceAction (..),
   )
 where
 
@@ -164,7 +163,7 @@ data Env = Env
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
     -- | How to write source code.
-    writeSource :: SourceName -> WriteSourceAction -> IO (),
+    writeSource :: SourceName -> Text -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
@@ -252,14 +251,6 @@ data LoadSourceResult
   = InvalidSourceNameError
   | LoadError
   | LoadSuccess Text
-
--- | The result of calling 'loadSource'.
-data WriteSourceAction
-  = -- Append the given text to the source. (include fold, contents)
-    PrependSource Bool Text
-  | -- Overwrite the source with the given text.
-    OverwriteSource Text
-  deriving stock (Eq, Show)
 
 -- | Lift an action of type @IO (Either e a)@, given a continuation for @e@.
 ioE :: IO (Either e a) -> (e -> Cli a) -> Cli a

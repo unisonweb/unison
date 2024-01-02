@@ -1783,7 +1783,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       -- are viewing these definitions to a file - this will skip the
       -- next update for that file (which will happen immediately)
       #latestFile ?= (fp, True)
-      liftIO $ writeSource (Text.pack fp) (Cli.PrependSource True renderedCodeText)
+      liftIO $ writeSource (Text.pack fp) renderedCodeText
       Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   where

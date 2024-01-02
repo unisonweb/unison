@@ -221,22 +221,19 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
 
   let foldLine :: Text
       foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-  let prependToFile :: Bool -> Text -> FilePath -> IO ()
-      prependToFile addFold contents fp = do
+  let prependToFile :: Text -> FilePath -> IO ()
+      prependToFile contents fp = do
         exists <- Directory.doesFileExist fp
         existingSource <-
           if exists
             then readUtf8 fp
             else pure ""
-        let theFold = if addFold then foldLine else ""
-        writeUtf8 fp (Text.concat [contents, theFold, existingSource])
+        writeUtf8 fp (Text.concat [contents, foldLine, existingSource])
 
-  let writeSourceFile :: Text -> Cli.WriteSourceAction -> IO ()
-      writeSourceFile fp action = do
+  let writeSourceFile :: Text -> Text -> IO ()
+      writeSourceFile fp contents = do
         path <- Directory.canonicalizePath (Text.unpack fp)
-        case action of
-          Cli.OverwriteSource contents -> writeUtf8 (Text.unpack fp) contents
-          Cli.PrependSource addFold contents -> prependToFile addFold contents path
+        prependToFile contents path
 
   let env =
         Cli.Env
