@@ -1833,7 +1833,7 @@ resolveHQToLabeledDependencies = \case
 
 doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
-  Cli.Env {codebase, writeSource} <- ask
+  Cli.Env {codebase} <- ask
   loopState <- State.get
 
   ppe <- prettyPrintEnvDecl names
@@ -1859,8 +1859,18 @@ doDisplay outputLoc names tm = do
     FileLocation path -> Just <$> Directory.canonicalizePath path
     LatestFileLocation -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
   whenJust mayFP \fp -> do
-    liftIO $ writeSource (Text.pack fp) (Cli.PrependSource False $ Text.pack . P.toPlain 80 $ rendered)
+    liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
   Cli.respond $ DisplayRendered mayFP rendered
+  where
+    prependFile :: FilePath -> Text -> IO ()
+    prependFile filePath txt = do
+      exists <- Directory.doesFileExist filePath
+      if exists
+        then do
+          existing <- readUtf8 filePath
+          writeUtf8 filePath (txt <> "\n\n" <> existing)
+        else do
+          writeUtf8 filePath txt
 
 getLinks ::
   SrcLoc ->
