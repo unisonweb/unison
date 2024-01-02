@@ -19,6 +19,8 @@ mytest = [Ok "ok"]
 
 ```ucm
 
+  Loading changes detected in /private/tmp/scratch.u.
+
   I found and typechecked these definitions in
   /private/tmp/scratch.u. If you do an `add` or `update`, here's
   how your codebase would change:
