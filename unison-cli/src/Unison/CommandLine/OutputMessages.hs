@@ -1213,6 +1213,9 @@ notifyUser dir = \case
                 "",
                 P.lines [("  " <> prettyName x) | x <- toList things]
               ]
+  LoadingFile sourceName -> do
+    fileName <- renderFileName $ Text.unpack sourceName
+    pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
   -- TODO: Present conflicting TermEdits and TypeEdits
   -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
@@ -2766,7 +2769,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2781,7 +2784,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

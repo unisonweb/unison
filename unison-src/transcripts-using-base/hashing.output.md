@@ -76,6 +76,8 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -146,6 +148,8 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   
@@ -365,6 +369,8 @@ test> hmac_sha2_512.tests.ex2 =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -425,6 +431,8 @@ test> md5.tests.ex3 =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

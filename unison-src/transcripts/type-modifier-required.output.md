@@ -8,6 +8,8 @@ type Abc = Abc
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I expected to see `structural` or `unique` at the start of
   this line:
   
@@ -25,6 +27,8 @@ ability MyAbility where const : a
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I expected to see `structural` or `unique` at the start of
   this line:
@@ -46,6 +50,8 @@ unique ability MyAbilityU where const : a
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -8,6 +8,8 @@ unique type T a = T a (a Nat)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         1 | unique type T a = T a (a Nat)
     
@@ -22,6 +24,8 @@ unique type T a
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 |   | StarStar (a Nat)
@@ -39,6 +43,8 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -59,6 +65,8 @@ unique type Pong = Pong (Ping Optional)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         1 | unique type Ping a = Ping a Pong
     
@@ -74,6 +82,8 @@ unique ability Pong a where
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -94,6 +104,8 @@ unique ability Pong a where
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         3 |   pong : Ping Optional -> ()
     
@@ -109,6 +121,8 @@ unique type S = S (T Nat)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -131,6 +145,8 @@ unique type S = S (T Optional)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -150,6 +166,8 @@ unique type S = S (T Optional)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         3 | unique type S = S (T Optional)
     
@@ -167,6 +185,8 @@ test = 0
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         1 | test : Nat Nat
     
@@ -181,6 +201,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | test : Optional -> ()
@@ -198,6 +220,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 | test : T Nat -> ()
@@ -220,6 +244,8 @@ test _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         6 |   buggo : Star a
     
@@ -240,6 +266,8 @@ test _ = ()
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         4 | test : Foo -> ()
     
@@ -254,6 +282,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | test : {Nat} ()
@@ -271,6 +301,8 @@ unique type T a = T (a a)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Cannot construct infinite kind
         1 | unique type T a = T (a a)
     
@@ -284,6 +316,8 @@ unique type T a b = T (a b) (b a)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
         1 | unique type T a b = T (a b) (b a)
@@ -299,6 +333,8 @@ unique type Pong a = Pong (a Ping)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
         1 | unique type Ping a = Ping (a Pong)
