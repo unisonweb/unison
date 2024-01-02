@@ -5,6 +5,8 @@ a = 5
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -53,6 +55,8 @@ foo.a = 5
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -126,6 +130,8 @@ a = 5
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -164,6 +170,8 @@ a = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -205,6 +213,8 @@ main.a = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -255,6 +265,8 @@ main.a = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.

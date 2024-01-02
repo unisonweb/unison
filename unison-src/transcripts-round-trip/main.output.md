@@ -11,6 +11,8 @@ x = ()
 
 ```ucm
 
+  Loading changes detected in /private/tmp/roundtrip.u.
+
   I found and typechecked these definitions in
   /private/tmp/roundtrip.u. If you do an `add` or `update`,
   here's how your codebase would change:

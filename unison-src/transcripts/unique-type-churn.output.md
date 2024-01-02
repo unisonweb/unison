@@ -10,6 +10,8 @@ unique type C = C B
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -40,6 +42,8 @@ unique type C = C B
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
@@ -65,6 +69,8 @@ unique type A = A ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -102,6 +108,8 @@ unique type A = A
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

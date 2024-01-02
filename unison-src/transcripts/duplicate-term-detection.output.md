@@ -9,6 +9,8 @@ x = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ❗️
   
   I found multiple bindings with the name x:
@@ -25,6 +27,8 @@ x = 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ❗️
   
@@ -44,6 +48,8 @@ Record.x.modify = 2
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ❗️
   
@@ -80,6 +86,8 @@ AnAbility.thing = 2
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ❗️
   

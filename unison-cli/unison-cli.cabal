@@ -45,12 +45,14 @@ library
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AddRun
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.Merge
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveAll
@@ -67,6 +69,7 @@ library
       Unison.Codebase.Editor.HandleInput.Pull
       Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
+      Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests

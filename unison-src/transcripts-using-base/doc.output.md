@@ -30,6 +30,8 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -79,6 +81,9 @@ First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
 .> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+
+  Loading changes detected in
+  ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
   I found and typechecked these definitions in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If

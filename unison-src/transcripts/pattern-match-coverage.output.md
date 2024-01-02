@@ -10,6 +10,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   A -> ()
@@ -33,6 +35,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
@@ -60,6 +64,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         8 |   _ -> ()
     
@@ -79,6 +85,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         9 |   (A, Some A) -> ()
     
@@ -97,6 +105,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -119,6 +129,8 @@ test0 = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
     
@@ -136,6 +148,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         7 |   Some _ -> ()
     
@@ -151,6 +165,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -170,6 +186,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -193,6 +211,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -218,6 +238,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   None -> ()
@@ -239,6 +261,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
@@ -266,6 +290,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   0 -> ()
@@ -283,6 +309,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -305,6 +333,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -323,6 +353,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -346,6 +378,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         4 |   0 -> ()
     
@@ -361,6 +395,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
@@ -378,6 +414,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -397,6 +435,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   [] -> ()
@@ -414,6 +454,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x +: xs -> ()
@@ -430,6 +472,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -449,6 +493,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x0 +: (x1 +: xs) -> ()
@@ -467,6 +513,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -490,6 +538,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -520,6 +570,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -541,6 +593,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         6 |   true +: xs -> ()
@@ -564,6 +618,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ ++ [true, false, true, false] -> ()
     
@@ -580,6 +636,8 @@ unit2t = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -615,6 +673,8 @@ witht = match unit2t () with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -632,6 +692,8 @@ evil = bug ""
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -660,6 +722,8 @@ withV = match evil () with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         3 |   x -> ()
     
@@ -670,6 +734,8 @@ unique type SomeType = A
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -697,6 +763,8 @@ get x = match x with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -712,6 +780,8 @@ unique type R = { someType : SomeType }
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -742,6 +812,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -766,6 +838,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -796,6 +870,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -824,6 +900,8 @@ handleMulti c =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -850,6 +928,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { abort -> _ } -> bug "aborted"
@@ -875,6 +955,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { A } -> ()
@@ -898,6 +980,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
@@ -927,6 +1011,8 @@ handleMulti c =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
        10 |   impl xs = cases
        11 |     { r } -> (Some r, xs)
@@ -954,6 +1040,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
        10 |        { give A -> resume } -> result resume
     
@@ -975,6 +1063,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -1002,6 +1092,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -1027,6 +1119,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
@@ -1066,6 +1160,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         8 |   impl = cases
         9 |        { x } -> x
@@ -1093,6 +1189,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -1118,6 +1216,8 @@ result f =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -1145,6 +1245,8 @@ result f =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
        11 |        { give2 _ -> resume } -> bug "impossible"
@@ -1174,6 +1276,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
        15 |        { giveA2 _ -> _ } -> bug "impossible"
     
@@ -1199,6 +1303,8 @@ result f =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -250,7 +250,7 @@ modifyRootBranch f = do
   rootVar <- use #root
   atomically do
     root <- takeTMVar rootVar
-    let newRoot = f root
+    let !newRoot = f root
     putTMVar rootVar newRoot
     pure newRoot
 

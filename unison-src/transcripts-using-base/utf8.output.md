@@ -23,6 +23,8 @@ ascii = "ABCDE"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -50,6 +52,8 @@ greek = "ΑΒΓΔΕ"
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -84,6 +88,8 @@ test> greekTest = checkRoundTrip greek
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -116,6 +122,8 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
