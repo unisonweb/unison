@@ -1772,9 +1772,7 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
       Cli.respond $ DisplayDefinitions renderedCodePretty
     Just fp -> do
-      -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-      -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-      -- information from the database instead, once it's efficient to do so.
+      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
       testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
       let isTest r = Set.member r testRefs
       let isSourceFile = True

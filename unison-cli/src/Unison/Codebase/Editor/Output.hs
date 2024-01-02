@@ -249,9 +249,9 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
-  | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
+  | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
-  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
+  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means they were output to the terminal.
     DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
   | LoadedDefinitionsToSourceFile FilePath (P.Pretty P.ColorText)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
