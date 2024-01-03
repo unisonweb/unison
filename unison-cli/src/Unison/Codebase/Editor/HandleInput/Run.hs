@@ -18,26 +18,26 @@ import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Native, Permissive), e
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Hash qualified as Hash
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as Reference
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
-import qualified Unison.Hash as Hash
-import qualified Unison.Type as Type
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Typechecker.TypeLookup as TypeLookup
-import qualified Unison.Result as Result
-import qualified Unison.PrettyPrintEnv as PPE
 
 handleRun :: Bool -> String -> [String] -> Cli ()
 handleRun native main args = do
@@ -118,9 +118,11 @@ getTerm' mainName =
           _ -> getFromCodebase
       checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
       checkType ty f = do
-        Cli.Env {runtime} <- ask
+        Cli.Env {codebase, runtime} <- ask
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> f $! synthesizeForce ty
+          True -> do
+            typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies codebase (Type.dependencies ty))
+            f $! synthesizeForce typeLookup ty
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
@@ -145,22 +147,16 @@ createWatcherFile v tm typ =
 -- | synthesize the type of forcing a term
 --
 -- precondition: @fitsScheme typeOfFunc Runtime.mainType@ is satisfied
-synthesizeForce :: Type Symbol Ann -> Type Symbol Ann
-synthesizeForce typeOfFunc = do
+synthesizeForce :: TypeLookup Symbol Ann -> Type Symbol Ann -> Type Symbol Ann
+synthesizeForce tl typeOfFunc = do
   let term :: Term Symbol Ann
       term = Term.ref External ref
       ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
       env =
         Typechecker.Env
           { Typechecker._ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
-            Typechecker._typeLookup = tl <> Builtin.typeLookup,
+            Typechecker._typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
             Typechecker._termsByShortname = Map.empty
-          }
-      tl =
-        TypeLookup.TypeLookup
-          { TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc,
-            TypeLookup.dataDecls = Map.empty,
-            TypeLookup.effectDecls = Map.empty
           }
   case Result.runResultT
     ( Typechecker.synthesize

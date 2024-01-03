@@ -48,6 +48,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled')
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheckTerm)
@@ -69,6 +70,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
@@ -85,6 +87,7 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
@@ -175,7 +178,7 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, toVar, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
@@ -189,7 +192,6 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
-import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
 import Unison.Util.Monoid qualified as Monoid
@@ -204,8 +206,8 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
+import UnliftIO.Directory qualified as Directory
 import Witch (unsafeFrom)
-import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1496,90 +1498,6 @@ inputDescription input =
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
 
-handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindI rule = do
-  Cli.Env {codebase} <- ask
-  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind (\_ tm -> tm) rule
-  let rules = snd <$> rules0
-  let fqppe = PPED.unsuffixifiedPPE ppe
-  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
-    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
-    Just hq <- [PPE.terms fqppe r]
-    fullName <- [HQ'.toName hq]
-    guard (not (Name.beginsWithSegment fullName Name.libSegment))
-    Referent.Ref _ <- pure r
-    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
-    pure (HQ'.toHQ shortName, r)
-  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
-        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
-      ok t = pure (t, False)
-  results0 <- traverse ok results
-  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
-  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs results
-  Cli.respond (ListStructuredFind (fst <$> results))
-
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
-lookupRewrite onErr prepare rule = do
-  Cli.Env {codebase} <- ask
-  currentBranch <- Cli.getCurrentBranch0
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  fileNames <- Cli.getNamesFromLatestParsedFile
-  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
-  let ppe = PPED.fromNamesDecl hqLength currentNames
-  ot <- Cli.getTermFromLatestParsedFile rule
-  ot <- case ot of
-    Just _ -> pure ot
-    Nothing -> do
-      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes rule currentNames of
-        s
-          | Set.size s == 1,
-            Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
-              Cli.runTransaction (Codebase.getTerm codebase r)
-        s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
-  tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
-  let extract vs tm = case tm of
-        Term.Ann' tm _typ -> extract vs tm
-        (DD.RewriteTerm' lhs rhs) ->
-          pure
-            ( ABT.rewriteExpression lhs rhs,
-              ABT.containsExpression lhs
-            )
-        (DD.RewriteCase' lhs rhs) ->
-          pure
-            ( Term.rewriteCasesLHS lhs rhs,
-              fromMaybe False . Term.containsCaseTerm lhs
-            )
-        (DD.RewriteSignature' _vs lhs rhs) ->
-          pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
-        _ -> Cli.returnEarly (onErr rule)
-      extractOuter vs0 tm = case tm of
-        Term.Ann' tm _typ -> extractOuter vs0 tm
-        Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
-        tm -> case prepare vs0 tm of
-          DD.Rewrites' rules -> traverse (extract vs0) rules
-          _ -> Cli.returnEarly (onErr rule)
-  rules <- extractOuter [] tm
-  pure (ppe, currentNames, rules)
-
-handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindReplaceI rule = do
-  uf0 <- Cli.expectLatestParsedFile
-  let (prepare, uf, finish) = UF.prepareRewrite uf0
-  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace prepare rule
-  (dest, _) <- Cli.expectLatestFile
-  #latestFile ?= (dest, True)
-  let go n tm [] = if n == (0 :: Int) then Nothing else Just tm
-      go n tm ((r, _) : rules) = case r tm of
-        Nothing -> go n tm rules
-        Just tm -> go (n + 1) tm rules
-      (vs, uf0') = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go 0 tm rules) uf
-      uf' = (vs, finish uf0')
-  #latestTypecheckedFile .= Just (Left . snd $ uf')
-  let msg = "| Rewrote using: "
-  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
-
 handleFindI ::
   Bool ->
   FindScope ->
@@ -1799,16 +1717,16 @@ handleDiffNamespaceToPatch description input = do
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> (NonEmpty (HQ.HashQualified Name)) -> Cli ()
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope query = do
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
   root <- Cli.getRootBranch
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
   let hasAbsoluteQuery = any (any Name.isAbsolute) query
-  (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
+  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
       let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
@@ -1824,33 +1742,39 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
+  let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes (toList query))
   outputPath <- getOutputPath
-  when (not (null types && null terms)) do
-    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-    -- information from the database instead, once it's efficient to do so.
-    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
-    let isTest r = Set.member r testRefs
+  case outputPath of
+    _ | null terms && null types -> pure ()
+    Nothing -> do
+      -- If we're writing to console we don't add test-watch syntax
+      let isTest _ = False
+      let isSourceFile = False
+      -- No filepath, render code to console.
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      Cli.respond $ DisplayDefinitions renderedCodePretty
+    Just fp -> do
+      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
+      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      let isTest r = Set.member r testRefs
+      let isSourceFile = True
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      let renderedCodeText = Text.pack $ P.toPlain 80 renderedCodePretty
 
-    Cli.respond $
-      DisplayDefinitions
-        DisplayDefinitionsOutput
-          { isTest,
-            outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPE,
-            terms,
-            types
-          }
+      -- We set latestFile to be programmatically generated, if we
+      -- are viewing these definitions to a file - this will skip the
+      -- next update for that file (which will happen immediately)
+      #latestFile ?= (fp, True)
+      liftIO $ writeSource (Text.pack fp) renderedCodeText
+      Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for_ outputPath \p -> do
-    -- We set latestFile to be programmatically generated, if we
-    -- are viewing these definitions to a file - this will skip the
-    -- next update for that file (which will happen immediately)
-    #latestFile ?= (p, True)
   where
+    renderCodePretty pped isSourceFile isTest terms types =
+      P.syntaxToColor . P.sep "\n\n" $
+        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isSourceFile isTest terms
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
@@ -1899,11 +1823,7 @@ doDisplay outputLoc names tm = do
 
   ppe <- prettyPrintEnvDecl names
   (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
-  let loc = case outputLoc of
-        ConsoleLocation -> Nothing
-        FileLocation path -> Just path
-        LatestFileLocation -> fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
-      useCache = True
+  let useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
           RuntimeUtils.evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
@@ -1918,15 +1838,24 @@ doDisplay outputLoc names tm = do
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
       loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . Codebase.getTypeOfReferent codebase $ r
-  rendered <-
-    DisplayValues.displayTerm
-      ppe
-      loadTerm
-      loadTypeOfTerm'
-      evalTerm
-      loadDecl
-      tm
-  Cli.respond $ DisplayRendered loc rendered
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
+  mayFP <- case outputLoc of
+    ConsoleLocation -> pure Nothing
+    FileLocation path -> Just <$> Directory.canonicalizePath path
+    LatestFileLocation -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
+  whenJust mayFP \fp -> do
+    liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
+  Cli.respond $ DisplayRendered mayFP rendered
+  where
+    prependFile :: FilePath -> Text -> IO ()
+    prependFile filePath txt = do
+      exists <- Directory.doesFileExist filePath
+      if exists
+        then do
+          existing <- readUtf8 filePath
+          writeUtf8 filePath (txt <> "\n\n" <> existing)
+        else do
+          writeUtf8 filePath txt
 
 getLinks ::
   SrcLoc ->

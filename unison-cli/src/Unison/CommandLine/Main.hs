@@ -52,6 +52,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
+import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
@@ -222,6 +223,22 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
                 writeIORef pageOutput True
                 pure x
 
+  let foldLine :: Text
+      foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+  let prependToFile :: Text -> FilePath -> IO ()
+      prependToFile contents fp = do
+        exists <- Directory.doesFileExist fp
+        existingSource <-
+          if exists
+            then readUtf8 fp
+            else pure ""
+        writeUtf8 fp (Text.concat [contents, foldLine, existingSource])
+
+  let writeSourceFile :: Text -> Text -> IO ()
+      writeSourceFile fp contents = do
+        path <- Directory.canonicalizePath (Text.unpack fp)
+        prependToFile contents path
+
   let env =
         Cli.Env
           { authHTTPClient,
@@ -230,6 +247,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             credentialManager,
             isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
+            writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
