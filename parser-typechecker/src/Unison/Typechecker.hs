@@ -35,7 +35,6 @@ import Control.Monad.Writer
 import Data.Foldable
 import Data.Map qualified as Map
 import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
@@ -269,23 +268,9 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 
     extractSubstitution :: [Context.Suggestion v loc] -> Maybe (Either v Referent)
     extractSubstitution suggestions =
-      let groupedByName :: [([Name.Name], Either v Referent)] =
-            map (\(a, b) -> (b, a))
-              . Map.toList
-              . fmap Set.toList
-              . foldl'
-                ( \b Context.Suggestion {suggestionName, suggestionReplacement} ->
-                    Map.insertWith
-                      Set.union
-                      suggestionReplacement
-                      (Set.singleton (Name.unsafeFromText suggestionName))
-                      b
-                )
-                Map.empty
-              $ filter Context.isExact suggestions
-          matches :: Set (Either v Referent) = Name.preferShallowLibDepth groupedByName
-       in case toList matches of
-            [x] -> Just x
+      let matches = dedupe $ filter Context.isExact suggestions
+       in case matches of
+            [x] -> Just (Context.suggestionReplacement x)
             _ -> Nothing
 
     applySuggestions :: [Resolution v loc] -> TDNR f v loc Bool
@@ -328,7 +313,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
     resolveNote env (Context.SolvedBlank (B.Resolve loc n) v it) =
-      fmap (Just . Resolution (Text.pack n) it loc v . dedupe . join)
+      fmap (Just . Resolution (Text.pack n) it loc v . Name.preferShallowLibDepth (Name.unsafeFromText . Context.suggestionName) . join)
         . traverse (resolve it)
         . join
         . maybeToList

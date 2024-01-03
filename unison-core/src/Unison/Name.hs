@@ -340,23 +340,24 @@ searchByRankedSuffix suffix rel =
         True -> rs
         False ->
           let ok name = compareSuffix suffix name == EQ
-              withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
-           in preferShallowLibDepth withNames
+              withNames = (\r -> [(n, r) | n <- filter ok (toList (R.lookupRan r rel))]) =<< toList rs
+           in Set.fromList . map snd $ preferShallowLibDepth fst withNames
 
--- | precondition: input list is deduped, and so is the Name list in
--- the tuple
-preferShallowLibDepth :: Ord r => [([Name], r)] -> Set r
-preferShallowLibDepth = \case
-  [] -> Set.empty
-  [x] -> Set.singleton (snd x)
-  rs ->
-    let byDepth = List.multimap (map (first minLibs) rs)
-        libCount = length . filter (== libSegment) . toList . reverseSegments
-        minLibs [] = 0
-        minLibs ns = minimum (map libCount ns)
-     in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
-          Nothing -> Set.fromList (map snd rs)
-          Just rs -> Set.fromList rs
+-- Filters a list of elements down to those whose names are among the
+-- minimum lib-depth level (except we group 2+ lib-depth into one bin)
+preferShallowLibDepth :: (a -> Name) -> [a] -> [a]
+preferShallowLibDepth getName rs =
+  let byDepth = List.multimap (map (\a -> (min 2 (libCount (getName a)), a)) rs)
+   in maybe [] snd (Map.lookupMin byDepth)
+
+libCount :: Name -> Int
+libCount x =
+  let go acc = \case
+        "lib" : _ : rest ->
+           case acc + 1 of
+             acc' -> acc' `seq` go acc' rest
+        _ -> acc
+  in go 0 (toList (segments x))
 
 libSegment :: NameSegment
 libSegment = NameSegment "lib"
