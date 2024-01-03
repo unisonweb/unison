@@ -87,7 +87,7 @@ Long story short, we should reject this update as it violates the "decl coherenc
      A.B.OneAlias, A.OneAlias : Foo -> A
      
   4. -- #tqsrlmuedb3jj0ngl9pbun8411jfu9hst722np0n0b59g19emkbl12mv9avbug10amppj894psav5n36vk0qfdse44jep3vm6h5fh2g#0
-     A.B.TheOtherAlias : Foo#b509v3eg4k -> A#tqsrlmuedb
+     A.B.TheOtherAlias : #b509v3eg4k -> #tqsrlmuedb
      
   5. -- #c1loj1j2dpuj2f74v5gdhlnpbmj8np9c5ivmn9od6a0tgr5c9glo647he1b71v99b9l23qqmdod49ad4m2br0ln9vlrf7ld7h79a0r8#0
      A.OneAlias, A.B.OneAlias : Foo -> A

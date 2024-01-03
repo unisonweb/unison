@@ -52,7 +52,7 @@ x = 2
 
 .> view.patch
 
-  Edited Terms: 1. x#gjmq673r1v -> 2. x
+  Edited Terms: 1. #gjmq673r1v -> 2. x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -121,7 +121,7 @@ unique[b] type Foo = Foo | Bar
 
 .> view.patch
 
-  Edited Types: 1. Foo#ool30cf4ma -> 2. Foo
+  Edited Types: 1. #ool30cf4ma -> 2. Foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -193,7 +193,7 @@ unique[bb] type bar = Foo | Bar
 
 .> view.patch
 
-  Edited Types: 1. bar#evhqg163jj -> 2. bar
+  Edited Types: 1. #evhqg163jj -> 2. bar
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

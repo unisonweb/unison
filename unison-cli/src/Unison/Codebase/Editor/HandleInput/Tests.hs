@@ -30,7 +30,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.HashQualified qualified as HQ
-import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.NamesWithHistory qualified as NamesWithHistory
@@ -89,10 +88,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
                   | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-  names <-
-    makePrintNamesFromLabeled' $
-      LD.referents (Set.mapMonotonic Referent.fromTermReferenceId testRefs)
-        <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
+  names <- makePrintNamesFromLabeled'
   ppe <- fqnPPE names
   Cli.respond $
     TestResults

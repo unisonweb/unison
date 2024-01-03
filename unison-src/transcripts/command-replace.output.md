@@ -69,7 +69,7 @@ Test that replace works with types
 
 .scratch> view.patch patch
 
-  Edited Types: 1. X#68k40ra7l7 -> 3. X
+  Edited Types: 1. #68k40ra7l7 -> 3. X
   
   Edited Terms: 2. #gjmq673r1v -> 4. x
   
