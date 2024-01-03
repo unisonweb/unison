@@ -22,8 +22,6 @@ where
 
 import Control.Concurrent.STM
 import Control.Lens
-import GHC.IO (unsafePerformIO)
-import System.Environment (lookupEnv)
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -43,12 +41,14 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
+import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
 import Servant.API qualified as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
+import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -77,8 +77,10 @@ maxSimultaneousPullDownloaders :: Int
 maxSimultaneousPullDownloaders = 5
 
 -- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
+-- Share currently parallelizes on it's own in the backend, and any more than one push worker
+-- just results in serialization conflicts which slow things down.
 maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = 5
+maxSimultaneousPushWorkers = 1
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -480,7 +482,6 @@ shouldValidateEntities = unsafePerformIO $ do
     Just "true" -> True
     _ -> False
 {-# NOINLINE shouldValidateEntities #-}
-
 
 type WorkerCount =
   TVar Int
