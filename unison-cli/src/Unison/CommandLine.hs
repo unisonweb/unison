@@ -199,11 +199,6 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runMaybeT do
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
           MaybeT $ fuzzyFillArg argDesc
       | otherwise -> pure []
-    -- Allow fuzzy-filling optional arguments too if '!' is passed.
-    These argDesc "!" -> MaybeT $ fuzzyFillArg argDesc
-    -- If someone tries to fzf an arg that's not configured for it, just  fail to fzf
-    -- rather than passing a bad arg.
-    That "!" -> empty
     That arg -> pure [arg]
     These _ arg -> pure [arg]
   where
