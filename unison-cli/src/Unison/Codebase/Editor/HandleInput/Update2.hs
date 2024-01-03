@@ -361,17 +361,15 @@ addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialU
           let constructorNames :: Transaction [Symbol]
               constructorNames = case findCtorNames operation names ctorNames (Just $ Decl.constructorCount dd) name of
                 Left err -> abort err
-                Right array ->
-                  case traverse (fmap Name.toVar . Name.stripNamePrefix name) array of
-                    Just varArray -> pure varArray
-                    Nothing -> do
-                      traceM "I ran into a situation where a type's constructors didn't match its name,"
-                      traceM "in a spot where I didn't expect to be discovering that.\n\n"
-                      traceM "Type Name:"
-                      traceM . Lazy.Text.unpack $ pShow name
-                      traceM "Constructor Names:"
-                      traceM . Lazy.Text.unpack $ pShow array
-                      error "Sorry for crashing."
+                Right array | all (isJust . Name.stripNamePrefix name) array -> pure (map Name.toVar array)
+                Right array -> do
+                  traceM "I ran into a situation where a type's constructors didn't match its name,"
+                  traceM "in a spot where I didn't expect to be discovering that.\n\n"
+                  traceM "Type Name:"
+                  traceM . Lazy.Text.unpack $ pShow name
+                  traceM "Constructor Names:"
+                  traceM . Lazy.Text.unpack $ pShow array
+                  error "Sorry for crashing."
 
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
