@@ -9,7 +9,7 @@ import Control.Exception (catch, finally, mask, throwIO)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Writer (Writer, mapWriter, runWriter, tell)
+import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -31,7 +31,7 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory, removeFile, renameFile)
+import System.Directory (canonicalizePath, getHomeDirectory, removeFile, renameFile)
 import System.FilePath qualified as FilePath
 import System.IO qualified as IO
 import System.IO.Error (isDoesNotExistError)
@@ -46,11 +46,10 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
+import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
-    DisplayDefinitionsOutput (..),
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
@@ -89,7 +88,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
@@ -105,7 +103,6 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyTerminal
@@ -132,15 +129,12 @@ import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
-import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
-import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toString, toText)
 import Unison.Syntax.NamePrinter
-  ( SyntaxText,
-    prettyHashQualified,
+  ( prettyHashQualified,
     prettyHashQualified',
     prettyName,
     prettyNamedReference,
@@ -156,7 +150,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -767,9 +760,22 @@ notifyUser dir = \case
                 [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
-  DisplayDefinitions output -> displayDefinitions output
+  LoadedDefinitionsToSourceFile fp code ->
+    pure $
+      P.callout "☝️" $
+        P.lines
+          [ P.wrap $ "I added these definitions to the top of " <> fromString fp,
+            "",
+            P.indentN 2 code,
+            "",
+            P.wrap $
+              "You can edit them there, then do"
+                <> makeExample' IP.update
+                <> "to replace the definitions currently in this namespace."
+          ]
+  DisplayDefinitions code -> pure code
   DisplayDefinitionsString isTranscript definitions -> displayDefinitionsString isTranscript definitions
-  OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
+  OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -2516,13 +2522,11 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> String -> ([v], UF.UnisonFile v a) -> IO Pretty
-displayOutputRewrittenFile _ppe _fp _ ([], _uf) =
+displayOutputRewrittenFile :: (Var v) => FilePath -> [v] -> IO Pretty
+displayOutputRewrittenFile _fp [] =
   pure "😶️ I couldn't find any matches in the file."
-displayOutputRewrittenFile ppe fp msg (vs, uf) = do
+displayOutputRewrittenFile fp vs = do
   let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
-  let header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
   pure $
     P.callout "☝️" . P.lines $
       [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
@@ -2532,49 +2536,6 @@ displayOutputRewrittenFile ppe fp msg (vs, uf) = do
 
 foldLine :: (IsString s) => P.Pretty s
 foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-
-prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
-prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
-  P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
-  where
-    prettyEffects = map prettyEffectDecl (Map.toList effects)
-    (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
-    prettyTerms = map (prettyTerm accessorNames) terms
-    prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
-
-    prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, Pretty)
-    prettyEffectDecl (n, (r, et)) =
-      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, Pretty)
-    prettyDataDecl (n, (r, dt)) =
-      (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
-    prettyTerm :: Set (AccessorName) -> (v, a, Term v a) -> Maybe (a, Pretty)
-    prettyTerm skip (n, a, tm) =
-      if traceMember isMember then Nothing else Just (a, pb hq tm)
-      where
-        traceMember =
-          if Debug.shouldDebug Debug.Update
-            then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
-            else id
-        isMember = Set.member hq skip
-        hq = hqv n
-    prettyWatch :: (String, (v, a, Term v a)) -> (a, Pretty)
-    prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)
-      where
-        go wk v tm = case wk of
-          WK.RegularWatch
-            | Var.UnnamedWatch _ _ <- Var.typeOf v ->
-                "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
-          WK.RegularWatch -> "> " <> pb (hqv v) tm
-          WK.TestWatch -> "test> " <> st (TermPrinter.prettyBindingWithoutTypeSignature sppe (hqv v) tm)
-          w -> P.string w <> "> " <> pb (hqv v) tm
-    st = P.syntaxToColor
-    sppe = PPED.suffixifiedPPE ppe'
-    pb v tm = st $ TermPrinter.prettyBinding sppe v tm
-    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
-    rd = Reference.DerivedId
-    hqv v = HQ.unsafeFromVar v
 
 displayDefinitions' ::
   (Var v) =>
@@ -2623,128 +2584,15 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
 
 displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
 displayRendered outputLoc pp =
-  maybe (pure pp) scratchAndDisplay outputLoc
+  pure $ maybe pp scratchMessage outputLoc
   where
-    scratchAndDisplay path = do
-      path' <- prependToFile pp path
-      pure (message pp path')
-      where
-        message pp path =
-          P.callout "☝️" $
-            P.lines
-              [ P.wrap $ "I added this to the top of " <> fromString path,
-                "",
-                P.indentN 2 pp
-              ]
-
--- Prepends the rendered Pretty to the file, returning the canonicalized FilePath
-prependToFile :: Pretty -> FilePath -> IO FilePath
-prependToFile pp path0 = do
-  path <- canonicalizePath path0
-  existingContents <- do
-    exists <- doesFileExist path
-    if exists
-      then readUtf8 path
-      else pure ""
-  writeUtf8 path . Text.pack . P.toPlain 80 $ pp <> P.text existingContents
-  pure path
-
-displayDefinitions :: DisplayDefinitionsOutput -> IO Pretty
-displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv = ppe, terms, types} =
-  if Map.null types && Map.null terms
-    then pure $ P.callout "😶" "No results to display."
-    else maybe displayOnly scratchAndDisplay outputFile
-  where
-    ppeDecl = PPED.unsuffixifiedPPE ppe
-    displayOnly = pure (code (const False))
-    scratchAndDisplay path = do
-      path' <- canonicalizePath path
-      prependToFile (code isTest) path'
-      pure (message (code (const False)) path')
-      where
-        prependToFile code path = do
-          existingContents <- do
-            exists <- doesFileExist path
-            if exists
-              then readUtf8 path
-              else pure ""
-          writeUtf8 path . Text.pack . P.toPlain 80 $
-            P.lines
-              [ code,
-                foldLine,
-                P.text existingContents
-              ]
-        message code path =
-          P.callout "☝️" $
-            P.lines
-              [ P.wrap $ "I added these definitions to the top of " <> fromString path,
-                "",
-                P.indentN 2 code,
-                "",
-                P.wrap $
-                  "You can edit them there, then do"
-                    <> makeExample' IP.update
-                    <> "to replace the definitions currently in this namespace."
-              ]
-
-    code :: (TermReferenceId -> Bool) -> Pretty
-    code isTest =
-      P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms isTest)
-
-    prettyTypes :: [P.Pretty SyntaxText]
-    prettyTypes =
-      types
-        & Map.toList
-        & map (\(ref, dt) -> (PPE.typeName ppeDecl ref, ref, dt))
-        & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map prettyType
-
-    prettyTerms :: (TermReferenceId -> Bool) -> [P.Pretty SyntaxText]
-    prettyTerms isTest =
-      terms
-        & Map.toList
-        & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
-        & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map (\t -> prettyTerm (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
-
-    prettyTerm ::
-      Bool ->
-      (HQ.HashQualified Name, Reference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-      P.Pretty SyntaxText
-    prettyTerm isTest (n, r, dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject typ ->
-          (if isJust outputFile then P.indent "-- " else id) $
-            P.hang
-              ("builtin " <> prettyHashQualified n <> " :")
-              (TypePrinter.prettySyntax (ppeBody n r) typ)
-        UserObject tm ->
-          if isTest
-            then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-            else TermPrinter.prettyBinding (ppeBody n r) n tm
-      where
-        ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
-
-    prettyType :: (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-    prettyType (n, r, dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject _ -> builtin n
-        UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
-
-    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
-    missing n r =
-      P.wrap
-        ( "-- The name "
-            <> prettyHashQualified n
-            <> " is assigned to the "
-            <> "reference "
-            <> fromString (show r ++ ",")
-            <> "which is missing from the codebase."
-        )
-        <> P.newline
-        <> tip "You might need to repair the codebase manually."
+    scratchMessage path =
+      P.callout "☝️" $
+        P.lines
+          [ P.wrap $ "I added this to the top of " <> fromString path,
+            "",
+            P.indentN 2 pp
+          ]
 
 displayDefinitionsString :: Maybe FilePath -> Pretty -> IO Pretty
 displayDefinitionsString maybePath definitions =

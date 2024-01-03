@@ -32,6 +32,7 @@ import Unison.Builtin.Decls qualified as Decls
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -44,7 +45,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
-import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
@@ -161,7 +161,7 @@ prettyParseTypecheck ::
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
 prettyParseTypecheck bigUf pped parsingEnv = do
   Cli.Env {codebase} <- ask
-  let prettyUf = Output.prettyUnisonFile pped bigUf
+  let prettyUf = Pretty.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
   Debug.whenDebug Debug.Update do
     liftIO do
