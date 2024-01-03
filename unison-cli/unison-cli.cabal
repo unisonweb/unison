@@ -196,8 +196,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -334,8 +334,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -466,8 +466,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -604,8 +604,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -749,8 +749,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
