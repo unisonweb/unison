@@ -64,7 +64,7 @@ Bug: we leave `Stray.BarAlias` in the namespace with a nameless decl.
      Foo.Bar : Nat -> Nat -> Foo
      
   3. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
-     Stray.BarAlias : Nat -> Foo#b509v3eg4k
+     Stray.BarAlias : Nat -> #b509v3eg4k
      
   
 
