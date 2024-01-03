@@ -38,5 +38,7 @@ proj/main> upgrade old new
     foo + 10
 
   I couldn't automatically upgrade old to new.
+  
+  I added the problematic definitions to the top of scratch.u.
 
 ```

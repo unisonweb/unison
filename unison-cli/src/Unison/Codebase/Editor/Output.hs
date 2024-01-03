@@ -392,7 +392,7 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !NameSegment !NameSegment
+  | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
