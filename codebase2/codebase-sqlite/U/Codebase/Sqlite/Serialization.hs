@@ -19,6 +19,7 @@ module U.Codebase.Sqlite.Serialization
     getTempPatchFormat,
     getTempTermFormat,
     getTermAndType,
+    getTypeFromTermAndType,
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
@@ -319,10 +320,16 @@ putSingleTerm t = putABT putSymbol putUnit putF t
 getTermComponent :: (MonadGet m) => m TermFormat.LocallyIndexedComponent
 getTermComponent =
   TermFormat.LocallyIndexedComponent
-    <$> getFramedArray (getTuple3 getLocalIds (getFramed getSingleTerm) getTType)
+    <$> getFramedArray (getTuple3 getLocalIds (getFramed getSingleTerm) getTermElementType)
 
 getTermAndType :: (MonadGet m) => m (TermFormat.Term, TermFormat.Type)
-getTermAndType = (,) <$> getFramed getSingleTerm <*> getTType
+getTermAndType = (,) <$> getFramed getSingleTerm <*> getTermElementType
+
+-- | Decode ONLY the type of a term-component element.
+-- This is useful during sync and when we need the type of a term component element but don't
+-- want to decode the whole term (which can be expensive).
+getTypeFromTermAndType :: (MonadGet m) => m (TermFormat.Type)
+getTypeFromTermAndType = skipFramed *> getTermElementType
 
 getSingleTerm :: (MonadGet m) => m TermFormat.Term
 getSingleTerm = getABT getSymbol getUnit getF
@@ -403,7 +410,7 @@ getSingleTerm = getABT getSymbol getUnit getF
 lookupTermElement :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
 lookupTermElement i =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getSingleTerm) getTType) $ fromIntegral i
+    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getSingleTerm) getTermElementType) $ fromIntegral i
     tag -> unknownTag "lookupTermElement" tag
 
 lookupTermElementDiscardingType :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term)
@@ -415,11 +422,12 @@ lookupTermElementDiscardingType i =
 lookupTermElementDiscardingTerm :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Type)
 lookupTermElementDiscardingTerm i =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getTType) $ fromIntegral i
+    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getTermElementType) $ fromIntegral i
     tag -> unknownTag "lookupTermElementDiscardingTerm" tag
 
-getTType :: (MonadGet m) => m TermFormat.Type
-getTType = getType getReference
+-- | Decode a type which is stored alongisde a term-component element.
+getTermElementType :: (MonadGet m) => m TermFormat.Type
+getTermElementType = getType getReference
 
 getType :: forall m r. (MonadGet m) => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
