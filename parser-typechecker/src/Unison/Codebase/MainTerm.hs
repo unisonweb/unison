@@ -10,7 +10,7 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
@@ -42,7 +42,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq (NamesWithHistory.NamesWithHistory parseNames mempty)
+      let refs = Names.lookupHQTerm Names.IncludeSuffixes hq parseNames
       let a = Parser.Ann.External
       case toList refs of
         [] -> pure (NotFound mainName)

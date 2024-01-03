@@ -17,7 +17,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
 import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -43,7 +42,7 @@ parsingEnv =
   Parser.ParsingEnv
     { uniqueNames = mempty,
       uniqueTypeGuid = \_ -> pure Nothing,
-      names = Names.NamesWithHistory Builtin.names0 mempty
+      names = Builtin.names
     }
 
 typecheckingEnv :: Typechecker.Env Symbol Ann

@@ -4,7 +4,6 @@ module Unison.Cli.NamesUtils
     basicPrettyPrintNamesA,
     displayNames,
     getBasicPrettyPrintNames,
-    makeHistoricalParsingNames,
     makePrintNamesFromLabeled',
     makeShadowedPrintNamesFromHQ,
   )
@@ -15,8 +14,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Names (Names)
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Server.Backend qualified as Backend
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile.Names qualified as UF
@@ -41,7 +39,7 @@ basicNames' nameScoping = do
 displayNames ::
   (Var v) =>
   TypecheckedUnisonFile v a ->
-  Cli NamesWithHistory
+  Cli Names
 displayNames unisonFile =
   -- voodoo
   makeShadowedPrintNamesFromLabeled
@@ -53,23 +51,15 @@ getBasicPrettyPrintNames = do
   currentPath <- Cli.getCurrentPath
   pure (Backend.prettyNamesForBranch rootBranch (Backend.AllNames (Path.unabsolute currentPath)))
 
-makeHistoricalParsingNames :: Cli NamesWithHistory
-makeHistoricalParsingNames = do
-  basicNames <- basicParseNames
-  pure $ NamesWithHistory basicNames mempty
+makePrintNamesFromLabeled' :: Cli Names
+makePrintNamesFromLabeled' =
+  basicPrettyPrintNamesA
 
-makePrintNamesFromLabeled' :: Cli NamesWithHistory
-makePrintNamesFromLabeled' = do
-  basicNames <- basicPrettyPrintNamesA
-  pure $ NamesWithHistory basicNames mempty
-
-makeShadowedPrintNamesFromHQ :: Names -> Cli NamesWithHistory
+makeShadowedPrintNamesFromHQ :: Names -> Cli Names
 makeShadowedPrintNamesFromHQ shadowing = do
   basicNames <- basicPrettyPrintNamesA
-  -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
-  pure $ NamesWithHistory.shadowing shadowing (NamesWithHistory basicNames mempty)
+  pure $ Names.shadowing shadowing basicNames
 
-makeShadowedPrintNamesFromLabeled :: Names -> Cli NamesWithHistory
+makeShadowedPrintNamesFromLabeled :: Names -> Cli Names
 makeShadowedPrintNamesFromLabeled shadowing =
-  NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled'
+  Names.shadowing shadowing <$> makePrintNamesFromLabeled'
