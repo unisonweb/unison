@@ -225,19 +225,10 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
 
   let foldLine :: Text
       foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-  let prependToFile :: Text -> FilePath -> IO ()
-      prependToFile contents fp = do
-        exists <- Directory.doesFileExist fp
-        existingSource <-
-          if exists
-            then readUtf8 fp
-            else pure ""
-        writeUtf8 fp (Text.concat [contents, foldLine, existingSource])
-
   let writeSourceFile :: Text -> Text -> IO ()
       writeSourceFile fp contents = do
         path <- Directory.canonicalizePath (Text.unpack fp)
-        prependToFile contents path
+        prependUtf8 path (contents <> foldLine)
 
   let env =
         Cli.Env
