@@ -4,6 +4,8 @@ unique type Foo = Bar Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -30,6 +32,8 @@ unique type Foo = Bar Nat Nat
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -60,7 +64,7 @@ Bug: we leave `Foo.BarAlias` in the namespace with a nameless decl.
      Foo.Bar : Nat -> Nat -> Foo
      
   3. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
-     Foo.BarAlias : Nat -> Foo#b509v3eg4k
+     Foo.BarAlias : Nat -> #b509v3eg4k
      
   
 

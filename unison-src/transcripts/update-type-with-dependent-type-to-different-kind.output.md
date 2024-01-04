@@ -5,6 +5,8 @@ unique type Baz = Qux Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -30,6 +32,8 @@ unique type Foo a = Bar Nat a
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -48,12 +52,14 @@ unique type Foo a = Bar Nat a
 
   That's done. Now I'm making sure everything typechecks...
 
-  unique type Baz = Qux Foo
-  
-  unique type Foo a = Bar Nat a
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+unique type Baz = Qux Foo
+
+unique type Foo a = Bar Nat a
+```
+

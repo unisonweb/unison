@@ -318,10 +318,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           -- end of ucm block
           Just Nothing -> do
             liftIO (output "\n```\n")
-            -- We clear the file cache after each `ucm` stanza, so
-            -- that `load` command can read the file written by `edit`
-            -- rather than hitting the cache.
-            liftIO (writeIORef unisonFiles Map.empty)
             liftIO dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
@@ -339,7 +335,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     UcmContextLooseCode path ->
                       if curPath == path
                         then pure Nothing
-                        else pure $ Just (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                        else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
                     UcmContextProject (ProjectAndBranch projectName branchName) -> do
                       ProjectAndBranch project branch <-
                         ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
@@ -347,7 +343,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       pure
                         if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                           then Nothing
-                          else Just (ProjectSwitchI (Just $ ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                          else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
                     atomically $ Q.undequeue cmdQueue (Just p)
@@ -360,10 +356,19 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                         rootVar <- use #root
                         numberedArgs <- use #numberedArgs
                         let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
-                          Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
-                          Right input -> pure $ Right input
+                          Left msg -> do
+                            liftIO $ writeIORef hasErrors True
+                            liftIO (readIORef allowErrors) >>= \case
+                              True -> do
+                                liftIO (output . Pretty.toPlain terminalWidth $ ("\n" <> msg <> "\n"))
+                                awaitInput
+                              False -> do
+                                liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
+                          -- No input received from this line, try again.
+                          Right Nothing -> awaitInput
+                          Right (Just (_expandedArgs, input)) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)
@@ -396,8 +401,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (output "```ucm\n")
                     atomically . Q.enqueue cmdQueue $ Nothing
-                    liftIO (modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt))
-                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                    let sourceName = fromMaybe "scratch.u" filename
+                    liftIO $ writeSourceFile sourceName txt
+                    pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
                     liftIO (for_ apiRequests apiRequest)
@@ -426,6 +432,10 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             -- transcripts (like docs, which use ``` in their syntax).
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
+
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile fp contents = do
+        liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
       print o = do
@@ -501,6 +511,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
+            writeSource = writeSourceFile,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,

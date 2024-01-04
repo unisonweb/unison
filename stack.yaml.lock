@@ -62,19 +62,19 @@ packages:
   original:
     hackage: recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
 - completed:
-    hackage: lsp-types-2.0.1.1@sha256:fdc9e7569d5b55352ab856510b9727dd859ab6b836f276cb20b288834bca66d6,29317
+    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
     pantry-tree:
-      sha256: 6595878012dbb7d4520ed611d45a59d476d0de7504bbb5977b70e4fe19f3fd75
-      size: 45523
-  original:
-    hackage: lsp-types-2.0.1.1@sha256:fdc9e7569d5b55352ab856510b9727dd859ab6b836f276cb20b288834bca66d6,29317
-- completed:
-    hackage: lsp-2.0.0.0@sha256:80d7e84f79a2c8a8ee17d83ee157ed3c9b25c1716bad31dabd704bb793d32af0,3531
-    pantry-tree:
-      sha256: 242117f7c11289acb56dcb1779efcc335ef88c0e773dd7087dca1c3a13870bba
+      sha256: 88ea35fb71d377c035770d5f0d6a3aea51919223e3bc1e492deb6f7d9cda3a85
       size: 1043
   original:
-    hackage: lsp-2.0.0.0@sha256:80d7e84f79a2c8a8ee17d83ee157ed3c9b25c1716bad31dabd704bb793d32af0,3531
+    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
+- completed:
+    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
+    pantry-tree:
+      sha256: 7a3f0b679066d5e4732dfa358d76e0969589d636f4012c9e87cbe3451aa3ee5e
+      size: 45527
+  original:
+    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
 - completed:
     hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
     pantry-tree:

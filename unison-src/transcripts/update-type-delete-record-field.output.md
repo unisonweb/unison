@@ -4,6 +4,8 @@ unique type Foo = { bar : Nat, baz : Int }
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,6 +41,8 @@ unique type Foo = { bar : Nat }
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -61,17 +65,6 @@ We want the field accessors to go away; but for now they are here, causing the u
   updated...
 
   That's done. Now I'm making sure everything typechecks...
-
-  Foo.baz : Foo -> Int
-  Foo.baz = cases Foo _ baz -> baz
-  
-  Foo.baz.set : Int -> Foo -> Foo
-  Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
-  
-  Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
-  Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
-  
-  unique type Foo = { bar : Nat }
 
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
@@ -110,3 +103,16 @@ We want the field accessors to go away; but for now they are here, causing the u
   
 
 ```
+```unison:added-by-ucm scratch.u
+Foo.baz : Foo -> Int
+Foo.baz = cases Foo _ baz -> baz
+
+Foo.baz.set : Int -> Foo -> Foo
+Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
+
+Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
+Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
+
+unique type Foo = { bar : Nat }
+```
+

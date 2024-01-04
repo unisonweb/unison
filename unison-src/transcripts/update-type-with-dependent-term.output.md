@@ -7,6 +7,8 @@ incrFoo = cases Bar n -> Bar (n+1)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -32,6 +34,8 @@ unique type Foo = Bar Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -50,13 +54,15 @@ unique type Foo = Bar Nat Nat
 
   That's done. Now I'm making sure everything typechecks...
 
-  incrFoo : Foo -> Foo
-  incrFoo = cases Bar n -> Bar (n Nat.+ 1)
-  
-  unique type Foo = Bar Nat Nat
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+incrFoo : Foo -> Foo
+incrFoo = cases Bar n -> Bar (n Nat.+ 1)
+
+unique type Foo = Bar Nat Nat
+```
+

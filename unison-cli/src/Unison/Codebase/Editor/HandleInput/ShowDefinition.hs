@@ -5,9 +5,11 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State qualified as State
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
@@ -22,6 +24,7 @@ import Unison.Reference qualified as Reference
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
 
 -- | Show the provided definitions to console or scratch file.
@@ -37,25 +40,32 @@ showDefinitions ::
   ) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc ppe terms types misses = do
-  Cli.Env {codebase} <- ask
+showDefinitions outputLoc pped terms types misses = do
+  Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
-  when (not (null types && null terms)) do
-    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-    -- information from the database instead, once it's efficient to do so.
-    testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
-    let isTest r = Set.member r testRefs
+  case outputPath of
+    _ | null terms && null types -> pure ()
+    Nothing -> do
+      -- If we're writing to console we don't add test-watch syntax
+      let isTest _ = False
+      let isSourceFile = False
+      -- No filepath, render code to console.
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      Cli.respond $ DisplayDefinitions renderedCodePretty
+    Just fp -> do
+      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
+      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      let isTest r = Set.member r testRefs
+      let isSourceFile = True
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      let renderedCodeText = Text.pack $ Pretty.toPlain 80 renderedCodePretty
 
-    Cli.respond $
-      DisplayDefinitions
-        DisplayDefinitionsOutput
-          { isTest,
-            outputFile = outputPath,
-            prettyPrintEnv = ppe,
-            terms,
-            types
-          }
+      -- We set latestFile to be programmatically generated, if we
+      -- are viewing these definitions to a file - this will skip the
+      -- next update for that file (which will happen immediately)
+      #latestFile ?= (fp, True)
+      liftIO $ writeSource (Text.pack fp) renderedCodeText
+      Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   for_ outputPath \p -> do
     -- We set latestFile to be programmatically generated, if we
@@ -74,3 +84,7 @@ showDefinitions outputLoc ppe terms types misses = do
           pure case loopState ^. #latestFile of
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
+
+    renderCodePretty pped isSourceFile isTest terms types =
+      Pretty.syntaxToColor . Pretty.sep "\n\n" $
+        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isSourceFile isTest terms

@@ -11,6 +11,8 @@ hey = "yello"
 
 ```ucm
 
+  Loading changes detected in test.u.
+
   I found and typechecked these definitions in test.u. If you do
   an `add` or `update`, here's how your codebase would change:
   
@@ -40,6 +42,8 @@ hey = "hello"
 
 ```ucm
 
+  Loading changes detected in test.u.
+
   I found and typechecked these definitions in test.u. If you do
   an `add` or `update`, here's how your codebase would change:
   
@@ -64,7 +68,7 @@ Update
 
 .> view.patch 1
 
-  Edited Terms: 1. hey#m0kuh98ou7 -> 2. hey
+  Edited Terms: 1. #m0kuh98ou7 -> 2. hey
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

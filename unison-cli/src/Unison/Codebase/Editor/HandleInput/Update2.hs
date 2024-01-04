@@ -32,6 +32,7 @@ import Unison.Builtin.Decls qualified as Decls
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -44,7 +45,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (Codebase)
-import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as Decl
@@ -60,9 +60,6 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory (NamesWithHistory))
-import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -119,7 +116,7 @@ handleUpdate2 = do
           shadowNames
             hlen
             (UF.typecheckedToNames tuf)
-            (NamesWithHistory.fromCurrentNames namesIncludingLibdeps)
+            namesIncludingLibdeps
         )
         <$> Codebase.hashLength
 
@@ -161,7 +158,7 @@ prettyParseTypecheck ::
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
 prettyParseTypecheck bigUf pped parsingEnv = do
   Cli.Env {codebase} <- ask
-  let prettyUf = Output.prettyUnisonFile pped bigUf
+  let prettyUf = Pretty.prettyUnisonFile pped bigUf
   let stringUf = Pretty.toPlain 80 prettyUf
   Debug.whenDebug Debug.Update do
     liftIO do
@@ -186,7 +183,7 @@ makeParsingEnv path names = do
     Parser.ParsingEnv
       { uniqueNames = uniqueName,
         uniqueTypeGuid = Cli.loadUniqueTypeGuid path,
-        names = NamesWithHistory {currentNames = names, oldNames = mempty}
+        names
       }
 
 -- save definitions and namespace
@@ -361,17 +358,15 @@ addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialU
           let constructorNames :: Transaction [Symbol]
               constructorNames = case findCtorNames operation names ctorNames (Just $ Decl.constructorCount dd) name of
                 Left err -> abort err
-                Right array ->
-                  case traverse (fmap Name.toVar . Name.stripNamePrefix name) array of
-                    Just varArray -> pure varArray
-                    Nothing -> do
-                      traceM "I ran into a situation where a type's constructors didn't match its name,"
-                      traceM "in a spot where I didn't expect to be discovering that.\n\n"
-                      traceM "Type Name:"
-                      traceM . Lazy.Text.unpack $ pShow name
-                      traceM "Constructor Names:"
-                      traceM . Lazy.Text.unpack $ pShow array
-                      error "Sorry for crashing."
+                Right array | all (isJust . Name.stripNamePrefix name) array -> pure (map Name.toVar array)
+                Right array -> do
+                  traceM "I ran into a situation where a type's constructors didn't match its name,"
+                  traceM "in a spot where I didn't expect to be discovering that.\n\n"
+                  traceM "Type Name:"
+                  traceM . Lazy.Text.unpack $ pShow name
+                  traceM "Constructor Names:"
+                  traceM . Lazy.Text.unpack $ pShow array
+                  error "Sorry for crashing."
 
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
@@ -445,7 +440,7 @@ getTermAndDeclNames tuf =
     keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
     ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
 
--- | Combines 'n' and 'nwh' then creates a ppe, but all references to
+-- | Combines 'n' and 'otherNames' then creates a ppe, but all references to
 -- any name in 'n' are printed unqualified.
 --
 -- This is useful with the current update strategy where, for all
@@ -454,10 +449,10 @@ getTermAndDeclNames tuf =
 -- unqualified name.
 --
 -- For this usecase the names from the scratch file are passed as 'n'
--- and the names from the codebase are passed in 'nwh'.
-shadowNames :: Int -> Names -> NamesWithHistory -> PrettyPrintEnvDecl
-shadowNames hashLen n nwh =
-  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (Names.NamesWithHistory n mempty <> nwh)
+-- and the names from the codebase are passed in 'otherNames'.
+shadowNames :: Int -> Names -> Names -> PrettyPrintEnvDecl
+shadowNames hashLen n otherNames =
+  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (n <> otherNames)
       unsuffixified = patchPrettyPrintEnv unsuffixified0
       suffixified = patchPrettyPrintEnv suffixified0
       patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv
@@ -476,12 +471,10 @@ shadowNames hashLen n nwh =
         HQ'.NameOnly b -> HQ'.NameOnly b
       shadowedTermRefs =
         let names = Relation.dom (Names.terms n)
-            NamesWithHistory otherNames _ = nwh
             otherTermNames = Names.terms otherNames
          in Relation.ran (Names.terms n) <> foldMap (\a -> Relation.lookupDom a otherTermNames) names
       shadowedTypeRefs =
         let names = Relation.dom (Names.types n)
-            NamesWithHistory otherNames _ = nwh
             otherTypeNames = Names.types otherNames
          in Relation.ran (Names.types n) <> foldMap (\a -> Relation.lookupDom a otherTypeNames) names
    in PPED.PrettyPrintEnvDecl unsuffixified suffixified
