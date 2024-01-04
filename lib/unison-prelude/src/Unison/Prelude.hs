@@ -4,6 +4,7 @@ module Unison.Prelude
     safeReadUtf8,
     safeReadUtf8StdIn,
     writeUtf8,
+    prependUtf8,
     uncurry4,
     reportBug,
     tShow,
@@ -81,10 +82,13 @@ import GHC.Generics as X (Generic, Generic1)
 import GHC.IO.Handle qualified as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
+import System.FilePath qualified as FilePath
 import System.IO qualified as IO
+import System.IO.Error qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import UnliftIO qualified
+import UnliftIO.Directory qualified as UnliftIO
 import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
@@ -232,6 +236,31 @@ writeUtf8 fileName txt = do
   UnliftIO.withFile fileName UnliftIO.WriteMode $ \handle -> do
     Handle.hSetEncoding handle IO.utf8
     Text.hPutStr handle txt
+
+-- | Atomically prepend some text to a file
+prependUtf8 :: FilePath -> Text -> IO ()
+prependUtf8 fileName txt = do
+  let withTempFile tmpFilePath tmpHandle = do
+        Text.hPutStrLn tmpHandle txt
+        Text.hPutStrLn tmpHandle "\n---\n"
+        IO.withFile fileName IO.ReadMode \currentScratchFile -> do
+          let copyLoop = do
+                chunk <- Text.hGetChunk currentScratchFile
+                case Text.length chunk == 0 of
+                  True -> pure ()
+                  False -> do
+                    Text.hPutStr tmpHandle chunk
+                    copyLoop
+          copyLoop
+        IO.hClose tmpHandle
+        UnliftIO.renameFile tmpFilePath fileName
+  UnliftIO.mask \unmask -> do
+    (tmpFilePath, tmpHandle) <- IO.openTempFile (FilePath.takeDirectory fileName) (FilePath.takeBaseName fileName)
+    unmask (withTempFile tmpFilePath tmpHandle) `UnliftIO.finally` do
+      IO.hClose tmpHandle
+      UnliftIO.removeFile tmpFilePath `UnliftIO.catch` \case
+        e | IO.isDoesNotExistError e -> pure ()
+        e -> UnliftIO.throwIO e
 
 reportBug :: String -> String -> String
 reportBug bugId msg =
