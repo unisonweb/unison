@@ -45,29 +45,33 @@ mytest = [Ok "ok"]
 
   ☝️
   
-  I added these definitions to the top of /private/tmp/scratch.u
+  I added 2 definitions to the top of /private/tmp/scratch.u
   
-    bar : Nat
-    bar = 456
-    
-    foo : Nat
-    foo = 123
-  
-  You can edit them there, then do `update` to replace the
+  You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 .> edit mytest
 
   ☝️
   
-  I added these definitions to the top of /private/tmp/scratch.u
+  I added 1 definitions to the top of /private/tmp/scratch.u
   
-    test> mytest = [Ok "ok"]
-  
-  You can edit them there, then do `update` to replace the
+  You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 ```
+```unison:added-by-ucm /private/tmp/scratch.u
+test> mytest = [Ok "ok"]
+```
+
+```unison:added-by-ucm /private/tmp/scratch.u
+bar : Nat
+bar = 456
+
+foo : Nat
+foo = 123
+```
+
 ```ucm
 .> edit missing
 

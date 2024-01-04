@@ -1723,7 +1723,8 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       -- next update for that file (which will happen immediately)
       #latestFile ?= (fp, True)
       liftIO $ writeSource (Text.pack fp) renderedCodeText
-      Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
+      let numDefinitions = Map.size terms + Map.size types
+      Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   where
     renderCodePretty pped isSourceFile isTest terms types =

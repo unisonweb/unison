@@ -267,7 +267,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           Just accessToken ->
             \_codeserverID -> pure $ Right accessToken
   seedRef <- newIORef (0 :: Int)
-  inputQueue <- Q.newIO
+  -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
+  -- e.g. a unison-file update by a command like 'edit'
+  inputQueue <- Q.newIO @(Stanza, Maybe Int)
   cmdQueue <- Q.newIO
   unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
@@ -275,7 +277,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
   allowErrors <- newIORef False
   hasErrors <- newIORef False
   mStanza <- newIORef Nothing
-  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
+  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` (Just <$> [1 :: Int ..]))
   let patternMap =
         Map.fromList $
           validInputs
@@ -395,7 +397,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (output "```ucm\n")
                     atomically . Q.enqueue cmdQueue $ Nothing
                     let sourceName = fromMaybe "scratch.u" filename
-                    liftIO $ writeSourceFile sourceName txt
+                    liftIO $ writeSourceFile False sourceName txt
                     pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
@@ -426,8 +428,11 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
-      writeSourceFile :: ScratchFileName -> Text -> IO ()
-      writeSourceFile fp contents = do
+      writeSourceFile :: Bool -> ScratchFileName -> Text -> IO ()
+      writeSourceFile programmaticUpdate fp contents = do
+        when programmaticUpdate $ do
+          let fenceDescription = "unison:added-by-ucm " <> fp
+          atomically (Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing))
         liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
@@ -504,7 +509,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
-            writeSource = writeSourceFile,
+            writeSource = writeSourceFile True,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,
