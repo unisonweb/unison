@@ -8,8 +8,7 @@ import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
-import Unison.NamesWithHistory (NamesWithHistory)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.Names (Names)
 import Unison.PrettyPrintEnvDecl
 import Unison.PrettyPrintEnvDecl.Names qualified as PPE
 import Unison.Server.Backend qualified as Backend
@@ -21,7 +20,7 @@ import UnliftIO.STM
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
-  TVar NamesWithHistory ->
+  TVar Names ->
   TVar (NameSearch Sqlite.Transaction) ->
   STM (Branch IO) ->
   STM Path.Absolute ->
@@ -41,7 +40,7 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
+          writeTVar completionsVar (namesToCompletionTree parseNames)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath

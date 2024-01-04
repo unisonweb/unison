@@ -116,7 +116,8 @@ getStarted showWelcomeHint =
   P.wrap "📚 Read the official docs at https://www.unison-lang.org/docs/"
     <> P.newline
     <> P.newline
-    <> P.wrap (if showWelcomeHint
-              then "Hint: Type 'projects' to list all your projects, or 'project.create' to start something new."
-              else "Type 'project.create' to get started.")
-
+    <> P.wrap
+      ( if showWelcomeHint
+          then "Hint: Type 'projects' to list all your projects, or 'project.create' to start something new."
+          else "Type 'project.create' to get started."
+      )

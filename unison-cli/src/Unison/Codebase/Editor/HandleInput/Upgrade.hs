@@ -40,7 +40,6 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv.Names qualified as PPE.Names
@@ -172,7 +171,7 @@ handleUpgrade oldDepName newDepName = do
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
       let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-      let secondaryPPE = PPED.fromNamesDecl hashLength (NamesWithHistory.fromCurrentNames namesExcludingOldDep)
+      let secondaryPPE = PPED.fromNamesDecl hashLength namesExcludingOldDep
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep

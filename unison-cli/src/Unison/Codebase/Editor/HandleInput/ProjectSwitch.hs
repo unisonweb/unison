@@ -6,14 +6,11 @@ where
 
 import Control.Lens ((^.))
 import Data.These (These (..))
-import U.Codebase.Sqlite.Project as SqliteProject
-import U.Codebase.Sqlite.ProjectBranch as SqliteProjectBranch
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName)
 import Witch (unsafeFrom)
@@ -27,14 +24,8 @@ import Witch (unsafeFrom)
 --   1. Switch to project "foo", since there isn't a branch "foo" in the current project
 --   2. Switch to branch "foo", since there isn't a project "foo"
 --   3. Complain, because there's both a project "foo" and a branch "foo" in the current project
-projectSwitch :: Maybe ProjectAndBranchNames -> Cli ()
-projectSwitch mayNames = do
-  projectNames <- case mayNames of
-    Nothing -> do
-      fuzzySelectProjectBranch >>= \case
-        Nothing -> Cli.returnEarlyWithoutOutput
-        Just (ProjectAndBranch p b) -> pure (ProjectAndBranchNames'Unambiguous $ These p b)
-    Just names -> pure names
+projectSwitch :: ProjectAndBranchNames -> Cli ()
+projectSwitch projectNames = do
   case projectNames of
     ProjectAndBranchNames'Ambiguous projectName branchName ->
       ProjectUtils.getCurrentProjectBranch >>= \case
@@ -89,29 +80,3 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
     setMostRecentBranch branch = do
       Queries.setMostRecentBranch (branch ^. #projectId) (branch ^. #branchId)
       pure branch
-
--- | Select a project branch from a list of all project branches
-fuzzySelectProjectBranch :: Cli (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
-fuzzySelectProjectBranch = do
-  mayCurrentPB <-
-    ProjectUtils.getCurrentProjectBranch
-      <&> \case
-        Nothing -> Nothing
-        Just (ProjectAndBranch p b, _path) -> Just (ProjectAndBranch (SqliteProject.projectId p) (SqliteProjectBranch.branchId b))
-  allBranches <-
-    Cli.runTransaction Queries.loadAllProjectBranchNamePairs
-      <&> \xs ->
-        xs
-          & filter (\(_names, ids) -> Just ids /= mayCurrentPB)
-          -- Put branches in our current project near the cursor for easy access.
-          & sortOn (\(_names, ProjectAndBranch {project = projectId}) -> Just projectId /= (project <$> mayCurrentPB))
-  result <-
-    liftIO $
-      Fuzzy.fuzzySelect
-        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-        (\(names, _) -> into @Text names)
-        allBranches
-  case result of
-    Just ((names, _ids) : _) ->
-      pure . Just $ names
-    _ -> pure Nothing

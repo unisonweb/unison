@@ -7,7 +7,6 @@ import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens (preview, (?~), (^.))
-import Control.Monad.Catch (MonadMask)
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -53,31 +52,30 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
+import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
-  forall m v a.
-  (MonadIO m, MonadMask m) =>
-  Codebase m v a ->
+  Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  IO (Branch m) ->
+  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
-  m Input
+  IO Input
 getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
   where
     -- Catch ctrl-c and simply re-render the prompt.
-    haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+    haskelineCtrlCHandling :: Line.InputT IO b -> Line.InputT IO b
     haskelineCtrlCHandling act = do
       -- We return a Maybe result to ensure we don't nest an action within the masked exception
       -- handler.
       Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
         Nothing -> haskelineCtrlCHandling act
         Just a -> pure a
-    go :: Line.InputT m Input
+    go :: Line.InputT IO Input
     go = do
       promptString <-
         case preview projectBranchPathPrism currentPath of
@@ -96,18 +94,25 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
                           _ -> (Just . P.green . P.shown) restPath
                       ]
                   )
-      line <- Line.getInputLine (P.toANSI 80 (promptString <> fromString prompt))
+      let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
+      line <- Line.getInputLine fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
-              Right i -> pure i
-    settings :: Line.Settings m
+              Right Nothing -> do
+                -- Ctrl-c or some input cancel, re-run the prompt
+                go
+              Right (Just (expandedArgs, i)) -> do
+                when (expandedArgs /= ws) $ do
+                  liftIO . putStrLn $ fullPrompt <> unwords expandedArgs
+                pure i
+    settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
@@ -218,6 +223,22 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
                 writeIORef pageOutput True
                 pure x
 
+  let foldLine :: Text
+      foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+  let prependToFile :: Text -> FilePath -> IO ()
+      prependToFile contents fp = do
+        exists <- Directory.doesFileExist fp
+        existingSource <-
+          if exists
+            then readUtf8 fp
+            else pure ""
+        writeUtf8 fp (Text.concat [contents, foldLine, existingSource])
+
+  let writeSourceFile :: Text -> Text -> IO ()
+      writeSourceFile fp contents = do
+        path <- Directory.canonicalizePath (Text.unpack fp)
+        prependToFile contents path
+
   let env =
         Cli.Env
           { authHTTPClient,
@@ -226,6 +247,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             credentialManager,
             isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
+            writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
