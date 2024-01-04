@@ -22,9 +22,9 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -72,7 +72,7 @@ handleStructuredFindI rule = do
   let rules = snd <$> rules0
   let fqppe = PPED.unsuffixifiedPPE ppe
   results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
-    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
+    r <- Set.toList (Relation.ran $ Names.terms names)
     Just hq <- [PPE.terms fqppe r]
     fullName <- [HQ'.toName hq]
     guard (not (Name.beginsWithSegment fullName Name.libSegment))
@@ -89,19 +89,23 @@ handleStructuredFindI rule = do
   #numberedArgs .= map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
+lookupRewrite ::
+  (HQ.HashQualified Name -> Output) ->
+  ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) ->
+  HQ.HashQualified Name ->
+  Cli (PPED.PrettyPrintEnvDecl, Names, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
 lookupRewrite onErr prepare rule = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestParsedFile
-  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
+  let currentNames = fileNames <> Branch.toNames currentBranch
   let ppe = PPED.fromNamesDecl hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
     Nothing -> do
-      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes rule currentNames of
+      case Names.lookupHQTerm Names.IncludeSuffixes rule currentNames of
         s
           | Set.size s == 1,
             Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->

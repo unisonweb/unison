@@ -15,7 +15,7 @@ import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -105,7 +105,7 @@ decodeResult source (Result notes (Just (Left uf))) =
           source
           ( PPE.fromNames
               Common.hqLength
-              (NamesWithHistory.shadowing errNames Builtin.names)
+              (Names.shadowing errNames Builtin.names)
           )
           notes
 decodeResult _source (Result _notes (Just (Right uf))) =
