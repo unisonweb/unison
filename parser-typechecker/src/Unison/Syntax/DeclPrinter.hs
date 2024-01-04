@@ -200,6 +200,8 @@ fieldNames env r name dd = do
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = fmt S.DataTypeModifier "structural"
 prettyModifier (DD.Unique _uid) = mempty -- don't print anything since 'unique' is the default
+  -- leaving this comment for the historical record so the syntax for uid is not forgotten 
+  -- fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader ::
   (Var v) => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText
