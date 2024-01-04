@@ -20,8 +20,7 @@ opening an empty fuzzy-select.
 
 ⚠️
 
-Sorry, there are no options available to fuzzy select the
-argument 'definition query', try providing all of the command's arguments.
+Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
 
 `view foo` shows definitions named `foo` within your current
 namespace.
@@ -54,7 +53,7 @@ Definition args
 
 .> debug.fuzzy-options view _
 
-  Select a definition:
+  Select definition to view:
     * optionOne
     * nested.optionTwo
 
@@ -69,7 +68,7 @@ Namespace args
 
 .> debug.fuzzy-options cd _
 
-  Select a namespace:
+  Select namespace:
     * nested
 
 ```
@@ -101,7 +100,7 @@ myproject/main> branch mybranch
 
 .> debug.fuzzy-options switch _
 
-  Select a project or branch:
+  Select project or branch to switch to:
     * myproject/main
     * myproject/mybranch
     * myproject

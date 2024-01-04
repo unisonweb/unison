@@ -46,7 +46,6 @@ import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
-import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
@@ -57,7 +56,6 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Position qualified as Position
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
@@ -1860,7 +1858,7 @@ topicNameArg =
         { typeName = "topic",
           suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
           globTargets = mempty,
-          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a topic:" (Text.pack <$> topics)
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> topics)
         }
 
 codebaseServerNameArg :: ArgumentType
@@ -3161,7 +3159,7 @@ commandNameArg =
         { typeName = "command",
           suggestions = \q _ _ _ -> pure (exactComplete q options),
           globTargets = mempty,
-          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a command:" (Text.pack <$> options)
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> options)
         }
 
 exactDefinitionArg :: ArgumentType
@@ -3170,7 +3168,7 @@ exactDefinitionArg =
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
+      fzfResolver = Just Resolvers.definitionResolver
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
@@ -3179,7 +3177,7 @@ fuzzyDefinitionQueryArg =
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term, Globbing.Type],
-      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
+      fzfResolver = Just Resolvers.definitionResolver
     }
 
 definitionQueryArg :: ArgumentType
@@ -3191,7 +3189,7 @@ exactDefinitionTypeQueryArg =
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
       globTargets = Set.fromList [Globbing.Type],
-      fzfResolver = Just $ FZFResolver {argDescription = "Select a type:", getOptions = Resolvers.typeDefinitionOptions Position.Relative}
+      fzfResolver = Just Resolvers.typeDefinitionResolver
     }
 
 exactDefinitionTypeOrTermQueryArg :: ArgumentType
@@ -3200,7 +3198,7 @@ exactDefinitionTypeOrTermQueryArg =
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
       globTargets = Set.fromList [Globbing.Term],
-      fzfResolver = Just $ FZFResolver {argDescription = "Select a term or type:", getOptions = Resolvers.definitionOptions Position.Relative}
+      fzfResolver = Just Resolvers.definitionResolver
     }
 
 exactDefinitionTermQueryArg :: ArgumentType
@@ -3209,7 +3207,7 @@ exactDefinitionTermQueryArg =
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       globTargets = Set.fromList [Globbing.Term],
-      fzfResolver = Just $ FZFResolver {argDescription = "Select a term:", getOptions = Resolvers.termDefinitionOptions Position.Relative}
+      fzfResolver = Just Resolvers.termDefinitionResolver
     }
 
 patchArg :: ArgumentType
@@ -3227,7 +3225,7 @@ namespaceArg =
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
       globTargets = Set.fromList [Globbing.Namespace],
-      fzfResolver = Just $ FZFResolver {argDescription = "Select a namespace:", getOptions = Resolvers.namespaceOptions Position.Relative}
+      fzfResolver = Just Resolvers.namespaceResolver
     }
 
 -- | Usually you'll want one or the other, but some commands like 'merge' support both right
@@ -3243,7 +3241,7 @@ namespaceOrProjectBranchArg config =
                 namespaceSuggestions
               ],
       globTargets = mempty,
-      fzfResolver = Just $ Resolvers.multiResolver "Select a namespace or branch:" [Resolvers.projectBranchOptions, Resolvers.namespaceOptions Position.Relative]
+      fzfResolver = Just Resolvers.projectOrBranchResolver
     }
 
 namespaceOrDefinitionArg :: ArgumentType
@@ -3256,7 +3254,7 @@ namespaceOrDefinitionArg =
         pure (List.nubOrd $ namespaces <> termsTypes),
       globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
       fzfResolver =
-        Just $ Resolvers.multiResolver "Select a namespace or definition:" [Resolvers.definitionOptions Position.Relative, Resolvers.namespaceOptions Position.Relative]
+        Just Resolvers.namespaceOrDefinitionResolver
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
@@ -3566,7 +3564,7 @@ projectAndBranchNamesArg config =
     { typeName = "project-and-branch-names",
       suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty,
-      fzfResolver = Just $ Resolvers.multiResolver "Select a project or branch:" [Resolvers.projectBranchOptions, Resolvers.projectNameOptions]
+      fzfResolver = Just Resolvers.projectAndOrBranchArg
     }
 
 -- | A project branch name.
@@ -3576,7 +3574,7 @@ projectBranchNameArg config =
     { typeName = "project-branch-name",
       suggestions = projectAndOrBranchSuggestions config,
       globTargets = Set.empty,
-      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
+      fzfResolver = Just Resolvers.projectBranchResolver
     }
 
 -- [project/]branch
@@ -3586,7 +3584,7 @@ projectBranchNameWithOptionalProjectNameArg =
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
       globTargets = Set.empty,
-      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
+      fzfResolver = Just Resolvers.projectBranchResolver
     }
 
 -- | A project name.
@@ -3600,7 +3598,7 @@ projectNameArg =
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
       globTargets = Set.empty,
-      fzfResolver = Just $ Resolvers.multiResolver "Select a project:" [Resolvers.projectNameOptions]
+      fzfResolver = Just $ Resolvers.multiResolver [Resolvers.projectNameOptions]
     }
   where
     projectToCompletion :: Sqlite.Project -> Completion

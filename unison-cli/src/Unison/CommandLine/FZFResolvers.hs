@@ -9,6 +9,15 @@ module Unison.CommandLine.FZFResolvers
     projectBranchOptionsWithinCurrentProject,
     fuzzySelectFromList,
     multiResolver,
+    definitionResolver,
+    typeDefinitionResolver,
+    termDefinitionResolver,
+    namespaceResolver,
+    namespaceOrDefinitionResolver,
+    projectAndOrBranchArg,
+    projectOrBranchResolver,
+    projectBranchResolver,
+    projectNameResolver,
   )
 where
 
@@ -26,7 +35,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import Unison.Position (Position (..))
+import Unison.Position qualified as Position
 import Unison.Prelude
 import Unison.Project.Util (ProjectContext (..))
 import Unison.Symbol (Symbol)
@@ -38,8 +47,7 @@ import Unison.Util.Relation qualified as Relation
 type OptionFetcher = Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
 
 data FZFResolver = FZFResolver
-  { argDescription :: Text,
-    getOptions :: OptionFetcher
+  { getOptions :: OptionFetcher
   }
 
 instance Show FZFResolver where
@@ -47,39 +55,36 @@ instance Show FZFResolver where
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-genericDefinitionOptions :: Bool -> Bool -> Position -> OptionFetcher
-genericDefinitionOptions includeTerms includeTypes pos _codebase _projCtx searchBranch0 = liftIO do
+genericDefinitionOptions :: Bool -> Bool -> OptionFetcher
+genericDefinitionOptions includeTerms includeTypes _codebase _projCtx searchBranch0 = liftIO do
   let termsAndTypes =
         Monoid.whenM includeTerms Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Monoid.whenM includeTypes Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
   termsAndTypes
     & Set.toList
-    & map (HQ.toText . fmap (Name.setPosition pos))
+    & map (HQ.toText . fmap (Name.setPosition Position.Relative))
     & pure
 
 -- | Select a definition from the given branch.
--- Returned names will match the provided 'Position' type.
-definitionOptions :: Position -> OptionFetcher
+definitionOptions :: OptionFetcher
 definitionOptions = genericDefinitionOptions True True
 
 -- | Select a term definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-termDefinitionOptions :: Position -> OptionFetcher
+termDefinitionOptions :: OptionFetcher
 termDefinitionOptions = genericDefinitionOptions True False
 
 -- | Select a type definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-typeDefinitionOptions :: Position -> OptionFetcher
+typeDefinitionOptions :: OptionFetcher
 typeDefinitionOptions = genericDefinitionOptions False True
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-namespaceOptions :: Position -> OptionFetcher
-namespaceOptions pos _codebase _projCtx searchBranch0 = do
+namespaceOptions :: OptionFetcher
+namespaceOptions _codebase _projCtx searchBranch0 = do
   let intoPath' :: Path -> Path'
-      intoPath' = case pos of
-        Relative -> Path' . Right . Path.Relative
-        Absolute -> Path' . Left . Path.Absolute
+      intoPath' = Path' . Right . Path.Relative
   searchBranch0
     & Branch.deepPaths
     & Set.delete (Path.empty {- The current path just renders as an empty string which isn't a valid arg -})
@@ -89,17 +94,45 @@ namespaceOptions pos _codebase _projCtx searchBranch0 = do
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectFromList :: Text -> [Text] -> FZFResolver
-fuzzySelectFromList argDescription options =
-  (FZFResolver {argDescription, getOptions = \_codebase _projCtx _branch -> pure options})
+fuzzySelectFromList :: [Text] -> FZFResolver
+fuzzySelectFromList options =
+  (FZFResolver {getOptions = \_codebase _projCtx _branch -> pure options})
 
 -- | Combine multiple option fetchers into one resolver.
-multiResolver :: Text -> [OptionFetcher] -> FZFResolver
-multiResolver argDescription resolvers =
+multiResolver :: [OptionFetcher] -> FZFResolver
+multiResolver resolvers =
   let getOptions :: Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
       getOptions codebase projCtx searchBranch0 = do
         List.nubOrd <$> foldMapM (\f -> f codebase projCtx searchBranch0) resolvers
-   in (FZFResolver {argDescription, getOptions})
+   in (FZFResolver {getOptions})
+
+definitionResolver :: FZFResolver
+definitionResolver = FZFResolver {getOptions = definitionOptions}
+
+typeDefinitionResolver :: FZFResolver
+typeDefinitionResolver = FZFResolver {getOptions = typeDefinitionOptions}
+
+termDefinitionResolver :: FZFResolver
+termDefinitionResolver = FZFResolver {getOptions = termDefinitionOptions}
+
+namespaceResolver :: FZFResolver
+namespaceResolver = FZFResolver {getOptions = namespaceOptions}
+
+namespaceOrDefinitionResolver :: FZFResolver
+namespaceOrDefinitionResolver = multiResolver [definitionOptions, namespaceOptions]
+
+-- | A project name, branch name, or both.
+projectAndOrBranchArg :: FZFResolver
+projectAndOrBranchArg = multiResolver [projectBranchOptions, projectNameOptions]
+
+projectOrBranchResolver :: FZFResolver
+projectOrBranchResolver = multiResolver [projectBranchOptions, namespaceOptions]
+
+projectBranchResolver :: FZFResolver
+projectBranchResolver = FZFResolver {getOptions = projectBranchOptions}
+
+projectNameResolver :: FZFResolver
+projectNameResolver = FZFResolver {getOptions = projectNameOptions}
 
 -- | All possible local project names
 -- E.g. '@unison/base'

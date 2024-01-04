@@ -1100,9 +1100,9 @@ loop e = do
               case Map.lookup command InputPatterns.patternMap of
                 Just (IP.InputPattern {args = argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
-                    ((_, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
+                    ((argName, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {getOptions}}), "_") -> do
                       results <- liftIO $ getOptions codebase projCtx currentBranch
-                      Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
+                      Cli.respond (DebugDisplayFuzzyOptions argName (Text.unpack <$> results))
                     ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
                       Cli.respond DebugFuzzyOptionsNoResolver
                     _ -> pure ()

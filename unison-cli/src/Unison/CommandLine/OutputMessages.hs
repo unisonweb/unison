@@ -1850,7 +1850,7 @@ notifyUser dir = \case
   DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
     pure $
       P.lines
-        [P.string argDesc, P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+        [P.text ("Select " <> argDesc <> ":"), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
   DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
   ClearScreen -> do
     ANSI.clearScreen

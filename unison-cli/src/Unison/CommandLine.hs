@@ -165,9 +165,10 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
             throwError
               ( P.callout "⚠️" $
                   P.lines
-                    [ P.wrap "Sorry, I was expecting an argument for the "
-                        <> P.text argName
-                        <> ", and I couldn't find any to suggest to you. :sweat_smile:",
+                    [ ( "Sorry, I was expecting an argument for the "
+                          <> P.text argName
+                          <> ", and I couldn't find any to suggest to you. 😅"
+                      ),
                       "",
                       help
                     ]
@@ -230,11 +231,11 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
   argumentResolvers & foldMapM id
   where
     fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
-    fuzzyFillArg opt argTypeName InputPattern.FZFResolver {argDescription, getOptions} = do
+    fuzzyFillArg opt argTypeName InputPattern.FZFResolver {getOptions} = do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
       options <- liftIO $ getOptions codebase projCtx currentBranch
       when (null options) $ throwError $ NoFZFOptions argTypeName
-      liftIO $ Text.putStrLn $ argDescription
+      liftIO $ Text.putStrLn $ "Select " <> argTypeName <> ":"
       results <-
         liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
           `whenNothingM` throwError FZFCancelled
