@@ -128,8 +128,6 @@ compile (CaptureAs t p) !err !success = go
     success' _ rem acc0 _ = success (pushCapture t acc0) rem
     compiled = compile p err' success'
     go acc t = compiled acc t acc t
-
-
 compile (Capture (Many (Char Any))) !_ !success = \acc t -> success (pushCapture t acc) Text.empty
 compile (Capture c) !err !success = go
   where
@@ -137,7 +135,6 @@ compile (Capture c) !err !success = go
     success' _ rem acc0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) rem
     compiled = compile c err' success'
     go acc t = compiled acc t acc t
-
 compile (Or p1 p2) err success = cp1
   where
     cp2 = compile p2 err success
