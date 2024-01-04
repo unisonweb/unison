@@ -213,7 +213,7 @@ unique type Y a b = Y a b
 
   ⍟ I've added these definitions:
   
-    unique type Y a b
+    type Y a b
     d : Nat
     e : Nat
     f : Nat
@@ -256,7 +256,7 @@ unique type Y a b = Y a b
   
   Added definitions:
   
-    12. unique type Y a b
+    12. type Y a b
     13. Y.Y : a -> b -> Y a b
     14. d   : Nat
     15. e   : Nat
@@ -301,7 +301,7 @@ unique type Y a b = Y a b
   
   Added definitions:
   
-    12. unique type Y a b
+    12. type Y a b
     13. Y.Y  : a -> b -> Y a b
     14. ┌ d  : Nat
     15. └ d' : Nat
@@ -359,7 +359,7 @@ unique type Y a b = Y a b
   
   Added definitions:
   
-    14. unique type Y a b
+    14. type Y a b
     15. Y.Y  : a -> b -> Y a b
     16. ┌ d  : Nat
     17. └ d' : Nat
@@ -407,7 +407,7 @@ unique type Y a b = Y a b
   
   Added definitions:
   
-    14. unique type Y a b
+    14. type Y a b
     15. Y.Y  : a -> b -> Y a b
     16. ┌ d  : Nat
     17. └ d' : Nat

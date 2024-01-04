@@ -1,18 +1,18 @@
-# Type modifiers are required
+# Type modifiers are optional, `unique` shoud be used as default
 
 ```ucm:hide
 .> builtins.merge
 ```
 
-Types needs to be prefixed with either `unique` or `structural`:
+Types do not need to be prefixed with either `unique` or `structural`:
 
-```unison:error
+```unison
 type Abc = Abc 
 ```
 
-Abilities needs to be prefixed with either `unique` or `structural`:
+Abilities do not need to be prefixed with either `unique` or `structural`:
 
-```unison:error
+```unison
 ability MyAbility where const : a 
 ```
 

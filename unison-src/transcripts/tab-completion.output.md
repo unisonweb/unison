@@ -49,7 +49,7 @@ unique type subnamespace.AType = A | B
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type subnamespace.AType
+      type subnamespace.AType
       othernamespace.someName    : ##Nat
       subnamespace.someName      : ##Nat
       subnamespace.someOtherName : ##Nat
@@ -153,7 +153,7 @@ add b = b
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       add : a -> a
 
 ```
@@ -162,7 +162,7 @@ add b = b
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     add : a -> a
 
 .> debug.tab-complete delete.type Foo

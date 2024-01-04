@@ -1,6 +1,6 @@
-# Type modifiers are required
+# Type modifiers are optional, `unique` shoud be used as default
 
-Types needs to be prefixed with either `unique` or `structural`:
+Types do not need to be prefixed with either `unique` or `structural`:
 
 ```unison
 type Abc = Abc 
@@ -10,17 +10,16 @@ type Abc = Abc
 
   Loading changes detected in scratch.u.
 
-  I expected to see `structural` or `unique` at the start of
-  this line:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-      1 | type Abc = Abc 
-  
-  Learn more about when to use `structural` vs `unique` in the
-  Unison Docs:
-  https://www.unison-lang.org/learn/language-reference/unique-types/
+    ⍟ These new definitions are ok to `add`:
+    
+      type Abc
 
 ```
-Abilities needs to be prefixed with either `unique` or `structural`:
+Abilities do not need to be prefixed with either `unique` or `structural`:
 
 ```unison
 ability MyAbility where const : a 
@@ -30,14 +29,13 @@ ability MyAbility where const : a
 
   Loading changes detected in scratch.u.
 
-  I expected to see `structural` or `unique` at the start of
-  this line:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-      1 | ability MyAbility where const : a 
-  
-  Learn more about when to use `structural` vs `unique` in the
-  Unison Docs:
-  https://www.unison-lang.org/learn/language-reference/unique-types/
+    ⍟ These new definitions are ok to `add`:
+    
+      ability MyAbility
 
 ```
 There should be no errors when `unique` or `structural` is provided:
@@ -61,8 +59,8 @@ unique ability MyAbilityU where const : a
     
       structural type AbcS
         (also named builtin.Unit)
-      unique type AbcU
+      type AbcU
       structural ability MyAbilityS
-      unique ability MyAbilityU
+      ability MyAbilityU
 
 ```

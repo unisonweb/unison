@@ -19,7 +19,7 @@ foo = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       foo : Foo -> Nat
 
 ```
@@ -28,7 +28,7 @@ foo = cases
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     foo : Foo -> Nat
 
 ```
@@ -48,7 +48,7 @@ unique type Foo
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -64,7 +64,7 @@ unique type Foo
     Bar n   -> n
     Baz n m -> n Nat.+ m
   
-  unique type Foo = Bar Nat
+  type Foo = Bar Nat
 
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try

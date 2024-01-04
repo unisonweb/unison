@@ -52,8 +52,8 @@ unique type Pong = Pong (Ping Optional)
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Ping a
-      unique type Pong
+      type Ping a
+      type Pong
 
 ```
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
@@ -91,8 +91,8 @@ unique ability Pong a where
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Ping a
-      unique ability Pong a
+      type Ping a
+      ability Pong a
 
 ```
 Catch conflict between mutually recursive type and ability
@@ -130,8 +130,8 @@ unique type S = S (T Nat)
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type S
-      unique type T a
+      type S
+      type T a
 
 ```
 Delay kind defaulting until all components are processed. Here `S`
@@ -153,8 +153,8 @@ unique type S = S (T Optional)
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type S
-      unique type T a
+      type S
+      type T a
 
 ```
 Catch invalid instantiation of `T`'s `a` parameter in `S`

@@ -114,7 +114,7 @@ test = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       test : Optional (Optional V) -> ()
 
 ```
@@ -547,7 +547,7 @@ test = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       test : [V] -> ()
 
 ```
@@ -645,7 +645,7 @@ unit2t = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type T
+      type T
       unit2t : 'T
 
 ```
@@ -654,7 +654,7 @@ unit2t = cases
 
   ⍟ I've added these definitions:
   
-    unique type T
+    type T
     unit2t : 'T
 
 ```
@@ -701,7 +701,7 @@ evil = bug ""
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       evil : 'V
 
 ```
@@ -710,7 +710,7 @@ evil = bug ""
 
   ⍟ I've added these definitions:
   
-    unique type V
+    type V
     evil : 'V
 
 ```
@@ -743,7 +743,7 @@ unique type SomeType = A
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type SomeType
+      type SomeType
 
 ```
 ```ucm
@@ -751,7 +751,7 @@ unique type SomeType = A
 
   ⍟ I've added these definitions:
   
-    unique type SomeType
+    type SomeType
 
 ```
 ```unison
@@ -771,7 +771,7 @@ get x = match x with
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type R
+      type R
       get : R -> SomeType
 
 ```
@@ -789,7 +789,7 @@ unique type R = { someType : SomeType }
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type R
+      type R
       R.someType        : R -> SomeType
       R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
       R.someType.set    : SomeType -> R -> R
@@ -853,7 +853,7 @@ result f = handle !f with cases
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type T
+      type T
 
 ```
 ```unison
@@ -1197,7 +1197,7 @@ result f =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Give a
+      ability Give a
       result : '{e, Give V} r ->{e} r
 
 ```
@@ -1225,7 +1225,7 @@ result f =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Give a
+      ability Give a
       result : '{e, Give V} r ->{e} r
 
 ```
@@ -1312,8 +1312,8 @@ result f =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability GiveA a
-      unique ability GiveB a
+      ability GiveA a
+      ability GiveB a
       result : '{e, GiveA V, GiveB V} r ->{e} r
 
 ```
