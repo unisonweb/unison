@@ -161,12 +161,9 @@ structural type Foo = Foo
   New name conflicts:
   
     1. structural type Foo#089vmor9c5
-         
        ↓
     2. ┌ structural type Foo#00nv2kob8f
-           
     3. └ structural type Foo#089vmor9c5
-           
     
     4. Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
        ↓

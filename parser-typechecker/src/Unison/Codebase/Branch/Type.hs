@@ -70,12 +70,9 @@ data Branch0 m = Branch0
     -- | True if a branch and its children have no definitions or edits in them.
     -- (Computed recursively, and small enough to justify storing here to avoid computing more than once.)
     isEmpty0 :: Bool,
-    -- names and metadata for this branch and its children
-    -- (ref, (name, value)) iff ref has metadata `value` at name `name`
+    -- names for this branch and its children
     deepTerms :: Relation Referent Name,
     deepTypes :: Relation Reference Name,
-    deepTermMetadata :: Metadata.R4 Referent Name,
-    deepTypeMetadata :: Metadata.R4 Reference Name,
     deepPaths :: Set Path,
     deepEdits :: Map Name PatchHash
   }
