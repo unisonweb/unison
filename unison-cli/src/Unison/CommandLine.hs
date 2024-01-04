@@ -193,17 +193,17 @@ expandNumber numberedArgs s = case expandedNumber of
             _ -> Nothing
 
 fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Maybe [String])
-fzfResolve codebase projCtx getCurrentBranch pat args = runMaybeT do
-  (Align.align (argTypes pat) args) & foldMapM \case
-    This argDesc@(opt, _)
+fzfResolve codebase projCtx getCurrentBranch InputPattern {args = argDescriptions} args = runMaybeT do
+  (Align.align argDescriptions args) & foldMapM \case
+    This argDesc@(_, opt, _)
       | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
           MaybeT $ fuzzyFillArg argDesc
       | otherwise -> pure []
     That arg -> pure [arg]
     These _ arg -> pure [arg]
   where
-    fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO (Maybe [String]))
-    fuzzyFillArg (opt, argType) =
+    fuzzyFillArg :: (InputPattern.ArgumentName, InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO (Maybe [String]))
+    fuzzyFillArg (_, opt, argType) =
       runMaybeT do
         InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
         liftIO $ Text.putStrLn $ argDescription

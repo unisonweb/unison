@@ -1098,12 +1098,12 @@ loop e = do
               currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
               let projCtx = projectContextFromPath currentPath
               case Map.lookup command InputPatterns.patternMap of
-                Just (IP.InputPattern {argTypes}) -> do
+                Just (IP.InputPattern {args = argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
-                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
+                    ((_, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
                       results <- liftIO $ getOptions codebase projCtx currentBranch
                       Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
-                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
+                    ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
                       Cli.respond DebugFuzzyOptionsNoResolver
                     _ -> pure ()
                 Nothing -> do
