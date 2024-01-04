@@ -5,6 +5,7 @@ module Unison.Cli.Monad
   ( -- * Cli monad
     Cli,
     ReturnType (..),
+    SourceName,
     runCli,
 
     -- * Envronment
@@ -143,6 +144,9 @@ data ReturnType a
   | HaltRepl
   deriving stock (Eq, Show)
 
+-- | Name used for a source-file/source buffer
+type SourceName = Text
+
 -- | The command-line app monad environment.
 --
 -- Get the environment with 'ask'.
@@ -157,7 +161,9 @@ data Env = Env
     -- information to the terminal to be captured in transcript output.
     isTranscript :: Bool,
     -- | How to load source code.
-    loadSource :: Text -> IO LoadSourceResult,
+    loadSource :: SourceName -> IO LoadSourceResult,
+    -- | How to write source code.
+    writeSource :: SourceName -> Text -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.

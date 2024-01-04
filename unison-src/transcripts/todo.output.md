@@ -34,8 +34,8 @@ structural type MyType = MyType Text
   The namespace has 2 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    structural type MyType#68k40ra7l7
-    x#gjmq673r1v : Nat
+    structural type #68k40ra7l7
+    #gjmq673r1v : Nat
   
   I recommend working on them in the following order:
   
@@ -294,7 +294,7 @@ even = 17
   The namespace has 1 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    even#kkohl7ba1e : Nat -> Boolean
+    #kkohl7ba1e : Nat -> Boolean
   
   I recommend working on them in the following order:
   

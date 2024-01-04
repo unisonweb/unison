@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -52,6 +52,7 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveAll
@@ -195,8 +196,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -333,8 +334,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -465,8 +466,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -603,8 +604,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -748,8 +749,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl

@@ -318,10 +318,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           -- end of ucm block
           Just Nothing -> do
             liftIO (output "\n```\n")
-            -- We clear the file cache after each `ucm` stanza, so
-            -- that `load` command can read the file written by `edit`
-            -- rather than hitting the cache.
-            liftIO (writeIORef unisonFiles Map.empty)
             liftIO dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
@@ -396,8 +392,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (output "```ucm\n")
                     atomically . Q.enqueue cmdQueue $ Nothing
-                    liftIO (modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt))
-                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                    let sourceName = fromMaybe "scratch.u" filename
+                    liftIO $ writeSourceFile sourceName txt
+                    pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
                     liftIO (for_ apiRequests apiRequest)
@@ -426,6 +423,10 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             -- transcripts (like docs, which use ``` in their syntax).
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
+
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile fp contents = do
+        liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
       print o = do
@@ -501,6 +502,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
+            writeSource = writeSourceFile,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,
