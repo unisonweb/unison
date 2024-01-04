@@ -55,6 +55,7 @@ module Unison.Name
   )
 where
 
+import Data.Monoid (Sum(..))
 import Control.Lens (mapped, over, _1, _2)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
@@ -488,10 +489,9 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
--- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
--- Uses an efficient logarithmic lookup in the provided relation.
--- The returned `Name` may refer to multiple hashes if the original FQN
--- did as well.
+-- Tries to shorten `fqn` to the smallest suffix that still
+-- unambiguously refers to the same name. Uses an efficient
+-- logarithmic lookup in the provided relation.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
@@ -499,16 +499,12 @@ shortestUniqueSuffix :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 shortestUniqueSuffix fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
-    allRefs :: Set r
-    allRefs =
-      R.lookupDom fqn rel
     isOk :: Name -> Bool
-    isOk suffix =
-      Set.size rs == 1 || rs == allRefs
+    isOk suffix = matchingNameCount == 1
       where
-        rs :: Set r
-        rs =
-          R.searchDom (compareSuffix suffix) rel
+        matchingNameCount :: Int
+        matchingNameCount =
+          getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
 
 -- | Returns the common prefix of two names as segments
 --
