@@ -430,7 +430,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
 
       writeSourceFile :: Bool -> ScratchFileName -> Text -> IO ()
       writeSourceFile programmaticUpdate fp contents = do
-        when programmaticUpdate $ do
+        shouldShowSourceChanges <- (== Shown) <$> readIORef hidden
+        when (programmaticUpdate && shouldShowSourceChanges) $ do
           let fenceDescription = "unison:added-by-ucm " <> fp
           atomically (Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing))
         liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
