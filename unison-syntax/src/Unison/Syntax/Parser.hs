@@ -76,8 +76,8 @@ import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
+import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -108,28 +108,28 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
-    names :: NamesWithHistory
+    names :: Names
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
 instance Semigroup UniqueName where
   UniqueName f <> UniqueName g =
-    UniqueName $ \pos len -> f pos len <|> g pos len
+    UniqueName \pos len -> f pos len <|> g pos len
 
 instance Monoid UniqueName where
   mempty = UniqueName (\_ _ -> Nothing)
 
 uniqueBase32Namegen :: forall gen. (Random.DRG gen) => gen -> UniqueName
 uniqueBase32Namegen rng =
-  UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex rng
+  UniqueName \pos lenInBase32Hex -> go pos lenInBase32Hex rng
   where
     -- if the identifier starts with a number, try again, since
     -- we want the name to work as a valid wordyId
     go :: L.Pos -> Int -> gen -> Maybe Text
     go pos lenInBase32Hex rng0 =
       let (bytes, rng) = Random.randomBytesGenerate 32 rng0
-          posBytes = runPutS $ do
+          posBytes = runPutS do
             serialize $ VarInt (L.line pos)
             serialize $ VarInt (L.column pos)
           h = Hashable.accumulate' $ bytes <> posBytes
@@ -289,7 +289,7 @@ closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
 wordyPatternName :: (Var v) => P v m (L.Token v)
-wordyPatternName = queryToken $ \case
+wordyPatternName = queryToken \case
   L.WordyId s Nothing -> Just $ Var.nameds s
   _ -> Nothing
 
@@ -303,24 +303,24 @@ prefixDefinitionName =
 prefixTermName :: (Var v) => P v m (L.Token v)
 prefixTermName = wordyTermName <|> parenthesize symbolyTermName
   where
-    wordyTermName = queryToken $ \case
+    wordyTermName = queryToken \case
       L.WordyId s Nothing -> Just $ Var.nameds s
       L.Blank s -> Just $ Var.nameds ("_" <> s)
       _ -> Nothing
-    symbolyTermName = queryToken $ \case
+    symbolyTermName = queryToken \case
       L.SymbolyId s Nothing -> Just $ Var.nameds s
       _ -> Nothing
 
 -- Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
-wordyDefinitionName = queryToken $ \case
+wordyDefinitionName = queryToken \case
   L.WordyId s _ -> Just $ Var.nameds s
   L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing
 
 -- Parse a wordyId as a String, rejecting any hash
 wordyIdString :: (Ord v) => P v m (L.Token String)
-wordyIdString = queryToken $ \case
+wordyIdString = queryToken \case
   L.WordyId s Nothing -> Just s
   _ -> Nothing
 
@@ -334,13 +334,13 @@ importSymbolyId = (fmap . fmap) Name.unsafeFromString symbolyIdString
 
 -- Parse a symbolyId as a String, rejecting any hash
 symbolyIdString :: (Ord v) => P v m (L.Token String)
-symbolyIdString = queryToken $ \case
+symbolyIdString = queryToken \case
   L.SymbolyId s Nothing -> Just s
   _ -> Nothing
 
 -- Parse a symboly ID like >>= or Docs.&&, discarding any hash
 symbolyDefinitionName :: (Var v) => P v m (L.Token v)
-symbolyDefinitionName = queryToken $ \case
+symbolyDefinitionName = queryToken \case
   L.SymbolyId s _ -> Just $ Var.nameds s
   _ -> Nothing
 
@@ -353,7 +353,7 @@ hqInfixId = hqSymbolyId_
 
 -- Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
-hqWordyId_ = queryToken $ \case
+hqWordyId_ = queryToken \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
   L.WordyId s (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
   L.WordyId s Nothing -> Just $ HQ.NameOnly (Name.unsafeFromString s)
@@ -363,7 +363,7 @@ hqWordyId_ = queryToken $ \case
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
 hqSymbolyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
-hqSymbolyId_ = queryToken $ \case
+hqSymbolyId_ = queryToken \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
   L.SymbolyId s Nothing -> Just $ HQ.NameOnly (Name.unsafeFromString s)

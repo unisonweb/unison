@@ -328,7 +328,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
     resolveNote env (Context.SolvedBlank (B.Resolve loc n) v it) =
-      fmap (Just . Resolution (Text.pack n) it loc v . dedupe . join)
+      fmap (Just . Resolution (Text.pack n) it loc v . join)
         . traverse (resolve it)
         . join
         . maybeToList

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.PrettyPrintEnv.Names
   ( fromNames,
     fromSuffixNames,
@@ -13,22 +11,22 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.Relation qualified as Rel
+import Unison.Names (Names)
 
-fromNames :: Int -> NamesWithHistory -> PrettyPrintEnv
+fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types'
   where
     terms' r =
-      NamesWithHistory.termName len r names
+      Names.termName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
     types' r =
-      NamesWithHistory.typeName len r names
+      Names.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
         & prioritize
@@ -45,20 +43,20 @@ prioritize =
     (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
     (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
 
-fromSuffixNames :: Int -> NamesWithHistory -> PrettyPrintEnv
+fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = PrettyPrintEnv terms' types'
   where
     terms' r =
-      NamesWithHistory.termName len r names
+      Names.termName len r names
         & Set.toList
         & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes (Names.terms $ NamesWithHistory.currentNames names)
+        & shortestUniqueSuffixes (Names.terms names)
         & prioritize
     types' r =
-      NamesWithHistory.typeName len r names
+      Names.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes (Names.types $ NamesWithHistory.currentNames names)
+        & shortestUniqueSuffixes (Names.types names)
         & prioritize
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given

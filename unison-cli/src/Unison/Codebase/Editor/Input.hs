@@ -28,6 +28,7 @@ module Unison.Codebase.Editor.Input
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
@@ -119,8 +120,8 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
     CreateMessage (P.Pretty P.ColorText)
-  | -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
-    SwitchBranchI (Maybe Path')
+  | -- Change directory.
+    SwitchBranchI Path'
   | UpI
   | PopBranchI
   | -- > names foo
@@ -141,11 +142,6 @@ data Input
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
     DeleteI DeleteTarget
-  | -- resolving naming conflicts within `branchpath`
-    -- Add the specified name after deleting all others for a given reference
-    -- within a given branch.
-    ResolveTermNameI Path.HQSplit'
-  | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI
@@ -194,18 +190,18 @@ data Input
   | -- links from <type>
     LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | -- Display provided definitions. If list is empty, prompt a fuzzy search.
-    DisplayI OutputLocation [HQ.HashQualified Name]
-  | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
-    DocsI [Path.HQSplit']
+  | -- Display provided definitions.
+    DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
+  | -- Display docs for provided terms.
+    DocsI (NonEmpty Path.HQSplit')
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
-  | -- Show provided definitions. If list is empty, prompt a fuzzy search.
-    ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
+  | -- Show provided definitions.
+    ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
@@ -217,6 +213,7 @@ data Input
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
+  | DebugFuzzyOptionsI String [String] -- cmd and arguments
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
@@ -235,7 +232,7 @@ data Input
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
-  | ProjectSwitchI (Maybe ProjectAndBranchNames {- Nothing triggers fuzzy-finder -})
+  | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchRenameI ProjectBranchName

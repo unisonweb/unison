@@ -6,6 +6,7 @@ module Unison.CommandLine.InputPattern
   ( InputPattern (..),
     ArgumentType (..),
     argType,
+    FZFResolver (..),
     IsOptional (..),
     Visibility (..),
 
@@ -23,6 +24,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
+import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
@@ -63,7 +65,10 @@ data ArgumentType = ArgumentType
       m [Line.Completion],
     -- | Select which targets glob patterns may expand into for this argument.
     -- An empty set disables globbing.
-    globTargets :: Set Globbing.TargetType
+    globTargets :: Set Globbing.TargetType,
+    -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
+    -- available.
+    fzfResolver :: Maybe FZFResolver
   }
 
 instance Show ArgumentType where

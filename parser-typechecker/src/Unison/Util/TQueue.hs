@@ -8,7 +8,7 @@ import UnliftIO.STM hiding (TQueue)
 
 data TQueue a = TQueue (TVar (Seq a)) (TVar Word64)
 
-newIO :: (MonadIO m) => m (TQueue a)
+newIO :: forall a m. (MonadIO m) => m (TQueue a)
 newIO = TQueue <$> newTVarIO mempty <*> newTVarIO 0
 
 size :: TQueue a -> STM Int
