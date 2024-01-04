@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -44,7 +44,6 @@ library
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util

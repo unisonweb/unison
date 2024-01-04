@@ -142,11 +142,6 @@ data Input
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
     DeleteI DeleteTarget
-  | -- resolving naming conflicts within `branchpath`
-    -- Add the specified name after deleting all others for a given reference
-    -- within a given branch.
-    ResolveTermNameI Path.HQSplit'
-  | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI

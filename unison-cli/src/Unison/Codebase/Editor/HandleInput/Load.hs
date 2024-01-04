@@ -10,7 +10,6 @@ import Control.Lens ((.=), (.~))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import System.Environment (withArgs)
 import Unison.Cli.Monad (Cli)
@@ -28,7 +27,6 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
-import Unison.HashQualified qualified as HQ
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -40,8 +38,6 @@ import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Server.Backend qualified as Backend
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -64,8 +60,7 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-  unisonFile <- withFile sourceName (text, lexed)
+  unisonFile <- withFile sourceName text
   currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
   names <- displayNames unisonFile
@@ -81,15 +76,9 @@ loadUnisonFile sourceName text = do
   where
     withFile ::
       Text ->
-      (Text, [L.Token L.Lexeme]) ->
+      Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile sourceName (text, tokens) = do
-      let getHQ = \case
-            L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.Hash sh -> Just (HQ.HashOnly sh)
-            _ -> Nothing
-          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+    withFile sourceName text = do
       rootBranch <- Cli.getRootBranch
       currentPath <- Cli.getCurrentPath
       let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
@@ -115,7 +104,7 @@ loadUnisonFile sourceName text = do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
-        ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
+        ns <- makeShadowedPrintNamesFromHQ (UF.toNames unisonFile)
         ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
         let tes = [err | Result.TypeError err <- toList notes]
             cbs =

@@ -47,7 +47,7 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled')
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, getBasicPrettyPrintNames, makePrintNamesFromLabeled')
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
@@ -145,8 +145,7 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -173,14 +172,13 @@ import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
-import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
@@ -240,7 +238,7 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
             patch <- Cli.getPatchAt patchPath'
-            QueryResult misses allHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
+            QueryResult misses allHits <- hqNameQuery Names.IncludeSuffixes [from]
             let tpRefs = Set.fromList $ typeReferences allHits
                 tmRefs = Set.fromList $ termReferences allHits
                 (hits, opHits) =
@@ -521,7 +519,7 @@ loop e = do
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
-                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
+                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Names.Diff)] -> IO NumberedOutput
                 doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
                     then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
@@ -549,13 +547,13 @@ loop e = do
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength
-              let pped = PPED.fromNamesDecl hqLength (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+              let pped = PPED.fromNamesDecl hqLength basicPrettyPrintNames
               basicPrettyPrintNames <- basicParseNames
-              let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
+              let nameSearch = NameSearch.makeNameSearch hqLength basicPrettyPrintNames
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch NamesWithHistory.IncludeSuffixes docName
-                for docRefs $ \docRef -> do
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
+                for docRefs \docRef -> do
                   Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
@@ -698,19 +696,19 @@ loop e = do
                 if global || any Name.isAbsolute query
                   then do
                     let root0 = Branch.head root
-                    let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+                    let names = Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
                     let pped = PPED.fromNamesDecl hqLength names
                     pure (names, pped)
                   else do
                     currentBranch <- Cli.getCurrentBranch0
-                    let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+                    let currentNames = Branch.toNames currentBranch
                     let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes query names
-                  types = NamesWithHistory.lookupHQType NamesWithHistory.IncludeSuffixes query names
+                  terms = Names.lookupHQTerm Names.IncludeSuffixes query names
+                  types = Names.lookupHQType Names.IncludeSuffixes query names
                   terms' :: [(Referent, [HQ'.HashQualified Name])]
                   terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
                   types' :: [(Reference, [HQ'.HashQualified Name])]
@@ -874,49 +872,14 @@ loop e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            ResolveTypeNameI path' -> do
-              description <- inputDescription input
-              path <- Cli.resolveSplit' path'
-              ty <- do
-                types <- Cli.getTypesAt path
-                Set.asSingleton types & onNothing do
-                  if Set.null types
-                    then Cli.returnEarly (TypeNotFound path')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
-              Cli.stepAt
-                description
-                -- Mitchell: throwing away HQ seems wrong
-                (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
-            ResolveTermNameI path' -> do
-              path <- Cli.resolveSplit' path'
-              term <- do
-                rootBranch0 <- Cli.getRootBranch0
-                terms <- getTermsIncludingHistorical (Path.convert path) rootBranch0
-                Set.asSingleton terms
-                  & onNothing
-                    if Set.null terms
-                      then Cli.returnEarly (TermNotFound path')
-                      else do
-                        hqLength <- Cli.runTransaction Codebase.hashLength
-                        Cli.returnEarly (DeleteNameAmbiguous hqLength path' terms Set.empty)
-              description <- inputDescription input
-              terms <- Cli.getTermsAt path
-              terms
-                & Set.delete term
-                & Set.toList
-                -- Mitchell: throwing away HQ seems wrong
-                & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
-                & Cli.stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
               hqLength <- Cli.runTransaction Codebase.hashLength
 
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
-              QueryResult fromMisses' fromHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [from]
-              QueryResult toMisses' toHits <- hqNameQuery NamesWithHistory.IncludeSuffixes [to]
+              QueryResult fromMisses' fromHits <- hqNameQuery Names.IncludeSuffixes [from]
+              QueryResult toMisses' toHits <- hqNameQuery Names.IncludeSuffixes [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -1074,7 +1037,7 @@ loop e = do
               Cli.runTransaction (Codebase.addDefsToCodebase codebase uf)
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let srcb = BranchUtil.fromNames Builtin.names0
+              let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
               _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
@@ -1097,7 +1060,7 @@ loop e = do
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
+              let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
               _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
@@ -1105,7 +1068,7 @@ loop e = do
               Cli.respond Success
             ListEditsI maybePath -> do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
-              ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+              ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
               Cli.respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
@@ -1135,12 +1098,12 @@ loop e = do
               currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
               let projCtx = projectContextFromPath currentPath
               case Map.lookup command InputPatterns.patternMap of
-                Just (IP.InputPattern {argTypes}) -> do
+                Just (IP.InputPattern {args = argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
-                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
+                    ((_, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
                       results <- liftIO $ getOptions codebase projCtx currentBranch
                       Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
-                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
+                    ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
                       Cli.respond DebugFuzzyOptionsNoResolver
                     _ -> pure ()
                 Nothing -> do
@@ -1356,12 +1319,6 @@ inputDescription input =
           <> HQ.toText target
           <> " "
           <> p
-    ResolveTermNameI path0 -> do
-      path <- hqs' path0
-      pure ("resolve.termName " <> path)
-    ResolveTypeNameI path0 -> do
-      path <- hqs' path0
-      pure ("resolve.typeName " <> path)
     AddI _selection -> pure "add"
     UpdateI p0 _selection -> do
       p <-
@@ -1560,10 +1517,7 @@ handleFindI isVerbose fscope ws input = do
   let respondResults results = do
         #numberedArgs .= fmap searchResultToHQString results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
-        ppe <-
-          suffixifiedPPE
-            =<< makePrintNamesFromLabeled'
-              (foldMap SR'.labeledDependencies results')
+        ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
         Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
@@ -1681,7 +1635,7 @@ handleDiffNamespaceToPatch description input = do
           }
 
   -- Display the patch that we are about to create.
-  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
   Cli.respondNumbered (ListEdits patch ppe)
 
   (patchPath, patchName) <- Cli.resolveSplit' (input ^. #patch)
@@ -1729,23 +1683,23 @@ handleShowDefinition outputLoc showDefinitionScope query = do
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
-      let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
+      let parseNames = Backend.parseNamesForBranch root namingScope
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (parseNames, ppe)
     (_, ShowDefinitionGlobal) -> do
-      let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+      let names = Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
       let ppe = PPED.fromNamesDecl hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
-      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+      let currentNames = Branch.toNames currentBranch
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
   let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles NamesWithHistory.IncludeSuffixes (toList query))
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
@@ -1816,7 +1770,7 @@ resolveHQToLabeledDependencies = \case
           pure (terms, types)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
+doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
   Cli.Env {codebase} <- ask
   loopState <- State.get
@@ -1894,10 +1848,7 @@ getLinks' src selection0 = do
       -- then list the values after filtering by type
       allRefs :: Set Reference = R.ran allMd'
   sigs <- Cli.runTransaction (for (toList allRefs) (Codebase.getTypeOfReferent codebase . Referent.Ref))
-  let deps =
-        Set.map LD.termRef allRefs
-          <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
+  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled'
   let ppeDecl = PPE.unsuffixifiedPPE ppe
   let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
   let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
@@ -1918,7 +1869,7 @@ doShowTodoOutput patch scopePath = do
            )
       -- only needs the local references to check for obsolete defs
       ppe <- do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled'
         prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
@@ -2059,11 +2010,8 @@ searchBranchScored names0 score queries =
               (\score -> (Just score, result)) <$> score qn name
 
 basicPPE :: Cli PPE.PrettyPrintEnv
-basicPPE = do
-  parseNames <-
-    flip NamesWithHistory.NamesWithHistory mempty
-      <$> basicParseNames
-  suffixifiedPPE parseNames
+basicPPE =
+  basicParseNames >>= suffixifiedPPE
 
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
@@ -2419,14 +2367,13 @@ displayI ::
   OutputLocation ->
   HQ.HashQualified Name ->
   Cli ()
-displayI prettyPrintNames outputLoc hq = do
+displayI names outputLoc hq = do
   let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
   case addWatch (HQ.toString hq) latestTypecheckedFile of
     Nothing -> do
-      let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
-          results = NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes hq parseNames
-      pped <- prettyPrintEnvDecl parseNames
+      let results = Names.lookupHQTerm Names.IncludeSuffixes hq names
+      pped <- prettyPrintEnvDecl names
       ref <-
         Set.asSingleton results & onNothing do
           Cli.returnEarly
@@ -2435,7 +2382,7 @@ displayI prettyPrintNames outputLoc hq = do
               else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
       tm <- RuntimeUtils.evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
-      doDisplay outputLoc parseNames (Term.unannotate tm)
+      doDisplay outputLoc names (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- PPE.biasTo bias <$> executePPE unisonFile
       (_, watches) <- evalUnisonFile Sandboxed ppe unisonFile []
@@ -2445,7 +2392,7 @@ displayI prettyPrintNames outputLoc hq = do
       doDisplay outputLoc ns tm
 
 docsI :: SrcLoc -> Names -> Path.HQSplit' -> Cli ()
-docsI srcLoc prettyPrintNames src =
+docsI srcLoc names src =
   fileByName
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
@@ -2465,13 +2412,11 @@ docsI srcLoc prettyPrintNames src =
     fileByName :: Cli ()
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
-      fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
-      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc fnames of
+      case Names.lookupHQTerm Names.IncludeSuffixes dotDoc ns of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
-          fname' <- pure $ NamesWithHistory.longestTermName 10 (Set.findMin s) fnames
-          displayI prettyPrintNames ConsoleLocation fname'
+          displayI names ConsoleLocation $ Names.longestTermName 10 (Set.findMin s) ns
         _ -> codebaseByMetadata
 
     codebaseByMetadata :: Cli ()
@@ -2481,7 +2426,6 @@ docsI srcLoc prettyPrintNames src =
         [] -> codebaseByName
         [(_name, ref, _tm)] -> do
           len <- Cli.runTransaction Codebase.branchHashLength
-          let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
           let tm = Term.ref External ref
           tm <- RuntimeUtils.evalUnisonTerm True (PPE.fromNames len names) True tm
           doDisplay ConsoleLocation names (Term.unannotate tm)
@@ -2492,9 +2436,9 @@ docsI srcLoc prettyPrintNames src =
     codebaseByName :: Cli ()
     codebaseByName = do
       parseNames <- basicParseNames
-      case NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
+      case Names.lookupHQTerm Names.IncludeSuffixes dotDoc parseNames of
         s
-          | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
+          | Set.size s == 1 -> displayI names ConsoleLocation dotDoc
           | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
           -- todo: return a list of links here too
           | otherwise -> Cli.respond $ ListOfLinks PPE.empty []
@@ -2520,19 +2464,13 @@ loadTypeDisplayObject codebase = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration codebase id
 
-lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
+lexedSource :: Text -> Text -> Cli (Names, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
-      getHQ = \case
-        L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.Hash sh -> Just (HQ.HashOnly sh)
-        _ -> Nothing
-      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-  parseNames <- makeHistoricalParsingNames hqs
+  parseNames <- basicParseNames
   pure (parseNames, (src, tokens))
 
-suffixifiedPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
+suffixifiedPPE :: Names -> Cli PPE.PrettyPrintEnv
 suffixifiedPPE ns =
   Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
 
@@ -2547,10 +2485,7 @@ parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
-  let names =
-        NamesWithHistory.push
-          (NamesWithHistory.currentNames names0)
-          (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
+  let names = Names.push names0 parseNames
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = mempty,
@@ -2561,19 +2496,8 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeFromVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
-
-getTermsIncludingHistorical :: (Monad m) => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
-getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
-  [] -> case hq of
-    HQ'.HashQualified n hs -> do
-      names <- findHistoricalHQs (Set.fromList [HQ.HashQualified (Name.fromSegment n) hs])
-      pure . R.ran $ Names.terms names
-    _ -> pure Set.empty
-  _ -> pure refs
-  where
-    refs = BranchUtil.getTerm (p, hq) b
 
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
@@ -2610,7 +2534,7 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-hqNameQuery :: NamesWithHistory.SearchType -> [HQ.HashQualified Name] -> Cli QueryResult
+hqNameQuery :: Names.SearchType -> [HQ.HashQualified Name] -> Cli QueryResult
 hqNameQuery searchType query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
@@ -2618,7 +2542,7 @@ hqNameQuery searchType query = do
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
+    let nameSearch = NameSearch.makeNameSearch hqLength parseNames
     Backend.hqNameQuery codebase nameSearch searchType query
 
 looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'

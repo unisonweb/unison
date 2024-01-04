@@ -165,9 +165,9 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
             throwError
               ( P.callout "⚠️" $
                   P.lines
-                    [ P.wrap "Sorry, there are no options available to fuzzy select the argument '"
-                        <> P.string argName
-                        <> "', try providing all of the command's arguments.",
+                    [ P.wrap "Sorry, I was expecting an argument for the "
+                        <> P.text argName
+                        <> ", and I couldn't find any to suggest to you. :sweat_smile:",
                       "",
                       help
                     ]
@@ -207,7 +207,7 @@ expandNumber numberedArgs s = case expandedNumber of
 
 data FZFResolveFailure
   = NoFZFResolverForArgumentType
-  | NoFZFOptions String {- argument description -}
+  | NoFZFOptions Text {- argument description -}
   | FZFCancelled
 
 fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Either FZFResolveFailure [String])
@@ -217,19 +217,19 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
   -- Otherwise, we might ask the user to perform a search only to realize we don't have a resolver
   -- for a later arg.
   argumentResolvers :: [ExceptT FZFResolveFailure IO [String]] <-
-    (Align.align (argTypes pat) args)
+    (Align.align (InputPattern.args pat) args)
       & traverse \case
-        This (opt, InputPattern.ArgumentType {fzfResolver, typeName = argTypeName})
+        This (argName, opt, InputPattern.ArgumentType {fzfResolver})
           | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
               case fzfResolver of
                 Nothing -> throwError NoFZFResolverForArgumentType
-                Just fzfResolver -> pure $ fuzzyFillArg opt argTypeName fzfResolver
+                Just fzfResolver -> pure $ fuzzyFillArg opt argName fzfResolver
           | otherwise -> pure $ pure []
         That arg -> pure $ pure [arg]
         These _ arg -> pure $ pure [arg]
   argumentResolvers & foldMapM id
   where
-    fuzzyFillArg :: InputPattern.IsOptional -> String -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
+    fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
     fuzzyFillArg opt argTypeName InputPattern.FZFResolver {argDescription, getOptions} = do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
       options <- liftIO $ getOptions codebase projCtx currentBranch

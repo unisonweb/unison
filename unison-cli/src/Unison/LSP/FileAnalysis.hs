@@ -42,8 +42,6 @@ import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
@@ -263,7 +261,7 @@ analyseFile fileUri srcText notes = do
 computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
 computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
   let defLocations = fileDefLocations fileSummary
-  conflictedNames <- Names.conflicts . Names.currentNames <$> getParseNames
+  conflictedNames <- Names.conflicts <$> getParseNames
   let locationForName :: Name -> Set Ann
       locationForName name = fold $ Map.lookup (Name.toVar name) defLocations
   let conflictedTermLocations =
@@ -514,11 +512,11 @@ ppedForFileHelper uf tf = do
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesDecl hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
       let fileNames = UF.toNames uf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesDecl hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint
