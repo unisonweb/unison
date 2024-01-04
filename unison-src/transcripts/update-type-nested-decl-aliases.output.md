@@ -60,14 +60,16 @@ file to stare at.
 
   That's done. Now I'm making sure everything typechecks...
 
-  structural type A = B.OneAlias Foo
-  
-  structural type A.B = OneAlias Foo
-  
-  unique type Foo = Bar Nat Nat
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+structural type A = B.OneAlias Foo
+
+structural type A.B = OneAlias Foo
+
+unique type Foo = Bar Nat Nat
+```
+
