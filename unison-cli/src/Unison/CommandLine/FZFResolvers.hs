@@ -18,12 +18,14 @@ module Unison.CommandLine.FZFResolvers
     projectOrBranchResolver,
     projectBranchResolver,
     projectNameResolver,
+    fuzzySelectHeader,
   )
 where
 
 import Control.Lens
 import Data.List.Extra qualified as List
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Sqlite.Project as SqliteProject
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (Codebase)
@@ -156,3 +158,20 @@ projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
     ProjectBranchPath currentProjectId _projectBranchId _path -> do
       Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith currentProjectId Nothing)
         <&> fmap (into @Text . snd)
+
+-- | Exported from here just so the debug command and actual implementation can use the same
+-- messaging.
+--
+-- >>> fuzzySelectHeader "definition to view"
+-- "Select a definition to view:"
+--
+-- >>> fuzzySelectHeader "alias name"
+-- "Select an alias name:"
+fuzzySelectHeader :: Text -> Text
+fuzzySelectHeader argDesc = "Select " <> aOrAn argDesc <> " " <> argDesc <> ":"
+  where
+    aOrAn :: Text -> Text
+    aOrAn txt =
+      Text.uncons txt & \case
+        Just (c, _) | c `elem` ("aeiou" :: [Char]) -> "an"
+        _ -> "a"

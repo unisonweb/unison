@@ -48,6 +48,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
@@ -229,11 +230,11 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
   argumentResolvers & foldMapM id
   where
     fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
-    fuzzyFillArg opt argTypeName InputPattern.FZFResolver {getOptions} = do
+    fuzzyFillArg opt argDesc InputPattern.FZFResolver {getOptions} = do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
       options <- liftIO $ getOptions codebase projCtx currentBranch
-      when (null options) $ throwError $ NoFZFOptions argTypeName
-      liftIO $ Text.putStrLn $ "Select " <> argTypeName <> ":"
+      when (null options) $ throwError $ NoFZFOptions argDesc
+      liftIO $ Text.putStrLn (FZFResolvers.fuzzySelectHeader argDesc)
       results <-
         liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
           `whenNothingM` throwError FZFCancelled

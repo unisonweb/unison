@@ -43,7 +43,7 @@ Definition args
 
 .> debug.fuzzy-options view _
 
-  Select definition to view:
+  Select a definition to view:
     * optionOne
     * nested.optionTwo
 
@@ -58,7 +58,7 @@ Namespace args
 
 .> debug.fuzzy-options cd _
 
-  Select namespace:
+  Select a namespace:
     * nested
 
 ```
@@ -90,7 +90,7 @@ myproject/main> branch mybranch
 
 .> debug.fuzzy-options switch _
 
-  Select project or branch to switch to:
+  Select a project or branch to switch to:
     * myproject/main
     * myproject/mybranch
     * myproject
