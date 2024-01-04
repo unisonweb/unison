@@ -21,7 +21,7 @@ moveTypeSteps src' dest' = do
   srcTypes <- Cli.getTypesAt src
   case Set.toList srcTypes of
     [] -> pure []
-    _:_:_ -> do
+    _ : _ : _ -> do
       hqLength <- Cli.runTransaction Codebase.hashLength
       Cli.returnEarly (Output.DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
     [srcType] -> do

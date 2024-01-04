@@ -1847,6 +1847,11 @@ notifyUser dir = \case
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
+    pure $
+      P.lines
+        [P.string argDesc, P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+  DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
   ClearScreen -> do
     ANSI.clearScreen
     ANSI.setCursorPosition 0 0
@@ -2769,7 +2774,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2784,7 +2789,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

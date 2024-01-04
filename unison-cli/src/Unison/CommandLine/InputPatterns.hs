@@ -46,6 +46,8 @@ import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
+import Unison.CommandLine.FZFResolvers (FZFResolver (..))
+import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
@@ -55,6 +57,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Position qualified as Position
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
@@ -382,7 +385,7 @@ view =
     "view"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
           P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
@@ -394,8 +397,12 @@ view =
               <> "not `List.map.doc` (since ? only matches 1 name segment)."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
-        . traverse parseHashQualifiedName
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse parseHashQualifiedName
+            & fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        _ -> Left (I.help view)
     )
 
 viewGlobal :: InputPattern
@@ -410,8 +417,12 @@ viewGlobal =
           "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
-    ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
-        . traverse parseHashQualifiedName
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse parseHashQualifiedName
+            & fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
+        _ -> Left (I.help viewGlobal)
     )
 
 display :: InputPattern
@@ -420,13 +431,18 @@ display =
     "display"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ "`display foo` prints a rendered version of the term `foo`.",
           "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
         ]
     )
-    \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
+    \case
+      (x : xs) ->
+        (x NE.:| xs)
+          & traverse parseHashQualifiedName
+          <&> Input.DisplayI Input.ConsoleLocation
+      _ -> Left (I.help display)
 
 displayTo :: InputPattern
 displayTo =
@@ -434,14 +450,16 @@ displayTo =
     "display.to"
     []
     I.Visible
-    [(Required, noCompletionsArg), (ZeroPlus, definitionQueryArg)]
+    [(Required, noCompletionsArg), (OnePlus, definitionQueryArg)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
     )
     \case
-      file : xs ->
-        Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
+      file : (x : xs) ->
+        (x NE.:| xs)
+          & traverse parseHashQualifiedName
+          <&> Input.DisplayI (Input.FileLocation file)
       _ -> Left (I.help displayTo)
 
 docs :: InputPattern
@@ -450,13 +468,19 @@ docs =
     "docs"
     []
     I.Visible
-    [(ZeroPlus, definitionQueryArg)]
+    [(OnePlus, definitionQueryArg)]
     ( P.lines
         [ "`docs foo` shows documentation for the definition `foo`.",
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
-    (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+    ( \case
+        (x : xs) ->
+          (x NE.:| xs)
+            & traverse Path.parseHQSplit'
+            & bimap fromString Input.DocsI
+        _ -> Left (I.help docs)
+    )
 
 api :: InputPattern
 api =
@@ -861,7 +885,7 @@ deleteBranch =
     { patternName = "delete.branch",
       aliases = ["branch.delete"],
       visibility = I.Visible,
-      argTypes = [(Required, projectAndBranchNamesArg suggestionsConfig)],
+      argTypes = [(Required, projectBranchNameArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`delete.branch foo/bar`", "deletes the branch `bar` in the project `foo`"),
@@ -993,9 +1017,7 @@ cd =
         [".."] -> Right Input.UpI
         [p] -> first fromString $ do
           p <- Path.parsePath' p
-          pure . Input.SwitchBranchI $ Just p
-        -- No args will trigger a fuzzy find when handled.
-        [] -> pure (Input.SwitchBranchI Nothing)
+          pure . Input.SwitchBranchI $ p
         _ -> Left (I.help cd)
     )
 
@@ -1322,7 +1344,7 @@ pullExhaustive =
     "debug.pull-exhaustive"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceArg)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceArg)]
     ( P.lines
         [ P.wrap $
             "The "
@@ -1371,11 +1393,32 @@ debugTabCompletion =
     [(ZeroPlus, noCompletionsArg)]
     ( P.lines
         [ P.wrap $ "This command can be used to test and debug ucm's tab-completion within transcripts.",
-          P.wrap $ "Completions which are finished are prefixed with a *"
+          P.wrap $ "Completions which are finished are prefixed with a * represent finished completions."
         ]
     )
     ( \inputs ->
         Right $ Input.DebugTabCompletionI inputs
+    )
+
+debugFuzzyOptions :: InputPattern
+debugFuzzyOptions =
+  InputPattern
+    "debug.fuzzy-options"
+    []
+    I.Hidden
+    [(OnePlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's fuzzy-options within transcripts.",
+          P.wrap $ "Write a command invocation with _ for any args you'd like to see completion options for.",
+          P.wrap $ "We use _ instead of ! because ! will be expanded by the input parser before it hits the command itself.",
+          P.wrap $ "E.g. `debug.fuzzy-options view _`",
+          P.wrap $ "or `debug.fuzzy-options merge - _`"
+        ]
+    )
+    ( \case
+        (cmd : args) ->
+          Right $ Input.DebugFuzzyOptionsI cmd args
+        _ -> Left (I.help debugFuzzyOptions)
     )
 
 push :: InputPattern
@@ -1384,7 +1427,7 @@ push =
     "push"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push` command merges a local project or namespace into a remote project or namespace.",
@@ -1442,7 +1485,7 @@ pushCreate =
     "push.create"
     []
     I.Visible
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap
             "The `push.create` command pushes a local namespace to an empty remote namespace.",
@@ -1452,10 +1495,10 @@ pushCreate =
                 "pushes the contents of the local namespace `local`"
                   <> "into the empty remote namespace `remote`."
               ),
-              ( "`push remote`",
+              ( "`push.create remote`",
                 "publishes the current namespace into the empty remote namespace `remote`"
               ),
-              ( "`push`",
+              ( "`push.create`",
                 "publishes the current namespace into the remote namespace configured in your `.unisonConfig`"
                   <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                   <> "then publishes the current namespace to that location."
@@ -1498,7 +1541,7 @@ pushForce =
     "unsafe.force-push"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     (P.wrap "Like `push`, but overwrites any remote namespace.")
     \args -> do
       sourceTarget <-
@@ -1533,7 +1576,7 @@ pushExhaustive =
     "debug.push-exhaustive"
     []
     I.Hidden
-    [(Required, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
+    [(Optional, remoteNamespaceArg), (Optional, namespaceOrProjectBranchArg suggestionsConfig)]
     ( P.lines
         [ P.wrap $
             "The "
@@ -1802,24 +1845,31 @@ edit =
             "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
           ],
       parse =
-        fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
-          . traverse parseHashQualifiedName
+        \case
+          (x : xs) ->
+            (x NE.:| xs)
+              & traverse parseHashQualifiedName
+              <&> (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          [] -> Left (I.help edit)
     }
 
 topicNameArg :: ArgumentType
 topicNameArg =
-  ArgumentType
-    { typeName = "topic",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
-      globTargets = mempty
-    }
+  let topics = Map.keys helpTopicsMap
+   in ArgumentType
+        { typeName = "topic",
+          suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
+          globTargets = mempty,
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a topic:" (Text.pack <$> topics)
+        }
 
 codebaseServerNameArg :: ArgumentType
 codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
-      suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap),
-      globTargets = mempty
+      suggestions = \_ _ _ _ -> pure [],
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 helpTopics :: InputPattern
@@ -2067,7 +2117,7 @@ viewPatch =
     "view.patch"
     []
     I.Visible
-    [(Required, patchArg)]
+    [(Optional, patchArg)]
     ( P.wrapColumn2
         [ ( makeExample' viewPatch,
             "Lists all the edits in the default patch."
@@ -2184,7 +2234,7 @@ dependents =
     "dependents"
     []
     I.Visible
-    []
+    [(Required, definitionQueryArg)]
     "List the named dependents of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
@@ -2195,7 +2245,7 @@ dependencies =
     "dependencies"
     []
     I.Visible
-    []
+    [(Required, definitionQueryArg)]
     "List the dependencies of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
@@ -2244,7 +2294,7 @@ debugDumpNamespace =
     "debug.dump-namespace"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespacesI)
 
@@ -2254,7 +2304,7 @@ debugDumpNamespaceSimple =
     "debug.dump-namespace-simple"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
@@ -2264,7 +2314,7 @@ debugClearWatchCache =
     "debug.clear-cache"
     []
     I.Visible
-    [(Required, noCompletionsArg)]
+    []
     "Clear the watch expression cache"
     (const $ Right Input.DebugClearWatchI)
 
@@ -2342,7 +2392,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    []
+    [(Required, namespaceArg), (Required, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
             "Render all docs contained within a namespace, no matter how deep,"
@@ -2363,7 +2413,7 @@ docToMarkdown =
     "debug.doc-to-markdown"
     []
     I.Visible
-    []
+    [(Required, exactDefinitionTermQueryArg)]
     ( P.wrapColumn2
         [ ( "`debug.doc-to-markdown term.doc`",
             "Render a doc to markdown."
@@ -2477,7 +2527,7 @@ runScheme =
     "run.native"
     []
     I.Visible
-    [(Required, exactDefinitionTermQueryArg)]
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
             "Executes !main using native compilation via scheme."
@@ -2543,7 +2593,7 @@ fetchScheme =
     "compile.native.fetch"
     []
     I.Visible
-    []
+    [(Optional, noCompletionsArg), (Optional, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample fetchScheme [],
             P.lines . fmap P.wrap $
@@ -2749,7 +2799,7 @@ projectSwitch =
     { patternName = "switch",
       aliases = [],
       visibility = I.Visible,
-      argTypes = [(Optional, projectAndBranchNamesArg suggestionsConfig)],
+      argTypes = [(Required, projectAndBranchNamesArg suggestionsConfig)],
       help =
         P.wrapColumn2
           [ ("`switch`", "opens an interactive selector to pick a project and branch"),
@@ -2758,11 +2808,10 @@ projectSwitch =
             ("`switch /bar`", "switches to the branch `bar` in the current project")
           ],
       parse = \case
-        [] -> Right (Input.ProjectSwitchI Nothing)
         [name] ->
           case tryInto @ProjectAndBranchNames (Text.pack name) of
             Left _ -> Left (showPatternHelp projectSwitch)
-            Right projectAndBranch -> Right (Input.ProjectSwitchI $ Just projectAndBranch)
+            Right projectAndBranch -> Right (Input.ProjectSwitchI projectAndBranch)
         _ -> Left (showPatternHelp projectSwitch)
     }
   where
@@ -2840,7 +2889,8 @@ branchInputPattern =
       ArgumentType
         { typeName = "new-branch",
           suggestions = \_ _ _ _ -> pure [],
-          globTargets = mempty
+          globTargets = mempty,
+          fzfResolver = Nothing
         }
     suggestionsConfig =
       ProjectBranchSuggestionsConfig
@@ -2989,6 +3039,7 @@ validInputs =
       debugNameDiff,
       debugNumberedArgs,
       debugTabCompletion,
+      debugFuzzyOptions,
       delete,
       deleteBranch,
       deleteProject,
@@ -3105,18 +3156,21 @@ commandNames = visibleInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType
-    { typeName = "command",
-      suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap)),
-      globTargets = mempty
-    }
+  let options = commandNames <> Map.keys helpTopicsMap
+   in ArgumentType
+        { typeName = "command",
+          suggestions = \q _ _ _ -> pure (exactComplete q options),
+          globTargets = mempty,
+          fzfResolver = Just $ Resolvers.fuzzySelectFromList "Select a command:" (Text.pack <$> options)
+        }
 
 exactDefinitionArg :: ArgumentType
 exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
+      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
     }
 
 fuzzyDefinitionQueryArg :: ArgumentType
@@ -3124,7 +3178,8 @@ fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
+      fzfResolver = Just (FZFResolver {argDescription = "Select a definition:", getOptions = Resolvers.definitionOptions Position.Relative})
     }
 
 definitionQueryArg :: ArgumentType
@@ -3135,7 +3190,8 @@ exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
-      globTargets = Set.fromList [Globbing.Type]
+      globTargets = Set.fromList [Globbing.Type],
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a type:", getOptions = Resolvers.typeDefinitionOptions Position.Relative}
     }
 
 exactDefinitionTypeOrTermQueryArg :: ArgumentType
@@ -3143,7 +3199,8 @@ exactDefinitionTypeOrTermQueryArg =
   ArgumentType
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term]
+      globTargets = Set.fromList [Globbing.Term],
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a term or type:", getOptions = Resolvers.definitionOptions Position.Relative}
     }
 
 exactDefinitionTermQueryArg :: ArgumentType
@@ -3151,7 +3208,8 @@ exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
-      globTargets = Set.fromList [Globbing.Term]
+      globTargets = Set.fromList [Globbing.Term],
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a term:", getOptions = Resolvers.termDefinitionOptions Position.Relative}
     }
 
 patchArg :: ArgumentType
@@ -3159,7 +3217,8 @@ patchArg =
   ArgumentType
     { typeName = "patch",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      globTargets = Set.fromList []
+      globTargets = Set.fromList [],
+      fzfResolver = Nothing
     }
 
 namespaceArg :: ArgumentType
@@ -3167,7 +3226,8 @@ namespaceArg =
   ArgumentType
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = Set.fromList [Globbing.Namespace]
+      globTargets = Set.fromList [Globbing.Namespace],
+      fzfResolver = Just $ FZFResolver {argDescription = "Select a namespace:", getOptions = Resolvers.namespaceOptions Position.Relative}
     }
 
 -- | Usually you'll want one or the other, but some commands like 'merge' support both right
@@ -3182,7 +3242,8 @@ namespaceOrProjectBranchArg config =
               [ projectAndOrBranchSuggestions config,
                 namespaceSuggestions
               ],
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Just $ Resolvers.multiResolver "Select a namespace or branch:" [Resolvers.projectBranchOptions, Resolvers.namespaceOptions Position.Relative]
     }
 
 namespaceOrDefinitionArg :: ArgumentType
@@ -3193,7 +3254,9 @@ namespaceOrDefinitionArg =
         namespaces <- prefixCompleteNamespace q p
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
-      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type]
+      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
+      fzfResolver =
+        Just $ Resolvers.multiResolver "Select a namespace or definition:" [Resolvers.definitionOptions Position.Relative, Resolvers.namespaceOptions Position.Relative]
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
@@ -3205,7 +3268,8 @@ newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 noCompletionsArg :: ArgumentType
@@ -3213,7 +3277,8 @@ noCompletionsArg =
   ArgumentType
     { typeName = "word",
       suggestions = noCompletions,
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 -- Arya: I could imagine completions coming from previous pulls
@@ -3231,7 +3296,8 @@ gitUrlArg =
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 -- | Refers to a namespace on some remote code host.
@@ -3250,7 +3316,8 @@ remoteNamespaceArg =
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> do
                 sharePathCompletion http input,
-      globTargets = mempty
+      globTargets = mempty,
+      fzfResolver = Nothing
     }
 
 data ProjectInclusion = OnlyWithinCurrentProject | OnlyOutsideCurrentProject | AllProjects
@@ -3489,7 +3556,8 @@ projectAndBranchNamesArg config =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Just $ Resolvers.multiResolver "Select a project or branch:" [Resolvers.projectBranchOptions, Resolvers.projectNameOptions]
     }
 
 -- | A project branch name.
@@ -3498,7 +3566,8 @@ projectBranchNameArg config =
   ArgumentType
     { typeName = "project-branch-name",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
     }
 
 -- [project/]branch
@@ -3507,7 +3576,8 @@ projectBranchNameWithOptionalProjectNameArg =
   ArgumentType
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Just $ Resolvers.multiResolver "Select a branch:" [Resolvers.projectBranchOptions]
     }
 
 -- | A project name.
@@ -3520,7 +3590,8 @@ projectNameArg =
           Codebase.runTransaction codebase do
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
-      globTargets = Set.empty
+      globTargets = Set.empty,
+      fzfResolver = Just $ Resolvers.multiResolver "Select a project:" [Resolvers.projectNameOptions]
     }
   where
     projectToCompletion :: Sqlite.Project -> Completion

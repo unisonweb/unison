@@ -335,7 +335,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     UcmContextLooseCode path ->
                       if curPath == path
                         then pure Nothing
-                        else pure $ Just (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                        else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
                     UcmContextProject (ProjectAndBranch projectName branchName) -> do
                       ProjectAndBranch project branch <-
                         ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
@@ -343,7 +343,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       pure
                         if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                           then Nothing
-                          else Just (ProjectSwitchI (Just $ ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                          else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
                     atomically $ Q.undequeue cmdQueue (Just p)
@@ -356,10 +356,12 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                         rootVar <- use #root
                         numberedArgs <- use #numberedArgs
                         let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
-                          Right input -> pure $ Right input
+                          -- No input received from this line, try again.
+                          Right Nothing -> awaitInput
+                          Right (Just (_expandedArgs, input)) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)

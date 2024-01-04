@@ -17,6 +17,7 @@ import Control.Monad.State qualified as State
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -124,7 +125,7 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
-import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -148,7 +149,6 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
-import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -156,6 +156,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
+import Unison.Project.Util (projectContextFromPath)
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -495,15 +496,7 @@ loop e = do
                 description
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
-            SwitchBranchI maybePath' -> do
-              path' <-
-                maybePath' & onNothing do
-                  root0 <- Cli.getRootBranch0
-                  fuzzySelectNamespace Absolute root0 >>= \case
-                    -- Shouldn't be possible to get multiple paths here, we can just take
-                    -- the first.
-                    Just (p : _) -> pure p
-                    _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
+            SwitchBranchI path' -> do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
@@ -739,18 +732,8 @@ loop e = do
               let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
               Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
-              currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              srcs' <- case srcs of
-                [] -> do
-                  defs <-
-                    fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                      Cli.returnEarly (HelpMessage InputPatterns.docs)
-                  -- HQ names should always parse as a valid split, so we just discard any
-                  -- that don't to satisfy the type-checker.
-                  pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
-                xs -> pure xs
-              for_ srcs' (docsI (show input) basicPrettyPrintNames)
+              for_ srcs (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
               Cli.Env {codebase} <- ask
               initialBranch <- Cli.getCurrentBranch
@@ -843,14 +826,8 @@ loop e = do
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
               DeleteTarget'Project name -> handleDeleteProject name
-            DisplayI outputLoc names' -> do
-              currentBranch0 <- Cli.getCurrentBranch0
+            DisplayI outputLoc names -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              names <- case names' of
-                [] ->
-                  fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                    Cli.returnEarly (HelpMessage InputPatterns.display)
-                ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             FindPatchI -> do
@@ -1115,6 +1092,22 @@ loop e = do
               let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
+            DebugFuzzyOptionsI command args -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
+              let projCtx = projectContextFromPath currentPath
+              case Map.lookup command InputPatterns.patternMap of
+                Just (IP.InputPattern {argTypes}) -> do
+                  zip argTypes args & Monoid.foldMapM \case
+                    ((_, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {argDescription, getOptions}}), "_") -> do
+                      results <- liftIO $ getOptions codebase projCtx currentBranch
+                      Cli.respond (DebugDisplayFuzzyOptions (Text.unpack argDescription) (Text.unpack <$> results))
+                    ((_, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
+                      Cli.respond DebugFuzzyOptionsNoResolver
+                    _ -> pure ()
+                Nothing -> do
+                  Cli.respond DebugFuzzyOptionsNoResolver
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1391,6 +1384,7 @@ inputDescription input =
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
+    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
@@ -1677,24 +1671,15 @@ handleDiffNamespaceToPatch description input = do
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope inputQuery = do
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
+handleShowDefinition outputLoc showDefinitionScope query = do
   Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
-  query <-
-    if null inputQuery
-      then do
-        branch <- Cli.getCurrentBranch0
-        fuzzySelectDefinition Relative branch & onNothingM do
-          Cli.returnEarly case outputLoc of
-            ConsoleLocation -> HelpMessage InputPatterns.view
-            _ -> HelpMessage InputPatterns.edit
-      else pure inputQuery
   root <- Cli.getRootBranch
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
-  let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
+  let hasAbsoluteQuery = any (any Name.isAbsolute) query
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
@@ -1711,10 +1696,10 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
       let currentNames = Branch.toNames currentBranch
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
-  let pped = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPED
+  let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes query)
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
@@ -2559,39 +2544,6 @@ hqNameQuery searchType query = do
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
     let nameSearch = NameSearch.makeNameSearch hqLength parseNames
     Backend.hqNameQuery codebase nameSearch searchType query
-
--- | Select a definition from the given branch.
--- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
-fuzzySelectDefinition pos searchBranch0 = liftIO do
-  let termsAndTypes =
-        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
-          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  let inputs :: [HQ.HashQualified Name]
-      inputs =
-        termsAndTypes
-          & Set.toList
-          & map (fmap (Name.setPosition pos))
-  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText inputs
-
--- | Select a namespace from the given branch.
--- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [Path'])
-fuzzySelectNamespace pos searchBranch0 = liftIO do
-  let intoPath' :: Path -> Path'
-      intoPath' = case pos of
-        Relative -> Path' . Right . Path.Relative
-        Absolute -> Path' . Left . Path.Absolute
-  let inputs :: [Path']
-      inputs =
-        searchBranch0
-          & Branch.deepPaths
-          & Set.toList
-          & map intoPath'
-  Fuzzy.fuzzySelect
-    Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-    tShow
-    inputs
 
 looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
 looseCodeOrProjectToPath = \case

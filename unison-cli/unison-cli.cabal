@@ -95,6 +95,7 @@ library
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
+      Unison.CommandLine.FZFResolvers
       Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns

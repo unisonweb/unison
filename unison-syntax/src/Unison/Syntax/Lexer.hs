@@ -527,7 +527,7 @@ lexemes' eof =
 
         docClose = [] <$ lit "}}"
         docOpen = [] <$ lit "{{"
-        
+
         link =
           P.label "link (examples: {type List}, {Nat.+})" $
             wrap "syntax.docLink" $
@@ -536,20 +536,19 @@ lexemes' eof =
 
         expr =
           P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
-            openAs "{{" "syntax.docTransclude" 
-              <+> do {
-                env0 <- S.get;
-                -- we re-allow layout within a transclusion, then restore it to its 
+            openAs "{{" "syntax.docTransclude"
+              <+> do
+                env0 <- S.get
+                -- we re-allow layout within a transclusion, then restore it to its
                 -- previous state after
-                S.put (env0 { inLayout = True });
+                S.put (env0 {inLayout = True})
                 -- Note: this P.lookAhead ensures the }} isn't consumed,
                 -- so it can be consumed below by the `close` which will
                 -- pop items off the layout stack up to the nearest enclosing
                 -- syntax.docTransclude.
-                ts <- lexemes' (P.lookAhead ([] <$ lit "}}"));
-                S.modify (\env -> env { inLayout = inLayout env0 });
+                ts <- lexemes' (P.lookAhead ([] <$ lit "}}"))
+                S.modify (\env -> env {inLayout = inLayout env0})
                 pure ts
-              }
               <+> close ["syntax.docTransclude"] (lit "}}")
 
         nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
@@ -1079,7 +1078,7 @@ separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
 open :: String -> P [Token Lexeme]
-open b = openAs b b 
+open b = openAs b b
 
 positioned :: P a -> P (Pos, a, Pos)
 positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)

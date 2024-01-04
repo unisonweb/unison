@@ -34,19 +34,29 @@ import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
 import Data.ListLike (ListLike)
 import Data.Map qualified as Map
+import Data.Semialign qualified as Align
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Data.These (These (..))
 import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project.Util (ProjectContext, projectContextFromPath)
+import Unison.Symbol (Symbol)
 import Unison.Util.ColorText qualified as CT
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO.STM
@@ -108,7 +118,8 @@ nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo = emojiNote "😶"
 
 parseInput ::
-  IO (Branch0 m) ->
+  Codebase IO Symbol Ann ->
+  IO (Branch0 IO) ->
   -- | Current path from root, used to expand globs
   Path.Absolute ->
   -- | Numbered arguments
@@ -117,8 +128,16 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  IO (Either (P.Pretty CT.ColorText) Input)
-parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
+  -- Returns either an error message or the fully expanded arguments list and parsed input.
+  -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
+  IO (Either (P.Pretty CT.ColorText) (Maybe ([String], Input)))
+parseInput codebase getRoot currentPath numberedArgs patterns segments = runExceptT do
+  let getCurrentBranch0 :: IO (Branch0 IO)
+      getCurrentBranch0 = do
+        rootBranch <- getRoot
+        pure $ Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+  let projCtx = projectContextFromPath currentPath
+
   case segments of
     [] -> throwE ""
     command : args -> case Map.lookup command patterns of
@@ -139,7 +158,11 @@ parseInput getRoot currentPath numberedArgs patterns segments = runExceptT do
                 Just [] -> throwE $ "No matches for: " <> fromString arg
                 Just matches -> pure matches
             else pure [arg]
-        except $ parse (concat expandedGlobs)
+        lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
+          Nothing -> pure Nothing
+          Just resolvedArgs -> do
+            parsedInput <- except . parse $ resolvedArgs
+            pure $ Just (command : resolvedArgs, parsedInput)
       Nothing ->
         throwE
           . warn
@@ -168,6 +191,37 @@ expandNumber numberedArgs s = case expandedNumber of
             ("", "", [from, to]) ->
               (\x y -> [x .. y]) <$> readMay from <*> readMay to
             _ -> Nothing
+
+fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Maybe [String])
+fzfResolve codebase projCtx getCurrentBranch pat args = runMaybeT do
+  (Align.align (argTypes pat) args) & foldMapM \case
+    This argDesc@(opt, _)
+      | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
+          MaybeT $ fuzzyFillArg argDesc
+      | otherwise -> pure []
+    That arg -> pure [arg]
+    These _ arg -> pure [arg]
+  where
+    fuzzyFillArg :: (InputPattern.IsOptional, InputPattern.ArgumentType) -> (IO (Maybe [String]))
+    fuzzyFillArg (opt, argType) =
+      runMaybeT do
+        InputPattern.FZFResolver {argDescription, getOptions} <- hoistMaybe $ InputPattern.fzfResolver argType
+        liftIO $ Text.putStrLn $ argDescription
+        currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
+        options <- liftIO $ getOptions codebase projCtx currentBranch
+        guard . not . null $ options
+        results <- MaybeT (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
+        -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing execution
+        -- with no arguments.
+        guard . not . null $ results
+        pure (Text.unpack <$> results)
+
+    multiSelectForOptional :: InputPattern.IsOptional -> Bool
+    multiSelectForOptional = \case
+      InputPattern.Required -> False
+      InputPattern.Optional -> False
+      InputPattern.OnePlus -> True
+      InputPattern.ZeroPlus -> True
 
 prompt :: String
 prompt = "> "

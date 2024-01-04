@@ -21,7 +21,7 @@ moveTermSteps src' dest' = do
   srcTerms <- Cli.getTermsAt src
   case Set.toList srcTerms of
     [] -> pure []
-    _:_:_ -> do
+    _ : _ : _ -> do
       hqLength <- Cli.runTransaction Codebase.hashLength
       Cli.returnEarly (Output.DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
     [srcTerm] -> do
