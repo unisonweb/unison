@@ -18,7 +18,7 @@ import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -90,7 +90,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             _termsByShortname = Map.empty
           }
     ShouldUseTndr'Yes parsingEnv -> do
-      let preexistingNames = NamesWithHistory.currentNames (Parser.names parsingEnv)
+      let preexistingNames = Parser.names parsingEnv
           tm = UF.typecheckingTerm uf
           possibleDeps =
             [ (Name.toText name, Var.name v, r)
@@ -146,7 +146,7 @@ synthesizeFile env0 uf = do
       unisonFilePPE =
         ( PPE.fromNames
             10
-            (NamesWithHistory.shadowing (UF.toNames uf) Builtin.names)
+            (Names.shadowing (UF.toNames uf) Builtin.names)
         )
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm

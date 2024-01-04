@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -35,7 +33,6 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
@@ -74,7 +71,7 @@ data Env = Env
   { -- contains handlers for talking to the client.
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
-    parseNamesCache :: IO NamesWithHistory,
+    parseNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
@@ -165,7 +162,7 @@ globalPPED = asks ppedCache >>= liftIO
 getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO
 
-getParseNames :: Lsp NamesWithHistory
+getParseNames :: Lsp Names
 getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config

@@ -1,11 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types #-}
-
 module Unison.Builtin
   ( codeLookup,
     constructorType,
     names,
-    names0,
     builtinDataDecls,
     builtinEffectDecls,
     builtinConstructorType,
@@ -37,7 +33,6 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
-import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference qualified as R
@@ -55,11 +50,8 @@ type EffectDeclaration = DD.EffectDeclaration Symbol Ann
 
 type Type = Type.Type Symbol ()
 
-names :: NamesWithHistory
-names = NamesWithHistory names0 mempty
-
-names0 :: Names
-names0 = Names terms types
+names :: Names
+names = Names terms types
   where
     terms =
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)

@@ -100,7 +100,6 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -438,7 +437,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
+    dppe = PPE.fromNames 8 (UF.toNames uf)
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 

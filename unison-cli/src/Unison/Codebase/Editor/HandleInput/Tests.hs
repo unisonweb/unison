@@ -31,8 +31,8 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.Names (Names)
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -53,7 +53,7 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
 
-fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
+fqnPPE :: Names -> Cli PPE.PrettyPrintEnv
 fqnPPE ns =
   Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
 
@@ -128,7 +128,7 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
   Cli.Env {runtime} <- ask
-  parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
+  parseNames <- basicParseNames
   ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
@@ -155,7 +155,7 @@ findTermsOfTypes codebase includeLib filterTypes = do
 handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase, runtime} <- ask
-  parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
+  parseNames <- basicParseNames
   ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
   ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
@@ -170,7 +170,7 @@ handleAllIOTests = do
           pure (fails, oks)
       Cli.respond $ TestResults Output.NewlyComputed ppe True True oks fails
 
-resolveHQNames :: NamesWithHistory -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
+resolveHQNames :: Names -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
 resolveHQNames parseNames hqNames =
   Set.fromList <$> do
     (Set.toList hqNames) & foldMapM \main -> do
@@ -184,11 +184,11 @@ resolveHQNames parseNames hqNames =
       (_, ref, _wk, _term, typ) <- hoistMaybe $ Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)
       pure (ref, typ)
 
-    getNameFromCodebase :: NamesWithHistory -> HQ.HashQualified Name -> MaybeT Cli (Reference.Id, Type.Type Symbol Ann)
+    getNameFromCodebase :: Names -> HQ.HashQualified Name -> MaybeT Cli (Reference.Id, Type.Type Symbol Ann)
     getNameFromCodebase parseNames main = do
       Cli.Env {codebase} <- ask
       mapMaybeT Cli.runTransaction do
-        (Set.toList (NamesWithHistory.lookupHQTerm NamesWithHistory.IncludeSuffixes main parseNames)) & altMap \ref0 -> do
+        (Set.toList (Names.lookupHQTerm Names.IncludeSuffixes main parseNames)) & altMap \ref0 -> do
           ref <- hoistMaybe (Referent.toTermReferenceId ref0)
           typ <- MaybeT (Codebase.getTypeOfReferent codebase (Referent.fromTermReferenceId ref))
           pure (ref, typ)
