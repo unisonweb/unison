@@ -160,19 +160,8 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
                 Just matches -> pure matches
             else pure [arg]
         lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
-          Left NoFZFResolverForArgumentType -> throwError help
-          Left (NoFZFOptions argName) ->
-            throwError
-              ( P.callout "⚠️" $
-                  P.lines
-                    [ ( "Sorry, I was expecting an argument for the "
-                          <> P.text argName
-                          <> ", and I couldn't find any to suggest to you. 😅"
-                      ),
-                      "",
-                      help
-                    ]
-              )
+          Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
+          Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing
           Right resolvedArgs -> do
             parsedInput <- except . parse $ resolvedArgs
@@ -184,6 +173,15 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
           $ "I don't know how to "
             <> P.group (fromString command <> ".")
             <> "Type `help` or `?` to get help."
+  where
+    noCompletionsMessage argDesc =
+      P.callout "⚠️" $
+        P.lines
+          [ ( "Sorry, I was expecting an argument for the "
+                <> P.text argDesc
+                <> ", and I couldn't find any to suggest to you. 😅"
+            )
+          ]
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -207,7 +205,7 @@ expandNumber numberedArgs s = case expandedNumber of
             _ -> Nothing
 
 data FZFResolveFailure
-  = NoFZFResolverForArgumentType
+  = NoFZFResolverForArgumentType InputPattern.ArgumentDescription
   | NoFZFOptions Text {- argument description -}
   | FZFCancelled
 
@@ -223,7 +221,7 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
         This (argName, opt, InputPattern.ArgumentType {fzfResolver})
           | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
               case fzfResolver of
-                Nothing -> throwError NoFZFResolverForArgumentType
+                Nothing -> throwError $ NoFZFResolverForArgumentType argName
                 Just fzfResolver -> pure $ fuzzyFillArg opt argName fzfResolver
           | otherwise -> pure $ pure []
         That arg -> pure $ pure [arg]

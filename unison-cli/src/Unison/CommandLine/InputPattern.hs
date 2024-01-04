@@ -5,7 +5,7 @@
 module Unison.CommandLine.InputPattern
   ( InputPattern (..),
     ArgumentType (..),
-    ArgumentName,
+    ArgumentDescription,
     argType,
     FZFResolver (..),
     IsOptional (..),
@@ -45,14 +45,16 @@ data IsOptional
 data Visibility = Hidden | Visible
   deriving (Show, Eq, Ord)
 
--- | Argument name, e.g. "merge target", "new name"
-type ArgumentName = Text
+-- | Argument description
+-- It should fit grammatically into sentences like "I was expecting an argument for the <argDesc>"
+-- e.g. "namespace to merge", "definition to delete", "remote target to push to" etc.
+type ArgumentDescription = Text
 
 data InputPattern = InputPattern
   { patternName :: String,
     aliases :: [String],
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
-    args :: [(ArgumentName, IsOptional, ArgumentType)],
+    args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
     parse :: [String] -> Either (P.Pretty CT.ColorText) Input
   }
@@ -82,12 +84,12 @@ instance Show ArgumentType where
 -- `argType` gets called when the user tries to autocomplete an `i`th argument (zero-indexed).
 -- todo: would be nice if we could alert the user if they try to autocomplete
 -- past the end.  It would also be nice if
-argInfo :: InputPattern -> Int -> Maybe (ArgumentName, ArgumentType)
+argInfo :: InputPattern -> Int -> Maybe (ArgumentDescription, ArgumentType)
 argInfo InputPattern {args, patternName} i = go (i, args)
   where
     -- Strategy: all of these input patterns take some number of arguments.
     -- If it takes no arguments, then don't autocomplete.
-    go :: (Int, [(Text, IsOptional, ArgumentType)]) -> Maybe (ArgumentName, ArgumentType)
+    go :: (Int, [(Text, IsOptional, ArgumentType)]) -> Maybe (ArgumentDescription, ArgumentType)
     go (_, []) = Nothing
     -- If requesting the 0th of >=1 arguments, return it.
     go (0, (argName, _, t) : _) = Just (argName, t)
