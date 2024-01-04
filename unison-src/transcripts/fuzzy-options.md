@@ -1,6 +1,6 @@
 # Test that the options selector for fuzzy finding is working as expected for different argument types.
 
-If an argument is required but doesn't have a fuzzy resolver, the command should just print help.
+If an argument is required but doesn't have a fuzzy resolver, the command should just print the help.
 
 
 ```ucm:error

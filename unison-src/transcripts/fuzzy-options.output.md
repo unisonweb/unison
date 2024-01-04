@@ -22,16 +22,6 @@ opening an empty fuzzy-select.
 
 Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
 
-`view foo` shows definitions named `foo` within your current
-namespace.
-`view` without arguments invokes a search to select definitions
-to view, which requires that `fzf` can be found within your
-PATH.
- 
-Supports glob syntax, where ? acts a wildcard, so `view List.?`
-will show `List.map`, `List.filter`, etc, but not `List.map.doc`
-(since ? only matches 1 name segment).
-
 ```
 ```unison
 optionOne = 1
