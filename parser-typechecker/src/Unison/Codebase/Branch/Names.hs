@@ -1,15 +1,23 @@
 module Unison.Codebase.Branch.Names
   ( namesDiff,
     toNames,
+    toPrettyPrintEnvDecl,
   )
 where
 
 import Unison.Codebase.Branch
 import Unison.Names (Names (..))
 import Unison.NamesWithHistory qualified as Names
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Util.Relation qualified as R
 import Prelude hiding (head, read, subtract)
 
+-- | Get the pretty-printing environment for names in the provided branch.
+toPrettyPrintEnvDecl :: Int -> Branch0 m -> PPED.PrettyPrintEnvDecl
+toPrettyPrintEnvDecl hashLength b = PPED.fromNamesDecl hashLength $ toNames b
+
+-- | Get the names in the provided branch.
 toNames :: Branch0 m -> Names
 toNames b =
   Names

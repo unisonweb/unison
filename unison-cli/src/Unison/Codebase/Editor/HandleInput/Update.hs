@@ -16,13 +16,12 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (displayNames)
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.Input
@@ -85,7 +84,7 @@ handleUpdate input optionalPatch requestedNames = do
           NoPatch -> Nothing
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
-  slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  slurpCheckNames <- Cli.currentNames
   sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
   let addsAndUpdates :: SlurpComponent
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
@@ -195,8 +194,10 @@ handleUpdate input optionalPatch requestedNames = do
       . Codebase.addDefsToCodebase codebase
       . Slurp.filterUnisonFile sr
       $ Slurp.originalFile sr
-  ppe <- prettyPrintEnvDecl =<< displayNames (Slurp.originalFile sr)
-  Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) fileNames
+  pped <- Cli.prettyPrintEnvDeclFromNames codebaseAndFileNames
+  let suffixifiedPPE = PPE.suffixifiedPPE pped
+  Cli.respond $ SlurpOutput input suffixifiedPPE sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
   addDefaultMetadata addsAndUpdates

@@ -15,28 +15,26 @@ import System.Environment (withArgs)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (displayNames, makeShadowedPrintNamesFromHQ)
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
-import Unison.Server.Backend qualified as Backend
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
@@ -60,11 +58,11 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  unisonFile <- withFile sourceName text
-  currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  currentNames <- Cli.currentNames
+  unisonFile <- withFile currentNames sourceName text
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-  names <- displayNames unisonFile
-  pped <- prettyPrintEnvDecl names
+  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
+  pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
   (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
@@ -75,13 +73,12 @@ loadUnisonFile sourceName text = do
   #latestTypecheckedFile .= Just (Right unisonFile)
   where
     withFile ::
+      Names ->
       Text ->
       Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile sourceName text = do
-      rootBranch <- Cli.getRootBranch
+    withFile names sourceName text = do
       currentPath <- Cli.getCurrentPath
-      let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
       State.modify' \loopState ->
         loopState
           & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -92,7 +89,7 @@ loadUnisonFile sourceName text = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names = parseNames
+                names
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
@@ -104,8 +101,9 @@ loadUnisonFile sourceName text = do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
-        ns <- makeShadowedPrintNamesFromHQ (UF.toNames unisonFile)
-        ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
+        let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
+        pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+        let suffixifiedPPE = PPED.suffixifiedPPE pped
         let tes = [err | Result.TypeError err <- toList notes]
             cbs =
               [ bug
@@ -114,9 +112,9 @@ loadUnisonFile sourceName text = do
               ]
         when (not (null tes)) do
           currentPath <- Cli.getCurrentPath
-          Cli.respond (Output.TypeErrors currentPath text ppe tes)
+          Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
         when (not (null cbs)) do
-          Cli.respond (Output.CompilerBugs text ppe cbs)
+          Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
         Cli.returnEarlyWithoutOutput
 
 data EvalMode = Sandboxed | Permissive | Native

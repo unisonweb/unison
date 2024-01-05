@@ -12,6 +12,7 @@ import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.UnisonConfigUtils (defaultMetadataKey)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
@@ -28,7 +29,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
-import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
@@ -123,24 +124,18 @@ manageLinks silent srcs' metadataNames op = do
 resolveMetadata :: HQ.HashQualified Name -> Cli (Either Output (Metadata.Type, Metadata.Value))
 resolveMetadata name = do
   Cli.Env {codebase} <- ask
-  root' <- Cli.getRootBranch
-  currentPath' <- Cli.getCurrentPath
-  schLength <- Cli.runTransaction Codebase.branchHashLength
-
-  let ppe :: PPE.PrettyPrintEnv
-      ppe =
-        Backend.basicSuffixifiedNames schLength root' (Backend.Within $ Path.unabsolute currentPath')
-
+  pped <- Cli.currentPrettyPrintEnvDecl
+  let suffixifiedPPE = PPED.suffixifiedPPE pped
   terms <- getHQTerms name
   runExceptT $ do
     ref <-
       case Set.asSingleton terms of
         Just (Referent.Ref ref) -> pure ref
         -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
-        _ -> throwError (MetadataAmbiguous name ppe (Set.toList terms))
+        _ -> throwError (MetadataAmbiguous name suffixifiedPPE (Set.toList terms))
     lift (Cli.runTransaction ((Codebase.getTypeOfTerm codebase ref))) >>= \case
       Just ty -> pure (Hashing.typeToReference ty, ref)
-      Nothing -> throwError (MetadataMissingType ppe (Referent.Ref ref))
+      Nothing -> throwError (MetadataMissingType suffixifiedPPE (Referent.Ref ref))
 
 resolveDefaultMetadata :: Path.Absolute -> Cli [String]
 resolveDefaultMetadata path = do

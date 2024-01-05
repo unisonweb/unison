@@ -10,7 +10,6 @@ module Unison.Server.Backend
     BackendEnv (..),
     TypeEntry (..),
     FoundRef (..),
-    NameScoping (..),
     IncludeCycles (..),
     DefinitionResults (..),
 
@@ -18,7 +17,6 @@ module Unison.Server.Backend
     fuzzyFind,
 
     -- * Utilities
-    basicSuffixifiedNames,
     bestNameForTerm,
     bestNameForType,
     definitionsByName,
@@ -27,8 +25,6 @@ module Unison.Server.Backend
     expandShortCausalHash,
     findDocInBranch,
     formatSuffixedType,
-    getCurrentParseNames,
-    getCurrentPrettyNames,
     getShallowCausalAtPathFromRootHash,
     getTermTag,
     getTypeTag,
@@ -39,12 +35,9 @@ module Unison.Server.Backend
     lsAtPath,
     lsBranch,
     mungeSyntaxText,
-    namesForBranch,
-    parseNamesForBranch,
-    prettyNamesForBranch,
     resolveCausalHashV2,
     resolveRootBranchHashV2,
-    scopedNamesForBranchHash,
+    namesAtPathFromRootBranchHash,
     termEntryDisplayName,
     termEntryHQName,
     termEntryToNamedTerm,
@@ -67,9 +60,7 @@ module Unison.Server.Backend
 
     -- * Unused, could remove?
     resolveRootBranchHash,
-    shallowPPE,
     isTestResultList,
-    toAllNames,
     fixupNamesRelative,
 
     -- * Re-exported for Share Server
@@ -143,9 +134,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names (Names))
+import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.Names.Scoped qualified as ScopedNames
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -193,7 +183,6 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (Width)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as R
-import Unison.Util.Set qualified as Set
 import Unison.Util.SyntaxText qualified as UST
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
@@ -254,85 +243,6 @@ instance MonadTrans Backend where
 hoistBackend :: (forall x. m x -> n x) -> Backend m a -> Backend n a
 hoistBackend f (Backend m) =
   Backend (mapReaderT (mapExceptT f) m)
-
-suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
-suffixifyNames hashLength =
-  PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength
-
--- implementation detail of parseNamesForBranch and prettyNamesForBranch
--- Returns (parseNames, prettyNames, localNames)
-namesForBranch :: Branch m -> NameScoping -> (Names, Names, Names)
-namesForBranch root scope =
-  (parseNames0, prettyPrintNames0, currentPathNames)
-  where
-    path :: Path
-    includeAllNames :: Bool
-    (path, includeAllNames) = case scope of
-      AllNames path -> (path, True)
-      Within path -> (path, False)
-      WithinStrict path -> (path, False)
-    root0 = Branch.head root
-    currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
-    currentBranch0 = Branch.head currentBranch
-    currentPathNames = Branch.toNames currentBranch0
-    -- all names, but with local names in their relative form only, rather
-    -- than absolute; external names appear as absolute
-    currentAndExternalNames =
-      currentPathNames
-        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
-      where
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
-        rootNames = Branch.toNames root0
-        pathPrefixed = case Path.toName path of
-          Nothing -> const mempty
-          Just pathName -> Names.prefix0 pathName
-    -- parsing should respond to local and absolute names
-    parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
-    -- pretty-printing should use local names where available
-    prettyPrintNames0 =
-      if includeAllNames
-        then currentAndExternalNames
-        else currentPathNames
-
-basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength root nameScope =
-  let names0 = prettyNamesForBranch root nameScope
-   in suffixifyNames hashLength names0
-
-parseNamesForBranch :: Branch m -> NameScoping -> Names
-parseNamesForBranch root = namesForBranch root <&> \(n, _, _) -> n
-
-prettyNamesForBranch :: Branch m -> NameScoping -> Names
-prettyNamesForBranch root = namesForBranch root <&> \(_, n, _) -> n
-
-shallowPPE :: (MonadIO m) => Codebase m v a -> V2Branch.Branch m -> m PPE.PrettyPrintEnv
-shallowPPE codebase b = do
-  (hashLength, names) <- Codebase.runTransaction codebase do
-    hl <- Codebase.hashLength
-    names <- shallowNames codebase b
-    pure (hl, names)
-  pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ names
-
--- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
---
--- I.e. names in nested children are omitted.
--- This should probably live elsewhere, but the package dependency graph makes it hard to find
--- a good place.
-shallowNames :: forall m v a. (Monad m) => Codebase m v a -> V2Branch.Branch m -> Sqlite.Transaction Names
-shallowNames codebase b = do
-  newTerms <-
-    V2Branch.terms b
-      & Map.mapKeys Name.fromSegment
-      & fmap Map.keysSet
-      & traverse . Set.traverse %%~ Cv.referent2to1 (Codebase.getDeclType codebase)
-
-  let newTypes =
-        V2Branch.types b
-          & Map.mapKeys Name.fromSegment
-          & fmap Map.keysSet
-          & traverse . Set.traverse %~ Cv.reference2to1
-  pure (Names (R.fromMultimap newTerms) (R.fromMultimap newTypes))
 
 loadReferentType ::
   Codebase m Symbol Ann ->
@@ -692,43 +602,6 @@ lsBranch codebase b0 = do
       ++ branchEntries
       ++ patchEntries
 
--- currentPathNames :: Path -> Names
--- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
-
--- | Configure how names will be constructed and filtered.
---   this is typically used when fetching names for printing source code or when finding
---   definitions by name.
-data NameScoping
-  = -- | Find all names, making any names which are children of this path,
-    -- otherwise leave them absolute.
-    AllNames Path
-  | -- | Filter returned names to only include names within this path.
-    Within Path
-  | -- | Like `Within`, but does not include a fallback
-    WithinStrict Path
-
-toAllNames :: NameScoping -> NameScoping
-toAllNames (AllNames p) = AllNames p
-toAllNames (Within p) = AllNames p
-toAllNames (WithinStrict p) = AllNames p
-
-getCurrentPrettyNames :: Int -> NameScoping -> Branch m -> PPED.PrettyPrintEnvDecl
-getCurrentPrettyNames hashLen scope root =
-  case scope of
-    WithinStrict _ -> primary
-    _ ->
-      PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
-      where
-        backup = PPED.fromNamesDecl hashLen $ parseNamesForBranch root (AllNames mempty)
-  where
-    primary = PPED.fromNamesDecl hashLen $ parseNamesForBranch root scope
-
-getCurrentParseNames :: NameScoping -> Branch m -> Names
-getCurrentParseNames scope root =
-  parseNamesForBranch root scope
-
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
 -- converted to absolute names. For example:
@@ -1056,9 +929,8 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       hqLength <- Codebase.hashLength
       pure (docTermsWithNames, hqLength)
   let docNamesByRef = Map.fromList docTermsWithNames
-  let printNames = prettyNamesForBranch root (AllNames currentPath)
-  let ppe = PPED.fromNamesDecl hqLength printNames
-  docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
+  let pped = Branch.toPrettyPrintEnvDecl hqLength (Branch.head currentBranch)
+  docs <- for docTermsWithNames (renderDoc' pped runtime codebase)
   liftIO $
     docs & foldMapM \(name, text, doc, errs) -> do
       renderDocToHtmlFile docNamesByRef directory (name, text, doc)
@@ -1144,21 +1016,16 @@ bestNameForType ppe width =
     . TypePrinter.prettySyntax @v ppe
     . Type.ref ()
 
--- | Returns (parse, pretty, local, ppe) where:
---
--- - 'parse' includes ALL fully qualified names from the root, and ALSO all names from within the provided path, relative to that path.
--- - 'pretty' includes names within the provided path, relative to that path, and also all globally scoped names _outside_ of the path
--- - 'local' includes ONLY the names within the provided path
--- - 'ppe' is a ppe which searches for a name within the path first, but falls back to a global name search.
---     The 'suffixified' component of this ppe will search for the shortest unambiguous suffix within the scope in which the name is found (local, falling back to global)
-scopedNamesForBranchHash ::
+-- | Gets the names and PPED for the branch at the provided path from the root branch for the
+-- provided branch hash.
+namesAtPathFromRootBranchHash ::
   forall m n v a.
   (MonadIO m) =>
   Codebase m v a ->
   Maybe (V2Branch.CausalBranch n) ->
   Path ->
   Backend m (Names, PPED.PrettyPrintEnvDecl)
-scopedNamesForBranchHash codebase mbh path = do
+namesAtPathFromRootBranchHash codebase mbh path = do
   shouldUseNamesIndex <- asks useNamesIndex
   (rootBranchHash, rootCausalHash) <- case mbh of
     Just cb -> pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
@@ -1167,28 +1034,15 @@ scopedNamesForBranchHash codebase mbh path = do
       pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
   haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  (parseNames, localNames) <-
+  names <-
     if shouldUseNamesIndex
       then do
         when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
-        lift . Codebase.runTransaction codebase $ indexNames rootBranchHash
+        lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
-        (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
-        pure (parseNames, localNames)
-
-  let localPPE = PPED.fromNamesDecl hashLen localNames
-  let globalPPE = PPED.fromNamesDecl hashLen parseNames
-  pure (localNames, mkPPE localPPE globalPPE)
-  where
-    mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
-    mkPPE primary addFallback =
-      PPED.PrettyPrintEnvDecl
-        (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE addFallback)
-        (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE addFallback)
-    indexNames :: BranchHash -> Sqlite.Transaction (Names, Names)
-    indexNames bh = do
-      scopedNames <- Codebase.namesAtPath bh path
-      pure (ScopedNames.parseNames scopedNames, ScopedNames.namesAtPath scopedNames)
+        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash (Just rootCausalHash) codebase
+  let pped = PPED.fromNamesDecl hashLen names
+  pure (names, pped)
 
 resolveCausalHash ::
   (Monad m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)

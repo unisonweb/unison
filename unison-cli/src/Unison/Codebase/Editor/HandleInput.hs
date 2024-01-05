@@ -47,9 +47,9 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, getBasicPrettyPrintNames, makePrintNamesFromLabeled')
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
-import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheckTerm)
 import Unison.Codebase (Codebase)
@@ -701,10 +701,9 @@ loop e = do
                     let pped = PPED.fromNamesDecl hqLength names
                     pure (names, pped)
                   else do
-                    currentBranch <- Cli.getCurrentBranch0
-                    let currentNames = Branch.toNames currentBranch
-                    let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
-                    pure (currentNames, pped)
+                    names <- Cli.currentNames
+                    pped <- Cli.prettyPrintEnvDeclFromNames names
+                    pure (names, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                   terms = Names.lookupHQTerm Names.IncludeSuffixes query names
