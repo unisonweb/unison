@@ -61,15 +61,15 @@ mytest = [Ok "ok"]
 
 ```
 ```unison:added-by-ucm /private/tmp/scratch.u
-test> mytest = [Ok "ok"]
-```
-
-```unison:added-by-ucm /private/tmp/scratch.u
 bar : Nat
 bar = 456
 
 foo : Nat
 foo = 123
+```
+
+```unison:added-by-ucm /private/tmp/scratch.u
+test> mytest = [Ok "ok"]
 ```
 
 ```ucm

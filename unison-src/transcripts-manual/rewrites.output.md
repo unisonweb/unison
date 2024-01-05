@@ -58,6 +58,82 @@ Let's rewrite these:
   The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
 
 ```
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): Either.mapRight
+
+ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
+Either.mapRight f = cases
+  None   -> None
+  Some a -> Some (f a)
+
+rule1 f x =
+  use Nat +
+  @rewrite
+    term x + 1 ==> Nat.increment x
+    term a -> f a ==> f
+
+unique type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+
+cleanup = do
+  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
+  ()
+
+---- Anything below this line is ignored by Unison.
+
+
+```
+
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): ex1
+
+ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
+Either.mapRight f = cases
+  Left e  -> Left e
+  Right a -> Right (f a)
+
+rule1 f x =
+  use Nat +
+  @rewrite
+    term x + 1 ==> Nat.increment x
+    term a -> f a ==> f
+
+unique type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+
+cleanup = do
+  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
+  ()
+
+---- Anything below this line is ignored by Unison.
+
+
+```
+
 After adding to the codebase, here's the rewritten source:
 
 ```ucm
@@ -122,6 +198,34 @@ Let's apply the rewrite `woot1to2`:
   The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
 
 ```
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): wootEx
+
+unique ability Woot1 where woot1 : '{Woot1} Nat
+
+unique ability Woot2 where woot2 : '{Woot2} Nat
+
+woot1to2 x =
+  @rewrite
+    term Woot1.woot1 ==> Woot2.woot2
+    term blah ==> blah2
+    signature _ . Woot1 ==> Woot2
+
+wootEx : Nat ->{Woot2} Nat
+wootEx a =
+  _ = !Woot2.woot2
+  blah2
+
+blah = 123
+
+blah2 = 456
+
+---- Anything below this line is ignored by Unison.
+
+
+```
+
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ```ucm
@@ -217,6 +321,32 @@ In the above example, `bar2` is locally bound by the rule, so when applied, it s
   The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
 
 ```
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): sameFileEx
+
+bar1 =
+  b = "bar"
+  123
+
+bar2 =
+  a = 39494
+  233
+
+rule bar2 =
+  @rewrite
+    case None ==> Left "oh no"
+    term bar1 ==> bar2
+
+sameFileEx =
+  _ = "ex"
+  bar21
+
+---- Anything below this line is ignored by Unison.
+
+
+```
+
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ```ucm
@@ -268,6 +398,24 @@ rule a = @rewrite
   The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
 
 ```
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): bar2
+
+bar2 =
+  a = 39494
+  a1
+
+rule a =
+  @rewrite
+    case None ==> Left "oh no"
+    term 233 ==> a
+
+---- Anything below this line is ignored by Unison.
+
+
+```
+
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ```ucm
