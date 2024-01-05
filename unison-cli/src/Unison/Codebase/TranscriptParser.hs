@@ -270,7 +270,11 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
   -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
   -- e.g. a unison-file update by a command like 'edit'
   inputQueue <- Q.newIO @(Stanza, Maybe Int)
-  cmdQueue <- Q.newIO
+  -- Queue of UCM commands to run.
+  -- Nothing indicates the end of a ucm block.
+  cmdQueue <- Q.newIO @(Maybe UcmLine)
+  -- Queue of scratch file updates triggered by UCM itself, e.g. via `edit`, `update`, etc.
+  ucmScratchFileUpdatesQueue <- Q.newIO @(ScratchFileName, Text)
   unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
   hidden <- newIORef Shown
@@ -321,6 +325,13 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
           Just Nothing -> do
             liftIO (output "\n```\n")
             liftIO dieUnexpectedSuccess
+            atomically $ void $ do
+              scratchFileUpdates <- Q.flush ucmScratchFileUpdatesQueue
+              -- Push them onto the front stanza queue in the correct order.
+              for (reverse scratchFileUpdates) \(fp, contents) -> do
+                let fenceDescription = "unison:added-by-ucm " <> fp
+                -- Output blocks for any scratch file updates the ucm block triggered.
+                Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing)
             awaitInput
           -- ucm command to run
           Just (Just ucmLine) -> do
@@ -394,10 +405,13 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef hidden hide)
                     liftIO (outputEcho $ show s)
                     liftIO (writeIORef allowErrors errOk)
+                    -- Open a ucm block which will contain the output from UCM
+                    -- after processing the the UnisonFileChanged event.
                     liftIO (output "```ucm\n")
+                    -- Close the ucm block after processing the UnisonFileChanged event.
                     atomically . Q.enqueue cmdQueue $ Nothing
                     let sourceName = fromMaybe "scratch.u" filename
-                    liftIO $ writeSourceFile False sourceName txt
+                    liftIO $ updateVirtualFile sourceName txt
                     pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
@@ -428,12 +442,15 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
 
-      writeSourceFile :: Bool -> ScratchFileName -> Text -> IO ()
-      writeSourceFile programmaticUpdate fp contents = do
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile fp contents = do
         shouldShowSourceChanges <- (== Shown) <$> readIORef hidden
-        when (programmaticUpdate && shouldShowSourceChanges) $ do
-          let fenceDescription = "unison:added-by-ucm " <> fp
-          atomically (Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing))
+        when shouldShowSourceChanges $ do
+          atomically (Q.enqueue ucmScratchFileUpdatesQueue (fp, contents))
+        updateVirtualFile fp contents
+
+      updateVirtualFile :: ScratchFileName -> Text -> IO ()
+      updateVirtualFile fp contents = do
         liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
@@ -510,7 +527,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
-            writeSource = writeSourceFile True,
+            writeSource = writeSourceFile,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,
