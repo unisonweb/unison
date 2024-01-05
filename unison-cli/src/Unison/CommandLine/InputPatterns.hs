@@ -2133,79 +2133,6 @@ viewPatch =
         _ -> Left $ warn "`view.patch` takes a patch and that's it."
     )
 
-link :: InputPattern
-link =
-  InputPattern
-    "link"
-    []
-    I.Visible
-    [("metadata", Required, definitionQueryArg), ("definition", OnePlus, definitionQueryArg)]
-    ( fromString $
-        concat
-          [ "`link metadata defn` creates a link to `metadata` from `defn`. ",
-            "Use `links defn` or `links defn <type>` to view outgoing links, ",
-            "and `unlink metadata defn` to remove a link. The `defn` can be either the ",
-            "name of a term or type, multiple such names, or a range like `1-4` ",
-            "for a range of definitions listed by a prior `find` command."
-          ]
-    )
-    ( \case
-        md : defs -> first fromString $ do
-          md <- case HQ.fromString md of
-            Nothing -> Left "Invalid hash qualified identifier for metadata."
-            Just hq -> pure hq
-          defs <- traverse Path.parseHQSplit' defs
-          Right $ Input.LinkI md defs
-        _ -> Left (I.help link)
-    )
-
-links :: InputPattern
-links =
-  InputPattern
-    "links"
-    []
-    I.Visible
-    [("definition to link", Required, definitionQueryArg), ("metadata", Optional, definitionQueryArg)]
-    ( P.column2
-        [ (makeExample links ["defn"], "shows all outgoing links from `defn`."),
-          (makeExample links ["defn", "<type>"], "shows all links of the given type.")
-        ]
-    )
-    ( \case
-        src : rest -> first fromString $ do
-          src <- Path.parseHQSplit' src
-          let ty = case rest of
-                [] -> Nothing
-                _ -> Just $ unwords rest
-           in Right $ Input.LinksI src ty
-        _ -> Left (I.help links)
-    )
-
-unlink :: InputPattern
-unlink =
-  InputPattern
-    "unlink"
-    ["delete.link"]
-    I.Visible
-    [("metadata", Required, definitionQueryArg), ("definition", OnePlus, definitionQueryArg)]
-    ( fromString $
-        concat
-          [ "`unlink metadata defn` removes a link to `metadata` from `defn`.",
-            "The `defn` can be either the ",
-            "name of a term or type, multiple such names, or a range like `1-4` ",
-            "for a range of definitions listed by a prior `find` command."
-          ]
-    )
-    ( \case
-        md : defs -> first fromString $ do
-          md <- case HQ.fromString md of
-            Nothing -> Left "Invalid hash qualified identifier for metadata."
-            Just hq -> pure hq
-          defs <- traverse Path.parseHQSplit' defs
-          Right $ Input.UnlinkI md defs
-        _ -> Left (I.help unlink)
-    )
-
 names :: Input.IsGlobal -> InputPattern
 names isGlobal =
   InputPattern
@@ -2337,7 +2264,7 @@ debugNameDiff =
       aliases = [],
       visibility = I.Hidden,
       args = [("before namespace", Required, namespaceArg), ("after namespace", Required, namespaceArg)],
-      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch changes.",
       parse =
         ( \case
             [from, to] -> first fromString $ do
@@ -3079,8 +3006,6 @@ validInputs =
       history,
       ioTest,
       ioTestAll,
-      link,
-      links,
       load,
       makeStandalone,
       mergeBuiltins,
@@ -3126,7 +3051,6 @@ validInputs =
       todo,
       ui,
       undo,
-      unlink,
       up,
       update,
       updateBuiltins,

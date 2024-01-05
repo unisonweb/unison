@@ -194,57 +194,6 @@ test =
                     |]
                   ),
                 pushPullTest
-                  "metadataForTerm"
-                  fmt
-                  ( \repo ->
-                      [i|
-                      ```unison:hide
-                      doc = "y is the number 3"
-                      y = 3
-                      ```
-                      ```ucm
-                      .> debug.file
-                      .> add
-                      .> link doc y
-                      .> links y
-                      .> history
-                      .> push.create git(${repo})
-                      ```
-                    |]
-                  )
-                  ( \repo ->
-                      [i|
-                      ```ucm
-                      .> pull git(${repo})
-                      .> links y
-                      ```
-                    |]
-                  ),
-                pushPullTest
-                  "metadataForType"
-                  fmt
-                  ( \repo ->
-                      [i|
-                      ```unison:hide
-                      doc = "Nat means natural number"
-                      ```
-                      ```ucm
-                      .> add
-                      .> alias.type ##Nat Nat
-                      .> link doc Nat
-                      .> push.create git(${repo})
-                      ```
-                    |]
-                  )
-                  ( \repo ->
-                      [i|
-                      ```ucm
-                      .> pull git(${repo})
-                      .> links Nat
-                      ```
-                    |]
-                  ),
-                pushPullTest
                   "subNamespace"
                   fmt
                   ( \repo ->
