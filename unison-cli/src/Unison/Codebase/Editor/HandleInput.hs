@@ -2427,7 +2427,7 @@ docsI srcLoc names src =
         [(_name, ref, _tm)] -> do
           len <- Cli.runTransaction Codebase.branchHashLength
           let tm = Term.ref External ref
-          tm <- RuntimeUtils.evalUnisonTerm True (PPE.fromNames len PPE.DontSuffixify names) True tm
+          tm <- RuntimeUtils.evalUnisonTerm True (PPE.makePPE (PPE.hqNamer len names) PPE.dontSuffixify) True tm
           doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
           #numberedArgs .= fmap (HQ.toString . view _1) out
@@ -2472,7 +2472,7 @@ lexedSource name src = do
 
 suffixifiedPPE :: Names -> Cli PPE.PrettyPrintEnv
 suffixifiedPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify ns
+  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen ns) (PPE.suffixify ns)
 
 parseSearchType :: SrcLoc -> String -> Cli (Type Symbol Ann)
 parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ

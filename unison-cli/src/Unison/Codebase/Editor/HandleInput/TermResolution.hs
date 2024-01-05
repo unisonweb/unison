@@ -83,7 +83,7 @@ resolveTerm name = do
       rfs ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfs))
         where
-          ppe = PPE.fromNames hashLength PPE.Suffixify nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixify nms)
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
 resolveCon name = do
@@ -97,7 +97,7 @@ resolveCon name = do
       (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
         where
-          ppe = PPE.fromNames hashLength PPE.Suffixify nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixify nms)
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
 resolveTermRef name = do
@@ -111,7 +111,7 @@ resolveTermRef name = do
       (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
         where
-          ppe = PPE.fromNames hashLength PPE.Suffixify nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixify nms)
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do
@@ -120,7 +120,7 @@ resolveMainRef main = do
       smain = HQ.toString main
   parseNames <- basicPrettyPrintNamesA
   k <- Cli.runTransaction Codebase.hashLength
-  let ppe = PPE.fromNames k PPE.Suffixify parseNames
+  let ppe = PPE.makePPE (PPE.hqNamer k parseNames) (PPE.suffixify parseNames)
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, ppe)

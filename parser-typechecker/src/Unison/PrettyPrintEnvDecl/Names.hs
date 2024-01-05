@@ -10,5 +10,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
 fromNamesDecl hashLength names =
   PrettyPrintEnvDecl
-    (PPE.fromNames hashLength PPE.DontSuffixify names)
-    (PPE.fromNames hashLength PPE.Suffixify names)
+    (PPE.makePPE namer PPE.dontSuffixify)
+    (PPE.makePPE namer (PPE.suffixify names))
+  where
+    namer = PPE.hqNamer hashLength names

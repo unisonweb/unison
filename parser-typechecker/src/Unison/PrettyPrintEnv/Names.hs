@@ -1,8 +1,18 @@
 module Unison.PrettyPrintEnv.Names
-  ( Suffixification (..),
-    fromNames,
-    prioritize,
-    shortestUniqueSuffixes,
+  ( -- * Namer
+    Namer (..),
+    hqNamer,
+    namer,
+
+    -- * Suffixifier
+    Suffixifier,
+    dontSuffixify,
+    suffixify,
+
+    -- * Pretty-print env
+    makePPE,
+    makeTermNames,
+    makeTypeNames,
   )
 where
 
@@ -15,33 +25,66 @@ import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
-import Unison.Util.Relation qualified as Rel
+import Unison.Reference (TypeReference)
+import Unison.Referent (Referent)
 
-data Suffixification
-  = DontSuffixify
-  | Suffixify
+------------------------------------------------------------------------------------------------------------------------
+-- Namer
 
-fromNames :: Int -> Suffixification -> Names -> PrettyPrintEnv
-fromNames len suffixification names = PrettyPrintEnv terms' types'
-  where
-    terms' r =
-      Names.termName len r names
-        & Set.toList
-        & fmap (\n -> (n, n))
-        & ( case suffixification of
-              DontSuffixify -> id
-              Suffixify -> shortestUniqueSuffixes (Names.terms names)
-          )
-        & prioritize
-    types' r =
-      Names.typeName len r names
-        & Set.toList
-        & fmap (\n -> (n, n))
-        & ( case suffixification of
-              DontSuffixify -> id
-              Suffixify -> shortestUniqueSuffixes (Names.types names)
-          )
-        & prioritize
+data Namer = Namer
+  { nameTerm :: Referent -> Set (HQ'.HashQualified Name),
+    nameType :: TypeReference -> Set (HQ'.HashQualified Name)
+  }
+
+namer :: Names -> Namer
+namer names =
+  Namer
+    { nameTerm = Set.map HQ'.fromName . Names.namesForReferent names,
+      nameType = Set.map HQ'.fromName . Names.namesForReference names
+    }
+
+hqNamer :: Int -> Names -> Namer
+hqNamer hashLen names =
+  Namer
+    { nameTerm = \ref -> Names.termName hashLen ref names,
+      nameType = \ref -> Names.typeName hashLen ref names
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+-- Suffixifier
+
+data Suffixifier = Suffixifier
+  { suffixifyTerm :: Name -> Name,
+    suffixifyType :: Name -> Name
+  }
+
+dontSuffixify :: Suffixifier
+dontSuffixify =
+  Suffixifier id id
+
+suffixify :: Names -> Suffixifier
+suffixify names =
+  Suffixifier
+    { suffixifyTerm = \name -> Name.shortestUniqueSuffix name (Names.terms names),
+      suffixifyType = \name -> Name.shortestUniqueSuffix name (Names.types names)
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+-- Pretty-print env
+
+makePPE :: Namer -> Suffixifier -> PrettyPrintEnv
+makePPE namer suffixifier =
+  PrettyPrintEnv
+    (makeTermNames namer suffixifier)
+    (makeTypeNames namer suffixifier)
+
+makeTermNames :: Namer -> Suffixifier -> Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+makeTermNames Namer {nameTerm} Suffixifier {suffixifyTerm} =
+  prioritize . map (\name -> (name, suffixifyTerm <$> name)) . Set.toList . nameTerm
+
+makeTypeNames :: Namer -> Suffixifier -> TypeReference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+makeTypeNames Namer {nameType} Suffixifier {suffixifyType} =
+  prioritize . map (\name -> (name, suffixifyType <$> name)) . Set.toList . nameType
 
 -- | Sort the names for a given ref by the following factors (in priority order):
 --
@@ -54,8 +97,3 @@ prioritize =
   sortOn \case
     (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
     (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
-
--- | Reduce the provided names to their minimal unique suffix within the scope of the given
--- relation.
-shortestUniqueSuffixes :: (Ord ref) => Rel.Relation Name ref -> [(a, HQ'.HashQualified Name)] -> [(a, HQ'.HashQualified Name)]
-shortestUniqueSuffixes rel names = names <&> second (fmap (\name -> Name.shortestUniqueSuffix name rel))

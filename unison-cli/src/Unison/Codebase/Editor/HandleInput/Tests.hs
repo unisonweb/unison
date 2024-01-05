@@ -55,7 +55,7 @@ import Unison.WatchKind qualified as WK
 
 fqnPPE :: Names -> Cli PPE.PrettyPrintEnv
 fqnPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.DontSuffixify ns
+  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen ns) PPE.dontSuffixify
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
@@ -129,7 +129,9 @@ handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
   Cli.Env {runtime} <- ask
   parseNames <- basicParseNames
-  ppe <- Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify parseNames
+  ppe <-
+    Cli.runTransaction Codebase.hashLength <&> \hashLen ->
+      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixify parseNames)
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
   (fails, oks) <-
@@ -156,7 +158,9 @@ handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase, runtime} <- ask
   parseNames <- basicParseNames
-  ppe <- (\hashLen -> PPE.fromNames hashLen PPE.Suffixify parseNames) <$> Cli.runTransaction Codebase.hashLength
+  ppe <-
+    Cli.runTransaction Codebase.hashLength <&> \hashLen ->
+      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixify parseNames)
   ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
     Nothing -> Cli.respond $ TestResults Output.NewlyComputed ppe True True [] []
