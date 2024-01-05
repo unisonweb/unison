@@ -47,10 +47,10 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-            | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
+        [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          | (typ, fields) <- parsedAccessors,
+            Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+        ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
@@ -97,7 +97,7 @@ file = do
 
             -- A function to replace unique local term suffixes with their
             -- fully qualified name
-            replacements = [ (v, Term.var () v2) | (v,v2) <- Map.toList canonicalVars, v /= v2 ]
+            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
             resolveLocals = ABT.substsInheritAnnotation replacements
     let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of

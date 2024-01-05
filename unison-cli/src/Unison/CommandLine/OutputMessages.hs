@@ -81,6 +81,7 @@ import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
+import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import Unison.CommandLine.InputPatterns qualified as IP
@@ -1806,7 +1807,7 @@ notifyUser dir = \case
   DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
     pure $
       P.lines
-        [P.string argDesc, P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+        [P.text (FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
   DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
   ClearScreen -> do
     ANSI.clearScreen
