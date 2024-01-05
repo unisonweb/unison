@@ -2472,7 +2472,7 @@ lexedSource name src = do
 
 suffixifiedPPE :: Names -> Cli PPE.PrettyPrintEnv
 suffixifiedPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen ns) (PPE.suffixify ns)
+  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen ns) (PPE.suffixifyByHash ns)
 
 parseSearchType :: SrcLoc -> String -> Cli (Type Symbol Ann)
 parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ

@@ -131,7 +131,7 @@ handleIOTest main = do
   parseNames <- basicParseNames
   ppe <-
     Cli.runTransaction Codebase.hashLength <&> \hashLen ->
-      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixify parseNames)
+      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixifyByHash parseNames)
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
   (fails, oks) <-
@@ -160,7 +160,7 @@ handleAllIOTests = do
   parseNames <- basicParseNames
   ppe <-
     Cli.runTransaction Codebase.hashLength <&> \hashLen ->
-      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixify parseNames)
+      PPE.makePPE (PPE.hqNamer hashLen parseNames) (PPE.suffixifyByHash parseNames)
   ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
     Nothing -> Cli.respond $ TestResults Output.NewlyComputed ppe True True [] []

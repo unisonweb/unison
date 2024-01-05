@@ -40,7 +40,8 @@ module Unison.Name
     preferShallowLibDepth,
     searchByRankedSuffix,
     searchBySuffix,
-    shortestUniqueSuffix,
+    suffixifyByName,
+    suffixifyByHash,
     sortByText,
     sortNamed,
     sortNames,
@@ -495,8 +496,8 @@ unqualified (Name _ (s :| _)) =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
-shortestUniqueSuffix fqn rel =
+suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByName fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
     isOk :: Name -> Bool
@@ -513,8 +514,8 @@ shortestUniqueSuffix fqn rel =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffixOld :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
-shortestUniqueSuffixOld fqn rel =
+suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByHash fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
     allRefs :: Set r

@@ -257,7 +257,7 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
           )
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixify namesExcludingOldDep)
+          suffixifiedPPE = makePPE (PPE.suffixifyByHash namesExcludingOldDep)
         }
   where
     oldNames = Branch.toNames oldDep

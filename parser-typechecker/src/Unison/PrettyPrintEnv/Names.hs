@@ -7,7 +7,8 @@ module Unison.PrettyPrintEnv.Names
     -- * Suffixifier
     Suffixifier,
     dontSuffixify,
-    suffixify,
+    suffixifyByHash,
+    suffixifyByName,
 
     -- * Pretty-print env
     makePPE,
@@ -62,11 +63,18 @@ dontSuffixify :: Suffixifier
 dontSuffixify =
   Suffixifier id id
 
-suffixify :: Names -> Suffixifier
-suffixify names =
+suffixifyByName :: Names -> Suffixifier
+suffixifyByName names =
   Suffixifier
-    { suffixifyTerm = \name -> Name.shortestUniqueSuffix name (Names.terms names),
-      suffixifyType = \name -> Name.shortestUniqueSuffix name (Names.types names)
+    { suffixifyTerm = \name -> Name.suffixifyByName name (Names.terms names),
+      suffixifyType = \name -> Name.suffixifyByName name (Names.types names)
+    }
+
+suffixifyByHash :: Names -> Suffixifier
+suffixifyByHash names =
+  Suffixifier
+    { suffixifyTerm = \name -> Name.suffixifyByHash name (Names.terms names),
+      suffixifyType = \name -> Name.suffixifyByHash name (Names.types names)
     }
 
 ------------------------------------------------------------------------------------------------------------------------

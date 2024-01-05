@@ -11,6 +11,6 @@ fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
 fromNamesDecl hashLength names =
   PrettyPrintEnvDecl
     (PPE.makePPE namer PPE.dontSuffixify)
-    (PPE.makePPE namer (PPE.suffixify names))
+    (PPE.makePPE namer (PPE.suffixifyByHash names))
   where
     namer = PPE.hqNamer hashLength names
