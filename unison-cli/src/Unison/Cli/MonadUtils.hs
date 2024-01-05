@@ -75,7 +75,7 @@ module Unison.Cli.MonadUtils
     -- * Latest touched Unison file
     getLatestFile,
     getLatestParsedFile,
-    getNamesFromLatestParsedFile,
+    getNamesFromLatestFile,
     getTermFromLatestParsedFile,
     expectLatestFile,
     expectLatestParsedFile,
@@ -573,12 +573,14 @@ getTermFromLatestParsedFile (HQ.NameOnly n) = do
         _ -> Nothing
 getTermFromLatestParsedFile _ = pure Nothing
 
-getNamesFromLatestParsedFile :: Cli Names
-getNamesFromLatestParsedFile = do
-  uf <- getLatestParsedFile
-  pure $ case uf of
+-- | Gets the names from the latest typechecked unison file, or latest parsed file if it
+-- didn't typecheck.
+getNamesFromLatestFile :: Cli Names
+getNamesFromLatestFile = do
+  use #latestTypecheckedFile <&> \case
+    Just (Right tf) -> UFN.typecheckedToNames tf
+    Just (Left uf) -> UFN.toNames uf
     Nothing -> mempty
-    Just uf -> UFN.toNames uf
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

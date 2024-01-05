@@ -2371,7 +2371,7 @@ displayI outputLoc hq = do
 docsI :: SrcLoc -> Path.HQSplit' -> Cli ()
 docsI srcLoc src = do
   names <- Cli.currentNames
-  fileByName names
+  findInScratchfileByName names
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
@@ -2387,9 +2387,9 @@ docsI srcLoc src = do
     dotDoc :: HQ.HashQualified Name
     dotDoc = hq <&> \n -> Name.joinDot n "doc"
 
-    fileByName :: Names -> Cli ()
-    fileByName names = do
-      namesInFile <- Cli.getNamesFromLatestParsedFile
+    findInScratchfileByName :: Names -> Cli ()
+    findInScratchfileByName names = do
+      namesInFile <- Cli.getNamesFromLatestFile
       case Names.lookupHQTerm Names.IncludeSuffixes dotDoc namesInFile of
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
