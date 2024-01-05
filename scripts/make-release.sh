@@ -18,7 +18,7 @@ usage() {
     echo "E.g."
     echo "$0 M4a"
     echo ""
-    echo "The latest release is: $(git tag --list 'release/*' | grep -v M | sort -r | head -n 1 | sed 's/release\///')"
+    echo "The latest release is: $(git tag --list 'release/*' | grep -v M | sort -rV | head -n 1 | sed 's/release\///')"
 }
 
 if [[ -z "$1" ]] ; then
