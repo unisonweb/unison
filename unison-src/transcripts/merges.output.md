@@ -242,14 +242,14 @@ master.frobnicate n = n + 1
 
 .> view master.y
 
-  master.y : master.builtin.Text
+  master.y : Text
   master.y = "updated y"
 
 .> view master.frobnicate
 
-  master.frobnicate : master.builtin.Nat -> master.builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use master.builtin.Nat +
+    use Nat +
     n + 1
 
 ```
@@ -262,11 +262,11 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
   
   Added definitions:
   
-    1. z : feature2.builtin.Nat
+    1. z : Nat
   
   Removed definitions:
   
-    2. x : feature2.builtin.Nat
+    2. x : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -292,19 +292,19 @@ And notice that `y` has the most recent value, and that `z` and `frobnicate` bot
 ```ucm
 .> view master.y
 
-  master.y : master.builtin.Text
+  master.y : Text
   master.y = "updated y"
 
 .> view master.z
 
-  master.z : master.builtin.Nat
+  master.z : Nat
   master.z = 99
 
 .> view master.frobnicate
 
-  master.frobnicate : master.builtin.Nat -> master.builtin.Nat
+  master.frobnicate : Nat -> Nat
   master.frobnicate n =
-    use master.builtin.Nat +
+    use Nat +
     n + 1
 
 ```

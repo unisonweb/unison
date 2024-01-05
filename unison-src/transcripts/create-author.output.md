@@ -27,8 +27,8 @@ def2 = 2
 
 .foo> view 2
 
-  metadata.copyrightHolders.alicecoder : builtin.CopyrightHolder
+  metadata.copyrightHolders.alicecoder : CopyrightHolder
   metadata.copyrightHolders.alicecoder =
-    builtin.CopyrightHolder.CopyrightHolder guid "Alice McGee"
+    CopyrightHolder guid "Alice McGee"
 
 ```

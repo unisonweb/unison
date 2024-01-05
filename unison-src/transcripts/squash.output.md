@@ -245,9 +245,9 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   
   Added definitions:
   
-    1. bodaciousNumero   : builtin.Nat
+    1. bodaciousNumero   : Nat
     2. productionReadyId : x -> x
-    3. superRadNumber    : builtin.Nat
+    3. superRadNumber    : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -275,9 +275,9 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   
   Added definitions:
   
-    1. babyDon'tHurtMe : builtin.Text
+    1. babyDon'tHurtMe : Text
     2. no              : more -> r
-    3. whatIsLove      : builtin.Text
+    3. whatIsLove      : Text
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -354,9 +354,9 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
   
   Added definitions:
   
-    1. bodaciousNumero   : builtin.Nat
+    1. bodaciousNumero   : Nat
     2. productionReadyId : x -> x
-    3. superRadNumber    : builtin.Nat
+    3. superRadNumber    : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -371,12 +371,12 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
   
   Added definitions:
   
-    1. babyDon'tHurtMe   : builtin.Text
-    2. bodaciousNumero   : builtin.Nat
+    1. babyDon'tHurtMe   : Text
+    2. bodaciousNumero   : Nat
     3. no                : more -> r
     4. productionReadyId : x -> x
-    5. superRadNumber    : builtin.Nat
-    6. whatIsLove        : builtin.Text
+    5. superRadNumber    : Nat
+    6. whatIsLove        : Text
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -413,10 +413,10 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
   
   Added definitions:
   
-    1. bodaciousNumero   : builtin.Nat
+    1. bodaciousNumero   : Nat
     2. productionReadyId : x -> x
-    3. superRadNumber    : builtin.Nat
-    4. x                 : builtin.Nat
+    3. superRadNumber    : Nat
+    4. x                 : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -484,8 +484,8 @@ This checks to see that squashing correctly preserves deletions:
   
   Removed definitions:
   
-    1. Nat.* : builtin.Nat -> builtin.Nat -> builtin.Nat
-    2. Nat.+ : builtin.Nat -> builtin.Nat -> builtin.Nat
+    1. Nat.* : Nat -> Nat -> Nat
+    2. Nat.+ : Nat -> Nat -> Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you

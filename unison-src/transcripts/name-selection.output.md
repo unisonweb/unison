@@ -28,9 +28,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 .a> view a
 
   a : Nat
-  a =
-    use Nat +
-    b + 1
+  a = b + 1
 
 .> cd .
 
@@ -1530,21 +1528,21 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
     use Nat +
     0 + 1
   
-  a2.c : a2.builtin.Nat
+  a2.c : Nat
   a2.c = 1
   
-  a2.d : a2.builtin.Nat
+  a2.d : Nat
   a2.d =
-    use a2.builtin.Nat +
+    use Nat +
     a2.c + 10
   
-  a3.c#dcgdua2lj6 : a3.builtin.Nat
+  a3.c#dcgdua2lj6 : Nat
   a3.c#dcgdua2lj6 = 2
   
-  a3.d#9ivhgvhthc : a3.builtin.Nat
+  a3.d#9ivhgvhthc : Nat
   a3.d#9ivhgvhthc =
-    use a3.builtin.Nat +
-    a3.c#dcgdua2lj6 + 10
+    use Nat +
+    c#dcgdua2lj6 + 10
 
 ```
 ## Name biasing

@@ -176,19 +176,19 @@ and `quux` namespaces.
 
 .P0> view foo.x foo.y foo.z bar.y quux.y
 
-  bar.y : builtin.Nat
+  bar.y : Nat
   bar.y = 383
   
-  foo.x : builtin.Nat
+  foo.x : Nat
   foo.x = 1
   
-  foo.y : builtin.Nat
+  foo.y : Nat
   foo.y = 2483908
   
-  foo.z : builtin.Int
+  foo.z : Int
   foo.z = +28348
   
-  quux.y : builtin.Nat
+  quux.y : Nat
   quux.y = 333
 
 ```
@@ -326,16 +326,16 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
 
 .c1a> view 1-4
 
-  a : builtin.Text
+  a : Text
   a = "hello world!"
   
-  f : builtin.Text
+  f : Text
   f = (x y -> y) a "woot!"
   
-  oog.b : builtin.Nat
+  oog.b : Nat
   oog.b = 230948
   
-  oog.c : builtin.Nat
+  oog.c : Nat
   oog.c = 339249
 
 ```
