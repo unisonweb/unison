@@ -525,7 +525,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             generateUniqueName = do
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
-            isTranscript = True, -- we are running a transcript
             loadSource = loadPreviousUnisonBlock,
             writeSource = writeSourceFile,
             notify = print,

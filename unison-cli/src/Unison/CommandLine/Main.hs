@@ -236,7 +236,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             codebase,
             config,
             credentialManager,
-            isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
             writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
