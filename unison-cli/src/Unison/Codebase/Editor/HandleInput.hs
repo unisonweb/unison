@@ -2249,7 +2249,9 @@ checkDeletes typesTermsTuples doutput inputs = do
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
   let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
   -- make sure endangered is compeletely contained in paths
-  names <- Cli.currentNames
+  -- TODO: We should just check for endangerments from the project root, not the
+  -- global root!
+  rootNames <- Branch.toNames <$> Cli.getRootBranch0
   -- get only once for the entire deletion set
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
@@ -2258,7 +2260,7 @@ checkDeletes typesTermsTuples doutput inputs = do
     Cli.runTransaction $
       traverse
         ( \targetToDelete ->
-            getEndangeredDependents targetToDelete (allTermsToDelete) names
+            getEndangeredDependents targetToDelete (allTermsToDelete) rootNames
         )
         toDelete
   -- If the overall dependency map is not completely empty, abort deletion
@@ -2282,7 +2284,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         DeleteOutput'NoDiff -> do
           Cli.respond Success
     else do
-      ppeDecl <- Cli.prettyPrintEnvDeclFromNames names
+      ppeDecl <- Cli.prettyPrintEnvDeclFromNames rootNames
       let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
       Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
 
@@ -2297,7 +2299,7 @@ getEndangeredDependents ::
   Names ->
   -- | All entities we want to delete (including the target)
   Set LabeledDependency ->
-  -- | All names from the root branch
+  -- | Names from the current branch
   Names ->
   -- | map from references going extinct to the set of endangered dependents
   Sqlite.Transaction (Map LabeledDependency (NESet LabeledDependency))
