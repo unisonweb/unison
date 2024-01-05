@@ -27,9 +27,9 @@ def2 = 2
 
 .foo> view 2
 
-  metadata.copyrightHolders.alicecoder : CopyrightHolder
+  metadata.copyrightHolders.alicecoder : builtin.CopyrightHolder
   metadata.copyrightHolders.alicecoder =
-    CopyrightHolder guid "Alice McGee"
+    builtin.CopyrightHolder.CopyrightHolder guid "Alice McGee"
 
 .foo> link metadata.authors.alicecoder def1 def2
 

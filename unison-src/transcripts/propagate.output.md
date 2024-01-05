@@ -52,7 +52,7 @@ And then we add it.
 
 .subpath> view fooToInt
 
-  fooToInt : Foo -> Int
+  fooToInt : Foo -> builtin.Int
   fooToInt _ = +42
 
 ```
@@ -91,7 +91,7 @@ and update the codebase to use the new type `Foo`...
 ```ucm
 .subpath> view fooToInt
 
-  fooToInt : Foo -> Int
+  fooToInt : Foo -> builtin.Int
   fooToInt _ = +42
 
 .> cd .
@@ -181,12 +181,12 @@ type of `otherTerm` should remain the same.
 ```ucm
 .subpath.preserve> view someTerm
 
-  someTerm : Optional x -> Optional x
-  someTerm _ = None
+  someTerm : builtin.Optional x -> builtin.Optional x
+  someTerm _ = builtin.Optional.None
 
 .subpath.preserve> view otherTerm
 
-  otherTerm : Optional baz -> Optional baz
+  otherTerm : builtin.Optional baz -> builtin.Optional baz
   otherTerm y = someTerm y
 
 ```
@@ -282,7 +282,7 @@ The other namespace should be left alone.
 ```ucm
 .subpath.two> view someTerm
 
-  someTerm : Optional foo -> Optional foo
+  someTerm : builtin.Optional foo -> builtin.Optional foo
   someTerm x = x
 
 ```

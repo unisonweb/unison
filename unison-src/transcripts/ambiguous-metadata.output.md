@@ -33,7 +33,7 @@ x = 1
   I'm not sure which metadata value you're referring to since
   there are multiple matches:
   
-    doc#7ivmrc4c8v
+    boo.doc#7ivmrc4c8v
     foo.doc
   
   Tip: Try again and supply one of the above definitions

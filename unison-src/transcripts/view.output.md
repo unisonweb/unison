@@ -18,7 +18,7 @@ b.thing = "b"
 -- Should be local to namespace
 .a> view thing
 
-  thing : Text
+  thing : builtin.Text
   thing = "a"
 
 -- view.global should search globally and be absolutely qualified
@@ -33,7 +33,7 @@ b.thing = "b"
 -- Should support absolute paths outside of current namespace
 .a> view .b.thing
 
-  .b.thing : Text
+  .b.thing : builtin.Text
   .b.thing = "b"
 
 ```

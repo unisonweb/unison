@@ -183,7 +183,7 @@ bonk.zonk = 5
 
 .a> view zonk.zonk
 
-  zonk.zonk : Nat
+  zonk.zonk : builtin.Nat
   zonk.zonk = 5
 
 ```

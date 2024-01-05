@@ -74,7 +74,7 @@ We can ask to `view` the second element of this list:
 
 .temp> view 2
 
-  baz : Text
+  baz : builtin.Text
   baz = "baz"
 
 ```
@@ -93,13 +93,13 @@ And we can `view` multiple elements by separating with spaces:
 
 .temp> view 2 3 5
 
-  baz : Text
+  baz : builtin.Text
   baz = "baz"
   
-  corge : Text
+  corge : builtin.Text
   corge = "corge"
   
-  quux : Text
+  quux : builtin.Text
   quux = "quux"
 
 ```
@@ -118,13 +118,13 @@ We can also ask for a range:
 
 .temp> view 2-4
 
-  baz : Text
+  baz : builtin.Text
   baz = "baz"
   
-  corge : Text
+  corge : builtin.Text
   corge = "corge"
   
-  foo : Text
+  foo : builtin.Text
   foo = "foo"
 
 ```
@@ -143,22 +143,22 @@ And we can ask for multiple ranges and use mix of ranges and numbers:
 
 .temp> view 1-3 4 5-6
 
-  bar : Text
+  bar : builtin.Text
   bar = "bar"
   
-  baz : Text
+  baz : builtin.Text
   baz = "baz"
   
-  corge : Text
+  corge : builtin.Text
   corge = "corge"
   
-  foo : Text
+  foo : builtin.Text
   foo = "foo"
   
-  quux : Text
+  quux : builtin.Text
   quux = "quux"
   
-  qux : Text
+  qux : builtin.Text
   qux = "qux"
 
 ```

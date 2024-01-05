@@ -322,14 +322,14 @@ unique type Y a b = Y a b
   Updates:
   
     1. ns2.f : Nat
-       + 2. c : Nat
+       + 2. ns1.c : Nat
 
 .> link ns2.c ns2.c
 
   Updates:
   
     1. ns2.c : Nat
-       + 2. c : Nat
+       + 2. ns1.c : Nat
 
 .> diff.namespace ns1 ns2
 
@@ -349,7 +349,7 @@ unique type Y a b = Y a b
     7.  b : Text
     
     8.  c : Nat
-        + 9.  c : Nat
+        + 9.  ns1.c : Nat
     
     10. fromJust' : Nat
         ↓
@@ -397,7 +397,7 @@ unique type Y a b = Y a b
     7.  b : Text
     
     8.  c : Nat
-        + 9.  c : Nat
+        + 9.  ns1.c : Nat
     
     10. fromJust' : Nat
         ↓
@@ -619,20 +619,20 @@ a = 555
 
 .nsw> view a b
 
-  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 : builtin.Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t : builtin.Nat
   a#vrs8gtkl2t = 555
   
-  b#aapqletas7 : Nat
+  b#aapqletas7 : builtin.Nat
   b#aapqletas7 =
-    use Nat +
+    use builtin.Nat +
     a#vrs8gtkl2t + 1
   
-  b#unkqhuu66p : Nat
+  b#unkqhuu66p : builtin.Nat
   b#unkqhuu66p =
-    use Nat +
+    use builtin.Nat +
     a#mdl4vqtu00 + 1
 
 ```
