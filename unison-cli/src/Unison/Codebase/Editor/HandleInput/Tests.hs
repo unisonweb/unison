@@ -24,7 +24,7 @@ import Unison.Cli.NamesUtils (basicParseNames, makePrintNamesFromLabeled')
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
-import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Input (TestInput (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Runtime qualified as Runtime
@@ -55,7 +55,7 @@ import Unison.WatchKind qualified as WK
 
 fqnPPE :: Names -> Cli PPE.PrettyPrintEnv
 fqnPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
+  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.DontSuffixify ns
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
@@ -129,7 +129,7 @@ handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
   Cli.Env {runtime} <- ask
   parseNames <- basicParseNames
-  ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
+  ppe <- Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify parseNames
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames parseNames (Set.singleton main)
   (fails, oks) <-
@@ -156,7 +156,7 @@ handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase, runtime} <- ask
   parseNames <- basicParseNames
-  ppe <- (\hashLen -> PPE.fromSuffixNames hashLen parseNames) <$> Cli.runTransaction Codebase.hashLength
+  ppe <- (\hashLen -> PPE.fromNames hashLen PPE.Suffixify parseNames) <$> Cli.runTransaction Codebase.hashLength
   ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
     Nothing -> Cli.respond $ TestResults Output.NewlyComputed ppe True True [] []

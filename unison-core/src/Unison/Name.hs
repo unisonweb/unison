@@ -506,6 +506,29 @@ shortestUniqueSuffix fqn rel =
         matchingNameCount =
           getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
 
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
+-- Uses an efficient logarithmic lookup in the provided relation.
+-- The returned `Name` may refer to multiple hashes if the original FQN
+-- did as well.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+shortestUniqueSuffixOld :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+shortestUniqueSuffixOld fqn rel =
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  where
+    allRefs :: Set r
+    allRefs =
+      R.lookupDom fqn rel
+
+    isOk :: Name -> Bool
+    isOk suffix =
+      Set.size refs == 1 || refs == allRefs
+      where
+        refs :: Set r
+        refs =
+          R.searchDom (compareSuffix suffix) rel
+
 -- | Returns the common prefix of two names as segments
 --
 -- Note: the returned segments are NOT reversed.

@@ -46,7 +46,7 @@ handleRun native main args = do
     pure (uf, otyp)
   ppe <- do
     names <- displayNames unisonFile
-    Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` names)
+    Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify names
   let mode | native = Native | otherwise = Permissive
   (_, xs) <- evalUnisonFile mode ppe unisonFile args
   mainRes :: Term Symbol () <-
@@ -78,12 +78,12 @@ getTerm main =
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
+      ppe <- Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify basicPrettyPrintNames
       Cli.returnEarly $ Output.NoMainFunction main ppe [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
+      ppe <- Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify basicPrettyPrintNames
       Cli.returnEarly $ Output.BadMainFunction "run" main ty ppe [mainType]
     GetTermSuccess x -> pure x
 

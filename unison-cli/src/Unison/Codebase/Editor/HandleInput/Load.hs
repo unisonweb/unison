@@ -105,7 +105,7 @@ loadUnisonFile sourceName text = do
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
         ns <- makeShadowedPrintNamesFromHQ (UF.toNames unisonFile)
-        ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
+        ppe <- Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.fromNames hashLen PPE.Suffixify ns
         let tes = [err | Result.TypeError err <- toList notes]
             cbs =
               [ bug

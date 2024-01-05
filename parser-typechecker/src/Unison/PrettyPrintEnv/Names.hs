@@ -1,6 +1,6 @@
 module Unison.PrettyPrintEnv.Names
-  ( fromNames,
-    fromSuffixNames,
+  ( Suffixification (..),
+    fromNames,
     prioritize,
     shortestUniqueSuffixes,
   )
@@ -17,18 +17,30 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.Relation qualified as Rel
 
-fromNames :: Int -> Names -> PrettyPrintEnv
-fromNames len names = PrettyPrintEnv terms' types'
+data Suffixification
+  = DontSuffixify
+  | Suffixify
+
+fromNames :: Int -> Suffixification -> Names -> PrettyPrintEnv
+fromNames len suffixification names = PrettyPrintEnv terms' types'
   where
     terms' r =
       Names.termName len r names
         & Set.toList
         & fmap (\n -> (n, n))
+        & ( case suffixification of
+              DontSuffixify -> id
+              Suffixify -> shortestUniqueSuffixes (Names.terms names)
+          )
         & prioritize
     types' r =
       Names.typeName len r names
         & Set.toList
         & fmap (\n -> (n, n))
+        & ( case suffixification of
+              DontSuffixify -> id
+              Suffixify -> shortestUniqueSuffixes (Names.types names)
+          )
         & prioritize
 
 -- | Sort the names for a given ref by the following factors (in priority order):
@@ -42,22 +54,6 @@ prioritize =
   sortOn \case
     (fqn, HQ'.NameOnly name) -> (Name.isAbsolute name, Nothing, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
     (fqn, HQ'.HashQualified name hash) -> (Name.isAbsolute name, Just hash, Name.countSegments (HQ'.toName fqn), Name.countSegments name)
-
-fromSuffixNames :: Int -> Names -> PrettyPrintEnv
-fromSuffixNames len names = PrettyPrintEnv terms' types'
-  where
-    terms' r =
-      Names.termName len r names
-        & Set.toList
-        & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes (Names.terms names)
-        & prioritize
-    types' r =
-      Names.typeName len r names
-        & Set.toList
-        & fmap (\n -> (n, n))
-        & shortestUniqueSuffixes (Names.types names)
-        & prioritize
 
 -- | Reduce the provided names to their minimal unique suffix within the scope of the given
 -- relation.

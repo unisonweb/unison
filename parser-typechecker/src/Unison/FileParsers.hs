@@ -143,11 +143,7 @@ synthesizeFile env0 uf = do
   let term = UF.typecheckingTerm uf
       -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
-      unisonFilePPE =
-        ( PPE.fromNames
-            10
-            (Names.shadowing (UF.toNames uf) Builtin.names)
-        )
+      unisonFilePPE = PPE.fromNames 10 PPE.DontSuffixify (Names.shadowing (UF.toNames uf) Builtin.names)
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:

@@ -1939,7 +1939,7 @@ prettyResolutionFailures s allFailures =
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames =
-      PPE.fromNames PPE.todoHashLength
+      PPE.fromNames PPE.todoHashLength PPE.DontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

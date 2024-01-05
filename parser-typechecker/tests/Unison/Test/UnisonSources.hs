@@ -1,6 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
-
 module Unison.Test.UnisonSources where
 
 import Control.Exception (throwIO)
@@ -46,7 +43,7 @@ type SynthResult =
 type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames Common.hqLength Builtin.names
+ppEnv = PPE.fromNames Common.hqLength PPE.DontSuffixify Builtin.names
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left e) = crash e
@@ -105,6 +102,7 @@ decodeResult source (Result notes (Just (Left uf))) =
           source
           ( PPE.fromNames
               Common.hqLength
+              PPE.DontSuffixify
               (Names.shadowing errNames Builtin.names)
           )
           notes

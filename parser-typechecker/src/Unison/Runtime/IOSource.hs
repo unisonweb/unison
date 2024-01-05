@@ -1005,4 +1005,4 @@ showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames 10 Builtin.names
+ppEnv = PPE.fromNames 10 PPE.DontSuffixify Builtin.names
