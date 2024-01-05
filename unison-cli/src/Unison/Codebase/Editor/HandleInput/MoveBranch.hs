@@ -22,10 +22,10 @@ moveBranchFunc hasConfirmed src' dest' = do
     -- surgical changes in both the root and the destination, so we make our modifications at the shared parent of
     -- those changes such that they appear as a single change in the root.
     let (changeRootPath, srcLoc, destLoc) = Path.longestPathPrefix (Path.unabsolute srcAbs) (Path.unabsolute destAbs)
-    let doMove changeRoot = 
+    let doMove changeRoot =
           changeRoot
-          & Branch.modifyAt srcLoc (const Branch.empty)
-          & Branch.modifyAt destLoc (const srcBranch)
+            & Branch.modifyAt srcLoc (const Branch.empty)
+            & Branch.modifyAt destLoc (const srcBranch)
     if (destBranchExists && not isRootMove)
       then Cli.respond (MovedOverExistingBranch dest')
       else pure ()

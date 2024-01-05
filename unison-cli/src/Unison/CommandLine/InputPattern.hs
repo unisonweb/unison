@@ -5,7 +5,9 @@
 module Unison.CommandLine.InputPattern
   ( InputPattern (..),
     ArgumentType (..),
+    ArgumentDescription,
     argType,
+    FZFResolver (..),
     IsOptional (..),
     Visibility (..),
 
@@ -17,12 +19,14 @@ module Unison.CommandLine.InputPattern
   )
 where
 
+import Control.Lens
 import Data.List.Extra qualified as List
 import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
+import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
@@ -41,11 +45,16 @@ data IsOptional
 data Visibility = Hidden | Visible
   deriving (Show, Eq, Ord)
 
+-- | Argument description
+-- It should fit grammatically into sentences like "I was expecting an argument for the <argDesc>"
+-- e.g. "namespace to merge", "definition to delete", "remote target to push to" etc.
+type ArgumentDescription = Text
+
 data InputPattern = InputPattern
   { patternName :: String,
     aliases :: [String],
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
-    argTypes :: [(IsOptional, ArgumentType)],
+    args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
     parse :: [String] -> Either (P.Pretty CT.ColorText) Input
   }
@@ -63,7 +72,10 @@ data ArgumentType = ArgumentType
       m [Line.Completion],
     -- | Select which targets glob patterns may expand into for this argument.
     -- An empty set disables globbing.
-    globTargets :: Set Globbing.TargetType
+    globTargets :: Set Globbing.TargetType,
+    -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
+    -- available.
+    fzfResolver :: Maybe FZFResolver
   }
 
 instance Show ArgumentType where
@@ -72,55 +84,64 @@ instance Show ArgumentType where
 -- `argType` gets called when the user tries to autocomplete an `i`th argument (zero-indexed).
 -- todo: would be nice if we could alert the user if they try to autocomplete
 -- past the end.  It would also be nice if
-argType :: InputPattern -> Int -> Maybe ArgumentType
-argType ip i = go (i, argTypes ip)
+argInfo :: InputPattern -> Int -> Maybe (ArgumentDescription, ArgumentType)
+argInfo InputPattern {args, patternName} i = go (i, args)
   where
     -- Strategy: all of these input patterns take some number of arguments.
     -- If it takes no arguments, then don't autocomplete.
+    go :: (Int, [(Text, IsOptional, ArgumentType)]) -> Maybe (ArgumentDescription, ArgumentType)
     go (_, []) = Nothing
     -- If requesting the 0th of >=1 arguments, return it.
-    go (0, (_, t) : _) = Just t
+    go (0, (argName, _, t) : _) = Just (argName, t)
     -- Vararg parameters should appear at the end of the arg list, and work for
     -- any later argument number.
-    go (_, [(ZeroPlus, t)]) = Just t
-    go (_, [(OnePlus, t)]) = Just t
+    go (_, [(argName, ZeroPlus, t)]) = Just (argName, t)
+    go (_, [(argName, OnePlus, t)]) = Just (argName, t)
     -- If requesting a later parameter, decrement and drop one.
-    go (n, (o, _) : argTypes)
+    go (n, (_argName, o, _) : argTypes)
       | o == Optional || o == Required = go (n - 1, argTypes)
     -- The argument list spec is invalid if something follows a vararg
     go args =
       error $
         "Input pattern "
-          <> show (patternName ip)
+          <> show patternName
           <> " has an invalid argument list: "
           <> show args
 
+-- `argType` gets called when the user tries to autocomplete an `i`th argument (zero-indexed).
+-- todo: would be nice if we could alert the user if they try to autocomplete
+-- past the end.  It would also be nice if
+argType :: InputPattern -> Int -> Maybe ArgumentType
+argType ip i = snd <$> (argInfo ip i)
+
 minArgs :: InputPattern -> Int
-minArgs ip@(fmap fst . argTypes -> argTypes) = go argTypes
+minArgs (InputPattern {args, patternName}) =
+  go (args ^.. folded . _2)
   where
     go [] = 0
     go (Required : argTypes) = 1 + go argTypes
     go [_] = 0
     go _ =
       error $
-        "Invalid argTypes for InputPattern ("
-          <> show (patternName ip)
+        "Invalid args for InputPattern ("
+          <> show patternName
           <> "): "
-          <> show argTypes
+          <> show args
 
 maxArgs :: InputPattern -> Maybe Int
-maxArgs ip@(fmap fst . argTypes -> args) = go args
+maxArgs (InputPattern {args, patternName}) = go argTypes
   where
+    argTypes = args ^.. folded . _2
     go [] = Just 0
     go (Required : argTypes) = (1 +) <$> go argTypes
     go [Optional] = Just 0
     go [_] = Nothing
     go _ =
       error $
-        "Invalid argTypes for InputPattern ("
-          <> show (patternName ip)
+        "Invalid args for InputPattern ("
+          <> show patternName
           <> "): "
-          <> show args
+          <> show argTypes
 
 -- | Union suggestions from all possible completions
 unionSuggestions ::

@@ -18,21 +18,11 @@ structural type A = B.TheOtherAlias Foo
 unique type Foo = Bar Nat Nat
 ```
 
-Bug: this update doesn't do the right thing; we simply don't properly update all of the names because
-each decl, in isolation, has two equally good names to pick for its one constructor:
+Bug: we want this update to be rejected earlier, because it violates the "decl coherency" precondition that there's
+only one name for each constructor. We instead get too far in the update process, and are delivered a bogus scratch.u
+file to stare at.
 
-    -- These are the same thing, but which do we render?
-    type A = B.OneAlias Foo
-    type A = B.TheOtherAlias Foo
-
-    -- Whichever one we picked, we want to pick the other one here
-    type A.B = OneAlias Foo
-    type A.B = TheOtherAlias Foo
-
-Long story short, we should reject this update as it violates the "decl coherency" precondition.
-
-```ucm
+```ucm:error
 .> update
-.> find.verbose
 ```
 

@@ -19,7 +19,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Hash qualified as Hash
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -79,12 +78,12 @@ getTerm main =
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty))
+      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
       Cli.returnEarly $ Output.NoMainFunction main ppe [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
       basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty))
+      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
       Cli.returnEarly $ Output.BadMainFunction "run" main ty ppe [mainType]
     GetTermSuccess x -> pure x
 
