@@ -44,7 +44,7 @@ handleNamespaceDependencies namespacePath' = do
   ppe <- PPED.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
   Cli.respondNumbered $ Output.ListNamespaceDependencies ppe path externalDependencies
 
--- | Check the dependencies of all types, terms, and metadata in the current namespace,
+-- | Check the dependencies of all types and terms in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
 -- alongside the names of all of that thing's dependents.
 --

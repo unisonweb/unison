@@ -294,12 +294,14 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
     1. a : Nat
        ↓
     2. a : Text
-  
-    There were 1 auto-propagated updates.
+    
+    3. f : Text
+       ↓
+    4. f : Text
   
   Added definitions:
   
-    3. patch patch (added 1 updates)
+    5. patch patch (added 1 updates)
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
