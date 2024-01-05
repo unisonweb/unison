@@ -170,7 +170,7 @@ handleUpgrade oldDepName newDepName = do
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
       let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-      let secondaryPPE = PPED.fromNamesDecl hashLength namesExcludingOldDep
+      let secondaryPPE = PPED.fromNamesSuffixifiedByHash hashLength namesExcludingOldDep
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep

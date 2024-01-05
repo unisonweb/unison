@@ -100,7 +100,7 @@ lookupRewrite onErr prepare rule = do
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestParsedFile
   let currentNames = fileNames <> Branch.toNames currentBranch
-  let ppe = PPED.fromNamesDecl hqLength currentNames
+  let ppe = PPED.fromNamesSuffixifiedByHash hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot

@@ -20,7 +20,7 @@ import Unison.Server.Backend qualified as Backend
 
 prettyPrintEnvDecl :: Names -> Cli PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNamesDecl` ns)
+  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNamesSuffixifiedByHash` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
