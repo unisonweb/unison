@@ -180,7 +180,7 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
         P.lines
           [ ( "Sorry, I was expecting an argument for the "
                 <> P.text argDesc
-                <> ", and I couldn't find any to suggest to you. 😅"
+                <> ", and I couldn't find any to suggest to you. 😓"
             )
           ]
 
