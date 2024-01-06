@@ -1,26 +1,17 @@
-# Type modifiers are optional, `unique` shoud be used as default
+# Type modifiers are optional, `unique` is the default.
 
 ```ucm:hide
 .> builtins.merge
 ```
 
-Types do not need to be prefixed with either `unique` or `structural`:
+Types and abilities may be prefixed with either `unique` or `structural`. When left unspecified, `unique` is assumed.
 
 ```unison
-type Abc = Abc 
-```
+type Abc = Abc
+unique type Def = Def
+structural type Ghi = Ghi
 
-Abilities do not need to be prefixed with either `unique` or `structural`:
-
-```unison
-ability MyAbility where const : a 
-```
-
-There should be no errors when `unique` or `structural` is provided:
-
-```unison
-structural type AbcS = AbcS
-unique type AbcU = AbcU
-structural ability MyAbilityS where const : a 
-unique ability MyAbilityU where const : a 
+ability MyAbility where const : a
+unique ability MyAbilityU where const : a
+structural ability MyAbilityS where const : a
 ```
