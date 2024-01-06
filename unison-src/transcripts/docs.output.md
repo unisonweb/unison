@@ -5,7 +5,7 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 ```ucm
 .builtin> view Doc
 
-  unique type Doc
+  type Doc
     = Blob Text
     | Link Link
     | Source Link

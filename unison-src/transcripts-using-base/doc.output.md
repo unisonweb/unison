@@ -38,7 +38,7 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type time.DayOfWeek
+      type time.DayOfWeek
       ImportantConstant     : Nat
       ImportantConstant.doc : Doc2
       d1                    : Doc2
@@ -63,14 +63,7 @@ You can preview what docs will look like when rendered to the console using the 
 
   The 7 days of the week, defined as:
   
-      unique type DayOfWeek
-        = Sun
-        | Mon
-        | Tue
-        | Wed
-        | Thu
-        | Fri
-        | Sat
+      type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.

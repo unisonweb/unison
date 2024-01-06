@@ -9,7 +9,7 @@ FYI, here are the `Exception` and `Failure` types:
   structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
   
-  unique type builtin.io2.Failure
+  type builtin.io2.Failure
     = Failure Type Text Any
 
 ```
@@ -84,7 +84,7 @@ unique type RuntimeError =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type RuntimeError
+      type RuntimeError
       error : Text -> a ->{Exception} x
       main2 : '{Exception} r
 

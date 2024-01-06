@@ -32,8 +32,8 @@ two.ambiguousTerm = "term two"
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type one.AmbiguousType
-      unique type two.AmbiguousType
+      type one.AmbiguousType
+      type two.AmbiguousType
       one.ambiguousTerm : ##Text
       two.ambiguousTerm : ##Text
 
@@ -43,8 +43,8 @@ two.ambiguousTerm = "term two"
 
   ⍟ I've added these definitions:
   
-    unique type one.AmbiguousType
-    unique type two.AmbiguousType
+    type one.AmbiguousType
+    type two.AmbiguousType
     one.ambiguousTerm : ##Text
     two.ambiguousTerm : ##Text
 
