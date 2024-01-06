@@ -104,3 +104,7 @@ jobs:
           git add --all
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
+      - name: save transcript changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: rerun transcripts and round-trip tests
