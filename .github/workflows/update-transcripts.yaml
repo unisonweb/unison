@@ -1,4 +1,4 @@
-name: update-golden-tests
+name: update-transcripts
 
 on:
   workflow_dispatch:
@@ -77,33 +77,15 @@ jobs:
           git config --global user.email "actions@github.com"
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v41
-        with:
-          files: |
-            **/*.md
-          separator: "\n"
       - name: round-trip-tests
         run: |
           mkdir -p /private/tmp
           touch /private/tmp/roundtrip.u
           touch /private/tmp/rewrite-tmp.u
           stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-          git add unison-src/transcripts-round-trip/main.output.md
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
           stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
-          git add unison-src/transcripts-manual/rewrites.output.md
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
       - name: transcripts
-        run: |
-          stack --no-terminal exec transcripts
-          # Add all changes to the index for when we diff.
-          git add --all
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
+        run: stack --no-terminal exec transcripts
       - name: save transcript changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
