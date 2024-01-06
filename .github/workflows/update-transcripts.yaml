@@ -77,13 +77,6 @@ jobs:
           git config --global user.email "actions@github.com"
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v41
-        with:
-          files: |
-            **/*.md
-          separator: "\n"
       - name: round-trip-tests
         run: |
           mkdir -p /private/tmp
@@ -104,7 +97,7 @@ jobs:
           git add --all
           # Fail if any transcripts cause git diffs.
           git diff --cached --ignore-cr-at-eol --exit-code
-      - name: save transcript changes
+      - name: save changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: rerun transcripts and round-trip tests
