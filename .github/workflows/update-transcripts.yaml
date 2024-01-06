@@ -1,4 +1,4 @@
-name: update-golden-tests
+name: update-transcripts
 
 on:
   workflow_dispatch:
