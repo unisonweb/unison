@@ -15,7 +15,7 @@ on:
       - trunk
     tags:
       - release/*
-    workflow_dispatch:
+  workflow_dispatch:
 
 
 jobs:
