@@ -20,7 +20,7 @@ opening an empty fuzzy-select.
 
 ⚠️
 
-Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
+Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😓
 
 ```
 ```unison
