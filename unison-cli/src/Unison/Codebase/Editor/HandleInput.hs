@@ -1519,7 +1519,7 @@ handleFindI isVerbose fscope ws input = do
       -- names in lib.
       let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ (\cs -> Map.singleton "lib" <$> Map.lookup "lib" cs)
       case mayOnlyLibBranch of
-        Nothing -> pure ()
+        Nothing -> respondResults []
         Just onlyLibBranch -> do
           let onlyLibNames = Branch.toNames onlyLibBranch
           results <- getResults onlyLibNames
