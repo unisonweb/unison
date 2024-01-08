@@ -84,8 +84,8 @@ handleUpdate input optionalPatch requestedNames = do
           NoPatch -> Nothing
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
-  slurpCheckNames <- Cli.currentNames
-  sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
+  currentCodebaseNames <- Cli.currentNames
+  sr <- getSlurpResultForUpdate requestedNames currentCodebaseNames
   let addsAndUpdates :: SlurpComponent
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
@@ -95,7 +95,7 @@ handleUpdate input optionalPatch requestedNames = do
       typeEdits = do
         v <- Set.toList (SC.types (updates sr))
         let n = Name.unsafeFromVar v
-        let oldRefs0 = Names.typesNamed slurpCheckNames n
+        let oldRefs0 = Names.typesNamed currentCodebaseNames n
         let newRefs = Names.typesNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
           Nothing -> error (reportBug "E722145" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
@@ -110,7 +110,7 @@ handleUpdate input optionalPatch requestedNames = do
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
         let n = Name.unsafeFromVar v
-        let oldRefs0 = Names.refTermsNamed slurpCheckNames n
+        let oldRefs0 = Names.refTermsNamed currentCodebaseNames n
         let newRefs = Names.refTermsNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
           Nothing -> error (reportBug "E936103" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
@@ -121,7 +121,7 @@ handleUpdate input optionalPatch requestedNames = do
       termDeprecations =
         [ (n, r)
           | (_, oldTypeRef, _) <- typeEdits,
-            (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
+            (n, r) <- Names.constructorsForType oldTypeRef currentCodebaseNames
         ]
   patchOps <- for patchPath \patchPath -> do
     ye'ol'Patch <- Cli.getPatchAt patchPath
@@ -194,7 +194,7 @@ handleUpdate input optionalPatch requestedNames = do
       . Codebase.addDefsToCodebase codebase
       . Slurp.filterUnisonFile sr
       $ Slurp.originalFile sr
-  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) fileNames
+  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) currentCodebaseNames
   pped <- Cli.prettyPrintEnvDeclFromNames codebaseAndFileNames
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
