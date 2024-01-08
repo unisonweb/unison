@@ -803,9 +803,9 @@ These are currently all expected to have different hashes on round trip.
 
   Updates:
   
-    1. sloppyDocEval : builtin.Doc2
+    1. sloppyDocEval : Doc2
        ↓
-    2. sloppyDocEval : builtin.Doc2
+    2. sloppyDocEval : Doc2
 
 ```
 ## Other regression tests not covered by above
