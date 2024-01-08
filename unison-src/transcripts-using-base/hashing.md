@@ -49,13 +49,12 @@ And here's the full API:
 
 ```ucm
 .builtin.crypto> find
-.> cd .
 ```
 
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```unison
-> crypto.hash Sha3_256 (fromHex "3849238492")
+.builtin> crypto.hash Sha3_256 (fromHex "3849238492")
 ```
 
 ## Hashing tests

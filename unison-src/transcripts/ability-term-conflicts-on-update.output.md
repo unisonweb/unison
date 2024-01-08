@@ -24,8 +24,6 @@ unique ability Channels where
 
 ```
 ```ucm
-  ☝️  The namespace .ns is empty.
-
 .ns> add
 
   ⍟ I've added these definitions:
@@ -185,8 +183,6 @@ X.x = 1
 
 ```
 ```ucm
-  ☝️  The namespace .ns2 is empty.
-
 .ns2> add
 
   ⍟ I've added these definitions:

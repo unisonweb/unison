@@ -15,6 +15,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
@@ -22,6 +23,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
@@ -40,9 +42,13 @@ handleNamespaceDependencies namespacePath' = do
       Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath (Path.absoluteToPath' path)))
   externalDependencies <-
     Cli.runTransaction (namespaceDependencies codebase branch)
-  pped <- Cli.currentPrettyPrintEnvDecl
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  Cli.respondNumbered $ Output.ListNamespaceDependencies suffixifiedPPE path externalDependencies
+  currentPPED <- Cli.currentPrettyPrintEnvDecl
+  globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
+  globalPPED <- Cli.prettyPrintEnvDeclFromNames globalNames
+  -- We explicitly include a global unsuffixified fallback on namespace dependencies since
+  -- the things we want names for are obviously outside of our scope.
+  let ppeWithFallback = PPED.unsuffixifiedPPE $ PPED.addFallback globalPPED currentPPED
+  Cli.respondNumbered $ Output.ListNamespaceDependencies ppeWithFallback path externalDependencies
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
