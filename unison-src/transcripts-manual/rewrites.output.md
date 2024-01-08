@@ -60,7 +60,7 @@ Let's rewrite these:
 ```
 ```unison:added-by-ucm /private/tmp/rewrites-tmp.u
 -- | Rewrote using: 
--- | Modified definition(s): Either.mapRight
+-- | Modified definition(s): ex1
 
 ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
 
@@ -72,10 +72,10 @@ eitherToOptional e a =
     case Right a ==> Some a
     signature e a . Either e a ==> Optional a
 
-Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
+Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
 Either.mapRight f = cases
-  None   -> None
-  Some a -> Some (f a)
+  Left e  -> Left e
+  Right a -> Right (f a)
 
 rule1 f x =
   use Nat +
@@ -98,7 +98,7 @@ cleanup = do
 
 ```unison:added-by-ucm /private/tmp/rewrites-tmp.u
 -- | Rewrote using: 
--- | Modified definition(s): ex1
+-- | Modified definition(s): Either.mapRight
 
 ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
 
@@ -110,10 +110,10 @@ eitherToOptional e a =
     case Right a ==> Some a
     signature e a . Either e a ==> Optional a
 
-Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
+Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
 Either.mapRight f = cases
-  Left e  -> Left e
-  Right a -> Right (f a)
+  None   -> None
+  Some a -> Some (f a)
 
 rule1 f x =
   use Nat +
