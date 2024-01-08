@@ -27,9 +27,7 @@ structural type Y = Two Nat Nat
 
 ```
 ```ucm
-  ☝️  The namespace .scratch is empty.
-
-.scratch> add
+.> add
 
   ⍟ I've added these definitions:
   
@@ -41,11 +39,11 @@ structural type Y = Two Nat Nat
 ```
 Test that replace works with terms
 ```ucm
-.scratch> replace x y
+.> replace x y
 
   Done.
 
-.scratch> view x
+.> view x
 
   x : Nat
   x = 2
@@ -53,11 +51,11 @@ Test that replace works with terms
 ```
 Test that replace works with types
 ```ucm
-.scratch> replace X Y
+.> replace X Y
 
   Done.
 
-.scratch> find
+.> find
 
   1. structural type X
   2. x : Nat
@@ -67,7 +65,7 @@ Test that replace works with types
   6. Y.Two : Nat -> Nat -> X
   
 
-.scratch> view.patch patch
+.> view.patch patch
 
   Edited Types: 1. #68k40ra7l7 -> 3. X
   
@@ -77,14 +75,14 @@ Test that replace works with types
        delete.term-replacement or delete.type-replacement, as
        appropriate.
 
-.scratch> view X
+.> view X
 
   structural type X = One Nat Nat
 
 ```
 Try with a type/term mismatch
 ```ucm
-.scratch> replace X x
+.> replace X x
 
   ⚠️
   
@@ -92,7 +90,7 @@ Try with a type/term mismatch
 
 ```
 ```ucm
-.scratch> replace y Y
+.> replace y Y
 
   ⚠️
   
@@ -101,7 +99,7 @@ Try with a type/term mismatch
 ```
 Try with missing references
 ```ucm
-.scratch> replace X NOPE
+.> replace X NOPE
 
   ⚠️
   
@@ -110,7 +108,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace y nope
+.> replace y nope
 
   ⚠️
   
@@ -119,7 +117,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace nope X
+.> replace nope X
 
   ⚠️
   
@@ -128,7 +126,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace nope y
+.> replace nope y
 
   ⚠️
   
@@ -137,7 +135,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace nope nope
+.> replace nope nope
 
   ⚠️
   

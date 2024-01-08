@@ -1463,11 +1463,23 @@ handleFindI ::
 handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
   currentBranch0 <- Cli.getCurrentBranch0
-  names <- case fscope of
-    FindLocal -> pure $ Branch.toNames (Branch.withoutLib currentBranch0)
-    FindLocalAndDeps -> pure $ Branch.toNames (Branch.withoutTransitiveLibs currentBranch0)
-    FindGlobal -> Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  (pped, names) <- case fscope of
+    FindLocal -> do
+      let names = Branch.toNames (Branch.withoutLib currentBranch0)
+      -- Don't exclude anything from the pretty printer, since the type signatures we print for
+      -- results may contain things in lib.
+      pped <- Cli.currentPrettyPrintEnvDecl
+      pure (pped, names)
+    FindLocalAndDeps -> do
+      let names = Branch.toNames (Branch.withoutTransitiveLibs currentBranch0)
+      -- Don't exclude anything from the pretty printer, since the type signatures we print for
+      -- results may contain things in lib.
+      pped <- Cli.currentPrettyPrintEnvDecl
+      pure (pped, names)
+    FindGlobal -> do
+      globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
+      pped <- Cli.prettyPrintEnvDeclFromNames globalNames
+      pure (pped, globalNames)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let getResults :: Names -> Cli [SearchResult]
       getResults names =
