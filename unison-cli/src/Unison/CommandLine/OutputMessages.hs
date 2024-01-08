@@ -2222,19 +2222,13 @@ notifyUser dir = \case
                   <> "again."
             ]
   UpgradeFailure path old new ->
-    pure $
-      P.wrap
-        ( "I couldn't automatically upgrade"
-            <> P.text (NameSegment.toText old)
-            <> "to"
-            <> P.group (P.text (NameSegment.toText new) <> ".")
-        )
-        <> P.newline
-        <> P.newline
-        <> P.wrap
-          ( "I added the problematic definitions to the top of"
-              <> P.group (prettyFilePath path <> ".")
-          )
+    pure . P.wrap $
+      "I couldn't automatically upgrade"
+        <> P.text (NameSegment.toText old)
+        <> "to"
+        <> P.group (P.text (NameSegment.toText new) <> ".")
+        <> "However, I've added the definitions that need attention to the top of"
+        <> P.group (prettyFilePath path <> ".")
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"
