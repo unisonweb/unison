@@ -47,7 +47,6 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
-import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
@@ -1857,7 +1856,6 @@ topicNameArg =
    in ArgumentType
         { typeName = "topic",
           suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
-          globTargets = mempty,
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> topics)
         }
 
@@ -1866,7 +1864,6 @@ codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -2814,7 +2811,6 @@ branchInputPattern =
       ArgumentType
         { typeName = "new-branch",
           suggestions = \_ _ _ _ -> pure [],
-          globTargets = mempty,
           fzfResolver = Nothing
         }
     suggestionsConfig =
@@ -3082,7 +3078,6 @@ commandNameArg =
    in ArgumentType
         { typeName = "command",
           suggestions = \q _ _ _ -> pure (exactComplete q options),
-          globTargets = mempty,
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> options)
         }
 
@@ -3091,7 +3086,6 @@ exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3100,7 +3094,6 @@ fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3112,7 +3105,6 @@ exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
-      globTargets = Set.fromList [Globbing.Type],
       fzfResolver = Just Resolvers.typeDefinitionResolver
     }
 
@@ -3121,7 +3113,6 @@ exactDefinitionTypeOrTermQueryArg =
   ArgumentType
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3130,7 +3121,6 @@ exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
-      globTargets = Set.fromList [Globbing.Term],
       fzfResolver = Just Resolvers.termDefinitionResolver
     }
 
@@ -3139,7 +3129,6 @@ patchArg =
   ArgumentType
     { typeName = "patch",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      globTargets = Set.fromList [],
       fzfResolver = Nothing
     }
 
@@ -3148,7 +3137,6 @@ namespaceArg =
   ArgumentType
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = Set.fromList [Globbing.Namespace],
       fzfResolver = Just Resolvers.namespaceResolver
     }
 
@@ -3164,7 +3152,6 @@ namespaceOrProjectBranchArg config =
               [ projectAndOrBranchSuggestions config,
                 namespaceSuggestions
               ],
-      globTargets = mempty,
       fzfResolver = Just Resolvers.projectOrBranchResolver
     }
 
@@ -3176,7 +3163,6 @@ namespaceOrDefinitionArg =
         namespaces <- prefixCompleteNamespace q p
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
-      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
       fzfResolver =
         Just Resolvers.namespaceOrDefinitionResolver
     }
@@ -3190,7 +3176,6 @@ newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3199,7 +3184,6 @@ noCompletionsArg =
   ArgumentType
     { typeName = "word",
       suggestions = noCompletions,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3208,7 +3192,6 @@ filePathArg =
   ArgumentType
     { typeName = "file-path",
       suggestions = noCompletions,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3227,7 +3210,6 @@ gitUrlArg =
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3247,7 +3229,6 @@ remoteNamespaceArg =
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> do
                 sharePathCompletion http input,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3487,7 +3468,6 @@ projectAndBranchNamesArg config =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectAndOrBranchArg
     }
 
@@ -3497,7 +3477,6 @@ projectBranchNameArg config =
   ArgumentType
     { typeName = "project-branch-name",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
@@ -3507,7 +3486,6 @@ projectBranchNameWithOptionalProjectNameArg =
   ArgumentType
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
@@ -3521,7 +3499,6 @@ projectNameArg =
           Codebase.runTransaction codebase do
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
-      globTargets = Set.empty,
       fzfResolver = Just $ Resolvers.multiResolver [Resolvers.projectNameOptions]
     }
   where

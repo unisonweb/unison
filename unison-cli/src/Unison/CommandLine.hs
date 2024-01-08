@@ -26,7 +26,6 @@ module Unison.CommandLine
 where
 
 import Control.Concurrent (forkIO, killThread)
-import Control.Lens (ifor)
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
@@ -146,7 +145,7 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
         let expandedNumbers :: [String]
             expandedNumbers =
               foldMap (expandNumber numberedArgs) args
-        lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedNumbers)) >>= \case
+        lift (fzfResolve codebase projCtx getCurrentBranch0 pat expandedNumbers) >>= \case
           Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
           Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing
