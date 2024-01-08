@@ -6,16 +6,14 @@ def2 = 2
 ```
 
 ```ucm
-  ☝️  The namespace .foo is empty.
-
-.foo> add
+.> add
 
   ⍟ I've added these definitions:
   
     def1 : Nat
     def2 : Nat
 
-.foo> create.author alicecoder "Alice McGee"
+.> create.author alicecoder "Alice McGee"
 
   Added definitions:
   
@@ -25,20 +23,20 @@ def2 = 2
   
   Tip: Add License values for alicecoder under metadata.
 
-.foo> view 2
+.> view 2
 
   metadata.copyrightHolders.alicecoder : CopyrightHolder
   metadata.copyrightHolders.alicecoder =
-    CopyrightHolder guid "Alice McGee"
+    CopyrightHolder alicecoder.guid "Alice McGee"
 
-.foo> link metadata.authors.alicecoder def1 def2
+.> link metadata.authors.alicecoder def1 def2
 
   Updates:
   
-    1. foo.def1 : Nat
+    1. def1 : Nat
        + 2. authors.alicecoder : Author
     
-    3. foo.def2 : Nat
+    3. def2 : Nat
        + 4. authors.alicecoder : Author
 
 ```
