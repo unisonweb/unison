@@ -84,7 +84,6 @@ import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import System.FilePath qualified as FilePath
 import System.IO qualified as IO
-import System.IO.Error qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import UnliftIO qualified
@@ -239,11 +238,10 @@ writeUtf8 fileName txt = do
 
 -- | Atomically prepend some text to a file
 prependUtf8 :: FilePath -> Text -> IO ()
-prependUtf8 fileName txt = do
+prependUtf8 path txt = do
   let withTempFile tmpFilePath tmpHandle = do
         Text.hPutStrLn tmpHandle txt
-        Text.hPutStrLn tmpHandle "\n---\n"
-        IO.withFile fileName IO.ReadMode \currentScratchFile -> do
+        IO.withFile path IO.ReadMode \currentScratchFile -> do
           let copyLoop = do
                 chunk <- Text.hGetChunk currentScratchFile
                 case Text.length chunk == 0 of
@@ -253,14 +251,8 @@ prependUtf8 fileName txt = do
                     copyLoop
           copyLoop
         IO.hClose tmpHandle
-        UnliftIO.renameFile tmpFilePath fileName
-  UnliftIO.mask \unmask -> do
-    (tmpFilePath, tmpHandle) <- IO.openTempFile (FilePath.takeDirectory fileName) (FilePath.takeBaseName fileName)
-    unmask (withTempFile tmpFilePath tmpHandle) `UnliftIO.finally` do
-      IO.hClose tmpHandle
-      UnliftIO.removeFile tmpFilePath `UnliftIO.catch` \case
-        e | IO.isDoesNotExistError e -> pure ()
-        e -> UnliftIO.throwIO e
+        UnliftIO.renameFile tmpFilePath path
+  UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
 
 reportBug :: String -> String -> String
 reportBug bugId msg =
