@@ -24,8 +24,8 @@ term2 _ = ()
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Bar
-      unique ability Foo
+      ability Bar
+      ability Foo
       term1 : '{Bar, Foo} ()
       term2 : '{Bar, Foo} ()
 
@@ -35,8 +35,8 @@ term2 _ = ()
 
   ⍟ I've added these definitions:
   
-    unique ability Bar
-    unique ability Foo
+    ability Bar
+    ability Foo
     term1 : '{Bar, Foo} ()
     term2 : '{Bar, Foo} ()
 

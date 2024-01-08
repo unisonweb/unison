@@ -52,11 +52,6 @@ hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
 
-insertWithMetadata ::
-  (Ord a, Ord n) => (a, Metadata) -> Star a n -> Star a n
-insertWithMetadata (a, md) =
-  inserts [(a, ty, v) | (ty, vs) <- Map.toList md, v <- toList vs]
-
 insert :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
 insert (a, ty, v) = Star3.insertD23 (a, ty, (ty, v))
 

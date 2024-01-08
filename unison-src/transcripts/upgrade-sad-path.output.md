@@ -37,6 +37,8 @@ proj/main> upgrade old new
     use Nat +
     foo + 10
 
-  I couldn't automatically upgrade old to new.
+  I couldn't automatically upgrade old to new. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
 
 ```

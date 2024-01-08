@@ -19,7 +19,7 @@ unique type a.T = T
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
@@ -30,7 +30,7 @@ unique type a.T = T
 
   ⍟ I've added these definitions:
   
-    unique type a.T
+    type a.T
     a.termInA : Nat
 
 ```
@@ -50,7 +50,7 @@ unique type a.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```

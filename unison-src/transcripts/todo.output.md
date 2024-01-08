@@ -77,12 +77,9 @@ structural type MyType = MyType Int
   New name conflicts:
   
     1.  structural type MyType#68k40ra7l7
-           
         ↓
     2.  ┌ structural type MyType#68k40ra7l7
-             
     3.  └ structural type MyType#eo6rj0lj1b
-             
     
     4.  MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
         ↓

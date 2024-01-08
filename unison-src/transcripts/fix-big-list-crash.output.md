@@ -18,7 +18,7 @@ x = [(R,1005),(U,563),(R,417),(U,509),(L,237),(U,555),(R,397),(U,414),(L,490),(U
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Direction
+      type Direction
       x : [(Direction, Nat)]
 
 ```

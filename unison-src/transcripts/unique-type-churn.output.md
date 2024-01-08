@@ -18,9 +18,9 @@ unique type C = C B
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type A
-      unique type B
-      unique type C
+      type A
+      type B
+      type C
 
 ```
 ```ucm
@@ -28,9 +28,9 @@ unique type C = C B
 
   ⍟ I've added these definitions:
   
-    unique type A
-    unique type B
-    unique type C
+    type A
+    type B
+    type C
 
 ```
 ```unison
@@ -79,7 +79,7 @@ unique type A = A ()
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type A
+      type A
 
 ```
 ```ucm
@@ -118,7 +118,7 @@ unique type A = A
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type A
+      type A
 
 ```
 Note that `A` is back to its original hash.

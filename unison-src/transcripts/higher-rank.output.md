@@ -77,7 +77,7 @@ Functor.blah = cases Functor f ->
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Functor f
+      type Functor f
       Functor.blah : Functor f -> ()
       Functor.map  : Functor f
                      -> (∀ a b. (a -> b) -> f a -> f b)
@@ -121,8 +121,8 @@ Loc.transform2 nt = cases Loc f ->
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Loc
-      unique ability Remote t
+      type Loc
+      ability Remote t
       Loc.blah       : Loc -> ()
       Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
                        -> Loc

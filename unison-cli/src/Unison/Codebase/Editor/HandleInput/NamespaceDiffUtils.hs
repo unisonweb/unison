@@ -46,7 +46,6 @@ diffHelper before after =
         hqLength
         (Branch.toNames before)
         (Branch.toNames after)
-        suffixifiedPPE
         diff
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))

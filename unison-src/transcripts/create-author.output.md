@@ -29,14 +29,4 @@ def2 = 2
   metadata.copyrightHolders.alicecoder =
     CopyrightHolder alicecoder.guid "Alice McGee"
 
-.> link metadata.authors.alicecoder def1 def2
-
-  Updates:
-  
-    1. def1 : Nat
-       + 2. authors.alicecoder : Author
-    
-    3. def2 : Nat
-       + 4. authors.alicecoder : Author
-
 ```

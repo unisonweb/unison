@@ -50,7 +50,7 @@ handleNamespaceDependencies namespacePath' = do
   let ppeWithFallback = PPED.unsuffixifiedPPE $ PPED.addFallback globalPPED currentPPED
   Cli.respondNumbered $ Output.ListNamespaceDependencies ppeWithFallback path externalDependencies
 
--- | Check the dependencies of all types, terms, and metadata in the current namespace,
+-- | Check the dependencies of all types and terms in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
 -- alongside the names of all of that thing's dependents.
 --

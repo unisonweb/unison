@@ -10,8 +10,7 @@ def2 = 2
 ```
 
 ```ucm
-.> add
-.> create.author alicecoder "Alice McGee"
-.> view 2
-.> link metadata.authors.alicecoder def1 def2
+.foo> add
+.foo> create.author alicecoder "Alice McGee"
+.foo> view 2
 ```
