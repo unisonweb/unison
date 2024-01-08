@@ -2183,12 +2183,14 @@ notifyUser dir = \case
                   <> operationName
                   <> "again."
             ]
-  UpgradeFailure old new ->
+  UpgradeFailure path old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
         <> P.text (NameSegment.toText old)
         <> "to"
         <> P.group (P.text (NameSegment.toText new) <> ".")
+        <> "However, I've added the definitions that need attention to the top of"
+        <> P.group (prettyFilePath path <> ".")
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"
