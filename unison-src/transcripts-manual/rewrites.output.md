@@ -30,10 +30,6 @@ unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 
-cleanup = do 
-  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
 ```
 
 
@@ -58,44 +54,6 @@ Let's rewrite these:
   The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
 
 ```
-```unison:added-by-ucm /private/tmp/rewrites-tmp.u
--- | Rewrote using: 
--- | Modified definition(s): Either.mapRight
-
-ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
-
-eitherToOptional e a =
-  @rewrite
-    term Left e ==> None
-    term Right a ==> Some a
-    case Left e ==> None
-    case Right a ==> Some a
-    signature e a . Either e a ==> Optional a
-
-Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
-Either.mapRight f = cases
-  None   -> None
-  Some a -> Some (f a)
-
-rule1 f x =
-  use Nat +
-  @rewrite
-    term x + 1 ==> Nat.increment x
-    term a -> f a ==> f
-
-unique type Optional2 a = Some2 a | None2
-
-rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do
-  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
----- Anything below this line is ignored by Unison.
-
-
-```
-
 ```unison:added-by-ucm /private/tmp/rewrites-tmp.u
 -- | Rewrote using: 
 -- | Modified definition(s): ex1
@@ -125,9 +83,39 @@ unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 
-cleanup = do
-  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
+---- Anything below this line is ignored by Unison.
+
+
+```
+
+```unison:added-by-ucm /private/tmp/rewrites-tmp.u
+-- | Rewrote using: 
+-- | Modified definition(s): Either.mapRight
+
+ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
+Either.mapRight f = cases
+  None   -> None
+  Some a -> Some (f a)
+
+rule1 f x =
+  use Nat +
+  @rewrite
+    term x + 1 ==> Nat.increment x
+    term a -> f a ==> f
+
+unique type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
 
 ---- Anything below this line is ignored by Unison.
 

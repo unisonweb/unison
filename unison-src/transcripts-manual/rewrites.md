@@ -32,10 +32,6 @@ rule1 f x = @rewrite
 unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do 
-  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
 ```
 
 Let's rewrite these:
@@ -178,10 +174,6 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 
 ```ucm:error
 .> load /private/tmp/rewrites-tmp.u
-```
-
-```ucm:hide
-.> run cleanup
 ```
 
 ## Structural find
