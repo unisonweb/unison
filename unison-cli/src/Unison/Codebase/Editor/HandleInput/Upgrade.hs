@@ -192,13 +192,13 @@ handleUpgrade oldDepName newDepName = do
       maybePath <-
         if isTranscript
           then pure Nothing
-          else do
+          else fmap Just do
             maybeLatestFile <- Cli.getLatestFile
-            case maybeLatestFile of
-              Nothing -> pure (Just "scratch.u")
-              Just (file, _) -> pure (Just file)
+            pure case maybeLatestFile of
+              Nothing -> "scratch.u"
+              Just (file, _) -> file
       Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure oldDepName newDepName)
+      Cli.respond (Output.UpgradeFailure (fromMaybe "scratch.u" maybePath) oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
   branchUpdates <-

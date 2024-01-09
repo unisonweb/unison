@@ -13,8 +13,8 @@ unique type Baz = Qux Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Baz
-      unique type Foo
+      type Baz
+      type Foo
 
 ```
 ```ucm
@@ -22,8 +22,8 @@ unique type Baz = Qux Foo
 
   ⍟ I've added these definitions:
   
-    unique type Baz
-    unique type Foo
+    type Baz
+    type Foo
 
 ```
 ```unison
@@ -41,7 +41,7 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -58,22 +58,22 @@ unique type Foo = Bar Nat Nat
 
 .> view Foo
 
-  unique type Foo = Bar Nat Nat
+  type Foo = Bar Nat Nat
 
 .> view Baz
 
-  unique type Baz = Qux Foo
+  type Baz = Qux Foo
 
 .> find.verbose
 
   1. -- #34msh9satlfog576493eo9pkjn6aj7d8fj6jfheglvgr5s39iptb81649bpkad1lqraheqb8em9ms551k01oternhknc4m7jicgtk08
-     unique type Baz
+     type Baz
      
   2. -- #34msh9satlfog576493eo9pkjn6aj7d8fj6jfheglvgr5s39iptb81649bpkad1lqraheqb8em9ms551k01oternhknc4m7jicgtk08#0
      Baz.Qux : Foo -> Baz
      
   3. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g
-     unique type Foo
+     type Foo
      
   4. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g#0
      Foo.Bar : Nat -> Nat -> Foo

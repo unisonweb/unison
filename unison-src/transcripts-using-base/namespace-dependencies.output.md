@@ -23,13 +23,6 @@ hasMetadata = 3
     dependsOnNat       : Nat
     hasMetadata        : Nat
 
-.dependencies> link .metadata.myMetadata hasMetadata
-
-  Updates:
-  
-    1. dependencies.hasMetadata : Nat
-       + 2. myMetadata : Text
-
 .dependencies> namespace.dependencies
 
   External dependency   Dependents in .dependencies

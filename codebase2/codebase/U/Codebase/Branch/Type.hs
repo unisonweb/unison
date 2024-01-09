@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module U.Codebase.Branch.Type
   ( Branch (..),
     CausalBranch,
@@ -12,8 +10,6 @@ module U.Codebase.Branch.Type
     childAt,
     hoist,
     hoistCausalBranch,
-    termMetadata,
-    typeMetadata,
     U.Codebase.Branch.Type.empty,
   )
 where
@@ -105,26 +101,3 @@ hoistCausalBranch f cb =
   cb
     & Causal.hoist f
     & Causal.emap (hoist f) (hoist f)
-
--- | Returns all the metadata value references that are attached to a term with the provided name in the
--- provided branch.
---
--- If only name is specified, metadata will be returned for all terms at that name.
-termMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Referent -> m [Map MetadataValue MetadataType]
-termMetadata Branch {terms} = metadataHelper terms
-
--- | Returns all the metadata value references that are attached to a type with the provided name in the
--- provided branch.
---
--- If only name is specified, metadata will be returned for all types at that name.
-typeMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Reference -> m [Map MetadataValue MetadataType]
-typeMetadata Branch {types} = metadataHelper types
-
-metadataHelper :: (Monad m, Ord ref) => Map NameSegment (Map ref (m MdValues)) -> NameSegment -> Maybe ref -> m [Map MetadataValue MetadataType]
-metadataHelper t ns mayQualifier = do
-  case Map.lookup ns t of
-    Nothing -> pure []
-    Just allRefsAtName -> do
-      case mayQualifier of
-        Nothing -> (fmap . fmap) unMdValues . sequenceA $ Map.elems allRefsAtName
-        Just qualifier -> (fmap . fmap) unMdValues . sequenceA . maybeToList $ Map.lookup qualifier allRefsAtName
