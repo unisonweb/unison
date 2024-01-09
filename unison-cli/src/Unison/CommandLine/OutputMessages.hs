@@ -2537,9 +2537,6 @@ displayOutputRewrittenFile fp vs = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
-foldLine :: (IsString s) => P.Pretty s
-foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-
 displayDefinitions' ::
   (Var v) =>
   (Ord a1) =>
