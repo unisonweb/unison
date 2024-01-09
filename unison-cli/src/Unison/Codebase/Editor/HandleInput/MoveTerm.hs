@@ -30,13 +30,10 @@ moveTermSteps src' dest' = do
       when (not (Set.null destTerms)) do
         Cli.returnEarly (Output.TermAlreadyExists dest' destTerms)
       let p = Path.convert src
-      srcMetadata <- do
-        root0 <- Cli.getRootBranch0
-        pure (BranchUtil.getTermMetadataAt p srcTerm root0)
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-          BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
+          BranchUtil.makeAddTermName (Path.convert dest) srcTerm
         ]
 
 doMoveTerm :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()

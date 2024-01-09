@@ -21,8 +21,8 @@ unique type Foo.T = T
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
-      unique type Foo.T
+      type Foo
+      type Foo.T
       Foo         : Nat
       Foo.termInA : Nat
 
@@ -32,8 +32,8 @@ unique type Foo.T = T
 
   ⍟ I've added these definitions:
   
-    unique type Foo
-    unique type Foo.T
+    type Foo
+    type Foo.T
     Foo         : Nat
     Foo.termInA : Nat
 
@@ -54,7 +54,7 @@ unique type Foo.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo.T
+      type Foo.T
       Foo.termInA : Nat
         (also named Foo)
 

@@ -12,7 +12,7 @@ unique type Foo = Bar Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -20,7 +20,7 @@ unique type Foo = Bar Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 .> delete.term Foo.Bar
 
@@ -44,13 +44,13 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
 .> view Foo
 
-  unique type Foo = #b509v3eg4k#0 Nat
+  type Foo = #b509v3eg4k#0 Nat
 
 .> update
 

@@ -79,7 +79,7 @@ rule1 f x =
     term x + 1 ==> Nat.increment x
     term a -> f a ==> f
 
-unique type Optional2 a = Some2 a | None2
+type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
@@ -109,7 +109,7 @@ rule1 f x =
     term x + 1 ==> Nat.increment x
     term a -> f a ==> f
 
-unique type Optional2 a = Some2 a | None2
+type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
@@ -182,9 +182,9 @@ Let's apply the rewrite `woot1to2`:
 -- | Rewrote using: 
 -- | Modified definition(s): wootEx
 
-unique ability Woot1 where woot1 : '{Woot1} Nat
+ability Woot1 where woot1 : '{Woot1} Nat
 
-unique ability Woot2 where woot2 : '{Woot2} Nat
+ability Woot2 where woot2 : '{Woot2} Nat
 
 woot1to2 x =
   @rewrite

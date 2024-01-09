@@ -21,7 +21,7 @@ threadEyeDeez _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type A
+      type A
       threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
@@ -30,7 +30,7 @@ threadEyeDeez _ =
 
   ⍟ I've added these definitions:
   
-    unique type A
+    type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 .> run threadEyeDeez

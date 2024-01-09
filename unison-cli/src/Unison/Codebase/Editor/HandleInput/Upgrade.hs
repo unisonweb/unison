@@ -190,11 +190,11 @@ handleUpgrade oldDepName newDepName = do
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
       Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
       scratchFilePath <-
-        Cli.getLatestFile >>= \case
-          Nothing -> pure "scratch.u"
-          Just (file, _) -> pure file
+        Cli.getLatestFile <&> \case
+          Nothing -> "scratch.u"
+          Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure oldDepName newDepName)
+      Cli.respond (Output.UpgradeFailure scratchFilePath oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
   branchUpdates <-

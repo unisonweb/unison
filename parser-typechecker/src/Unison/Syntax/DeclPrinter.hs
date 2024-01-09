@@ -83,7 +83,7 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
+        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -112,11 +112,12 @@ prettyDataDecl ::
   DataDeclaration v a ->
   Writer [AccessorName] (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+  (header <>)
+    . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
     <$> constructor
-      `traverse` zip
-        [0 ..]
-        (DD.constructors' dd)
+    `traverse` zip
+      [0 ..]
+      (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
@@ -147,7 +148,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
           <> fmt S.TypeAscriptionColon " :"
-            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -199,8 +200,9 @@ fieldNames env r name dd = do
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = fmt S.DataTypeModifier "structural"
-prettyModifier (DD.Unique _uid) =
-  fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
+prettyModifier (DD.Unique _uid) = mempty -- don't print anything since 'unique' is the default
+-- leaving this comment for the historical record so the syntax for uid is not forgotten
+-- fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader ::
   (Var v) => HQ.HashQualified Name -> DD.DataDeclaration v a -> Pretty SyntaxText

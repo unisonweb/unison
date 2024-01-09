@@ -93,9 +93,18 @@ resolveUnresolvedModifier unresolvedModifier var =
     UnresolvedModifier'Structural -> pure (DD.Structural <$ unresolvedModifier)
     UnresolvedModifier'UniqueWithGuid guid -> pure (DD.Unique guid <$ unresolvedModifier)
     UnresolvedModifier'UniqueWithoutGuid guid0 -> do
-      ParsingEnv {uniqueTypeGuid} <- ask
-      guid <- fromMaybe guid0 <$> lift (lift (uniqueTypeGuid (Name.unsafeFromVar var)))
-      pure (DD.Unique guid <$ unresolvedModifier)
+      unique <- resolveUniqueModifier var guid0
+      pure $ unique <$ unresolvedModifier
+
+resolveUniqueModifier :: (Monad m, Var v) => v -> Text -> P v m DD.Modifier
+resolveUniqueModifier var guid0 = do
+  ParsingEnv {uniqueTypeGuid} <- ask
+  guid <- fromMaybe guid0 <$> lift (lift (uniqueTypeGuid (Name.unsafeFromVar var)))
+  pure $ DD.Unique guid
+
+defaultUniqueModifier :: (Monad m, Var v) => v -> P v m DD.Modifier
+defaultUniqueModifier var =
+  uniqueName 32 >>= resolveUniqueModifier var
 
 -- unique[someguid] type Blah = ...
 modifier :: (Monad m, Var v) => P v m (Maybe (L.Token UnresolvedModifier))
@@ -132,7 +141,7 @@ dataDeclaration ::
   Maybe (L.Token UnresolvedModifier) ->
   P v m (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration maybeUnresolvedModifier = do
-  keywordTok <- fmap void (reserved "type") <|> openBlockWith "type"
+  _ <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
     (,)
       <$> TermParser.verifyRelativeVarName prefixDefinitionName
@@ -181,7 +190,13 @@ dataDeclaration maybeUnresolvedModifier = do
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_, _, t) -> ann t) <$> constructors))
   case maybeUnresolvedModifier of
-    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name
+    Nothing -> do
+      modifier <- defaultUniqueModifier (L.payload name)
+      pure
+        ( L.payload name,
+          DD.mkDataDecl' modifier closingAnn typeArgVs constructors,
+          accessors
+        )
     Just unresolvedModifier -> do
       modifier <- resolveUnresolvedModifier unresolvedModifier (L.payload name)
       pure
@@ -196,7 +211,7 @@ effectDeclaration ::
   Maybe (L.Token UnresolvedModifier) ->
   P v m (v, EffectDeclaration v Ann)
 effectDeclaration maybeUnresolvedModifier = do
-  keywordTok <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
@@ -208,7 +223,12 @@ effectDeclaration maybeUnresolvedModifier = do
         last $ ann blockStart : ((\(_, _, t) -> ann t) <$> constructors)
 
   case maybeUnresolvedModifier of
-    Nothing -> P.customFailure $ MissingTypeModifier ("ability" <$ keywordTok) name
+    Nothing -> do
+      modifier <- defaultUniqueModifier (L.payload name)
+      pure
+        ( L.payload name,
+          DD.mkEffectDecl' modifier closingAnn typeArgVs constructors
+        )
     Just unresolvedModifier -> do
       modifier <- resolveUnresolvedModifier unresolvedModifier (L.payload name)
       pure

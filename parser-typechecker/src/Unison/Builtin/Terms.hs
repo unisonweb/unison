@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-
 module Unison.Builtin.Terms
   ( builtinTermsRef,
     builtinTermsSrc,

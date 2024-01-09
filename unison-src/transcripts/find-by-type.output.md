@@ -17,7 +17,7 @@ baz = cases
 
   ⍟ I've added these definitions:
   
-    unique type A
+    type A
     bar : Text -> A
     baz : A -> Text
     foo : A

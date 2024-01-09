@@ -10,12 +10,12 @@ import Data.Set qualified as Set
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.Relation qualified as Rel
-import Unison.Names (Names)
 
 fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types'

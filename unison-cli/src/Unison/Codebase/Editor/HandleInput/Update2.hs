@@ -233,13 +233,13 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
             Right actions -> pure actions
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol
-              insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId) Map.empty
+              insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
               insertTypeConstructorActions =
                 let referentIdsWithNames = zip (Decl.constructorVars (Decl.asDataDecl decl)) (Decl.declConstructorReferents typeRefId decl)
                  in map
                       ( \(sym, rid) ->
                           let splitConName = splitVar sym
-                           in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid) Map.empty
+                           in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid)
                       )
                       referentIdsWithNames
               deleteStuff = deleteTypeAction : deleteConstructorActions
@@ -256,7 +256,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
             then
               let split = splitVar var
                in [ BranchUtil.makeAnnihilateTermName split,
-                    BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
+                    BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref)
                   ]
             else []
 
