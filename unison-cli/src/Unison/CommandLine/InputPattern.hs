@@ -27,7 +27,6 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
-import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (foldMapM)
@@ -70,9 +69,6 @@ data ArgumentType = ArgumentType
       AuthenticatedHttpClient ->
       Path.Absolute -> -- Current path
       m [Line.Completion],
-    -- | Select which targets glob patterns may expand into for this argument.
-    -- An empty set disables globbing.
-    globTargets :: Set Globbing.TargetType,
     -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
     -- available.
     fzfResolver :: Maybe FZFResolver
