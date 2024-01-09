@@ -257,7 +257,7 @@ hoistBackend f (Backend m) =
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
 suffixifyNames hashLength =
-  PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength
+  PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
@@ -312,7 +312,7 @@ shallowPPE codebase b = do
     hl <- Codebase.hashLength
     names <- shallowNames codebase b
     pure (hl, names)
-  pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ names
+  pure $ PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength $ names
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -721,9 +721,9 @@ getCurrentPrettyNames hashLen scope root =
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
       where
-        backup = PPED.fromNamesDecl hashLen $ parseNamesForBranch root (AllNames mempty)
+        backup = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root (AllNames mempty)
   where
-    primary = PPED.fromNamesDecl hashLen $ parseNamesForBranch root scope
+    primary = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root scope
 
 getCurrentParseNames :: NameScoping -> Branch m -> Names
 getCurrentParseNames scope root =
@@ -1057,7 +1057,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       pure (docTermsWithNames, hqLength)
   let docNamesByRef = Map.fromList docTermsWithNames
   let printNames = prettyNamesForBranch root (AllNames currentPath)
-  let ppe = PPED.fromNamesDecl hqLength printNames
+  let ppe = PPED.fromNamesSuffixifiedByHash hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $
     docs & foldMapM \(name, text, doc, errs) -> do
@@ -1176,8 +1176,8 @@ scopedNamesForBranchHash codebase mbh path = do
         (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
         pure (parseNames, localNames)
 
-  let localPPE = PPED.fromNamesDecl hashLen localNames
-  let globalPPE = PPED.fromNamesDecl hashLen parseNames
+  let localPPE = PPED.fromNamesSuffixifiedByHash hashLen localNames
+  let globalPPE = PPED.fromNamesSuffixifiedByHash hashLen parseNames
   pure (localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl

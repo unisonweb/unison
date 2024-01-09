@@ -50,7 +50,7 @@ ppedForReferences namesPerspective refs = do
     pure result
   let allTermNamesToConsider = termNames <> longestTermSuffixMatches
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
-  pure . PPED.fromNamesDecl hashLen $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  pure . PPED.fromNamesSuffixifiedByHash hashLen $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
   where
     namesForReference :: Ops.NamesPerspective -> LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference namesPerspective = \case

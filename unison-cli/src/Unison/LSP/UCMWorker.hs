@@ -32,7 +32,7 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let ppe = PPE.fromNamesDecl hl parseNames
+        let ppe = PPE.fromNamesSuffixifiedByHash hl parseNames
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe

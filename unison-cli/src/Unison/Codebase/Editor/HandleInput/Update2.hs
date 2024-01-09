@@ -452,7 +452,7 @@ getTermAndDeclNames tuf =
 -- and the names from the codebase are passed in 'otherNames'.
 shadowNames :: Int -> Names -> Names -> PrettyPrintEnvDecl
 shadowNames hashLen n otherNames =
-  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (n <> otherNames)
+  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesSuffixifiedByName hashLen (n <> otherNames)
       unsuffixified = patchPrettyPrintEnv unsuffixified0
       suffixified = patchPrettyPrintEnv suffixified0
       patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv

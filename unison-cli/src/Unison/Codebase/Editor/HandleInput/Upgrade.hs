@@ -33,7 +33,6 @@ import Unison.Codebase.Editor.HandleInput.Update2
   )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -41,8 +40,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
-import Unison.PrettyPrintEnv.Names qualified as PPE.Names
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -171,7 +170,7 @@ handleUpgrade oldDepName newDepName = do
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
       let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-      let secondaryPPE = PPED.fromNamesDecl hashLength namesExcludingOldDep
+      let secondaryPPE = PPED.fromNamesSuffixifiedByHash hashLength namesExcludingOldDep
       pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
@@ -228,9 +227,9 @@ makeOldDepPPE ::
   Branch0 m ->
   PrettyPrintEnvDecl
 makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps =
-  let makePPE suffixifyTerms suffixifyTypes =
-        PrettyPrintEnv
-          { termNames = \ref ->
+  let makePPE suffixifier =
+        PPE.PrettyPrintEnv
+          ( \ref ->
               let oldDirectNames = Relation.lookupDom ref (Branch.deepTerms oldDepWithoutDeps)
                   newDirectRefsForOldDirectNames =
                     Relation.range (Branch.deepTerms newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
@@ -239,19 +238,11 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
                          Set.member ref (Branch.deepReferents oldDep),
                          Relation.memberRan ref (Names.terms namesExcludingOldDep)
                        ) of
-                    (False, False, _, _) ->
-                      Names.namesForReferent fakeNames ref
-                        & Set.toList
-                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                        & suffixifyTerms
-                        & PPE.Names.prioritize
-                    (_, _, True, False) ->
-                      Names.namesForReferent prefixedOldNames ref
-                        & Set.toList
-                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                        & PPE.Names.prioritize
-                    _ -> [],
-            typeNames = \ref ->
+                    (False, False, _, _) -> PPE.makeTermNames fakeNames suffixifier ref
+                    (_, _, True, False) -> PPE.makeTermNames prefixedOldNames PPE.dontSuffixify ref
+                    _ -> []
+          )
+          ( \ref ->
               let oldDirectNames = Relation.lookupDom ref (Branch.deepTypes oldDepWithoutDeps)
                   newDirectRefsForOldDirectNames =
                     Relation.range (Branch.deepTypes newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
@@ -260,30 +251,18 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
                          Set.member ref (Branch.deepTypeReferences oldDep),
                          Relation.memberRan ref (Names.types namesExcludingOldDep)
                        ) of
-                    (False, False, _, _) ->
-                      Names.namesForReference fakeNames ref
-                        & Set.toList
-                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                        & suffixifyTypes
-                        & PPE.Names.prioritize
-                    (_, _, True, False) ->
-                      Names.namesForReference prefixedOldNames ref
-                        & Set.toList
-                        & map (\name -> (HQ'.fromName name, HQ'.fromName name))
-                        & PPE.Names.prioritize
+                    (False, False, _, _) -> PPE.makeTypeNames fakeNames suffixifier ref
+                    (_, _, True, False) -> PPE.makeTypeNames prefixedOldNames PPE.dontSuffixify ref
                     _ -> []
-          }
+          )
    in PrettyPrintEnvDecl
-        { unsuffixifiedPPE = makePPE id id,
-          suffixifiedPPE =
-            makePPE
-              (PPE.Names.shortestUniqueSuffixes (Names.terms namesExcludingOldDep))
-              (PPE.Names.shortestUniqueSuffixes (Names.types namesExcludingOldDep))
+        { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
+          suffixifiedPPE = makePPE (PPE.suffixifyByName namesExcludingOldDep)
         }
   where
     oldNames = Branch.toNames oldDep
-    prefixedOldNames = Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames
-    fakeNames = Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment])) oldNames
+    prefixedOldNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames)
+    fakeNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment])) oldNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".

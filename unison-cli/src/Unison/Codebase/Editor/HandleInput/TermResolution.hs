@@ -26,7 +26,7 @@ import Unison.Names (Names)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.PrettyPrintEnv.Names (fromSuffixNames)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
@@ -83,7 +83,7 @@ resolveTerm name = do
       rfs ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfs))
         where
-          ppe = fromSuffixNames hashLength nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
 resolveCon name = do
@@ -97,7 +97,7 @@ resolveCon name = do
       (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
         where
-          ppe = fromSuffixNames hashLength nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
 resolveTermRef name = do
@@ -111,7 +111,7 @@ resolveTermRef name = do
       (_, rfts) ->
         Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
         where
-          ppe = fromSuffixNames hashLength nms
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do
@@ -120,7 +120,7 @@ resolveMainRef main = do
       smain = HQ.toString main
   parseNames <- basicPrettyPrintNamesA
   k <- Cli.runTransaction Codebase.hashLength
-  let ppe = fromSuffixNames k parseNames
+  let ppe = PPE.makePPE (PPE.hqNamer k parseNames) (PPE.suffixifyByHash parseNames)
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, ppe)

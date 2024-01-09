@@ -46,7 +46,7 @@ handleRun native main args = do
     pure (uf, otyp)
   ppe <- do
     names <- displayNames unisonFile
-    Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` names)
+    Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   let mode | native = Native | otherwise = Permissive
   (_, xs) <- evalUnisonFile mode ppe unisonFile args
   mainRes :: Term Symbol () <-
@@ -77,15 +77,19 @@ getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
+      ppe <- makePPE
       Cli.returnEarly $ Output.NoMainFunction main ppe [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` basicPrettyPrintNames)
+      ppe <- makePPE
       Cli.returnEarly $ Output.BadMainFunction "run" main ty ppe [mainType]
     GetTermSuccess x -> pure x
+  where
+    makePPE :: Cli PPE.PrettyPrintEnv
+    makePPE = do
+      basicPrettyPrintNames <- getBasicPrettyPrintNames
+      Cli.runTransaction Codebase.hashLength <&> \hashLen ->
+        PPE.makePPE (PPE.hqNamer hashLen basicPrettyPrintNames) (PPE.suffixifyByHash basicPrettyPrintNames)
 
 getTerm' :: String -> Cli GetTermResult
 getTerm' mainName =

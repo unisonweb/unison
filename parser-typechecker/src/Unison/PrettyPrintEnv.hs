@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
     patterns,
