@@ -1,24 +1,19 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
 ```unison
----
-title: /private/tmp/roundtrip.u
----
 x = ()
-
 ```
-
 
 ```ucm
 
-  Loading changes detected in /private/tmp/roundtrip.u.
+  Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in
-  /private/tmp/roundtrip.u. If you do an `add` or `update`,
-  here's how your codebase would change:
-  
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
     ⍟ These new definitions are ok to `add`:
-    
+
       x : ()
 
 ```
@@ -28,14 +23,14 @@ So we can see the pretty-printed output:
 .a1> edit 1-1000
 
   ☝️
-  
-  I added 105 definitions to the top of /private/tmp/roundtrip.u
-  
+
+  I added 105 definitions to the top of scratch.u
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm /private/tmp/roundtrip.u
+```unison:added-by-ucm scratch.u
 structural ability Abort where abort : {Abort} a
 
 structural ability Ask a where ask : {Ask a} a
@@ -172,18 +167,18 @@ fix_2224b = cases
 fix_2271 : Doc2
 fix_2271 =
   {{ # Full doc body indented
-  
+
     ``` raw
-    myVal1 = 42 
+    myVal1 = 42
     myVal2 = 43
     myVal4 = 44
     ```
-    
+
     ``` raw
     indented1= "hi"
     indented2="this is two indents"
     ```
-    
+
     I am two spaces over }}
 
 Fix_2337.f : Fix_2337 -> Boolean
@@ -456,7 +451,7 @@ raw_b =
   a
   b
   c -- note blank line
-  
+
   """
 
 raw_c : Text
@@ -464,7 +459,7 @@ raw_c =
   """
   ignored (wonky case)
   Use an extra blank line if you'd like a trailing newline. Like so:
-  
+
   """
 
 raw_d : Text
@@ -472,7 +467,7 @@ raw_d =
   """
   ignored (works great)
   Use an extra blank line if you'd like a trailing newline. Like so:
-  
+
   """
 
 simplestPossibleExample : Nat
@@ -547,7 +542,7 @@ softhang27 somewhere = forkAt somewhere do
   x + y
 
 softhang28 : Nat
-softhang28 = 
+softhang28 =
   softhang2 [0, 1, 2, 3, 4, 5] cases
     0 -> 0
     1 -> 1
@@ -709,26 +704,21 @@ Now check that definitions in 'reparses.u' at least parse on round trip:
 This just makes 'roundtrip.u' the latest scratch file.
 
 ```unison
----
-title: /private/tmp/roundtrip.u
----
 x = ()
-
 ```
-
 
 ```ucm
 .a3> edit 1-5000
 
   ☝️
-  
-  I added 2 definitions to the top of /private/tmp/roundtrip.u
-  
+
+  I added 2 definitions to the top of scratch.u
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm /private/tmp/roundtrip.u
+```unison:added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
   """
@@ -743,7 +733,7 @@ sloppyDocEval =
   Here's an example of an eval block that's technically a lambda but should
   print as a backticked block (since old docs in the wild still use this
   format).
-  
+
   ```
   1 + 1
   ```
@@ -756,7 +746,7 @@ These are currently all expected to have different hashes on round trip.
 .> diff.namespace a3 a3_old
 
   Updates:
-  
+
     1. sloppyDocEval : Doc2
        ↓
     2. sloppyDocEval : Doc2
@@ -767,4 +757,3 @@ These are currently all expected to have different hashes on round trip.
 ### Comment out builtins in the edit command
 
 Regression test for https://github.com/unisonweb/unison/pull/3548
-
