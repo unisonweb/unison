@@ -30,10 +30,6 @@ unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
 
-cleanup = do 
-  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
 ```
 
 
@@ -86,14 +82,6 @@ rule1 f x =
 unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do
-  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
----- Anything below this line is ignored by Unison.
-
-
 ```
 
 ```unison:added-by-ucm /private/tmp/rewrites-tmp.u
@@ -124,14 +112,6 @@ rule1 f x =
 unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do
-  _ = removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
----- Anything below this line is ignored by Unison.
-
-
 ```
 
 After adding to the codebase, here's the rewritten source:
@@ -220,10 +200,6 @@ wootEx a =
 blah = 123
 
 blah2 = 456
-
----- Anything below this line is ignored by Unison.
-
-
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
@@ -341,10 +317,6 @@ rule bar2 =
 sameFileEx =
   _ = "ex"
   bar21
-
----- Anything below this line is ignored by Unison.
-
-
 ```
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
@@ -410,10 +382,6 @@ rule a =
   @rewrite
     case None ==> Left "oh no"
     term 233 ==> a
-
----- Anything below this line is ignored by Unison.
-
-
 ```
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:

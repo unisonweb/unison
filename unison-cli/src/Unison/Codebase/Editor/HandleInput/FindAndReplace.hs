@@ -141,7 +141,4 @@ renderRewrittenFile ppe msg (vs, uf) = do
   let prettyVar = P.text . Var.name
       modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
       header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf <> foldLine)
-  where
-    foldLine :: (IsString s) => P.Pretty s
-    foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf)
