@@ -89,4 +89,4 @@ jobs:
       - name: save transcript changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: rerun transcripts and round-trip tests
+          commit_message: rerun transcripts (reminder to rerun CI!)
