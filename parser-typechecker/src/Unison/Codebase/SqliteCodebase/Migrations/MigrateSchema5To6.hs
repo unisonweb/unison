@@ -57,7 +57,7 @@ oldReflogEntries reflogPath now =
               Just $
                 Reflog.Entry
                   { time = offsetTime,
-                    fromRootCausalHash = CausalHash $ old,
+                    fromRootCausalHash = CausalHash old,
                     toRootCausalHash = CausalHash new,
                     reason
                   }

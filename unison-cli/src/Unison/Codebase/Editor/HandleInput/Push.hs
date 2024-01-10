@@ -102,7 +102,7 @@ handleGist (GistInput repo) = do
       ReadRemoteNamespaceGit
         ReadGitRemoteNamespace
           { repo = writeToReadGit repo,
-            sch = Just (SCH.fromHash32 schLength (unCausalHash $ Branch.headHash sourceBranch)),
+            sch = Just (SCH.fromHash32 schLength (Branch.headHash sourceBranch)),
             path = Path.empty
           }
 

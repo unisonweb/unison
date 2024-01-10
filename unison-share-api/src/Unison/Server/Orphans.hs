@@ -155,6 +155,8 @@ instance ToSchema Reference where
 
 deriving via ShortByteString instance Binary Hash
 
+deriving via Text instance ToHttpApiData ShortCausalHash
+
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
   toJSON = \case
     BuiltinObject b -> object ["tag" Aeson..= String "BuiltinObject", "contents" Aeson..= b]

@@ -349,7 +349,7 @@ notifyNumbered = \case
      in (msg, displayBranchHash <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
-      toSCH h = SCH.fromHash32 schLength $ h
+      toSCH h = SCH.fromHash32 schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
