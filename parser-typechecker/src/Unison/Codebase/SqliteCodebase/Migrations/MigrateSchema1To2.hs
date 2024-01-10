@@ -64,6 +64,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Unison
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as Hashing
 import Unison.Hashing.V2.Convert qualified as Convert
 import Unison.Parser.Ann (Ann)
@@ -230,7 +231,7 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
     Nothing -> use (field @"v2EmptyBranchHashInfo")
     Just branchObjId -> do
       let (_, newBranchHashId, newBranchHash, _) = migratedObjIds ^?! ix branchObjId
-      pure (BranchHashId newBranchHashId, BranchHash newBranchHash)
+      pure (BranchHashId newBranchHashId, BranchHash . Hash32.fromHash $ newBranchHash)
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
@@ -240,11 +241,11 @@ migrateCausal oldCausalHashId = fmap (either id id) . runExceptT $ do
 
   let newCausalHash :: CausalHash
       newCausalHash =
-        CausalHash $
+        CausalHash . Hash32.fromHash $
           Hashing.contentHash
             Hashing.Causal
-              { branchHash = unBranchHash newBranchHash,
-                parents = newParentHashes
+              { branchHash = Hash32.toHash $ unBranchHash newBranchHash,
+                parents = Set.map Hash32.toHash $ newParentHashes
               }
   newCausalHashId <- lift . lift $ Q.saveCausalHash newCausalHash
   let newCausal =
@@ -342,7 +343,7 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
       oldObjectId
       ( unBranchObjectId newObjectId,
         unBranchHashId newHashId,
-        unBranchHash newHash,
+        Hash32.toHash $ unBranchHash newHash,
         oldHash
       )
   pure Sync.Done
@@ -396,13 +397,13 @@ migratePatch oldObjectId = fmap (either id id) . runExceptT $ do
         v2HashHandle
         newHash
         (S.Patch.Format.Full localPatchIds localPatch)
-  newHashId <- lift . lift $ Q.expectHashIdByHash (unPatchHash newHash)
+  newHashId <- lift . lift $ Q.expectHashIdByHash (Hash32.toHash $ unPatchHash newHash)
   field @"objLookup"
     %= Map.insert
       (unPatchObjectId oldObjectId)
       ( unPatchObjectId newObjectId,
         newHashId,
-        unPatchHash newHash,
+        Hash32.toHash $ unPatchHash newHash,
         oldHash
       )
   pure Sync.Done

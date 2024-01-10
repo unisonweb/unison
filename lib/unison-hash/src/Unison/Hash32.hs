@@ -11,6 +11,7 @@ module Unison.Hash32
 
     -- ** Base32Hex
     unsafeFromBase32Hex,
+    unsafeFromBase32HexText,
     toBase32Hex,
 
     -- ** Text
@@ -19,6 +20,7 @@ module Unison.Hash32
 where
 
 import U.Util.Base32Hex (Base32Hex (..))
+import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Prelude
@@ -62,3 +64,6 @@ toBase32Hex =
 toText :: Hash32 -> Text
 toText =
   coerce
+
+unsafeFromBase32HexText :: Text -> Hash32
+unsafeFromBase32HexText = UnsafeFromBase32Hex . Base32Hex.UnsafeFromText

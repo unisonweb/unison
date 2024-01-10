@@ -51,6 +51,7 @@ module U.Codebase.Sqlite.Queries
     isObjectHash,
     expectObject,
     expectPrimaryHashByObjectId,
+    expectPrimaryHash32ByObjectId,
     expectPrimaryHashIdForObject,
     expectObjectWithHashIdAndType,
     expectDeclObject,
@@ -384,7 +385,6 @@ import U.Util.Term qualified as TermUtil
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
-import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
@@ -553,24 +553,24 @@ loadHashIdByHash :: Hash -> Transaction (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash32.fromHash
 
 saveCausalHash :: CausalHash -> Transaction CausalHashId
-saveCausalHash = fmap CausalHashId . saveHashHash . unCausalHash
+saveCausalHash = fmap CausalHashId . saveHash . unCausalHash
 
 saveBranchHash :: BranchHash -> Transaction BranchHashId
-saveBranchHash = fmap BranchHashId . saveHashHash . unBranchHash
+saveBranchHash = fmap BranchHashId . saveHash . unBranchHash
 
 loadCausalHashIdByCausalHash :: CausalHash -> Transaction (Maybe CausalHashId)
 loadCausalHashIdByCausalHash ch = runMaybeT do
-  hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
+  hId <- MaybeT $ loadHashId (unCausalHash ch)
   Alternative.whenM (lift (isCausalHash hId)) (CausalHashId hId)
 
 expectCausalHashIdByCausalHash :: CausalHash -> Transaction CausalHashId
 expectCausalHashIdByCausalHash ch = do
-  hId <- expectHashIdByHash (unCausalHash ch)
+  hId <- expectHashId (unCausalHash ch)
   pure (CausalHashId hId)
 
 loadCausalByCausalHash :: CausalHash -> Transaction (Maybe (CausalHashId, BranchHashId))
 loadCausalByCausalHash ch = runMaybeT do
-  hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
+  hId <- MaybeT $ loadHashId (unCausalHash ch)
   bhId <- MaybeT $ loadCausalValueHashId hId
   pure (CausalHashId hId, bhId)
 
@@ -596,7 +596,7 @@ expectHash32 h =
     |]
 
 expectBranchHash :: BranchHashId -> Transaction BranchHash
-expectBranchHash = coerce expectHash
+expectBranchHash = coerce expectHash32
 
 expectBranchHashForCausalHash :: CausalHash -> Transaction BranchHash
 expectBranchHashForCausalHash ch = do
@@ -799,6 +799,13 @@ loadObjectIdForPrimaryHash h =
     Nothing -> pure Nothing
     Just hashId -> loadObjectIdForPrimaryHashId hashId
 
+loadObjectIdForPrimaryHash32 :: Hash32 -> Transaction (Maybe ObjectId)
+loadObjectIdForPrimaryHash32 h =
+  loadHashId h >>= \case
+    Nothing -> pure Nothing
+    Just hashId -> loadObjectIdForPrimaryHashId hashId
+
+
 expectObjectIdForPrimaryHash :: Hash -> Transaction ObjectId
 expectObjectIdForPrimaryHash =
   expectObjectIdForHash32 . Hash32.fromHash
@@ -833,7 +840,7 @@ expectBranchHashIdForHash32 hash =
     |]
 
 expectBranchHashId :: BranchHash -> Transaction BranchHashId
-expectBranchHashId = expectBranchHashIdForHash32 . Hash32.fromHash . unBranchHash
+expectBranchHashId = expectBranchHashIdForHash32 .  unBranchHash
 
 expectCausalHashIdForHash32 :: Hash32 -> Transaction CausalHashId
 expectCausalHashIdForHash32 hash =
@@ -846,7 +853,7 @@ expectCausalHashIdForHash32 hash =
 
 loadPatchObjectIdForPrimaryHash :: PatchHash -> Transaction (Maybe PatchObjectId)
 loadPatchObjectIdForPrimaryHash =
-  (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash . unPatchHash
+  (fmap . fmap) PatchObjectId . loadObjectIdForPrimaryHash32 . unPatchHash
 
 loadObjectIdForAnyHash :: Hash -> Transaction (Maybe ObjectId)
 loadObjectIdForAnyHash h =
@@ -1219,7 +1226,7 @@ expectCausalValueHashId (CausalHashId id) =
   queryOneCol (loadCausalValueHashIdSql id) -- (Only id)
 
 expectCausalHash :: CausalHashId -> Transaction CausalHash
-expectCausalHash = coerce expectHash
+expectCausalHash = coerce expectHash32
 
 loadCausalValueHashId :: HashId -> Transaction (Maybe BranchHashId)
 loadCausalValueHashId id =

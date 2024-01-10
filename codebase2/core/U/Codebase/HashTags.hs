@@ -5,17 +5,17 @@ import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- | Represents a hash of a type or term component
-newtype ComponentHash = ComponentHash {unComponentHash :: Hash}
+newtype ComponentHash = ComponentHash {unComponentHash :: Hash32}
   deriving stock (Eq, Ord)
 
-newtype BranchHash = BranchHash {unBranchHash :: Hash}
-  deriving stock (Eq, Ord)
+newtype BranchHash = BranchHash {unBranchHash :: Hash32}
+  deriving (Eq, Ord)
 
 -- | Represents a hash of a causal containing values of the provided type.
-newtype CausalHash = CausalHash {unCausalHash :: Hash}
+newtype CausalHash = CausalHash {unCausalHash :: Hash32}
   deriving stock (Eq, Ord)
 
-newtype PatchHash = PatchHash {unPatchHash :: Hash}
+newtype PatchHash = PatchHash {unPatchHash :: Hash32}
   deriving stock (Eq, Ord)
 
 instance Show ComponentHash where
@@ -31,53 +31,53 @@ instance Show PatchHash where
   show h = "PatchHash (" ++ show (unPatchHash h) ++ ")"
 
 instance From ComponentHash Text where
-  from = from @Hash @Text . unComponentHash
+  from = from @Hash32 @Text . unComponentHash
 
 instance From BranchHash Text where
-  from = from @Hash @Text . unBranchHash
+  from = from @Hash32 @Text . unBranchHash
 
 instance From CausalHash Text where
-  from = from @Hash @Text . unCausalHash
+  from = from @Hash32 @Text . unCausalHash
 
 instance From PatchHash Text where
-  from = from @Hash @Text . unPatchHash
+  from = from @Hash32 @Text . unPatchHash
 
-instance From ComponentHash Hash
+instance From ComponentHash Hash32
 
-instance From BranchHash Hash
+instance From BranchHash Hash32
 
-instance From CausalHash Hash
+instance From CausalHash Hash32
 
-instance From PatchHash Hash
+instance From PatchHash Hash32
 
-instance From Hash ComponentHash
+instance From Hash32 ComponentHash
 
-instance From Hash BranchHash
+instance From Hash32 BranchHash
 
-instance From Hash CausalHash
+instance From Hash32 CausalHash
 
-instance From Hash PatchHash
+instance From Hash32 PatchHash
 
-instance From ComponentHash Hash32 where
-  from = from @Hash @Hash32 . unComponentHash
+instance From ComponentHash Hash where
+  from = from @Hash32 @Hash . unComponentHash
 
-instance From BranchHash Hash32 where
-  from = from @Hash @Hash32 . unBranchHash
+instance From BranchHash Hash where
+  from = from @Hash32 @Hash . unBranchHash
 
-instance From CausalHash Hash32 where
-  from = from @Hash @Hash32 . unCausalHash
+instance From CausalHash Hash where
+  from = from @Hash32 @Hash . unCausalHash
 
-instance From PatchHash Hash32 where
-  from = from @Hash @Hash32 . unPatchHash
+instance From PatchHash Hash where
+  from = from @Hash32 @Hash . unPatchHash
 
-instance From Hash32 ComponentHash where
-  from = ComponentHash . from @Hash32 @Hash
+instance From Hash ComponentHash where
+  from = ComponentHash . from @Hash @Hash32
 
-instance From Hash32 BranchHash where
-  from = BranchHash . from @Hash32 @Hash
+instance From Hash BranchHash where
+  from = BranchHash . from @Hash @Hash32
 
-instance From Hash32 CausalHash where
-  from = CausalHash . from @Hash32 @Hash
+instance From Hash CausalHash where
+  from = CausalHash . from @Hash @Hash32
 
-instance From Hash32 PatchHash where
-  from = PatchHash . from @Hash32 @Hash
+instance From Hash PatchHash where
+  from = PatchHash . from @Hash @Hash32

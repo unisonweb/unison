@@ -31,6 +31,8 @@ import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qua
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
+import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM)
@@ -156,7 +158,7 @@ integrityCheckAllBranches = do
     integrityCheckBranch objId = do
       dbBranch <- Ops.expectDbBranch objId
       expectedBranchHash <- Helpers.dbBranchHash dbBranch
-      actualBranchHash <- BranchHash <$> Q.expectPrimaryHashByObjectId (DB.unBranchObjectId objId)
+      actualBranchHash <- BranchHash <$> Q.expectPrimaryHash32ByObjectId (DB.unBranchObjectId objId)
       branchHashCheck <- assertExpectedBranchHash expectedBranchHash actualBranchHash
       branchChildChecks <- flip foldMapM (toListOf DBBranch.childrenHashes_ dbBranch) $ \(childObjId, childCausalHashId) -> do
         let checks =
@@ -237,7 +239,7 @@ prettyPrintIntegrityErrors xs
                   (P.commas (prettyHash <$> toList ns))
               DetectedBranchErrors bh errs ->
                 P.hang
-                  ("Detected errors in branch: " <> prettyHash (unBranchHash bh))
+                  ("Detected errors in branch: " <> prettyHash32 (unBranchHash bh))
                   (P.lines . fmap (<> "\n") . fmap prettyBranchError . toList $ errs)
           )
         & fmap (<> "\n")
@@ -246,6 +248,8 @@ prettyPrintIntegrityErrors xs
   where
     prettyHash :: Hash -> P.Pretty P.ColorText
     prettyHash h = P.blue . P.text $ ("#" <> Hash.toBase32HexText h)
+    prettyHash32 :: Hash32 -> P.Pretty P.ColorText
+    prettyHash32 h = P.blue . P.text $ ("#" <> Hash32.toText h)
     prettyBranchObjectId :: DB.BranchObjectId -> P.Pretty P.ColorText
     prettyBranchObjectId = prettyObjectId . DB.unBranchObjectId
     prettyObjectId :: DB.ObjectId -> P.Pretty P.ColorText
@@ -253,7 +257,7 @@ prettyPrintIntegrityErrors xs
     prettyBranchError :: BranchError -> P.Pretty P.ColorText
     prettyBranchError =
       P.wrap . \case
-        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> prettyHash (unBranchHash expected) <> ", Actual Hash: " <> prettyHash (unBranchHash actual)
+        IncorrectHashForBranch expected actual -> "The Branch hash for this branch is incorrect. Expected Hash: " <> prettyHash32 (unBranchHash expected) <> ", Actual Hash: " <> prettyHash32 (unBranchHash actual)
         MismatchedObjectForChild ha obj1 obj2 ->
           "The child with causal hash: " <> prettyHash ha <> " is mapped to object ID " <> prettyBranchObjectId obj1 <> " but should map to " <> prettyBranchObjectId obj2 <> "."
         MissingObjectForChildCausal ha ->

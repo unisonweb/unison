@@ -14,6 +14,7 @@ import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Term.Hashing as H2
 import U.Util.Type (removeAllEffectVars)
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as H2
 import Unison.Hashing.V2.Convert2 (h2ToV2Reference, hashBranchFormatToH2Branch, hashPatchFormatToH2Patch, v2ToH2Type, v2ToH2TypeD)
 
@@ -37,9 +38,11 @@ v2HashHandle =
       BranchFormat.localToHashBranch localIds localBranch
         & hashBranchFormatToH2Branch
         & H2.contentHash
+        & Hash32.fromHash
         & BranchHash
     hashPatchFormatFull localIds localPatch =
       PatchFormat.localPatchToHashPatch localIds localPatch
         & hashPatchFormatToH2Patch
         & H2.contentHash
+        & Hash32.fromHash
         & PatchHash

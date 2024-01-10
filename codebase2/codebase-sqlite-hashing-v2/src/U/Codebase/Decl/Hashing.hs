@@ -14,6 +14,7 @@ import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Symbol qualified as S
 import U.Codebase.Sqlite.Symbol qualified as Sqlite
+import Unison.Hash (Hash)
 import Unison.Hash32
 import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as H2
@@ -24,7 +25,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Var qualified as Var
 
 verifyDeclFormatHash :: ComponentHash -> DeclFormat.HashDeclFormat -> Maybe HH.DeclHashingError
-verifyDeclFormatHash (ComponentHash hash) (DeclFormat.Decl (DeclFormat.LocallyIndexedComponent elements)) =
+verifyDeclFormatHash (ComponentHash hash32) (DeclFormat.Decl (DeclFormat.LocallyIndexedComponent elements)) =
   Foldable.toList elements
     & fmap s2cDecl
     & Reference.component hash
@@ -44,6 +45,8 @@ verifyDeclFormatHash (ComponentHash hash) (DeclFormat.Decl (DeclFormat.LocallyIn
               then Nothing
               else Just (HH.DeclHashMismatch $ HashMismatch hash hash')
   where
+    hash :: Hash
+    hash = Hash32.toHash hash32
     symbol2to1 :: S.Symbol -> Unison.Symbol
     symbol2to1 (S.Symbol i t) = Unison.Symbol i (Var.User t)
 

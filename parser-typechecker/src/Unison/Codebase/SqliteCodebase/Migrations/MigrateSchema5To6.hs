@@ -8,7 +8,7 @@ import U.Codebase.Reflog qualified as Reflog
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
-import Unison.Hash qualified as Hash
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import UnliftIO (catchIO)
@@ -53,11 +53,11 @@ oldReflogEntries reflogPath now =
       -- least puts them in the correct order chronologically.
       let offsetTime = addUTCTime (negate $ fromInteger @NominalDiffTime n) now
        in case Text.words txt of
-            (Hash.fromBase32HexText -> Just old) : (Hash.fromBase32HexText -> Just new) : (Text.unwords -> reason) ->
+            (Hash32.unsafeFromBase32HexText -> old) : (Hash32.unsafeFromBase32HexText -> new) : (Text.unwords -> reason) ->
               Just $
                 Reflog.Entry
                   { time = offsetTime,
-                    fromRootCausalHash = CausalHash old,
+                    fromRootCausalHash = CausalHash $ old,
                     toRootCausalHash = CausalHash new,
                     reason
                   }

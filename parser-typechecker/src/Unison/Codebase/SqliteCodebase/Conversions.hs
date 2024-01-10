@@ -34,6 +34,7 @@ import Unison.DataDeclaration qualified as V1.Decl
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Hash qualified as V1
+import Unison.Hash32 qualified as Hash32
 import Unison.Kind qualified as V1.Kind
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
@@ -267,10 +268,10 @@ rreferenceid1to2 h (V1.Reference.Id h' i) = V2.Reference.Id oh i
     oh = if h == h' then Nothing else Just h'
 
 branchHash1to2 :: V1.Branch.NamespaceHash m -> BranchHash
-branchHash1to2 = BranchHash . V1.genericHash
+branchHash1to2 = BranchHash . Hash32.fromHash . V1.genericHash
 
 branchHash2to1 :: forall m. BranchHash -> V1.Branch.NamespaceHash m
-branchHash2to1 = V1.HashFor . unBranchHash
+branchHash2to1 = V1.HashFor . Hash32.toHash . unBranchHash
 
 reference2to1 :: V2.Reference -> V1.Reference
 reference2to1 = id

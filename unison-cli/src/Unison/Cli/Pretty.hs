@@ -203,7 +203,7 @@ prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
 
 prettyCausalHash :: (IsString s) => CausalHash -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
+prettyCausalHash hash = P.group $ "#" <> P.text (Hash32.toText . unCausalHash $ hash)
 
 prettyBase32Hex :: (IsString s) => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
@@ -339,7 +339,7 @@ prettyWhichBranchEmpty = \case
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.toBase32HexText . unCausalHash
+displayBranchHash = ("#" <>) . Text.unpack . Hash32.toText . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =

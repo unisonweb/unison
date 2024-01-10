@@ -24,7 +24,7 @@ import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
 
 verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
-verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
+verifyTermFormatHash (ComponentHash hash32) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
   Foldable.toList elements
     & fmap s2cTermWithType
     & Reference.component hash
@@ -40,6 +40,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIn
         then Nothing
         else Just (HashMismatch hash hash')
   where
+    hash = Hash32.toHash hash32
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' Unison.Symbol) Unison.Symbol a
