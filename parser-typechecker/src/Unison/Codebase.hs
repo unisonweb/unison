@@ -13,7 +13,6 @@ module Unison.Codebase
     isTerm,
     putTerm,
     putTermComponent,
-    termMetadata,
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
@@ -123,7 +122,6 @@ import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Referent qualified as V2
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin qualified as Builtin
@@ -153,7 +151,6 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -269,19 +266,6 @@ expectBranchForHash codebase hash =
   getBranchForHash codebase hash >>= \case
     Just branch -> pure branch
     Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
-
--- | Get the metadata attached to the term at a given path and name relative to the given branch.
-termMetadata ::
-  -- | The branch to search inside. Use the current root if 'Nothing'.
-  Maybe (V2Branch.Branch Sqlite.Transaction) ->
-  Split ->
-  -- | There may be multiple terms at the given name. You can specify a Referent to
-  -- disambiguate if desired.
-  Maybe V2.Referent ->
-  Sqlite.Transaction [Map V2Branch.MetadataValue V2Branch.MetadataType]
-termMetadata mayBranch (path, nameSeg) ref = do
-  b <- getShallowBranchAtPath path mayBranch
-  V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: (MonadIO m) => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))

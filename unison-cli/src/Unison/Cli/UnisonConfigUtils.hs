@@ -1,7 +1,6 @@
 -- | @.unisonConfig@ file utilities
 module Unison.Cli.UnisonConfigUtils
-  ( defaultMetadataKey,
-    gitUrlKey,
+  ( gitUrlKey,
     remoteMappingKey,
     resolveConfiguredUrl,
   )
@@ -33,9 +32,6 @@ configKey k p =
       :<| fmap
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
-
-defaultMetadataKey :: Path.Absolute -> Text
-defaultMetadataKey = configKey "DefaultMetadata"
 
 gitUrlKey :: Path.Absolute -> Text
 gitUrlKey = configKey "GitUrl"

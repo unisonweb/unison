@@ -4,13 +4,15 @@ unique type Foo = { bar : Nat }
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -26,6 +28,6 @@ unique type Foo = { bar : Nat }
 
 .> view Foo
 
-  unique type Foo = { bar : Nat }
+  type Foo = { bar : Nat }
 
 ```

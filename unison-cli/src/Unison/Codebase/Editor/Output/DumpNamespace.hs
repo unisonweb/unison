@@ -7,8 +7,8 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 
 data DumpNamespace = DumpNamespace
-  { terms :: Map Referent (Set NameSegment, Set Reference),
-    types :: Map Reference (Set NameSegment, Set Reference),
+  { terms :: Map Referent (Set NameSegment),
+    types :: Map Reference (Set NameSegment),
     patches :: Map NameSegment PatchHash,
     children :: Map NameSegment CausalHash,
     causalParents :: Set CausalHash

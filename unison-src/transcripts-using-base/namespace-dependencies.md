@@ -22,6 +22,5 @@ hasMetadata = 3
 
 ```ucm
 .dependencies> add
-.dependencies> link .metadata.myMetadata hasMetadata
 .dependencies> namespace.dependencies
 ```

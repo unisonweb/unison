@@ -4,13 +4,15 @@ unique type Foo = Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -20,7 +22,7 @@ unique type Foo = Foo
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 .> fork .a.b .c.d.f
 
@@ -35,13 +37,15 @@ unique type Foo = Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -49,7 +53,7 @@ unique type Foo = Foo
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 ```
 ```unison
@@ -57,6 +61,8 @@ foo = .d.f.Foo.Foo
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

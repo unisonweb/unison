@@ -45,13 +45,15 @@ library
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AddRun
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
-      Unison.Codebase.Editor.HandleInput.MetadataUtils
+      Unison.Codebase.Editor.HandleInput.FindAndReplace
+      Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm
@@ -66,7 +68,10 @@ library
       Unison.Codebase.Editor.HandleInput.Pull
       Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
+      Unison.Codebase.Editor.HandleInput.Run
+      Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.TermResolution
+      Unison.Codebase.Editor.HandleInput.Tests
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
@@ -89,7 +94,7 @@ library
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
-      Unison.CommandLine.Globbing
+      Unison.CommandLine.FZFResolvers
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
@@ -190,8 +195,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -328,8 +333,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -460,8 +465,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -598,8 +603,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -743,8 +748,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.0.0.0
-    , lsp-types >=2.0.0.0
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl

@@ -5,13 +5,15 @@ module Unison.LSP.Configuration where
 import Data.Aeson
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Message qualified as Msg
-import Unison.Debug qualified as Debug
 import Unison.LSP.Types
 import Unison.Prelude
 
--- | Handle configuration changes
-updateConfig :: Config -> Value -> Either Text Config
-updateConfig _oldConfig newConfig = Debug.debug Debug.LSP "Configuration Change" $ case fromJSON newConfig of
+-- | Handle configuration changes.
+updateConfig :: Applicative m => Config -> m ()
+updateConfig _newConfig = pure ()
+
+parseConfig :: Config -> Value -> Either Text Config
+parseConfig _oldConfig newConfig = case fromJSON newConfig of
   Error err -> Left $ Text.pack err
   Success a -> Right a
 

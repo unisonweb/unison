@@ -1,7 +1,4 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Codebase.Branch
@@ -69,6 +66,8 @@ module Unison.Codebase.Branch
     modifyAt,
     modifyAtM,
     children0,
+    withoutLib,
+    withoutTransitiveLibs,
 
     -- * Branch terms/types/edits
 
@@ -129,9 +128,9 @@ import Unison.Util.List qualified as List
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
+import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
 
 instance AsEmpty (Branch m) where
@@ -143,6 +142,34 @@ instance AsEmpty (Branch m) where
 
 instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
+
+-- | Remove any lib subtrees reachable within the branch.
+-- Note: This DOES affect the hash.
+withoutLib :: Branch0 m -> Branch0 m
+withoutLib Branch0 {..} =
+  let newChildren =
+        _children
+          & imapMaybe
+            ( \nameSegment child ->
+                if nameSegment == Name.libSegment
+                  then Nothing
+                  else Just (child & head_ %~ withoutLib)
+            )
+   in branch0 _terms _types newChildren _edits
+
+-- | Remove any transitive libs reachable within the branch.
+-- Note: This DOES affect the hash.
+withoutTransitiveLibs :: Branch0 m -> Branch0 m
+withoutTransitiveLibs Branch0 {..} =
+  let newChildren =
+        _children
+          & imapMaybe
+            ( \nameSegment child ->
+                if nameSegment == Name.libSegment
+                  then Just (child & head_ %~ withoutLib)
+                  else Just (child & head_ %~ withoutTransitiveLibs)
+            )
+   in branch0 _terms _types newChildren _edits
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -161,7 +188,6 @@ terms =
     \branch terms ->
       branch {_terms = terms}
         & deriveDeepTerms
-        & deriveDeepTermMetadata
 
 types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
 types =
@@ -170,7 +196,6 @@ types =
     \branch types ->
       branch {_types = types}
         & deriveDeepTypes
-        & deriveDeepTypeMetadata
 
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0 {..} x -> branch0 _terms _types x _edits)
@@ -211,15 +236,11 @@ branch0 terms types children edits =
       -- These are all overwritten immediately
       deepTerms = R.empty,
       deepTypes = R.empty,
-      deepTermMetadata = R4.empty,
-      deepTypeMetadata = R4.empty,
       deepPaths = Set.empty,
       deepEdits = Map.empty
     }
     & deriveDeepTerms
     & deriveDeepTypes
-    & deriveDeepTermMetadata
-    & deriveDeepTypeMetadata
     & deriveDeepPaths
     & deriveDeepEdits
 
@@ -267,50 +288,6 @@ deriveDeepTypes branch =
               types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_types b0)))
           children <- deepChildrenHelper e
           go (work <> children) (types <> acc)
-
--- | Derive the 'deepTermMetadata' field of a branch.
-deriveDeepTermMetadata :: forall m. Branch0 m -> Branch0 m
-deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = R4.fromList (makeDeepTermMetadata branch)}
-  where
-    makeDeepTermMetadata :: Branch0 m -> [(Referent, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTermMetadata branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go ::
-          Seq (DeepChildAcc m) ->
-          [(Referent, Name, Metadata.Type, Metadata.Value)] ->
-          DeepState m [(Referent, Name, Metadata.Type, Metadata.Value)]
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let termMetadata :: [(Referent, Name, Metadata.Type, Metadata.Value)]
-              termMetadata =
-                map
-                  (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
-                  (Metadata.starToR4List (_terms b0))
-          children <- deepChildrenHelper e
-          go (work <> children) (termMetadata <> acc)
-
--- | Derive the 'deepTypeMetadata' field of a branch.
-deriveDeepTypeMetadata :: forall m. Branch0 m -> Branch0 m
-deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = R4.fromList (makeDeepTypeMetadata branch)}
-  where
-    makeDeepTypeMetadata :: Branch0 m -> [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-    makeDeepTypeMetadata branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go ::
-          Seq (DeepChildAcc m) ->
-          [(TypeReference, Name, Metadata.Type, Metadata.Value)] ->
-          DeepState m [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let typeMetadata :: [(TypeReference, Name, Metadata.Type, Metadata.Value)]
-              typeMetadata =
-                map
-                  (\(r, n, t, v) -> (r, Name.fromReverseSegments (n NonEmpty.:| reversePrefix), t, v))
-                  (Metadata.starToR4List (_types b0))
-          children <- deepChildrenHelper e
-          go (work <> children) (typeMetadata <> acc)
 
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: forall m. Branch0 m -> Branch0 m
@@ -452,7 +429,17 @@ one = Branch . Causal.one
 
 empty0 :: Branch0 m
 empty0 =
-  Branch0 mempty mempty mempty mempty True mempty mempty mempty mempty mempty mempty
+  Branch0
+    { _terms = mempty,
+      _types = mempty,
+      _children = Map.empty,
+      _edits = Map.empty,
+      isEmpty0 = True,
+      deepTerms = Relation.empty,
+      deepTypes = Relation.empty,
+      deepPaths = Set.empty,
+      deepEdits = Map.empty
+    }
 
 -- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
@@ -687,15 +674,13 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
     pathLocation _ = ChildActions
 
 -- todo: consider inlining these into Actions2
-addTermName ::
-  Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
-addTermName r new md =
-  over terms (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
+addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
+addTermName r new =
+  over terms (Star3.insertD1 (r, new))
 
-addTypeName ::
-  TypeReference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
-addTypeName r new md =
-  over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
+addTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
+addTypeName r new =
+  over types (Star3.insertD1 (r, new))
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b

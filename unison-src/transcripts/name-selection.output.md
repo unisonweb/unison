@@ -93,36 +93,36 @@ d = c + 10
   Added definitions:
   
     7.   builtin type builtin.Any
-    8.   unique type builtin.io2.ArithmeticFailure
-    9.   unique type builtin.io2.ArrayFailure
+    8.   type builtin.io2.ArithmeticFailure
+    9.   type builtin.io2.ArrayFailure
     10.  builtin type builtin.Boolean
-    11.  unique type builtin.io2.BufferMode
+    11.  type builtin.io2.BufferMode
     12.  builtin type builtin.Bytes
     13.  builtin type builtin.Char
     14.  builtin type builtin.io2.Tls.Cipher
     15.  builtin type builtin.Char.Class
     16.  builtin type builtin.io2.Tls.ClientConfig
     17.  builtin type builtin.Code
-    18.  unique type builtin.Doc
+    18.  type builtin.Doc
     19.  structural type builtin.Either a b
     20.  structural ability builtin.Exception
-    21.  unique type builtin.io2.Failure
-    22.  unique type builtin.io2.FileMode
+    21.  type builtin.io2.Failure
+    22.  type builtin.io2.FileMode
     23.  builtin type builtin.Float
     24.  builtin type builtin.io2.Handle
     25.  builtin type builtin.crypto.HashAlgorithm
     26.  builtin ability builtin.io2.IO
-    27.  unique type builtin.io2.IOError
-    28.  unique type builtin.io2.IOFailure
+    27.  type builtin.io2.IOError
+    28.  type builtin.io2.IOFailure
     29.  builtin type builtin.ImmutableArray
     30.  builtin type builtin.ImmutableByteArray
     31.  builtin type builtin.Int
-    32.  unique type builtin.IsPropagated
-    33.  unique type builtin.IsTest
-    34.  unique type builtin.Link
+    32.  type builtin.IsPropagated
+    33.  type builtin.IsTest
+    34.  type builtin.Link
     35.  builtin type builtin.List
     36.  builtin type builtin.io2.MVar
-    37.  unique type builtin.io2.MiscFailure
+    37.  type builtin.io2.MiscFailure
     38.  builtin type builtin.MutableArray
     39.  builtin type builtin.MutableByteArray
     40.  builtin type builtin.Nat
@@ -133,30 +133,30 @@ d = c + 10
     45.  builtin type builtin.io2.Promise
     46.  builtin type builtin.Ref
     47.  builtin type builtin.Request
-    48.  unique type builtin.Test.Result
-    49.  unique type builtin.RewriteCase a b
-    50.  unique type builtin.RewriteSignature a b
-    51.  unique type builtin.RewriteTerm a b
-    52.  unique type builtin.Rewrites a
-    53.  unique type builtin.io2.RuntimeFailure
+    48.  type builtin.Test.Result
+    49.  type builtin.RewriteCase a b
+    50.  type builtin.RewriteSignature a b
+    51.  type builtin.RewriteTerm a b
+    52.  type builtin.Rewrites a
+    53.  type builtin.io2.RuntimeFailure
     54.  builtin ability builtin.io2.STM
-    55.  unique type builtin.io2.STMFailure
+    55.  type builtin.io2.STMFailure
     56.  builtin ability builtin.Scope
-    57.  unique type builtin.io2.SeekMode
+    57.  type builtin.io2.SeekMode
     58.  structural type builtin.SeqView a b
     59.  builtin type builtin.io2.Tls.ServerConfig
     60.  builtin type builtin.io2.Tls.SignedCert
     61.  builtin type builtin.io2.Socket
-    62.  unique type builtin.io2.StdHandle
+    62.  type builtin.io2.StdHandle
     63.  builtin type builtin.io2.TVar
     64.  builtin type builtin.Link.Term
     65.  builtin type builtin.Text
     66.  builtin type builtin.io2.ThreadId
-    67.  unique type builtin.io2.ThreadKilledFailure
+    67.  type builtin.io2.ThreadKilledFailure
     68.  builtin type builtin.io2.Ref.Ticket
     69.  builtin type builtin.io2.Clock.internals.TimeSpec
     70.  builtin type builtin.io2.Tls
-    71.  unique type builtin.io2.TlsFailure
+    71.  type builtin.io2.TlsFailure
     72.  structural type builtin.Tuple a b
     73.  builtin type builtin.Link.Type
     74.  structural type builtin.Unit
@@ -1558,6 +1558,8 @@ a = 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -1598,6 +1600,8 @@ other.value = 20
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

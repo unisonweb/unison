@@ -114,7 +114,7 @@ Let's try it!
   90.  Debug.toText : a -> Optional (Either Text Text)
   91.  Debug.trace : Text -> a -> ()
   92.  Debug.watch : Text -> a -> a
-  93.  unique type Doc
+  93.  type Doc
   94.  Doc.Blob : Text -> Doc
   95.  Doc.Evaluate : Term -> Doc
   96.  Doc.Join : [Doc] -> Doc
@@ -235,9 +235,9 @@ Let's try it!
   187. Int.trailingZeros : Int -> Nat
   188. Int.truncate0 : Int -> Nat
   189. Int.xor : Int -> Int -> Int
-  190. unique type io2.ArithmeticFailure
-  191. unique type io2.ArrayFailure
-  192. unique type io2.BufferMode
+  190. type io2.ArithmeticFailure
+  191. type io2.ArrayFailure
+  192. type io2.BufferMode
   193. io2.BufferMode.BlockBuffering : BufferMode
   194. io2.BufferMode.LineBuffering : BufferMode
   195. io2.BufferMode.NoBuffering : BufferMode
@@ -257,9 +257,9 @@ Let's try it!
   203. io2.Clock.internals.threadCPUTime : '{IO} Either
                                              Failure TimeSpec
   204. builtin type io2.Clock.internals.TimeSpec
-  205. unique type io2.Failure
+  205. type io2.Failure
   206. io2.Failure.Failure : Type -> Text -> Any -> Failure
-  207. unique type io2.FileMode
+  207. type io2.FileMode
   208. io2.FileMode.Append : FileMode
   209. io2.FileMode.Read : FileMode
   210. io2.FileMode.ReadWrite : FileMode
@@ -380,7 +380,7 @@ Let's try it!
   270. io2.IO.systemTime.impl : '{IO} Either Failure Nat
   271. io2.IO.systemTimeMicroseconds : '{IO} Int
   272. io2.IO.tryEval : '{IO} a ->{IO, Exception} a
-  273. unique type io2.IOError
+  273. type io2.IOError
   274. io2.IOError.AlreadyExists : IOError
   275. io2.IOError.EOF : IOError
   276. io2.IOError.IllegalOperation : IOError
@@ -389,8 +389,8 @@ Let's try it!
   279. io2.IOError.ResourceBusy : IOError
   280. io2.IOError.ResourceExhausted : IOError
   281. io2.IOError.UserError : IOError
-  282. unique type io2.IOFailure
-  283. unique type io2.MiscFailure
+  282. type io2.IOFailure
+  283. type io2.MiscFailure
   284. builtin type io2.MVar
   285. io2.MVar.isEmpty : MVar a ->{IO} Boolean
   286. io2.MVar.new : a ->{IO} MVar a
@@ -416,23 +416,23 @@ Let's try it!
   302. io2.Ref.readForCas : Ref {IO} a ->{IO} Ticket a
   303. builtin type io2.Ref.Ticket
   304. io2.Ref.Ticket.read : Ticket a -> a
-  305. unique type io2.RuntimeFailure
+  305. type io2.RuntimeFailure
   306. io2.sandboxLinks : Term ->{IO} [Term]
-  307. unique type io2.SeekMode
+  307. type io2.SeekMode
   308. io2.SeekMode.AbsoluteSeek : SeekMode
   309. io2.SeekMode.RelativeSeek : SeekMode
   310. io2.SeekMode.SeekFromEnd : SeekMode
   311. builtin type io2.Socket
-  312. unique type io2.StdHandle
+  312. type io2.StdHandle
   313. io2.StdHandle.StdErr : StdHandle
   314. io2.StdHandle.StdIn : StdHandle
   315. io2.StdHandle.StdOut : StdHandle
   316. builtin type io2.STM
   317. io2.STM.atomically : '{STM} a ->{IO} a
   318. io2.STM.retry : '{STM} a
-  319. unique type io2.STMFailure
+  319. type io2.STMFailure
   320. builtin type io2.ThreadId
-  321. unique type io2.ThreadKilledFailure
+  321. type io2.ThreadKilledFailure
   322. builtin type io2.Tls
   323. builtin type io2.Tls.Cipher
   324. builtin type io2.Tls.ClientConfig
@@ -479,7 +479,7 @@ Let's try it!
   344. builtin type io2.Tls.SignedCert
   345. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
   346. builtin type io2.Tls.Version
-  347. unique type io2.TlsFailure
+  347. type io2.TlsFailure
   348. builtin type io2.TVar
   349. io2.TVar.new : a ->{STM} TVar a
   350. io2.TVar.newIO : a ->{IO} TVar a
@@ -491,11 +491,11 @@ Let's try it!
   356. io2.Value.validateSandboxed : [Term]
                                      -> Value
                                      ->{IO} Either [Term] [Term]
-  357. unique type IsPropagated
+  357. type IsPropagated
   358. IsPropagated.IsPropagated : IsPropagated
-  359. unique type IsTest
+  359. type IsTest
   360. IsTest.IsTest : IsTest
-  361. unique type Link
+  361. type Link
   362. builtin type Link.Term
   363. Link.Term : Term -> Link
   364. Link.Term.toText : Term -> Text
@@ -628,15 +628,15 @@ Let's try it!
   444. Ref.read : Ref g a ->{g} a
   445. Ref.write : Ref g a -> a ->{g} ()
   446. builtin type Request
-  447. unique type RewriteCase a b
+  447. type RewriteCase a b
   448. RewriteCase.RewriteCase : a -> b -> RewriteCase a b
-  449. unique type Rewrites a
+  449. type Rewrites a
   450. Rewrites.Rewrites : a -> Rewrites a
-  451. unique type RewriteSignature a b
+  451. type RewriteSignature a b
   452. RewriteSignature.RewriteSignature : (a -> b -> ())
                                            -> RewriteSignature
                                              a b
-  453. unique type RewriteTerm a b
+  453. type RewriteTerm a b
   454. RewriteTerm.RewriteTerm : a -> b -> RewriteTerm a b
   455. builtin type Scope
   456. Scope.array : Nat ->{Scope s} MutableArray (Scope s) a
@@ -655,7 +655,7 @@ Let's try it!
   463. SeqView.VElem : a -> b -> SeqView a b
   464. SeqView.VEmpty : SeqView a b
   465. Socket.toText : Socket -> Text
-  466. unique type Test.Result
+  466. type Test.Result
   467. Test.Result.Fail : Text -> Result
   468. Test.Result.Ok : Text -> Result
   469. builtin type Text

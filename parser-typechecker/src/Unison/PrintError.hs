@@ -27,7 +27,6 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Prelude
@@ -1939,8 +1938,8 @@ prettyResolutionFailures s allFailures =
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
-    ppeFromNames names0 =
-      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+    ppeFromNames names =
+      PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

@@ -21,7 +21,7 @@ moveTypeSteps src' dest' = do
   srcTypes <- Cli.getTypesAt src
   case Set.toList srcTypes of
     [] -> pure []
-    _:_:_ -> do
+    _ : _ : _ -> do
       hqLength <- Cli.runTransaction Codebase.hashLength
       Cli.returnEarly (Output.DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
     [srcType] -> do
@@ -30,13 +30,10 @@ moveTypeSteps src' dest' = do
       when (not (Set.null destTypes)) do
         Cli.returnEarly (Output.TypeAlreadyExists dest' destTypes)
       let p = Path.convert src
-      srcMetadata <- do
-        root0 <- Cli.getRootBranch0
-        pure (BranchUtil.getTypeMetadataAt p srcType root0)
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-          BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
+          BranchUtil.makeAddTypeName (Path.convert dest) srcType
         ]
 
 doMoveType :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()

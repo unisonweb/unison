@@ -2,7 +2,6 @@ module Unison.Codebase.Editor.Output
   ( Output (..),
     AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
-    DisplayDefinitionsOutput (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
@@ -11,6 +10,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     UndoFailureReason (..),
     ShareError (..),
+    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -29,7 +29,6 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
 import Unison.Cli.Share.Projects.Types qualified as Share
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.Codebase.Editor.Output.BranchDiff qualified as BD
@@ -48,7 +47,6 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
-import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -159,15 +157,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      -- | what we were trying to do (e.g. "run", "io.test")
       String
-      -- | name of function
+      -- ^ what we were trying to do (e.g. "run", "io.test")
       String
-      -- | bad type of function
+      -- ^ name of function
       (Type Symbol Ann)
+      -- ^ bad type of function
       PPE.PrettyPrintEnv
-      -- | acceptable type(s) of function
       [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -207,12 +205,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
-      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- | Misses (search terms that returned no hits for terms or types)
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
       [HQ.HashQualified Name]
-      -- | Hits for types if we are searching for terms or terms if we are searching for types
+      -- ^ Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -230,7 +228,6 @@ data Output
       [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | ListStructuredFind [HQ.HashQualified Name]
@@ -249,14 +246,14 @@ data Output
       [(Symbol, Term Symbol ())]
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
+  | LoadingFile SourceName
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
-  | -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-    DisplayDefinitions DisplayDefinitionsOutput
-  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means put to the terminal.
-    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
-  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
-  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId (Term Symbol Ann)
+  | -- "display" the provided code to the console.
+    DisplayDefinitions (P.Pretty P.ColorText)
+  | LoadedDefinitionsToSourceFile FilePath Int
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
   | TestResults
       TestReportStats
       PPE.PrettyPrintEnv
@@ -272,12 +269,9 @@ data Output
   | GitError GitError
   | ShareError ShareError
   | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
-  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
-  | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
-  | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
@@ -312,7 +306,6 @@ data Output
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
-  | DefaultMetadataNotification
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
@@ -329,6 +322,8 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | DebugDisplayFuzzyOptions Text [String {- arg description, options -}]
+  | DebugFuzzyOptionsNoResolver
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -371,8 +366,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
-      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -380,7 +375,7 @@ data Output
       (ProjectAndBranch ProjectName ProjectBranchName)
       (ProjectAndBranch ProjectName ProjectBranchName)
   | RenamedProject ProjectName ProjectName
-  | OutputRewrittenFile PPE.PrettyPrintEnvDecl FilePath String ([Symbol {- symbols rewritten -}], UF.UnisonFile Symbol Ann)
+  | OutputRewrittenFile FilePath ([Symbol {- symbols rewritten -}])
   | RenamedProjectBranch ProjectName ProjectBranchName ProjectBranchName
   | CantRenameBranchTo ProjectBranchName
   | FetchingLatestReleaseOfBase
@@ -391,9 +386,11 @@ data Output
   | UpdateStartTypechecking
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
-  | UpdateIncompleteConstructorSet Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !NameSegment !NameSegment
+  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
+  | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+
+data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -406,14 +403,6 @@ data CreatedProjectBranchFrom
   | CreatedProjectBranchFrom'Nothingness
   | CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | CreatedProjectBranchFrom'ParentBranch ProjectBranchName
-
-data DisplayDefinitionsOutput = DisplayDefinitionsOutput
-  { isTest :: TermReferenceId -> Bool,
-    outputFile :: Maybe FilePath,
-    prettyPrintEnv :: PPE.PrettyPrintEnvDecl,
-    terms :: Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)),
-    types :: Map Reference (DisplayObject () (Decl Symbol Ann))
-  }
 
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
@@ -513,7 +502,6 @@ isFailure o = case o of
   MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
-  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   ListStructuredFind tms -> null tms
@@ -524,9 +512,10 @@ isFailure o = case o of
   DisplayConflicts {} -> False
   EvaluationFailure {} -> True
   Evaluated {} -> False
+  LoadingFile {} -> False
   Typechecked {} -> False
-  DisplayDefinitions DisplayDefinitionsOutput {terms, types} -> null terms && null types
-  DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
+  LoadedDefinitionsToSourceFile {} -> False
+  DisplayDefinitions {} -> False
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
@@ -534,11 +523,8 @@ isFailure o = case o of
   CantUndo {} -> True
   GitError {} -> True
   BustedBuiltins {} -> True
-  ConfiguredMetadataParseError {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
-  MetadataMissingType {} -> True
-  MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
   AboutToPropagatePatch {} -> False
@@ -560,7 +546,6 @@ isFailure o = case o of
   HashAmbiguous {} -> True
   ShowReflog {} -> False
   LoadPullRequest {} -> False
-  DefaultMetadataNotification -> False
   HelpMessage {} -> True
   NoOp -> False
   ListDependencies {} -> False
@@ -581,6 +566,8 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  DebugDisplayFuzzyOptions {} -> False
+  DebugFuzzyOptionsNoResolver {} -> True
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False

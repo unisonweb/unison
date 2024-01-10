@@ -203,12 +203,9 @@ completeWithinNamespace compTypes query currentPath = do
       where
         -- Qualify any conflicted definitions. If the query has a "#" in it, then qualify ALL
         -- completions.
-        qualifyRefs :: NameSegment -> (Map r metadata) -> [HQ'.HashQualified NameSegment]
+        qualifyRefs :: NameSegment -> Map r metadata -> [HQ'.HashQualified NameSegment]
         qualifyRefs n refs
-          | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 =
-              refs
-                & Map.keys
-                <&> qualify n
+          | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 = refs & Map.keys <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically

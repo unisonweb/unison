@@ -11,7 +11,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.DeclParser (declarations)
@@ -41,16 +41,16 @@ file = do
   -- which are parsed and applied to the type decls and term stanzas
   (namesStart, imports) <- TermParser.imports <* optional semi
   (dataDecls, effectDecls, parsedAccessors) <- declarations
-  env <- case UFN.environmentFor (NamesWithHistory.currentNames namesStart) dataDecls effectDecls of
+  env <- case UFN.environmentFor namesStart dataDecls effectDecls of
     Right (Right env) -> pure env
     Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-            | (typ, fields) <- parsedAccessors,
-              Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
+        [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          | (typ, fields) <- parsedAccessors,
+            Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
+        ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
@@ -61,7 +61,7 @@ file = do
   --
   -- There's some more complicated logic below to have suffix-based name resolution
   -- make use of _terms_ from the local file.
-  local (\e -> e {names = NamesWithHistory.push locals namesStart}) $ do
+  local (\e -> e {names = Names.push locals namesStart}) $ do
     names <- asks names
     stanzas0 <- sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
@@ -78,26 +78,26 @@ file = do
         -- All locally declared term variables, running example:
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
-        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors) 
+        fqLocalTerms = (stanzas0 >>= getVars) <> (view _1 <$> join accessors)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
-          ( Names.shadowTerms locals (NamesWithHistory.currentNames names),
+          ( Names.shadowTerms locals names,
             resolveLocals
           )
           where
             -- Each unique suffix mapped to its fully qualified name
             canonicalVars :: Map v v
             canonicalVars = UFN.variableCanonicalizer fqLocalTerms
-            
+
             -- All unique local term name suffixes - these we want to
             -- avoid resolving to a term that's in the codebase
             locals :: [Name.Name]
             locals = (Name.unsafeFromVar <$> Map.keys canonicalVars)
-            
+
             -- A function to replace unique local term suffixes with their
             -- fully qualified name
-            replacements = [ (v, Term.var () v2) | (v,v2) <- Map.toList canonicalVars, v /= v2 ]
+            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
             resolveLocals = ABT.substsInheritAnnotation replacements
     let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of
