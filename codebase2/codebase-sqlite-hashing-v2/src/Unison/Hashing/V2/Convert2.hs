@@ -27,6 +27,7 @@ import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as H2
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
@@ -36,7 +37,7 @@ import Unison.Util.Map qualified as Map
 convertBranchV3 :: BranchV3 m -> H2.Branch
 convertBranchV3 BranchV3 {children, terms, types} =
   H2.Branch
-    { children = children & Map.bimap coerce (unCausalHash . Causal.causalHash),
+    { children = children & Map.bimap coerce (Hash32.toHash . unCausalHash . Causal.causalHash),
       patches = Map.empty,
       terms = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Referent ref) emptyMetadata) terms,
       types = Map.bimap coerce (\ref -> Map.singleton (v2ToH2Reference ref) emptyMetadata) types
@@ -101,8 +102,8 @@ v2ToH2Branch V2.Branch {terms, types, patches, children} = do
       <&> Map.bimap coerce (Map.bimap v2ToH2Reference v2ToH2MdValues)
   let hpatches =
         patches
-          & Map.bimap coerce (unPatchHash . fst)
-  let hchildren = children & Map.bimap coerce (unCausalHash . Causal.causalHash)
+          & Map.bimap coerce (Hash32.toHash . unPatchHash . fst)
+  let hchildren = children & Map.bimap coerce (Hash32.toHash . unCausalHash . Causal.causalHash)
   pure $ H2.Branch {types = htypes, terms = hterms, patches = hpatches, children = hchildren}
 
 v2ToH2MdValues :: V2Branch.MdValues -> H2.MdValues
@@ -121,19 +122,19 @@ hashBranchFormatToH2Branch Memory.BranchFull.Branch {terms, types, patches, chil
       types =
         types
           & Map.bimap H2.NameSegment (Map.bimap cvreference cvMdValues),
-      patches = patches & Map.bimap H2.NameSegment unPatchHash,
-      children = children & Map.bimap H2.NameSegment (unCausalHash . snd)
+      patches = patches & Map.bimap H2.NameSegment (Hash32.toHash . unPatchHash),
+      children = children & Map.bimap H2.NameSegment (Hash32.toHash . unCausalHash . snd)
     }
   where
     cvMdValues :: Memory.BranchFull.MetadataSetFormat' Text ComponentHash -> H2.MdValues
     cvMdValues (Memory.BranchFull.Inline refSet) = H2.MdValues $ Set.map cvreference refSet
     cvreference :: V2Reference.Reference' Text ComponentHash -> H2.Reference
-    cvreference = v2ToH2Reference . second unComponentHash
+    cvreference = v2ToH2Reference . second (Hash32.toHash . unComponentHash)
     cvreferent :: Memory.BranchFull.Referent'' Text ComponentHash -> H2.Referent
     cvreferent = \case
-      V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second unComponentHash ref))
+      V2Referent.Ref ref -> (H2.ReferentRef (v2ToH2Reference $ second (Hash32.toHash . unComponentHash) ref))
       V2Referent.Con typeRef conId -> do
-        (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
+        (H2.ReferentCon (v2ToH2Reference $ second (Hash32.toHash . unComponentHash) typeRef) conId)
 
 v2ToH2Term :: forall v. Ord v => V2.Term.HashableTerm v -> H2.Term v ()
 v2ToH2Term = ABT.transform convertF

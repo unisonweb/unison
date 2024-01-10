@@ -115,6 +115,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
@@ -547,11 +548,11 @@ modifyPatches seg f = mapMOf edits update
       p' <- case Map.lookup seg m of
         Nothing -> pure $ f Patch.empty
         Just (_, p) -> f <$> p
-      let h = H.hashPatch p'
+      let h = Hash32.fromHash $ H.hashPatch p'
       pure $ Map.insert seg (PatchHash h, pure p') m
 
 replacePatch :: (Applicative m) => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
+replacePatch n p = over edits (Map.insert n (PatchHash (Hash32.fromHash $ H.hashPatch p), pure p))
 
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)

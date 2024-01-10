@@ -38,7 +38,7 @@ import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
-import Unison.Hash qualified as Hash
+import Unison.Hash32 qualified as Hash32
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -357,11 +357,11 @@ setCacheControl = addHeader @"Cache-Control" "public"
 
 branchToUnisonHash :: Branch.Branch m -> UnisonHash
 branchToUnisonHash b =
-  ("#" <>) . Hash.toBase32HexText . unCausalHash $ Branch.headHash b
+  ("#" <>) . Hash32.toText . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
-  ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b
+  ("#" <>) . Hash32.toText . unCausalHash $ V2Causal.causalHash b
 
 newtype ProjectBranchNameParam = ProjectBranchNameParam {unProjectBranchNameParam :: ProjectAndBranch ProjectName ProjectBranchName}
   deriving (Eq, Show, Generic)

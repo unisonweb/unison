@@ -1,17 +1,17 @@
 module U.Codebase.HashTags where
 
-import Unison.Hash (Hash)
+import Unison.Hash32 (Hash32)
 
 -- | Represents a hash of a type or term component
-newtype ComponentHash = ComponentHash {unComponentHash :: Hash}
+newtype ComponentHash = ComponentHash {unComponentHash :: Hash32}
   deriving stock (Eq, Ord, Show)
 
-newtype BranchHash = BranchHash {unBranchHash :: Hash} deriving (Eq, Ord)
+newtype BranchHash = BranchHash {unBranchHash :: Hash32} deriving (Eq, Ord)
 
 -- | Represents a hash of a causal containing values of the provided type.
-newtype CausalHash = CausalHash {unCausalHash :: Hash} deriving (Eq, Ord)
+newtype CausalHash = CausalHash {unCausalHash :: Hash32} deriving (Eq, Ord)
 
-newtype PatchHash = PatchHash {unPatchHash :: Hash} deriving (Eq, Ord)
+newtype PatchHash = PatchHash {unPatchHash :: Hash32} deriving (Eq, Ord)
 
 instance Show BranchHash where
   show h = "BranchHash (" ++ show (unBranchHash h) ++ ")"

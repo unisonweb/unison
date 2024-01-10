@@ -129,7 +129,6 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
-import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
@@ -215,8 +214,8 @@ loop e = do
       rootBranch <- Cli.getRootBranch
       Cli.respond $
         WarnIncomingRootBranch
-          (SCH.fromHash schLength $ Branch.headHash rootBranch)
-          (Set.map (SCH.fromHash schLength) hashes)
+          (SCH.fromHash32 schLength $ Branch.headHash rootBranch)
+          (Set.map (SCH.fromHash32 schLength) hashes)
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
@@ -300,7 +299,7 @@ loop e = do
               entries <-
                 Cli.runTransaction do
                   schLength <- Codebase.branchHashLength
-                  Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
+                  Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash32 schLength)
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
@@ -691,7 +690,6 @@ loop e = do
                   types' :: [(Reference, [HQ'.HashQualified Name])]
                   types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
               Cli.respond $ ListNames global hqLength types' terms'
-
             DocsI srcs -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               for_ srcs (docsI basicPrettyPrintNames)
@@ -1134,10 +1132,10 @@ loop e = do
                   toCHs <- Codebase.causalHashesByPrefix toSCH
                   pure (schLen, fromCHs, toCHs)
               (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
-                ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
+                ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash32 schLen) fromCHs)
                 ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH
                 (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
-                (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
+                (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash32 schLen) toCHs)
                 ([fromCH], [toCH]) -> pure (fromCH, toCH)
               output <-
                 Cli.runTransaction do
@@ -2322,10 +2320,11 @@ docsI prettyPrintNames src =
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       case Names.lookupHQTerm Names.IncludeSuffixes dotDoc ns of
-        s | Set.size s == 1 ->
-          -- the displayI command expects full term names, so we resolve
-          -- the hash back to its full name in the file
-          displayI prettyPrintNames ConsoleLocation (Names.longestTermName 10 (Set.findMin s) ns)
+        s
+          | Set.size s == 1 ->
+              -- the displayI command expects full term names, so we resolve
+              -- the hash back to its full name in the file
+              displayI prettyPrintNames ConsoleLocation (Names.longestTermName 10 (Set.findMin s) ns)
         _ -> displayI prettyPrintNames ConsoleLocation dotDoc
 
 loadDisplayInfo ::

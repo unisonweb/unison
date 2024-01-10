@@ -414,7 +414,7 @@ putBranch =
 -- | Check whether the given branch exists in the codebase.
 branchExists :: CausalHash -> Transaction Bool
 branchExists h =
-  Q.loadHashIdByHash (unCausalHash h) >>= \case
+  Q.loadHashId (unCausalHash h) >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
@@ -518,7 +518,7 @@ filterReferentsHavingTypeImpl ::
 filterReferentsHavingTypeImpl doGetDeclType typRef termRefs =
   Ops.filterTermsByReferentHavingType (Cv.reference1to2 typRef) (Cv.referentid1to2 <$> toList termRefs)
     >>= traverse (Cv.referentid2to1 doGetDeclType)
-      <&> Set.fromList
+    <&> Set.fromList
 
 -- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int
