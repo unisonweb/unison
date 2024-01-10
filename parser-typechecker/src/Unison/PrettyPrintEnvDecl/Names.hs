@@ -1,11 +1,25 @@
-{-# LANGUAGE OverloadedStrings #-}
+module Unison.PrettyPrintEnvDecl.Names
+  ( fromNamesSuffixifiedByHash,
+    fromNamesSuffixifiedByName,
+  )
+where
 
-module Unison.PrettyPrintEnvDecl.Names where
-
-import Unison.NamesWithHistory (NamesWithHistory)
-import Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames)
+import Unison.Names (Names)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 
-fromNamesDecl :: Int -> NamesWithHistory -> PrettyPrintEnvDecl
-fromNamesDecl hashLength names =
-  PrettyPrintEnvDecl (fromNames hashLength names) (fromSuffixNames hashLength names)
+fromNamesSuffixifiedByHash :: Int -> Names -> PrettyPrintEnvDecl
+fromNamesSuffixifiedByHash hashLength names =
+  PrettyPrintEnvDecl
+    (PPE.makePPE namer PPE.dontSuffixify)
+    (PPE.makePPE namer (PPE.suffixifyByHash names))
+  where
+    namer = PPE.hqNamer hashLength names
+
+fromNamesSuffixifiedByName :: Int -> Names -> PrettyPrintEnvDecl
+fromNamesSuffixifiedByName hashLength names =
+  PrettyPrintEnvDecl
+    (PPE.makePPE namer PPE.dontSuffixify)
+    (PPE.makePPE namer (PPE.suffixifyByName names))
+  where
+    namer = PPE.hqNamer hashLength names

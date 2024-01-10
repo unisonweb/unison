@@ -466,3 +466,80 @@ test3 = do
 -- this would previously get printed as `Join.Join`
 structural type foo.Join =
   Table | Join Boolean | Values [Nat]
+
+fix_4352 = {{``+1``}}
+
+-- regression test to make sure we don't use soft hang between a `do` and `match`
+-- if there's imports that have been inserted there
+
+structural ability Ask a where 
+  ask : a 
+
+Decode.remainder : '{Ask (Optional Bytes)} Bytes
+Decode.remainder = do 
+  use Bytes ++
+  match ask with
+    None -> Bytes.empty
+    Some b -> b ++ !Decode.remainder
+
+structural type HandlerWebSocket x y z p q = HandlerWebSocket x
+
+fix_4340 = HandlerWebSocket cases
+  1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
+  _ -> abort
+
+fix_4258 x y z = 
+  _ = "fix_4258"
+  ()
+
+fix_4258_example = fix_4258 1 () 2
+
+-- previously, lexer was emitting virtual semicolons inside parens, which
+-- led to some very odd parse errors in cases like these
+
+stew_issue = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '(Debug "Failed " -- virtual semicolon here was tripping up parser 
+                  42))
+stew_issue2 = 
+  error x = ()
+  (++) a b = 0
+  toText a = a
+  Debug : a -> b -> ()
+  Debug a b = ()
+  error
+    (Debug None '("Failed " ++ 
+           toText 42))
+
+stew_issue3 = 
+  id x = x
+  error x = ()
+  (++) a b = 0
+  blah x y = 99
+  toText a = a
+  configPath = 0
+  Debug a b = ()
+  error
+    (Debug None '("Failed to get timestamp of config file " ++ 
+           toText configPath))
+
+fix_4384 = {{ {{ docExampleBlock 0 do 2 }} }}
+fix_4384a = {{ {{ docExampleBlock 0 '(1 + 1) }} }}
+fix_4384b = {{ {{ docExampleBlock 0 '99 }} }}
+fix_4384c = {{ {{ docExampleBlock 0 do
+  x = 1
+  y = 2
+  x + y
+  }} }}
+
+fix_4384d = {{ {{ docExampleBlock 0 '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] }} }}
+
+fix_4384e = 
+  id : x -> x
+  id x = x
+  {{ {{ docExampleBlock 0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0) }} }}

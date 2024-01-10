@@ -41,7 +41,7 @@ typeAtom =
     HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
     hq -> do
       names <- asks names
-      let matches = Names.lookupHQType hq names
+      let matches = Names.lookupHQType Names.IncludeSuffixes hq names
       if Set.size matches /= 1
         then P.customFailure (UnknownType tok matches)
         else pure $ Type.ref (ann tok) (Set.findMin matches)

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.UnisonFile.Type where
@@ -20,7 +21,7 @@ data UnisonFile v a = UnisonFileId
     terms :: [(v, a {- ann for whole binding -}, Term v a)],
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
-  deriving (Show)
+  deriving (Generic, Show)
 
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->

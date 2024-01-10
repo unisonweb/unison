@@ -8,7 +8,7 @@ import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment {toText :: Text}
-  deriving stock (Eq, Ord, Generic, Show)
+  deriving stock (Eq, Ord, Generic)
 
 instance Alphabetical NameSegment where
   compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
@@ -58,3 +58,6 @@ toTextBuilder =
 
 instance IsString NameSegment where
   fromString = NameSegment . Text.pack
+
+instance Show NameSegment where
+  show = show . toText

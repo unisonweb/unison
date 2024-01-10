@@ -17,6 +17,7 @@ import Control.Monad.State qualified as State
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -28,7 +29,6 @@ import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
-import System.Environment (withArgs)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcessWithExitCode, shell)
@@ -47,11 +47,11 @@ import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, findHistoricalHQs, getBasicPrettyPrintNames, makeHistoricalParsingNames, makePrintNamesFromLabeled', makeShadowedPrintNamesFromHQ)
+import Unison.Cli.NamesUtils (basicParseNames, displayNames, getBasicPrettyPrintNames, makePrintNamesFromLabeled')
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.PrettyPrintUtils (currentPrettyPrintEnvDecl, prettyPrintEnvDecl)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
-import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
+import Unison.Cli.TypeCheck (typecheckTerm)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -63,15 +63,20 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata, manageLinks)
+import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
-import Unison.Codebase.Editor.HandleInput.NamespaceDependencies qualified as NamespaceDependencies
+import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
+import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
+import Unison.Codebase.Editor.HandleInput.NamespaceDependencies (handleNamespaceDependencies)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
@@ -81,9 +86,14 @@ import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.Run (handleRun)
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
+import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
+import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
+import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
@@ -95,7 +105,6 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
-import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
@@ -115,17 +124,15 @@ import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
-import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
-import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.JitInfo qualified as JitInfo
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
@@ -136,12 +143,10 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
-import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -149,6 +154,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
+import Unison.Project.Util (projectContextFromPath)
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -164,14 +170,13 @@ import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
-import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, toVar, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromString, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
@@ -180,11 +185,9 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Type.Names qualified as Type
 import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
-import Unison.Util.Alphabetical qualified as Alphabetical
 import Unison.Util.Find qualified as Find
 import Unison.Util.List (nubOrdOn, uniqueBy)
 import Unison.Util.Monoid qualified as Monoid
@@ -192,13 +195,13 @@ import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star3 qualified as Star3
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
+import UnliftIO.Directory qualified as Directory
 import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -232,7 +235,7 @@ loop e = do
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
             patch <- Cli.getPatchAt patchPath'
-            QueryResult misses allHits <- hqNameQuery [from]
+            QueryResult misses allHits <- hqNameQuery Names.IncludeSuffixes [from]
             let tpRefs = Set.fromList $ typeReferences allHits
                 tmRefs = Set.fromList $ termReferences allHits
                 (hits, opHits) =
@@ -301,7 +304,7 @@ loop e = do
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
-              #numberedArgs .= numberedEntries
+              Cli.setNumberedArgs numberedEntries
               Cli.respond $ ShowReflog expandedEntries
               where
                 expandEntries ::
@@ -490,15 +493,7 @@ loop e = do
                 description
                 (BranchUtil.makeReplacePatch (Path.convert dest) p)
               Cli.respond Success
-            SwitchBranchI maybePath' -> do
-              path' <-
-                maybePath' & onNothing do
-                  root0 <- Cli.getRootBranch0
-                  fuzzySelectNamespace Absolute root0 >>= \case
-                    -- Shouldn't be possible to get multiple paths here, we can just take
-                    -- the first.
-                    Just (p : _) -> pure p
-                    _ -> Cli.returnEarly (HelpMessage InputPatterns.cd)
+            SwitchBranchI path' -> do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
               when (not branchExists) (Cli.respond $ CreatedNewBranch path)
@@ -521,7 +516,7 @@ loop e = do
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
               where
-                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, NamesWithHistory.Diff)] -> IO NumberedOutput
+                doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Names.Diff)] -> IO NumberedOutput
                 doHistory schLength !n b acc =
                   if maybe False (n >=) resultsCap
                     then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
@@ -549,21 +544,22 @@ loop e = do
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength
-              let pped = PPED.fromNamesDecl hqLength (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+              let pped = PPED.fromNamesSuffixifiedByHash hqLength basicPrettyPrintNames
               basicPrettyPrintNames <- basicParseNames
-              let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames basicPrettyPrintNames)
+              let nameSearch = NameSearch.makeNameSearch hqLength basicPrettyPrintNames
               Cli.Env {codebase, runtime} <- ask
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch docName
-                for docRefs $ \docRef -> do
-                  Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+                docRefs <- Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
+                for docRefs \docRef -> do
+                  Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
               rootBranch <- Cli.getRootBranch
               absPath <- Path.unabsolute <$> Cli.resolvePath' namespacePath'
-              liftIO (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              pure ()
             AliasTermI src' dest' -> do
               Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -586,15 +582,7 @@ loop e = do
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
-              srcMetadata <-
-                case src of
-                  Left _ -> pure Metadata.empty
-                  Right (path, _) -> do
-                    root0 <- Cli.getRootBranch0
-                    pure (BranchUtil.getTermMetadataAt (Path.convert path, ()) srcTerm root0)
-              Cli.stepAt
-                description
-                (BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata)
+              Cli.stepAt description (BranchUtil.makeAddTermName (Path.convert dest) srcTerm)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -617,15 +605,7 @@ loop e = do
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
-              srcMetadata <-
-                case src of
-                  Left _ -> pure Metadata.empty
-                  Right (path, _) -> do
-                    root0 <- Cli.getRootBranch0
-                    pure (BranchUtil.getTypeMetadataAt (Path.convert path, ()) srcType root0)
-              Cli.stepAt
-                description
-                (BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata)
+              Cli.stepAt description (BranchUtil.makeAddTypeName (Path.convert dest) srcType)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -653,9 +633,7 @@ loop e = do
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
                 go root0 currentBranch0 dest (missingSrcs, actions) hqsrc =
-                  let src :: Path.Split
-                      src = second HQ'.toName hqsrc
-                      proposedDest :: Path.Split
+                  let proposedDest :: Path.Split
                       proposedDest = second HQ'.toName hqProposedDest
                       hqProposedDest :: Path.HQSplit
                       hqProposedDest = first Path.unabsolute $ Path.resolve dest hqsrc
@@ -669,8 +647,7 @@ loop e = do
                           -- happy path
                           Just . map addAlias . toList $ Set.difference rsrcs existing
                           where
-                            addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
-                            oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
+                            addAlias r = BranchUtil.makeAddTypeName proposedDest r
                       doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
                       doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0,
                                       BranchUtil.getTerm hqProposedDest root0
@@ -679,8 +656,7 @@ loop e = do
                         (rsrcs, existing) ->
                           Just . map addAlias . toList $ Set.difference rsrcs existing
                           where
-                            addAlias r = BranchUtil.makeAddTermName proposedDest r (oldMD r)
-                            oldMD r = BranchUtil.getTermMetadataAt src r currentBranch0
+                            addAlias r = BranchUtil.makeAddTermName proposedDest r
                    in case (doType, doTerm) of
                         (Nothing, Nothing) -> (missingSrcs :> hqsrc, actions)
                         (Just as, Nothing) -> (missingSrcs, actions ++ as)
@@ -697,54 +673,27 @@ loop e = do
                 if global || any Name.isAbsolute query
                   then do
                     let root0 = Branch.head root
-                    let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+                    let names = Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPED.fromNamesDecl hqLength names
+                    let pped = PPED.fromNamesSuffixifiedByHash hqLength names
                     pure (names, pped)
                   else do
                     currentBranch <- Cli.getCurrentBranch0
-                    let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+                    let currentNames = Branch.toNames currentBranch
                     let pped = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
                     pure (currentNames, pped)
 
               let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = NamesWithHistory.lookupHQTerm query names
-                  types = NamesWithHistory.lookupHQType query names
+                  terms = Names.lookupHQTerm Names.IncludeSuffixes query names
+                  types = Names.lookupHQType Names.IncludeSuffixes query names
                   terms' :: [(Referent, [HQ'.HashQualified Name])]
                   terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
                   types' :: [(Reference, [HQ'.HashQualified Name])]
                   types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
               Cli.respond $ ListNames global hqLength types' terms'
-            LinkI mdValue srcs -> do
-              description <- inputDescription input
-              manageLinks False srcs [mdValue] Metadata.insert
-              Cli.syncRoot description
-            UnlinkI mdValue srcs -> do
-              description <- inputDescription input
-              manageLinks False srcs [mdValue] Metadata.delete
-              Cli.syncRoot description
-
-            -- > links List.map (.Docs .English)
-            -- > links List.map -- give me all the
-            -- > links Optional License
-            LinksI src mdTypeStr -> do
-              (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
-              #numberedArgs .= fmap (HQ.toString . view _1) out
-              let biasedPPE = (PPE.biasTo (maybeToList . Path.toName' . HQ'.toName $ Path.unsplitHQ' src) ppe)
-              Cli.respond $ ListOfLinks biasedPPE out
             DocsI srcs -> do
-              currentBranch0 <- Cli.getCurrentBranch0
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              srcs' <- case srcs of
-                [] -> do
-                  defs <-
-                    fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                      Cli.returnEarly (HelpMessage InputPatterns.docs)
-                  -- HQ names should always parse as a valid split, so we just discard any
-                  -- that don't to satisfy the type-checker.
-                  pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
-                xs -> pure xs
-              for_ srcs' (docsI (show input) basicPrettyPrintNames)
+              for_ srcs (docsI basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
               Cli.Env {codebase} <- ask
               initialBranch <- Cli.getCurrentBranch
@@ -761,9 +710,9 @@ loop e = do
               guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
               Cli.stepManyAt
                 description
-                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef) mempty,
-                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef) mempty,
-                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef) mempty
+                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
+                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef),
+                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef)
                 ]
               currentPath <- Cli.getCurrentPath
               finalBranch <- Cli.getCurrentBranch0
@@ -780,58 +729,12 @@ loop e = do
                 d = Referent.Ref . Reference.DerivedId
                 base :: Path.Split' = (Path.relativeEmpty', "metadata")
                 authorPath' = base |> "authors" |> authorNameSegment
-            MoveTermI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTerms <- Cli.getTermsAt src
-              srcTerm <-
-                Set.asSingleton srcTerms & onNothing do
-                  if Set.null srcTerms
-                    then Cli.returnEarly (TermNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
-              dest <- Cli.resolveSplit' dest'
-              destTerms <- Cli.getTermsAt (Path.convert dest)
-              when (not (Set.null destTerms)) do
-                Cli.returnEarly (TermAlreadyExists dest' destTerms)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTermMetadataAt p srcTerm root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-                  BranchUtil.makeAddTermName (Path.convert dest) srcTerm srcMetadata
-                ]
-              Cli.respond Success
-            MoveTypeI src' dest' -> do
-              src <- Cli.resolveSplit' src'
-              srcTypes <- Cli.getTypesAt src
-              srcType <-
-                Set.asSingleton srcTypes & onNothing do
-                  if Set.null srcTypes
-                    then Cli.returnEarly (TypeNotFound src')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
-              dest <- Cli.resolveSplit' dest'
-              destTypes <- Cli.getTypesAt (Path.convert dest)
-              when (not (Set.null destTypes)) do
-                Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-              description <- inputDescription input
-              let p = Path.convert src
-              srcMetadata <- do
-                root0 <- Cli.getRootBranch0
-                pure (BranchUtil.getTypeMetadataAt p srcType root0)
-              Cli.stepManyAt
-                description
-                [ -- Mitchell: throwing away any hash-qualification here seems wrong!
-                  BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-                  BranchUtil.makeAddTypeName (Path.convert dest) srcType srcMetadata
-                ]
-              Cli.respond Success
+            MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
+            MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
+            MoveAllI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
+              desc <- inputDescription input
+              handleMoveAll hasConfirmed src' dest' desc
             DeleteI dtarget -> case dtarget of
               DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
               DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
@@ -883,14 +786,8 @@ loop e = do
                 afterDelete
               DeleteTarget'ProjectBranch name -> handleDeleteBranch name
               DeleteTarget'Project name -> handleDeleteProject name
-            DisplayI outputLoc names' -> do
-              currentBranch0 <- Cli.getCurrentBranch0
+            DisplayI outputLoc names -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
-              names <- case names' of
-                [] ->
-                  fuzzySelectDefinition Absolute currentBranch0 & onNothingM do
-                    Cli.returnEarly (HelpMessage InputPatterns.display)
-                ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             FindPatchI -> do
@@ -901,14 +798,14 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              #numberedArgs .= fmap Name.toString patches
+              Cli.setNumberedArgs $ fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
-              #numberedArgs .= fmap entryToHQString entries
+              Cli.setNumberedArgs $ fmap entryToHQString entries
               currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
@@ -935,49 +832,14 @@ loop e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            ResolveTypeNameI path' -> do
-              description <- inputDescription input
-              path <- Cli.resolveSplit' path'
-              ty <- do
-                types <- Cli.getTypesAt path
-                Set.asSingleton types & onNothing do
-                  if Set.null types
-                    then Cli.returnEarly (TypeNotFound path')
-                    else do
-                      hqLength <- Cli.runTransaction Codebase.hashLength
-                      Cli.returnEarly (DeleteNameAmbiguous hqLength path' Set.empty types)
-              Cli.stepAt
-                description
-                -- Mitchell: throwing away HQ seems wrong
-                (BranchUtil.makeDeleteTypeName (Path.convert (over _2 HQ'.toName path)) ty)
-            ResolveTermNameI path' -> do
-              path <- Cli.resolveSplit' path'
-              term <- do
-                rootBranch0 <- Cli.getRootBranch0
-                terms <- getTermsIncludingHistorical (Path.convert path) rootBranch0
-                Set.asSingleton terms
-                  & onNothing
-                    if Set.null terms
-                      then Cli.returnEarly (TermNotFound path')
-                      else do
-                        hqLength <- Cli.runTransaction Codebase.hashLength
-                        Cli.returnEarly (DeleteNameAmbiguous hqLength path' terms Set.empty)
-              description <- inputDescription input
-              terms <- Cli.getTermsAt path
-              terms
-                & Set.delete term
-                & Set.toList
-                -- Mitchell: throwing away HQ seems wrong
-                & map (BranchUtil.makeDeleteTermName (Path.convert (over _2 HQ'.toName path)))
-                & Cli.stepManyAt description
             ReplaceI from to patchPath -> do
               Cli.Env {codebase} <- ask
               hqLength <- Cli.runTransaction Codebase.hashLength
 
               let patchPath' = fromMaybe Cli.defaultPatchPath patchPath
               patch <- Cli.getPatchAt patchPath'
-              QueryResult fromMisses' fromHits <- hqNameQuery [from]
-              QueryResult toMisses' toHits <- hqNameQuery [to]
+              QueryResult fromMisses' fromHits <- hqNameQuery Names.IncludeSuffixes [from]
+              QueryResult toMisses' toHits <- hqNameQuery Names.IncludeSuffixes [to]
               let termsFromRefs = termReferences fromHits
                   termsToRefs = termReferences toHits
                   typesFromRefs = typeReferences fromHits
@@ -1062,16 +924,7 @@ loop e = do
                 ([_], tos, [], []) -> ambiguous to tos
                 ([], [], [_], tos) -> ambiguous to tos
                 (_, _, _, _) -> error "unpossible"
-            LoadI maybePath -> do
-              latestFile <- Cli.getLatestFile
-              path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly NoUnisonFile)
-              Cli.Env {loadSource} <- ask
-              contents <-
-                liftIO (loadSource (Text.pack path)) >>= \case
-                  Cli.InvalidSourceNameError -> Cli.returnEarly $ InvalidSourceName path
-                  Cli.LoadError -> Cli.returnEarly $ SourceLoadFailed path
-                  Cli.LoadSuccess contents -> pure contents
-              loadUnisonFile (Text.pack path) contents
+            LoadI maybePath -> handleLoad maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
@@ -1086,23 +939,8 @@ loop e = do
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               ppe <- prettyPrintEnvDecl =<< displayNames uf
               Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-              addDefaultMetadata adds
               Cli.syncRoot description
-            SaveExecuteResultI resultName -> do
-              description <- inputDescription input
-              let resultVar = Name.toVar resultName
-              uf <- addSavedTermToUnisonFile resultName
-              Cli.Env {codebase} <- ask
-              currentPath <- Cli.getCurrentPath
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
-              let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
-              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              ppe <- prettyPrintEnvDecl =<< displayNames uf
-              addDefaultMetadata adds
-              Cli.syncRoot description
-              Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            SaveExecuteResultI resultName -> handleAddRun input resultName
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1111,6 +949,7 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
+            Update2I -> handleUpdate2
             PreviewUpdateI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
               uf <- Cli.expectLatestTypecheckedFile
@@ -1122,44 +961,23 @@ loop e = do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath patchPath)
               branchPath <- Cli.resolvePath' branchPath'
               doShowTodoOutput patch branchPath
-            TestI testInput -> handleTest testInput
+            TestI testInput -> Tests.handleTest testInput
             PropagatePatchI patchPath scopePath' -> do
               description <- inputDescription input
               patch <- Cli.getPatchAt patchPath
               scopePath <- Cli.resolvePath' scopePath'
               updated <- propagatePatch description patch scopePath
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
-            ExecuteI main args -> do
-              (unisonFile, mainResType) <- do
-                (sym, term, typ, otyp) <- getTerm main
-                uf <- createWatcherFile sym term typ
-                pure (uf, otyp)
-              ppe <- executePPE unisonFile
-              (_, xs) <- evalUnisonFile False ppe unisonFile args
-              mainRes :: Term Symbol () <-
-                let bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) = (watchKind, term1)
-                 in case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
-                      Nothing ->
-                        error
-                          ( "impossible: we manually added the watcher "
-                              <> show magicMainWatcherString
-                              <> " with 'createWatcherFile', but it isn't here."
-                          )
-                      Just x -> pure (stripUnisonFileReferences unisonFile x)
-              #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
-              Cli.respond (RunResult ppe mainRes)
-            MakeStandaloneI output main -> do
-              Cli.Env {codebase, runtime} <- ask
-              (ref, ppe) <- resolveMainRef main
-              let codeLookup = () <$ Codebase.toCodeLookup codebase
-              whenJustM (liftIO (Runtime.compileTo runtime codeLookup ppe ref (output <> ".uc"))) \err ->
-                Cli.returnEarly (EvaluationFailure err)
+            ExecuteI main args -> handleRun False main args
+            MakeStandaloneI output main -> doCompile False output main
             CompileSchemeI output main -> doCompileScheme output main
             ExecuteSchemeI main args -> doRunAsScheme main args
-            GenSchemeLibsI -> doGenerateSchemeBoot True Nothing
+            GenSchemeLibsI mdir ->
+              doGenerateSchemeBoot True Nothing mdir
             FetchSchemeCompilerI name branch ->
               doFetchCompiler name branch
-            IOTestI main -> handleIOTest main
+            IOTestI main -> Tests.handleIOTest main
+            IOTestAllI -> Tests.handleAllIOTests
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
             --   checkTodo
@@ -1178,7 +996,7 @@ loop e = do
               Cli.runTransaction (Codebase.addDefsToCodebase codebase uf)
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let srcb = BranchUtil.fromNames Builtin.names0
+              let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
               _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
@@ -1201,7 +1019,7 @@ loop e = do
 
               -- add the names; note, there are more names than definitions
               -- due to builtin terms; so we don't just reuse `uf` above.
-              let names0 = Builtin.names0 <> UF.typecheckedToNames IOSource.typecheckedFile'
+              let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
               _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
@@ -1209,22 +1027,13 @@ loop e = do
               Cli.respond Success
             ListEditsI maybePath -> do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath maybePath)
-              ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+              ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
               Cli.respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
-            NamespaceDependenciesI namespacePath' -> do
-              Cli.Env {codebase} <- ask
-              path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
-              Cli.getMaybeBranchAt path >>= \case
-                Nothing -> Cli.respond $ BranchEmpty (WhichBranchEmptyPath (Path.absoluteToPath' path))
-                Just b -> do
-                  externalDependencies <-
-                    Cli.runTransaction (NamespaceDependencies.namespaceDependencies codebase (Branch.head b))
-                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl Backend.Within
-                  Cli.respondNumbered $ ListNamespaceDependencies ppe path externalDependencies
+            NamespaceDependenciesI path -> handleNamespaceDependencies path
             DebugNumberedArgsI -> do
               numArgs <- use #numberedArgs
               Cli.respond (DumpNumberedArgs numArgs)
@@ -1242,6 +1051,22 @@ loop e = do
               let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
+            DebugFuzzyOptionsI command args -> do
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
+              let projCtx = projectContextFromPath currentPath
+              case Map.lookup command InputPatterns.patternMap of
+                Just (IP.InputPattern {args = argTypes}) -> do
+                  zip argTypes args & Monoid.foldMapM \case
+                    ((argName, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {getOptions}}), "_") -> do
+                      results <- liftIO $ getOptions codebase projCtx currentBranch
+                      Cli.respond (DebugDisplayFuzzyOptions argName (Text.unpack <$> results))
+                    ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
+                      Cli.respond DebugFuzzyOptionsNoResolver
+                    _ -> pure ()
+                Nothing -> do
+                  Cli.respond DebugFuzzyOptionsNoResolver
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1256,12 +1081,12 @@ loop e = do
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
                   goBranch :: forall m. (Monad m) => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
-                    Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ _ ->
-                      let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
-                          wrangleMetadata s r =
-                            (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
-                          terms = Map.fromList . map (wrangleMetadata terms0) . Foldable.toList $ Star3.fact terms0
-                          types = Map.fromList . map (wrangleMetadata types0) . Foldable.toList $ Star3.fact types0
+                    Branch0 terms0 types0 children0 patches0 _ _ _ _ _ ->
+                      let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
+                          ignoreMetadata s r =
+                            (r, R.lookupDom r $ Star3.d1 s)
+                          terms = Map.fromList . map (ignoreMetadata terms0) . Foldable.toList $ Star3.fact terms0
+                          types = Map.fromList . map (ignoreMetadata types0) . Foldable.toList $ Star3.fact types0
                           patches = fmap fst patches0
                           children = fmap Branch.headHash children0
                        in do
@@ -1284,10 +1109,9 @@ loop e = do
                                ]
                          )
                     where
-                      prettyLinks renderR r [] = P.indentN 2 $ P.text (renderR r)
-                      prettyLinks renderR r links = P.indentN 2 (P.lines (P.text (renderR r) : (links <&> \r -> "+ " <> P.text (Reference.toText r))))
-                      prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
-                        P.lines (P.text . NameSegment.toText <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
+                      prettyRef renderR r = P.indentN 2 $ P.text (renderR r)
+                      prettyDefn renderR (r, Foldable.toList -> names) =
+                        P.lines (P.text . NameSegment.toText <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyRef renderR r
               rootBranch <- Cli.getRootBranch
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal rootBranch]
             DebugDumpNamespaceSimpleI -> do
@@ -1346,82 +1170,11 @@ loop e = do
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
-
-loadUnisonFile :: Text -> Text -> Cli ()
-loadUnisonFile sourceName text = do
-  let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
-  unisonFile <- withFile sourceName (text, lexed)
-  currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-  names <- displayNames unisonFile
-  pped <- prettyPrintEnvDecl names
-  let ppe = PPE.suffixifiedPPE pped
-  Cli.respond $ Typechecked sourceName ppe sr unisonFile
-  (bindings, e) <- evalUnisonFile False ppe unisonFile []
-  let e' = Map.map go e
-      go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-  when (not (null e')) do
-    Cli.respond $ Evaluated text ppe bindings e'
-  #latestTypecheckedFile .= Just (Right unisonFile)
-  where
-    withFile ::
-      Text ->
-      (Text, [L.Token L.Lexeme]) ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile sourceName (text, tokens) = do
-      let getHQ = \case
-            L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-            L.Hash sh -> Just (HQ.HashOnly sh)
-            _ -> Nothing
-          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-      rootBranch <- Cli.getRootBranch
-      currentPath <- Cli.getCurrentPath
-      let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
-      State.modify' \loopState ->
-        loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names = parseNames
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      maybeTypecheckedUnisonFile & onNothing do
-        ns <- makeShadowedPrintNamesFromHQ hqs (UF.toNames unisonFile)
-        ppe <- suffixifiedPPE ns
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (TypeErrors currentPath text ppe tes)
-        when (not (null cbs)) do
-          Cli.respond (CompilerBugs text ppe cbs)
-        Cli.returnEarlyWithoutOutput
-
-magicMainWatcherString :: String
-magicMainWatcherString = "main"
+            UpgradeI old new -> handleUpgrade old new
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    SaveExecuteResultI _str -> pure "save-execute-result"
     ForkLocalBranchI src0 dest0 -> do
       src <- hp' src0
       dest <- p' dest0
@@ -1472,6 +1225,10 @@ inputDescription input =
       src <- p' src0
       dest <- p' dest0
       pure ("move.namespace " <> src <> " " <> dest)
+    MoveAllI src0 dest0 -> do
+      src <- p' src0
+      dest <- p' dest0
+      pure ("move " <> src <> " " <> dest)
     MovePatchI src0 dest0 -> do
       src <- ps' src0
       dest <- ps' dest0
@@ -1520,12 +1277,6 @@ inputDescription input =
           <> HQ.toText target
           <> " "
           <> p
-    ResolveTermNameI path0 -> do
-      path <- hqs' path0
-      pure ("resolve.termName " <> path)
-    ResolveTypeNameI path0 -> do
-      path <- hqs' path0
-      pure ("resolve.typeName " <> path)
     AddI _selection -> pure "add"
     UpdateI p0 _selection -> do
       p <-
@@ -1533,7 +1284,8 @@ inputDescription input =
           NoPatch -> pure ".nopatch"
           DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
           UsePatch p0 -> (" " <>) <$> ps' p0
-      pure ("update" <> p)
+      pure ("update.old" <> p)
+    Update2I -> pure ("update")
     PropagatePatchI p0 scope0 -> do
       p <- ps' p0
       scope <- p' scope0
@@ -1541,24 +1293,17 @@ inputDescription input =
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
-    LinkI md defs0 -> do
-      defs <- traverse hqs' defs0
-      pure ("link " <> HQ.toText md <> " " <> Text.intercalate " " defs)
-    UnlinkI md defs0 -> do
-      defs <- traverse hqs' defs0
-      pure ("unlink " <> HQ.toText md <> " " <> Text.intercalate " " defs)
+    IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
     MergeBuiltinsI -> pure "builtins.merge"
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $
-        "run.native "
-          <> HQ.toText nm
-          <> " "
-          <> Text.unwords (fmap Text.pack args)
+      pure $ "run.native " <> Text.unwords (fmap Text.pack (nm : args))
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
-    GenSchemeLibsI -> pure "compile.native.genlibs"
+    GenSchemeLibsI mdir ->
+      pure $
+        "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
     FetchSchemeCompilerI name branch ->
       pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
     CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
@@ -1575,6 +1320,7 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
+    UpgradeI old new -> pure (Text.unwords ["upgrade", NameSegment.toText old, NameSegment.toText new])
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1590,6 +1336,7 @@ inputDescription input =
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
+    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
@@ -1604,7 +1351,6 @@ inputDescription input =
     StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
-    LinksI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
@@ -1623,6 +1369,7 @@ inputDescription input =
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
+    SaveExecuteResultI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat
@@ -1658,90 +1405,6 @@ inputDescription input =
       That branch -> pure (into @Text branch)
       -- just trying to recover the syntax the user wrote
       These path _branch -> pure (Path.toText' path)
-
-handleStructuredFindI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindI rule = do
-  Cli.Env {codebase} <- ask
-  (ppe, names, rules0) <- lookupRewrite InvalidStructuredFind (\_ tm -> tm) rule
-  let rules = snd <$> rules0
-  let fqppe = PPED.unsuffixifiedPPE ppe
-  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
-    r <- Set.toList (Relation.ran $ Names.terms (NamesWithHistory.currentNames names))
-    Just hq <- [PPE.terms fqppe r]
-    fullName <- [HQ'.toName hq]
-    guard (not (Name.beginsWithSegment fullName Name.libSegment))
-    Referent.Ref _ <- pure r
-    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
-    pure (HQ'.toHQ shortName, r)
-  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
-        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
-      ok t = pure (t, False)
-  results0 <- traverse ok results
-  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
-  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs results
-  Cli.respond (ListStructuredFind (fst <$> results))
-
-lookupRewrite :: (HQ.HashQualified Name -> Output) -> ([Symbol] -> Term Symbol Ann -> Term Symbol Ann) -> HQ.HashQualified Name -> Cli (PPED.PrettyPrintEnvDecl, NamesWithHistory, [(Term Symbol Ann -> Maybe (Term Symbol Ann), Term Symbol Ann -> Bool)])
-lookupRewrite onErr prepare rule = do
-  Cli.Env {codebase} <- ask
-  currentBranch <- Cli.getCurrentBranch0
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  fileNames <- Cli.getNamesFromLatestParsedFile
-  let currentNames = NamesWithHistory.fromCurrentNames (fileNames <> Branch.toNames currentBranch)
-  let ppe = PPED.fromNamesDecl hqLength currentNames
-  ot <- Cli.getTermFromLatestParsedFile rule
-  ot <- case ot of
-    Just _ -> pure ot
-    Nothing -> do
-      case NamesWithHistory.lookupHQTerm rule currentNames of
-        s
-          | Set.size s == 1,
-            Referent.Ref (Reference.DerivedId r) <- Set.findMin s ->
-              Cli.runTransaction (Codebase.getTerm codebase r)
-        s -> Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule s)
-  tm <- maybe (Cli.returnEarly (TermAmbiguous (PPE.suffixifiedPPE ppe) rule mempty)) pure ot
-  let extract vs tm = case tm of
-        Term.Ann' tm _typ -> extract vs tm
-        (DD.RewriteTerm' lhs rhs) ->
-          pure
-            ( ABT.rewriteExpression lhs rhs,
-              ABT.containsExpression lhs
-            )
-        (DD.RewriteCase' lhs rhs) ->
-          pure
-            ( Term.rewriteCasesLHS lhs rhs,
-              fromMaybe False . Term.containsCaseTerm lhs
-            )
-        (DD.RewriteSignature' _vs lhs rhs) ->
-          pure (Term.rewriteSignatures lhs rhs, Term.containsSignature lhs)
-        _ -> Cli.returnEarly (onErr rule)
-      extractOuter vs0 tm = case tm of
-        Term.Ann' tm _typ -> extractOuter vs0 tm
-        Term.LamsNamed' vs tm -> extractOuter (vs0 ++ vs) tm
-        tm -> case prepare vs0 tm of
-          DD.Rewrites' rules -> traverse (extract vs0) rules
-          _ -> Cli.returnEarly (onErr rule)
-  rules <- extractOuter [] tm
-  pure (ppe, currentNames, rules)
-
-handleStructuredFindReplaceI :: HQ.HashQualified Name -> Cli ()
-handleStructuredFindReplaceI rule = do
-  uf0 <- Cli.expectLatestParsedFile
-  let (prepare, uf, finish) = UF.prepareRewrite uf0
-  (ppe, _ns, rules) <- lookupRewrite InvalidStructuredFindReplace prepare rule
-  (dest, _) <- Cli.expectLatestFile
-  #latestFile ?= (dest, True)
-  let go n tm [] = if n == (0 :: Int) then Nothing else Just tm
-      go n tm ((r, _) : rules) = case r tm of
-        Nothing -> go n tm rules
-        Just tm -> go (n + 1) tm rules
-      (vs, uf0') = UF.rewrite (Set.singleton (HQ.toVar rule)) (\tm -> go 0 tm rules) uf
-      uf' = (vs, finish uf0')
-  #latestTypecheckedFile .= Just (Left . snd $ uf')
-  let msg = "| Rewrote using: "
-  Cli.respond $ OutputRewrittenFile ppe dest (msg <> HQ.toString rule) uf'
 
 handleFindI ::
   Bool ->
@@ -1803,12 +1466,9 @@ handleFindI isVerbose fscope ws input = do
             let srs = searchBranchScored names fuzzyNameDistance qs
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        #numberedArgs .= fmap searchResultToHQString results
+        Cli.setNumberedArgs $ fmap searchResultToHQString results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
-        ppe <-
-          suffixifiedPPE
-            =<< makePrintNamesFromLabeled'
-              (foldMap SR'.labeledDependencies results')
+        ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
         Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
   results <- getResults (getNames fscope)
   case (results, fscope) of
@@ -1852,9 +1512,9 @@ handleDependencies hq = do
     pure (types, terms)
   let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  #numberedArgs
-    .= map (Text.unpack . Reference.toText . snd) types
-    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.setNumberedArgs $
+    map (Text.unpack . Reference.toText . snd) types
+      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1891,7 +1551,7 @@ handleDependents hq = do
   let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.setNumberedArgs $ map (Text.unpack . Reference.toText . view _2) (types <> terms)
   Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
@@ -1926,7 +1586,7 @@ handleDiffNamespaceToPatch description input = do
           }
 
   -- Display the patch that we are about to create.
-  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
   Cli.respondNumbered (ListEdits patch ppe)
 
   (patchPath, patchName) <- Cli.resolveSplit' (input ^. #patch)
@@ -1961,129 +1621,66 @@ handleDiffNamespaceToPatch description input = do
     makeTypeEdit (Conversions.reference2to1 -> oldRef) newRefs =
       Set.asSingleton newRefs <&> \newRef -> (oldRef, TypeEdit.Replace (Conversions.reference2to1 newRef))
 
-handleIOTest :: HQ.HashQualified Name -> Cli ()
-handleIOTest main = do
-  Cli.Env {codebase, runtime} <- ask
-
-  let testType = Runtime.ioTestType runtime
-  parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicParseNames
-  -- use suffixed names for resolving the argument to display
-  ppe <- suffixifiedPPE parseNames
-  let oks results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
-        ]
-      fails results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
-        ]
-
-  matches <-
-    Cli.label \returnMatches -> do
-      -- First, look at the terms in the latest typechecked file for a name-match.
-      whenJustM Cli.getLatestTypecheckedFile \typecheckedFile -> do
-        whenJust (HQ.toName main) \mainName ->
-          whenJust (Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)) \(_, ref, _wk, _term, typ) ->
-            returnMatches [(Reference.fromId ref, typ)]
-
-      -- Then, if we get here (because nothing in the scratch file matched), look at the terms in the codebase.
-      Cli.runTransaction do
-        forMaybe (Set.toList (NamesWithHistory.lookupHQTerm main parseNames)) \ref0 ->
-          runMaybeT do
-            ref <- MaybeT (pure (Referent.toTermReference ref0))
-            typ <- MaybeT (loadTypeOfTerm codebase (Referent.Ref ref))
-            pure (ref, typ)
-
-  ref <-
-    case matches of
-      [] -> Cli.returnEarly (NoMainFunction (HQ.toString main) ppe [testType])
-      [(ref, typ)] ->
-        if Typechecker.isSubtype typ testType
-          then pure ref
-          else Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ ppe [testType])
-      _ -> do
-        hashLength <- Cli.runTransaction Codebase.hashLength
-        let labeledDependencies =
-              matches
-                & map (\(ref, _typ) -> LD.termRef ref)
-                & Set.fromList
-        Cli.returnEarly (LabeledReferenceAmbiguous hashLength main labeledDependencies)
-
-  let a = ABT.annotation tm
-      tm = DD.forceTerm a a (Term.ref a ref)
-  -- Don't cache IO tests
-  tm' <- evalUnisonTerm False ppe False tm
-  Cli.respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
-
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> [HQ.HashQualified Name] -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope inputQuery = do
-  Cli.Env {codebase} <- ask
+handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
+handleShowDefinition outputLoc showDefinitionScope query = do
+  Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   -- If the query is empty, run a fuzzy search.
-  query <-
-    if null inputQuery
-      then do
-        branch <- Cli.getCurrentBranch0
-        fuzzySelectDefinition Relative branch & onNothingM do
-          Cli.returnEarly case outputLoc of
-            ConsoleLocation -> HelpMessage InputPatterns.view
-            _ -> HelpMessage InputPatterns.edit
-      else pure inputQuery
   root <- Cli.getRootBranch
   let root0 = Branch.head root
   currentPath' <- Path.unabsolute <$> Cli.getCurrentPath
-  let hasAbsoluteQuery = any (any Name.isAbsolute) inputQuery
-  (names, unbiasedPPE) <- case (hasAbsoluteQuery, showDefinitionScope) of
+  let hasAbsoluteQuery = any (any Name.isAbsolute) query
+  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     (True, _) -> do
       let namingScope = Backend.AllNames currentPath'
-      let parseNames = NamesWithHistory.fromCurrentNames $ Backend.parseNamesForBranch root namingScope
+      let parseNames = Backend.parseNamesForBranch root namingScope
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (parseNames, ppe)
     (_, ShowDefinitionGlobal) -> do
-      let names = NamesWithHistory.fromCurrentNames . Names.makeAbsolute $ Branch.toNames root0
+      let names = Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
-      let ppe = PPED.fromNamesDecl hqLength names
+      let ppe = PPED.fromNamesSuffixifiedByHash hqLength names
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0
-      let currentNames = NamesWithHistory.fromCurrentNames $ Branch.toNames currentBranch
+      let currentNames = Branch.toNames currentBranch
       let ppe = Backend.getCurrentPrettyNames hqLength (Backend.Within currentPath') root
       pure (currentNames, ppe)
+  let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsBySuffixes codebase nameSearch includeCycles query)
+    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
   outputPath <- getOutputPath
-  when (not (null types && null terms)) do
-    -- We need an 'isTest' check in the output layer, so it can prepend "test>" to tests in a scratch file. Since we
-    -- currently have the whole branch in memory, we just use that to make our predicate, but this could/should get this
-    -- information from the database instead, once it's efficient to do so.
-    isTest <- do
-      branch <- Cli.getCurrentBranch0
-      pure \ref ->
-        branch
-          & Branch.deepTermMetadata
-          & Metadata.hasMetadataWithType' (Referent.fromTermReference ref) IOSource.isTestReference
-    Cli.respond $
-      DisplayDefinitions
-        DisplayDefinitionsOutput
-          { isTest,
-            outputFile = outputPath,
-            prettyPrintEnv = PPED.biasTo (mapMaybe HQ.toName inputQuery) unbiasedPPE,
-            terms,
-            types
-          }
+  case outputPath of
+    _ | null terms && null types -> pure ()
+    Nothing -> do
+      -- If we're writing to console we don't add test-watch syntax
+      let isTest _ = False
+      let isSourceFile = False
+      -- No filepath, render code to console.
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      Cli.respond $ DisplayDefinitions renderedCodePretty
+    Just fp -> do
+      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
+      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      let isTest r = Set.member r testRefs
+      let isSourceFile = True
+      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
+      let renderedCodeText = Text.pack $ P.toPlain 80 renderedCodePretty
+
+      -- We set latestFile to be programmatically generated, if we
+      -- are viewing these definitions to a file - this will skip the
+      -- next update for that file (which will happen immediately)
+      #latestFile ?= (fp, True)
+      liftIO $ writeSource (Text.pack fp) renderedCodeText
+      let numDefinitions = Map.size terms + Map.size types
+      Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for_ outputPath \p -> do
-    -- We set latestFile to be programmatically generated, if we
-    -- are viewing these definitions to a file - this will skip the
-    -- next update for that file (which will happen immediately)
-    #latestFile ?= (p, True)
   where
+    renderCodePretty pped isSourceFile isTest terms types =
+      P.syntaxToColor . P.sep "\n\n" $
+        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isSourceFile isTest terms
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
@@ -2102,86 +1699,6 @@ handleShowDefinition outputLoc showDefinitionScope inputQuery = do
           pure case loopState ^. #latestFile of
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
-
--- | Handle a @test@ command.
-handleTest :: TestInput -> Cli ()
-handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
-  Cli.Env {codebase} <- ask
-
-  testTerms <- do
-    branch <- Cli.getCurrentBranch0
-    branch
-      & Branch.deepTermMetadata
-      & R4.restrict34d12 IOSource.isTest
-      & (if includeLibNamespace then id else R.filterRan (not . isInLibNamespace))
-      & R.dom
-      & pure
-  let testRefs = Set.mapMaybe Referent.toTermReference testTerms
-      oks results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.okConstructorId && ref == DD.testResultRef
-        ]
-      fails results =
-        [ (r, msg)
-          | (r, Term.List' ts) <- Map.toList results,
-            Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
-            cid == DD.failConstructorId && ref == DD.testResultRef
-        ]
-  cachedTests <- do
-    fmap Map.fromList do
-      Set.toList testRefs & wither \case
-        Reference.Builtin _ -> pure Nothing
-        r@(Reference.DerivedId rid) -> fmap (r,) <$> Cli.runTransaction (Codebase.getWatch codebase WK.TestWatch rid)
-  let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-  names <-
-    makePrintNamesFromLabeled' $
-      LD.referents testTerms
-        <> LD.referents [DD.okConstructorReferent, DD.failConstructorReferent]
-  ppe <- fqnPPE names
-  Cli.respond $
-    TestResults
-      stats
-      ppe
-      showSuccesses
-      showFailures
-      (oks cachedTests)
-      (fails cachedTests)
-  let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-  when (not (Set.null toCompute)) do
-    let total = Set.size toCompute
-    computedTests <- fmap join . for (toList toCompute `zip` [1 ..]) $ \(r, n) ->
-      case r of
-        Reference.DerivedId rid ->
-          Cli.runTransaction (Codebase.getTerm codebase rid) >>= \case
-            Nothing -> do
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId rid)
-              pure []
-            Just tm -> do
-              Cli.respond $ TestIncrementalOutputStart ppe (n, total) r tm
-              --                        v don't cache; test cache populated below
-              tm' <- evalPureUnison ppe False tm
-              case tm' of
-                Left e -> do
-                  Cli.respond (EvaluationFailure e)
-                  pure []
-                Right tm' -> do
-                  -- After evaluation, cache the result of the test
-                  Cli.runTransaction (Codebase.putWatch WK.TestWatch rid tm')
-                  Cli.respond $ TestIncrementalOutputEnd ppe (n, total) r tm'
-                  pure [(r, tm')]
-        r -> error $ "unpossible, tests can't be builtins: " <> show r
-
-    let m = Map.fromList computedTests
-    Cli.respond $ TestResults Output.NewlyComputed ppe showSuccesses showFailures (oks m) (fails m)
-  where
-    isInLibNamespace :: Name -> Bool
-    isInLibNamespace name =
-      case Name.segments name of
-        "lib" Nel.:| _ : _ -> True
-        _ -> False
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
@@ -2205,21 +1722,17 @@ resolveHQToLabeledDependencies = \case
           pure (terms, types)
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Cli ()
+doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
   Cli.Env {codebase} <- ask
   loopState <- State.get
 
   ppe <- prettyPrintEnvDecl names
   (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
-  let loc = case outputLoc of
-        ConsoleLocation -> Nothing
-        FileLocation path -> Just path
-        LatestFileLocation -> fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
-      useCache = True
+  let useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+          RuntimeUtils.evalUnisonTermE True (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
@@ -2230,62 +1743,25 @@ doDisplay outputLoc names tm = do
       loadDecl _ = pure Nothing
       loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
         | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . loadTypeOfTerm codebase $ r
-  rendered <-
-    DisplayValues.displayTerm
-      ppe
-      loadTerm
-      loadTypeOfTerm'
-      evalTerm
-      loadDecl
-      tm
-  Cli.respond $ DisplayRendered loc rendered
-
-getLinks ::
-  SrcLoc ->
-  Path.HQSplit' ->
-  Either (Set Reference) (Maybe String) ->
-  Cli
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks srcLoc src =
-  getLinks' src <=< \case
-    Left s -> pure (Just s)
-    Right Nothing -> pure Nothing
-    Right (Just mdTypeStr) -> do
-      typ <- parseType srcLoc mdTypeStr
-      pure (Just (Set.singleton (Hashing.typeToReference typ)))
-
-getLinks' ::
-  Path.HQSplit' -> -- definition to print metadata of
-  Maybe (Set Reference) -> -- return all metadata if empty
-  Cli
-    ( PPE.PrettyPrintEnv,
-      --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
-      [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
-    )
-getLinks' src selection0 = do
-  Cli.Env {codebase} <- ask
-  root0 <- Cli.getRootBranch0
-  p <- Path.convert <$> Cli.resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
-  let -- all metadata (type+value) associated with name `src`
-      allMd =
-        R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
-          <> R4.d34 (BranchUtil.getTypeMetadataHQNamed p root0)
-      allMd' = maybe allMd (`R.restrictDom` allMd) selection0
-      -- then list the values after filtering by type
-      allRefs :: Set Reference = R.ran allMd'
-  sigs <- Cli.runTransaction (for (toList allRefs) (loadTypeOfTerm codebase . Referent.Ref))
-  let deps =
-        Set.map LD.termRef allRefs
-          <> Set.unions [Set.map LD.typeRef . Type.dependencies $ t | Just t <- sigs]
-  ppe <- prettyPrintEnvDecl =<< makePrintNamesFromLabeled' deps
-  let ppeDecl = PPE.unsuffixifiedPPE ppe
-  let sortedSigs = sortOn snd (toList allRefs `zip` sigs)
-  let out = [(PPE.termName ppeDecl (Referent.Ref r), r, t) | (r, t) <- sortedSigs]
-  pure (PPE.suffixifiedPPE ppe, out)
+      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . Codebase.getTypeOfReferent codebase $ r
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
+  mayFP <- case outputLoc of
+    ConsoleLocation -> pure Nothing
+    FileLocation path -> Just <$> Directory.canonicalizePath path
+    LatestFileLocation -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
+  whenJust mayFP \fp -> do
+    liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
+  Cli.respond $ DisplayRendered mayFP rendered
+  where
+    prependFile :: FilePath -> Text -> IO ()
+    prependFile filePath txt = do
+      exists <- Directory.doesFileExist filePath
+      if exists
+        then do
+          existing <- readUtf8 filePath
+          writeUtf8 filePath (txt <> "\n\n" <> existing)
+        else do
+          writeUtf8 filePath txt
 
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
@@ -2296,13 +1772,13 @@ doShowTodoOutput patch scopePath = do
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
-      #numberedArgs
-        .= ( Text.unpack . Reference.toText . view _2
-               <$> fst (TO.todoFrontierDependents todo)
-           )
+      Cli.setNumberedArgs
+        ( Text.unpack . Reference.toText . view _2
+            <$> fst (TO.todoFrontierDependents todo)
+        )
       -- only needs the local references to check for obsolete defs
       ppe <- do
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled'
         prettyPrintEnvDecl names
       Cli.respondNumbered $ TodoOutput ppe todo
 
@@ -2443,11 +1919,8 @@ searchBranchScored names0 score queries =
               (\score -> (Just score, result)) <$> score qn name
 
 basicPPE :: Cli PPE.PrettyPrintEnv
-basicPPE = do
-  parseNames <-
-    flip NamesWithHistory.NamesWithHistory mempty
-      <$> basicParseNames
-  suffixifiedPPE parseNames
+basicPPE =
+  basicParseNames >>= suffixifiedPPE
 
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
@@ -2493,10 +1966,11 @@ getSchemeStaticLibDir =
       liftIO $
         getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
 
-doGenerateSchemeBoot :: Bool -> Maybe PPE.PrettyPrintEnv -> Cli ()
-doGenerateSchemeBoot force mppe = do
+doGenerateSchemeBoot ::
+  Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
+doGenerateSchemeBoot force mppe mdir = do
   ppe <- maybe basicPPE pure mppe
-  dir <- getSchemeGenLibDir
+  dir <- maybe getSchemeGenLibDir pure mdir
   let bootf = dir </> "unison" </> "boot-generated.ss"
       swrapf = dir </> "unison" </> "simple-wrappers.ss"
       binf = dir </> "unison" </> "builtin-generated.ss"
@@ -2543,7 +2017,7 @@ typecheckAndEval ppe tm = do
     -- Type checking succeeded
     Result.Result _ (Just ty)
       | Typechecker.fitsScheme ty mty ->
-          () <$ evalUnisonTerm False ppe False tm
+          () <$ RuntimeUtils.evalUnisonTerm False ppe False tm
       | otherwise ->
           Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
     Result.Result notes Nothing -> do
@@ -2612,10 +2086,29 @@ buildRacket genDir statDir main file =
           (True <$ callProcess "racket" opts)
           (\(_ :: IOException) -> pure False)
 
-doRunAsScheme :: HQ.HashQualified Name -> [String] -> Cli ()
-doRunAsScheme main args = do
-  fullpath <- generateSchemeFile True (HQ.toString main) main
-  runScheme fullpath args
+doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
+doCompile native output main = do
+  Cli.Env {codebase, runtime, nativeRuntime} <- ask
+  let theRuntime
+        | native = nativeRuntime
+        | otherwise = runtime
+  (ref, ppe) <- resolveMainRef main
+  let codeLookup = () <$ Codebase.toCodeLookup codebase
+      outf
+        | native = output
+        | otherwise = output <> ".uc"
+  whenJustM
+    ( liftIO $
+        Runtime.compileTo theRuntime codeLookup ppe ref outf
+    )
+    (Cli.returnEarly . EvaluationFailure)
+
+doRunAsScheme :: String -> [String] -> Cli ()
+doRunAsScheme main0 args = case HQ.fromString main0 of
+  Just main -> do
+    fullpath <- generateSchemeFile True main0 main
+    runScheme fullpath args
+  Nothing -> Cli.respond $ BadName main0
 
 doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
@@ -2625,7 +2118,7 @@ generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
-  doGenerateSchemeBoot False $ Just ppe
+  doGenerateSchemeBoot False (Just ppe) Nothing
   cacheDir <- getCacheDir
   liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
   let scratch = out ++ ".scm"
@@ -2783,14 +2276,13 @@ displayI ::
   OutputLocation ->
   HQ.HashQualified Name ->
   Cli ()
-displayI prettyPrintNames outputLoc hq = do
+displayI names outputLoc hq = do
   let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
   case addWatch (HQ.toString hq) latestTypecheckedFile of
     Nothing -> do
-      let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
-          results = NamesWithHistory.lookupHQTerm hq parseNames
-      pped <- prettyPrintEnvDecl parseNames
+      let results = Names.lookupHQTerm Names.IncludeSuffixes hq names
+      pped <- prettyPrintEnvDecl names
       ref <-
         Set.asSingleton results & onNothing do
           Cli.returnEarly
@@ -2798,23 +2290,22 @@ displayI prettyPrintNames outputLoc hq = do
               then SearchTermsNotFound [hq]
               else TermAmbiguous (PPE.suffixifiedPPE pped) hq results
       let tm = Term.fromReferent External ref
-      tm <- evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
-      doDisplay outputLoc parseNames (Term.unannotate tm)
+      tm <- RuntimeUtils.evalUnisonTerm True (PPE.biasTo bias $ PPE.suffixifiedPPE pped) True tm
+      doDisplay outputLoc names (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       ppe <- PPE.biasTo bias <$> executePPE unisonFile
-      (_, watches) <- evalUnisonFile True ppe unisonFile []
+      (_, watches) <- evalUnisonFile Sandboxed ppe unisonFile []
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> HQ.toString hq)
       ns <- displayNames unisonFile
       doDisplay outputLoc ns tm
 
-docsI :: SrcLoc -> Names -> Path.HQSplit' -> Cli ()
-docsI srcLoc prettyPrintNames src =
+docsI :: Names -> Path.HQSplit' -> Cli ()
+docsI prettyPrintNames src =
   fileByName
   where
     {- Given `docs foo`, we look for docs in 3 places, in this order:
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
-       (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
     hq :: HQ.HashQualified Name
@@ -2829,39 +2320,13 @@ docsI srcLoc prettyPrintNames src =
     fileByName :: Cli ()
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
-      fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
-      case NamesWithHistory.lookupHQTerm dotDoc fnames of
-        s | Set.size s == 1 -> do
-          -- the displayI command expects full term names, so we resolve
-          -- the hash back to its full name in the file
-          fname' <- pure $ NamesWithHistory.longestTermName 10 (Set.findMin s) fnames
-          displayI prettyPrintNames ConsoleLocation fname'
-        _ -> codebaseByMetadata
-
-    codebaseByMetadata :: Cli ()
-    codebaseByMetadata = do
-      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, IOSource.doc2Ref])
-      case out of
-        [] -> codebaseByName
-        [(_name, ref, _tm)] -> do
-          len <- Cli.runTransaction Codebase.branchHashLength
-          let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
-          let tm = Term.ref External ref
-          tm <- evalUnisonTerm True (PPE.fromNames len names) True tm
-          doDisplay ConsoleLocation names (Term.unannotate tm)
-        out -> do
-          #numberedArgs .= fmap (HQ.toString . view _1) out
-          Cli.respond $ ListOfLinks ppe out
-
-    codebaseByName :: Cli ()
-    codebaseByName = do
-      parseNames <- basicParseNames
-      case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
+      case Names.lookupHQTerm Names.IncludeSuffixes dotDoc ns of
         s
-          | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
-          | Set.size s == 0 -> Cli.respond $ ListOfLinks PPE.empty []
-          -- todo: return a list of links here too
-          | otherwise -> Cli.respond $ ListOfLinks PPE.empty []
+          | Set.size s == 1 ->
+              -- the displayI command expects full term names, so we resolve
+              -- the hash back to its full name in the file
+              displayI prettyPrintNames ConsoleLocation (Names.longestTermName 10 (Set.findMin s) ns)
+        _ -> displayI prettyPrintNames ConsoleLocation dotDoc
 
 loadDisplayInfo ::
   Codebase m Symbol Ann ->
@@ -2884,25 +2349,15 @@ loadTypeDisplayObject codebase = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration codebase id
 
-lexedSource :: Text -> Text -> Cli (NamesWithHistory, (Text, [L.Token L.Lexeme]))
+lexedSource :: Text -> Text -> Cli (Names, (Text, [L.Token L.Lexeme]))
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
-      getHQ = \case
-        L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-        L.Hash sh -> Just (HQ.HashOnly sh)
-        _ -> Nothing
-      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-  parseNames <- makeHistoricalParsingNames hqs
+  parseNames <- basicParseNames
   pure (parseNames, (src, tokens))
 
-suffixifiedPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
+suffixifiedPPE :: Names -> Cli PPE.PrettyPrintEnv
 suffixifiedPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromSuffixNames` ns)
-
-fqnPPE :: NamesWithHistory -> Cli PPE.PrettyPrintEnv
-fqnPPE ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNames` ns)
+  Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen ns) (PPE.suffixifyByHash ns)
 
 parseSearchType :: SrcLoc -> String -> Cli (Type Symbol Ann)
 parseSearchType srcLoc typ = Type.removeAllEffectVars <$> parseType srcLoc typ
@@ -2915,10 +2370,7 @@ parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
-  let names =
-        NamesWithHistory.push
-          (NamesWithHistory.currentNames names0)
-          (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
+  let names = Names.push names0 parseNames
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = mempty,
@@ -2929,24 +2381,8 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames Name.unsafeFromVar mempty (NamesWithHistory.currentNames names) (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeFromVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
-
-getTermsIncludingHistorical :: (Monad m) => Path.HQSplit -> Branch0 m -> Cli (Set Referent)
-getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
-  [] -> case hq of
-    HQ'.HashQualified n hs -> do
-      names <- findHistoricalHQs (Set.fromList [HQ.HashQualified (Name.fromSegment n) hs])
-      pure . R.ran $ Names.terms names
-    _ -> pure Set.empty
-  _ -> pure refs
-  where
-    refs = BranchUtil.getTerm (p, hq) b
-
-data GetTermResult
-  = NoTermWithThatName
-  | TermHasBadType (Type Symbol Ann)
-  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 
 -- Adds a watch expression of the given name to the file, if
 -- it would resolve to a TLD in the file. Returns the freshened
@@ -2976,95 +2412,6 @@ addWatch watchName (Just uf) = do
             )
     _ -> addWatch watchName Nothing
 
-addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
-addSavedTermToUnisonFile resultName = do
-  let resultSymbol = Name.toVar resultName
-  (trm, typ, uf) <-
-    use #lastRunResult >>= \case
-      Nothing -> Cli.returnEarly NoLastRunResult
-      Just x -> pure x
-  case Map.lookup resultSymbol (UF.hashTermsId uf) of
-    Just _ -> Cli.returnEarly (SaveTermNameConflict resultName)
-    Nothing -> pure ()
-  pure $
-    UF.typecheckedUnisonFile
-      (UF.dataDeclarationsId' uf)
-      (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
-      (UF.watchComponents uf)
-
--- | Look up runnable term with the given name in the codebase or
--- latest typechecked unison file. Return its symbol, term, type, and
--- the type of the evaluated term.
-getTerm :: String -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
-getTerm main =
-  getTerm' main >>= \case
-    NoTermWithThatName -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-      Cli.returnEarly $ NoMainFunction main ppe [mainType]
-    TermHasBadType ty -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-      Cli.returnEarly $ BadMainFunction "run" main ty ppe [mainType]
-    GetTermSuccess x -> pure x
-
-getTerm' :: String -> Cli GetTermResult
-getTerm' mainName =
-  let getFromCodebase = do
-        Cli.Env {codebase, runtime} <- ask
-
-        parseNames <- basicParseNames
-        let loadTypeOfTerm ref = Cli.runTransaction (Codebase.getTypeOfTerm codebase ref)
-        mainToFile
-          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
-        where
-          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
-          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
-          mainToFile (MainTerm.Success hq tm typ) =
-            let v = Var.named (HQ.toText hq)
-             in checkType typ \otyp ->
-                  pure (GetTermSuccess (v, tm, typ, otyp))
-      getFromFile uf = do
-        let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
-        case mainComponent of
-          [(v, _, tm, ty)] ->
-            checkType ty \otyp ->
-              let runMain = DD.forceTerm a a (Term.var a v)
-                  v2 = Var.freshIn (Set.fromList [v]) v
-                  a = ABT.annotation tm
-               in pure (GetTermSuccess (v2, runMain, ty, otyp))
-          _ -> getFromCodebase
-      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
-      checkType ty f = do
-        Cli.Env {runtime} <- ask
-        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> f (synthesizeForce ty)
-          False -> pure (TermHasBadType ty)
-   in Cli.getLatestTypecheckedFile >>= \case
-        Nothing -> getFromCodebase
-        Just uf -> getFromFile uf
-
--- | Produce a typechecked unison file where the given term is the
--- only watcher, with the watch type set to 'magicMainWatcherString'.
-createWatcherFile :: Symbol -> Term Symbol Ann -> Type Symbol Ann -> Cli (TypecheckedUnisonFile Symbol Ann)
-createWatcherFile v tm typ =
-  Cli.getLatestTypecheckedFile >>= \case
-    Nothing -> pure (UF.typecheckedUnisonFile mempty mempty mempty [(magicMainWatcherString, [(v, External, tm, typ)])])
-    Just uf ->
-      let v2 = Var.freshIn (Set.fromList [v]) v
-       in pure $
-            UF.typecheckedUnisonFile
-              (UF.dataDeclarationsId' uf)
-              (UF.effectDeclarationsId' uf)
-              (UF.topLevelComponents' uf)
-              -- what about main's component? we have dropped them if they existed.
-              [(magicMainWatcherString, [(v2, External, tm, typ)])]
-
 executePPE ::
   (Var v) =>
   TypecheckedUnisonFile v a ->
@@ -3072,240 +2419,16 @@ executePPE ::
 executePPE unisonFile =
   suffixifiedPPE =<< displayNames unisonFile
 
-loadTypeOfTerm :: Codebase m Symbol Ann -> Referent -> Sqlite.Transaction (Maybe (Type Symbol Ann))
-loadTypeOfTerm codebase (Referent.Ref r) = Codebase.getTypeOfTerm codebase r
-loadTypeOfTerm codebase (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
-  decl <- Codebase.getTypeDeclaration codebase r
-  case decl of
-    Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid
-    Nothing -> pure Nothing
-loadTypeOfTerm _ Referent.Con {} =
-  error $
-    reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
-
-hqNameQuery :: [HQ.HashQualified Name] -> Cli QueryResult
-hqNameQuery query = do
+hqNameQuery :: Names.SearchType -> [HQ.HashQualified Name] -> Cli QueryResult
+hqNameQuery searchType query = do
   Cli.Env {codebase} <- ask
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath
   Cli.runTransaction do
     hqLength <- Codebase.hashLength
     let parseNames = Backend.parseNamesForBranch root' (Backend.AllNames (Path.unabsolute currentPath))
-    let nameSearch = NameSearch.makeNameSearch hqLength (NamesWithHistory.fromCurrentNames parseNames)
-    Backend.hqNameQuery codebase nameSearch query
-
--- | Select a definition from the given branch.
--- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [HQ.HashQualified Name])
-fuzzySelectDefinition pos searchBranch0 = liftIO do
-  let termsAndTypes =
-        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
-          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  let inputs :: [HQ.HashQualified Name]
-      inputs =
-        termsAndTypes
-          & Set.toList
-          & map (fmap (Name.setPosition pos))
-  Fuzzy.fuzzySelect Fuzzy.defaultOptions HQ.toText inputs
-
--- | Select a namespace from the given branch.
--- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: (MonadIO m) => Position -> Branch0 m0 -> m (Maybe [Path'])
-fuzzySelectNamespace pos searchBranch0 = liftIO do
-  let intoPath' :: Path -> Path'
-      intoPath' = case pos of
-        Relative -> Path' . Right . Path.Relative
-        Absolute -> Path' . Left . Path.Absolute
-  let inputs :: [Path']
-      inputs =
-        searchBranch0
-          & Branch.deepPaths
-          & Set.toList
-          & map intoPath'
-  Fuzzy.fuzzySelect
-    Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-    tShow
-    inputs
-
--- | synthesize the type of forcing a term
---
--- precondition: @fitsScheme typeOfFunc Runtime.mainType@ is satisfied
-synthesizeForce :: Type Symbol Ann -> Type Symbol Ann
-synthesizeForce typeOfFunc = do
-  let term :: Term Symbol Ann
-      term = Term.ref External ref
-      ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
-      env =
-        Typechecker.Env
-          { Typechecker._ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
-            Typechecker._typeLookup = tl <> Builtin.typeLookup,
-            Typechecker._termsByShortname = Map.empty
-          }
-      tl =
-        TypeLookup.TypeLookup
-          { TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc,
-            TypeLookup.dataDecls = Map.empty,
-            TypeLookup.effectDecls = Map.empty
-          }
-  case Result.runResultT
-    ( Typechecker.synthesize
-        PPE.empty
-        Typechecker.PatternMatchCoverageCheckSwitch'Enabled
-        env
-        (DD.forceTerm External External term)
-    ) of
-    Identity (Nothing, notes) ->
-      error
-        ( unlines
-            [ "synthesizeForce fails although fitsScheme passed",
-              "Input Type:",
-              show typeOfFunc,
-              "Notes:",
-              show notes
-            ]
-        )
-    Identity (Just typ, _) -> typ
-
--- | Evaluate all watched expressions in a UnisonFile and return
--- their results, keyed by the name of the watch variable. The tuple returned
--- has the form:
---   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
---
--- where
---   `hash` is the hash of the original watch expression definition
---   `ann` gives the location of the watch expression
---   `sourceTerm` is a closed term (no free vars) for the watch expression
---   `evaluatedTerm` is the result of evaluating that `sourceTerm`
---   `isCacheHit` is True if the result was computed by just looking up
---   in a cache
---
--- It's expected that the user of this action might add the
--- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
--- of the same watches instantaneous.
-evalUnisonFile ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  TypecheckedUnisonFile Symbol Ann ->
-  [String] ->
-  Cli
-    ( [(Symbol, Term Symbol ())],
-      Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
-    )
-evalUnisonFile sandbox ppe unisonFile args = do
-  Cli.Env {codebase, runtime, sandboxedRuntime} <- ask
-  let theRuntime = if sandbox then sandboxedRuntime else runtime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  Cli.with_ (withArgs args) do
-    (nts, errs, map) <-
-      Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
-        Cli.returnEarly (EvaluationFailure err)
-    when (not $ null errs) (displayDecompileErrors errs)
-    for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
-      -- only update the watch cache when there are no errors
-      when (not isHit && null errs) do
-        let value' = Term.amap (\() -> Ann.External) value
-        Cli.runTransaction (Codebase.putWatch kind hash value')
-    pure (nts, map)
-
-evalPureUnison ::
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm = evalUnisonTermE False ppe useCache tm'
-  where
-    tm' =
-      Term.iff
-        a
-        (Term.apps' (Term.builtin a "validateSandboxed") [allow, Term.delay a tm])
-        tm
-        (Term.app a (Term.builtin a "bug") (Term.text a msg))
-    a = ABT.annotation tm
-    allow = Term.list a [Term.termLink a (Referent.Ref (Reference.Builtin "Debug.toText"))]
-    msg = "pure code can't perform I/O"
-
-displayDecompileErrors :: [Runtime.Error] -> Cli ()
-displayDecompileErrors errs = Cli.respond (PrintMessage msg)
-  where
-    msg =
-      P.lines $
-        [ P.warnCallout "I had trouble decompiling some results.",
-          "",
-          "The following errors were encountered:"
-        ]
-          ++ fmap (P.indentN 2) errs
-
--- | Evaluate a single closed definition.
-evalUnisonTermE ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
-evalUnisonTermE sandbox ppe useCache tm = do
-  Cli.Env {codebase, runtime, sandboxedRuntime} <- ask
-  let theRuntime = if sandbox then sandboxedRuntime else runtime
-
-  let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
-      watchCache ref = do
-        maybeTerm <- Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase ref)
-        pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
-
-  let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe theRuntime tm)
-  when useCache do
-    case r of
-      Right (errs, tmr)
-        -- don't cache when there were errors
-        | null errs ->
-            Cli.runTransaction do
-              Codebase.putWatch
-                WK.RegularWatch
-                (Hashing.hashClosedTerm tm)
-                (Term.amap (const Ann.External) tmr)
-        | otherwise -> displayDecompileErrors errs
-      Left _ -> pure ()
-  pure $ r <&> Term.amap (\() -> Ann.External) . snd
-
--- | Evaluate a single closed definition.
-evalUnisonTerm ::
-  Bool ->
-  PPE.PrettyPrintEnv ->
-  Bool ->
-  Term Symbol Ann ->
-  Cli (Term Symbol Ann)
-evalUnisonTerm sandbox ppe useCache tm =
-  evalUnisonTermE sandbox ppe useCache tm & onLeftM \err ->
-    Cli.returnEarly (EvaluationFailure err)
-
--- Hack alert
---
--- After we evaluate a term all vars are transformed into references,
--- but we want to feed this result into 'slurpFile' which won't add
--- dependencies that are referenced by hash. The hacky solution for
--- now is to convert all references that match a variable defined
--- within the unison file to variable references. This is hacky both
--- because we needlessly flip-flopping between var and reference
--- representations, and because we might unexpectedly add a term from
--- the local file if it has the same hash as a term in the codebase.
-stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () -> Term Symbol ()
-stripUnisonFileReferences unisonFile term =
-  let refMap :: Map Reference.Id Symbol
-      refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
-      alg () = \case
-        ABT.Var x -> ABT.var x
-        ABT.Cycle x -> ABT.cycle x
-        ABT.Abs v x -> ABT.abs v x
-        ABT.Tm t -> case t of
-          Term.Ref ref
-            | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
-          x -> ABT.tm x
-   in ABT.cata alg term
+    let nameSearch = NameSearch.makeNameSearch hqLength parseNames
+    Backend.hqNameQuery codebase nameSearch searchType query
 
 looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
 looseCodeOrProjectToPath = \case

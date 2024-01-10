@@ -11,7 +11,7 @@ serial.availableCases _ =
   slice = cases (FilePath nm) ->
     Text.take (Text.size nm - 7) nm
   -- caseNums = ["00", "01", "02", "03"]
-  caseNums = ["00", "02"]
+  caseNums = ["00", "02", "04"]
   files = map (n -> FilePath ("case-" ++ n ++ ".v4.ser")) caseNums
   map slice (filter p files)
 
@@ -65,6 +65,14 @@ serial.readFile fp =
     else read (acc ++ getBytes h 1024)
   read 0xs
 
+checkCached name = cases
+  [] -> pass (name ++ " code cached")
+  (ln, co0) +: rest -> match Code.lookup ln with
+    None -> fail name "code cache missing"
+    Some co1
+      | co0 === co1 -> checkCached name rest
+      | otherwise -> fail name "code cache mismatch"
+
 serial.loadSelfContained : Text -> FilePath ->{IO, Tests, Exception} a
 serial.loadSelfContained name path =
   input = readFile path
@@ -88,6 +96,7 @@ serial.loadSelfContained name path =
       Right _ -> fail name "failed link validation"
 
     _ = cache_ deps
+    checkCached name deps
     match Value.load v with
       Left l -> raiseFailure "value missing deps" l
       Right x -> x

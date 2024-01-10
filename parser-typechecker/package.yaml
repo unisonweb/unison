@@ -53,7 +53,6 @@ dependencies:
   - fuzzyfind
   - free
   - generic-lens
-  - generic-monoid
   - hashable
   - hashtables
   - haskeline
@@ -90,6 +89,7 @@ dependencies:
   - safe
   - safe-exceptions
   - semialign
+  - semigroups
   - servant
   - servant-client
   - servant-docs
@@ -122,6 +122,7 @@ dependencies:
   - unison-util-base32hex
   - unison-util-bytes
   - unison-util-cache
+  - unison-util-nametree
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization
@@ -132,6 +133,7 @@ dependencies:
   - vector
   - wai
   - warp
+  - witch
   - witherable
   - x509
   - x509-store
@@ -179,6 +181,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

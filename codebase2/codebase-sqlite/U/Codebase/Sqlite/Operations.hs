@@ -31,6 +31,7 @@ module U.Codebase.Sqlite.Operations
     loadDeclComponent,
     loadDeclByReference,
     expectDeclByReference,
+    expectDeclNumConstructors,
     expectDeclTypeById,
 
     -- * terms/decls
@@ -64,10 +65,13 @@ module U.Codebase.Sqlite.Operations
     -- ** dependents index
     dependents,
     dependentsOfComponent,
+    dependentsWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
     termsHavingType,
+    filterTermsByReferenceHavingType,
+    filterTermsByReferentHavingType,
 
     -- ** type mentions index
     Q.addTypeMentionsToIndexForTerm,
@@ -538,6 +542,11 @@ expectDeclByReference r@(C.Reference.Id h i) = do
   Q.expectObjectIdForPrimaryHash h
     >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
     >>= uncurry Q.s2cDecl
+
+expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
+expectDeclNumConstructors (C.Reference.Id h i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
 
 -- * Branch transformation
 
@@ -1041,6 +1050,24 @@ termsHavingType cTypeRef =
       set <- traverse s2cReferentId sIds
       pure (Set.fromList set)
 
+filterTermsByReferenceHavingType :: C.TypeReference -> [C.Reference.Id] -> Transaction [C.Reference.Id]
+filterTermsByReferenceHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferenceId cTermRefIds
+      matches <- Q.filterTermsByReferenceHavingType sTypeRef sTermRefIds
+      traverse s2cReferenceId matches
+
+filterTermsByReferentHavingType :: C.TypeReference -> [C.Referent.Id] -> Transaction [C.Referent.Id]
+filterTermsByReferentHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferentId cTermRefIds
+      matches <- Q.filterTermsByReferentHavingType sTypeRef sTermRefIds
+      traverse s2cReferentId matches
+
 typeReferenceForTerm :: S.Reference.Id -> Transaction S.ReferenceH
 typeReferenceForTerm = Q.getTypeReferenceForReferent . C.Referent.RefId
 
@@ -1134,6 +1161,20 @@ dependents selector r = do
       r' <- c2sReference r
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
+
+-- | `dependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id C.ReferenceType)
+dependentsWithinScope scope query = do
+  scope' <- Set.traverse c2sReferenceId scope
+  query' <- Set.traverse c2sReference query
+  Q.getDependentsWithinScope scope' query'
+    >>= Map.bitraverse s2cReferenceId (pure . objectTypeToReferenceType)
+  where
+    objectTypeToReferenceType = \case
+      ObjectType.TermComponent -> C.RtTerm
+      ObjectType.DeclComponent -> C.RtType
+      _ -> error "Q.getDependentsWithinScope shouldn't return any other types"
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

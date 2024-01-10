@@ -32,6 +32,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.KindInference.Error qualified as KindInference
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
@@ -41,8 +42,6 @@ import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
@@ -262,7 +261,7 @@ analyseFile fileUri srcText notes = do
 computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
 computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
   let defLocations = fileDefLocations fileSummary
-  conflictedNames <- Names.conflicts . Names.currentNames <$> getParseNames
+  conflictedNames <- Names.conflicts <$> getParseNames
   let locationForName :: Name -> Set Ann
       locationForName name = fold $ Map.lookup (Name.toVar name) defLocations
   let conflictedTermLocations =
@@ -332,6 +331,7 @@ analyseNotes fileUri ppe src notes = do
               pure (r, ("duplicate definition",) <$> rs)
             TypeError.RedundantPattern loc -> singleRange loc
             TypeError.UncoveredPatterns loc _pats -> singleRange loc
+            TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
             -- These type errors don't have custom type error conversions, but some
             -- still have valid diagnostics.
             TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -352,6 +352,7 @@ analyseNotes fileUri ppe src notes = do
               Context.UncoveredPatterns loc _ -> singleRange loc
               Context.RedundantPattern loc -> singleRange loc
               Context.InaccessiblePattern loc -> singleRange loc
+              Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
           shouldHaveBeenHandled e = do
             Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
             empty
@@ -511,11 +512,11 @@ ppedForFileHelper uf tf = do
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
       let fileNames = UF.toNames uf
-          filePPED = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames fileNames)
+          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint

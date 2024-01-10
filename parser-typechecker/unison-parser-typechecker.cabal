@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -35,6 +35,7 @@ library
       Unison.Codebase
       Unison.Codebase.Branch
       Unison.Codebase.Branch.BranchDiff
+      Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
       Unison.Codebase.Branch.Raw
@@ -43,7 +44,6 @@ library
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
@@ -96,6 +96,20 @@ library
       Unison.DataDeclaration.Dependencies
       Unison.FileParsers
       Unison.Hashing.V2.Convert
+      Unison.KindInference
+      Unison.KindInference.Constraint.Context
+      Unison.KindInference.Constraint.Pretty
+      Unison.KindInference.Constraint.Provenance
+      Unison.KindInference.Constraint.Solved
+      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.Unsolved
+      Unison.KindInference.Error
+      Unison.KindInference.Error.Pretty
+      Unison.KindInference.Generate
+      Unison.KindInference.Generate.Monad
+      Unison.KindInference.Solve
+      Unison.KindInference.Solve.Monad
+      Unison.KindInference.UVar
       Unison.Parsers
       Unison.PatternMatchCoverage
       Unison.PatternMatchCoverage.Class
@@ -200,6 +214,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -245,7 +260,6 @@ library
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -282,6 +296,7 @@ library
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -314,6 +329,7 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -324,6 +340,7 @@ library
     , vector
     , wai
     , warp
+    , witch
     , witherable
     , x509
     , x509-store
@@ -387,6 +404,7 @@ test-suite parser-typechecker-tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -435,7 +453,6 @@ test-suite parser-typechecker-tests
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -472,6 +489,7 @@ test-suite parser-typechecker-tests
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -506,6 +524,7 @@ test-suite parser-typechecker-tests
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -516,6 +535,7 @@ test-suite parser-typechecker-tests
     , vector
     , wai
     , warp
+    , witch
     , witherable
     , x509
     , x509-store

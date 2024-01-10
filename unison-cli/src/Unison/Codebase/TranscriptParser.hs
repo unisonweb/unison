@@ -201,19 +201,21 @@ withTranscriptRunner ::
   (TranscriptRunner -> m r) ->
   m r
 withTranscriptRunner verbosity ucmVersion configFile action = do
-  withRuntimes \runtime sbRuntime -> withConfig $ \config -> do
+  withRuntimes \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
-      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase $ \baseUrl -> do
+      Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
-    withRuntimes :: ((Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntimes ::
+      (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime -> do
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime -> do
           action runtime sbRuntime
+            =<< liftIO (RTI.startNativeRuntime ucmVersion)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of
@@ -235,11 +237,12 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Maybe Config ->
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
+run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   let initialPath = Path.absoluteEmpty
   unless (isSilent verbosity) . putPrettyLn $
@@ -264,15 +267,21 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
           Just accessToken ->
             \_codeserverID -> pure $ Right accessToken
   seedRef <- newIORef (0 :: Int)
-  inputQueue <- Q.newIO
-  cmdQueue <- Q.newIO
+  -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
+  -- e.g. a unison-file update by a command like 'edit'
+  inputQueue <- Q.newIO @(Stanza, Maybe Int)
+  -- Queue of UCM commands to run.
+  -- Nothing indicates the end of a ucm block.
+  cmdQueue <- Q.newIO @(Maybe UcmLine)
+  -- Queue of scratch file updates triggered by UCM itself, e.g. via `edit`, `update`, etc.
+  ucmScratchFileUpdatesQueue <- Q.newIO @(ScratchFileName, Text)
   unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
   hidden <- newIORef Shown
   allowErrors <- newIORef False
   hasErrors <- newIORef False
   mStanza <- newIORef Nothing
-  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1 :: Int ..])
+  traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` (Just <$> [1 :: Int ..]))
   let patternMap =
         Map.fromList $
           validInputs
@@ -315,11 +324,14 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
           -- end of ucm block
           Just Nothing -> do
             liftIO (output "\n```\n")
-            -- We clear the file cache after each `ucm` stanza, so
-            -- that `load` command can read the file written by `edit`
-            -- rather than hitting the cache.
-            liftIO (writeIORef unisonFiles Map.empty)
             liftIO dieUnexpectedSuccess
+            atomically $ void $ do
+              scratchFileUpdates <- Q.flush ucmScratchFileUpdatesQueue
+              -- Push them onto the front stanza queue in the correct order.
+              for (reverse scratchFileUpdates) \(fp, contents) -> do
+                let fenceDescription = "unison:added-by-ucm " <> fp
+                -- Output blocks for any scratch file updates the ucm block triggered.
+                Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing)
             awaitInput
           -- ucm command to run
           Just (Just ucmLine) -> do
@@ -336,7 +348,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                     UcmContextLooseCode path ->
                       if curPath == path
                         then pure Nothing
-                        else pure $ Just (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                        else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
                     UcmContextProject (ProjectAndBranch projectName branchName) -> do
                       ProjectAndBranch project branch <-
                         ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
@@ -344,7 +356,7 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                       pure
                         if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                           then Nothing
-                          else Just (ProjectSwitchI (Just $ ProjectAndBranchNames'Unambiguous (These projectName branchName)))
+                          else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
                   Just switchCommand -> do
                     atomically $ Q.undequeue cmdQueue (Just p)
@@ -357,10 +369,19 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                         rootVar <- use #root
                         numberedArgs <- use #numberedArgs
                         let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
-                          Left msg -> liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
-                          Right input -> pure $ Right input
+                          Left msg -> do
+                            liftIO $ writeIORef hasErrors True
+                            liftIO (readIORef allowErrors) >>= \case
+                              True -> do
+                                liftIO (output . Pretty.toPlain terminalWidth $ ("\n" <> msg <> "\n"))
+                                awaitInput
+                              False -> do
+                                liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
+                          -- No input received from this line, try again.
+                          Right Nothing -> awaitInput
+                          Right (Just (_expandedArgs, input)) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)
@@ -391,10 +412,14 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
                     liftIO (writeIORef hidden hide)
                     liftIO (outputEcho $ show s)
                     liftIO (writeIORef allowErrors errOk)
+                    -- Open a ucm block which will contain the output from UCM
+                    -- after processing the the UnisonFileChanged event.
                     liftIO (output "```ucm\n")
+                    -- Close the ucm block after processing the UnisonFileChanged event.
                     atomically . Q.enqueue cmdQueue $ Nothing
-                    liftIO (modifyIORef' unisonFiles (Map.insert (fromMaybe "scratch.u" filename) txt))
-                    pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
+                    let sourceName = fromMaybe "scratch.u" filename
+                    liftIO $ updateVirtualFile sourceName txt
+                    pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
                     liftIO (output "```api\n")
                     liftIO (for_ apiRequests apiRequest)
@@ -423,6 +448,17 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
             -- transcripts (like docs, which use ``` in their syntax).
             let f = Cli.LoadSuccess <$> readUtf8 (Text.unpack name)
              in f <|> pure Cli.InvalidSourceNameError
+
+      writeSourceFile :: ScratchFileName -> Text -> IO ()
+      writeSourceFile fp contents = do
+        shouldShowSourceChanges <- (== Shown) <$> readIORef hidden
+        when shouldShowSourceChanges $ do
+          atomically (Q.enqueue ucmScratchFileUpdatesQueue (fp, contents))
+        updateVirtualFile fp contents
+
+      updateVirtualFile :: ScratchFileName -> Text -> IO ()
+      updateVirtualFile fp contents = do
+        liftIO (modifyIORef' unisonFiles (Map.insert fp contents))
 
       print :: Output.Output -> IO ()
       print o = do
@@ -497,10 +533,12 @@ run verbosity dir stanzas codebase runtime sbRuntime config ucmVersion baseURL =
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
             loadSource = loadPreviousUnisonBlock,
+            writeSource = writeSourceFile,
             notify = print,
             notifyNumbered = printNumbered,
             runtime,
             sandboxedRuntime = sbRuntime,
+            nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
             ucmVersion
           }

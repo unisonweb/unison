@@ -13,13 +13,15 @@ threadEyeDeez _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type A
+      type A
       threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
@@ -28,7 +30,7 @@ threadEyeDeez _ =
 
   ⍟ I've added these definitions:
   
-    unique type A
+    type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 .> run threadEyeDeez
@@ -44,6 +46,8 @@ threadEyeDeez _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   

@@ -34,6 +34,7 @@ where
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Proxy
+import Network.HTTP.Client qualified as Http.Client
 import Network.URI (URI)
 import Network.URI qualified as URI
 import Servant.API ((:<|>) (..), (:>))
@@ -255,7 +256,12 @@ servantClientToCli action = do
 
   let clientEnv :: ClientEnv
       clientEnv =
-        mkClientEnv httpManager hardCodedBaseUrl
+        (mkClientEnv httpManager hardCodedBaseUrl)
+          { Servant.makeClientRequest = \url request ->
+              (Servant.defaultMakeClientRequest url request)
+                { Http.Client.responseTimeout = Http.Client.responseTimeoutMicro (60 * 1000 * 1000 {- 60s -})
+                }
+          }
 
   liftIO (runClientM action clientEnv)
 

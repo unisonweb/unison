@@ -1,5 +1,6 @@
 module Unison.Typechecker.Extractor where
 
+import Unison.KindInference (KindError)
 import Control.Monad.Reader
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
@@ -253,6 +254,12 @@ redundantPattern :: ErrorExtractor v loc loc
 redundantPattern =
   cause >>= \case
     C.RedundantPattern patternLoc -> pure patternLoc
+    _ -> empty
+
+kindInferenceFailure :: ErrorExtractor v loc (KindError v loc)
+kindInferenceFailure =
+  cause >>= \case
+    C.KindInferenceFailure ke -> pure ke
     _ -> empty
 
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)

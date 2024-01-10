@@ -32,7 +32,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update
+.subpath> update.old
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
@@ -76,7 +76,7 @@ someTerm _ = None
 Update...
 
 ```ucm
-.subpath.preserve> update
+.subpath.preserve> update.old
 .> cd .
 ```
 
@@ -128,7 +128,7 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update
+.subpath.one> update.old
 ```
 
 The other namespace should be left alone.

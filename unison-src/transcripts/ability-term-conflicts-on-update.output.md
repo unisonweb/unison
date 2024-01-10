@@ -12,13 +12,15 @@ unique ability Channels where
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Channels
+      ability Channels
 
 ```
 ```ucm
@@ -28,7 +30,7 @@ unique ability Channels where
 
   ⍟ I've added these definitions:
   
-    unique ability Channels
+    ability Channels
 
 ```
 Now we update the ability, changing the name of the constructor, _but_, we simultaneously
@@ -48,6 +50,8 @@ thing _ = send 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -60,13 +64,13 @@ thing _ = send 1
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique ability Channels
+      ability Channels
 
 ```
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
 ```ucm
-.ns> update patch Channels.send
+.ns> update.old patch Channels.send
 
   x These definitions failed:
   
@@ -75,7 +79,7 @@ These should fail with a term/ctor conflict since we exclude the ability from th
   
     Tip: Use `help filestatus` to learn more.
 
-.ns> update patch thing
+.ns> update.old patch thing
 
   ⍟ I've added these definitions:
   
@@ -84,7 +88,7 @@ These should fail with a term/ctor conflict since we exclude the ability from th
   
   ⍟ I've updated these names to your new definition:
   
-    unique ability Channels
+    ability Channels
 
 ```
 If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
@@ -102,6 +106,8 @@ thing _ = send 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -118,7 +124,7 @@ thing _ = send 1
 These updates should succeed since `Channels` is a dependency.
 
 ```ucm
-.ns> update.preview patch Channels.send
+.ns> update.old.preview patch Channels.send
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -131,7 +137,7 @@ These updates should succeed since `Channels` is a dependency.
     
       Channels.send : a ->{Channels} ()
 
-.ns> update.preview patch thing
+.ns> update.old.preview patch thing
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -149,7 +155,7 @@ These updates should succeed since `Channels` is a dependency.
 We should also be able to successfully update the whole thing.
 
 ```ucm
-.ns> update
+.ns> update.old
 
   ⊡ Ignored previously added definitions: Channels
   
@@ -166,6 +172,8 @@ X.x = 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -192,6 +200,8 @@ structural ability X where
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

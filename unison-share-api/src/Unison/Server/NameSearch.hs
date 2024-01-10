@@ -6,6 +6,7 @@ import Data.Set qualified as Set
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
+import Unison.NamesWithHistory (SearchType)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -21,7 +22,7 @@ import Unison.Server.SearchResult qualified as SR
 -- You can use the individual methods of a name search or can use 'applySearch'.
 data Search m r = Search
   { lookupNames :: r -> m (Set (HQ'.HashQualified Name)),
-    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> m (Set r),
+    lookupRelativeHQRefs' :: SearchType -> HQ'.HashQualified Name -> m (Set r),
     makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> m SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
@@ -48,9 +49,9 @@ hoistNameSearch f NameSearch {typeSearch, termSearch} =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: (Show r, Monad m) => Search m r -> HQ'.HashQualified Name -> m [SR.SearchResult]
-applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query = do
-  refs <- (lookupRelativeHQRefs' query)
+applySearch :: (Show r, Monad m) => Search m r -> SearchType -> HQ'.HashQualified Name -> m [SR.SearchResult]
+applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} searchType query = do
+  refs <- (lookupRelativeHQRefs' searchType query)
   -- a bunch of references will match a HQ ref.
   for (toList refs) \ref -> do
     let -- Precondition: the input set is non-empty

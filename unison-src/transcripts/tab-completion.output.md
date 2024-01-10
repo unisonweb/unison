@@ -1,8 +1,6 @@
 # Tab Completion
 
-
 Test that tab completion works as expected.
-
 
 ## Tab Complete Command Names
 
@@ -16,7 +14,6 @@ Test that tab completion works as expected.
 .> debug.tab-complete delete.
 
    delete.branch
-   delete.link
    delete.namespace
    delete.namespace.force
    delete.patch
@@ -43,13 +40,15 @@ unique type subnamespace.AType = A | B
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type subnamespace.AType
+      type subnamespace.AType
       othernamespace.someName    : ##Nat
       subnamespace.someName      : ##Nat
       subnamespace.someOtherName : ##Nat
@@ -133,5 +132,112 @@ unique type subnamespace.AType = A | B
     subnamespace.AType.
   * subnamespace.someName
   * subnamespace.someOtherName
+
+```
+Tab Complete Delete Subcommands
+
+```unison
+unique type Foo = A | B
+add : a -> a
+add b = b
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+      add : a -> a
+
+```
+```ucm
+.> update.old
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+    add : a -> a
+
+.> debug.tab-complete delete.type Foo
+
+  * Foo
+    Foo.
+
+.> debug.tab-complete delete.term add
+
+  * add
+
+```
+## Tab complete projects and branches
+
+```ucm
+.> project.create-empty myproject
+
+  🎉 I've created the project myproject.
+
+  🎨 Type `ui` to explore this project's code in your browser.
+  🔭 Discover libraries at https://share.unison-lang.org
+  📖 Use `help-topic projects` to learn more about projects.
+  
+  Write your first Unison code with UCM:
+  
+    1. Open scratch.u.
+    2. Write some Unison code and save the file.
+    3. In UCM, type `add` to save it to your new project.
+  
+  🎉 🥳 Happy coding!
+
+myproject/main> branch mybranch
+
+  Done. I've created the mybranch branch based off of main.
+  
+  Tip: Use `merge /mybranch /main` to merge your work back into
+       the main branch.
+
+myproject/main> debug.tab-complete branch.delete /mybr
+
+   /mybranch
+
+myproject/main> debug.tab-complete project.rename my
+
+   myproject
+
+```
+Commands which complete namespaces OR branches should list both
+
+```unison
+mybranchsubnamespace.term = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      mybranchsubnamespace.term : ##Nat
+
+```
+```ucm
+myproject/main> add
+
+  ⍟ I've added these definitions:
+  
+    mybranchsubnamespace.term : ##Nat
+
+myproject/main> debug.tab-complete merge mybr
+
+   /mybranch
+   mybranchsubnamespace
 
 ```

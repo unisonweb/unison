@@ -45,12 +45,10 @@ data Diff a = Diff
 
 -- | Represents the changes to definitions at a given path, not including child paths.
 --
--- Note: doesn't yet include any info on metadata or patch diffs. Feel free to add it.
+-- Note: doesn't yet include any info on patch diffs. Feel free to add it.
 data DefinitionDiffs = DefinitionDiffs
   { termDiffs :: Map NameSegment (Diff Referent),
     typeDiffs :: Map NameSegment (Diff Reference)
-    -- termMetadataDiffs :: Map (NameSegment, Referent) (Diff Reference),
-    -- typeMetadataDiffs :: Map (NameSegment, Reference) (Diff Reference)
     -- patchDiffs :: Map NameSegment (Diff ())
   }
   deriving stock (Show, Eq, Ord)

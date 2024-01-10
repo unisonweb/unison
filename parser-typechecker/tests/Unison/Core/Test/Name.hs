@@ -92,24 +92,24 @@ testSuffixSearch =
         (Name.searchBySuffix (n "map") rel)
       expectEqual'
         (n "List.map")
-        (Name.shortestUniqueSuffix (n "base.List.map") 1 rel)
+        (Name.suffixifyByHash (n "base.List.map") rel)
       expectEqual'
         (n "Set.map")
-        (Name.shortestUniqueSuffix (n "base.Set.map") 2 rel)
+        (Name.suffixifyByHash (n "base.Set.map") rel)
       expectEqual'
         (n "baz")
-        (Name.shortestUniqueSuffix (n "foo.bar.baz") 3 rel)
+        (Name.suffixifyByHash (n "foo.bar.baz") rel)
       expectEqual'
         (n "a.b.c")
-        (Name.shortestUniqueSuffix (n "a.b.c") 3 rel)
+        (Name.suffixifyByHash (n "a.b.c") rel)
       expectEqual'
         (n "a1.b.c")
-        (Name.shortestUniqueSuffix (n "a1.b.c") 3 rel)
+        (Name.suffixifyByHash (n "a1.b.c") rel)
       note . show $ Name.reverseSegments (n ".")
       note . show $ Name.reverseSegments (n "..")
       tests
         [ scope "(.) shortest unique suffix" $
-            expectEqual' (n ".") (Name.shortestUniqueSuffix (n "..") 6 rel),
+            expectEqual' (n ".") (Name.suffixifyByHash (n "..") rel),
           scope "(.) search by suffix" $
             expectEqual' (Set.fromList [6]) (Name.searchBySuffix (n ".") rel)
         ]

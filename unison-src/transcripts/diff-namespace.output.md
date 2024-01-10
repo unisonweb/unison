@@ -91,9 +91,8 @@ fslkdjflskdjflksjdf = 663
 Things we want to test:
 
 * Diffing identical namespaces
-* Adds, removes, updates (with and without metadata updates)
+* Adds, removes, updates
   * Adds with multiple names
-  * Adds with multiple names and different metadata on each
 * Moved and copied definitions
   * Moves that have more that 1 initial or final name
 * ... terms and types
@@ -133,16 +132,6 @@ structural ability X a1 a2 where x : ()
 .ns1> alias.term helloWorld helloWorld2
 
   Done.
-
-.ns1> link b fromJust
-
-  Updates:
-  
-    1. ns1.fromJust : Nat
-       + 2. b : Nat
-    
-    3. ns1.fromJust' : Nat
-       + 4. b : Nat
 
 .ns1> fork .ns1 .ns2
 
@@ -209,11 +198,11 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update
+.ns2> update.old
 
   ⍟ I've added these definitions:
   
-    unique type Y a b
+    type Y a b
     d : Nat
     e : Nat
     f : Nat
@@ -222,15 +211,7 @@ unique type Y a b = Y a b
   
     b        : Text
     fromJust : Nat
-      (The old definition was also named fromJust'. I updated
-      this name too.)
-
-.ns2> links fromJust
-
-  1. b : Text
-  
-  Tip: Try using `display 1` to display the first result or
-       `view 1` to view its source.
+      (The old definition was also named fromJust'.)
 
 .> diff.namespace ns1 ns2
 
@@ -240,30 +221,26 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    9.  fromJust' : Nat
-        - 10. ns1.b : Nat
-        + 11. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y : a -> b -> Y a b
-    14. d   : Nat
-    15. e   : Nat
-    16. f   : Nat
+    8.  type Y a b
+    9.  Y.Y : a -> b -> Y a b
+    10. d   : Nat
+    11. e   : Nat
+    12. f   : Nat
   
-    17. patch patch (added 2 updates)
+    13. patch patch (added 2 updates)
 
 .> alias.term ns2.d ns2.d'
 
@@ -285,144 +262,34 @@ unique type Y a b = Y a b
     2.  └ fromJust#rnbo52q2sh : Text
         ↓
     3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
   
   Updates:
   
-    6.  b : Nat
+    4.  b : Nat
         ↓
-    7.  b : Text
+    5.  b : Text
     
-    8.  fromJust' : Nat
+    6.  fromJust' : Nat
         ↓
-    9.  fromJust' : Nat
-        - 10. ns1.b : Nat
-        + 11. ns2.b : Text
+    7.  fromJust' : Nat
   
   Added definitions:
   
-    12. unique type Y a b
-    13. Y.Y  : a -> b -> Y a b
-    14. ┌ d  : Nat
-    15. └ d' : Nat
-    16. e    : Nat
-    17. f    : Nat
+    8.  type Y a b
+    9.  Y.Y  : a -> b -> Y a b
+    10. ┌ d  : Nat
+    11. └ d' : Nat
+    12. e    : Nat
+    13. f    : Nat
   
-    18. patch patch (added 2 updates)
+    14. patch patch (added 2 updates)
   
   Name changes:
   
     Original  Changes
-    19. A     20. A' (added)
+    15. A     16. A' (added)
     
-    21. X    22. X' (added)
-
-.> link ns1.c ns2.f
-
-  Updates:
-  
-    1. ns2.f : Nat
-       + 2. c : Nat
-
-.> link ns2.c ns2.c
-
-  Updates:
-  
-    1. ns2.c : Nat
-       + 2. c : Nat
-
-.> diff.namespace ns1 ns2
-
-  Resolved name conflicts:
-  
-    1.  ┌ fromJust#gjmq673r1v : Nat
-    2.  └ fromJust#rnbo52q2sh : Text
-        ↓
-    3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
-  
-  Updates:
-  
-    6.  b : Nat
-        ↓
-    7.  b : Text
-    
-    8.  c : Nat
-        + 9.  c : Nat
-    
-    10. fromJust' : Nat
-        ↓
-    11. fromJust' : Nat
-        - 12. ns1.b : Nat
-        + 13. ns2.b : Text
-  
-  Added definitions:
-  
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
-  
-    20. patch patch (added 2 updates)
-  
-  Name changes:
-  
-    Original  Changes
-    21. A     22. A' (added)
-    
-    23. X    24. X' (added)
-
-.> unlink ns2.b ns2.fromJust
-
-  I didn't make any changes.
-
-.> diff.namespace ns1 ns2
-
-  Resolved name conflicts:
-  
-    1.  ┌ fromJust#gjmq673r1v : Nat
-    2.  └ fromJust#rnbo52q2sh : Text
-        ↓
-    3.  fromJust#6gn1k53ie0 : Nat
-        - 4.  ns1.b : Nat
-        + 5.  ns2.b : Text
-  
-  Updates:
-  
-    6.  b : Nat
-        ↓
-    7.  b : Text
-    
-    8.  c : Nat
-        + 9.  c : Nat
-    
-    10. fromJust' : Nat
-        ↓
-    11. fromJust' : Nat
-        - 12. ns1.b : Nat
-        + 13. ns2.b : Text
-  
-  Added definitions:
-  
-    14. unique type Y a b
-    15. Y.Y  : a -> b -> Y a b
-    16. ┌ d  : Nat
-    17. └ d' : Nat
-    18. e    : Nat
-    19. f    : Nat (+1 metadata)
-  
-    20. patch patch (added 2 updates)
-  
-  Name changes:
-  
-    Original  Changes
-    21. A     22. A' (added)
-    
-    23. X    24. X' (added)
+    17. X    18. X' (added)
 
 .> alias.type ns1.X ns1.X2
 
@@ -477,7 +344,7 @@ bdependent = "banana"
 ```
 
 ```ucm
-.ns3> update
+.ns3> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -532,7 +399,7 @@ a = 444
 ```
 
 ```ucm
-.nsy> update
+.nsy> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -544,7 +411,7 @@ a = 555
 ```
 
 ```ucm
-.nsz> update
+.nsz> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -557,7 +424,7 @@ a = 555
   Added definitions:
   
     1. a : Nat
-    2. b : Nat (+1 metadata)
+    2. b : Nat
   
     3. patch patch (added 1 updates)
   
@@ -580,14 +447,15 @@ a = 555
        ↓
     2. ┌ a#mdl4vqtu00 : Nat
     3. └ a#vrs8gtkl2t : Nat
+    
+    4. b#unkqhuu66p : Nat
+       ↓
+    5. ┌ b#aapqletas7 : Nat
+    6. └ b#unkqhuu66p : Nat
   
   Updates:
   
-    4. b#unkqhuu66p : Nat
-  
-    There were 1 auto-propagated updates.
-  
-    5. patch patch (added 1 updates)
+    7. patch patch (added 1 updates)
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -609,14 +477,15 @@ a = 555
        ↓
     2. ┌ a#mdl4vqtu00 : Nat
     3. └ a#vrs8gtkl2t : Nat
-  
-  Updates:
-  
-    There were 2 auto-propagated updates.
+    
+    4. b#lhigeb1let : Nat
+       ↓
+    5. ┌ b#aapqletas7 : Nat
+    6. └ b#unkqhuu66p : Nat
   
   Added definitions:
   
-    4. patch patch (added 2 updates)
+    7. patch patch (added 2 updates)
 
 .nsw> view a b
 
@@ -645,6 +514,8 @@ x = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -669,6 +540,8 @@ y = 2
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -740,17 +613,10 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 - [x] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
 - [d] Maybe group and/or add headings to the types, constructors, terms
-- [x] check whether creating a name conflict + adding metadata puts the update
-      in both categories; if it does, then filter out metadataUpdates from the
-      other categories
 - [x] add tagging of propagated updates to test propagated updates output
 - [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
 - [x] delete.term has some bonkers output
 - [x] Make a decision about how we want to show constructors in the diff
-- [x] When you delete a name with metadata, it also shows up in updates section
-      with the deleted metadata.
-- [x] An add with new metadata is getting characterized as an update
-- [x] can there be a metadata-only update where it's not a singleton old and new reference
 - [x] 12.patch patch needs a space
 - [x] This looks like garbage
 - [x] Extra 2 blank lines at the end of the add section

@@ -31,7 +31,10 @@ runTestCase name =
   hfile = directory ++ name ++ ".v4.hash"
 
   p@(f, i) = loadSelfContained sfile
-  pl@(fl, il) = loadSelfContained lsfile
+  pl@(fl, il) =
+    if fileExists lsfile
+    then loadSelfContained lsfile
+    else p
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
 
@@ -53,6 +56,8 @@ serialTests = do
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -88,8 +93,9 @@ serialTests = do
   ◉ serialTests   case-01
   ◉ serialTests   case-02
   ◉ serialTests   case-03
+  ◉ serialTests   case-04
   
-  ✅ 4 test(s) passing
+  ✅ 5 test(s) passing
   
   Tip: Use view serialTests to view the source of a test.
 

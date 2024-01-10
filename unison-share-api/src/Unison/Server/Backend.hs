@@ -1,12 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend
   ( -- * Types
@@ -28,7 +22,7 @@ module Unison.Server.Backend
     basicSuffixifiedNames,
     bestNameForTerm,
     bestNameForType,
-    definitionsBySuffixes,
+    definitionsByName,
     displayType,
     docsInBranchToHtmlFiles,
     expandShortCausalHash,
@@ -151,8 +145,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Names.Scoped qualified as ScopedNames
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -203,6 +196,7 @@ import Unison.Util.Set qualified as Set
 import Unison.Util.SyntaxText qualified as UST
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
+import UnliftIO qualified
 import UnliftIO.Environment qualified as Env
 
 type SyntaxText = UST.SyntaxText' Reference
@@ -261,8 +255,8 @@ hoistBackend f (Backend m) =
   Backend (mapReaderT (mapExceptT f) m)
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
-suffixifyNames hashLength names =
-  PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
+suffixifyNames hashLength =
+  PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
@@ -317,7 +311,7 @@ shallowPPE codebase b = do
     hl <- Codebase.hashLength
     names <- shallowNames codebase b
     pure (hl, names)
-  pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory names mempty
+  pure $ PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength $ names
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -726,13 +720,13 @@ getCurrentPrettyNames hashLen scope root =
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
       where
-        backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
+        backup = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root (AllNames mempty)
   where
-    primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
+    primary = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root scope
 
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames :: NameScoping -> Branch m -> Names
 getCurrentParseNames scope root =
-  NamesWithHistory (parseNamesForBranch root scope) mempty
+  parseNamesForBranch root scope
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -755,9 +749,10 @@ fixupNamesRelative root names =
 hqNameQuery ::
   Codebase m v Ann ->
   NameSearch Sqlite.Transaction ->
+  Names.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction QueryResult
-hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
+hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -782,7 +777,7 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} hqs = do
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
 
   -- Now do the actual name query
-  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch name) (applySearch termSearch name))
+  resultss <- for hqnames (\name -> liftA2 (<>) (applySearch typeSearch searchType name) (applySearch termSearch searchType name))
   let (misses, hits) =
         zipWith
           ( \hqname results ->
@@ -954,17 +949,22 @@ evalDocRef ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
-  IO (Doc.EvaluatedDoc Symbol)
+  -- Evaluation always produces a doc, (it just might have error messages in it).
+  -- We still return the errors for logging and debugging.
+  IO (Doc.EvaluatedDoc Symbol, [Rt.Error])
 evalDocRef rt codebase r = do
   let tm = Term.ref () r
-  Doc.evalDoc terms typeOf eval decls tm
+  errsVar <- UnliftIO.newTVarIO []
+  evalResult <- Doc.evalDoc terms typeOf (eval errsVar) decls tm
+  errs <- UnliftIO.readTVarIO errsVar
+  pure (evalResult, errs)
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
       fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.getTerm codebase r)
 
     typeOf r = fmap void <$> Codebase.runTransaction codebase (Codebase.getTypeOfReferent codebase r)
-    eval (Term.amap (const mempty) -> tm) = do
+    eval errsVar (Term.amap (const mempty) -> tm) = do
       -- We use an empty ppe for evalutation, it's only used for adding additional context to errors.
       let evalPPE = PPE.empty
       let codeLookup = Codebase.toCodeLookup codebase
@@ -976,12 +976,17 @@ evalDocRef rt codebase r = do
         _ -> do
           case r of
             -- don't cache when there were decompile errors
-            Just (errs, tmr) | null errs ->
-              Codebase.runTransaction codebase do
-                Codebase.putWatch
-                  WK.RegularWatch
-                  (Hashing.hashClosedTerm tm)
-                  (Term.amap (const mempty) tmr)
+            Just (errs, tmr)
+              | null errs ->
+                  Codebase.runTransaction codebase do
+                    Codebase.putWatch
+                      WK.RegularWatch
+                      (Hashing.hashClosedTerm tm)
+                      (Term.amap (const mempty) tmr)
+              | otherwise -> do
+                  UnliftIO.atomically $ do
+                    UnliftIO.modifyTVar errsVar (errs ++)
+                    pure ()
             _ -> pure ()
       pure $ r <&> Term.amap (const mempty) . snd
 
@@ -994,15 +999,15 @@ evalDocRef rt codebase r = do
 docsForDefinitionName ::
   Codebase IO Symbol Ann ->
   NameSearch Sqlite.Transaction ->
+  Names.SearchType ->
   Name ->
   IO [TermReference]
-docsForDefinitionName codebase (NameSearch {termSearch}) name = do
+docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
   let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
-        -- TODO: Should replace this with an exact name lookup.
-        lookupRelativeHQRefs' termSearch (HQ'.NameOnly name)
+        lookupRelativeHQRefs' termSearch searchType (HQ'.NameOnly name)
     filterForDocs (toList refs)
   where
     filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
@@ -1021,14 +1026,14 @@ renderDocRefs ::
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
   t TermReference ->
-  IO (t (HashQualifiedName, UnisonHash, Doc.Doc))
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [Rt.Error]))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
-  for eDocs \(ref, eDoc) -> do
+  for eDocs \(ref, (eDoc, docEvalErrs)) -> do
     let name = bestNameForTerm @Symbol (PPED.suffixifiedPPE pped) width (Referent.Ref ref)
     let hash = Reference.toText ref
     let renderedDoc = Doc.renderDoc pped eDoc
-    pure (name, hash, renderedDoc)
+    pure (name, hash, renderedDoc, docEvalErrs)
 
 docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
@@ -1036,7 +1041,9 @@ docsInBranchToHtmlFiles ::
   Branch IO ->
   Path ->
   FilePath ->
-  IO ()
+  -- Returns any doc evaluation errors which may have occurred.
+  -- Note that all docs will still be rendered even if there are errors.
+  IO [Rt.Error]
 docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
@@ -1049,16 +1056,19 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       pure (docTermsWithNames, hqLength)
   let docNamesByRef = Map.fromList docTermsWithNames
   let printNames = prettyNamesForBranch root (AllNames currentPath)
-  let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPED.fromNamesDecl hqLength printNamesWithHistory
+  let ppe = PPED.fromNamesSuffixifiedByHash hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
-  liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
+  liftIO $
+    docs & foldMapM \(name, text, doc, errs) -> do
+      renderDocToHtmlFile docNamesByRef directory (name, text, doc)
+      pure errs
   where
     renderDoc' ppe runtime codebase (docReferent, name) = do
       let docReference = Referent.toReference docReferent
-      doc <- evalDocRef runtime codebase docReference <&> Doc.renderDoc ppe
+      (eDoc, errs) <- evalDocRef runtime codebase docReference
+      let renderedDoc = Doc.renderDoc ppe eDoc
       let hash = Reference.toText docReference
-      pure (name, hash, doc)
+      pure (name, hash, renderedDoc, errs)
 
     cleanPath :: FilePath -> FilePath
     cleanPath filePath =
@@ -1165,8 +1175,8 @@ scopedNamesForBranchHash codebase mbh path = do
         (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
         pure (parseNames, localNames)
 
-  let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
+  let localPPE = PPED.fromNamesSuffixifiedByHash hashLen localNames
+  let globalPPE = PPED.fromNamesSuffixifiedByHash hashLen parseNames
   pure (localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
@@ -1228,14 +1238,15 @@ data IncludeCycles
   = IncludeCycles
   | DontIncludeCycles
 
-definitionsBySuffixes ::
+definitionsByName ::
   Codebase m Symbol Ann ->
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
+  Names.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction DefinitionResults
-definitionsBySuffixes codebase nameSearch includeCycles query = do
-  QueryResult misses results <- hqNameQuery codebase nameSearch query
+definitionsByName codebase nameSearch includeCycles searchType query = do
+  QueryResult misses results <- hqNameQuery codebase nameSearch searchType query
   -- todo: remember to replace this with getting components directly,
   -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- Map.foldMapM (\ref -> (ref,) <$> displayTerm codebase ref) (searchResultsToTermRefs results)

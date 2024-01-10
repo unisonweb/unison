@@ -10,6 +10,7 @@ module U.Codebase.Reference
     Reference' (..),
     TermReference',
     TypeReference',
+    ReferenceType (..),
     pattern Derived,
     Id,
     Id' (..),
@@ -19,6 +20,7 @@ module U.Codebase.Reference
     t_,
     h_,
     idH,
+    idPos,
     idToHash,
     idToShortHash,
     isBuiltin,
@@ -29,16 +31,16 @@ module U.Codebase.Reference
   )
 where
 
-import Control.Lens (Lens, Prism, Prism', Traversal, lens, preview, prism)
+import Control.Lens (Lens, Lens', Prism, Prism', Traversal, lens, preview, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
 import Unison.Hash (Hash)
+import Unison.Hash qualified as H
 import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Hash qualified as H
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -65,6 +67,8 @@ type TermReferenceId = Id
 
 -- | A type declaration reference id.
 type TypeReferenceId = Id
+
+data ReferenceType = RtTerm | RtType deriving (Eq, Ord, Show)
 
 -- | Either a builtin or a user defined (hashed) top-level declaration. Used for both terms and types.
 data Reference' t h
@@ -109,15 +113,18 @@ type Pos = Word64
 data Id' h = Id h Pos
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-t_ :: Traversal (Reference' t h) (Reference' t' h) t t'
-t_ f = \case
-  ReferenceBuiltin t -> ReferenceBuiltin <$> f t
-  ReferenceDerived id -> pure (ReferenceDerived id)
+t_ :: Prism (Reference' t h) (Reference' t' h) t t'
+t_ = prism ReferenceBuiltin \case
+  ReferenceBuiltin t -> Right t
+  ReferenceDerived id -> Left (ReferenceDerived id)
 
 h_ :: Traversal (Reference' t h) (Reference' t h') h h'
 h_ f = \case
   ReferenceBuiltin t -> pure (ReferenceBuiltin t)
   Derived h i -> Derived <$> f h <*> pure i
+
+idPos :: Lens' (Id' h) Pos
+idPos = lens (\(Id _h w) -> w) (\(Id h _w) w -> Id h w)
 
 idH :: Lens (Id' h) (Id' h') h h'
 idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)
@@ -163,4 +170,3 @@ component :: H.Hash -> [k] -> [(k, Id)]
 component h ks =
   let
    in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
-

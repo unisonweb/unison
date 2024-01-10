@@ -1,11 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types #-}
-
 module Unison.Builtin
   ( codeLookup,
     constructorType,
     names,
-    names0,
     builtinDataDecls,
     builtinEffectDecls,
     builtinConstructorType,
@@ -37,7 +33,6 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
-import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.Reference qualified as R
@@ -55,11 +50,8 @@ type EffectDeclaration = DD.EffectDeclaration Symbol Ann
 
 type Type = Type.Type Symbol ()
 
-names :: NamesWithHistory
-names = NamesWithHistory names0 mempty
-
-names0 :: Names
-names0 = Names terms types
+names :: Names
+names = Names terms types
   where
     terms =
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)
@@ -516,6 +508,7 @@ builtinsSrc =
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.replicate" $ forall1 "a" (\a -> nat --> nat --> pat a --> pat a),
     B "Pattern.capture" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.captureAs" $ forall1 "a" (\a -> a --> pat a --> pat a),
     B "Pattern.join" $ forall1 "a" (\a -> list (pat a) --> pat a),
     B "Pattern.or" $ forall1 "a" (\a -> pat a --> pat a --> pat a),
     -- Pattern.run : Pattern a -> a -> Optional ([a], a)
@@ -832,6 +825,12 @@ ioBuiltins =
     ("IO.process.exitCode", phandle --> io (optionalt nat)),
     ( "validateSandboxed",
       forall1 "a" $ \a -> list termLink --> a --> boolean
+    ),
+    ("sandboxLinks", termLink --> io (list termLink)),
+    ( "Value.validateSandboxed",
+      list termLink
+        --> value
+        --> io (eithert (list termLink) (list termLink))
     ),
     ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls),
     ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls),

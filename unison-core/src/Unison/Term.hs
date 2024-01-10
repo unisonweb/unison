@@ -150,30 +150,29 @@ bindNames ::
   Names ->
   Term v a ->
   Names.ResolutionResult v a (Term v a)
-bindNames unsafeVarToName keepFreeTerms ns0 e = do
+bindNames unsafeVarToName keepFreeTerms ns e = do
   let freeTmVars = [(v, a) | (v, a) <- ABT.freeVarOccurrences keepFreeTerms e]
       -- !_ = trace "bindNames.free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars =
         [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations e), a <- as
         ]
-      ns = Names.NamesWithHistory ns0 mempty
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm (Name.convert $ unsafeVarToName v) ns of
+      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 ->
               pure (v, fromReferent a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
-      okTy (v, a) = case Names.lookupHQType (Name.convert $ unsafeVarToName v) ns of
+              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns refs)))
+      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
+              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e

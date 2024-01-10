@@ -12,6 +12,8 @@ structural type Y = Two Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -67,7 +69,7 @@ Test that replace works with types
 
 .scratch> view.patch patch
 
-  Edited Types: 1. X#68k40ra7l7 -> 3. X
+  Edited Types: 1. #68k40ra7l7 -> 3. X
   
   Edited Terms: 2. #gjmq673r1v -> 4. x
   
