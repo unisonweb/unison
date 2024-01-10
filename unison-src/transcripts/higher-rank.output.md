@@ -12,6 +12,8 @@ f id = (id 1, id "hi")
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,6 +41,8 @@ f id _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -65,13 +69,15 @@ Functor.blah = cases Functor f ->
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Functor f
+      type Functor f
       Functor.blah : Functor f -> ()
       Functor.map  : Functor f
                      -> (∀ a b. (a -> b) -> f a -> f b)
@@ -107,14 +113,16 @@ Loc.transform2 nt = cases Loc f ->
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Loc
-      unique ability Remote t
+      type Loc
+      ability Remote t
       Loc.blah       : Loc -> ()
       Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
                        -> Loc

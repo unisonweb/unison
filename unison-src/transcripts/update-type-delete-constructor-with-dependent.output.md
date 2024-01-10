@@ -11,13 +11,15 @@ foo = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       foo : Foo -> Nat
 
 ```
@@ -26,7 +28,7 @@ foo = cases
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     foo : Foo -> Nat
 
 ```
@@ -37,6 +39,8 @@ unique type Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -44,7 +48,7 @@ unique type Foo
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -55,15 +59,17 @@ unique type Foo
 
   That's done. Now I'm making sure everything typechecks...
 
-  foo : Foo -> Nat
-  foo = cases
-    Bar n   -> n
-    Baz n m -> n Nat.+ m
-  
-  unique type Foo = Bar Nat
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+foo : Foo -> Nat
+foo = cases
+  Bar n   -> n
+  Baz n m -> n Nat.+ m
+
+type Foo = Bar Nat
+```
+

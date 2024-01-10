@@ -65,3 +65,25 @@ add b = b
 .> debug.tab-complete delete.type Foo
 .> debug.tab-complete delete.term add
 ```
+
+## Tab complete projects and branches
+
+```ucm
+.> project.create-empty myproject
+myproject/main> branch mybranch
+myproject/main> debug.tab-complete branch.delete /mybr
+myproject/main> debug.tab-complete project.rename my
+```
+
+Commands which complete namespaces OR branches should list both
+
+```unison
+mybranchsubnamespace.term = 1
+```
+
+
+```ucm
+myproject/main> add
+myproject/main> debug.tab-complete merge mybr
+```
+

@@ -6,6 +6,8 @@ thingy = lib.old.foo + 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -30,11 +32,15 @@ proj/main> add
 ```ucm
 proj/main> upgrade old new
 
-  thingy : Nat
-  thingy =
-    use Nat +
-    foo + 10
-
-  I couldn't automatically upgrade old to new.
+  I couldn't automatically upgrade old to new. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
 
 ```
+```unison:added-by-ucm scratch.u
+thingy : Nat
+thingy =
+  use Nat +
+  foo + 10
+```
+

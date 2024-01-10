@@ -333,7 +333,7 @@ assertLocalProjectBranchDoesntExist rollback = \case
       Just project -> go project branchName
   ProjectAndBranch (LocalProjectKey'Project project) branchName -> go project branchName
   where
-    go project branchName =
-      Queries.projectBranchExistsByName (project ^. #projectId) branchName >>= \case
-        False -> pure (Right project)
-        True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
+    go project branchName = do
+      Queries.projectBranchExistsByName (project ^. #projectId) branchName & onTrueM do
+        rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
+      pure (Right project)

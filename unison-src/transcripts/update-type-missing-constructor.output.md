@@ -4,13 +4,15 @@ unique type Foo = Bar Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -18,7 +20,7 @@ unique type Foo = Bar Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 .> delete.term Foo.Bar
 
@@ -33,6 +35,8 @@ unique type Foo = Bar Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -40,24 +44,25 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
 .> view Foo
 
-  unique type Foo = #b509v3eg4k#0 Nat
+  type Foo = #b509v3eg4k#0 Nat
 
 .> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  I couldn't complete the update because I couldn't find 1
-  constructor(s) for Foo where I expected to. I found: []
+  I couldn't complete the update because the type Foo has
+  unnamed constructors. (I currently need each constructor to
+  have a name somewhere under the type name.)
   
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each constructor, and then try again.
+  each constructor, and then try the update again.
 
 ```

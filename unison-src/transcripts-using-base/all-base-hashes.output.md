@@ -29,7 +29,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        bSplit : [(a, b)] -> a -> ([(a, b)], [(a, b)])
        
   9.   -- #1j3e8vsn97qrprjr69ls6llab601sdh577uuvtu8pafmngf59suakbjr7asheadidcj3red140fnmdagsv9ihhdar1mc05ig28jtfr0
-       unique type builtin.ANSI.Color
+       type builtin.ANSI.Color
        
   10.  -- #1j3e8vsn97qrprjr69ls6llab601sdh577uuvtu8pafmngf59suakbjr7asheadidcj3red140fnmdagsv9ihhdar1mc05ig28jtfr0#0
        builtin.ANSI.Color.Black : Color
@@ -89,7 +89,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Any.unsafeExtract : Any -> a
        
   29.  -- #345f3nptqq1c1ped6gq8578kb2bhp1jejnqborsn6fq59rpe1rren3ogia9o9u8oc339vll953inma8pocc686ooknaitud8i5m27vg
-       unique type builtin.Author
+       type builtin.Author
        
   30.  -- #345f3nptqq1c1ped6gq8578kb2bhp1jejnqborsn6fq59rpe1rren3ogia9o9u8oc339vll953inma8pocc686ooknaitud8i5m27vg#0
        builtin.Author.Author : GUID -> Text -> Author
@@ -345,7 +345,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        ->{Exception} Either [Link.Term] [Link.Term]
        
   109. -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0
-       unique type builtin.ConsoleText
+       type builtin.ConsoleText
        
   110. -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#5
        builtin.ConsoleText.Background : Color
@@ -371,7 +371,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        -> ConsoleText
        
   116. -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko
-       unique type builtin.CopyrightHolder
+       type builtin.CopyrightHolder
        
   117. -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko#0
        builtin.CopyrightHolder.CopyrightHolder : GUID
@@ -464,7 +464,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Debug.watch : Text -> a -> a
        
   141. -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8
-       unique type builtin.Doc
+       type builtin.Doc
        
   142. -- #baiqeiovdrs4ju0grn5q5akq64k4kuhgifqno52smkkttqg31jkgm3qa9o3ohe54fgpiigd1tj0an7rfveopfg622sjj9v9g44n27go
        builtin.Doc.++ : Doc2 -> Doc2 -> Doc2
@@ -488,7 +488,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc.Source : Link -> Doc
        
   149. -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0
-       unique type builtin.Doc2
+       type builtin.Doc2
        
   150. -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#27
        builtin.Doc2.Anchor : Text -> Doc2 -> Doc2
@@ -524,7 +524,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Folded : Boolean -> Doc2 -> Doc2 -> Doc2
        
   161. -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68
-       unique type builtin.Doc2.FrontMatter
+       type builtin.Doc2.FrontMatter
        
   162. -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68#0
        builtin.Doc2.FrontMatter.FrontMatter : [(Text, Text)]
@@ -546,7 +546,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Join : [Doc2] -> Doc2
        
   167. -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto
-       unique type builtin.Doc2.LaTeXInline
+       type builtin.Doc2.LaTeXInline
        
   168. -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto#0
        builtin.Doc2.LaTeXInline.LaTeXInline : Text
@@ -556,7 +556,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Linebreak : Doc2
        
   170. -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0
-       unique type builtin.Doc2.MediaSource
+       type builtin.Doc2.MediaSource
        
   171. -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0#0
        builtin.Doc2.MediaSource.MediaSource : Text
@@ -611,7 +611,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Special : SpecialForm -> Doc2
        
   184. -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0
-       unique type builtin.Doc2.SpecialForm
+       type builtin.Doc2.SpecialForm
        
   185. -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#4
        builtin.Doc2.SpecialForm.Embed : Any -> SpecialForm
@@ -667,7 +667,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Style : Text -> Doc2 -> Doc2
        
   198. -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg
-       unique type builtin.Doc2.Svg
+       type builtin.Doc2.Svg
        
   199. -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg#0
        builtin.Doc2.Svg.Svg : Text -> Svg
@@ -676,7 +676,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.Table : [[Doc2]] -> Doc2
        
   201. -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg
-       unique type builtin.Doc2.Term
+       type builtin.Doc2.Term
        
   202. -- #42hub6f3fn0p5fk8t5bb2njhbgg5dj75vtqijvins6h45pkorakbu3g8h312ghu98ee4h75tb61fti192ckpk9cpdle9hsr8pdthkjo
        builtin.Doc2.term : '{g} a -> Doc2.Term
@@ -691,7 +691,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Doc2.UntitledSection : [Doc2] -> Doc2
        
   206. -- #794fndq1941e2khqv5uh7fmk9es2g4fkp8pr48objgs6blc1pqsdt2ab4o79noril2l7s70iu2eimn1smpd8t40j4g18btian8a2pt0
-       unique type builtin.Doc2.Video
+       type builtin.Doc2.Video
        
   207. -- #46er7fsgre91rer0mpk6vhaa2vie19i0piubvtnfmt3vq7odcjfr6tlf0mc57q4jnij9rkolpekjd6dpqdotn41guk9lp9qioa88m58
        builtin.Doc2.Video.config : Video -> [(Text, Text)]
@@ -870,7 +870,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Float.truncate : Float -> Int
        
   260. -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8
-       unique type builtin.GUID
+       type builtin.GUID
        
   261. -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8#0
        builtin.GUID.GUID : Bytes -> GUID
@@ -1039,13 +1039,13 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Int.xor : Int -> Int -> Int
        
   308. -- #s6ijmhqkkaus51chjgahogc7sdrqj9t66i599le2k7ts6fkl216f997hbses3mqk6a21vaj3cm1mertbldn0g503jt522vfo4rfv720
-       unique type builtin.io2.ArithmeticFailure
+       type builtin.io2.ArithmeticFailure
        
   309. -- #6dtvam7msqc64dimm8p0d8ehdf0330o4qbd2fdafb11jj1c2rg4ke3jdcmbgo6s4pf2jgm0vb76jeavv4ba6ht71t74p963a1miekag
-       unique type builtin.io2.ArrayFailure
+       type builtin.io2.ArrayFailure
        
   310. -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98
-       unique type builtin.io2.BufferMode
+       type builtin.io2.BufferMode
        
   311. -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#2
        builtin.io2.BufferMode.BlockBuffering : BufferMode
@@ -1090,7 +1090,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin type builtin.io2.Clock.internals.TimeSpec
        
   323. -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8
-       unique type builtin.io2.Failure
+       type builtin.io2.Failure
        
   324. -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8#0
        builtin.io2.Failure.Failure : Type
@@ -1099,7 +1099,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        -> Failure
        
   325. -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8
-       unique type builtin.io2.FileMode
+       type builtin.io2.FileMode
        
   326. -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#2
        builtin.io2.FileMode.Append : FileMode
@@ -1360,7 +1360,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.IO.tryEval : '{IO} a ->{IO, Exception} a
        
   391. -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0
-       unique type builtin.io2.IOError
+       type builtin.io2.IOError
        
   392. -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#0
        builtin.io2.IOError.AlreadyExists : IOError
@@ -1387,10 +1387,10 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.IOError.UserError : IOError
        
   400. -- #6ivk1e38hh0l9gcl8fn4mhf8bmak3qaji36vevg5e1n16ju5i4cl9u5gmqi7u16b907rd98gd60pouma892efbqt2ri58tmu99hp77g
-       unique type builtin.io2.IOFailure
+       type builtin.io2.IOFailure
        
   401. -- #574pvphqahl981k517dtrqtq812m05h3hj6t2bt9sn3pknenfik1krscfdb6r66nf1sm7g3r1r56k0c6ob7vg4opfq4gihi8njbnhsg
-       unique type builtin.io2.MiscFailure
+       type builtin.io2.MiscFailure
        
   402. -- ##MVar
        builtin type builtin.io2.MVar
@@ -1468,13 +1468,13 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.Ref.Ticket.read : Ticket a -> a
        
   423. -- #vph2eas3lf2gi259f3khlrspml3id2l8u0ru07kb5fd833h238jk4iauju0b6decth9i3nao5jkf5eej1e1kovgmu5tghhh8jq3i7p8
-       unique type builtin.io2.RuntimeFailure
+       type builtin.io2.RuntimeFailure
        
   424. -- ##sandboxLinks
        builtin.io2.sandboxLinks : Link.Term ->{IO} [Link.Term]
        
   425. -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40
-       unique type builtin.io2.SeekMode
+       type builtin.io2.SeekMode
        
   426. -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#0
        builtin.io2.SeekMode.AbsoluteSeek : SeekMode
@@ -1489,7 +1489,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin type builtin.io2.Socket
        
   430. -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8
-       unique type builtin.io2.StdHandle
+       type builtin.io2.StdHandle
        
   431. -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#2
        builtin.io2.StdHandle.StdErr : StdHandle
@@ -1510,13 +1510,13 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.io2.STM.retry : '{STM} a
        
   437. -- #cggbdfff21ac5uedf4qvn4to83clinvhsovrila35u7f7e73g4l6hoj8pjmjnk713a8luhnn4bi1j9ai1nl0can1un66hvg230eog9g
-       unique type builtin.io2.STMFailure
+       type builtin.io2.STMFailure
        
   438. -- ##ThreadId
        builtin type builtin.io2.ThreadId
        
   439. -- #ggh649864d9bfnk90n7kgtj7dflddc4kn8osu7u7mub8p7l8biid8dgtungj4u005h7karbgupfpum9jp94spks3ma1sgh39bhirv38
-       unique type builtin.io2.ThreadKilledFailure
+       type builtin.io2.ThreadKilledFailure
        
   440. -- ##Tls
        builtin type builtin.io2.Tls
@@ -1620,7 +1620,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin type builtin.io2.Tls.Version
        
   465. -- #r3gag1btclr8iclbdt68irgt8n1d1vf7agv5umke3dgdbl11acj6easav6gtihanrjnct18om07638rne9ej06u2bkv2v4l36knm2l0
-       unique type builtin.io2.TlsFailure
+       type builtin.io2.TlsFailure
        
   466. -- ##TVar
        builtin type builtin.io2.TVar
@@ -1654,19 +1654,19 @@ This transcript is intended to make visible accidental changes to the hashing al
        ->{IO} Either [Link.Term] [Link.Term]
        
   475. -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8
-       unique type builtin.IsPropagated
+       type builtin.IsPropagated
        
   476. -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8#0
        builtin.IsPropagated.IsPropagated : IsPropagated
        
   477. -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0
-       unique type builtin.IsTest
+       type builtin.IsTest
        
   478. -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0#0
        builtin.IsTest.IsTest : IsTest
        
   479. -- #68haromionghg6cvojngjrgc7t0ob658nkk8b20fpho6k6ltjtf6rfmr4ia1omige97hk34lu21qsj933vl1dkpbna7evbjfkh71r9g
-       unique type builtin.License
+       type builtin.License
        
   480. -- #knhl4mlkqf0mt877flahlbas2ufb7bub8f11vi9ihh9uf7r6jqaglk7rm6912q1vml50866ddl0qfa4o6d7o0gomchaoae24m0u2nk8
        builtin.License.copyrightHolders : License
@@ -1715,13 +1715,13 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.License.years.set : [Year] -> License -> License
        
   490. -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0
-       unique type builtin.LicenseType
+       type builtin.LicenseType
        
   491. -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0#0
        builtin.LicenseType.LicenseType : Doc -> LicenseType
        
   492. -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0
-       unique type builtin.Link
+       type builtin.Link
        
   493. -- ##Link.Term
        builtin type builtin.Link.Term
@@ -2023,7 +2023,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        structural type builtin.Pretty txt
        
   576. -- #fqfaur9v9v4fks5d0c74ouitpjp121c3fbu2l9t05km8otjcj43gk453vu668pg54rte6qmh4v3uao6vbfpntrtaq057jgni1jk8fj8
-       unique type builtin.Pretty.Annotated w txt
+       type builtin.Pretty.Annotated w txt
        
   577. -- #fqfaur9v9v4fks5d0c74ouitpjp121c3fbu2l9t05km8otjcj43gk453vu668pg54rte6qmh4v3uao6vbfpntrtaq057jgni1jk8fj8#1
        builtin.Pretty.Annotated.Append : w
@@ -2134,7 +2134,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin type builtin.Request
        
   603. -- #bga77hj5p43epjosu36iero5ulpm7hqrct1slj5ivdcajsr52ksjam8d5smq2965netv9t43o3g0amgva26qoatt4qth29khkuds2t0
-       unique type builtin.RewriteCase a b
+       type builtin.RewriteCase a b
        
   604. -- #bga77hj5p43epjosu36iero5ulpm7hqrct1slj5ivdcajsr52ksjam8d5smq2965netv9t43o3g0amgva26qoatt4qth29khkuds2t0#0
        builtin.RewriteCase.RewriteCase : a
@@ -2142,13 +2142,13 @@ This transcript is intended to make visible accidental changes to the hashing al
        -> RewriteCase a b
        
   605. -- #qcot4bpj2skgnui8hoignn6fl2gnn2nfrur451ft2egd5n1ndu6ti4uu7r1mvtc8r4p7iielfijk2mb7md9tt2m2rdvaikah4oluf7o
-       unique type builtin.Rewrites a
+       type builtin.Rewrites a
        
   606. -- #qcot4bpj2skgnui8hoignn6fl2gnn2nfrur451ft2egd5n1ndu6ti4uu7r1mvtc8r4p7iielfijk2mb7md9tt2m2rdvaikah4oluf7o#0
        builtin.Rewrites.Rewrites : a -> Rewrites a
        
   607. -- #nu6eab37fl81lb5hfcainu83hph0ksqjsjgjbqvc3t8o13djtt5511qfa6tuggc5c3re06c5p6eto5o2cqme0jdlo31nnd13npqigjo
-       unique type builtin.RewriteSignature a b
+       type builtin.RewriteSignature a b
        
   608. -- #nu6eab37fl81lb5hfcainu83hph0ksqjsjgjbqvc3t8o13djtt5511qfa6tuggc5c3re06c5p6eto5o2cqme0jdlo31nnd13npqigjo#0
        builtin.RewriteSignature.RewriteSignature : (a
@@ -2157,7 +2157,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        -> RewriteSignature a b
        
   609. -- #bvffhraos4oatd3qmedt676dqul9c1oj8r4cqns36lsrue84kl0ote15iqbbmgu8joek3gce1h2raqas5b9nnvs2d79l9mrpmmi2sf0
-       unique type builtin.RewriteTerm a b
+       type builtin.RewriteTerm a b
        
   610. -- #bvffhraos4oatd3qmedt676dqul9c1oj8r4cqns36lsrue84kl0ote15iqbbmgu8joek3gce1h2raqas5b9nnvs2d79l9mrpmmi2sf0#0
        builtin.RewriteTerm.RewriteTerm : a
@@ -2327,7 +2327,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.syntax.docWord : Text -> Doc2
        
   660. -- #aql7qk3iud6vs4cvu43aimopoosgk0fnipibdkc3so13adencmibgfn0u5c01r0adei55nkl3ttsjhl8gbj7tr4gnpj63g64ftbq6s0
-       unique type builtin.Test.Result
+       type builtin.Test.Result
        
   661. -- #aql7qk3iud6vs4cvu43aimopoosgk0fnipibdkc3so13adencmibgfn0u5c01r0adei55nkl3ttsjhl8gbj7tr4gnpj63g64ftbq6s0#0
        builtin.Test.Result.Fail : Text -> Result
@@ -2511,7 +2511,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        builtin.Value.value : a -> Value
        
   720. -- #dem6aglnj8cppfrnq9qipl7geo5pim3auo9cmv1rhh5la9edalj19sspbpm1pd4vh0plokdh6qfo48gs034dqlg0s7j9fhr9p9ndtpo
-       unique type builtin.Year
+       type builtin.Year
        
   721. -- #dem6aglnj8cppfrnq9qipl7geo5pim3auo9cmv1rhh5la9edalj19sspbpm1pd4vh0plokdh6qfo48gs034dqlg0s7j9fhr9p9ndtpo#0
        builtin.Year.Year : Nat -> Year

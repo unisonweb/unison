@@ -26,6 +26,8 @@ foo n = "hello, world!"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -44,14 +46,16 @@ foo n = "hello, world!"
 
   That's done. Now I'm making sure everything typechecks...
 
-  test> mynamespace.foo.test =
-    n = 2
-    if foo n == 2 then [Ok "passed"] else [Fail "wat"]
-  
-  foo n = "hello, world!"
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+test> mynamespace.foo.test =
+  n = 2
+  if foo n == 2 then [Ok "passed"] else [Fail "wat"]
+
+foo n = "hello, world!"
+```
+

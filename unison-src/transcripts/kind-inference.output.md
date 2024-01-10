@@ -8,6 +8,8 @@ unique type T a = T a (a Nat)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         1 | unique type T a = T a (a Nat)
     
@@ -22,6 +24,8 @@ unique type T a
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 |   | StarStar (a Nat)
@@ -40,14 +44,16 @@ unique type Pong = Pong (Ping Optional)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Ping a
-      unique type Pong
+      type Ping a
+      type Pong
 
 ```
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
@@ -58,6 +64,8 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | unique type Ping a = Ping a Pong
@@ -75,14 +83,16 @@ unique ability Pong a where
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Ping a
-      unique ability Pong a
+      type Ping a
+      ability Pong a
 
 ```
 Catch conflict between mutually recursive type and ability
@@ -93,6 +103,8 @@ unique ability Pong a where
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 |   pong : Ping Optional -> ()
@@ -110,14 +122,16 @@ unique type S = S (T Nat)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type S
-      unique type T a
+      type S
+      type T a
 
 ```
 Delay kind defaulting until all components are processed. Here `S`
@@ -131,14 +145,16 @@ unique type S = S (T Optional)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type S
-      unique type T a
+      type S
+      type T a
 
 ```
 Catch invalid instantiation of `T`'s `a` parameter in `S`
@@ -149,6 +165,8 @@ unique type S = S (T Optional)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 | unique type S = S (T Optional)
@@ -167,6 +185,8 @@ test = 0
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         1 | test : Nat Nat
     
@@ -181,6 +201,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | test : Optional -> ()
@@ -198,6 +220,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 | test : T Nat -> ()
@@ -220,6 +244,8 @@ test _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         6 |   buggo : Star a
     
@@ -240,6 +266,8 @@ test _ = ()
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Kind mismatch arising from
         4 | test : Foo -> ()
     
@@ -254,6 +282,8 @@ test _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | test : {Nat} ()
@@ -271,6 +301,8 @@ unique type T a = T (a a)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Cannot construct infinite kind
         1 | unique type T a = T (a a)
     
@@ -284,6 +316,8 @@ unique type T a b = T (a b) (b a)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
         1 | unique type T a b = T (a b) (b a)
@@ -299,6 +333,8 @@ unique type Pong a = Pong (a Ping)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
         1 | unique type Ping a = Ping (a Pong)

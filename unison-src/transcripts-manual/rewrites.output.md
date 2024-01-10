@@ -1,13 +1,10 @@
 
 ## Structural find and replace
 
-Here's a scratch file with some rewrite rules: 
+Here's a scratch file with some rewrite rules:
 
 ```unison
----
-title: /private/tmp/rewrites-tmp.u
----
-ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7] 
+ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
   @rewrite
@@ -22,20 +19,14 @@ Either.mapRight f = cases
   Left e -> Left e
   Right a -> Right (f a)
 
-rule1 f x = @rewrite 
+rule1 f x = @rewrite
   term x + 1 ==> Nat.increment x
   term (a -> f a) ==> f -- eta reduction
 
 unique type Optional2 a = Some2 a | None2
 
 rule2 x = @rewrite signature Optional ==> Optional2
-
-cleanup = do 
-  _ = IO.removeFile.impl "/private/tmp/rewrites-tmp.u"
-  ()
-
 ```
-
 
 Let's rewrite these:
 
@@ -46,7 +37,7 @@ Let's rewrite these:
   
   I found and replaced matches in these definitions: ex1
   
-  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+  The rewritten file has been added to the top of scratch.u
 
 .> rewrite eitherToOptional
 
@@ -55,9 +46,69 @@ Let's rewrite these:
   I found and replaced matches in these definitions:
   Either.mapRight
   
-  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+  The rewritten file has been added to the top of scratch.u
 
 ```
+```unison:added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): ex1
+
+ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Either e a ->{g} Either e b
+Either.mapRight f = cases
+  Left e  -> Left e
+  Right a -> Right (f a)
+
+rule1 f x =
+  use Nat +
+  @rewrite
+    term x + 1 ==> Nat.increment x
+    term a -> f a ==> f
+
+type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+```
+
+```unison:added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): Either.mapRight
+
+ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
+
+eitherToOptional e a =
+  @rewrite
+    term Left e ==> None
+    term Right a ==> Some a
+    case Left e ==> None
+    case Right a ==> Some a
+    signature e a . Either e a ==> Optional a
+
+Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
+Either.mapRight f = cases
+  None   -> None
+  Some a -> Some (f a)
+
+rule1 f x =
+  use Nat +
+  @rewrite
+    term x + 1 ==> Nat.increment x
+    term a -> f a ==> f
+
+type Optional2 a = Some2 a | None2
+
+rule2 x = @rewrite signature Optional ==> Optional2
+```
+
 After adding to the codebase, here's the rewritten source:
 
 ```ucm
@@ -88,27 +139,22 @@ After adding to the codebase, here's the rewritten source:
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
 ```unison
----
-title: /private/tmp/rewrites-tmp.u
----
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
-woot1to2 x = @rewrite 
+woot1to2 x = @rewrite
   term Woot1.woot1 ==> Woot2.woot2
   term blah ==> blah2
-  signature _ . Woot1 ==> Woot2 
+  signature _ . Woot1 ==> Woot2
 
-wootEx : Nat ->{Woot1} Nat 
-wootEx a = 
+wootEx : Nat ->{Woot1} Nat
+wootEx a =
   _ = !woot1
   blah
 
 blah = 123
 blah2 = 456
-
 ```
-
 
 Let's apply the rewrite `woot1to2`:
 
@@ -119,13 +165,37 @@ Let's apply the rewrite `woot1to2`:
   
   I found and replaced matches in these definitions: wootEx
   
-  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+  The rewritten file has been added to the top of scratch.u
 
 ```
+```unison:added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): wootEx
+
+ability Woot1 where woot1 : '{Woot1} Nat
+
+ability Woot2 where woot2 : '{Woot2} Nat
+
+woot1to2 x =
+  @rewrite
+    term Woot1.woot1 ==> Woot2.woot2
+    term blah ==> blah2
+    signature _ . Woot1 ==> Woot2
+
+wootEx : Nat ->{Woot2} Nat
+wootEx a =
+  _ = !Woot2.woot2
+  blah2
+
+blah = 123
+
+blah2 = 456
+```
+
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ```ucm
-.> view wootEx 
+.> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
@@ -136,14 +206,11 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
 ```unison
----
-title: /private/tmp/rewrites-tmp.u
----
-foo1 = 
+foo1 =
   b = "b"
   123
 
-foo2 = 
+foo2 =
   a = "a"
   233
 
@@ -152,17 +219,15 @@ rule = @rewrite
   term foo1 ==> foo2
   case None ==> Left "89899"
 
-sameFileEx = 
+sameFileEx =
   _ = "ex"
   foo1
-
 ```
-
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ```ucm
-.> view foo1 foo2 sameFileEx 
+.> view foo1 foo2 sameFileEx
 
   foo1 : Nat
   foo1 =
@@ -183,27 +248,22 @@ After adding the rewritten form to the codebase, here's the rewritten definition
 ## Capture avoidance
 
 ```unison
----
-title: /private/tmp/rewrites-tmp.u
----
-bar1 = 
+bar1 =
   b = "bar"
   123
 
-bar2 = 
-  a = 39494 
+bar2 =
+  a = 39494
   233
 
 rule bar2 = @rewrite
   case None ==> Left "oh no"
   term bar1 ==> bar2
 
-sameFileEx = 
+sameFileEx =
   _ = "ex"
   bar1
-
 ```
-
 
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
@@ -214,13 +274,37 @@ In the above example, `bar2` is locally bound by the rule, so when applied, it s
   
   I found and replaced matches in these definitions: sameFileEx
   
-  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+  The rewritten file has been added to the top of scratch.u
 
 ```
+```unison:added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): sameFileEx
+
+bar1 =
+  b = "bar"
+  123
+
+bar2 =
+  a = 39494
+  233
+
+rule bar2 =
+  @rewrite
+    case None ==> Left "oh no"
+    term bar1 ==> bar2
+
+sameFileEx =
+  _ = "ex"
+  bar21
+```
+
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ```ucm
-.> load /private/tmp/rewrites-tmp.u
+.> load
+
+  Loading changes detected in scratch.u.
 
   I couldn't find any definitions matching the name bar21 inside the namespace .
   
@@ -242,19 +326,14 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
 ```unison
----
-title: /private/tmp/rewrites-tmp.u
----
-bar2 = 
-  a = 39494 
+bar2 =
+  a = 39494
   233
 
 rule a = @rewrite
   case None ==> Left "oh no"
-  term 233 ==> a 
-
+  term 233 ==> a
 ```
-
 
 ```ucm
 .> rewrite rule
@@ -263,13 +342,29 @@ rule a = @rewrite
   
   I found and replaced matches in these definitions: bar2
   
-  The rewritten file has been added to the top of /private/tmp/rewrites-tmp.u
+  The rewritten file has been added to the top of scratch.u
 
 ```
+```unison:added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): bar2
+
+bar2 =
+  a = 39494
+  a1
+
+rule a =
+  @rewrite
+    case None ==> Left "oh no"
+    term 233 ==> a
+```
+
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ```ucm
-.> load /private/tmp/rewrites-tmp.u
+.> load
+
+  Loading changes detected in scratch.u.
 
   I couldn't find any definitions matching the name a1 inside the namespace .
   
@@ -295,8 +390,8 @@ eitherEx = Left ("hello", "there")
 ```
 
 ```unison
-findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x) 
-findEitherFailure = @rewrite signature a . Either Failure a ==> () 
+findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
+findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
 ```ucm

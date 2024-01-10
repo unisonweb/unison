@@ -1,12 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend
   ( -- * Types
@@ -153,8 +147,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Names.Scoped qualified as ScopedNames
-import Unison.NamesWithHistory (NamesWithHistory (..))
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -264,8 +257,8 @@ hoistBackend f (Backend m) =
   Backend (mapReaderT (mapExceptT f) m)
 
 suffixifyNames :: Int -> Names -> PPE.PrettyPrintEnv
-suffixifyNames hashLength names =
-  PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory.fromCurrentNames names
+suffixifyNames hashLength =
+  PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength
 
 -- implementation detail of parseNamesForBranch and prettyNamesForBranch
 -- Returns (parseNames, prettyNames, localNames)
@@ -320,7 +313,7 @@ shallowPPE codebase b = do
     hl <- Codebase.hashLength
     names <- shallowNames codebase b
     pure (hl, names)
-  pure $ PPED.suffixifiedPPE . PPED.fromNamesDecl hashLength $ NamesWithHistory names mempty
+  pure $ PPED.suffixifiedPPE . PPED.fromNamesSuffixifiedByHash hashLength $ names
 
 -- | A 'Names' which only includes mappings for things _directly_ accessible from the branch.
 --
@@ -729,13 +722,13 @@ getCurrentPrettyNames hashLen scope root =
         (PPED.unsuffixifiedPPE primary `PPE.addFallback` PPED.unsuffixifiedPPE backup)
         (PPED.suffixifiedPPE primary `PPE.addFallback` PPED.suffixifiedPPE backup)
       where
-        backup = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root (AllNames mempty)) mempty
+        backup = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root (AllNames mempty)
   where
-    primary = PPED.fromNamesDecl hashLen $ NamesWithHistory (parseNamesForBranch root scope) mempty
+    primary = PPED.fromNamesSuffixifiedByHash hashLen $ parseNamesForBranch root scope
 
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames :: NameScoping -> Branch m -> Names
 getCurrentParseNames scope root =
-  NamesWithHistory (parseNamesForBranch root scope) mempty
+  parseNamesForBranch root scope
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -758,7 +751,7 @@ fixupNamesRelative root names =
 hqNameQuery ::
   Codebase m v Ann ->
   NameSearch Sqlite.Transaction ->
-  NamesWithHistory.SearchType ->
+  Names.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction QueryResult
 hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
@@ -1008,7 +1001,7 @@ evalDocRef rt codebase r = do
 docsForDefinitionName ::
   Codebase IO Symbol Ann ->
   NameSearch Sqlite.Transaction ->
-  NamesWithHistory.SearchType ->
+  Names.SearchType ->
   Name ->
   IO [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
@@ -1065,8 +1058,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       pure (docTermsWithNames, hqLength)
   let docNamesByRef = Map.fromList docTermsWithNames
   let printNames = prettyNamesForBranch root (AllNames currentPath)
-  let printNamesWithHistory = NamesWithHistory {currentNames = printNames, oldNames = mempty}
-  let ppe = PPED.fromNamesDecl hqLength printNamesWithHistory
+  let ppe = PPED.fromNamesSuffixifiedByHash hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $
     docs & foldMapM \(name, text, doc, errs) -> do
@@ -1185,8 +1177,8 @@ scopedNamesForBranchHash codebase mbh path = do
         (parseNames, _pretty, localNames) <- flip namesForBranch (AllNames path) <$> resolveCausalHash (Just rootCausalHash) codebase
         pure (parseNames, localNames)
 
-  let localPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames localNames)
-  let globalPPE = PPED.fromNamesDecl hashLen (NamesWithHistory.fromCurrentNames parseNames)
+  let localPPE = PPED.fromNamesSuffixifiedByHash hashLen localNames
+  let globalPPE = PPED.fromNamesSuffixifiedByHash hashLen parseNames
   pure (localNames, mkPPE localPPE globalPPE)
   where
     mkPPE :: PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl -> PPED.PrettyPrintEnvDecl
@@ -1252,7 +1244,7 @@ definitionsByName ::
   Codebase m Symbol Ann ->
   NameSearch Sqlite.Transaction ->
   IncludeCycles ->
-  NamesWithHistory.SearchType ->
+  Names.SearchType ->
   [HQ.HashQualified Name] ->
   Sqlite.Transaction DefinitionResults
 definitionsByName codebase nameSearch includeCycles searchType query = do

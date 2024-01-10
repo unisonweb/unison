@@ -24,14 +24,16 @@ two.ambiguousTerm = "term two"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type one.AmbiguousType
-      unique type two.AmbiguousType
+      type one.AmbiguousType
+      type two.AmbiguousType
       one.ambiguousTerm : ##Text
       two.ambiguousTerm : ##Text
 
@@ -41,8 +43,8 @@ two.ambiguousTerm = "term two"
 
   ⍟ I've added these definitions:
   
-    unique type one.AmbiguousType
-    unique type two.AmbiguousType
+    type one.AmbiguousType
+    type two.AmbiguousType
     one.ambiguousTerm : ##Text
     two.ambiguousTerm : ##Text
 
@@ -72,6 +74,8 @@ separateAmbiguousTypeUsage _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   
     ❓
@@ -105,6 +109,8 @@ useAmbiguousTerm = ambiguousTerm
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I couldn't find any definitions matching the name ambiguousTerm inside the namespace .example.resolution_failures
   

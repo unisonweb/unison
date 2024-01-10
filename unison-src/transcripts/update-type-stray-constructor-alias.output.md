@@ -4,13 +4,15 @@ unique type Foo = Bar Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -18,7 +20,7 @@ unique type Foo = Bar Nat
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 .> alias.term Foo.Bar Stray.BarAlias
 
@@ -31,6 +33,8 @@ unique type Foo = Bar Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -38,7 +42,7 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 Bug: we leave `Stray.BarAlias` in the namespace with a nameless decl.
@@ -54,13 +58,13 @@ Bug: we leave `Stray.BarAlias` in the namespace with a nameless decl.
 .> find.verbose
 
   1. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g
-     unique type Foo
+     type Foo
      
   2. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g#0
      Foo.Bar : Nat -> Nat -> Foo
      
   3. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
-     Stray.BarAlias : Nat -> Foo#b509v3eg4k
+     Stray.BarAlias : Nat -> #b509v3eg4k
      
   
 

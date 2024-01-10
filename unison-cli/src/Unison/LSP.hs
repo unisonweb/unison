@@ -112,7 +112,9 @@ serverDefinition ::
 serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
   ServerDefinition
     { defaultConfig = defaultLSPConfig,
-      onConfigurationChange = Config.updateConfig,
+      configSection = "unison",
+      parseConfig = Config.parseConfig,
+      onConfigChange = Config.updateConfig,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
@@ -148,8 +150,8 @@ lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
-lspStaticHandlers :: Handlers Lsp
-lspStaticHandlers =
+lspStaticHandlers :: ClientCapabilities -> Handlers Lsp
+lspStaticHandlers _capabilities =
   Handlers
     { reqHandlers = lspRequestHandlers,
       notHandlers = lspNotificationHandlers
@@ -193,6 +195,7 @@ lspNotificationHandlers =
     & SMM.insert Msg.SMethod_Initialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert Msg.SMethod_CancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
     & SMM.insert Msg.SMethod_WorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
+    & SMM.insert Msg.SMethod_SetTrace (ClientMessageHandler Notifications.setTraceHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

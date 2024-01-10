@@ -11,13 +11,15 @@ unique type a.T = T
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
@@ -28,7 +30,7 @@ unique type a.T = T
 
   ⍟ I've added these definitions:
   
-    unique type a.T
+    type a.T
     a.termInA : Nat
 
 ```
@@ -39,6 +41,8 @@ unique type a.T = T1 | T2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -46,7 +50,7 @@ unique type a.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
@@ -102,6 +106,8 @@ b.termInB = 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -129,6 +135,8 @@ b.termInB = 11
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -194,6 +202,8 @@ b.termInB = 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -221,6 +231,8 @@ b.termInB = 11
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

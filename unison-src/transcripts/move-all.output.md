@@ -13,14 +13,16 @@ unique type Foo.T = T
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
-      unique type Foo.T
+      type Foo
+      type Foo.T
       Foo         : Nat
       Foo.termInA : Nat
 
@@ -30,8 +32,8 @@ unique type Foo.T = T
 
   ⍟ I've added these definitions:
   
-    unique type Foo
-    unique type Foo.T
+    type Foo
+    type Foo.T
     Foo         : Nat
     Foo.termInA : Nat
 
@@ -43,6 +45,8 @@ unique type Foo.T = T1 | T2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -50,7 +54,7 @@ unique type Foo.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo.T
+      type Foo.T
       Foo.termInA : Nat
         (also named Foo)
 
@@ -111,6 +115,8 @@ bonk = 5
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -145,6 +151,8 @@ bonk.zonk = 5
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

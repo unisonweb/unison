@@ -2,7 +2,6 @@ module Unison.Parsers where
 
 import Data.Text qualified as Text
 import Unison.Builtin qualified as Builtin
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrintError (defaultWidth, prettyParseError)
@@ -79,7 +78,7 @@ unsafeParseFileBuiltinsOnly =
     Parser.ParsingEnv
       { uniqueNames = mempty,
         uniqueTypeGuid = \_ -> pure Nothing,
-        names = Names.NamesWithHistory Builtin.names0 mempty
+        names = Builtin.names
       }
 
 unsafeParseFile :: Monad m => String -> Parser.ParsingEnv m -> m (UnisonFile Symbol Ann)
