@@ -251,8 +251,6 @@ data Output
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
-  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means they were output to the terminal.
-    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
@@ -518,7 +516,6 @@ isFailure o = case o of
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
-  DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False

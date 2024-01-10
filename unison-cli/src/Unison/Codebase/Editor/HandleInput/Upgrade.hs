@@ -51,6 +51,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.UnisonFile qualified as UnisonFile
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -61,7 +62,7 @@ handleUpgrade oldDepName newDepName = do
   when (oldDepName == newDepName) do
     Cli.returnEarlyWithoutOutput
 
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, writeSource} <- ask
 
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
   let projectId = projectAndBranch ^. #project . #projectId
@@ -187,17 +188,12 @@ handleUpgrade oldDepName newDepName = do
           textualDescriptionOfUpgrade
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
       Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
-      Cli.Env {isTranscript} <- ask
-      maybePath <-
-        if isTranscript
-          then pure Nothing
-          else fmap Just do
-            maybeLatestFile <- Cli.getLatestFile
-            pure case maybeLatestFile of
-              Nothing -> "scratch.u"
-              Just (file, _) -> file
-      Cli.respond (Output.DisplayDefinitionsString maybePath prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure (fromMaybe "scratch.u" maybePath) oldDepName newDepName)
+      scratchFilePath <-
+        Cli.getLatestFile <&> \case
+          Nothing -> "scratch.u"
+          Just (file, _) -> file
+      liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+      Cli.respond (Output.UpgradeFailure scratchFilePath oldDepName newDepName)
       Cli.returnEarlyWithoutOutput
 
   branchUpdates <-

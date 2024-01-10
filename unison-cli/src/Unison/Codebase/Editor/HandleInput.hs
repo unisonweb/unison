@@ -691,7 +691,6 @@ loop e = do
                   types' :: [(Reference, [HQ'.HashQualified Name])]
                   types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
               Cli.respond $ ListNames global hqLength types' terms'
-
             DocsI srcs -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               for_ srcs (docsI basicPrettyPrintNames)
@@ -2322,10 +2321,11 @@ docsI prettyPrintNames src =
     fileByName = do
       ns <- maybe mempty UF.typecheckedToNames <$> Cli.getLatestTypecheckedFile
       case Names.lookupHQTerm Names.IncludeSuffixes dotDoc ns of
-        s | Set.size s == 1 ->
-          -- the displayI command expects full term names, so we resolve
-          -- the hash back to its full name in the file
-          displayI prettyPrintNames ConsoleLocation (Names.longestTermName 10 (Set.findMin s) ns)
+        s
+          | Set.size s == 1 ->
+              -- the displayI command expects full term names, so we resolve
+              -- the hash back to its full name in the file
+              displayI prettyPrintNames ConsoleLocation (Names.longestTermName 10 (Set.findMin s) ns)
         _ -> displayI prettyPrintNames ConsoleLocation dotDoc
 
 loadDisplayInfo ::

@@ -32,13 +32,15 @@ proj/main> add
 ```ucm
 proj/main> upgrade old new
 
-  thingy : Nat
-  thingy =
-    use Nat +
-    foo + 10
-
   I couldn't automatically upgrade old to new. However, I've
   added the definitions that need attention to the top of
   scratch.u.
 
 ```
+```unison:added-by-ucm scratch.u
+thingy : Nat
+thingy =
+  use Nat +
+  foo + 10
+```
+

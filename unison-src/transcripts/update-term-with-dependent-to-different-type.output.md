@@ -62,16 +62,18 @@ foo = +5
 
   That's done. Now I'm making sure everything typechecks...
 
-  bar : Nat
-  bar =
-    use Nat +
-    foo + 10
-  
-  foo : Int
-  foo = +5
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+bar : Nat
+bar =
+  use Nat +
+  foo + 10
+
+foo : Int
+foo = +5
+```
+

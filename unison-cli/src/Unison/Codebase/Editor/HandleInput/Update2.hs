@@ -94,7 +94,7 @@ import Unison.WatchKind qualified as WK
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
@@ -140,9 +140,8 @@ handleUpdate2 = do
         parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
-            Cli.Env {isTranscript} <- ask
-            maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
-            Cli.respond (Output.DisplayDefinitionsString maybePath prettyUf)
+            scratchFilePath <- fst <$> Cli.expectLatestFile
+            liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUf)
             Cli.returnEarly Output.UpdateTypecheckingFailure
         Cli.respond Output.UpdateTypecheckingSuccess
         pure secondTuf

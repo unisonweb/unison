@@ -59,15 +59,17 @@ unique type Foo
 
   That's done. Now I'm making sure everything typechecks...
 
-  foo : Foo -> Nat
-  foo = cases
-    Bar n   -> n
-    Baz n m -> n Nat.+ m
-  
-  type Foo = Bar Nat
-
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+foo : Foo -> Nat
+foo = cases
+  Bar n   -> n
+  Baz n m -> n Nat.+ m
+
+type Foo = Bar Nat
+```
+
