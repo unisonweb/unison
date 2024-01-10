@@ -31,7 +31,7 @@ hoistSearch :: (forall x. m x -> n x) -> Search m r -> Search n r
 hoistSearch f Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} =
   Search
     { lookupNames = f . lookupNames,
-      lookupRelativeHQRefs' = f . lookupRelativeHQRefs',
+      lookupRelativeHQRefs' = \st n -> f $ lookupRelativeHQRefs' st n,
       makeResult = \n r -> f . makeResult n r,
       matchesNamedRef = \n r -> matchesNamedRef n r
     }
