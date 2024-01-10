@@ -34,6 +34,8 @@ x = 42
 
 ```ucm
 
+  Loading changes detected in myfile.u.
+
   I found and typechecked these definitions in myfile.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -82,6 +84,8 @@ hmm = "Not, in fact, a number"
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found a value  of type:  Text
   where I expected to find:  Nat

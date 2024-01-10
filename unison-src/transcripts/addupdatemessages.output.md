@@ -12,6 +12,8 @@ structural type Y = Two Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -46,6 +48,8 @@ structural type Z = One Nat
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -82,6 +86,8 @@ structural type X = Three Nat Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -100,7 +106,12 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 
@@ -113,6 +124,8 @@ structural type X = Two Nat Nat
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -132,7 +145,8 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 

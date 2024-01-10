@@ -4,13 +4,15 @@ unique type Foo = { bar : Nat }
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -21,7 +23,7 @@ unique type Foo = { bar : Nat }
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     Foo.bar        : Foo -> Nat
     Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
     Foo.bar.set    : Nat -> Foo -> Foo
@@ -32,6 +34,8 @@ unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -46,7 +50,7 @@ unique type Foo = { bar : Nat, baz : Int }
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -55,18 +59,19 @@ unique type Foo = { bar : Nat, baz : Int }
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
 .> view Foo
 
-  unique type Foo = { bar : Nat, baz : Int }
+  type Foo = { bar : Nat, baz : Int }
 
 .> find.verbose
 
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
-     unique type Foo
+     type Foo
      
   2. -- #77mi33dv8ac2s90852khi35km5gsamhnpada8mai0k36obbttgg17qld719ospcs1ht9ctolg3pjsqs6qjnl3hfmu493rgsher73sc0
      Foo.bar : Foo -> Nat

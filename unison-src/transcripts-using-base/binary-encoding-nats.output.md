@@ -56,13 +56,15 @@ testABunchOfNats _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type EncDec
+      type EncDec
       BE16             : EncDec
       BE32             : EncDec
       BE64             : EncDec
@@ -79,7 +81,7 @@ testABunchOfNats _ =
 
   ⍟ I've added these definitions:
   
-    unique type EncDec
+    type EncDec
     BE16             : EncDec
     BE32             : EncDec
     BE64             : EncDec

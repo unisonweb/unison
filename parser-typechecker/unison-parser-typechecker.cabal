@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -44,7 +44,6 @@ library
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
@@ -261,7 +260,6 @@ library
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -298,6 +296,7 @@ library
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -454,7 +453,6 @@ test-suite parser-typechecker-tests
     , free
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
@@ -491,6 +489,7 @@ test-suite parser-typechecker-tests
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs

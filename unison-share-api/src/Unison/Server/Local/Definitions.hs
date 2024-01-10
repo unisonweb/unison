@@ -11,7 +11,7 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -64,14 +64,16 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   (localNamesOnly, unbiasedPPED) <- scopedNamesForBranchHash codebase (Just shallowRoot) namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
-  let nameSearch = makeNameSearch hqLength (NamesWithHistory.fromCurrentNames localNamesOnly)
+  let nameSearch = makeNameSearch hqLength localNamesOnly
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
-    definitionsBySuffixes codebase nameSearch DontIncludeCycles [query]
+    definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName [query]
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- docsForDefinitionName codebase nameSearch name
+        docRefs <- docsForDefinitionName codebase nameSearch Names.ExactName name
         renderDocRefs pped width codebase rt docRefs
+          -- local server currently ignores doc eval errors
+          <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
 
   let fqnPPE = PPED.unsuffixifiedPPE pped
   typeDefinitions <-

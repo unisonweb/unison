@@ -5,6 +5,7 @@ module Unison.Cli.Monad
   ( -- * Cli monad
     Cli,
     ReturnType (..),
+    SourceName,
     runCli,
 
     -- * Envronment
@@ -35,6 +36,7 @@ module Unison.Cli.Monad
     -- * Communicating output to the user
     respond,
     respondNumbered,
+    setNumberedArgs,
 
     -- * Debug-timing actions
     time,
@@ -143,6 +145,9 @@ data ReturnType a
   | HaltRepl
   deriving stock (Eq, Show)
 
+-- | Name used for a source-file/source buffer
+type SourceName = Text
+
 -- | The command-line app monad environment.
 --
 -- Get the environment with 'ask'.
@@ -153,17 +158,17 @@ data Env = Env
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
-    -- | Are we currently running a transcript? Sometimes, it is convenient to know this fact, so we can put more
-    -- information to the terminal to be captured in transcript output.
-    isTranscript :: Bool,
     -- | How to load source code.
-    loadSource :: Text -> IO LoadSourceResult,
+    loadSource :: SourceName -> IO LoadSourceResult,
+    -- | How to write source code.
+    writeSource :: SourceName -> Text -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
     notifyNumbered :: NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
+    nativeRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion
   }
@@ -408,6 +413,11 @@ respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
+  setNumberedArgs args
+
+-- | Updates the numbered args, but only if the new args are non-empty.
+setNumberedArgs :: NumberedArgs -> Cli ()
+setNumberedArgs args = do
   unless (null args) do
     #numberedArgs .= args
 
@@ -417,6 +427,7 @@ runTransaction action = do
   liftIO (Codebase.runTransaction codebase action)
 
 -- | Run a transaction that can abort early with an output message.
+-- todo: rename to runTransactionWithReturnEarly
 runTransactionWithRollback :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
 runTransactionWithRollback action = do
   Env {codebase} <- ask

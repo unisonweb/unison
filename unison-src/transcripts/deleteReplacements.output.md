@@ -6,6 +6,8 @@ x = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -29,6 +31,8 @@ x = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -48,7 +52,7 @@ x = 2
 
 .> view.patch
 
-  Edited Terms: 1. x#gjmq673r1v -> 2. x
+  Edited Terms: 1. #gjmq673r1v -> 2. x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -71,13 +75,15 @@ unique[a] type Foo = Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -85,7 +91,7 @@ unique[a] type Foo = Foo
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 ```
 ```unison
@@ -94,6 +100,8 @@ unique[b] type Foo = Foo | Bar
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -101,7 +109,7 @@ unique[b] type Foo = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -109,11 +117,11 @@ unique[b] type Foo = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    unique type Foo
+    type Foo
 
 .> view.patch
 
-  Edited Types: 1. Foo#ool30cf4ma -> 2. Foo
+  Edited Types: 1. #ool30cf4ma -> 2. Foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -137,13 +145,15 @@ unique[aa] type bar = Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type bar
+      type bar
       bar : ##Nat
 
 ```
@@ -152,7 +162,7 @@ unique[aa] type bar = Foo
 
   ⍟ I've added these definitions:
   
-    unique type bar
+    type bar
     bar : ##Nat
 
 ```
@@ -162,6 +172,8 @@ unique[bb] type bar = Foo | Bar
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -169,7 +181,7 @@ unique[bb] type bar = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type bar
+      type bar
 
 ```
 ```ucm
@@ -177,11 +189,11 @@ unique[bb] type bar = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    unique type bar
+    type bar
 
 .> view.patch
 
-  Edited Types: 1. bar#evhqg163jj -> 2. bar
+  Edited Types: 1. #evhqg163jj -> 2. bar
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -222,6 +234,8 @@ baz = 0
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -256,13 +270,15 @@ unique type qux = Qux
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type qux
+      type qux
 
 ```
 ```ucm
@@ -270,7 +286,7 @@ unique type qux = Qux
 
   ⍟ I've added these definitions:
   
-    unique type qux
+    type qux
 
 .> delete.term-replacement qux
 

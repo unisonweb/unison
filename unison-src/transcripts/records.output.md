@@ -9,7 +9,7 @@ unique type Record1 = { a : Text }
 ```ucm
 .> view Record1
 
-  unique type Record1 = { a : Text }
+  type Record1 = { a : Text }
 
 ```
 ## Record with 2 fields
@@ -21,7 +21,7 @@ unique type Record2 = { a : Text, b : Int }
 ```ucm
 .> view Record2
 
-  unique type Record2 = { a : Text, b : Int }
+  type Record2 = { a : Text, b : Int }
 
 ```
 ## Record with 3 fields
@@ -33,7 +33,7 @@ unique type Record3 = { a : Text, b : Int, c : Nat }
 ```ucm
 .> view Record3
 
-  unique type Record3 = { a : Text, b : Int, c : Nat }
+  type Record3 = { a : Text, b : Int, c : Nat }
 
 ```
 ## Record with many fields
@@ -53,7 +53,7 @@ unique type Record4 =
 ```ucm
 .> view Record4
 
-  unique type Record4
+  type Record4
     = { a : Text,
         b : Int,
         c : Nat,
@@ -78,7 +78,7 @@ If you `view` or `edit` it, it _should_ be treated as a record type, but it does
 ```ucm
 .> view RecordWithUserType
 
-  unique type RecordWithUserType
+  type RecordWithUserType
     = { a : Text, b : Record4, c : UserType }
 
 ```
@@ -95,13 +95,15 @@ unique type Record5 =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Record5
+      type Record5
       Record5.a        : Record5 -> Text
       Record5.a.modify : (Text ->{g} Text)
                          -> Record5

@@ -7,13 +7,15 @@ makeFoo n = Bar (n+10)
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       makeFoo : Nat -> Foo
 
 ```
@@ -22,7 +24,7 @@ makeFoo n = Bar (n+10)
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     makeFoo : Nat -> Foo
 
 ```
@@ -34,6 +36,8 @@ Foo.Bar n = internal.Bar n
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -49,18 +53,23 @@ Foo.Bar n = internal.Bar n
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
 
   Done.
 
 .> view Foo
 
-  unique type Foo = internal.Bar Nat
+  type Foo = internal.Bar Nat
 
 .> find.verbose
 
   1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
-     unique type Foo
+     type Foo
      
   2. -- #36rn6jqt1k5jccb3c7vagp3jam74dngr92kgcntqhs6dbkua54verfert2i6hsku6uitt9s2jvt1msric0tgemal52d5apav6akn25o
      Foo.Bar : Nat -> Foo

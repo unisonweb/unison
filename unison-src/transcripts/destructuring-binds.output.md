@@ -16,6 +16,8 @@ ex1 tup =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -58,6 +60,8 @@ ex2 tup = match tup with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -79,6 +83,8 @@ ex4 =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I couldn't find any definitions matching the name a inside the namespace .
   
@@ -112,6 +118,8 @@ ex5a _ = match (99 + 1, "hi") with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

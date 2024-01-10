@@ -5,13 +5,15 @@ unique type Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -19,7 +21,7 @@ unique type Foo
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 ```
 ```unison
@@ -30,6 +32,8 @@ unique type Foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -37,24 +41,25 @@ unique type Foo
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
 .> update
 
-  I propagated the update and am now saving the results.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
 .> view Foo
 
-  unique type Foo = Bar Nat | Baz Nat Nat
+  type Foo = Bar Nat | Baz Nat Nat
 
 .> find.verbose
 
   1. -- #2sffq4apsq1cts53njcunj63fa8ohov4eqn77q14s77ajicajh4g28sq5s5ai33f2k6oh6o67aarnlpu7u7s4la07ag2er33epalsog
-     unique type Foo
+     type Foo
      
   2. -- #2sffq4apsq1cts53njcunj63fa8ohov4eqn77q14s77ajicajh4g28sq5s5ai33f2k6oh6o67aarnlpu7u7s4la07ag2er33epalsog#0
      Foo.Bar : Nat -> Foo

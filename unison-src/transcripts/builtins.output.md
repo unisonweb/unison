@@ -224,6 +224,8 @@ test> Text.tests.patterns =
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    run (captureAs "foo" (many (or digit letter))) "11234abc,remainder" == Some (["foo"], ",remainder"),
+    run (join [(captureAs "foo" (many digit)), captureAs "bar" (many letter)]) "11234abc,remainder" == Some (["foo", "bar"], ",remainder"),
     -- Regression test for: https://github.com/unisonweb/unison/issues/3530
     run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac" == Some ([""], "ac"),
     isMatch (join [many letter, eof]) "aaaaabbbb" == true,
@@ -361,6 +363,8 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -410,6 +414,8 @@ openFile]
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -462,6 +468,8 @@ openFilesIO = do
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -499,6 +507,8 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -14,6 +14,8 @@ bar = foo + 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -40,6 +42,8 @@ foo = +5
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -53,14 +57,23 @@ foo = +5
 ```ucm
 .> update
 
-  bar : Nat
-  bar =
-    use Nat +
-    foo + 10
-  
-  foo : Int
-  foo = +5
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-  Typechecking failed when propagating the update to all the dependents.
+  That's done. Now I'm making sure everything typechecks...
+
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+bar : Nat
+bar =
+  use Nat +
+  foo + 10
+
+foo : Int
+foo = +5
+```
+

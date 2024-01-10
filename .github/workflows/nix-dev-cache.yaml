@@ -20,6 +20,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - macOS-12
     steps:
     - uses: actions/checkout@v3
     - uses: cachix/install-nix-action@v22
@@ -32,5 +33,5 @@ jobs:
         name: unison
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: build all packages and development shells
-      run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
+      run: nix -L build --accept-flake-config --no-link --keep-going '.#build-tools'
 

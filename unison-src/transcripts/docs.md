@@ -7,14 +7,12 @@
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ```ucm
-.> view builtin.Doc
+.builtin> view Doc
 ```
 
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
 
 ```unison
-use .builtin
-
 doc1 = [: This is some documentation.
 
 It can span multiple lines.
@@ -44,15 +42,13 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 ```
 
 ```ucm
-.> add
+.builtin> add
 ```
 
 And now let's write our docs and reference these examples:
 
 ```unison
-use .builtin
-
-docs.List.take = [:
+List.take.doc = [:
 `@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
 
 ## Examples:
@@ -68,28 +64,20 @@ docs.List.take = [:
 :]
 ```
 
-Let's add it to the codebase, and link it to the definition:
+Let's add it to the codebase.
 
 ```ucm
-.> add
-.> link docs.List.take builtin.List.take
+.builtin> add
 ```
 
-Now that documentation is linked to the definition. We can view it if we like:
+We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ```ucm
-.> links builtin.List.take builtin.Doc
-.> display 1
-```
-
-Or there's also a convenient function, `docs`, which shows the `Doc` values that are linked to a definition. It's implemented in terms of `links` and `display`:
-
-```ucm
-.> docs builtin.List.take
+.builtin> docs List.take
 ```
 
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ```ucm
-.> view docs.List.take
+.builtin> view List.take
 ```

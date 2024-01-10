@@ -10,7 +10,7 @@ module U.Codebase.Reference
     Reference' (..),
     TermReference',
     TypeReference',
-    ReferenceType(..),
+    ReferenceType (..),
     pattern Derived,
     Id,
     Id' (..),
@@ -20,6 +20,7 @@ module U.Codebase.Reference
     t_,
     h_,
     idH,
+    idPos,
     idToHash,
     idToShortHash,
     isBuiltin,
@@ -30,7 +31,7 @@ module U.Codebase.Reference
   )
 where
 
-import Control.Lens (Lens, Prism, Prism', Traversal, lens, preview, prism)
+import Control.Lens (Lens, Lens', Prism, Prism', Traversal, lens, preview, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
@@ -112,15 +113,18 @@ type Pos = Word64
 data Id' h = Id h Pos
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-t_ :: Traversal (Reference' t h) (Reference' t' h) t t'
-t_ f = \case
-  ReferenceBuiltin t -> ReferenceBuiltin <$> f t
-  ReferenceDerived id -> pure (ReferenceDerived id)
+t_ :: Prism (Reference' t h) (Reference' t' h) t t'
+t_ = prism ReferenceBuiltin \case
+  ReferenceBuiltin t -> Right t
+  ReferenceDerived id -> Left (ReferenceDerived id)
 
 h_ :: Traversal (Reference' t h) (Reference' t h') h h'
 h_ f = \case
   ReferenceBuiltin t -> pure (ReferenceBuiltin t)
   Derived h i -> Derived <$> f h <*> pure i
+
+idPos :: Lens' (Id' h) Pos
+idPos = lens (\(Id _h w) -> w) (\(Id h _w) w -> Id h w)
 
 idH :: Lens (Id' h) (Id' h') h h'
 idH = lens (\(Id h _w) -> h) (\(Id _h w) h -> Id h w)

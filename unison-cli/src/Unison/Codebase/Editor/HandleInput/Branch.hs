@@ -84,7 +84,7 @@ handleBranch sourceI projectAndBranchNames0 = do
         -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
         rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
 
-  doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
+  _ <- doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
   Cli.respond $
     Output.CreatedProjectBranch
@@ -106,7 +106,9 @@ handleBranch sourceI projectAndBranchNames0 = do
 --
 -- This bit of functionality is factored out from the main 'handleBranch' handler because it is also called by the
 -- @release.draft@ command, which essentially just creates a branch, but with some different output for the user.
-doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ()
+--
+-- Returns the branch id of the newly-created branch.
+doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ProjectBranchId
 doCreateBranch createFrom project newBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
@@ -143,3 +145,4 @@ doCreateBranch createFrom project newBranchName description = do
       CreateFrom'Nothingness -> pure Branch.empty
   _ <- Cli.updateAt description newBranchPath (const sourceNamespaceObject)
   Cli.cd newBranchPath
+  pure newBranchId
