@@ -52,24 +52,22 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.Names (Names)
+import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
-import Unison.Reference (TypeReferenceId)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -96,6 +94,7 @@ handleUpdate2 :: Cli ()
 handleUpdate2 = do
   Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
+  let tufNames = UF.typecheckedToNames tuf
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
@@ -109,18 +108,62 @@ handleUpdate2 = do
       Ops.dependentsWithinScope
         (Names.referenceIds namesExcludingLibdeps)
         (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
-    -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
-    pped <-
-      ( \hlen ->
-          shadowNames
-            hlen
-            (UF.typecheckedToNames tuf)
-            namesIncludingLibdeps
-        )
-        <$> Codebase.hashLength
 
-    pure (pped, bigUf)
+    hashLen <- Codebase.hashLength
+
+    -- The big picture behind PPE building, though there are many details:
+    --
+    --   * We are updating old references to new references by rendering old references as names that are then parsed
+    --     back to resolve to new references (the world's weirdest implementation of AST substitution).
+    --
+    --   * We have to render names that refer to definitions in the file with a different suffixification strategy
+    --     (namely, "suffixify by name") than names that refer to things in the codebase.
+    --
+    --     This is because you *may* refer to aliases that share a suffix by that suffix for definitions in the
+    --     codebase, but not in the file.
+    --
+    --     For example, the following file will fail to parse:
+    --
+    --       one.foo = 10
+    --       two.foo = 10
+    --       hey = foo + foo -- "Which foo do you mean? There are two."
+    --
+    --     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
+    --
+    --       hey = foo + foo
+
+    let filePPED :: PrettyPrintEnvDecl
+        filePPED =
+          PPED.makePPED (PPE.namer fileNames) (PPE.suffixifyByName fileNames)
+          where
+            fileNames =
+              tufNames
+                <> Names
+                  { terms = Relation.restrictRan (Names.terms namesExcludingLibdeps) dependentReferents,
+                    types = Relation.restrictRan (Names.types namesExcludingLibdeps) dependentTypeReferences
+                  }
+
+            dependentReferents :: Set Referent
+            dependentTypeReferences :: Set TypeReference
+            (dependentReferents, dependentTypeReferences) =
+              Map.foldlWithKey'
+                ( \(terms, types) refId -> \case
+                    Reference.RtTerm -> let !terms1 = Set.insert (Referent.fromTermReferenceId refId) terms in (terms1, types)
+                    Reference.RtType -> let !types1 = Set.insert (Reference.fromId refId) types in (terms, types1)
+                )
+                (Set.empty, Set.empty)
+                dependents
+
+    let codebasePPED :: PrettyPrintEnvDecl
+        codebasePPED =
+          PPED.makePPED (PPE.hqNamer hashLen codebaseNames) (PPE.suffixifyByHash codebaseNames)
+          where
+            codebaseNames = Names.unionLeftName namesIncludingLibdeps tufNames
+
+    let entirePPED = filePPED `PPED.addFallback` codebasePPED
+
+    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
+    pure (entirePPED, bigUf)
 
   -- If the new-unison-file-to-typecheck is the same as old-unison-file-that-we-already-typechecked, then don't bother
   -- typechecking again.
@@ -438,42 +481,3 @@ getTermAndDeclNames tuf =
     dataCtors = foldMap ctorsToNames $ fmap snd $ UF.dataDeclarationsId' tuf
     keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
     ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
-
--- | Combines 'n' and 'otherNames' then creates a ppe, but all references to
--- any name in 'n' are printed unqualified.
---
--- This is useful with the current update strategy where, for all
--- updates @#old -> #new@ we want to print dependents of #old and
--- #new, and have all occurrences of #old and #new be printed with the
--- unqualified name.
---
--- For this usecase the names from the scratch file are passed as 'n'
--- and the names from the codebase are passed in 'otherNames'.
-shadowNames :: Int -> Names -> Names -> PrettyPrintEnvDecl
-shadowNames hashLen n otherNames =
-  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesSuffixifiedByName hashLen (n <> otherNames)
-      unsuffixified = patchPrettyPrintEnv unsuffixified0
-      suffixified = patchPrettyPrintEnv suffixified0
-      patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv
-      patchPrettyPrintEnv PPE.PrettyPrintEnv {termNames, typeNames} =
-        PPE.PrettyPrintEnv
-          { termNames = patch shadowedTermRefs termNames,
-            typeNames = patch shadowedTypeRefs typeNames
-          }
-      patch shadowed f ref =
-        let res = f ref
-         in case Set.member ref shadowed of
-              True -> map (second stripHashQualified) res
-              False -> res
-      stripHashQualified = \case
-        HQ'.HashQualified b _ -> HQ'.NameOnly b
-        HQ'.NameOnly b -> HQ'.NameOnly b
-      shadowedTermRefs =
-        let names = Relation.dom (Names.terms n)
-            otherTermNames = Names.terms otherNames
-         in Relation.ran (Names.terms n) <> foldMap (\a -> Relation.lookupDom a otherTermNames) names
-      shadowedTypeRefs =
-        let names = Relation.dom (Names.types n)
-            otherTypeNames = Names.types otherNames
-         in Relation.ran (Names.types n) <> foldMap (\a -> Relation.lookupDom a otherTypeNames) names
-   in PPED.PrettyPrintEnvDecl unsuffixified suffixified

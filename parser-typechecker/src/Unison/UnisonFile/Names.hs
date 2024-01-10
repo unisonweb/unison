@@ -86,18 +86,18 @@ bindNames names (UnisonFileId d e ts ws) = do
 
 -- | Given the set of fully-qualified variable names, this computes
 -- a Map from unique suffixes to the fully qualified name.
--- 
+--
 -- Example, given [foo.bar, qux.bar, baz.quaffle], this returns:
 --
 -- Map [ foo.bar -> foo.bar
 --     , qux.bar -> qux.bar
 --     , baz.quaffle -> baz.quaffle
---     , quaffle -> baz.quaffle 
---     ] 
--- 
--- This is used to replace variable references with their canonical 
+--     , quaffle -> baz.quaffle
+--     ]
+--
+-- This is used to replace variable references with their canonical
 -- fully qualified variables.
--- 
+--
 -- It's used below in `environmentFor` and also during the term resolution
 -- process.
 variableCanonicalizer :: forall v . Var v => [v] -> Map v v
