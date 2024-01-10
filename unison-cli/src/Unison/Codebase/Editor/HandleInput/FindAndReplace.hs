@@ -86,7 +86,7 @@ handleStructuredFindI rule = do
   results0 <- traverse ok results
   let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs results
+  Cli.setNumberedArgs $ map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 
 lookupRewrite ::
