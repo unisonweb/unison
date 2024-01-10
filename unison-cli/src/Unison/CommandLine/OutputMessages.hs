@@ -761,16 +761,14 @@ notifyUser dir = \case
                 [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
-  LoadedDefinitionsToSourceFile fp code ->
+  LoadedDefinitionsToSourceFile fp numDefinitions ->
     pure $
       P.callout "☝️" $
         P.lines
-          [ P.wrap $ "I added these definitions to the top of " <> fromString fp,
-            "",
-            P.indentN 2 code,
+          [ P.wrap $ "I added " <> P.shown @Int numDefinitions <> " definitions to the top of " <> fromString fp,
             "",
             P.wrap $
-              "You can edit them there, then do"
+              "You can edit them there, then run"
                 <> makeExample' IP.update
                 <> "to replace the definitions currently in this namespace."
           ]
@@ -2497,9 +2495,6 @@ displayOutputRewrittenFile fp vs = do
         "",
         "The rewritten file has been added to the top of " <> fromString fp
       ]
-
-foldLine :: (IsString s) => P.Pretty s
-foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
 
 displayDefinitions' ::
   (Var v) =>
