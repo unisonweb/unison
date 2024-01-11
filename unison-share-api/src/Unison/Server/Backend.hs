@@ -1041,7 +1041,7 @@ namesAtPathFromRootBranchHash codebase mbh path = do
         lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
         Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash (Just rootCausalHash) codebase
-  let pped = PPED.fromNamesDecl hashLen names
+  let pped = PPED.fromNamesSuffixifiedByHash hashLen names
   pure (names, pped)
 
 resolveCausalHash ::

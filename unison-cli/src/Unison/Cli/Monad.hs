@@ -36,6 +36,7 @@ module Unison.Cli.Monad
     -- * Communicating output to the user
     respond,
     respondNumbered,
+    setNumberedArgs,
 
     -- * Debug-timing actions
     time,
@@ -157,9 +158,6 @@ data Env = Env
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
-    -- | Are we currently running a transcript? Sometimes, it is convenient to know this fact, so we can put more
-    -- information to the terminal to be captured in transcript output.
-    isTranscript :: Bool,
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
     -- | How to write source code.
@@ -415,6 +413,11 @@ respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
+  setNumberedArgs args
+
+-- | Updates the numbered args, but only if the new args are non-empty.
+setNumberedArgs :: NumberedArgs -> Cli ()
+setNumberedArgs args = do
   unless (null args) do
     #numberedArgs .= args
 

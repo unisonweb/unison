@@ -26,7 +26,6 @@ module Unison.CommandLine
 where
 
 import Control.Concurrent (forkIO, killThread)
-import Control.Lens (ifor)
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
@@ -50,7 +49,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
-import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.Parser.Ann (Ann)
@@ -122,7 +120,7 @@ nothingTodo = emojiNote "😶"
 parseInput ::
   Codebase IO Symbol Ann ->
   IO (Branch0 IO) ->
-  -- | Current path from root, used to expand globs
+  -- | Current path from root
   Path.Absolute ->
   -- | Numbered arguments
   [String] ->
@@ -147,20 +145,7 @@ parseInput codebase getRoot currentPath numberedArgs patterns segments = runExce
         let expandedNumbers :: [String]
             expandedNumbers =
               foldMap (expandNumber numberedArgs) args
-        expandedGlobs <- ifor expandedNumbers $ \i arg -> do
-          if Globbing.containsGlob arg
-            then do
-              rootBranch <- liftIO getRoot
-              let targets = case InputPattern.argType pat i of
-                    Just argT -> InputPattern.globTargets argT
-                    Nothing -> mempty
-              case Globbing.expandGlobs targets rootBranch currentPath arg of
-                -- No globs encountered
-                Nothing -> pure [arg]
-                Just [] -> throwE $ "No matches for: " <> fromString arg
-                Just matches -> pure matches
-            else pure [arg]
-        lift (fzfResolve codebase projCtx getCurrentBranch0 pat (concat expandedGlobs)) >>= \case
+        lift (fzfResolve codebase projCtx getCurrentBranch0 pat expandedNumbers) >>= \case
           Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
           Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing

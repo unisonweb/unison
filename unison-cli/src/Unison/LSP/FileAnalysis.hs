@@ -512,11 +512,11 @@ ppedForFileHelper uf tf = do
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.fromNamesDecl hashLen fileNames
+          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
       let fileNames = UF.toNames uf
-          filePPED = PPED.fromNamesDecl hashLen fileNames
+          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint

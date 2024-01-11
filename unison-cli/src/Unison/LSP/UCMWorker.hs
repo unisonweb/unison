@@ -34,7 +34,7 @@ ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath =
         let currentBranch0 = Branch.getAt0 (Path.unabsolute currentPath) (Branch.head currentRoot)
         let parseNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let pped = PPED.fromNamesDecl hl parseNames
+        let pped = PPED.fromNamesSuffixifiedByHash hl parseNames
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppedVar pped

@@ -5,7 +5,6 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Exception (catch, finally, mask, throwIO)
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
@@ -22,7 +21,6 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Text.IO qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
@@ -31,10 +29,7 @@ import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, getHomeDirectory, removeFile, renameFile)
-import System.FilePath qualified as FilePath
-import System.IO qualified as IO
-import System.IO.Error (isDoesNotExistError)
+import System.Directory (canonicalizePath, getHomeDirectory)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -761,21 +756,18 @@ notifyUser dir = \case
                 [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
-  LoadedDefinitionsToSourceFile fp code ->
+  LoadedDefinitionsToSourceFile fp numDefinitions ->
     pure $
       P.callout "☝️" $
         P.lines
-          [ P.wrap $ "I added these definitions to the top of " <> fromString fp,
-            "",
-            P.indentN 2 code,
+          [ P.wrap $ "I added " <> P.shown @Int numDefinitions <> " definitions to the top of " <> fromString fp,
             "",
             P.wrap $
-              "You can edit them there, then do"
+              "You can edit them there, then run"
                 <> makeExample' IP.update
                 <> "to replace the definitions currently in this namespace."
           ]
   DisplayDefinitions code -> pure code
-  DisplayDefinitionsString isTranscript definitions -> displayDefinitionsString isTranscript definitions
   OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
@@ -2498,9 +2490,6 @@ displayOutputRewrittenFile fp vs = do
         "The rewritten file has been added to the top of " <> fromString fp
       ]
 
-foldLine :: (IsString s) => P.Pretty s
-foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-
 displayDefinitions' ::
   (Var v) =>
   (Ord a1) =>
@@ -2557,34 +2546,6 @@ displayRendered outputLoc pp =
             "",
             P.indentN 2 pp
           ]
-
-displayDefinitionsString :: Maybe FilePath -> Pretty -> IO Pretty
-displayDefinitionsString maybePath definitions =
-  case maybePath of
-    Nothing -> pure definitions
-    Just path -> do
-      let withTempFile tmpFilePath tmpHandle = do
-            Text.hPutStrLn tmpHandle (Text.pack (P.toPlain 80 definitions))
-            Text.hPutStrLn tmpHandle "\n---\n"
-            IO.withFile path IO.ReadMode \currentScratchFile -> do
-              let copyLoop = do
-                    chunk <- Text.hGetChunk currentScratchFile
-                    case Text.length chunk == 0 of
-                      True -> pure ()
-                      False -> do
-                        Text.hPutStr tmpHandle chunk
-                        copyLoop
-              copyLoop
-            IO.hClose tmpHandle
-            renameFile tmpFilePath path
-      mask \unmask -> do
-        (tmpFilePath, tmpHandle) <- IO.openTempFile (FilePath.takeDirectory path) "unison-scratch"
-        unmask (withTempFile tmpFilePath tmpHandle) `finally` do
-          IO.hClose tmpHandle
-          removeFile tmpFilePath `catch` \case
-            e | isDoesNotExistError e -> pure ()
-            e -> throwIO e
-      pure mempty
 
 displayTestResults ::
   Bool -> -- whether to show the tip

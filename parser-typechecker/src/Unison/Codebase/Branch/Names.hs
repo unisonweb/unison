@@ -15,7 +15,7 @@ import Prelude hiding (head, read, subtract)
 
 -- | Get the pretty-printing environment for names in the provided branch.
 toPrettyPrintEnvDecl :: Int -> Branch0 m -> PPED.PrettyPrintEnvDecl
-toPrettyPrintEnvDecl hashLength b = PPED.fromNamesDecl hashLength $ toNames b
+toPrettyPrintEnvDecl hashLength b = PPED.fromNamesSuffixifiedByHash hashLength $ toNames b
 
 -- | Get the names in the provided branch.
 toNames :: Branch0 m -> Names

@@ -40,7 +40,8 @@ module Unison.Name
     preferShallowLibDepth,
     searchByRankedSuffix,
     searchBySuffix,
-    shortestUniqueSuffix,
+    suffixifyByName,
+    suffixifyByHash,
     sortByText,
     sortNamed,
     sortNames,
@@ -61,6 +62,7 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
+import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
@@ -488,6 +490,23 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
+-- Tries to shorten `fqn` to the smallest suffix that still
+-- unambiguously refers to the same name. Uses an efficient
+-- logarithmic lookup in the provided relation.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByName fqn rel =
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  where
+    isOk :: Name -> Bool
+    isOk suffix = matchingNameCount == 1
+      where
+        matchingNameCount :: Int
+        matchingNameCount =
+          getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
+
 -- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
 -- Uses an efficient logarithmic lookup in the provided relation.
 -- The returned `Name` may refer to multiple hashes if the original FQN
@@ -495,19 +514,20 @@ unqualified (Name _ (s :| _)) =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
-shortestUniqueSuffix fqn rel =
+suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByHash fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
     allRefs :: Set r
     allRefs =
       R.lookupDom fqn rel
+
     isOk :: Name -> Bool
     isOk suffix =
-      Set.size rs == 1 || rs == allRefs
+      Set.size refs == 1 || refs == allRefs
       where
-        rs :: Set r
-        rs =
+        refs :: Set r
+        refs =
           R.searchDom (compareSuffix suffix) rel
 
 -- | Returns the common prefix of two names as segments

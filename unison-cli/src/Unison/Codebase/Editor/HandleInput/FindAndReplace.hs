@@ -86,7 +86,7 @@ handleStructuredFindI rule = do
   results0 <- traverse ok results
   let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs results
+  Cli.setNumberedArgs $ map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 
 lookupRewrite ::
@@ -100,7 +100,7 @@ lookupRewrite onErr prepare rule = do
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestFile
   let currentNames = fileNames <> Branch.toNames currentBranch
-  let ppe = PPED.fromNamesDecl hqLength currentNames
+  let ppe = PPED.fromNamesSuffixifiedByHash hqLength currentNames
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
@@ -141,7 +141,4 @@ renderRewrittenFile ppe msg (vs, uf) = do
   let prettyVar = P.text . Var.name
       modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
       header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf <> foldLine)
-  where
-    foldLine :: (IsString s) => P.Pretty s
-    foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf)

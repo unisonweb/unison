@@ -437,7 +437,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.fromNames 8 (UF.toNames uf)
+    dppe = PPE.makePPE (PPE.hqNamer 8 (UF.toNames uf)) PPE.dontSuffixify
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 

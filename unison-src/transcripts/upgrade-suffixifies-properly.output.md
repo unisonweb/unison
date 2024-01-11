@@ -1,7 +1,11 @@
 ```unison
-lib.old.foo = 17
-lib.new.foo = +18
-thingy = lib.old.foo + 10
+lib.old.foo = 25
+lib.new.foo = +30
+a.x.x.x.x = 100
+b.x.x.x.x = 100
+c.y.y.y.y = lib.old.foo + 10
+d.y.y.y.y = lib.old.foo + 10
+bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ```ucm
@@ -14,23 +18,31 @@ thingy = lib.old.foo + 10
   
     ⍟ These new definitions are ok to `add`:
     
+      a.x.x.x.x   : Nat
+      b.x.x.x.x   : Nat
+      bar         : Nat
+      c.y.y.y.y   : Nat
+      d.y.y.y.y   : Nat
       lib.new.foo : Int
       lib.old.foo : Nat
-      thingy      : Nat
 
 ```
 ```ucm
-proj/main> add
+myproject/main> add
 
   ⍟ I've added these definitions:
   
+    a.x.x.x.x   : Nat
+    b.x.x.x.x   : Nat
+    bar         : Nat
+    c.y.y.y.y   : Nat
+    d.y.y.y.y   : Nat
     lib.new.foo : Int
     lib.old.foo : Nat
-    thingy      : Nat
 
 ```
 ```ucm
-proj/main> upgrade old new
+myproject/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've
   added the definitions that need attention to the top of
@@ -38,8 +50,18 @@ proj/main> upgrade old new
 
 ```
 ```unison:added-by-ucm scratch.u
-thingy : Nat
-thingy =
+bar : Nat
+bar =
+  use Nat +
+  a.x.x.x.x + c.y.y.y.y
+
+d.y.y.y.y : Nat
+d.y.y.y.y =
+  use Nat +
+  foo + 10
+
+c.y.y.y.y : Nat
+c.y.y.y.y =
   use Nat +
   foo + 10
 ```

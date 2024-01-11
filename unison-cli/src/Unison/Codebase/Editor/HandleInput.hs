@@ -305,7 +305,7 @@ loop e = do
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
-              #numberedArgs .= numberedEntries
+              Cli.setNumberedArgs numberedEntries
               Cli.respond $ ShowReflog expandedEntries
               where
                 expandEntries ::
@@ -674,7 +674,7 @@ loop e = do
                     let root0 = Branch.head root
                     let names = Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPED.fromNamesDecl hqLength names
+                    let pped = PPED.fromNamesSuffixifiedByHash hqLength names
                     pure (names, pped)
                   else do
                     names <- Cli.currentNames
@@ -794,14 +794,13 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              #numberedArgs .= fmap Name.toString patches
+              Cli.setNumberedArgs $ fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              -- caching the result as an absolute path, for easier jumping around
-              #numberedArgs .= fmap entryToHQString entries
+              Cli.setNumberedArgs $ fmap entryToHQString entries
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               -- This used to be a delayed action which only forced the loading of the root
@@ -1458,7 +1457,7 @@ handleFindI isVerbose fscope ws input = do
             let srs = searchBranchScored names fuzzyNameDistance qs
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        #numberedArgs .= fmap searchResultToHQString results
+        Cli.setNumberedArgs $ fmap searchResultToHQString results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
@@ -1512,9 +1511,9 @@ handleDependencies hq = do
     pure (types, terms)
   let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  #numberedArgs
-    .= map (Text.unpack . Reference.toText . snd) types
-    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.setNumberedArgs $
+    map (Text.unpack . Reference.toText . snd) types
+      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies suffixifiedPPE lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1551,7 +1550,7 @@ handleDependents hq = do
   let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.setNumberedArgs $ map (Text.unpack . Reference.toText . view _2) (types <> terms)
   Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
@@ -1664,7 +1663,8 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       -- next update for that file (which will happen immediately)
       #latestFile ?= (fp, True)
       liftIO $ writeSource (Text.pack fp) renderedCodeText
-      Cli.respond $ LoadedDefinitionsToSourceFile fp renderedCodePretty
+      let numDefinitions = Map.size terms + Map.size types
+      Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   where
     renderCodePretty pped isSourceFile isTest terms types =
@@ -1761,10 +1761,10 @@ doShowTodoOutput patch scopePath = do
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
-      #numberedArgs
-        .= ( Text.unpack . Reference.toText . view _2
-               <$> fst (TO.todoFrontierDependents todo)
-           )
+      Cli.setNumberedArgs
+        ( Text.unpack . Reference.toText . view _2
+            <$> fst (TO.todoFrontierDependents todo)
+        )
       pped <- Cli.currentPrettyPrintEnvDecl
       Cli.respondNumbered $ TodoOutput pped todo
 

@@ -15,6 +15,7 @@ dependencies:
   - generic-lens
   - either
   - extra
+  - filepath
   - generic-lens
   - lens
   - mtl
@@ -36,15 +37,28 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - ConstraintKinds
+  - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
-  - ScopedTypeVariables
+  - NamedFieldPuns
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
   - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

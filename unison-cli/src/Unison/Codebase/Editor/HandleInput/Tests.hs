@@ -25,7 +25,7 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
-import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Input (TestInput (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Runtime qualified as Runtime

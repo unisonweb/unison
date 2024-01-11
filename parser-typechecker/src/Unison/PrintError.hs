@@ -1938,8 +1938,8 @@ prettyResolutionFailures s allFailures =
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
-    ppeFromNames =
-      PPE.fromNames PPE.todoHashLength
+    ppeFromNames names =
+      PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of
