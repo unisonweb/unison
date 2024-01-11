@@ -144,7 +144,7 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```unison
-.builtin> crypto.hash Sha3_256 (fromHex "3849238492")
+> hash Sha3_256 (fromHex "3849238492")
 ```
 
 ```ucm
@@ -158,9 +158,9 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | .builtin> crypto.hash Sha3_256 (fromHex "3849238492")
-                  ⧩
-                  0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
+    1 | > hash Sha3_256 (fromHex "3849238492")
+          ⧩
+          0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
 
 ```
 ## Hashing tests
