@@ -16,6 +16,7 @@ module Unison.Hash32
 
     -- ** Text
     toText,
+    fromText,
   )
 where
 
@@ -64,6 +65,10 @@ toBase32Hex =
 toText :: Hash32 -> Text
 toText =
   coerce
+
+fromText :: Text -> Maybe Hash32
+fromText =
+  fmap UnsafeFromBase32Hex . Base32Hex.fromText
 
 unsafeFromBase32HexText :: Text -> Hash32
 unsafeFromBase32HexText = UnsafeFromBase32Hex . Base32Hex.UnsafeFromText
