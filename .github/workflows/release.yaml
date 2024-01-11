@@ -127,6 +127,7 @@ jobs:
 
       - name: Push docker image
         run: |
+          IMAGE_NAME=${{github.repository}}
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           VERSION=${{inputs.version}}
