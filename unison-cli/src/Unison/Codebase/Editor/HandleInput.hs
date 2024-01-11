@@ -304,7 +304,7 @@ loop e = do
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
-              #numberedArgs .= numberedEntries
+              Cli.setNumberedArgs numberedEntries
               Cli.respond $ ShowReflog expandedEntries
               where
                 expandEntries ::
@@ -798,14 +798,14 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              #numberedArgs .= fmap Name.toString patches
+              Cli.setNumberedArgs $ fmap Name.toString patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
               -- caching the result as an absolute path, for easier jumping around
-              #numberedArgs .= fmap entryToHQString entries
+              Cli.setNumberedArgs $ fmap entryToHQString entries
               currentBranch <- Cli.getCurrentBranch
               let buildPPE = do
                     schLength <- Codebase.runTransaction codebase Codebase.branchHashLength
@@ -1466,7 +1466,7 @@ handleFindI isVerbose fscope ws input = do
             let srs = searchBranchScored names fuzzyNameDistance qs
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        #numberedArgs .= fmap searchResultToHQString results
+        Cli.setNumberedArgs $ fmap searchResultToHQString results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         ppe <- suffixifiedPPE =<< makePrintNamesFromLabeled'
         Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
@@ -1512,9 +1512,9 @@ handleDependencies hq = do
     pure (types, terms)
   let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  #numberedArgs
-    .= map (Text.unpack . Reference.toText . snd) types
-    <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+  Cli.setNumberedArgs $
+    map (Text.unpack . Reference.toText . snd) types
+      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies ppe lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1551,7 +1551,7 @@ handleDependents hq = do
   let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  #numberedArgs .= map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.setNumberedArgs $ map (Text.unpack . Reference.toText . view _2) (types <> terms)
   Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 handleDiffNamespaceToPatch :: Text -> DiffNamespaceToPatchInput -> Cli ()
@@ -1772,10 +1772,10 @@ doShowTodoOutput patch scopePath = do
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
-      #numberedArgs
-        .= ( Text.unpack . Reference.toText . view _2
-               <$> fst (TO.todoFrontierDependents todo)
-           )
+      Cli.setNumberedArgs
+        ( Text.unpack . Reference.toText . view _2
+            <$> fst (TO.todoFrontierDependents todo)
+        )
       -- only needs the local references to check for obsolete defs
       ppe <- do
         names <- makePrintNamesFromLabeled'

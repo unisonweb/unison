@@ -36,6 +36,7 @@ module Unison.Cli.Monad
     -- * Communicating output to the user
     respond,
     respondNumbered,
+    setNumberedArgs,
 
     -- * Debug-timing actions
     time,
@@ -412,6 +413,11 @@ respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
+  setNumberedArgs args
+
+-- | Updates the numbered args, but only if the new args are non-empty.
+setNumberedArgs :: NumberedArgs -> Cli ()
+setNumberedArgs args = do
   unless (null args) do
     #numberedArgs .= args
 

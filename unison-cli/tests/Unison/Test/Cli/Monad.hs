@@ -16,7 +16,7 @@ test =
             Cli.runCli dummyEnv dummyLoopState do
               Cli.label \goto -> do
                 Cli.label \_ -> do
-                  #numberedArgs .= ["foo"]
+                  Cli.setNumberedArgs ["foo"]
                   goto (1 :: Int)
                 pure 2
         -- test that 'goto' short-circuits, as expected
