@@ -3,7 +3,6 @@ module Unison.PrettyPrintEnvDecl.Names
   )
 where
 
-import Unison.Names (Names)
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 

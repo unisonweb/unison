@@ -45,7 +45,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
