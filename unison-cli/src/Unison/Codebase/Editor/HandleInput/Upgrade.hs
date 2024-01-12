@@ -12,7 +12,6 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Sqlite.DbId (ProjectId)
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -27,6 +26,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
     findCtorNames,
     forwardCtorNames,
+    getNamespaceDependentsOf,
     makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
@@ -154,19 +154,17 @@ handleUpgrade oldDepName newDepName = do
       -- Create a Unison file that contains all of our dependents of modified defns of `lib.old`. todo: twiddle
       unisonFile <- do
         dependents <-
-          Operations.dependentsWithinScope
-            (Names.referenceIds namesExcludingLibdeps)
+          getNamespaceDependentsOf
+            namesExcludingLibdeps
             ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
                 <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
                 <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
                 <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
             )
         addDefinitionsToUnisonFile
-          Output.UOUUpgrade
           abort
           codebase
-          namesExcludingLibdeps
-          constructorNamesExcludingLibdeps
+          (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps)
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
@@ -253,7 +251,7 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
           )
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixifyByName namesExcludingOldDep)
+          suffixifiedPPE = makePPE (PPE.suffixifyByHash namesExcludingOldDep)
         }
   where
     oldNames = Branch.toNames oldDep
