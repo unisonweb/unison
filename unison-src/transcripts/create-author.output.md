@@ -7,16 +7,16 @@ Demonstrating `create.author`:
 
   Added definitions:
   
-    1. metadata.authors.alicecoder          : Author
-    2. metadata.copyrightHolders.alicecoder : CopyrightHolder
-    3. metadata.authors.alicecoder.guid     : GUID
+    1. metadata.authors.alicecoder          : #345f3nptqq
+    2. metadata.copyrightHolders.alicecoder : #pgornst1pq
+    3. metadata.authors.alicecoder.guid     : #hqectlr3gt
   
   Tip: Add License values for alicecoder under metadata.
 
 .foo> view 2
 
-  metadata.copyrightHolders.alicecoder : CopyrightHolder
-  metadata.copyrightHolders.alicecoder =
-    CopyrightHolder guid "Alice McGee"
+  .foo.metadata.copyrightHolders.alicecoder : CopyrightHolder
+  .foo.metadata.copyrightHolders.alicecoder =
+    CopyrightHolder alicecoder.guid "Alice McGee"
 
 ```

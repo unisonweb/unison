@@ -18,7 +18,7 @@ b.thing = "b"
 -- Should be local to namespace
 .a> view thing
 
-  thing : Text
+  thing : ##Text
   thing = "a"
 
 -- view.global should search globally and be absolutely qualified
