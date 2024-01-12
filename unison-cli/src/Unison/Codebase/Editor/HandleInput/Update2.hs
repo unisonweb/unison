@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
     getNamespaceDependentsOf,
+    makeComplicatedPPE,
   )
 where
 
@@ -96,7 +97,6 @@ handleUpdate2 :: Cli ()
 handleUpdate2 = do
   Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
-  let tufNames = UF.typecheckedToNames tuf
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
@@ -106,58 +106,17 @@ handleUpdate2 = do
 
   Cli.respond Output.UpdateLookingForDependents
   (pped, bigUf) <- Cli.runTransactionWithRollback \abort -> do
-    (dependentTerms, dependentTypes) <-
+    dependents <-
       getNamespaceDependentsOf namesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
-
     hashLen <- Codebase.hashLength
-
-    -- The big picture behind PPE building, though there are many details:
-    --
-    --   * We are updating old references to new references by rendering old references as names that are then parsed
-    --     back to resolve to new references (the world's weirdest implementation of AST substitution).
-    --
-    --   * We have to render names that refer to definitions in the file with a different suffixification strategy
-    --     (namely, "suffixify by name") than names that refer to things in the codebase.
-    --
-    --     This is because you *may* refer to aliases that share a suffix by that suffix for definitions in the
-    --     codebase, but not in the file.
-    --
-    --     For example, the following file will fail to parse:
-    --
-    --       one.foo = 10
-    --       two.foo = 10
-    --       hey = foo + foo -- "Which foo do you mean? There are two."
-    --
-    --     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
-    --
-    --       hey = foo + foo
-
-    let filePPED :: PrettyPrintEnvDecl
-        filePPED =
-          PPED.makePPED (PPE.namer fileNames) (PPE.suffixifyByName fileNames)
-          where
-            fileNames = tufNames <> dependentNames
-            dependentNames =
-              Names
-                (Relation.mapRan Referent.fromTermReferenceId dependentTerms)
-                (Relation.mapRan Reference.fromId dependentTypes)
-
-    let codebasePPED :: PrettyPrintEnvDecl
-        codebasePPED =
-          PPED.makePPED (PPE.hqNamer hashLen codebaseNames) (PPE.suffixifyByHash codebaseNames)
-          where
-            codebaseNames = Names.unionLeftName namesIncludingLibdeps tufNames
-
-    let entirePPED = filePPED `PPED.addFallback` codebasePPED
-
     bigUf <-
       addDefinitionsToUnisonFile
         abort
         codebase
         (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames)
-        (dependentTerms, dependentTypes)
+        dependents
         (UF.discardTypes tuf)
-    pure (entirePPED, bigUf)
+    pure (makeComplicatedPPE hashLen namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents, bigUf)
 
   -- If the new-unison-file-to-typecheck is the same as old-unison-file-that-we-already-typechecked, then don't bother
   -- typechecking again.
@@ -484,3 +443,40 @@ getNamespaceDependentsOf names dependencies = do
     nameType :: TypeReferenceId -> Relation Name TypeReferenceId
     nameType ref =
       Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
+
+-- The big picture behind PPE building, though there are many details:
+--
+--   * We are updating old references to new references by rendering old references as names that are then parsed
+--     back to resolve to new references (the world's weirdest implementation of AST substitution).
+--
+--   * We have to render names that refer to definitions in the file with a different suffixification strategy
+--     (namely, "suffixify by name") than names that refer to things in the codebase.
+--
+--     This is because you *may* refer to aliases that share a suffix by that suffix for definitions in the
+--     codebase, but not in the file.
+--
+--     For example, the following file will fail to parse:
+--
+--       one.foo = 10
+--       two.foo = 10
+--       hey = foo + foo -- "Which foo do you mean? There are two."
+--
+--     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
+--
+--       hey = foo + foo
+makeComplicatedPPE ::
+  Int ->
+  Names ->
+  Names ->
+  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
+  PrettyPrintEnvDecl
+makeComplicatedPPE hashLen names initialFileNames (dependentTerms, dependentTypes) =
+  PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)
+    `PPED.addFallback` PPED.makePPED (PPE.hqNamer hashLen namesInTheNamespace) (PPE.suffixifyByHash namesInTheNamespace)
+  where
+    namesInTheFile =
+      initialFileNames
+        <> Names
+          (Relation.mapRan Referent.fromTermReferenceId dependentTerms)
+          (Relation.mapRan Reference.fromId dependentTypes)
+    namesInTheNamespace = Names.unionLeftName names initialFileNames

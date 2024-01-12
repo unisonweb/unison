@@ -27,6 +27,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
     findCtorNames,
     forwardCtorNames,
     getNamespaceDependentsOf,
+    makeComplicatedPPE,
     makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
@@ -151,16 +152,15 @@ handleUpgrade oldDepName newDepName = do
 
   (unisonFile, printPPE) <-
     Cli.runTransactionWithRollback \abort -> do
-      -- Create a Unison file that contains all of our dependents of modified defns of `lib.old`. todo: twiddle
+      dependents <-
+        getNamespaceDependentsOf
+          namesExcludingLibdeps
+          ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
+              <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
+              <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
+              <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
+          )
       unisonFile <- do
-        dependents <-
-          getNamespaceDependentsOf
-            namesExcludingLibdeps
-            ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
-                <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
-                <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
-                <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
-            )
         addDefinitionsToUnisonFile
           abort
           codebase
@@ -168,9 +168,11 @@ handleUpgrade oldDepName newDepName = do
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-      let secondaryPPE = PPED.makePPED (PPE.hqNamer hashLength namesExcludingOldDep) (PPE.suffixifyByName namesExcludingOldDep)
-      pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
+      pure
+        ( unisonFile,
+          makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
+            `PPED.addFallback` makeComplicatedPPE hashLength namesExcludingOldDep mempty dependents
+        )
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
   typecheckedUnisonFile <-
