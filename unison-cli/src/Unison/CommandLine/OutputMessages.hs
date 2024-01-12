@@ -84,6 +84,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
@@ -2211,16 +2212,17 @@ expectedNonEmptyPushDest namespace =
     ]
 
 prettyShareError :: ShareError -> Pretty
-prettyShareError =
-  P.fatalCallout . \case
-    ShareErrorCheckAndSetPush err -> prettyCheckAndSetPushError err
-    ShareErrorDownloadEntities err -> prettyDownloadEntitiesError err
-    ShareErrorFastForwardPush err -> prettyFastForwardPushError err
-    ShareErrorGetCausalHashByPath err -> prettyGetCausalHashByPathError err
-    ShareErrorPull err -> prettyPullError err
-    ShareErrorTransport err -> prettyTransportError err
-    ShareErrorUploadEntities err -> prettyUploadEntitiesError err
-    ShareExpectedSquashedHead -> "The server failed to provide a squashed branch head when requested. Please report this as a bug to the Unison team."
+prettyShareError err =
+  let msg = case err of
+        ShareErrorCheckAndSetPush err -> prettyCheckAndSetPushError err
+        ShareErrorDownloadEntities err -> prettyDownloadEntitiesError err
+        ShareErrorFastForwardPush err -> prettyFastForwardPushError err
+        ShareErrorGetCausalHashByPath err -> prettyGetCausalHashByPathError err
+        ShareErrorPull err -> prettyPullError err
+        ShareErrorTransport err -> prettyTransportError err
+        ShareErrorUploadEntities err -> prettyUploadEntitiesError err
+        ShareExpectedSquashedHead -> "The server failed to provide a squashed branch head when requested. Please report this as a bug to the Unison team."
+   in Debug.debug Debug.Sync "ShareError" $ P.fatalCallout msg
 
 prettyCheckAndSetPushError :: Share.CheckAndSetPushError -> Pretty
 prettyCheckAndSetPushError = \case

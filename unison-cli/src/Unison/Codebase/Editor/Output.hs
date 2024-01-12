@@ -418,6 +418,7 @@ data ShareError
   | ShareErrorTransport Sync.CodeserverTransportError
   | ShareErrorUploadEntities Share.UploadEntitiesError
   | ShareExpectedSquashedHead
+  deriving (Show)
 
 data HistoryTail
   = EndOfLog CausalHash
