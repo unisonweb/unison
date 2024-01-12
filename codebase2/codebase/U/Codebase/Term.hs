@@ -144,55 +144,87 @@ extraMap ::
   (vt -> vt') ->
   ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
   ABT.Term (F' text' termRef' typeRef' termLink' typeLink' vt') v a
-extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
+extraMap ftext ftermRef ftypeRef ftermLink ftypeLink fvt t =
+  runIdentity $ extraMapM (pure . ftext) (pure . ftermRef) (pure . ftypeRef) (pure . ftermLink) (pure . ftypeLink) (pure . fvt) t
+
+extraMapM ::
+  forall
+    m
+    text
+    termRef
+    typeRef
+    termLink
+    typeLink
+    vt
+    text'
+    termRef'
+    typeRef'
+    termLink'
+    typeLink'
+    vt'
+    v
+    a.
+  (Ord v, Ord vt', Monad m) =>
+  (text -> m text') ->
+  (termRef -> m termRef') ->
+  (typeRef -> m typeRef') ->
+  (termLink -> m termLink') ->
+  (typeLink -> m typeLink') ->
+  (vt -> m vt') ->
+  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
+  m (ABT.Term (F' text' termRef' typeRef' termLink' typeLink' vt') v a)
+extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
   where
-    go' = ABT.transform go
-    go :: forall x. F' text termRef typeRef termLink typeLink vt x -> F' text' termRef' typeRef' termLink' typeLink' vt' x
+    go' = ABT.transformM go
+    go :: forall x. F' text termRef typeRef termLink typeLink vt x -> m (F' text' termRef' typeRef' termLink' typeLink' vt' x)
     go = \case
-      Int i -> Int i
-      Nat n -> Nat n
-      Float d -> Float d
-      Boolean b -> Boolean b
-      Text t -> Text (ftext t)
-      Char c -> Char c
-      Ref r -> Ref (ftermRef r)
-      Constructor r cid -> Constructor (ftypeRef r) cid
-      Request r cid -> Request (ftypeRef r) cid
-      Handle e h -> Handle e h
-      App f a -> App f a
-      Ann a typ -> Ann a (Type.rmap ftypeRef $ ABT.vmap fvt typ)
-      List s -> List s
-      If c t f -> If c t f
-      And p q -> And p q
-      Or p q -> Or p q
-      Lam b -> Lam b
-      LetRec bs b -> LetRec bs b
-      Let a b -> Let a b
-      Match s cs -> Match s (goCase <$> cs)
-      TermLink r -> TermLink (ftermLink r)
-      TypeLink r -> TypeLink (ftypeLink r)
-    goCase :: MatchCase text typeRef x -> MatchCase text' typeRef' x
-    goCase (MatchCase p g b) = MatchCase (goPat p) g b
-    goPat = rmapPattern ftext ftypeRef
+      Int i -> pure $ Int i
+      Nat n -> pure $ Nat n
+      Float d -> pure $ Float d
+      Boolean b -> pure $ Boolean b
+      Text t -> Text <$> ftext t
+      Char c -> pure $ Char c
+      Ref r -> Ref <$> ftermRef r
+      Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
+      Request r cid -> Request <$> ftypeRef r <*> pure cid
+      Handle e h -> pure $ Handle e h
+      App f a -> pure $ App f a
+      Ann a typ -> Ann a <$> (ABT.vmapM fvt typ >>= Type.rmapM ftypeRef)
+      List s -> pure $ List s
+      If c t f -> pure $ If c t f
+      And p q -> pure $ And p q
+      Or p q -> pure $ Or p q
+      Lam b -> pure $ Lam b
+      LetRec bs b -> pure $ LetRec bs b
+      Let a b -> pure $ Let a b
+      Match s cs -> Match s <$> (traverse goCase cs)
+      TermLink r -> TermLink <$> ftermLink r
+      TypeLink r -> TypeLink <$> ftypeLink r
+    goCase :: MatchCase text typeRef x -> m (MatchCase text' typeRef' x)
+    goCase (MatchCase p g b) = MatchCase <$> goPat p <*> pure g <*> pure b
+    goPat = rmapPatternM ftext ftypeRef
 
 rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
-rmapPattern ft fr = go
+rmapPattern ft fr p = runIdentity . rmapPatternM (pure . ft) (pure . fr) $ p
+
+rmapPatternM :: Applicative m => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
+rmapPatternM ft fr = go
   where
     go = \case
-      PUnbound -> PUnbound
-      PVar -> PVar
-      PBoolean b -> PBoolean b
-      PInt i -> PInt i
-      PNat n -> PNat n
-      PFloat d -> PFloat d
-      PText t -> PText (ft t)
-      PChar c -> PChar c
-      PConstructor r i ps -> PConstructor (fr r) i (go <$> ps)
-      PAs p -> PAs (go p)
-      PEffectPure p -> PEffectPure (go p)
-      PEffectBind r i ps p -> PEffectBind (fr r) i (go <$> ps) (go p)
-      PSequenceLiteral ps -> PSequenceLiteral (go <$> ps)
-      PSequenceOp p1 op p2 -> PSequenceOp (go p1) op (go p2)
+      PUnbound -> pure $ PUnbound
+      PVar -> pure $ PVar
+      PBoolean b -> pure $ PBoolean b
+      PInt i -> pure $ PInt i
+      PNat n -> pure $ PNat n
+      PFloat d -> pure $ PFloat d
+      PText t -> PText <$> ft t
+      PChar c -> pure $ PChar c
+      PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
+      PAs p -> PAs <$> go p
+      PEffectPure p -> PEffectPure <$> go p
+      PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p
+      PSequenceLiteral ps -> PSequenceLiteral <$> traverse go ps
+      PSequenceOp p1 op p2 -> PSequenceOp <$> go p1 <*> pure op <*> go p2
 
 dependencies ::
   (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>

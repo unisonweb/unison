@@ -5,14 +5,11 @@ module U.Core.ABT where
 import Control.Lens (Lens', use, (.=))
 import Control.Monad.State
 import Data.Foldable qualified as Foldable
-import Data.Functor.Identity (Identity (runIdentity))
-import Data.Maybe (fromMaybe)
-import Data.Set (Set)
 import Data.Set qualified as Set
 import Debug.RecoverRTTI qualified as RTTI
-import GHC.Generics (Generic)
 import U.Core.ABT.Var (Var (freshIn))
 import Unison.Debug qualified as Debug
+import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
 data ABT f v r
@@ -20,7 +17,7 @@ data ABT f v r
   | Cycle r
   | Abs v r
   | Tm (f r)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
@@ -92,6 +89,13 @@ vmap f (Term _ a out) = case out of
   Tm fa -> tm a (fmap (vmap f) fa)
   Cycle r -> cycle a (vmap f r)
   Abs v body -> abs a (f v) (vmap f body)
+
+vmapM :: (Applicative m, Traversable f, Foldable f, Ord v2) => (v -> m v2) -> Term f v a -> m (Term f v2 a)
+vmapM f (Term _ a out) = case out of
+  Var v -> var a <$> f v
+  Tm fa -> tm a <$> traverse (vmapM f) fa
+  Cycle r -> cycle a <$> vmapM f r
+  Abs v body -> abs a <$> f v <*> vmapM f body
 
 cata ::
   (Functor f) =>
