@@ -1625,14 +1625,23 @@ handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.Ha
 handleShowDefinition outputLoc showDefinitionScope query = do
   Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
-  (names, unbiasedPPED) <- case showDefinitionScope of
-    ShowDefinitionGlobal -> do
+  let hasAbsoluteQuery = any (any Name.isAbsolute) query
+  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
+    -- If any of the queries are absolute, use global names.
+    -- TODO: We should instead print each definition using the names from its project-branch root.
+    (True, _) -> do
       root <- Cli.getRootBranch
       let root0 = Branch.head root
       let names = Names.makeAbsolute $ Branch.toNames root0
       pped <- Cli.prettyPrintEnvDeclFromNames names
       pure (names, pped)
-    ShowDefinitionLocal -> do
+    (_, ShowDefinitionGlobal) -> do
+      root <- Cli.getRootBranch
+      let root0 = Branch.head root
+      let names = Names.makeAbsolute $ Branch.toNames root0
+      pped <- Cli.prettyPrintEnvDeclFromNames names
+      pure (names, pped)
+    (_, ShowDefinitionLocal) -> do
       currentNames <- Cli.currentNames
       pped <- Cli.prettyPrintEnvDeclFromNames currentNames
       pure (currentNames, pped)
@@ -2260,8 +2269,19 @@ displayI ::
   HQ.HashQualified Name ->
   Cli ()
 displayI outputLoc hq = do
-  names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let useRoot = any Name.isAbsolute hq
+  (names, pped) <-
+    if useRoot
+      then do
+        root <- Cli.getRootBranch
+        let root0 = Branch.head root
+        let names = Names.makeAbsolute $ Branch.toNames root0
+        pped <- Cli.prettyPrintEnvDeclFromNames names
+        pure (names, pped)
+      else do
+        names <- Cli.currentNames
+        pped <- Cli.prettyPrintEnvDeclFromNames names
+        pure (names, pped)
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
