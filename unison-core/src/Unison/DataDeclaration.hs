@@ -156,15 +156,16 @@ generateRecordAccessors generatedAnn fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
-    tm (fname, ann) i =
+    tm (fname, fieldAnn) i =
       [ (Var.namespaced [typename, fname], ann, get),
         (Var.namespaced [typename, fname, Var.named "set"], ann, set),
         (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
+        ann = generatedAnn fieldAnn
         -- example: `point -> case point of Point x _ -> x`
         get =
-          Term.lam (generatedAnn ann) argname $
+          Term.lam (generatedAnn fieldAnn) argname $
             Term.match
               ann
               (Term.var ann argname)
