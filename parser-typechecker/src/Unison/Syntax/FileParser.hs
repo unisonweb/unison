@@ -194,9 +194,10 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       (kind, guid, ann) <- watched
       _ <- guardEmptyWatch ann
       msum
-        [ WatchBinding kind ann <$> TermParser.binding,
-          WatchExpression kind guid ann <$> TermParser.blockTerm
+        [ TermParser.binding <&> (\trm@(((trmSpanAnn, _), _)) -> WatchBinding kind (ann <> trmSpanAnn) trm),
+          TermParser.blockTerm <&> (\trm -> WatchExpression kind guid (ann <> ABT.annotation trm) trm)
         ]
+
     guardEmptyWatch ann =
       P.try $ do
         op <- optional (L.payload <$> P.lookAhead closeBlock)
