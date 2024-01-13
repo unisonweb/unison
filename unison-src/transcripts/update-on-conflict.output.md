@@ -7,6 +7,8 @@ b.x = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -72,6 +74,8 @@ x = 3
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -85,18 +89,13 @@ x = 3
 ```ucm
 .merged> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    x : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .merged> view.patch
 
-  Edited Terms:
-    1. b.x -> 3. x
-    2. a.x -> 4. x
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
+  This patch is empty.
 
 ```

@@ -1,5 +1,7 @@
 name: "release"
 
+run-name: "release ${{inputs.version}}"
+
 defaults:
   run:
     shell: bash
@@ -8,11 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (E.g. M4 or M4a)'
-        required: true
-        type: string
-      share_base_path:
-        description: 'Path to base version that UCM should pull by default (E.g. `unison.public.base.releases.M4`)'
+        description: 'Release Version (E.g. M4 or M4a or 0.4.1)'
         required: true
         type: string
       target:
@@ -61,8 +59,6 @@ jobs:
 
     name: "build_linux"
     runs-on: ubuntu-20.04
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -109,7 +105,7 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -123,6 +119,21 @@ jobs:
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
+      - name: build and push docker container
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+
+      - name: Log in to docker registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+
+      - name: Push docker image
+        run: |
+          IMAGE_NAME=${{github.repository}}
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          VERSION=${{inputs.version}}
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+
       - name: Upload linux artifact
         uses: actions/upload-artifact@v2
         with:
@@ -133,8 +144,6 @@ jobs:
   build_macos:
     name: "build_macos"
     runs-on: macos-12
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -184,7 +193,7 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -208,9 +217,6 @@ jobs:
   build_windows:
     name: "build_windows"
     runs-on: windows-2019
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
-
     steps:
       - uses: actions/checkout@v2
         with:
@@ -257,7 +263,7 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
 

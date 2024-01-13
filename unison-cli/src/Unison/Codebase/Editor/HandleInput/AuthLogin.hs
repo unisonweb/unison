@@ -13,6 +13,7 @@ import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString.Char8 qualified as BSC
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (urlEncodedBody)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
@@ -21,6 +22,7 @@ import Network.URI (URI (..), parseURI)
 import Network.Wai
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (getCredentials, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
@@ -94,6 +96,7 @@ authLogin host = do
         -- otherwise the server will shut down prematurely.
         putMVar authResultVar result
         pure respReceived
+  fetchTime <- liftIO getCurrentTime
   tokens@(Tokens {accessToken}) <-
     Cli.with (Warp.withApplication (pure $ authTransferServer codeHandler)) \port -> do
       let redirectURI = "http://localhost:" <> show port <> "/redirect"
@@ -103,7 +106,16 @@ authLogin host = do
       bailOnFailure . liftIO $ UnliftIO.withAsync (Web.openBrowser (show authorizationKickoff)) \_ -> readMVar authResultVar
   userInfo <- bailOnFailure (getUserInfo doc accessToken)
   let codeserverId = codeserverIdFromCodeserverURI host
-  let creds = codeserverCredentials discoveryURI tokens userInfo
+  let creds = codeserverCredentials discoveryURI tokens fetchTime userInfo
+  -- Before saving new credentials we clear the temp entity caches,
+  -- this is to handle the case that the user logged into a new user and that they have
+  -- some hashJWTs for a different user around which won't work against the new user
+  -- credentials.
+  --
+  -- It also means that if the server changes signing-keys the user will simply get
+  -- "unauthenticated", call `auth.login`, and that will clear out any hashjwts signed with
+  -- the old key.
+  Cli.runTransaction Q.clearTempEntityTables
   liftIO (saveCredentials credentialManager codeserverId creds)
   Cli.respond Output.Success
   pure userInfo

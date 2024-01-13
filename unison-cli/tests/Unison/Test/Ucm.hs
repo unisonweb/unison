@@ -25,6 +25,7 @@ import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError (..))
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser qualified as TR
+import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude (traceM)
 import Unison.PrettyTerminal qualified as PT
@@ -65,7 +66,7 @@ runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
   let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
-  TR.withTranscriptRunner "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
+  TR.withTranscriptRunner Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
     result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
       Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
       let transcriptSrc = stripMargin . Text.pack $ unTranscript transcript

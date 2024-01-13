@@ -144,6 +144,13 @@ pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v bod
 pattern ForallsNamed' :: [v] -> Type v a -> Type v a
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 
+pattern ForallsNamedOpt' :: [v] -> Type v a -> Type v a
+pattern ForallsNamedOpt' vs body <- (unForallsOpt -> (vs, body))
+
+unForallsOpt :: Type v a -> ([v], Type v a)
+unForallsOpt (ForallsNamed' vs t) = (vs, t)
+unForallsOpt t = ([], t)
+
 pattern ForallNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 
@@ -615,15 +622,17 @@ purifyArrows = ABT.visitPure go
     go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
-removeEffectVars :: (ABT.Var v) => Set v -> Type v a -> Type v a
-removeEffectVars removals t =
+-- `keepEmptied` controls whether any ability lists that become `{}`
+-- after this transformation are kept in the signature or elided entirely
+removeEffectVars :: (ABT.Var v) => Bool -> Set v -> Type v a -> Type v a
+removeEffectVars keepEmptied removals t =
   let z = effects () []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
       -- leave explicitly empty `{}` alone
-      removeEmpty (Effect1' (Effects' []) v) = Just (ABT.visitPure removeEmpty v)
+      removeEmpty (Effect1' (Effects' []) _) = Nothing
       removeEmpty t@(Effect1' e v) =
         case flattenEffects e of
-          [] -> Just (ABT.visitPure removeEmpty v)
+          [] | not keepEmptied -> Just (ABT.visitPure removeEmpty v)
           es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
       removeEmpty t@(Effects' es) =
         Just $ effects (ABT.annotation t) (es >>= flattenEffects)
@@ -641,13 +650,29 @@ removeAllEffectVars t =
       go (Effect1' (Var' v) _) = Set.singleton v
       go _ = mempty
       (vs, tu) = unforall' t
-   in generalize vs (removeEffectVars allEffectVars tu)
+   in generalize vs (removeEffectVars False allEffectVars tu)
 
-removePureEffects :: (ABT.Var v) => Type v a -> Type v a
-removePureEffects t
+-- Removes empty {} from type signatures, so
+--  `a ->{} b` becomes `a -> b`
+removeEmptyEffects :: (Ord v) => Type v a -> Type v a
+removeEmptyEffects t = ABT.rebuildUp' go t
+  where
+    go (Effect1' (Effects' []) t) = t
+    go t = t
+
+-- pure effect variables are those used only in covariant position
+-- for instance, in Nat ->{g} Nat ->{g2} Nat, `g` and `g2` only
+-- appear to the right of an `->`, and as a result this type is
+-- equivalent to `Nat ->{} Nat ->{} Nat`.
+--
+-- `keepEmptied` controls whether any ability lists that become `{}`
+-- after this transformation are removed from the signature or
+-- kept around.
+removePureEffects :: (ABT.Var v) => Bool -> Type v a -> Type v a
+removePureEffects keepEmptied t
   | not Settings.removePureEffects = t
   | otherwise =
-      generalize vs $ removeEffectVars fvs tu
+      generalize vs $ removeEffectVars keepEmptied fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs
@@ -714,6 +739,22 @@ freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
   where
     vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
 
+-- normalizes the order that variables are introduced by a forall
+-- based on the location where the variables first appear in the type
+normalizeForallOrder :: forall v a. (Var v) => Type v a -> Type v a
+normalizeForallOrder tm0 =
+  foldr step body vs
+  where
+    step :: (a, v) -> Type v a -> Type v a
+    step (a, v) body
+      | Set.member v (ABT.freeVars body) = forall a v body
+      | otherwise = body
+    (body, vs0) = extract tm0
+    vs = sortOn (\(_, v) -> Map.lookup v ind) vs0
+    extract tm@(ABT.Tm' (Forall (ABT.Abs'' v body))) = ((ABT.annotation tm, v) :) <$> extract body
+    extract body = (body, [])
+    ind = ABT.numberedFreeVars body
+
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
 -- two different types.
@@ -768,7 +809,7 @@ cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
 cleanup :: (Var v) => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
-cleanup t = cleanupVars1 . cleanupAbilityLists $ t
+cleanup t = normalizeForallOrder . removePureEffects True . cleanupVars1 . cleanupAbilityLists $ t
 
 builtinAbilities :: Set Reference
 builtinAbilities = Set.fromList [builtinIORef, stmRef]

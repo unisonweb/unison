@@ -1,5 +1,5 @@
 # Basics
-## non-exhaustive patterns 
+## non-exhaustive patterns
 ```unison
 unique type T = A | B | C
 
@@ -9,6 +9,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
@@ -33,6 +35,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
@@ -60,6 +64,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         8 |   _ -> ()
     
@@ -78,6 +84,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         9 |   (A, Some A) -> ()
@@ -98,13 +106,15 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       test : Optional (Optional V) -> ()
 
 ```
@@ -118,6 +128,8 @@ test0 = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
@@ -136,6 +148,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         7 |   Some _ -> ()
     
@@ -151,6 +165,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -170,6 +186,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -193,6 +211,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -218,6 +238,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   None -> ()
@@ -239,6 +261,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
@@ -266,6 +290,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   0 -> ()
@@ -283,6 +309,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -305,6 +333,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -323,6 +353,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -346,6 +378,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         4 |   0 -> ()
     
@@ -361,6 +395,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
@@ -378,6 +414,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -397,6 +435,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   [] -> ()
@@ -414,6 +454,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x +: xs -> ()
@@ -430,6 +472,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -449,6 +493,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x0 +: (x1 +: xs) -> ()
@@ -467,6 +513,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
@@ -491,13 +539,15 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       test : [V] -> ()
 
 ```
@@ -519,6 +569,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -542,6 +594,8 @@ test = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
         6 |   true +: xs -> ()
     
@@ -550,7 +604,7 @@ test = cases
 This is another similar example. The first pattern matches lists of
 length 5 or greater. The second matches lists of length 4 or greater where the
 first and third element are true. The third matches lists of length 4
-or greater where the final 4 elements are `true, false, true, false`. 
+or greater where the final 4 elements are `true, false, true, false`.
 The list must be exactly of length 4 to arrive at the second or third
 clause, so the third pattern is redundant.
 ```unison
@@ -563,6 +617,8 @@ test = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ ++ [true, false, true, false] -> ()
@@ -581,13 +637,15 @@ unit2t = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type T
+      type T
       unit2t : 'T
 
 ```
@@ -596,12 +654,12 @@ unit2t = cases
 
   ⍟ I've added these definitions:
   
-    unique type T
+    type T
     unit2t : 'T
 
 ```
-Pattern coverage checking needs the data decl map to contain all 
-transitive type dependencies of the scrutinee type. We do this 
+Pattern coverage checking needs the data decl map to contain all
+transitive type dependencies of the scrutinee type. We do this
 before typechecking begins in a roundabout way: fetching all
 transitive type dependencies of references that appear in the expression.
 
@@ -614,6 +672,8 @@ witht = match unit2t () with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -633,13 +693,15 @@ evil = bug ""
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type V
+      type V
       evil : 'V
 
 ```
@@ -648,7 +710,7 @@ evil = bug ""
 
   ⍟ I've added these definitions:
   
-    unique type V
+    type V
     evil : 'V
 
 ```
@@ -659,6 +721,8 @@ withV = match evil () with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         3 |   x -> ()
@@ -671,13 +735,15 @@ unique type SomeType = A
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type SomeType
+      type SomeType
 
 ```
 ```ucm
@@ -685,7 +751,7 @@ unique type SomeType = A
 
   ⍟ I've added these definitions:
   
-    unique type SomeType
+    type SomeType
 
 ```
 ```unison
@@ -697,13 +763,15 @@ get x = match x with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type R
+      type R
       get : R -> SomeType
 
 ```
@@ -713,13 +781,15 @@ unique type R = { someType : SomeType }
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type R
+      type R
       R.someType        : R -> SomeType
       R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
       R.someType.set    : SomeType -> R -> R
@@ -741,6 +811,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -767,6 +839,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -779,17 +853,15 @@ result f = handle !f with cases
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type T
+      type T
 
 ```
 ```unison
 structural ability Abort where
   abort : {Abort} a
 
-unique type V =
-
 result : '{e, Abort} V -> {e} V
-result f = 
+result f =
   impl : Request {Abort} V -> V
   impl = cases
        { abort -> _ } -> bug "aborted"
@@ -797,6 +869,8 @@ result f =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -806,20 +880,15 @@ result f =
     
       structural ability Abort
       result : '{e, Abort} V ->{e} V
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl xs = cases
@@ -830,6 +899,8 @@ handleMulti c =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -857,6 +928,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { abort -> _ } -> bug "aborted"
@@ -865,7 +938,7 @@ result f = handle !f with cases
   Patterns not matched:
   
     * { _ }
-    * {abortWithMessage _ -> _}
+    * { abortWithMessage _ -> _ }
 
 ```
 ```unison
@@ -881,6 +954,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
@@ -906,6 +981,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { x } -> x
@@ -913,16 +990,16 @@ result f = handle !f with cases
     
   
   Patterns not matched:
-   * {give B -> _}
+   * { give B -> _ }
 
 ```
 ```unison
 structural ability Abort where
   abort : {Abort} a
-  
+
 structural ability Stream a where
   emit : a -> {Stream a} Unit
-  
+
 handleMulti : '{Stream a, Abort} r -> (Optional r, [a])
 handleMulti c =
   impl : [a] -> Request {Stream a, Abort} r -> (Optional r, [a])
@@ -934,6 +1011,8 @@ handleMulti c =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
        10 |   impl xs = cases
        11 |     { r } -> (Some r, xs)
@@ -941,7 +1020,7 @@ handleMulti c =
     
   
   Patterns not matched:
-   * {abort -> _}
+   * { abort -> _ }
 
 ```
 ## Redundant handler cases are rejected
@@ -960,6 +1039,8 @@ result f = handle !f with cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
        10 |        { give A -> resume } -> result resume
@@ -983,6 +1064,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -998,10 +1081,8 @@ structural ability Abort a where
   abort : {Abort a} r
   abortWithMessage : a -> {Abort a} r
 
-unique type V =
-
 result : '{e, Abort V} a -> {e, Abort V} a
-result f = 
+result f =
   impl : Request {Abort V} r -> {Abort V} r
   impl = cases
        { x } -> x
@@ -1011,6 +1092,8 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -1019,11 +1102,6 @@ result f =
     
       structural ability Abort a
       result : '{e, Abort V} a ->{e, Abort V} a
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ## Non-exhaustive ability reinterpretations are rejected
@@ -1042,6 +1120,8 @@ result f = handle !f with cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { x } -> x
@@ -1049,7 +1129,7 @@ result f = handle !f with cases
     
   
   Patterns not matched:
-   * {abort -> _}
+   * { abort -> _ }
 
 ```
 ## Hacky workaround for uninhabited abilities
@@ -1070,10 +1150,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1082,15 +1160,17 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   Pattern match doesn't cover all possible cases:
-       10 |   impl = cases
-       11 |        { x } -> x
+        8 |   impl = cases
+        9 |        { x } -> x
     
   
   Patterns not matched:
   
-    * {give _ -> _}
-    * {give2 _ -> _}
+    * { give _ -> _ }
+    * { give2 _ -> _ }
 
 ```
 ```unison
@@ -1098,10 +1178,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1111,19 +1189,16 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Give a
+      ability Give a
       result : '{e, Give V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
@@ -1131,10 +1206,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1144,19 +1217,16 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Give a
+      ability Give a
       result : '{e, Give V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```
 ```unison
@@ -1164,10 +1234,8 @@ unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
 
-unique type V =
-
 result : '{e, Give V} r -> {e} r
-result f = 
+result f =
   impl : Request {Give V} r -> {} r
   impl = cases
        { x } -> x
@@ -1177,9 +1245,11 @@ result f =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
-       13 |        { give2 _ -> resume } -> bug "impossible"
+       11 |        { give2 _ -> resume } -> bug "impossible"
     
 
 ```
@@ -1192,10 +1262,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x
@@ -1208,8 +1276,10 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   This case would be ignored because it's already covered by the preceding case(s):
-       17 |        { giveA2 _ -> _ } -> bug "impossible"
+       15 |        { giveA2 _ -> _ } -> bug "impossible"
     
 
 ```
@@ -1222,10 +1292,8 @@ unique ability GiveB a where
   giveB : a -> {GiveB a} Unit
   giveB2 : a -> {GiveB a} Unit
 
-unique type V =
-
 result : '{e, GiveA V, GiveB V} r -> {e} r
-result f = 
+result f =
   impl : Request {GiveA V, GiveB V} r -> {} r
   impl = cases
        { x } -> x
@@ -1236,19 +1304,16 @@ result f =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability GiveA a
-      unique ability GiveB a
+      ability GiveA a
+      ability GiveB a
       result : '{e, GiveA V, GiveB V} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      unique type V
 
 ```

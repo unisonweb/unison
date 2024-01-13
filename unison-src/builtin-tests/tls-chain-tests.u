@@ -19,7 +19,7 @@ intermediateKey = "-----BEGIN RSA PRIVATE KEY-----\nMIIJKAIBAAKCAgEArgTsjlGv6JXm
 
 customCertChain = [siteCert, intermediateCert, rootCert]
 
-parseCert text = Either.toException (decodeCert (toUtf8 text))
+parseCert text = Either.toException (decodeCert (Text.toUtf8 text))
 
 defer comp =
   result = Promise.new ()
@@ -39,13 +39,14 @@ chainClient portPromise toSend =
   sock = Socket.client (HostName.HostName ("127" ++ ".0.0.1")) (Port.Port (Nat.toText (Promise.read portPromise)))
   tls = Tls.newClient tlsconfig sock
   tlsock = Tls.handshake tls
-  TlsSocket.send tlsock (toUtf8 toSend)
+  TlsSocket.send tlsock (Text.toUtf8 toSend)
   -- res = fromUtf8 (TlsSocket.receive tlsock)
-  TlsSocket.close tlsock
+  TlsSocket.terminate tlsock
   -- res
 
 -- server receives then sends
 chainServer portPromise toSend =
+  use Text toUtf8
   key = Optional.toException "No private key decoded" <| List.head (decodePrivateKey (toUtf8 intermediateKey)) -- siteKey
   tlsconfig = Tls.ServerConfig.default [
     -- parseCert siteKey,
@@ -61,7 +62,7 @@ chainServer portPromise toSend =
   tlsock = net.Tls.handshake tls
   res = fromUtf8 (TlsSocket.receive tlsock)
   -- TlsSocket.send tlsock (toUtf8 toSend)
-  TlsSocket.close tlsock
+  TlsSocket.terminate tlsock
   res
 
 tlsChainTest = do

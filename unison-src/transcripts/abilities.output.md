@@ -19,13 +19,15 @@ ha = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability A
+      ability A
       ha : Request {A} r -> r
 
 ```
@@ -34,7 +36,7 @@ ha = cases
 
   ⍟ I've added these definitions:
   
-    unique ability A
+    ability A
     ha : Request {A} r -> r
 
 ```

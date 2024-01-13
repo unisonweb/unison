@@ -62,6 +62,8 @@ doc = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -183,8 +185,8 @@ doc = cases
 
   throaty : Request {g, Ab} x -> ()
   throaty = cases
-    {a a -> k} -> ()
-    { _ }      -> ()
+    { Ab.a a -> k } -> ()
+    { _ }           -> ()
 
 .> view agitated
 

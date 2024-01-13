@@ -50,15 +50,12 @@ dependencies:
   - filelock
   - filepath
   - fingertree
-  - fsnotify
   - fuzzyfind
   - free
   - generic-lens
-  - generic-monoid
   - hashable
   - hashtables
   - haskeline
-  - here
   - http-client
   - http-media
   - http-types
@@ -92,6 +89,7 @@ dependencies:
   - safe
   - safe-exceptions
   - semialign
+  - semigroups
   - servant
   - servant-client
   - servant-docs
@@ -124,15 +122,19 @@ dependencies:
   - unison-util-base32hex
   - unison-util-bytes
   - unison-util-cache
+  - unison-util-nametree
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization
   - unliftio
+  - uuid
   - uri-encode
   - utf8-string
   - vector
   - wai
   - warp
+  - witch
+  - witherable
   - x509
   - x509-store
   - x509-system
@@ -179,6 +181,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

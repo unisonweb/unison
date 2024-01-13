@@ -18,13 +18,12 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils (displayNames)
 import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
-import Unison.Cli.TypeCheck (typecheckFile)
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Propagate qualified as Propagate
@@ -33,7 +32,6 @@ import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import Unison.Codebase.Editor.SlurpComponent qualified as SC
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as Slurp
-import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
@@ -41,6 +39,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.DataDeclaration (Decl)
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -48,12 +47,11 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
-import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toVar, unsafeFromVar)
@@ -72,7 +70,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-import Unison.WatchKind qualified as WK
 
 -- | Handle an @update@ command.
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
@@ -105,7 +102,7 @@ handleUpdate input optionalPatch requestedNames = do
       hashTerms :: Map Reference (Type Symbol Ann)
       hashTerms = Map.fromList (toList hashTerms0)
         where
-          hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
+          hashTerms0 = (\(_ann, r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms (Slurp.originalFile sr)
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
@@ -198,7 +195,6 @@ handleUpdate input optionalPatch requestedNames = do
   Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
-  addDefaultMetadata addsAndUpdates
   Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->
@@ -253,7 +249,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
     -- Running example:
     --
     --   "ping" => (#newping, Nothing, <#wham + 4>, <Nat>)
-    let nameToInterimInfo :: Map Symbol (TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
+    let nameToInterimInfo :: Map Symbol (Ann, TermReferenceId, Maybe WatchKind, Term Symbol Ann, Type Symbol Ann)
         nameToInterimInfo =
           UF.hashTermsId (Slurp.originalFile slurp0)
 
@@ -278,7 +274,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
             ( \name ->
                 case Map.lookup name nameToInterimInfo of
                   Nothing -> error (reportBug "E798907" "no interim ref for name")
-                  Just (interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
+                  Just (_, interimRef, _, _, _) -> (nameToTermRefs name, interimRef)
             )
             namesBeingUpdated
 
@@ -409,7 +405,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                       interimTermComponents =
                         nameToInterimInfo
                           & Map.elems
-                          & map (\(ref, _wk, term, typ) -> (ref, (term, typ)))
+                          & map (\(_ann, ref, _wk, term, typ) -> (ref, (term, typ)))
                           & componentize
                           & uncomponentize
 
@@ -479,7 +475,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                 --   #newping => <#wham + 4>
                 interimRefToTerm :: Map TermReferenceId (Term Symbol Ann)
                 interimRefToTerm =
-                  Map.remap (\(_var, (ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
+                  Map.remap (\(_var, (_ann, ref, _wk, term, _typ)) -> (ref, term)) nameToInterimInfo
                 -- Running example: apply the following reference mapping everwhere in a term:
                 --
                 --   #pingpong.ping -> #newping
@@ -504,14 +500,19 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh1 = fresh3 + 4
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
-                  terms = Map.elems refToGeneratedNameAndTerm,
+                  terms =
+                    Map.elems refToGeneratedNameAndTerm <&> \(v, term) ->
+                      (v, External, term),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty
                 }
-        result <- liftIO (Codebase.runTransaction codebase (typecheckFile codebase [] unisonFile))
-        case runIdentity (Result.toMaybe result) of
-          Just (Right file0) -> do
+        typecheckingEnv <-
+          liftIO do
+            Codebase.runTransaction codebase do
+              computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] unisonFile
+        case Result.result (FileParsers.synthesizeFile typecheckingEnv unisonFile) of
+          Just file0 -> do
             -- Map each name generated by unhashing back to the name it should have in the Unison file we're going to
             -- typecheck.
             --
@@ -539,15 +540,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                     --   #newping => "ping"
                     interimRefToName :: Map TermReferenceId Symbol
                     interimRefToName =
-                      Map.remap (\(name, (ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
+                      Map.remap (\(name, (_ann, ref, _wk, _term, _typ)) -> (ref, name)) nameToInterimInfo
 
             let renameTerm ::
-                  (Symbol, Term Symbol Ann, Type Symbol Ann) ->
-                  (Symbol, Term Symbol Ann, Type Symbol Ann)
-                renameTerm (generatedName, term, typ) =
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann) ->
+                  (Symbol, Ann, Term Symbol Ann, Type Symbol Ann)
+                renameTerm (generatedName, ann, term, typ) =
                   ( case Map.lookup generatedName generatedNameToName of
                       Just name -> name
                       Nothing -> error (reportBug "E440546" "no name for generated name"),
+                    ann,
                     ABT.renames generatedNameToName term,
                     typ
                   )
@@ -589,18 +591,12 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       map doTerm . toList $
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
-    tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
-    (isTestType, isTestValue) = IOSource.isTest
-    md v =
-      if Set.member v tests
-        then Metadata.singleton isTestType isTestValue
-        else Metadata.empty
     doTerm :: Symbol -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
       [r] ->
         let split = Path.splitFromName (Name.unsafeFromVar v)
-         in BranchUtil.makeAddTermName split r (md v)
+         in BranchUtil.makeAddTermName split r
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple terms named "
@@ -612,7 +608,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       [] -> errorMissingVar v
       [r] ->
         let split = Path.splitFromName (Name.unsafeFromVar v)
-         in BranchUtil.makeAddTypeName split r Metadata.empty
+         in BranchUtil.makeAddTypeName split r
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple types named "
@@ -636,26 +632,19 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
       where
         doDeprecate (n, r) = [BranchUtil.makeDeleteTermName (Path.splitFromName n) r]
 
-    -- we copy over the metadata on the old thing
-    -- todo: if the thing being updated, m, is metadata for something x in b0
-    -- update x's md to reference `m`
     doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
     doType (n, old, new) =
       let split = Path.splitFromName n
-          oldMd = BranchUtil.getTypeMetadataAt split old b0
        in [ BranchUtil.makeDeleteTypeName split old,
-            BranchUtil.makeAddTypeName split new oldMd
+            BranchUtil.makeAddTypeName split new
           ]
     doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
     doTerm (n, old, new) =
       [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
-        BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
+        BranchUtil.makeAddTermName split (Referent.Ref new)
       ]
       where
         split = Path.splitFromName n
-        -- oldMd is the metadata linked to the old definition
-        -- we relink it to the new definition
-        oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool

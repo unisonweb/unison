@@ -20,7 +20,7 @@ import Control.Lens
 import Control.Lens qualified as Lens
 import Control.Monad.Reader
 import Data.Generics.Product (field)
-import Language.LSP.Types
+import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as Builtins
 import Unison.Codebase qualified as Codebase
@@ -37,6 +37,7 @@ import Unison.LabeledDependency
 import Unison.LabeledDependency qualified as LD
 import Unison.Lexer.Pos (Pos (..))
 import Unison.Name (Name)
+import Unison.NamesWithHistory (SearchType (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern qualified as Pattern
@@ -88,7 +89,7 @@ getTypeOfReferent fileUri ref = do
       case ref of
         Referent.Ref (Reference.Builtin {}) -> empty
         Referent.Ref (Reference.DerivedId termRefId) -> do
-          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _2 . _Just)
+          MaybeT . pure $ (termsByReference ^? ix (Just termRefId) . folded . _3 . _Just)
         Referent.Con (ConstructorReference r0 cid) _type -> do
           case r0 of
             Reference.DerivedId r -> do
@@ -344,10 +345,10 @@ nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
 nodeAtPosition uri (lspToUPos -> pos) = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
-  let (trms, typs) = termsBySymbol & foldMap \(_ref, trm, mayTyp) -> ([trm], toList mayTyp)
+  let (trms, typs) = termsBySymbol & foldMap \(_ann, _ref, trm, mayTyp) -> ([trm], toList mayTyp)
   ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _3)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _3)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _4)
+      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _4)
       <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
     )
   where
@@ -387,7 +388,7 @@ markdownDocsForFQN fileUri fqn =
     nameSearch <- lift $ getNameSearch
     Env {codebase, runtime} <- ask
     liftIO $ do
-      docRefs <- Backend.docsForDefinitionName codebase nameSearch name
+      docRefs <- Backend.docsForDefinitionName codebase nameSearch ExactName name
       for docRefs $ \docRef -> do
-        Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+        Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
         pure . Md.toText $ Md.toMarkdown doc

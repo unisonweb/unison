@@ -7,6 +7,8 @@ x = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -29,6 +31,8 @@ y = 2
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -59,17 +63,17 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #sfboh4r465 .old`   to make an old namespace
+    `fork #k5ephrtf3c .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #sfboh4r465`  to reset the root namespace and
+    `reset-root #k5ephrtf3c`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Root Hash     Action
-  1.   now    #6oglurikek   add
-  2.   now    #sfboh4r465   add
-  3.   now    #t4v947uir6   builtins.merge
+  1.   now    #t21ukntm9u   add
+  2.   now    #k5ephrtf3c   add
+  3.   now    #1t2hb5o115   builtins.merge
   4.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between

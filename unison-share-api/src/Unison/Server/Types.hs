@@ -36,9 +36,8 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.DisplayObject
-  ( DisplayObject,
-  )
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
+import Unison.Codebase.Path qualified as Path
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -46,6 +45,7 @@ import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
@@ -70,6 +70,34 @@ type Size = Int
 type UnisonName = Text
 
 type UnisonHash = Text
+
+data NamespaceDetails = NamespaceDetails
+  { fqn :: Path.Path,
+    hash :: UnisonHash,
+    readme :: Maybe Doc
+  }
+  deriving (Generic, Show)
+
+instance Docs.ToSample NamespaceDetails where
+  toSamples _ =
+    [ ( "When no value is provided for `namespace`, the root namespace `.` is "
+          <> "listed by default",
+        NamespaceDetails
+          Path.empty
+          "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
+          Nothing
+      )
+    ]
+
+instance ToJSON NamespaceDetails where
+  toJSON NamespaceDetails {..} =
+    object
+      [ "fqn" .= fqn,
+        "hash" .= hash,
+        "readme" .= readme
+      ]
+
+deriving instance ToSchema NamespaceDetails
 
 -- | A hash qualified name, unlike HashQualified, the hash is required
 data ExactName name ref = ExactName
@@ -334,3 +362,33 @@ branchToUnisonHash b =
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
   ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b
+
+newtype ProjectBranchNameParam = ProjectBranchNameParam {unProjectBranchNameParam :: ProjectAndBranch ProjectName ProjectBranchName}
+  deriving (Eq, Show, Generic)
+
+instance ToParamSchema ProjectBranchNameParam where
+  toParamSchema _ =
+    mempty
+      & OpenApi.type_ ?~ OpenApiString
+      & OpenApi.example ?~ Aeson.String "@unison%2Fbase%2Fmain"
+
+-- | Parses URL escaped project and branch names, e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`
+instance FromHttpApiData ProjectBranchNameParam where
+  parseUrlPiece t =
+    case tryInto @(ProjectAndBranch ProjectName ProjectBranchName) t of
+      Left _ -> Left "Invalid project and branch name"
+      Right pab -> Right . ProjectBranchNameParam $ pab
+
+instance ToParam (QueryParam "project-and-branch" (ProjectBranchNameParam)) where
+  toParam _ =
+    DocQueryParam
+      "project_and_branch"
+      []
+      "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"
+      Normal
+
+instance Docs.ToCapture (Capture "project-and-branch" ProjectBranchNameParam) where
+  toCapture _ =
+    DocCapture
+      "project-and-branch"
+      "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"

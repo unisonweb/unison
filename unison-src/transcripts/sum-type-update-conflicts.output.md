@@ -10,6 +10,8 @@ structural type X = x
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -46,6 +48,8 @@ dependsOnX = Text.size X.x
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -61,7 +65,7 @@ This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ```ucm
-.ns> update
+.ns> update.old
 
   ⍟ I've added these definitions:
   

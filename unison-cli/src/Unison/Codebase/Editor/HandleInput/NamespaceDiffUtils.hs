@@ -19,12 +19,11 @@ import Unison.Codebase.BranchDiff qualified as BranchDiff
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
-import Unison.NamesWithHistory (NamesWithHistory (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.Reference (Reference (..))
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite qualified as Sqlite
@@ -42,7 +41,7 @@ diffHelper before after =
     hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
     let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
-    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
+    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl prettyNames0
     fmap (ppe,) do
       OBranchDiff.toOutput
         (Cli.runTransaction . Codebase.getTypeOfReferent codebase)
@@ -50,7 +49,6 @@ diffHelper before after =
         hqLength
         (Branch.toNames before)
         (Branch.toNames after)
-        ppe
         diff
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))

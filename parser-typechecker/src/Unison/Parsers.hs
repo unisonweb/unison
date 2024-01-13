@@ -2,13 +2,9 @@ module Unison.Parsers where
 
 import Data.Text qualified as Text
 import Unison.Builtin qualified as Builtin
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrintError
-  ( defaultWidth,
-    prettyParseError,
-  )
+import Unison.PrintError (defaultWidth, prettyParseError)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FileParser qualified as FileParser
 import Unison.Syntax.Parser qualified as Parser
@@ -25,63 +21,65 @@ unsafeGetRightFrom src =
   either (error . Pr.toANSI defaultWidth . prettyParseError src) id
 
 parse ::
-  (Var v) =>
-  Parser.P v a ->
+  (Monad m, Var v) =>
+  Parser.P v m a ->
   String ->
-  Parser.ParsingEnv ->
-  Either (Parser.Err v) a
+  Parser.ParsingEnv m ->
+  m (Either (Parser.Err v) a)
 parse p = Parser.run (Parser.root p)
 
 parseTerm ::
-  (Var v) =>
+  (Monad m, Var v) =>
   String ->
-  Parser.ParsingEnv ->
-  Either (Parser.Err v) (Term v Ann)
+  Parser.ParsingEnv m ->
+  m (Either (Parser.Err v) (Term v Ann))
 parseTerm = parse TermParser.term
 
 parseType ::
-  (Var v) =>
+  (Monad m, Var v) =>
   String ->
-  Parser.ParsingEnv ->
-  Either (Parser.Err v) (Type v Ann)
+  Parser.ParsingEnv m ->
+  m (Either (Parser.Err v) (Type v Ann))
 parseType = Parser.run (Parser.root TypeParser.valueType)
 
 parseFile ::
-  (Var v) =>
+  (Monad m, Var v) =>
   FilePath ->
   String ->
-  Parser.ParsingEnv ->
-  Either (Parser.Err v) (UnisonFile v Ann)
+  Parser.ParsingEnv m ->
+  m (Either (Parser.Err v) (UnisonFile v Ann))
 parseFile filename s = Parser.run' (Parser.rootFile FileParser.file) s filename
 
 readAndParseFile ::
-  (Var v) =>
-  Parser.ParsingEnv ->
+  (MonadIO m, Var v) =>
+  Parser.ParsingEnv m ->
   FilePath ->
-  IO (Either (Parser.Err v) (UnisonFile v Ann))
+  m (Either (Parser.Err v) (UnisonFile v Ann))
 readAndParseFile penv fileName = do
-  txt <- readUtf8 fileName
+  txt <- liftIO (readUtf8 fileName)
   let src = Text.unpack txt
-  pure $ parseFile fileName src penv
+  parseFile fileName src penv
 
-unsafeParseTerm :: (Var v) => String -> Parser.ParsingEnv -> Term v Ann
-unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
+unsafeParseTerm :: (Monad m, Var v) => String -> Parser.ParsingEnv m -> m (Term v Ann)
+unsafeParseTerm s env =
+  unsafeGetRightFrom s <$> parseTerm s env
 
 unsafeReadAndParseFile ::
-  Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
+  Parser.ParsingEnv IO -> FilePath -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
   txt <- readUtf8 fileName
   let str = Text.unpack txt
-  pure . unsafeGetRightFrom str $ parseFile fileName str penv
+  unsafeGetRightFrom str <$> parseFile fileName str penv
 
 unsafeParseFileBuiltinsOnly ::
   FilePath -> IO (UnisonFile Symbol Ann)
 unsafeParseFileBuiltinsOnly =
   unsafeReadAndParseFile $
     Parser.ParsingEnv
-      mempty
-      (Names.NamesWithHistory Builtin.names0 mempty)
+      { uniqueNames = mempty,
+        uniqueTypeGuid = \_ -> pure Nothing,
+        names = Builtin.names
+      }
 
-unsafeParseFile ::
-  String -> Parser.ParsingEnv -> UnisonFile Symbol Ann
-unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
+unsafeParseFile :: Monad m => String -> Parser.ParsingEnv m -> m (UnisonFile Symbol Ann)
+unsafeParseFile s pEnv = unsafeGetRightFrom s <$> parseFile "" s pEnv

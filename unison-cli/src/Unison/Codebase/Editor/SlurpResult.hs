@@ -158,23 +158,16 @@ pretty isPast ppe sr =
         Just (UpdateAliases oldNames newNames) ->
           let oldMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList oldNames
-                    sz = length oldNames
                  in P.indentN
                       2
                       ( P.wrap $
-                          P.hiBlack
-                            ( "(The old definition "
-                                <> (if isPast then "was" else "is")
-                                <> " also named "
-                            )
-                            <> oxfordAliases (P.text . Name.toText <$> shown) (length rest) (P.hiBlack ".")
-                            <> P.hiBlack
-                              ( case (sz, isPast) of
-                                  (1, True) -> "I updated this name too.)"
-                                  (1, False) -> "I'll update this name too.)"
-                                  (_, True) -> "I updated these names too.)"
-                                  (_, False) -> "I'll update these names too.)"
+                          P.parenthesize $
+                            P.hiBlack
+                              ( "The old definition "
+                                  <> (if isPast then "was" else "is")
+                                  <> " also named "
                               )
+                              <> oxfordAliases (P.text . Name.toText <$> shown) (length rest) (P.hiBlack ".")
                       )
               newMessage =
                 let (shown, rest) = splitAt aliasesToShow $ toList newNames
@@ -193,7 +186,7 @@ pretty isPast ppe sr =
       okTerm v = case Map.lookup v tms of
         Nothing ->
           [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
-        Just (_, _, _, ty) ->
+        Just (_, _, _, _, ty) ->
           ( plus <> P.bold (prettyVar v),
             Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
           )
@@ -243,7 +236,7 @@ pretty isPast ppe sr =
                 (typeLineFor Collision <$> toList (types (collisions sr)))
                   ++ (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
             termLineFor status v = case Map.lookup v tms of
-              Just (_ref, _wk, _tm, ty) ->
+              Just (_, _ref, _wk, _tm, ty) ->
                 ( prettyStatus status,
                   P.bold (P.text $ Var.name v),
                   ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)
@@ -348,4 +341,4 @@ filterUnisonFile
       effects = Map.restrictKeys effectDeclarations' keepTypes
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
-      filterTLC (v, _, _) = Set.member v keepTerms
+      filterTLC (v, _, _, _) = Set.member v keepTerms

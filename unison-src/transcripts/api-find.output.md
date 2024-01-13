@@ -9,6 +9,8 @@ joey.yaml.zz = 45
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -34,7 +36,7 @@ joey.yaml.zz = 45
 ```
 ```api
 --  Namespace segment prefix search
-GET /api/find?query=http
+GET /api/non-project-code/find?query=http
 [
     [
         {
@@ -120,7 +122,7 @@ GET /api/find?query=http
     ]
 ]
 --  Namespace segment suffix search
-GET /api/find?query=Server
+GET /api/non-project-code/find?query=Server
 [
     [
         {
@@ -165,7 +167,7 @@ GET /api/find?query=Server
     ]
 ]
 --  Substring search
-GET /api/find?query=lesys
+GET /api/non-project-code/find?query=lesys
 [
     [
         {
@@ -210,7 +212,7 @@ GET /api/find?query=lesys
     ]
 ]
 --  Cross-segment search
-GET /api/find?query=joey.http
+GET /api/non-project-code/find?query=joey.http
 [
     [
         {

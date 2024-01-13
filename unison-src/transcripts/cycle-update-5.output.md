@@ -10,6 +10,8 @@ pong _ = !inner.ping + 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,6 +41,8 @@ inner.ping _ = !pong + 3
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -50,7 +54,7 @@ inner.ping _ = !pong + 3
 
 ```
 ```ucm
-.inner> update
+.inner> update.old
 
   ⍟ I've added these definitions:
   

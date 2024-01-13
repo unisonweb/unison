@@ -6,6 +6,7 @@ module U.Codebase.Sqlite.Decode
     decodeBranchFormat,
     decodeComponentLengthOnly,
     decodeDeclElement,
+    decodeDeclElementNumConstructors,
     decodeDeclFormat,
     decodePatchFormat,
     decodeSyncDeclFormat,
@@ -34,7 +35,6 @@ module U.Codebase.Sqlite.Decode
   )
 where
 
-import Control.Exception (throwIO)
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Get qualified as Get
 import U.Codebase.Reference qualified as C.Reference
@@ -80,6 +80,10 @@ decodeComponentLengthOnly =
 decodeDeclElement :: Word64 -> ByteString -> Either DecodeError (LocalIds, DeclFormat.Decl Symbol)
 decodeDeclElement i =
   getFromBytesOr ("lookupDeclElement " <> tShow i) (Serialization.lookupDeclElement i)
+
+decodeDeclElementNumConstructors :: Word64 -> ByteString -> Either DecodeError Int
+decodeDeclElementNumConstructors i =
+  getFromBytesOr ("lookupDeclElementNumConstructors " <> tShow i) (Serialization.lookupDeclElementNumConstructors i)
 
 decodeDeclFormat :: ByteString -> Either DecodeError DeclFormat.DeclFormat
 decodeDeclFormat =
@@ -169,20 +173,16 @@ decodeWatchResultFormat =
 ------------------------------------------------------------------------------------------------------------------------
 -- unsyncs
 
-unsyncTermComponent :: TermFormat.SyncLocallyIndexedComponent' t d -> IO (TermFormat.LocallyIndexedComponent' t d)
+unsyncTermComponent :: HasCallStack => TermFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (TermFormat.LocallyIndexedComponent' t d)
 unsyncTermComponent (TermFormat.SyncLocallyIndexedComponent terms) = do
   let phi (localIds, bs) = do
         (a, b) <- decodeSyncTermAndType bs
-        pure (localIds, a, b)
-  case traverse phi terms of
-    Left err -> throwIO err
-    Right x -> pure (TermFormat.LocallyIndexedComponent x)
+        pure $ (localIds, a, b)
+  TermFormat.LocallyIndexedComponent <$> traverse phi terms
 
-unsyncDeclComponent :: DeclFormat.SyncLocallyIndexedComponent' t d -> IO (DeclFormat.LocallyIndexedComponent' t d)
+unsyncDeclComponent :: DeclFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (DeclFormat.LocallyIndexedComponent' t d)
 unsyncDeclComponent (DeclFormat.SyncLocallyIndexedComponent decls) = do
   let phi (localIds, bs) = do
         decl <- decodeDecl bs
         pure (localIds, decl)
-  case traverse phi decls of
-    Left err -> throwIO err
-    Right x -> pure (DeclFormat.LocallyIndexedComponent x)
+  DeclFormat.LocallyIndexedComponent <$> traverse phi decls

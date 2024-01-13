@@ -7,13 +7,18 @@ module U.Codebase.Sqlite.Operations
     expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
+    loadCausalBranchAtPath,
+    loadBranchAtPath,
     saveBranch,
+    saveBranchV3,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
     expectBranchByBranchHash,
     expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
+    tryGetSquashResult,
+    saveSquashResult,
 
     -- * terms
     Q.saveTermComponent,
@@ -25,6 +30,8 @@ module U.Codebase.Sqlite.Operations
     Q.saveDeclComponent,
     loadDeclComponent,
     loadDeclByReference,
+    expectDeclByReference,
+    expectDeclNumConstructors,
     expectDeclTypeById,
 
     -- * terms/decls
@@ -58,10 +65,13 @@ module U.Codebase.Sqlite.Operations
     -- ** dependents index
     dependents,
     dependentsOfComponent,
+    dependentsWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
     termsHavingType,
+    filterTermsByReferenceHavingType,
+    filterTermsByReferentHavingType,
 
     -- ** type mentions index
     Q.addTypeMentionsToIndexForTerm,
@@ -112,6 +122,10 @@ module U.Codebase.Sqlite.Operations
     declReferencesByPrefix,
     namespaceHashesByPrefix,
     derivedDependencies,
+
+    -- * internal stuff that probably need not be exported, but the 1->2 migration needs it
+    BranchV (..),
+    DbBranchV (..),
   )
 where
 
@@ -128,7 +142,9 @@ import Data.Text qualified as Text
 import Data.Tuple.Extra (uncurry3, (***))
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Branch.Type qualified as C.Branch
+import U.Codebase.BranchV3 qualified as C.BranchV3
 import U.Codebase.Causal qualified as C
+import U.Codebase.Causal qualified as C.Causal
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
@@ -138,7 +154,6 @@ import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch
 import U.Codebase.Sqlite.Branch.Diff qualified as S.Branch.Diff
 import U.Codebase.Sqlite.Branch.Diff qualified as S.BranchDiff
@@ -146,15 +161,12 @@ import U.Codebase.Sqlite.Branch.Format qualified as S
 import U.Codebase.Sqlite.Branch.Format qualified as S.BranchFormat
 import U.Codebase.Sqlite.Branch.Full qualified as S
 import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
-import U.Codebase.Sqlite.Branch.Full qualified as S.MetadataSet
+import U.Codebase.Sqlite.Branch.Full qualified as S.MetadataSet (DbMetadataSet, MetadataSetFormat' (..))
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Decl.Format qualified as S.Decl
 import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
-import U.Codebase.Sqlite.LocalIds
-  ( LocalIds,
-    WatchLocalIds,
-  )
+import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
 import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
@@ -191,9 +203,11 @@ import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
+import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Set qualified as Set
 
 -- * Error handling
@@ -233,9 +247,10 @@ loadRootCausalHash =
   runMaybeT $
     lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
--- | Load the causal hash at the given path from the root.
-loadCausalHashAtPath :: Q.TextPathSegments -> Transaction (Maybe CausalHash)
-loadCausalHashAtPath =
+-- | Load the causal hash at the given path from the provided root, if Nothing, use the
+-- codebase root.
+loadCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
       go hashId = \case
         [] -> lift (Q.expectCausalHash hashId)
@@ -245,12 +260,15 @@ loadCausalHashAtPath =
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
    in \path -> do
-        hashId <- Q.expectNamespaceRoot
+        hashId <- case mayRootCausalHash of
+          Nothing -> Q.expectNamespaceRoot
+          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
         runMaybeT (go hashId path)
 
--- | Expect the causal hash at the given path from the root.
-expectCausalHashAtPath :: Q.TextPathSegments -> Transaction CausalHash
-expectCausalHashAtPath =
+-- | Expect the causal hash at the given path from the provided root, if Nothing, use the
+-- codebase root.
+expectCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction CausalHash
+expectCausalHashAtPath mayRootCausalHash =
   let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
       go hashId = \case
         [] -> Q.expectCausalHash hashId
@@ -260,8 +278,25 @@ expectCausalHashAtPath =
           let (_, hashId') = children Map.! tid
           go hashId' ts
    in \path -> do
-        hashId <- Q.expectNamespaceRoot
+        hashId <- case mayRootCausalHash of
+          Nothing -> Q.expectNamespaceRoot
+          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
         go hashId path
+
+loadCausalBranchAtPath ::
+  Maybe CausalHash ->
+  Q.TextPathSegments ->
+  Transaction (Maybe (C.Branch.CausalBranch Transaction))
+loadCausalBranchAtPath maybeRootCausalHash path =
+  loadCausalHashAtPath maybeRootCausalHash path >>= \case
+    Nothing -> pure Nothing
+    Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
+
+loadBranchAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchAtPath maybeRootCausalHash path =
+  loadCausalBranchAtPath maybeRootCausalHash path >>= \case
+    Nothing -> pure Nothing
+    Just causal -> Just <$> C.Causal.value causal
 
 -- * Reference transformations
 
@@ -508,6 +543,11 @@ expectDeclByReference r@(C.Reference.Id h i) = do
     >>= (\oid -> Q.expectDeclObject oid (decodeDeclElement i))
     >>= uncurry Q.s2cDecl
 
+expectDeclNumConstructors :: C.Reference.Id -> Transaction Int
+expectDeclNumConstructors (C.Reference.Id h i) = do
+  oid <- Q.expectObjectIdForPrimaryHash h
+  Q.expectDeclObject oid (decodeDeclElementNumConstructors i)
+
 -- * Branch transformation
 
 s2cBranch :: S.DbBranch -> Transaction (C.Branch.Branch Transaction)
@@ -561,7 +601,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
-      Transaction (Map NameSegment (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
+      Transaction (Map NameSegment (C.Branch.CausalBranch Transaction))
     doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
       C.Causal
         <$> Q.expectCausalHash chId
@@ -569,28 +609,15 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         <*> headParents chId
         <*> pure (expectBranch boId)
       where
-        headParents ::
-          Db.CausalHashId ->
-          Transaction
-            ( Map
-                CausalHash
-                (Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction)))
-            )
+        headParents :: Db.CausalHashId -> Transaction (Map CausalHash (Transaction (C.Branch.CausalBranch Transaction)))
         headParents chId = do
           parentsChIds <- Q.loadCausalParents chId
           fmap Map.fromList $ traverse pairParent parentsChIds
-        pairParent ::
-          Db.CausalHashId ->
-          Transaction
-            ( CausalHash,
-              Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
-            )
+        pairParent :: Db.CausalHashId -> Transaction (CausalHash, Transaction (C.Branch.CausalBranch Transaction))
         pairParent chId = do
           h <- Q.expectCausalHash chId
           pure (h, loadCausal chId)
-        loadCausal ::
-          Db.CausalHashId ->
-          Transaction (C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction))
+        loadCausal :: Db.CausalHashId -> Transaction (C.Branch.CausalBranch Transaction)
         loadCausal chId = do
           C.Causal
             <$> Q.expectCausalHash chId
@@ -651,15 +678,79 @@ saveRootBranch hh c = do
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
 
+-- A couple small internal helper type that unifies V2 and V3 branches. This should be used as input to operations that
+-- can work on either kind of branch.
+
+data BranchV m
+  = BranchV2 !(C.Branch.Branch m)
+  | BranchV3 !(C.BranchV3.BranchV3 m)
+
+data DbBranchV
+  = DbBranchV2 !S.DbBranch
+  | DbBranchV3 !S.DbBranchV3
+
 saveBranch ::
   HashHandle ->
   C.Branch.CausalBranch Transaction ->
   Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveBranch hh (C.Causal hc he parents me) = do
+saveBranch hh causal@(C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
+  (chId, bhId) <- saveCausalObject hh causal
+  boId <- saveNamespace hh bhId (BranchV2 <$> me)
+  pure (boId, chId)
 
-  -- Save the causal
-  (chId, bhId) <- whenNothingM (Q.loadCausalByCausalHash hc) do
+saveBranchV3 :: HashHandle -> C.BranchV3.CausalBranchV3 Transaction -> Transaction (Db.BranchObjectId, Db.CausalHashId)
+saveBranchV3 hh causal = do
+  (chId, bhId) <- saveCausalObject hh causal
+  boId <- saveNamespace hh bhId (BranchV3 <$> (causal ^. #value))
+  pure (boId, chId)
+
+-- Save a namespace. Internal helper shared by `saveBranch` ("save V2 namespace") and `saveBranchV3`
+-- ("save V3 namespace").
+saveNamespace :: HashHandle -> Db.BranchHashId -> Transaction (BranchV Transaction) -> Transaction Db.BranchObjectId
+saveNamespace hh bhId me = do
+  Q.loadBranchObjectIdByBranchHashId bhId & onNothingM do
+    branch <- me
+    dbBranch <- c2sBranch branch
+    stats <- namespaceStatsForDbBranch dbBranch
+    saveDbBranchUnderHashId hh bhId stats dbBranch
+  where
+    c2sBranch :: BranchV Transaction -> Transaction DbBranchV
+    c2sBranch = \case
+      BranchV2 branch -> do
+        terms <- Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) (branch ^. #terms)
+        types <- Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) (branch ^. #types)
+        patches <- Map.bitraverse saveNameSegment savePatchObjectId (branch ^. #patches)
+        children <- Map.bitraverse saveNameSegment (saveBranch hh) (branch ^. #children)
+        pure (DbBranchV2 S.Branch {terms, types, patches, children})
+      BranchV3 branch -> do
+        children <- Map.bitraverse saveNameSegment (saveBranchV3 hh) (branch ^. #children)
+        terms <- Map.bitraverse saveNameSegment c2sReferent (branch ^. #terms)
+        types <- Map.bitraverse saveNameSegment c2sReference (branch ^. #types)
+        pure (DbBranchV3 S.BranchV3 {children, terms, types})
+
+    c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
+    c2sMetadata mm = do
+      C.Branch.MdValues m <- mm
+      S.Branch.Full.Inline <$> Set.traverse c2sReference (Map.keysSet m)
+
+    savePatchObjectId :: (PatchHash, Transaction C.Branch.Patch) -> Transaction Db.PatchObjectId
+    savePatchObjectId (h, mp) = do
+      Q.loadPatchObjectIdForPrimaryHash h & onNothingM do
+        patch <- mp
+        savePatch hh h patch
+
+    saveNameSegment :: NameSegment -> Transaction Db.TextId
+    saveNameSegment = Q.saveText . NameSegment.toText
+
+-- Save just the causal object (i.e. the `causal` row and its associated `causal_parents`). Internal helper shared by
+-- `saveBranch` and `saveBranchV3`.
+saveCausalObject ::
+  HashHandle ->
+  C.Causal Transaction CausalHash BranchHash (C.Branch.Branch Transaction) branch ->
+  Transaction (Db.CausalHashId, Db.BranchHashId)
+saveCausalObject hh (C.Causal.Causal hc he parents _) = do
+  Q.loadCausalByCausalHash hc & onNothingM do
     -- if not exist, create these
     chId <- Q.saveCausalHash hc
     bhId <- Q.saveBranchHash he
@@ -676,39 +767,6 @@ saveBranch hh (C.Causal hc he parents me) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-
-  -- Save the namespace
-  boId <- flip Monad.fromMaybeM (Q.loadBranchObjectIdByBranchHashId bhId) do
-    branch <- me
-    dbBranch <- c2sBranch branch
-    stats <- namespaceStatsForDbBranch dbBranch
-    boId <- saveDbBranchUnderHashId hh bhId stats dbBranch
-    pure boId
-  pure (boId, chId)
-  where
-    c2sBranch :: C.Branch.Branch Transaction -> Transaction S.DbBranch
-    c2sBranch (C.Branch.Branch terms types patches children) =
-      S.Branch
-        <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
-        <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
-        <*> Map.bitraverse saveNameSegment savePatchObjectId patches
-        <*> Map.bitraverse saveNameSegment (saveBranch hh) children
-
-    saveNameSegment :: NameSegment -> Transaction Db.TextId
-    saveNameSegment = Q.saveText . NameSegment.toText
-
-    c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
-    c2sMetadata mm = do
-      C.Branch.MdValues m <- mm
-      S.Branch.Full.Inline <$> Set.traverse c2sReference (Map.keysSet m)
-
-    savePatchObjectId :: (PatchHash, Transaction C.Branch.Patch) -> Transaction Db.PatchObjectId
-    savePatchObjectId (h, mp) = do
-      Q.loadPatchObjectIdForPrimaryHash h >>= \case
-        Just patchOID -> pure patchOID
-        Nothing -> do
-          patch <- mp
-          savePatch hh h patch
 
 expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
 expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
@@ -876,7 +934,7 @@ saveDbBranch ::
   HashHandle ->
   BranchHash ->
   C.Branch.NamespaceStats ->
-  S.DbBranch ->
+  DbBranchV ->
   Transaction Db.BranchObjectId
 saveDbBranch hh hash stats branch = do
   hashId <- Q.saveBranchHash hash
@@ -887,22 +945,33 @@ saveDbBranchUnderHashId ::
   HashHandle ->
   Db.BranchHashId ->
   C.Branch.NamespaceStats ->
-  S.DbBranch ->
+  DbBranchV ->
   Transaction Db.BranchObjectId
-saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats branch = do
-  let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
-  when debug $
-    traceM $
-      "saveBranchObject\n\tid = "
-        ++ show bhId
-        ++ "\n\tli = "
-        ++ show localBranchIds
-        ++ "\n\tlBranch = "
-        ++ show localBranch
-  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
-  oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
-  Q.saveNamespaceStats bhId stats
-  pure $ Db.BranchObjectId oId
+saveDbBranchUnderHashId hh bhId@(Db.unBranchHashId -> hashId) stats = \case
+  DbBranchV2 branch -> saveV2 branch
+  -- Here, we elect to serialize V3 branches as V2 branches just before saving them to the database. We could save a
+  -- little space instead by actually having a proper serialization format for V3 branches.
+  DbBranchV3 S.BranchV3 {children, terms, types} ->
+    saveV2
+      S.Branch
+        { children,
+          patches = Map.empty,
+          terms = Map.map unconflictedAndWithoutMetadata terms,
+          types = Map.map unconflictedAndWithoutMetadata types
+        }
+    where
+      -- Carry a v3 term or type (one ref, no metadata) to a v2 term or type (set of refs, each with metadata)
+      unconflictedAndWithoutMetadata :: ref -> Map ref S.DbMetadataSet
+      unconflictedAndWithoutMetadata ref =
+        Map.singleton ref (S.MetadataSet.Inline Set.empty)
+  where
+    saveV2 :: S.DbBranch -> Transaction Db.BranchObjectId
+    saveV2 branch = do
+      let (localBranchIds, localBranch) = LocalizeObject.localizeBranch branch
+      let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full localBranchIds localBranch
+      oId <- Q.saveObject hh hashId ObjectType.Namespace bytes
+      Q.saveNamespaceStats bhId stats
+      pure $ Db.BranchObjectId oId
 
 expectBranch :: Db.BranchObjectId -> Transaction (C.Branch.Branch Transaction)
 expectBranch id =
@@ -980,6 +1049,24 @@ termsHavingType cTypeRef =
       sIds <- Q.getReferentsByType sTypeRef
       set <- traverse s2cReferentId sIds
       pure (Set.fromList set)
+
+filterTermsByReferenceHavingType :: C.TypeReference -> [C.Reference.Id] -> Transaction [C.Reference.Id]
+filterTermsByReferenceHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferenceId cTermRefIds
+      matches <- Q.filterTermsByReferenceHavingType sTypeRef sTermRefIds
+      traverse s2cReferenceId matches
+
+filterTermsByReferentHavingType :: C.TypeReference -> [C.Referent.Id] -> Transaction [C.Referent.Id]
+filterTermsByReferentHavingType cTypeRef cTermRefIds =
+  runMaybeT (c2hReference cTypeRef) >>= \case
+    Nothing -> pure []
+    Just sTypeRef -> do
+      sTermRefIds <- traverse c2sReferentId cTermRefIds
+      matches <- Q.filterTermsByReferentHavingType sTypeRef sTermRefIds
+      traverse s2cReferentId matches
 
 typeReferenceForTerm :: S.Reference.Id -> Transaction S.ReferenceH
 typeReferenceForTerm = Q.getTypeReferenceForReferent . C.Referent.RefId
@@ -1074,6 +1161,20 @@ dependents selector r = do
       r' <- c2sReference r
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
+
+-- | `dependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id C.ReferenceType)
+dependentsWithinScope scope query = do
+  scope' <- Set.traverse c2sReferenceId scope
+  query' <- Set.traverse c2sReference query
+  Q.getDependentsWithinScope scope' query'
+    >>= Map.bitraverse s2cReferenceId (pure . objectTypeToReferenceType)
+  where
+    objectTypeToReferenceType = \case
+      ObjectType.TermComponent -> C.RtTerm
+      ObjectType.DeclComponent -> C.RtType
+      _ -> error "Q.getDependentsWithinScope shouldn't return any other types"
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)
@@ -1360,30 +1461,36 @@ expectNamespaceStatsByHashId bhId = do
   Q.loadNamespaceStatsByHashId bhId `whenNothingM` do
     boId <- Db.BranchObjectId <$> Q.expectObjectIdForPrimaryHashId (Db.unBranchHashId bhId)
     dbBranch <- expectDbBranch boId
-    stats <- namespaceStatsForDbBranch dbBranch
+    stats <- namespaceStatsForDbBranch (DbBranchV2 dbBranch)
     Q.saveNamespaceStats bhId stats
     pure stats
 
-namespaceStatsForDbBranch :: S.DbBranch -> Transaction NamespaceStats
-namespaceStatsForDbBranch S.Branch {terms, types, patches, children} = do
-  childStats <- for children \(_boId, chId) -> do
-    bhId <- Q.expectCausalValueHashId chId
-    expectNamespaceStatsByHashId bhId
-  pure $
-    NamespaceStats
-      { numContainedTerms =
-          let childTermCount = sumOf (folded . to numContainedTerms) childStats
-              termCount = lengthOf (folded . folded) terms
-           in childTermCount + termCount,
-        numContainedTypes =
-          let childTypeCount = sumOf (folded . to numContainedTypes) childStats
-              typeCount = lengthOf (folded . folded) types
-           in childTypeCount + typeCount,
-        numContainedPatches =
-          let childPatchCount = sumOf (folded . to numContainedPatches) childStats
-              patchCount = Map.size patches
-           in childPatchCount + patchCount
-      }
+namespaceStatsForDbBranch :: DbBranchV -> Transaction NamespaceStats
+namespaceStatsForDbBranch = \case
+  DbBranchV2 S.Branch {terms, types, patches, children} -> do
+    let myStats =
+          NamespaceStats
+            { numContainedTerms = lengthOf (folded . folded) terms,
+              numContainedTypes = lengthOf (folded . folded) types,
+              numContainedPatches = Map.size patches
+            }
+    childrenStats <- getChildrenStats children
+    pure (myStats <> childrenStats)
+  DbBranchV3 S.BranchV3 {children, terms, types} -> do
+    let myStats =
+          NamespaceStats
+            { numContainedTerms = Map.size terms,
+              numContainedTypes = Map.size types,
+              numContainedPatches = 0
+            }
+    childrenStats <- getChildrenStats children
+    pure (myStats <> childrenStats)
+  where
+    getChildrenStats :: Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> Transaction NamespaceStats
+    getChildrenStats =
+      foldMapM \(_boId, chId) -> do
+        bhId <- Q.expectCausalValueHashId chId
+        expectNamespaceStatsByHashId bhId
 
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
 getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
@@ -1403,6 +1510,21 @@ deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
 deleteNameLookupsExceptFor reachable = do
   bhIds <- for (Set.toList reachable) Q.expectBranchHashId
   Q.deleteNameLookupsExceptFor bhIds
+
+-- | Get the causal hash which would be the result of squashing the provided branch hash.
+-- Returns Nothing if we haven't computed it before.
+tryGetSquashResult :: BranchHash -> Transaction (Maybe CausalHash)
+tryGetSquashResult bh = do
+  bhId <- Q.expectBranchHashId bh
+  chId <- Q.tryGetSquashResult bhId
+  traverse Q.expectCausalHash chId
+
+-- | Saves the result of a squash
+saveSquashResult :: BranchHash -> CausalHash -> Transaction ()
+saveSquashResult bh ch = do
+  bhId <- Q.expectBranchHashId bh
+  chId <- Q.saveCausalHash ch
+  Q.saveSquashResult bhId chId
 
 -- | Search for term or type names which contain the provided list of segments in order.
 -- Search is case insensitive.

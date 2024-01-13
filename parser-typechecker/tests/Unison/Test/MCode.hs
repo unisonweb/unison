@@ -8,7 +8,7 @@ module Unison.Test.MCode where
 import Control.Concurrent.STM
 import Data.Map.Strict qualified as Map
 import EasyTest
-import Unison.Reference (Reference (Builtin))
+import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF
   ( SuperGroup (..),
     lamLift,
@@ -71,8 +71,8 @@ multRec =
 testEval :: String -> Test ()
 testEval s = testEval0 (fmap superNormalize <$> ctx) (superNormalize ll)
   where
-    (ll, ctx, _) =
-      lamLift
+    (ll, _, ctx, _) =
+      lamLift mempty
         . splitPatterns builtinDataSpec
         . unannotate
         $ tm s

@@ -7,8 +7,9 @@ import Data.List qualified as List
 import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Language.LSP.Types hiding (line)
-import Language.LSP.Types.Lens hiding (id, to)
+import Language.LSP.Protocol.Lens
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
@@ -32,10 +33,10 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
 
-formatDocRequest :: RequestMessage 'TextDocumentFormatting -> (Either ResponseError (List TextEdit) -> Lsp ()) -> Lsp ()
+formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
   edits <- formatDefs (m ^. params . textDocument . uri)
-  respond . Right . List $ edits
+  respond . Right . InL $ edits
 
 -- | Return a folding range for each top-level definition
 formatDefs :: Uri -> Lsp [TextEdit]
@@ -48,15 +49,15 @@ formatDefs fileUri =
         (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> do
           let termsWithWatchKind =
                 Map.toList hashTermsId
-                  <&> \(sym, (_id, wk, tm, _typ)) -> (sym, tm, wk)
+                  <&> \(sym, (_tldAnn, _id, wk, tm, _typ)) -> (sym, tm, wk)
           pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
         (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
           -- Currently we can't correctly print Record types without a successful typecheck, so we just bail on printing
           -- entirely if a record might be present.
           -- We also can't easily determine whether a given type is actually a record.
           when (not . null $ dataDeclarationsId) empty
-          let termsWithKind = terms <&> \(sym, trm) -> (sym, trm, Nothing)
-          let watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, trm) -> (sym, trm, Just wk)
+          let termsWithKind = terms <&> \(sym, _tldAnn, trm) -> (sym, trm, Nothing)
+          let watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, _tldAnn, trm) -> (sym, trm, Just wk)
           pure (dataDeclarationsId, effectDeclarationsId, termsWithKind <> watchesWithKind)
         (Nothing, Nothing) -> empty
       filePPED <- lift $ ppedForFile fileUri

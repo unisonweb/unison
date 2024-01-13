@@ -13,13 +13,14 @@ module Unison.Codebase
     isTerm,
     putTerm,
     putTermComponent,
-    termMetadata,
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
 
     -- ** Search
     termsOfType,
+    filterTermsByReferenceIdHavingType,
+    filterTermsByReferentHavingType,
     termsMentioningType,
     SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
@@ -98,6 +99,7 @@ module Unison.Codebase
 
     -- * Direct codebase access
     runTransaction,
+    runTransactionWithRollback,
     withConnection,
     withConnectionIO,
 
@@ -120,7 +122,6 @@ import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Referent qualified as V2
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin qualified as Builtin
@@ -150,10 +151,10 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
-import Unison.NameSegment qualified as NameSegment
+import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
@@ -175,6 +176,14 @@ import Unison.WatchKind qualified as WK
 runTransaction :: (MonadIO m) => Codebase m v a -> Sqlite.Transaction b -> m b
 runTransaction Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransaction conn action
+
+runTransactionWithRollback ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  ((forall void. b -> Sqlite.Transaction void) -> Sqlite.Transaction b) ->
+  m b
+runTransactionWithRollback Codebase {withConnection} action =
+  withConnection \conn -> Sqlite.runTransactionWithRollback conn action
 
 getShallowCausalFromRoot ::
   -- Optional root branch, if Nothing use the codebase's root branch.
@@ -258,19 +267,6 @@ expectBranchForHash codebase hash =
     Just branch -> pure branch
     Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
 
--- | Get the metadata attached to the term at a given path and name relative to the given branch.
-termMetadata ::
-  -- | The branch to search inside. Use the current root if 'Nothing'.
-  Maybe (V2Branch.Branch Sqlite.Transaction) ->
-  Split ->
-  -- | There may be multiple terms at the given name. You can specify a Referent to
-  -- disambiguate if desired.
-  Maybe V2.Referent ->
-  Sqlite.Transaction [Map V2Branch.MetadataValue V2Branch.MetadataType]
-termMetadata mayBranch (path, nameSeg) ref = do
-  b <- getShallowBranchAtPath path mayBranch
-  V2Branch.termMetadata b (coerce @NameSegment.NameSegment nameSeg) ref
-
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: (MonadIO m) => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
 lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
@@ -316,9 +312,7 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
-    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
-    goTerm _ = pure ()
+    goTerm (_, r, wk, tm, tp) = when (WK.watchKindShouldBeStoredInDatabase wk) (putTerm c r tm tp)
     goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
@@ -346,17 +340,17 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
+-- | Make a @TypeLookup@ that is suitable for looking up information about all of the given type-or-term references,
+-- and all of their type dependencies, including builtins.
 typeLookupForDependencies ::
-  forall m a.
-  (BuiltinAnnotation a) =>
-  Codebase m Symbol a ->
+  Codebase IO Symbol Ann ->
   Set Reference ->
-  Sqlite.Transaction (TL.TypeLookup Symbol a)
+  Sqlite.Transaction (TL.TypeLookup Symbol Ann)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  depthFirstAccum mempty s
+  (<> Builtin.typeLookup) <$> depthFirstAccum mempty s
   where
-    depthFirstAccum :: TL.TypeLookup Symbol a -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol a)
+    depthFirstAccum :: TL.TypeLookup Symbol Ann -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol Ann)
     depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
 
     -- We need the transitive dependencies of data decls
@@ -373,10 +367,10 @@ typeLookupForDependencies codebase s = do
           getTypeDeclaration codebase id >>= \case
             Just (Left ed) ->
               let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-               in depthFirstAccum z (DD.dependencies $ DD.toDataDecl ed)
+               in depthFirstAccum z (DD.typeDependencies $ DD.toDataDecl ed)
             Just (Right dd) ->
               let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-               in depthFirstAccum z (DD.dependencies dd)
+               in depthFirstAccum z (DD.typeDependencies dd)
             Nothing -> pure tl
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
@@ -450,6 +444,28 @@ termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
+
+filterTermsByReferentHavingType :: (Var v) => Codebase m v a -> Type v a -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingType c ty = filterTermsByReferentHavingTypeByReference c $ Hashing.typeToReference ty
+
+filterTermsByReferenceIdHavingType :: (Var v) => Codebase m v a -> Type v a -> Set TermReferenceId -> Sqlite.Transaction (Set TermReferenceId)
+filterTermsByReferenceIdHavingType c ty = filterTermsByReferenceIdHavingTypeImpl c (Hashing.typeToReference ty)
+
+-- | Find the subset of `tms` which match the exact type `r` points to.
+filterTermsByReferentHavingTypeByReference :: Codebase m v a -> TypeReference -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingTypeByReference c r tms = do
+  let (builtins, derived) = partitionEithers . map p $ Set.toList tms
+  let builtins' =
+        Set.intersection
+          (Set.fromList builtins)
+          (Rel.lookupDom r Builtin.builtinTermsByType)
+  derived' <- filterTermsByReferentIdHavingTypeImpl c r (Set.fromList derived)
+  pure $ builtins' <> Set.mapMonotonic Referent.fromId derived'
+  where
+    p :: Referent.Referent -> Either Referent.Referent Referent.Id
+    p r = case Referent.toId r of
+      Just rId -> Right rId
+      Nothing -> Left r
 
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
 termsMentioningType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)

@@ -9,6 +9,7 @@ dependencies:
   - bytes
   - bytestring
   - containers
+  - generic-lens
   - lens
   - text
   - unison-codebase
@@ -27,8 +28,6 @@ library:
   source-dirs: src
   exposed-modules:
     - U.Codebase.Sqlite.V2.HashHandle
-    - U.Codebase.Branch.Hashing
-    - U.Codebase.Causal.Hashing
   when:
     - condition: false
       other-modules: Paths_unison_codebase_sqlite_hashing_v2
@@ -51,6 +50,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RecordWildCards

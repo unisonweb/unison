@@ -7,7 +7,8 @@ module Unison.Parser.Ann where
 import Unison.Lexer.Pos qualified as L
 
 data Ann
-  = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
+  = -- Used for things like Builtins which don't have a source position.
+    Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
   | External
   | -- Indicates that the construct was generated from something at the given location.
     -- E.g. record constructors are generated from their field definition.

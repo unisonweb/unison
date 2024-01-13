@@ -3,8 +3,9 @@
 
 module Unison.Term where
 
-import Control.Lens (Lens', Prism', lens)
+import Control.Lens (Lens', Prism', lens, view, _2)
 import Control.Monad.State (evalState)
+import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.Map qualified as Map
@@ -149,30 +150,29 @@ bindNames ::
   Names ->
   Term v a ->
   Names.ResolutionResult v a (Term v a)
-bindNames unsafeVarToName keepFreeTerms ns0 e = do
+bindNames unsafeVarToName keepFreeTerms ns e = do
   let freeTmVars = [(v, a) | (v, a) <- ABT.freeVarOccurrences keepFreeTerms e]
       -- !_ = trace "bindNames.free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars =
         [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations e), a <- as
         ]
-      ns = Names.NamesWithHistory ns0 mempty
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm (Name.convert $ unsafeVarToName v) ns of
+      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 ->
               pure (v, fromReferent a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
-      okTy (v, a) = case Names.lookupHQType (Name.convert $ unsafeVarToName v) ns of
+              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns refs)))
+      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
+              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
@@ -217,7 +217,9 @@ prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where
     f (ABT.Term _ (a, bound) (ABT.Var v))
       | Set.notMember v bound =
-          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+          if Var.typeOf v == Var.MissingResult
+            then Just $ missingResult (a, bound) a
+            else Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
     f _ = Nothing
 
 amap :: (Ord v) => (a -> a2) -> Term v a -> Term v a2
@@ -623,13 +625,13 @@ pattern Lam' ::
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 
-pattern Delay' :: (Ord v) => Term2 vt at ap v a -> Term2 vt at ap v a
+pattern Delay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
 
-unDelay :: (Ord v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay :: (Var v) => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
 unDelay tm = case ABT.out tm of
   ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
-    | Set.notMember v (ABT.freeVars body) ->
+    | Var.typeOf v == Var.Delay || Var.typeOf v == Var.User "()" ->
         Just body
   _ -> Nothing
 
@@ -801,6 +803,9 @@ placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 resolve :: (Ord v) => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
+missingResult :: (Ord v) => at -> ab -> Term2 vt ab ap v at
+missingResult at ab = ABT.tm' at . Blank $ B.Recorded (B.MissingResultPlaceholder ab)
+
 constructor :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 constructor a ref = ABT.tm' a (Constructor ref)
 
@@ -866,7 +871,7 @@ lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
 delay :: (Var v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a
 delay a body =
-  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
+  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.typed Var.Delay)) body))
 
 lam' :: (Ord v) => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
@@ -893,14 +898,14 @@ unLetRecNamedAnnotated _ = Nothing
 letRec' ::
   (Ord v, Monoid a) =>
   Bool ->
-  [(v, Term' vt v a)] ->
+  [(v, a, Term' vt v a)] ->
   Term' vt v a ->
   Term' vt v a
 letRec' isTop bindings body =
   letRec
     isTop
-    (foldMap (ABT.annotation . snd) bindings <> ABT.annotation body)
-    [((ABT.annotation b, v), b) | (v, b) <- bindings]
+    (foldMap (view _2) bindings <> ABT.annotation body)
+    [((a, v), b) | (v, a, b) <- bindings]
     body
 
 -- Prepend a binding to form a (bigger) let rec. Useful when
@@ -1154,15 +1159,19 @@ unLamsOpt' t = case unLams' t of
   r@(Just _) -> r
   Nothing -> Just ([], t)
 
--- Same as unLams', but stops at any variable named `()`, which indicates a
--- delay (`'`) annotation which we want to preserve.
+-- Same as unLams', but stops at any lambda which is considered a delay
 unLamsUntilDelay' ::
   (Var v) =>
   Term2 vt at ap v a ->
   Maybe ([v], Term2 vt at ap v a)
-unLamsUntilDelay' t = case unLamsPred' (t, (/=) $ Var.named "()") of
+unLamsUntilDelay' t = case unLamsPred' (t, ok) of
   r@(Just _) -> r
   Nothing -> Just ([], t)
+  where
+    ok v = case Var.typeOf v of
+      Var.User "()" -> False
+      Var.Delay -> False
+      _ -> True
 
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' ::
@@ -1366,6 +1375,179 @@ fromReferent a = \case
     CT.Data -> constructor a r
     CT.Effect -> request a r
 
+-- Used to find matches of `@rewrite case` rules
+containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool
+containsExpression = ABT.containsExpression
+
+-- Used to find matches of `@rewrite case` rules
+-- Returns `Nothing` if `pat` can't be interpreted as a `Pattern`
+-- (like `1 + 1` is not a valid pattern, but `Some x` can be)
+containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
+containsCaseTerm pat =
+  (\tm -> containsCase <$> pat' <*> pure tm)
+  where
+    pat' = toPattern pat
+
+-- Implementation detail / core logic of `containsCaseTerm`
+containsCase :: Pattern loc -> Term2 typeVar typeAnn loc v a -> Bool
+containsCase pat tm = case ABT.out tm of
+  ABT.Var _ -> False
+  ABT.Cycle tm -> containsCase pat tm
+  ABT.Abs _ tm -> containsCase pat tm
+  ABT.Tm (Match scrute cases) ->
+    containsCase pat scrute || any hasPat cases
+    where
+      hasPat (MatchCase p _ rhs) = Pattern.hasSubpattern pat p || containsCase pat rhs
+  ABT.Tm f -> any (containsCase pat) (toList f)
+
+-- Used to find matches of `@rewrite signature` rules
+containsSignature :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Term2 vt at ap v a -> Bool
+containsSignature tyLhs tm = any ok (ABT.subterms tm)
+  where
+    ok (Ann' _ tp) = ABT.containsExpression tyLhs tp
+    ok _ = False
+
+-- Used to rewrite type signatures in terms (`@rewrite signature` rules)
+rewriteSignatures :: (Ord v, ABT.Var vt, Show vt) => Type vt at -> Type vt at -> Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+rewriteSignatures tyLhs tyRhs tm = ABT.rebuildMaybeUp go tm
+  where
+    go a@(Ann' tm tp) = ann (ABT.annotation a) tm <$> ABT.rewriteExpression tyLhs tyRhs tp
+    go _ = Nothing
+
+-- Used to rewrite cases of a `match` (`@rewrite case` rules)
+-- Implementation is tricky - we convert the term to a form
+-- which lets us use `ABT.rewriteExpression` to do the heavy lifting,
+-- then convert the results back to a "regular" term after.
+rewriteCasesLHS ::
+  forall v typeVar typeAnn a.
+  (Var v, Var typeVar, Ord v, Show typeVar, Eq typeAnn, Semigroup a) =>
+  Term2 typeVar typeAnn a v a ->
+  Term2 typeVar typeAnn a v a ->
+  Term2 typeVar typeAnn a v a ->
+  Maybe (Term2 typeVar typeAnn a v a)
+rewriteCasesLHS pat0 pat0' =
+  (\tm -> out <$> ABT.rewriteExpression pat pat' (into tm))
+  where
+    ann = ABT.annotation
+    embedPattern t = app (ann t) (builtin (ann t) "#pattern") t
+    pat = ABT.rebuildUp' embedPattern pat0
+    pat' = pat0'
+
+    into :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
+    into = ABT.rebuildUp' go
+      where
+        go t@(Match' scrutinee cases) =
+          apps' (builtin at "#match") [scrutinee, apps' (builtin at "#cases") (map matchCaseToTerm cases)]
+          where
+            at = ann t
+        go t = t
+
+    out :: Term2 typeVar typeAnn a v a -> Term2 typeVar typeAnn a v a
+    out = ABT.rebuildUp' go
+      where
+        go (App' (Builtin' "#pattern") t) = t
+        go t@(Apps' (Builtin' "#match") [scrute, Apps' (Builtin' "#cases") cases]) =
+          match at scrute (tweak . matchCaseFromTerm <$> cases)
+          where
+            at = ABT.annotation t
+            tweak Nothing = MatchCase (Pattern.Unbound at) Nothing (text at "🆘 rewrite produced an invalid pattern")
+            tweak (Just mc) = mc
+        go t = t
+
+-- Implementation detail of `@rewrite case` rules (both find and replace)
+toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
+toPattern tm = case tm of
+  Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc
+  Var' _ -> pure $ Pattern.Var loc
+  Apps' (Builtin' "#as") [Var' _, tm] -> Pattern.As loc <$> toPattern tm
+  App' (Builtin' "#effect-pure") p -> Pattern.EffectPure loc <$> toPattern p
+  Apps' (Builtin' "#effect-bind") [Apps' (Request' r) args, k] ->
+    Pattern.EffectBind loc r <$> traverse toPattern args <*> toPattern k
+  Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
+  Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
+  Constructor' r -> pure $ Pattern.Constructor loc r []
+  Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
+  Int' i -> pure $ Pattern.Int loc i
+  Nat' n -> pure $ Pattern.Nat loc n
+  Float' f -> pure $ Pattern.Float loc f
+  Boolean' b -> pure $ Pattern.Boolean loc b
+  Text' t -> pure $ Pattern.Text loc t
+  Char' c -> pure $ Pattern.Char loc c
+  Blank' _ -> pure $ Pattern.Unbound loc
+  List' xs -> Pattern.SequenceLiteral loc <$> traverse toPattern (toList xs)
+  Apps' (Builtin' "List.cons") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Cons <*> toPattern b
+  Apps' (Builtin' "List.snoc") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Snoc <*> toPattern b
+  Apps' (Builtin' "List.++") [a, b] -> Pattern.SequenceOp loc <$> toPattern a <*> pure Pattern.Concat <*> toPattern b
+  _ -> Nothing
+  where
+    loc = ABT.annotation tm
+
+-- Implementation detail of `@rewrite case` rules (both find and replace)
+matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
+matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
+  p <- toPattern pat
+  let g = unguard guard
+  pure $ MatchCase p (rechain pat <$> g) (rechain pat body)
+  where
+    unguard (App' (Builtin' "#guard") t) = Just t
+    unguard (Builtin' "#noguard") = Nothing
+    unguard _ = Nothing
+    rechain pat tm = foldr (\v tm -> ABT.abs' (ABT.annotation tm) v tm) tm (ABT.allVars pat)
+matchCaseFromTerm t =
+  Just (MatchCase (Pattern.Unbound (ABT.annotation t)) Nothing (text (ABT.annotation t) "💥 bug: matchCaseToTerm"))
+
+-- Implementation detail of `@rewrite case` rules (both find and replace)
+matchCaseToTerm :: (Semigroup a, Ord v) => MatchCase a (Term2 typeVar typeAnn a v a) -> Term2 typeVar typeAnn a v a
+matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
+  app loc0 (builtin loc0 "#case") chain
+  where
+    loc0 = Pattern.loc pat
+    chain = ABT.absChain' avs (apps' ci [evalState (embedPattern <$> intop pat) avs, intog guard, body])
+      where
+        ci = builtin loc0 "#case.inner"
+        intog Nothing = builtin loc0 "#noguard"
+        intog (Just (ABT.unabsA -> (_, t))) = app (ABT.annotation t) (builtin (ABT.annotation t) "#guard") t
+
+    embedPattern t = ABT.rebuildUp' embed t
+      where
+        embed t = app (ABT.annotation t) (builtin (ABT.annotation t) "#pattern") t
+    intop pat = case pat of
+      Pattern.Unbound loc -> pure (blank loc)
+      Pattern.Var loc -> do
+        avs <- State.get
+        case avs of
+          (a, v) : avs -> State.put avs $> var a v
+          _ -> pure (blank loc)
+      Pattern.Boolean loc b -> pure (boolean loc b)
+      Pattern.Int loc i -> pure (int loc i)
+      Pattern.Nat loc n -> pure (nat loc n)
+      Pattern.Float loc f -> pure (float loc f)
+      Pattern.Text loc t -> pure (text loc t)
+      Pattern.Char loc c -> pure (char loc c)
+      Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
+      Pattern.As loc p -> do
+        avs <- State.get
+        case avs of
+          (a, v) : avs -> do
+            State.put avs
+            p <- intop p
+            pure $ apps' (builtin loc "#as") [var a v, p]
+          _ -> pure (blank loc)
+      Pattern.EffectPure loc p -> app loc (builtin loc "#effect-pure") <$> intop p
+      Pattern.EffectBind loc r ps k -> do
+        ps <- traverse intop ps
+        k <- intop k
+        pure $ apps' (builtin loc "#effect-bind") [apps' (request loc r) ps, k]
+      Pattern.SequenceLiteral loc ps -> list loc <$> traverse intop ps
+      Pattern.SequenceOp loc p op q -> do
+        p <- intop p
+        q <- intop q
+        pure $ apps' (intoOp op) [p, q]
+        where
+          intoOp Pattern.Concat = builtin loc "List.++"
+          intoOp Pattern.Snoc = builtin loc "List.snoc"
+          intoOp Pattern.Cons = builtin loc "List.cons"
+
 -- mostly boring serialization code below ...
 
 instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
@@ -1411,6 +1593,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         B.Blank -> s "_"
         B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
+        B.Recorded (B.MissingResultPlaceholder _) -> s "_"
       go _ (Ref r) = s "Ref(" <> shows r <> s ")"
       go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
       go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"

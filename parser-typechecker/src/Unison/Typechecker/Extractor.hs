@@ -6,6 +6,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term
@@ -255,6 +256,12 @@ redundantPattern =
     C.RedundantPattern patternLoc -> pure patternLoc
     _ -> empty
 
+kindInferenceFailure :: ErrorExtractor v loc (KindError v loc)
+kindInferenceFailure =
+  cause >>= \case
+    C.KindInferenceFailure ke -> pure ke
+    _ -> empty
+
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =
   cause >>= \case
@@ -278,7 +285,7 @@ unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do
       let k = Var.Inference Var.Ability
-          cleanup = Type.cleanup . Type.removePureEffects . Type.generalize' k
+          cleanup = Type.cleanup . Type.removePureEffects False . Type.generalize' k
       pure (loc, v, suggestions, cleanup expectedType)
     _ -> mzero
 

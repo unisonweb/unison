@@ -233,7 +233,7 @@ token'' tok p = do
     pops p = do
       env <- S.get
       let l = layout env
-      if top l == column p
+      if top l == column p && topBlockName l /= Just "(" -- don't emit virtual semis inside parens
         then pure [Token (Semi True) p p]
         else
           if column p > top l || topHasClosePair l
@@ -359,14 +359,6 @@ lexemes' eof =
         <|> token blank
         <|> token wordyId
         <|> (asum . map token) [semi, textual, hash]
-
-    wordySep c = isSpace c || not (wordyIdChar c)
-    positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
-
-    tok :: P a -> P [Token a]
-    tok p = do
-      (start, a, stop) <- positioned p
-      pure [Token a start stop]
 
     doc2 :: P [Token Lexeme]
     doc2 = do
@@ -499,9 +491,12 @@ lexemes' eof =
                 stop' = maybe stop end (lastMay after)
 
         verbatim =
-          P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
             (start, txt, stop) <- positioned $ do
-              quotes <- lit "''" <+> many (P.satisfy (== '\''))
+              -- a single backtick followed by a non-backtick is treated as monospaced
+              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+              -- also two or more ' followed by that number of closing '
+              quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
             if all isSpace $ takeWhile (/= '\n') txt
               then
@@ -541,8 +536,20 @@ lexemes' eof =
 
         expr =
           P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
-            wrap "syntax.docTransclude" $
-              docOpen *> lexemes' docClose
+            openAs "{{" "syntax.docTransclude"
+              <+> do
+                env0 <- S.get
+                -- we re-allow layout within a transclusion, then restore it to its
+                -- previous state after
+                S.put (env0 {inLayout = True})
+                -- Note: this P.lookAhead ensures the }} isn't consumed,
+                -- so it can be consumed below by the `close` which will
+                -- pop items off the layout stack up to the nearest enclosing
+                -- syntax.docTransclude.
+                ts <- lexemes' (P.lookAhead ([] <$ lit "}}"))
+                S.modify (\env -> env {inLayout = inLayout env0})
+                pure ts
+              <+> close ["syntax.docTransclude"] (lit "}}")
 
         nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
         nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
@@ -790,12 +797,16 @@ lexemes' eof =
       _ <- optional (char '\n') -- initial newline is skipped
       s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
       col0 <- column <$> pos
-      let col = col0 - (length n) - 3
+      let col = col0 - (length n) - 3 -- this gets us first col of closing quotes
       let leading = replicate (max 0 (col - 1)) ' '
-      -- lines "foo\n" will produce ["foo"]     (ignoring last newline),
-      -- lines' "foo\n" will produce ["foo",""] (preserving trailing newline)
-      let lines' s = lines s <> (if take 1 (reverse s) == "\n" then [""] else [])
-      pure $ case lines' s of
+      -- a last line that's equal to `leading` is ignored, since leading
+      -- spaces up to `col` are not considered part of the string
+      let tweak l = case reverse l of
+            last : rest
+              | col > 1 && last == leading -> reverse rest
+              | otherwise -> l
+            [] -> []
+      pure $ case tweak (lines s) of
         [] -> s
         ls
           | all (\l -> isPrefixOf leading l || all isSpace l) ls -> intercalate "\n" (drop (length leading) <$> ls)
@@ -868,12 +879,9 @@ lexemes' eof =
       P.lookAhead (char '#')
       -- `foo#xyz` should parse
       (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-      case SH.fromString potentialHash of
+      case SH.fromText (Text.pack potentialHash) of
         Nothing -> err start (InvalidShortHash potentialHash)
         Just sh -> pure sh
-
-    separated :: (Char -> Bool) -> P a -> P a
-    separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
     numeric = bytes <|> otherbase <|> float <|> intOrNat
       where
@@ -932,6 +940,7 @@ lexemes' eof =
       where
         keywords =
           symbolyKw ":"
+            <|> openKw "@rewrite"
             <|> symbolyKw "@"
             <|> symbolyKw "||"
             <|> symbolyKw "|"
@@ -958,6 +967,7 @@ lexemes' eof =
             <|> openKw "handle"
             <|> typ
             <|> arr
+            <|> rewriteArr
             <|> eq
             <|> openKw "cases"
             <|> openKw "where"
@@ -1012,6 +1022,11 @@ lexemes' eof =
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
 
+            rewriteArr = do
+              [Token _ start end] <- symbolyKw "==>"
+              env <- S.get
+              S.put (env {opening = Just "==>"}) >> pure [Token (Open "==>") start end]
+
             arr = do
               [Token _ start end] <- symbolyKw "->"
               env <- S.get
@@ -1059,55 +1074,73 @@ lexemes' eof =
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
-        open :: String -> P [Token Lexeme]
-        open b = do
-          (start, _, end) <- positioned $ lit b
-          env <- S.get
-          S.put (env {opening = Just b})
-          pure [Token (Open b) start end]
+separated :: (Char -> Bool) -> P a -> P a
+separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
-        openKw :: String -> P [Token Lexeme]
-        openKw s = separated wordySep $ do
-          (pos1, s, pos2) <- positioned $ lit s
-          env <- S.get
-          S.put (env {opening = Just s})
-          pure [Token (Open s) pos1 pos2]
+open :: String -> P [Token Lexeme]
+open b = openAs b b
 
-        close = close' Nothing
+positioned :: P a -> P (Pos, a, Pos)
+positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
-        closeKw' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
-        closeKw' reopenBlockname open closeP = close' reopenBlockname open (separated wordySep closeP)
+openAs :: String -> String -> P [Token Lexeme]
+openAs syntax b = do
+  (start, _, end) <- positioned $ lit syntax
+  env <- S.get
+  S.put (env {opening = Just b})
+  pure [Token (Open b) start end]
 
-        blockDelimiter :: [String] -> P String -> P [Token Lexeme]
-        blockDelimiter open closeP = do
-          (pos1, close, pos2) <- positioned $ closeP
-          env <- S.get
-          case findClose open (layout env) of
-            Nothing -> err pos1 (UnexpectedDelimiter (quote close))
-              where
-                quote s = "'" <> s <> "'"
-            Just (_, n) -> do
-              S.put (env {layout = drop (n - 1) (layout env)})
-              let delims = [Token (Reserved close) pos1 pos2]
-              pure $ replicate (n - 1) (Token Close pos1 pos2) ++ delims
+openKw :: String -> P [Token Lexeme]
+openKw s = separated wordySep $ do
+  (pos1, s, pos2) <- positioned $ lit s
+  env <- S.get
+  S.put (env {opening = Just s})
+  pure [Token (Open s) pos1 pos2]
 
-        close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
-        close' reopenBlockname open closeP = do
-          (pos1, close, pos2) <- positioned $ closeP
-          env <- S.get
-          case findClose open (layout env) of
-            Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
-              where
-                msgOpen = intercalate " or " (quote <$> open)
-                quote s = "'" <> s <> "'"
-            Just (_, n) -> do
-              S.put (env {layout = drop n (layout env), opening = reopenBlockname})
-              let opens = maybe [] (const $ [Token (Open close) pos1 pos2]) reopenBlockname
-              pure $ replicate n (Token Close pos1 pos2) ++ opens
+wordySep :: Char -> Bool
+wordySep c = isSpace c || not (wordyIdChar c)
 
-        findClose :: [String] -> Layout -> Maybe (String, Int)
-        findClose _ [] = Nothing
-        findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
+tok :: P a -> P [Token a]
+tok p = do
+  (start, a, stop) <- positioned p
+  pure [Token a start stop]
+
+blockDelimiter :: [String] -> P String -> P [Token Lexeme]
+blockDelimiter open closeP = do
+  (pos1, close, pos2) <- positioned $ closeP
+  env <- S.get
+  case findClose open (layout env) of
+    Nothing -> err pos1 (UnexpectedDelimiter (quote close))
+      where
+        quote s = "'" <> s <> "'"
+    Just (_, n) -> do
+      S.put (env {layout = drop (n - 1) (layout env)})
+      let delims = [Token (Reserved close) pos1 pos2]
+      pure $ replicate (n - 1) (Token Close pos1 pos2) ++ delims
+
+close :: [String] -> P String -> P [Token Lexeme]
+close = close' Nothing
+
+closeKw' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+closeKw' reopenBlockname open closeP = close' reopenBlockname open (separated wordySep closeP)
+
+close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+close' reopenBlockname open closeP = do
+  (pos1, close, pos2) <- positioned $ closeP
+  env <- S.get
+  case findClose open (layout env) of
+    Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
+      where
+        msgOpen = intercalate " or " (quote <$> open)
+        quote s = "'" <> s <> "'"
+    Just (_, n) -> do
+      S.put (env {layout = drop n (layout env), opening = reopenBlockname})
+      let opens = maybe [] (const $ [Token (Open close) pos1 pos2]) reopenBlockname
+      pure $ replicate n (Token Close pos1 pos2) ++ opens
+
+findClose :: [String] -> Layout -> Maybe (String, Int)
+findClose _ [] = Nothing
+findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
 
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
@@ -1321,7 +1354,8 @@ keywords =
       "let",
       "namespace",
       "match",
-      "cases"
+      "cases",
+      "@rewrite"
     ]
     <> typeModifiers
     <> typeOrAbility
@@ -1347,7 +1381,7 @@ isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
+reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'", "==>"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
@@ -1411,8 +1445,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
-      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (WordyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
+      pretty (SymbolyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

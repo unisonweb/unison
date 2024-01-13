@@ -31,7 +31,7 @@ import Unison.Util.Relation qualified as Rel
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.WatchKind (pattern TestWatch)
+import Unison.WatchKind (watchKindShouldBeStoredInDatabase)
 
 -- | The operation which is being performed or checked.
 data SlurpOp
@@ -278,15 +278,10 @@ buildVarReferences uf =
     terms =
       UF.hashTermsId uf
         -- Filter out non-test watch expressions
-        & Map.filter
-          ( \case
-              (_, w, _, _)
-                | w == Just TestWatch || w == Nothing -> True
-                | otherwise -> False
-          )
+        & Map.filter (\(_, _, w, _, _) -> watchKindShouldBeStoredInDatabase w)
         & Map.bimap
           TermVar
-          (\(refId, _, _, _) -> LD.derivedTerm refId)
+          (\(_, refId, _, _, _) -> LD.derivedTerm refId)
     decls :: Map TaggedVar LD.LabeledDependency
     decls =
       UF.dataDeclarationsId' uf

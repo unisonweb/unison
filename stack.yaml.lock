@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: network-3.1.2.7@sha256:9752628bc626e0cad8c53039bea0dc0417f39ca6663232e4d9ac4e35a8925f7d,4911
-    pantry-tree:
-      sha256: aa95093a413ed8306699098159047580e0dc0bda4a862a0264a370b993319b24
-      size: 3971
-  original:
-    hackage: network-3.1.2.7
-- completed:
     name: configurator
     pantry-tree:
       sha256: 90547cd983fd15ebdc803e057d3ef8735fe93a75e29a00f8a74eadc13ee0f6e9
@@ -68,9 +61,30 @@ packages:
       size: 2488
   original:
     hackage: recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
+- completed:
+    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
+    pantry-tree:
+      sha256: 88ea35fb71d377c035770d5f0d6a3aea51919223e3bc1e492deb6f7d9cda3a85
+      size: 1043
+  original:
+    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
+- completed:
+    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
+    pantry-tree:
+      sha256: 7a3f0b679066d5e4732dfa358d76e0969589d636f4012c9e87cbe3451aa3ee5e
+      size: 45527
+  original:
+    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
+- completed:
+    hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+    pantry-tree:
+      sha256: 6a3617038d3970095100d14d026c396002a115700500cf3004ffb67ae5a75611
+      size: 1060
+  original:
+    hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
 snapshots:
 - completed:
-    sha256: dcf4fc28f12d805480ddbe8eb8c370e11db12f0461d0110a4240af27ac88d725
-    size: 650255
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/22.yaml
-  original: lts-20.22
+    sha256: 5a59b2a405b3aba3c00188453be172b85893cab8ebc352b1ef58b0eae5d248a2
+    size: 650475
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/26.yaml
+  original: lts-20.26

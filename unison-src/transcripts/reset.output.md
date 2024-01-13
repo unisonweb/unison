@@ -5,6 +5,8 @@ a = 5
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -26,13 +28,13 @@ a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #d31cd19hmj
+  ⊙ 1. #u0t5k4nr2u
   
     + Adds / updates:
     
       a
   
-  □ 2. #t4v947uir6 (start of history)
+  □ 2. #1t2hb5o115 (start of history)
 
 .> reset 2
 
@@ -45,7 +47,7 @@ a = 5
   
   
   
-  □ 1. #t4v947uir6 (start of history)
+  □ 1. #1t2hb5o115 (start of history)
 
 ```
 ```unison
@@ -53,6 +55,8 @@ foo.a = 5
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -79,13 +83,13 @@ foo.a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #fnbh3f6bi4
+  ⊙ 1. #suv33jrb2l
   
     + Adds / updates:
     
       foo.a
   
-  □ 2. #t4v947uir6 (start of history)
+  □ 2. #1t2hb5o115 (start of history)
 
 .> reset 1 foo
 
@@ -99,9 +103,21 @@ foo.a = 5
 # reset branch
 
 ```ucm
-.> project.create foo
+.> project.create-empty foo
 
   🎉 I've created the project foo.
+
+  🎨 Type `ui` to explore this project's code in your browser.
+  🔭 Discover libraries at https://share.unison-lang.org
+  📖 Use `help-topic projects` to learn more about projects.
+  
+  Write your first Unison code with UCM:
+  
+    1. Open scratch.u.
+    2. Write some Unison code and save the file.
+    3. In UCM, type `add` to save it to your new project.
+  
+  🎉 🥳 Happy coding!
 
 foo/main> history
 
@@ -113,6 +129,8 @@ a = 5
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -153,6 +171,8 @@ a = 3
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -166,9 +186,10 @@ a = 3
 ```ucm
 foo/main> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 foo/main> reset /topic
 
@@ -192,6 +213,8 @@ main.a = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -242,6 +265,8 @@ main.a = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.

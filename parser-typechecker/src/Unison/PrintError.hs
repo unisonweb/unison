@@ -22,11 +22,11 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.HashQualified (HashQualified)
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
+import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Prelude
@@ -281,7 +281,7 @@ renderTypeError e env src curPath = case e of
         debugSummary note
       ]
   FunctionApplication {..} ->
-    let fte = Type.removePureEffects ft
+    let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
         showVar (v, _t) = Set.member v fteFreeVars
         solvedVars' = filter showVar solvedVars
@@ -609,6 +609,22 @@ renderTypeError e env src curPath = case e of
     Pr.hang
       "This case would be ignored because it's already covered by the preceding case(s):"
       (annotatedAsErrorSite src loc)
+  KindInferenceFailure ke ->
+    let prettyTyp t = Pr.bold (renderType' env t)
+        showSource = showSourceMaybes src . map (\(loc, color) -> (,color) <$> rangeForAnnotated loc)
+     in prettyKindError prettyTyp showSource Type1 Type2 env ke
+  UnknownTerm {..}
+    | Var.typeOf unknownTermV == Var.MissingResult ->
+        Pr.lines
+          [ Pr.wrap "The last element of a block must be an expression, but this is a definition:",
+            "",
+            annotatedAsErrorSite src termSite,
+            Pr.wrap $ "Try adding an expression at the end of the block." <> msg
+          ]
+    where
+      msg = case expectedType of
+        Type.Var' (TypeVar.Existential {}) -> mempty
+        _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
@@ -931,6 +947,7 @@ renderTypeError e env src curPath = case e of
             fromString (show args),
             "\n"
           ]
+      C.KindInferenceFailure _ -> "kind inference failure"
       C.DuplicateDefinitions vs ->
         let go :: (v, [loc]) -> Pretty (AnnotatedText a)
             go (v, locs) =
@@ -1061,7 +1078,7 @@ renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) 
 renderTerm env e =
   let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
    in if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
+        then fromString ("..." <> drop (length s - Settings.renderTermMaxLength) s)
         else fromString s
 
 renderPattern :: Env -> Pattern ann -> ColorText
@@ -1080,8 +1097,9 @@ renderType ::
   (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a)) ->
   Type v loc ->
   Pretty (AnnotatedText a)
-renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
+renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
   where
+    cleanup t = Type.removeEmptyEffects (Type.removePureEffects False t)
     wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
     wrap start end test s = if test then start <> s <> end else s
     paren = wrap "(" ")"
@@ -1922,8 +1940,8 @@ prettyResolutionFailures s allFailures =
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
-    ppeFromNames names0 =
-      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+    ppeFromNames names =
+      PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

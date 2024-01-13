@@ -30,11 +30,11 @@ dependencies:
   - extra
   - filepath
   - free
+  - fsnotify
   - fuzzyfind
   - friendly-time
   - generic-lens
   - haskeline
-  - here
   - http-client >= 0.7.6
   - http-client-tls
   - http-types
@@ -42,8 +42,8 @@ dependencies:
   - ki
   - lens
   - lock-file
-  - lsp >= 1.5.0.0
-  - lsp-types >= 1.5.0.0
+  - lsp >= 2.2.0.0
+  - lsp-types >= 2.0.2.0
   - megaparsec
   - memory
   - mtl
@@ -61,6 +61,7 @@ dependencies:
   - recover-rtti
   - regex-tdfa
   - semialign
+  - semigroups
   - servant
   - servant-client
   - stm
@@ -68,6 +69,7 @@ dependencies:
   - text-builder
   - text-rope
   - these
+  - these-lens
   - time
   - transformers
   - unison-codebase
@@ -84,6 +86,7 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-nametree
   - unison-util-relation
   - unliftio
   - unordered-containers
@@ -147,6 +150,7 @@ executables:
       - process
       - shellmet
       - unison-cli
+      - silently
 
   cli-integration-tests:
     when:
@@ -187,8 +191,10 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - InstanceSigs
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels

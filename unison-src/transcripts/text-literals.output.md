@@ -9,6 +9,11 @@ and is terminated by the same number of quotes.
 Nothing is escaped. \n
 
 The initial newline, if it exists, is ignored.
+The last line, if it's just whitespace up to the closing quotes,
+is ignored.
+
+Use an extra blank line if you'd like a trailing newline. Like so:
+
 """
 
 > lit1
@@ -29,6 +34,8 @@ lit2 = """"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -41,7 +48,7 @@ lit2 = """"
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    10 | > lit1
+    15 | > lit1
            ⧩
            """
            This is a raw text literal.
@@ -50,14 +57,19 @@ lit2 = """"
            Nothing is escaped. \n
            
            The initial newline, if it exists, is ignored.
+           The last line, if it's just whitespace up to the closing quotes,
+           is ignored.
+           
+           Use an extra blank line if you'd like a trailing newline. Like so:
+           
            """
   
-    11 | > Some lit1
+    16 | > Some lit1
            ⧩
            Some
-             "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\n"
+             "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\nThe last line, if it's just whitespace up to the closing quotes,\nis ignored.\n\nUse an extra blank line if you'd like a trailing newline. Like so:\n"
   
-    22 | > lit2
+    27 | > lit2
            ⧩
            """"
            This is a raw text literal, indented.
@@ -68,10 +80,10 @@ lit2 = """"
            This doesn't terminate the literal - """
            """"
   
-    23 | > Some lit2
+    28 | > Some lit2
            ⧩
            Some
-             "This is a raw text literal, indented.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\"\n"
+             "This is a raw text literal, indented.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\""
 
 ```
 ```ucm
@@ -93,6 +105,11 @@ lit2 = """"
     Nothing is escaped. \n
     
     The initial newline, if it exists, is ignored.
+    The last line, if it's just whitespace up to the closing quotes,
+    is ignored.
+    
+    Use an extra blank line if you'd like a trailing newline. Like so:
+    
     """
   
   lit2 : Text

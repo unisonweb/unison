@@ -9,10 +9,10 @@ import Data.Generics.Sum (_Ctor)
 import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.ShortHash (ShortHash)
-import U.Codebase.ShortHash qualified as SH
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 
 data ConstructorType
   = DataConstructor
@@ -31,11 +31,11 @@ data Referent' termRef typeRef
 refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
 refs_ f r = bitraverse f f r
 
-typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
-typeRef_ f = bitraverse f pure
+typeRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef typeRef') typeRef typeRef'
+typeRef_ f = bitraverse pure f
 
-termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
-termRef_ f = bitraverse pure f
+termRef_ :: Traversal (Referent' termRef typeRef) (Referent' termRef' typeRef) termRef termRef'
+termRef_ f = bitraverse f pure
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"

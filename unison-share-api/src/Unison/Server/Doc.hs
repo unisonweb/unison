@@ -36,7 +36,6 @@ import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Syntax qualified as Syntax
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.NamePrinter qualified as NP
 import Unison.Syntax.TermPrinter qualified as TermPrinter
@@ -238,7 +237,7 @@ renderDoc pped doc = renderSpecial <$> doc
     renderSrc srcs =
       srcs & foldMap \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
-          MissingDecl r -> [(Type (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r)))]
+          MissingDecl r -> [Type (Reference.toText r, DO.MissingObject (Reference.toShortHash r))]
           BuiltinDecl r ->
             let name =
                   formatPretty
@@ -253,7 +252,7 @@ renderDoc pped doc = renderSpecial <$> doc
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingBuiltinTypeSig r -> [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
           BuiltinTypeSig r typ -> [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
-          MissingTerm r -> [Term (Reference.toText r, DO.MissingObject (SH.unsafeFromText $ Reference.toText r))]
+          MissingTerm r -> [Term (Reference.toText r, DO.MissingObject (Reference.toShortHash r))]
           FoundTerm ref typ tm ->
             let name = PPE.termName suffixifiedPPE (Referent.Ref ref)
                 folded =
@@ -504,7 +503,7 @@ dependenciesSpecial = \case
         EvaluatedSrcDecl srcDecl -> case srcDecl of
           MissingDecl ref -> Set.singleton (LD.TypeReference ref)
           BuiltinDecl ref -> Set.singleton (LD.TypeReference ref)
-          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependencies decl
+          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependenciesIncludingSelf ref decl
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingTerm ref -> Set.singleton (LD.TermReference ref)
           BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)

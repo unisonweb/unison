@@ -335,8 +335,8 @@ migrateBranch oldObjectId = fmap (either id id) . runExceptT $ do
 
   newHash <- lift . lift $ Hashing.dbBranchHash newBranch
   newHashId <- lift . lift $ Q.saveBranchHash newHash
-  stats <- lift . lift $ Ops.namespaceStatsForDbBranch newBranch
-  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId stats newBranch
+  stats <- lift . lift $ Ops.namespaceStatsForDbBranch (Ops.DbBranchV2 newBranch)
+  newObjectId <- lift . lift $ Ops.saveDbBranchUnderHashId v2HashHandle newHashId stats (Ops.DbBranchV2 newBranch)
   field @"objLookup"
     %= Map.insert
       oldObjectId
@@ -579,9 +579,10 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
       newTermComponents =
         remappedReferences
           & Map.elems
-          & fmap (\(v, trm, typ) -> (v, (trm, typ)))
+          & fmap (\(v, trm, typ) -> (v, (trm, typ, ())))
           & Map.fromList
           & Convert.hashTermComponents
+          & fmap (\(ref, trm, typ, _) -> (ref, trm, typ))
 
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
     let oldReferenceId = vToOldReferenceMapping ^?! ix v
@@ -868,5 +869,5 @@ saveV2EmptyBranch = do
   newHashId <- Q.saveBranchHash newHash
   -- Stats are empty for the empty branch.
   let emptyStats = NamespaceStats 0 0 0
-  _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId emptyStats branch
+  _ <- Ops.saveDbBranchUnderHashId v2HashHandle newHashId emptyStats (Ops.DbBranchV2 branch)
   pure (newHashId, newHash)

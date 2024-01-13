@@ -7,6 +7,8 @@ structural type Zoink a b c = Zoink a b c
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -26,27 +28,29 @@ structural type Zoink a b c = Zoink a b c
           ⧩
           [ Zoink
               [0, 1, 2, 3, 4, 5]
-              [ 6,
-                3,
-                3,
-                3,
-                3,
-                3,
-                3,
-                3,
-                3,
-                3,
-                3,
-                4,
-                4,
-                4,
-                4,
-                4,
-                4,
-                4,
-                4,
-                4,
-                3 ]
-              () ]
+              [ 6
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 3
+              , 4
+              , 4
+              , 4
+              , 4
+              , 4
+              , 4
+              , 4
+              , 4
+              , 4
+              , 3
+              ]
+              ()
+          ]
 
 ```

@@ -34,7 +34,7 @@ verifyClosedTermTest =
                 ()
                 (Term.ann () (Term.var () a) (Type.var () a'))
                 (Term.ann () (Term.var () b) (Type.var () b'))
-            res = Context.synthesizeClosed PPE.empty [] mempty t
+            res = Context.synthesizeClosed PPE.empty Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled [] mempty t
             errors = Context.typeErrors res
             expectUnknownSymbol (Context.ErrorNote cause _) = case cause of
               Context.UnknownSymbol _ _ -> ok

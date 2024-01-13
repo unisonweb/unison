@@ -1,6 +1,31 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.NamesWithHistory where
+-- FIXME this module used to define a NamesWithHistory type, but does no longer. This API should be moved over to
+-- Unison.Names
+
+module Unison.NamesWithHistory
+  ( diff,
+    push,
+    shadowing,
+    lookupHQType,
+    lookupHQType',
+    lookupHQTerm,
+    lookupHQTerm',
+    lookupRelativeHQType,
+    lookupRelativeHQType',
+    lookupRelativeHQTerm,
+    lookupRelativeHQTerm',
+    hasTermNamed,
+    hasTypeNamed,
+    typeName,
+    termNamesByLength,
+    longestTermName,
+    termName,
+    lookupHQPattern,
+    Diff (..),
+    SearchType (..),
+  )
+where
 
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
@@ -21,33 +46,13 @@ import Unison.ShortHash (ShortHash)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
 
--- | NamesWithHistory contains two sets of 'Names',
--- One represents names which are currently assigned,
--- the other represents names which no longer apply, perhaps they've been deleted, or the term
--- was updated and the name points elsewhere now.
-data NamesWithHistory = NamesWithHistory
-  { -- | currentNames represent references which are named in the current version of the namespace.
-    currentNames :: Names.Names,
-    -- | oldNames represent things which no longer have names in the current version of the
-    -- codebase, but which may have previously had names. This may allow us to show more helpful
-    -- context to users rather than just a hash.
-    oldNames :: Names.Names
-  }
-  deriving (Show)
-
-instance Semigroup NamesWithHistory where
-  NamesWithHistory cur1 old1 <> NamesWithHistory cur2 old2 =
-    NamesWithHistory (cur1 <> old1) (cur2 <> old2)
-
-instance Monoid NamesWithHistory where
-  mempty = NamesWithHistory mempty mempty
-
-fromCurrentNames :: Names -> NamesWithHistory
-fromCurrentNames n = NamesWithHistory {currentNames = n, oldNames = mempty}
-
-filterTypes :: (Name -> Bool) -> Names -> Names
-filterTypes = Names.filterTypes
+-- | Whether to search for exact matches or to find definitions by a suffix of their name.
+data SearchType
+  = IncludeSuffixes
+  | ExactName
+  deriving (Eq, Ord, Show)
 
 -- Simple 2 way diff, has the property that:
 --  addedNames (diff0 n1 n2) == removedNames (diff0 n2 n1)
@@ -73,18 +78,10 @@ data Diff = Diff
   }
   deriving (Show)
 
--- Add `n1` to `currentNames`, shadowing anything with the same name and
--- moving shadowed definitions into `oldNames` so they can can still be
--- referenced hash qualified.
-push :: Names -> NamesWithHistory -> NamesWithHistory
-push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed)
+push :: Names -> Names -> Names
+push n0 ns = unionLeft0 n1 ns
   where
     n1 = suffixify0 n0
-    cur = currentNames ns
-    shadowed = Names terms' types'
-      where
-        terms' = R.dom (terms n1) R.<| (terms cur `R.difference` terms n1)
-        types' = R.dom (types n1) R.<| (types cur `R.difference` types n1)
     unionLeft0 :: Names -> Names -> Names
     unionLeft0 n1 n2 = Names terms' types'
       where
@@ -98,9 +95,6 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed)
     -- onto the list and we could get rid of all this complex logic. The
     -- complexity here is that we have to "bake the shadowing" into a single
     -- Names, taking into account suffix-based name resolution.
-    --
-    -- We currently have `oldNames`, but that controls an unrelated axis, which
-    -- is whether names are hash qualified or not.
     suffixify0 :: Names -> Names
     suffixify0 ns = ns <> suffixNs
       where
@@ -110,73 +104,67 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed)
         uniqueTerms = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList terms']
         uniqueTypes = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList types']
 
--- if I push an existing name, the pushed reference should be the thing
--- if I push a different name for the same thing, i suppose they should coexist
--- thus, `unionLeftName`.
-shadowing :: Names -> NamesWithHistory -> NamesWithHistory
-shadowing prio (NamesWithHistory current old) =
-  NamesWithHistory (prio `Names.unionLeft` current) (current <> old)
+shadowing :: Names -> Names -> Names
+shadowing =
+  Names.unionLeft
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
 -- returning types with absolute names.
-lookupRelativeHQType :: HashQualified Name -> NamesWithHistory -> Set Reference
-lookupRelativeHQType hq ns@NamesWithHistory {..} =
-  let rs = lookupHQType hq ns
-      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types currentNames))
+lookupRelativeHQType :: SearchType -> HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType searchType hq ns =
+  let rs = lookupHQType searchType hq ns
+      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types ns))
    in case Set.filter keep rs of
         rs'
           | Set.null rs' -> rs
           | otherwise -> rs'
 
-lookupRelativeHQType' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
-lookupRelativeHQType' =
-  lookupRelativeHQType . HQ'.toHQ
+lookupRelativeHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType' searchType =
+  lookupRelativeHQType searchType . HQ'.toHQ
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified'.
-lookupHQType :: HashQualified Name -> NamesWithHistory -> Set Reference
-lookupHQType =
-  lookupHQRef Names.types Reference.isPrefixOf
+lookupHQType :: SearchType -> HashQualified Name -> Names -> Set Reference
+lookupHQType searchType =
+  lookupHQRef searchType Names.types Reference.isPrefixOf
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQType'.
-lookupHQType' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Reference
-lookupHQType' =
-  lookupHQType . HQ'.toHQ
+lookupHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Reference
+lookupHQType' searchType =
+  lookupHQType searchType . HQ'.toHQ
 
-hasTermNamed :: Name -> NamesWithHistory -> Bool
-hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
+hasTermNamed :: SearchType -> Name -> Names -> Bool
+hasTermNamed searchType n ns = not (Set.null $ lookupHQTerm searchType (HQ.NameOnly n) ns)
 
-hasTypeNamed :: Name -> NamesWithHistory -> Bool
-hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
+hasTypeNamed :: SearchType -> Name -> Names -> Bool
+hasTypeNamed searchType n ns = not (Set.null $ lookupHQType searchType (HQ.NameOnly n) ns)
 
 -- Find all terms whose name has a suffix matching the provided `HashQualified`,
 -- returning terms with relative names if they exist, and otherwise
 -- returning terms with absolute names.
-lookupRelativeHQTerm :: HashQualified Name -> NamesWithHistory -> Set Referent
-lookupRelativeHQTerm hq ns@NamesWithHistory {..} =
-  let rs = lookupHQTerm hq ns
-      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms currentNames))
+lookupRelativeHQTerm :: SearchType -> HashQualified Name -> Names -> Set Referent
+lookupRelativeHQTerm searchType hq ns =
+  let rs = lookupHQTerm searchType hq ns
+      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms ns))
    in case Set.filter keep rs of
         rs'
           | Set.null rs' -> rs
           | otherwise -> rs'
 
-lookupRelativeHQTerm' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
-lookupRelativeHQTerm' =
-  lookupRelativeHQTerm . HQ'.toHQ
+lookupRelativeHQTerm' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Referent
+lookupRelativeHQTerm' searchType =
+  lookupRelativeHQTerm searchType . HQ'.toHQ
 
 -- | Find all terms whose name has a suffix matching the provided 'HashQualified'.
---
--- If the hash-qualified name does not include a hash, then only current names are searched. Otherwise, old names are
--- searched, too, if searching current names produces no hits.
-lookupHQTerm :: HashQualified Name -> NamesWithHistory -> Set Referent
-lookupHQTerm =
-  lookupHQRef Names.terms Referent.isPrefixOf
+lookupHQTerm :: SearchType -> HashQualified Name -> Names -> Set Referent
+lookupHQTerm searchType =
+  lookupHQRef searchType Names.terms Referent.isPrefixOf
 
 -- | Find all terms whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQTerm'.
-lookupHQTerm' :: HQ'.HashQualified Name -> NamesWithHistory -> Set Referent
-lookupHQTerm' =
-  lookupHQTerm . HQ'.toHQ
+lookupHQTerm' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Referent
+lookupHQTerm' searchType =
+  lookupHQTerm searchType . HQ'.toHQ
 
 -- Helper that unifies looking up a set of references/referents by a hash-qualified suffix.
 --
@@ -184,53 +172,46 @@ lookupHQTerm' =
 lookupHQRef ::
   forall r.
   (Ord r) =>
+  SearchType ->
   -- | A projection of types or terms from a Names.
   (Names -> Relation Name r) ->
   -- | isPrefixOf, for references or referents
   (ShortHash -> r -> Bool) ->
   -- | The name to look up
   HashQualified Name ->
-  NamesWithHistory ->
+  Names ->
   Set r
-lookupHQRef which isPrefixOf hq NamesWithHistory {currentNames, oldNames} =
+lookupHQRef searchType which isPrefixOf hq names =
   case hq of
-    HQ.NameOnly n -> Name.searchByRankedSuffix n currentRefs
-    HQ.HashQualified n sh -> matches currentRefs `orIfEmpty` matches oldRefs
+    HQ.NameOnly n -> doSearch n refs
+    HQ.HashQualified n sh -> matches refs
       where
         matches :: Relation Name r -> Set r
         matches ns =
-          Set.filter (isPrefixOf sh) (Name.searchByRankedSuffix n ns)
-    HQ.HashOnly sh -> matches currentRefs `orIfEmpty` matches oldRefs
+          Set.filter (isPrefixOf sh) (doSearch n ns)
+    HQ.HashOnly sh -> matches refs
       where
         matches :: Relation Name r -> Set r
         matches ns =
           Set.filter (isPrefixOf sh) (R.ran ns)
   where
-    currentRefs = which currentNames
-    oldRefs = which oldNames
+    doSearch = case searchType of
+      IncludeSuffixes -> Name.searchByRankedSuffix
+      ExactName -> Relation.lookupDom
+    refs = which names
 
-    -- (xs `orIfEmpty` ys) returns xs if it's non-empty, otherwise ys
-    orIfEmpty :: Set a -> Set a -> Set a
-    orIfEmpty xs ys =
-      if Set.null xs then ys else xs
-
--- If `r` is in "current" names, look up each of its names, and hash-qualify
--- them if they are conflicted names.  If `r` isn't in "current" names, look up
--- each of its "old" names and hash-qualify them.
-typeName :: Int -> Reference -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-typeName length r NamesWithHistory {..} =
-  if R.memberRan r . Names.types $ currentNames
-    then
-      Set.map
-        (\n -> if isConflicted n then hq n else HQ'.fromName n)
-        (R.lookupRan r . Names.types $ currentNames)
-    else Set.map hq (R.lookupRan r . Names.types $ oldNames)
+-- Look up a ref's names, and hash-qualify them if they are conflicted.
+typeName :: Int -> Reference -> Names -> Set (HQ'.HashQualified Name)
+typeName length r names =
+  Set.map
+    (\n -> if isConflicted n then hq n else HQ'.fromName n)
+    (R.lookupRan r . Names.types $ names)
   where
     hq n = HQ'.take length (HQ'.fromNamedReference n r)
-    isConflicted n = R.manyDom n (Names.types currentNames)
+    isConflicted n = R.manyDom n (Names.types names)
 
 -- List of names for a referent, longer names (by number of segments) first.
-termNamesByLength :: Int -> Referent -> NamesWithHistory -> [HQ'.HashQualified Name]
+termNamesByLength :: Int -> Referent -> Names -> [HQ'.HashQualified Name]
 termNamesByLength length r ns =
   sortOn len (toList $ termName length r ns)
   where
@@ -238,47 +219,34 @@ termNamesByLength length r ns =
     len (HQ'.HashQualified n _) = Name.countSegments n
 
 -- The longest term name (by segment count) for a `Referent`.
-longestTermName :: Int -> Referent -> NamesWithHistory -> HQ.HashQualified Name
+longestTermName :: Int -> Referent -> Names -> HQ.HashQualified Name
 longestTermName length r ns =
   case reverse (termNamesByLength length r ns) of
     [] -> HQ.take length (HQ.fromReferent r)
     (h : _) -> Name.convert h
 
-termName :: Int -> Referent -> NamesWithHistory -> Set (HQ'.HashQualified Name)
-termName length r NamesWithHistory {..} =
-  if R.memberRan r . Names.terms $ currentNames
-    then
-      Set.map
-        (\n -> if isConflicted n then hq n else HQ'.fromName n)
-        (R.lookupRan r . Names.terms $ currentNames)
-    else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
+termName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
+termName length r names =
+  Set.map
+    (\n -> if isConflicted n then hq n else HQ'.fromName n)
+    (R.lookupRan r . Names.terms $ names)
   where
     hq n = HQ'.take length (HQ'.fromNamedReferent n r)
-    isConflicted n = R.manyDom n (Names.terms currentNames)
+    isConflicted n = R.manyDom n (Names.terms names)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
 lookupHQPattern ::
+  SearchType ->
   HQ.HashQualified Name ->
   CT.ConstructorType ->
-  NamesWithHistory ->
+  Names ->
   Set ConstructorReference
-lookupHQPattern hq ctt names =
+lookupHQPattern searchType hq ctt names =
   Set.fromList
     [ r
-      | Referent.Con r ct <- toList $ lookupHQTerm hq names,
+      | Referent.Con r ct <- toList $ lookupHQTerm searchType hq names,
         ct == ctt
     ]
-
--- | Given a mapping from name to qualified name, update a `Names`,
--- so for instance if the input has [(Some, Optional.Some)],
--- and `Optional.Some` is a constructor in the input `Names`,
--- the alias `Some` will map to that same constructor and shadow
--- anything else that is currently called `Some`.
---
--- Only affects `currentNames`.
-importing :: [(Name, Name)] -> NamesWithHistory -> NamesWithHistory
-importing shortToLongName ns =
-  ns {currentNames = Names.importing shortToLongName (currentNames ns)}

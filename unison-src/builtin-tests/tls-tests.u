@@ -1,3 +1,5 @@
+use base.Text toUtf8
+
 tls.tests = do
   check "decoding a cert should work" do isRight (decodeCert (toUtf8 selfSignedCert))
   check "decoding a private key should work" do 1 == List.size (decodePrivateKey (toUtf8 selfSignedKey))
@@ -66,7 +68,7 @@ tls.example.com = do
     conn = base.IO.net.Tls.handshake tls
     TlsSocket.send conn (toUtf8 "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n")
     response = TlsSocket.receive conn
-    TlsSocket.close conn
+    TlsSocket.terminate conn
     contains "HTTP/1.0 200 OK" (fromUtf8 response)
 
 testConnectSelfSigned = do
@@ -123,7 +125,7 @@ serverThread portPromise toSend =
   tls = Tls.newServer tlsconfig sock'
   tlsock = net.Tls.handshake tls
   TlsSocket.send tlsock (toUtf8 toSend)
-  TlsSocket.close tlsock
+  TlsSocket.terminate tlsock
 
 testClient : Optional SignedCert -> Text -> Promise Nat -> '{IO} Either Failure Text
 testClient cert hostname portVar _ = catch do

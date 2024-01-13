@@ -25,7 +25,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Reference (Id (..), Reference (..), pattern Derived)
+import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
@@ -72,6 +72,16 @@ putFloat = serializeBE
 getFloat :: (MonadGet m) => m Double
 getFloat = deserializeBE
 
+putBool :: (MonadPut m) => Bool -> m ()
+putBool b = putWord8 (if b then 1 else 0)
+
+getBool :: (MonadGet m) => m Bool
+getBool = d =<< getWord8
+  where
+    d 0 = pure False
+    d 1 = pure True
+    d n = exn $ "getBool: bad tag: " ++ show n
+
 putNat :: (MonadPut m) => Word64 -> m ()
 putNat = putWord64be
 
@@ -104,6 +114,40 @@ getLength ::
   ) =>
   m n
 getLength = unVarInt <$> deserialize
+
+-- Checks for negatives, in case you put an Integer, which does not
+-- behave properly for negative numbers.
+putPositive ::
+  MonadPut m =>
+  Bits n =>
+  Bits (Unsigned n) =>
+  Integral n =>
+  Integral (Unsigned n) =>
+  n ->
+  m ()
+putPositive n
+  | n < 0 = exn $ "putPositive: negative number: " ++ show (toInteger n)
+  | otherwise = serialize (VarInt n)
+
+-- Reads as an Integer, then checks that the result will fit in the
+-- result type.
+getPositive ::
+  forall m n.
+  Bounded n =>
+  Integral n =>
+  MonadGet m =>
+  m n
+getPositive = validate . unVarInt =<< deserialize
+  where
+    mx0 :: n
+    mx0 = maxBound
+    mx :: Integer
+    mx = fromIntegral mx0
+
+    validate :: Integer -> m n
+    validate n
+      | n <= mx = pure $ fromIntegral n
+      | otherwise = fail $ "getPositive: overflow: " ++ show n
 
 putFoldable ::
   (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
@@ -405,6 +449,7 @@ instance Tag BPrim1 where
   tag2word VALU = 23
   tag2word TLTT = 24
   tag2word DBTX = 25
+  tag2word SDBL = 26
 
   word2tag 0 = pure SIZT
   word2tag 1 = pure USNC
@@ -432,6 +477,7 @@ instance Tag BPrim1 where
   word2tag 23 = pure VALU
   word2tag 24 = pure TLTT
   word2tag 25 = pure DBTX
+  word2tag 26 = pure SDBL
   word2tag n = unknownTag "BPrim1" n
 
 instance Tag BPrim2 where
@@ -460,6 +506,7 @@ instance Tag BPrim2 where
   tag2word SDBX = 22
   tag2word IXOT = 23
   tag2word IXOB = 24
+  tag2word SDBV = 25
 
   word2tag 0 = pure EQLU
   word2tag 1 = pure CMPU
@@ -486,4 +533,5 @@ instance Tag BPrim2 where
   word2tag 22 = pure SDBX
   word2tag 23 = pure IXOT
   word2tag 24 = pure IXOB
+  word2tag 25 = pure SDBV
   word2tag n = unknownTag "BPrim2" n

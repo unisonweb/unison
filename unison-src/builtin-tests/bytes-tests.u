@@ -1,3 +1,4 @@
+use base.Text toUtf8
 
 bytes.tests = do
   !bytes.lit.tests
@@ -23,7 +24,7 @@ bytes.lit.tests = do
     true
 
 bytes.debug.tests = do
- checkEqual "Debug.toText on Bytes" (Debug.toText 0xs68656c6c6f) "0xs68656c6c6f"
+ checkEqual "Debug.evalToText on Bytes" (Debug.evalToText 0xs68656c6c6f) "0xs68656c6c6f"
 
 bytes.conversion.tests = do
   use base Bytes.fromList Bytes.toList
@@ -109,6 +110,11 @@ bytes.ops.tests = do
   checkEqual "Bytes.at (2)" (Bytes.at 2 0xs010203) (Some 3)
   checkEqual "Bytes.at (3)" (Bytes.at 1 0xs) None
   checkEqual "Bytes.at (4)" (Bytes.at 5 0xs010203) None
+
+  checkEqual "Bytes.indexOf (1)" (Bytes.indexOf 0xs 0xs0102030304) (Some 0)
+  checkEqual "Bytes.indexOf (2)" (Bytes.indexOf 0xs03 0xs0102030304) (Some 2)
+  checkEqual "Bytes.indexOf (3)" (Bytes.indexOf 0xs0304 0xs0102030304) (Some 3)
+  checkEqual "Bytes.indexOf (3)" (Bytes.indexOf 0xs020304 0xs0102030304) None
 
 -- Haskell and Racket produce slightly different byte output
 -- for gzip compress (in the header, racket reports the OS as "unix"

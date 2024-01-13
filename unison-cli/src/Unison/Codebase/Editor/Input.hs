@@ -28,6 +28,7 @@ module Unison.Codebase.Editor.Input
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
@@ -45,13 +46,14 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectName, Semver)
+import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchName, ProjectBranchNameOrLatestRelease, ProjectName, Semver)
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source
   | IncomingRootBranch (Set CausalHash)
+  deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
 
@@ -118,8 +120,8 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
     CreateMessage (P.Pretty P.ColorText)
-  | -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
-    SwitchBranchI (Maybe Path')
+  | -- Change directory.
+    SwitchBranchI Path'
   | UpI
   | PopBranchI
   | -- > names foo
@@ -131,6 +133,7 @@ data Input
   | AliasTermI HashOrHQSplit' Path.Split'
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
+  | MoveAllI Path.Path' Path.Path'
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
@@ -139,17 +142,13 @@ data Input
   | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
     DeleteI DeleteTarget
-  | -- resolving naming conflicts within `branchpath`
-    -- Add the specified name after deleting all others for a given reference
-    -- within a given branch.
-    ResolveTermNameI Path.HQSplit'
-  | ResolveTypeNameI Path.HQSplit'
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | UpdateI OptionalPatch (Set Name)
+  | Update2I
   | PreviewUpdateI (Set Name)
   | TodoI (Maybe PatchPath) Path'
   | PropagatePatchI PatchPath Path'
@@ -170,35 +169,32 @@ data Input
     SaveExecuteResultI Name
   | -- execute an IO [Result]
     IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name) [String]
+    ExecuteSchemeI String [String]
   | -- compile to a scheme file
     CompileSchemeI String (HQ.HashQualified Name)
-  | -- generate scheme libraries
-    GenSchemeLibsI
-  | -- fetch scheme compiler from a given username
-    FetchSchemeCompilerI String
+  | -- generate scheme libraries, optional target directory
+    GenSchemeLibsI (Maybe String)
+  | -- fetch scheme compiler from a given username and branch
+    FetchSchemeCompilerI String String
   | TestI TestInput
-  | -- metadata
-    -- `link metadata definitions` (adds metadata to all of `definitions`)
-    LinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-    UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- links from <type>
-    LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | -- Display provided definitions. If list is empty, prompt a fuzzy search.
-    DisplayI OutputLocation [HQ.HashQualified Name]
-  | -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
-    DocsI [Path.HQSplit']
+  | -- Display provided definitions.
+    DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
+  | -- Display docs for provided terms.
+    DocsI (NonEmpty Path.HQSplit')
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
   | FindPatchI
-  | -- Show provided definitions. If list is empty, prompt a fuzzy search.
-    ShowDefinitionI OutputLocation ShowDefinitionScope [HQ.HashQualified Name]
+  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
+  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | -- Show provided definitions.
+    ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
@@ -210,6 +206,7 @@ data Input
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
+  | DebugFuzzyOptionsI String [String] -- cmd and arguments
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
@@ -226,7 +223,7 @@ data Input
   | AuthLoginI
   | VersionI
   | DiffNamespaceToPatchI DiffNamespaceToPatchInput
-  | ProjectCreateI (Maybe ProjectName)
+  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
   | ProjectsI
@@ -235,6 +232,7 @@ data Input
   | BranchesI (Maybe ProjectName)
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
+  | UpgradeI !NameSegment !NameSegment
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
@@ -266,8 +264,8 @@ data GistInput = GistInput
 -- | Pull source and target: either neither is specified, or only a source, or both.
 data PullSourceTarget
   = PullSourceTarget0
-  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchName))
-  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchName)) LooseCodeOrProject
+  | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) LooseCodeOrProject
   deriving stock (Eq, Show)
 
 data PushSource

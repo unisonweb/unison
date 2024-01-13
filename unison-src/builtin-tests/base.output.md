@@ -5,21 +5,19 @@ Thus, make sure the contents of this file define the contents of the cache
 (e.g. don't pull `latest`.)
 
 ```ucm
-.> pull @unison/base/releases/2.0.0 .base
+.> pull @unison/base/releases/2.5.0 .base
 
-  Downloaded 11939 entities.
+  Merging...
 
-  ✅
+  😶
   
-  Successfully pulled into .base, which was empty.
+  .base was already up-to-date with @unison/base/releases/2.5.0.
 
 .> compile.native.fetch
 
-  Downloaded 65927 entities.
-
-  ✅
+  😶
   
-  Successfully updated .unison.internal from
-  unison.public.internal.trunk.
+  .unison.internal was already up-to-date with
+  @unison/internal/releases/0.0.3.
 
 ```

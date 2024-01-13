@@ -243,6 +243,8 @@ test> Text.tests.patterns =
     run (capture (many (notCharIn [?,,]))) "abracadabra,123" == Some (["abracadabra"], ",123"),
     run (capture (many (or digit letter))) "11234abc,remainder" == Some (["11234abc"], ",remainder"),
     run (capture (replicate 1 5 (or digit letter))) "1a2ba aaa" == Some (["1a2ba"], " aaa"),
+    run (captureAs "foo" (many (or digit letter))) "11234abc,remainder" == Some (["foo"], ",remainder"),
+    run (join [(captureAs "foo" (many digit)), captureAs "bar" (many letter)]) "11234abc,remainder" == Some (["foo", "bar"], ",remainder"),
     -- Regression test for: https://github.com/unisonweb/unison/issues/3530
     run (capture (replicate 0 1 (join [literal "a", literal "b"]))) "ac" == Some ([""], "ac"),
     isMatch (join [many letter, eof]) "aaaaabbbb" == true,
@@ -400,6 +402,11 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 openFile1 t = openFile t
 openFile2 t = openFile1 t
 
+validateSandboxedSimpl ok v =
+  match Value.validateSandboxed ok v with
+    Right [] -> true
+    _ -> false
+
 openFiles =
   [ not (validateSandboxed [] openFile)
   , not (validateSandboxed [] openFile1)
@@ -414,6 +421,24 @@ openFile]
 
 ```ucm:hide
 .> add
+```
+
+```unison
+openFilesIO = do
+  checks
+    [ not (validateSandboxedSimpl [] (value openFile))
+    , not (validateSandboxedSimpl [] (value openFile1))
+    , not (validateSandboxedSimpl [] (value openFile2))
+    , sandboxLinks (termLink openFile)
+        == sandboxLinks (termLink openFile1)
+    , sandboxLinks (termLink openFile1)
+        == sandboxLinks (termLink openFile2)
+    ]
+```
+
+```ucm
+.> add
+.> io.test openFilesIO
 ```
 
 ## Universal hash functions

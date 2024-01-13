@@ -75,6 +75,22 @@ or [Plug](https://github.com/junegunn/vim-plug):
 Plug 'unisonweb/unison', { 'branch': 'trunk', 'rtp': 'editor-support/vim' }
 ```
 
+or [Lazy](https://github.com/folke/lazy.nvim/):
+
+```lua
+{
+  "unisonweb/unison",
+  branch = "trunk",
+  config = function(plugin)
+      vim.opt.rtp:append(plugin.dir .. "/editor-support/vim")
+      require("lazy.core.loader").packadd(plugin.dir .. "/editor-support/vim")
+  end,
+  init = function(plugin)
+       require("lazy.core.loader").ftdetect(plugin.dir .. "/editor-support/vim")
+  end,
+}
+```
+
 Configuration for [coc-nvim](https://github.com/neoclide/coc.nvim), enter the following in the relevant place of your CocConfig
 
 ```

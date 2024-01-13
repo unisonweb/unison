@@ -13,13 +13,15 @@ fooToInt _ = +42
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       fooToInt : Foo -> Int
 
 ```
@@ -32,13 +34,13 @@ And then we add it.
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     fooToInt : Foo -> Int
 
 .subpath> find.verbose
 
   1. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo
-     unique type Foo
+     type Foo
      
   2. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo#0
      Foo.Foo : Foo
@@ -62,6 +64,8 @@ unique type Foo = Foo | Bar
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -69,17 +73,17 @@ unique type Foo = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update
+.subpath> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    unique type Foo
+    type Foo
 
 ```
 ... it should automatically propagate the type to `fooToInt`.
@@ -109,6 +113,8 @@ otherTerm y = someTerm y
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -146,6 +152,8 @@ someTerm _ = None
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -158,7 +166,7 @@ someTerm _ = None
 Update...
 
 ```ucm
-.subpath.preserve> update
+.subpath.preserve> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -206,6 +214,8 @@ otherTerm y = someTerm y
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -246,6 +256,8 @@ someTerm _ = None
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -258,7 +270,7 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update
+.subpath.one> update.old
 
   ⍟ I've updated these names to your new definition:
   

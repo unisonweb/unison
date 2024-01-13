@@ -238,7 +238,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
   _ <- ensureAuthenticatedWithCodeserver codeserver
 
   localCausalHash <-
-    Cli.runTransaction (Ops.loadCausalHashAtPath (pathToSegments (Path.unabsolute localPath))) & onNothingM do
+    Cli.runTransaction (Ops.loadCausalHashAtPath Nothing (pathToSegments (Path.unabsolute localPath))) & onNothingM do
       Cli.returnEarly (EmptyLooseCodePush (Path.absoluteToPath' localPath))
 
   let checkAndSetPush :: Maybe Hash32 -> Cli (Maybe Int)
@@ -308,10 +308,10 @@ pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch Projec
 pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch = do
   _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   localBranchHead <-
-    Cli.runEitherTransaction do
-      loadCausalHashToPush localPath <&> \case
-        Nothing -> Left (EmptyLooseCodePush (Path.absoluteToPath' localPath))
-        Just hash -> Right hash
+    Cli.runTransactionWithRollback \rollback -> do
+      loadCausalHashToPush localPath >>= \case
+        Nothing -> rollback (EmptyLooseCodePush (Path.absoluteToPath' localPath))
+        Just hash -> pure hash
 
   uploadPlan <- pushToProjectBranch0 force PushingLooseCode localBranchHead remoteProjectAndBranch
   executeUploadPlan uploadPlan
@@ -330,12 +330,12 @@ pushProjectBranchToProjectBranch force localProjectAndBranch maybeRemoteProjectA
 
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchHead) <-
-    Cli.runEitherTransaction do
-      loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) >>= \case
-        Nothing -> pure (Left (EmptyProjectBranchPush localProjectAndBranchNames))
-        Just hash -> do
-          localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
-          pure (Right (localProjectAndBranch, hash))
+    Cli.runTransactionWithRollback \rollback -> do
+      hash <-
+        loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) & onNothingM do
+          rollback (EmptyProjectBranchPush localProjectAndBranchNames)
+      localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
+      pure (localProjectAndBranch, hash)
 
   uploadPlan <-
     case maybeRemoteProjectAndBranchNames of
@@ -422,7 +422,7 @@ pushProjectBranchToProjectBranch'InferredProject force localProjectAndBranch loc
                       Output.RemoteProjectBranchDoesntExist
                         Share.hardCodedUri
                         (ProjectAndBranch remoteProjectName remoteBranchName)
-              Share.getProjectBranchById (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
+              Share.getProjectBranchById Share.NoSquashedHead (ProjectAndBranch remoteProjectId remoteBranchId) >>= \case
                 Share.GetProjectBranchResponseBranchNotFound -> remoteProjectBranchDoesntExist
                 Share.GetProjectBranchResponseProjectNotFound -> remoteProjectBranchDoesntExist
                 Share.GetProjectBranchResponseSuccess remoteBranch -> do
@@ -546,7 +546,7 @@ pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
           }
     Just remoteProject -> do
       let remoteProjectId = remoteProject ^. #projectId
-      Share.getProjectBranchByName (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
+      Share.getProjectBranchByName Share.NoSquashedHead (remoteProjectAndBranch & #project .~ remoteProjectId) >>= \case
         Share.GetProjectBranchResponseBranchNotFound -> do
           pure
             UploadPlan
@@ -579,7 +579,7 @@ pushToProjectBranch1 ::
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
   Cli UploadPlan
 pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAndBranch = do
-  Share.getProjectBranchByName (over #project fst remoteProjectAndBranch) >>= \case
+  Share.getProjectBranchByName Share.NoSquashedHead (over #project fst remoteProjectAndBranch) >>= \case
     Share.GetProjectBranchResponseBranchNotFound -> do
       pure
         UploadPlan
@@ -749,7 +749,24 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
               branchOldCausalHash = Just remoteBranchHead,
               branchNewCausalHash = localBranchHead
             }
+    let onSuccess =
+          case pushing of
+            PushingLooseCode -> pure ()
+            PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
+              Cli.runTransaction do
+                Queries.ensureBranchRemoteMapping
+                  (localProject ^. #projectId)
+                  (localBranch ^. #branchId)
+                  (remoteBranch ^. #projectId)
+                  Share.hardCodedUri
+                  (remoteBranch ^. #branchId)
     Share.setProjectBranchHead request >>= \case
+      Share.SetProjectBranchHeadResponseSuccess -> onSuccess
+      -- Sometimes a different request gets through in between checking the remote head and
+      -- executing the check-and-set push, if it managed to set the head to what we wanted
+      -- then the goal was achieved and we can consider it a success.
+      Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected actual
+        | actual == localBranchHead -> onSuccess
       Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
         Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponseNotFound -> do
@@ -758,17 +775,6 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
         Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
       Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
         Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.SetProjectBranchHeadResponseSuccess -> do
-        case pushing of
-          PushingLooseCode -> pure ()
-          PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
-            Cli.runTransaction do
-              Queries.ensureBranchRemoteMapping
-                (localProject ^. #projectId)
-                (localBranch ^. #branchId)
-                (remoteBranch ^. #projectId)
-                Share.hardCodedUri
-                (remoteBranch ^. #branchId)
   where
     remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)
@@ -802,7 +808,7 @@ expectProjectAndBranch (ProjectAndBranch projectId branchId) =
 -- Get the causal hash to push at the given path. Return Nothing if there's no history.
 loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Maybe Hash32)
 loadCausalHashToPush path =
-  Operations.loadCausalHashAtPath segments <&> \case
+  Operations.loadCausalHashAtPath Nothing segments <&> \case
     Nothing -> Nothing
     Just (CausalHash hash) -> Just (Hash32.fromHash hash)
   where

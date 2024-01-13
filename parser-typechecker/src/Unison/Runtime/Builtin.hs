@@ -37,6 +37,7 @@ import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -139,8 +140,9 @@ import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
-import Unison.Referent (pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
@@ -678,6 +680,26 @@ viewrs = unop0 3 $ \[s, u, i, l] ->
         (1, ([BX, BX], TAbss [i, l] $ seqViewElem i l))
       ]
 
+splitls, splitrs :: (Var v) => SuperNormal v
+splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLL [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLR [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
 eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
 eqt = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm EQLT [x, y]) $
@@ -904,21 +926,18 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 4 $ \[r, f, n, j, k] ->
-    TMatch r . flip (MatchData Ty.exceptionRef) Nothing $
-      mapFromList
-        [ (0, ([BX], TAbs f $ TVar f)),
-          ( i,
-            ( [UN, BX],
-              TAbss [j, f]
-                . TShift Ty.exceptionRef k
-                . TLetD n BX (TLit $ T "builtin.raise")
-                $ TPrm EROR [n, f]
-            )
-          )
-        ]
-  where
-    i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+  unop0 3 $ \[r, f, n, k] ->
+    TMatch r
+      . flip MatchRequest (TAbs f $ TVar f)
+      . Map.singleton Ty.exceptionRef
+      $ mapSingleton
+        0
+        ( [BX],
+          TAbs f
+            . TShift Ty.exceptionRef k
+            . TLetD n BX (TLit $ T "builtin.raise")
+            $ TPrm EROR [n, f]
+        )
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
@@ -1004,6 +1023,19 @@ check'sandbox =
     $ boolift b
   where
     (refs, val, b) = fresh
+
+sandbox'links :: SuperNormal Symbol
+sandbox'links = Lambda [BX] . TAbs ln $ TPrm SDBL [ln]
+  where
+    ln = fresh1
+
+value'sandbox :: SuperNormal Symbol
+value'sandbox =
+  Lambda [BX, BX]
+    . TAbss [refs, val]
+    $ TPrm SDBV [refs, val]
+  where
+    (refs, val) = fresh
 
 stm'atomic :: SuperNormal Symbol
 stm'atomic =
@@ -1451,6 +1483,24 @@ outIoExnBox stack1 stack2 stack3 any fail result =
     mapFromList
       [ exnCase stack1 stack2 stack3 any fail,
         (1, ([BX], TAbs stack1 $ TVar stack1))
+      ]
+
+outIoExnEBoxBox ::
+  (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 res =
+  TMatch t0 . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 any fail,
+        ( 1,
+          ([UN],)
+            . TAbs t1
+            . TMatch t1
+            . MatchSum
+            $ mapFromList
+              [ (0, ([BX], TAbs res $ left res)),
+                (1, ([BX], TAbs res $ right res))
+              ]
+        )
       ]
 
 outIoFailBox :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
@@ -1907,6 +1957,16 @@ boxNatBoxNatNatToExnUnit instr =
   where
     (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, any, fail) = fresh
 
+-- a ->{Exception} Either b c
+boxToExnEBoxBox :: ForeignOp
+boxToExnEBoxBox instr =
+  ([BX],)
+    . TAbs a
+    . TLetD t0 UN (TFOp instr [a])
+    $ outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 result
+  where
+    (a, stack1, stack2, stack3, any, fail, t0, t1, result) = fresh
+
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
 -- natToEFBox = inNat arg nat result $ outIoFail stack1 stack2 fail result
@@ -2096,6 +2156,8 @@ builtinLookup =
         ("List.empty", (Untracked, emptys)),
         ("List.viewl", (Untracked, viewls)),
         ("List.viewr", (Untracked, viewrs)),
+        ("List.splitLeft", (Untracked, splitls)),
+        ("List.splitRight", (Untracked, splitrs)),
         --
         --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
         ("Universal.==", (Untracked, equ)),
@@ -2120,6 +2182,8 @@ builtinLookup =
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
+        ("Value.validateSandboxed", (Tracked, value'sandbox)),
+        ("sandboxLinks", (Tracked, sandbox'links)),
         ("IO.tryEval", (Tracked, try'eval))
       ]
       ++ foreignWrappers
@@ -2384,7 +2448,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF
-    $ \sk -> SYS.listenSock sk 2
+    $ \sk -> SYS.listenSock sk 2048
 
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
@@ -2414,10 +2478,10 @@ declareForeigns = do
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
     $ \(n :: Int) -> case n of
-      0 -> pure (Just SYS.stdin)
-      1 -> pure (Just SYS.stdout)
-      2 -> pure (Just SYS.stderr)
-      _ -> pure Nothing
+      0 -> pure SYS.stdin
+      1 -> pure SYS.stdout
+      2 -> pure SYS.stderr
+      _ -> die "IO.stdHandle: invalid input."
 
   let exitDecode ExitSuccess = 0
       exitDecode (ExitFailure n) = n
@@ -2659,6 +2723,12 @@ declareForeigns = do
   declareForeign Tracked "Tls.terminate.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
+  declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
+    . mkForeign
+    $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
+      let f (msg, rs) =
+            Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
+      pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->
@@ -2741,6 +2811,9 @@ declareForeigns = do
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
     pure . asWord64 . hash64 . serializeValueLazy
+
+  declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
+    \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
@@ -3005,6 +3078,8 @@ declareForeigns = do
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
+    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $

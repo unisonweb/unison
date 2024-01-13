@@ -35,12 +35,12 @@ handleDeleteBranch projectAndBranchNames0 = do
   maybeCurrentBranch <- ProjectUtils.getCurrentProjectBranch
 
   deletedBranch <-
-    Cli.runEitherTransaction do
-      Queries.loadProjectBranchByNames (projectAndBranchNames ^. #project) (projectAndBranchNames ^. #branch) >>= \case
-        Nothing -> pure (Left (Output.LocalProjectBranchDoesntExist projectAndBranchNames))
-        Just branch -> do
-          Queries.deleteProjectBranch (branch ^. #projectId) (branch ^. #branchId)
-          pure (Right branch)
+    Cli.runTransactionWithRollback \rollback -> do
+      branch <-
+        Queries.loadProjectBranchByNames (projectAndBranchNames ^. #project) (projectAndBranchNames ^. #branch)
+          & onNothingM (rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames))
+      Queries.deleteProjectBranch (branch ^. #projectId) (branch ^. #branchId)
+      pure branch
 
   let projectId = deletedBranch ^. #projectId
 

@@ -22,9 +22,48 @@ math.tests = do
     checkCloseEnough "atan 1.0" (atan 1.0) 0.7853981633974483
     checkCloseEnough "atan2 1.0 2.0" (atan2 1.0 2.0) 0.46364760900080615
     checkCloseEnough "atanh 0.5" (atanh 0.5) 0.5493061443340549
+    checkCloseEnough "tan 0.5" (tan 0.5) 0.5463024898437905
+    checkCloseEnough "tanh 0.5" (tanh 0.5) 0.46211715726000974
     checkCloseEnough "ceiling 0.1" (ceiling 0.1) 1.0
     checkCloseEnough "ceiling 0.9" (ceiling 0.9) 1.0
+    checkCloseEnough "floor 0.9" (floor 0.9) 0.0
+    checkCloseEnough "floor 1.9" (floor 1.9) 1.0
+    checkCloseEnough "rndf" (round 1.9) 2.0
     checkCloseEnough "divf" (1.2 / 3.4) 0.35294117647058826
+    checkEqual "maxf" (Float.max 1.2 1.23) 1.23
+    checkEqual "minf" (Float.min 1.2 1.23) 1.2
+    checkCloseEnough "mulf" (1.1 Float.* 2.2) 2.42
+    checkEqual "muli" (+4 Int.* +2) +8
+    checkEqual "powi" (Int.pow +2 3) +8
+    checkEqual "pown" (Nat.pow 2 3) 8
+    checkCloseEnough "powf" (Float.pow 2.0 3.0) 8.0
+    checkEqual "ntof" (Nat.toFloat 23) 23.0
+    checkEqual "negi" (Int.negate +23) -23
     checkEqual "divi" (10 / 4) 2
     checkEqual "eqlf" (1.1 == 1.1) true
     checkEqual "eqlf" (1.1 == 1.2) false
+    checkEqual "leqi" (-1 <= +1) true
+    checkEqual "leqn" (1 <= 2) true
+    checkEqual "subi" (+4 - +3) +1
+    checkEqual "signum" (signum -2) -1
+    checkEqual "signum" (signum +2) +1
+    checkEqual "signum" (signum +0) +0
+    checkCloseEnough "logf" (Float.log 10.0) 2.302585092994046
+    checkCloseEnough "logb" (Float.logBase 2.0 256.0) 8.0
+    checkEqual "decn" (Nat.decrement 10) 9
+    checkEqual "deci" (Int.decrement +10) +9
+    checkEqual "inci" (Int.increment +10) +11
+    checkEqual "incn" (Nat.increment 10) 11
+    checkCloseEnough "expf" (Float.exp 2.0) 7.3890560989306
+
+    checkEqual "TZRO +0" (Int.trailingZeros +0) 64
+    checkEqual "TZRO +1" (Int.trailingZeros +1) 0
+    checkEqual "TZRO +16777216" (Int.trailingZeros +16777216) 24
+    checkEqual "TZRO 2^59" (Int.trailingZeros (Int.pow +2 59)) 59
+    checkEqual "POPC +16777215" (Int.popCount +16777215) 24
+    checkEqual "POPC +5" (Int.popCount +5) 2
+    checkEqual "POPC -5" (Int.popCount -5) 63
+    checkEqual "POPC -1" (Int.popCount -1) 64
+    checkEqual "POPC -1234567891" (Int.popCount -1234567891) 52
+    checkEqual "POPC -1111111111" (Int.popCount -1111111111) 50
+

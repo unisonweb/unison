@@ -1,5 +1,6 @@
 module U.Codebase.Branch.Diff
   ( TreeDiff (..),
+    hoistTreeDiff,
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
@@ -12,6 +13,7 @@ module U.Codebase.Branch.Diff
 where
 
 import Control.Comonad.Cofree
+import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens (ifoldMap)
 import Control.Lens qualified as Lens
 import Data.Functor.Compose (Compose (..))
@@ -20,6 +22,7 @@ import Data.Semialign qualified as Align
 import Data.Set qualified as Set
 import Data.These
 import U.Codebase.Branch
+import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Branch.Type qualified as Branch
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.Reference (Reference)
@@ -29,6 +32,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM, ifoldMapM)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -41,12 +45,10 @@ data Diff a = Diff
 
 -- | Represents the changes to definitions at a given path, not including child paths.
 --
--- Note: doesn't yet include any info on metadata or patch diffs. Feel free to add it.
+-- Note: doesn't yet include any info on patch diffs. Feel free to add it.
 data DefinitionDiffs = DefinitionDiffs
   { termDiffs :: Map NameSegment (Diff Referent),
     typeDiffs :: Map NameSegment (Diff Reference)
-    -- termMetadataDiffs :: Map (NameSegment, Referent) (Diff Reference),
-    -- typeMetadataDiffs :: Map (NameSegment, Reference) (Diff Reference)
     -- patchDiffs :: Map NameSegment (Diff ())
   }
   deriving stock (Show, Eq, Ord)
@@ -75,6 +77,10 @@ instance (Applicative m) => Semigroup (TreeDiff m) where
 
 instance (Applicative m) => Monoid (TreeDiff m) where
   mempty = TreeDiff (mempty :< Compose mempty)
+
+hoistTreeDiff :: Functor m => (forall x. m x -> n x) -> TreeDiff m -> TreeDiff n
+hoistTreeDiff f (TreeDiff cfr) =
+  TreeDiff $ Cofree.hoistCofree (\(Compose m) -> Compose (fmap f m)) cfr
 
 -- | A summary of a 'TreeDiff', containing all names added and removed.
 -- Note that there isn't a clear notion of a name "changing" since conflicts might muddy the notion
@@ -114,24 +120,26 @@ instance Semigroup NameBasedDiff where
     NameBasedDiff (terms0 <> terms1) (types0 <> types1)
 
 -- | Diff two Branches, returning a tree containing all of the changes
-diffBranches :: forall m. (Monad m) => Branch m -> Branch m -> TreeDiff m
-diffBranches from to =
+diffBranches :: Branch Sqlite.Transaction -> Branch Sqlite.Transaction -> Sqlite.Transaction (TreeDiff Sqlite.Transaction)
+diffBranches from to = do
+  fromChildren <- V2Branch.nonEmptyChildren from
+  toChildren <- V2Branch.nonEmptyChildren to
   let termDiffs = diffMap (Branch.terms from) (Branch.terms to)
-      typeDiffs = diffMap (Branch.types from) (Branch.types to)
-      defDiff = DefinitionDiffs {termDiffs, typeDiffs}
-      childDiff :: (Map NameSegment (m (Cofree (Compose (Map NameSegment) m) DefinitionDiffs)))
-      childDiff = do
-        Align.align (children from) (children to)
+  let typeDiffs = diffMap (Branch.types from) (Branch.types to)
+  let defDiff = DefinitionDiffs {termDiffs, typeDiffs}
+  let childDiff :: Map NameSegment (Sqlite.Transaction (Cofree (Compose (Map NameSegment) Sqlite.Transaction) DefinitionDiffs))
+      childDiff =
+        Align.align fromChildren toChildren
           & mapMaybe \case
             This ca -> Just do
               -- TODO: For the names index we really don't need to know which exact
               -- names were removed, we just need to delete from the index using a
               -- prefix query, this would be faster than crawling to get all the deletes.
               removedChildBranch <- Causal.value ca
-              pure . unTreeDiff $ diffBranches removedChildBranch Branch.empty
+              unTreeDiff <$> diffBranches removedChildBranch Branch.empty
             That ca -> Just do
               newChildBranch <- Causal.value ca
-              pure . unTreeDiff $ diffBranches Branch.empty newChildBranch
+              unTreeDiff <$> diffBranches Branch.empty newChildBranch
             These fromC toC
               | Causal.valueHash fromC == Causal.valueHash toC ->
                   -- This child didn't change.
@@ -139,12 +147,13 @@ diffBranches from to =
               | otherwise -> Just $ do
                   fromChildBranch <- Causal.value fromC
                   toChildBranch <- Causal.value toC
-                  case diffBranches fromChildBranch toChildBranch of
+                  diffBranches fromChildBranch toChildBranch >>= \case
                     TreeDiff (defDiffs :< Compose mchildren) -> do
                       pure $ (defDiffs :< Compose mchildren)
-   in TreeDiff (defDiff :< Compose childDiff)
+  pure $
+    TreeDiff (defDiff :< Compose childDiff)
   where
-    diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Map ref (m MdValues)) -> Map NameSegment (Diff ref)
+    diffMap :: forall ref. (Ord ref) => Map NameSegment (Map ref (Sqlite.Transaction MdValues)) -> Map NameSegment (Map ref (Sqlite.Transaction MdValues)) -> Map NameSegment (Diff ref)
     diffMap l r =
       Align.align l r
         & fmap \case
@@ -211,7 +220,10 @@ streamNameChanges namePrefix (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :
             let name = appendName ns
              in (listifyNames name $ adds diff, listifyNames name $ removals diff)
   let nameChanges = NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}
-  acc <- f namePrefix nameChanges
+  acc <-
+    if nameChanges == mempty
+      then pure mempty
+      else f namePrefix nameChanges
   childAcc <-
     children
       & ifoldMapM

@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-
 module Unison.Builtin.Terms
   ( builtinTermsRef,
     builtinTermsSrc,
@@ -22,13 +19,15 @@ import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
-builtinTermsSrc :: a -> [(Symbol, Term Symbol a, Type Symbol a)]
+builtinTermsSrc :: a -> [(Symbol, a, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =
   [ ( v "metadata.isPropagated",
+      ann,
       Term.constructor ann (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
       Type.ref ann Decls.isPropagatedRef
     ),
     ( v "metadata.isTest",
+      ann,
       Term.constructor ann (ConstructorReference Decls.isTestRef Decls.isTestConstructorId),
       Type.ref ann Decls.isTestRef
     )
@@ -39,8 +38,8 @@ v = Var.named
 
 builtinTermsRef :: Map Symbol Reference.Id
 builtinTermsRef =
-  fmap (\(refId, _, _) -> refId)
+  fmap (\(refId, _, _, _) -> refId)
     . H.hashTermComponents
     . Map.fromList
-    . fmap (\(v, tm, tp) -> (v, (tm, tp)))
+    . fmap (\(v, _a, tm, tp) -> (v, (tm, tp, ())))
     $ builtinTermsSrc ()

@@ -20,6 +20,7 @@ module Unison.Typechecker.Context
     Type,
     TypeVar,
     Result (..),
+    PatternMatchCoverageCheckAndKindInferenceSwitch (..),
     errorTerms,
     innermostErrorTerm,
     lookupAnn,
@@ -69,6 +70,7 @@ import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.Builtin.Decls qualified as DDB
+import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.ConstructorReference
   ( ConstructorReference,
     GConstructorReference (..),
@@ -80,6 +82,7 @@ import Unison.DataDeclaration
   )
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.KindInference qualified as KindInference
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -215,10 +218,15 @@ mapErrors f r = case r of
   CompilerBug bug es is -> CompilerBug bug (f <$> es) is
   s@(Success _ _) -> s
 
+data PatternMatchCoverageCheckAndKindInferenceSwitch
+  = PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
+  | PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled
+
 newtype MT v loc f a = MT
   { runM ::
       -- for debug output
       PrettyPrintEnv ->
+      PatternMatchCoverageCheckAndKindInferenceSwitch ->
       -- Data declarations in scope
       DataDeclarations v loc ->
       -- Effect declarations in scope
@@ -236,10 +244,10 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \ppe datas effects env -> case m ppe datas effects env of
+liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects env -> case m ppe pmcSwitch datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a -> Success mempty a
 
@@ -253,7 +261,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -393,6 +401,7 @@ data Cause v loc
   | DataEffectMismatch Unknown Reference (DataDeclaration v loc)
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
+  | KindInferenceFailure (KindInference.KindError v loc)
   | InaccessiblePattern loc
   deriving (Show)
 
@@ -416,7 +425,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \ppe datas effects env -> mapErrors (scope' p) (m ppe datas effects env)
+scope p (MT m) = MT \ppe pmcSwitch datas effects env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -537,6 +546,23 @@ debugEnabled = False
 debugShow :: (Show a) => a -> Bool
 debugShow e | debugEnabled = traceShow e False
 debugShow _ = False
+
+debugTrace :: String -> Bool
+debugTrace e | debugEnabled = trace e False
+debugTrace _ = False
+
+showType :: Var v => Type.Type v a -> String
+showType ty = TP.prettyStr (Just 120) PPE.empty ty
+
+debugType :: Var v => String -> Type.Type v a -> Bool
+debugType tag ty
+  | debugEnabled = debugTrace $ "(" <> show tag <> "," <> showType ty <> ")"
+  | otherwise = False
+
+debugTypes :: Var v => String -> Type.Type v a -> Type.Type v a -> Bool
+debugTypes tag t1 t2
+  | debugEnabled = debugTrace $ "(" <> show tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
+  | otherwise = False
 
 debugPatternsEnabled :: Bool
 debugPatternsEnabled = False
@@ -727,7 +753,7 @@ extendN ctx es = foldM (flip extend) ctx es
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go ppe datas effects env = runM m1 ppe datas effects env <|> runM m2 ppe datas effects env
+    go ppe pmcSwitch datas effects env = runM m1 ppe pmcSwitch datas effects env <|> runM m2 ppe pmcSwitch datas effects env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -741,13 +767,16 @@ orElse m1 m2 = MT go
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getPrettyPrintEnv :: M v loc PrettyPrintEnv
-getPrettyPrintEnv = MT \ppe _ _ env -> pure (ppe, env)
+getPrettyPrintEnv = MT \ppe _ _ _ env -> pure (ppe, env)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \_ datas _ env -> pure (datas, env)
+getDataDeclarations = MT \_ _ datas _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ _ effects env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ _ effects env -> pure (effects, env)
+
+getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
+getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -978,6 +1007,7 @@ vectorConstructorOfArity loc arity = do
   pure vt
 
 generalizeAndUnTypeVar :: (Var v) => Type v a -> Type.Type v a
+generalizeAndUnTypeVar t | debugType "generalizeAndUnTypeVar" t = undefined
 generalizeAndUnTypeVar t =
   Type.cleanup . ABT.vmap TypeVar.underlying . Type.generalize (Set.toList $ ABT.freeVars t) $ t
 
@@ -1213,7 +1243,10 @@ synthesizeWanted e
   | Term.TermLink' _ <- e = pure (Type.termLink l, [])
   | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
   | Term.Blank' blank <- e = do
-      v <- freshenVar Var.blank
+      let freshType = case blank of
+            B.Recorded (B.MissingResultPlaceholder _) -> Var.missingResult
+            _ -> Var.blank
+      v <- freshenVar freshType
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.List' v <- e = do
@@ -1240,6 +1273,10 @@ synthesizeWanted e
           et = existential' l B.Blank e
       appendContext $
         [existential i, existential e, existential o, Ann arg it]
+      when (Var.typeOf i == Var.Delay) $ do
+        -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
+        -- here's where the typechecker assumes this must be of type 'thunkArgType'
+        subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
       if Term.isLam body'
         then checkWithAbilities [] body' ot
@@ -1266,7 +1303,9 @@ synthesizeWanted e
       want <- coalesceWanted cwant swant
       ctx <- getContext
       let matchType = apply ctx outputType
-      ensurePatternCoverage e matchType scrutinee scrutineeType cases
+      getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+        PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> ensurePatternCoverage e matchType scrutinee scrutineeType cases
+        PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
       pure $ (matchType, want)
   where
     l = loc e
@@ -1746,7 +1785,7 @@ ensureGuardedCycle bindings =
         then pure ()
         else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
-existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor :: (Ord loc, Var v) => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
   v <- extendExistential v
   e <- extendExistential Var.inferAbility
@@ -2138,7 +2177,7 @@ defaultAbility _ = pure False
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
 discardCovariant :: (Var v) => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugShow ("discardCovariant" :: Text, ty) = undefined
+discardCovariant _ ty | debugType "discardCovariant" ty = undefined
 discardCovariant gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
@@ -2332,7 +2371,7 @@ check m0 t0 = scope (InCheck m0 t0) $ do
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
-subtype tx ty | debugEnabled && traceShow ("subtype" :: String, tx, ty) False = undefined
+subtype tx ty | debugTypes "subtype" tx ty = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do
   ctx <- getContext
   go (ctx :: Context v loc) (Type.stripIntroOuters tx) (Type.stripIntroOuters ty)
@@ -3018,25 +3057,50 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed ::
-  (Var v, Ord loc) =>
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc) =>
   PrettyPrintEnv ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe abilities lookupType term0 =
+synthesizeClosed ppe pmcSwitch abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run ppe datas effects $ do
+        Right term -> run ppe pmcSwitch datas effects $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
               *> verifyClosedTerm term
+          doKindInference ppe datas effects term
           synthesizeClosed' abilities term
+
+doKindInference ::
+  ( Var v,
+    Ord loc,
+    BuiltinAnnotation loc,
+    Show loc
+  ) =>
+  PrettyPrintEnv ->
+  DataDeclarations v loc ->
+  Map Reference (EffectDeclaration v loc) ->
+  Term v loc ->
+  MT v loc (Result v loc) ()
+doKindInference ppe datas effects term = do
+  getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled -> pure ()
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
+      let kindInferRes = do
+            let decls = (Left <$> effects) <> (Right <$> datas)
+            st <- KindInference.inferDecls ppe decls
+            KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
+      case kindInferRes of
+        Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
+        Right () -> pure ()
 
 verifyClosedTerm :: forall v loc. (Ord v) => Term v loc -> Result v loc ()
 verifyClosedTerm t = do
@@ -3071,13 +3135,14 @@ annotateRefs synth = ABT.visit f
 run ::
   (Var v, Ord loc, Functor f) =>
   PrettyPrintEnv ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
   MT v loc f a ->
   f a
-run ppe datas effects m =
+run ppe pmcSwitch datas effects m =
   fmap fst
-    . runM m ppe datas effects
+    . runM m ppe pmcSwitch datas effects
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -3101,8 +3166,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \ppe datas effects env ->
-    case runM m ppe datas effects env of
+  MT \ppe pmccSwitch datas effects env ->
+    case runM m ppe pmccSwitch datas effects env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -3117,7 +3182,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run PPE.empty Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3158,7 +3223,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run PPE.empty Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -3188,22 +3253,22 @@ instance (Ord loc, Var v) => Show (Context v loc) where
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \ppe datas effects env0 -> do
-    (a, env1) <- runM m ppe datas effects env0
-    runM (f a) ppe datas effects $! env1
+  m >>= f = MT \ppe pmccSwitch datas effects env0 -> do
+    (a, env1) <- runM m ppe pmccSwitch datas effects env0
+    runM (f a) ppe pmccSwitch datas effects $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ _ env -> pure (env, env)
-  put env = MT \_ _ _ _ -> pure ((), env)
+  get = MT \_ _ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ _ -> pure ((), env)
 
 instance (MonadFix f) => MonadFix (MT v loc f) where
-  mfix f = MT \ppe a b c ->
-    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe a b c)
+  mfix f = MT \ppe pmccSwitch a b c ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch a b c)
      in res
