@@ -39,6 +39,11 @@ module Unison.Cli.MonadUtils
     assertNoBranchAtPath',
     branchExistsAtPath',
 
+    -- ** Project utils
+    getProjectRootBranch,
+    getProjectRootBranch0,
+    getProjectRootPath,
+
     -- ** Updating branches
     stepAt',
     stepAt,
@@ -116,6 +121,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
+import Unison.Project.Util (ProjectContext, projectContextFromPath, projectRootPathFromContext)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
@@ -145,6 +151,10 @@ getConfig key = do
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   use #currentPath
+
+getCurrentProjectContext :: Cli ProjectContext
+getCurrentProjectContext = do
+  projectContextFromPath <$> getCurrentPath
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli Path.Absolute
@@ -264,6 +274,25 @@ getCurrentBranch = do
 getCurrentBranch0 :: Cli (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
+
+-- | Get the branch for the root of the current project,
+-- or the current branch if we're not in a project.
+getProjectRootBranch :: Cli (Branch IO)
+getProjectRootBranch = do
+  projectRootPath <- getProjectRootPath
+  getBranchAt projectRootPath
+
+-- | Get the branch0 for the root of the current project,
+-- or the current branch0 if we're not in a project.
+getProjectRootBranch0 :: Cli (Branch0 IO)
+getProjectRootBranch0 = do
+  Branch.head <$> getCurrentBranch
+
+-- | Get the root path of the current project,
+-- or the current path if we're not in a project.
+getProjectRootPath :: Cli Path.Absolute
+getProjectRootPath = do
+  projectRootPathFromContext <$> getCurrentProjectContext
 
 -- | Get the last saved root hash.
 getLastSavedRootHash :: Cli CausalHash

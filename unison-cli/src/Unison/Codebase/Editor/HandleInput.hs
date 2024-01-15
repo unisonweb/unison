@@ -1626,7 +1626,7 @@ handleShowDefinition outputLoc showDefinitionScope query = do
   Cli.Env {codebase, writeSource} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   let hasAbsoluteQuery = any (any Name.isAbsolute) query
-  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
+  (names, pped) <- case (hasAbsoluteQuery, showDefinitionScope) of
     -- If any of the queries are absolute, use global names.
     -- TODO: We should instead print each definition using the names from its project-branch root.
     (True, _) -> do
@@ -1643,9 +1643,9 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       pure (names, pped)
     (_, ShowDefinitionLocal) -> do
       currentNames <- Cli.currentNames
-      pped <- Cli.prettyPrintEnvDeclFromNames currentNames
+      unbiasedPPED <- Cli.prettyPrintEnvDeclFromNames currentNames
+      let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
       pure (currentNames, pped)
-  let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))

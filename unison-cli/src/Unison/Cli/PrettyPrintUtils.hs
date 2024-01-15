@@ -3,13 +3,19 @@
 module Unison.Cli.PrettyPrintUtils
   ( prettyPrintEnvDeclFromNames,
     currentPrettyPrintEnvDecl,
+    projectRootPPED,
+    projectRootPPEDWithoutTransitiveLibs,
   )
 where
 
+import Control.Monad.Reader
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names.Cache qualified as NamesCache
 import Unison.Names (Names)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
@@ -28,3 +34,17 @@ prettyPrintEnvDeclFromNames ns =
 currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl = do
   Cli.currentNames >>= prettyPrintEnvDeclFromNames
+
+projectRootPPED :: Cli PPE.PrettyPrintEnvDecl
+projectRootPPED = do
+  Cli.Env {codebase} <- ask
+  causalHash <- Branch.headHash <$> Cli.getProjectRootBranch
+  NamesCache.BranchNames {branchPPED} <- liftIO $ NamesCache.expectNamesForBranch codebase causalHash
+  pure branchPPED
+
+projectRootPPEDWithoutTransitiveLibs :: Cli PPE.PrettyPrintEnvDecl
+projectRootPPEDWithoutTransitiveLibs = do
+  Cli.Env {codebase} <- ask
+  causalHash <- Branch.headHash <$> Cli.getProjectRootBranch
+  NamesCache.BranchNames {branchPPEDWithoutTransitiveLibs} <- liftIO $ NamesCache.expectNamesForBranch codebase causalHash
+  pure branchPPEDWithoutTransitiveLibs
