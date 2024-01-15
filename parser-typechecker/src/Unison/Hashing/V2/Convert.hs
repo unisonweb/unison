@@ -38,6 +38,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.ConstructorType qualified as Memory.ConstructorType
 import Unison.DataDeclaration qualified as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as Hashing
 import Unison.Kind qualified as Memory.Kind
 import Unison.NameSegment qualified as Memory.NameSegment
@@ -355,8 +356,8 @@ hashCausal :: (Hashing.ContentAddressable e) => e -> Set CausalHash -> (CausalHa
 hashCausal e tails =
   let valueHash = Hashing.contentHash e
       causalHash =
-        CausalHash . Hashing.contentHash $
-          Hashing.Causal valueHash (Set.map unCausalHash tails)
+        CausalHash . Hash32.fromHash . Hashing.contentHash $
+          Hashing.Causal valueHash (Set.map (Hash32.toHash . unCausalHash) tails)
    in (causalHash, HashFor valueHash)
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch
@@ -404,12 +405,12 @@ m2hBranch0 b =
     doPatches ::
       Map Memory.NameSegment.NameSegment (PatchHash, m Memory.Patch.Patch) ->
       Map Hashing.NameSegment Hash
-    doPatches = Map.bimap m2hNameSegment (unPatchHash . fst)
+    doPatches = Map.bimap m2hNameSegment (Hash32.toHash . unPatchHash . fst)
 
     doChildren ::
       Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.NameSegment Hash
-    doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
+    doChildren = Map.bimap m2hNameSegment (Hash32.toHash . unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
 m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.NameSegment s

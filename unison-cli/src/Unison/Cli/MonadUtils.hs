@@ -220,7 +220,7 @@ resolveShortCausalHashToCausalHash rollback shortHash = do
       then rollback (Output.NoBranchWithHash shortHash)
       else do
         len <- Codebase.branchHashLength
-        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
+        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash32 len . unCausalHash) hashes))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches

@@ -84,8 +84,8 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration qualified as DD
-import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
@@ -344,7 +344,7 @@ notifyNumbered = \case
      in (msg, displayBranchHash <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
-      toSCH h = SCH.fromHash schLength h
+      toSCH h = SCH.fromHash32 schLength h
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
@@ -1340,7 +1340,7 @@ notifyUser dir = \case
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.toBase32HexText $ unCausalHash hash) <> ")")
+            <> P.group ("(" <> P.text (Hash32.toText $ unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1374,7 +1374,7 @@ notifyUser dir = \case
             "",
             P.indentN 2 $
               P.lines
-                ( prettySCH . SCH.fromHash ((Text.length . SCH.toText) sch * 2)
+                ( prettySCH . SCH.fromHash32 ((Text.length . SCH.toText) sch * 2)
                     <$> Set.toList hashes
                 ),
             "",
@@ -1655,12 +1655,12 @@ notifyUser dir = \case
           Nothing -> go (renderLine head [] : output) queue
           Just tails -> go (renderLine head tails : output) (queue ++ tails)
           where
-            renderHash = take 10 . Text.unpack . Hash.toBase32HexText . unCausalHash
+            renderHash = take 10 . Text.unpack . Hash32.toText . unCausalHash
             renderLine head tail =
               (renderHash head)
                 ++ "|"
                 ++ intercalateMap " " renderHash tail
-                ++ case Map.lookup (Hash.toBase32HexText . unCausalHash $ head) tags of
+                ++ case Map.lookup (Hash32.toText . unCausalHash $ head) tags of
                   Just t -> "|tag: " ++ t
                   Nothing -> ""
             -- some specific hashes that we want to label in the output

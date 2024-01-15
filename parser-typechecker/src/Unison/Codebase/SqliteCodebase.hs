@@ -69,6 +69,7 @@ import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
 import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
+import Unison.Hash32 qualified as Hash32
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference, TermReferenceId)
@@ -476,7 +477,7 @@ syncInternal progress runSrc runDest b = time "syncInternal" do
                         processBranches rest
                       else do
                         let bs = map (uncurry B) cs
-                            os = map O (coerce @[PatchHash] @[Hash] es <> ts <> ds)
+                            os = map O (fmap (Hash32.toHash . unPatchHash) es <> ts <> ds)
                         processBranches (os ++ bs ++ b0 : rest)
         O h : rest -> do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)

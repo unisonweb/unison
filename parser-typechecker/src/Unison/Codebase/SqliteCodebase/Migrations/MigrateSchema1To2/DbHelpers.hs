@@ -26,6 +26,7 @@ import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Referent qualified as S
 import Unison.Hash (Hash)
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as Hashing
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
@@ -34,14 +35,14 @@ import Unison.Util.Set qualified as Set
 
 syncCausalHash :: S.SyncCausalFormat -> Transaction CausalHash
 syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do
-  fmap (CausalHash . Hashing.contentHash) $
+  fmap (CausalHash . Hash32.fromHash . Hashing.contentHash) $
     Hashing.Causal
-      <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
-      <*> fmap (Set.fromList . coerce @[CausalHash] @[Hash] . Vector.toList) (traverse Q.expectCausalHash parentChIds)
+      <$> fmap (Hash32.toHash . unBranchHash) (Q.expectBranchHash valueHashId)
+      <*> fmap (Set.fromList . fmap (Hash32.toHash . unCausalHash) . Vector.toList) (traverse Q.expectCausalHash parentChIds)
 
 dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
-  fmap (BranchHash . Hashing.contentHash) $
+  fmap (BranchHash . Hash32.fromHash . Hashing.contentHash) $
     Hashing.Branch
       <$> doTerms tms
       <*> doTypes tps
@@ -74,7 +75,7 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
 
 dbPatchHash :: S.Patch -> Transaction PatchHash
 dbPatchHash S.Patch {S.termEdits, S.typeEdits} =
-  fmap (PatchHash . Hashing.contentHash) $
+  fmap (PatchHash . Hash32.fromHash . Hashing.contentHash) $
     Hashing.Patch
       <$> doTermEdits termEdits
       <*> doTypeEdits typeEdits

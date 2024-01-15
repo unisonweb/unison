@@ -232,7 +232,7 @@ expectValueHashByCausalHashId :: Db.CausalHashId -> Transaction BranchHash
 expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
   where
     loadValueHashById :: Db.BranchHashId -> Transaction BranchHash
-    loadValueHashById = fmap BranchHash . Q.expectHash . Db.unBranchHashId
+    loadValueHashById = fmap BranchHash . Q.expectHash32 . Db.unBranchHashId
 
 expectRootCausalHash :: Transaction CausalHash
 expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
@@ -596,7 +596,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       Map Db.TextId Db.PatchObjectId ->
       Transaction (Map NameSegment (PatchHash, Transaction C.Branch.Patch))
     doPatches = Map.bitraverse (fmap NameSegment . Q.expectText) \patchId -> do
-      h <- PatchHash <$> (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId) patchId
+      h <- PatchHash <$> (Q.expectPrimaryHash32ByObjectId . Db.unPatchObjectId) patchId
       pure (h, expectPatch patchId)
 
     doChildren ::
@@ -1010,7 +1010,7 @@ saveDbPatch ::
   S.PatchFormat ->
   Transaction Db.PatchObjectId
 saveDbPatch hh hash patch = do
-  hashId <- Q.saveHashHash (unPatchHash hash)
+  hashId <- Q.saveHash (unPatchHash hash)
   let bytes = S.putBytes S.putPatchFormat patch
   Db.PatchObjectId <$> Q.saveObject hh hashId ObjectType.Patch bytes
 
@@ -1137,13 +1137,13 @@ declReferentsByPrefix b32prefix pos cid = do
 namespaceHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
 namespaceHashesByPrefix (ShortNamespaceHash b32prefix) = do
   hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
-  hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
+  hashes <- traverse (Q.expectHash32 . Db.unBranchHashId) hashIds
   pure $ Set.fromList . map BranchHash $ hashes
 
 causalHashesByPrefix :: ShortCausalHash -> Transaction (Set CausalHash)
 causalHashesByPrefix (ShortCausalHash b32prefix) = do
   hashIds <- Q.causalHashIdByBase32Prefix b32prefix
-  hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
+  hashes <- traverse (Q.expectHash32 . Db.unCausalHashId) hashIds
   pure $ Set.fromList . map CausalHash $ hashes
 
 -- | returns a list of known definitions referencing `r`

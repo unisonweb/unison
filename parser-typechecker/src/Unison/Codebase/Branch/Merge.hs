@@ -29,6 +29,7 @@ import Unison.Codebase.Branch.BranchDiff qualified as BDiff
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Patch qualified as Patch
+import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2.Convert qualified as H
 import Unison.Prelude hiding (empty)
 import Unison.Util.Map (unionWithM)
@@ -88,7 +89,7 @@ merge'' lca mode (Branch x) (Branch y) =
       let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
           makePatch Patch.PatchDiff {..} =
             let p = Patch.Patch _addedTermEdits _addedTypeEdits
-             in (PatchHash (H.hashPatch p), pure p)
+             in (PatchHash (Hash32.fromHash $ H.hashPatch p), pure p)
       pure $
         branch0
           (Star3.difference (_terms b0) removedTerms <> addedTerms)
@@ -107,7 +108,7 @@ merge'' lca mode (Branch x) (Branch y) =
                   R.difference (Patch._typeEdits p) _removedTypeEdits
                     <> _addedTypeEdits
               }
-      pure (PatchHash (H.hashPatch np), pure np)
+      pure (PatchHash (Hash32.fromHash $ H.hashPatch np), pure np)
 
 merge0 ::
   forall m.
@@ -133,4 +134,4 @@ merge0 lca mode b1 b2 = do
       e1 <- m1
       e2 <- m2
       let e3 = e1 <> e2
-      pure (PatchHash (H.hashPatch e3), pure e3)
+      pure (PatchHash (Hash32.fromHash $ H.hashPatch e3), pure e3)

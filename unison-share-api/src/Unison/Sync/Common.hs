@@ -26,7 +26,6 @@ import U.Codebase.Sqlite.TempEntity qualified as Sqlite
 import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
 import Unison.Hash32 (Hash32)
-import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Types qualified as Share
@@ -40,13 +39,11 @@ expectEntity hash = do
 
 -- FIXME this isn't the right module  for this conversion
 causalHashToHash32 :: CausalHash -> Hash32
-causalHashToHash32 =
-  Hash32.fromHash . unCausalHash
+causalHashToHash32 (CausalHash h) = h
 
 -- FIXME this isn't the right module  for this conversion
 hash32ToCausalHash :: Hash32 -> CausalHash
-hash32ToCausalHash =
-  CausalHash . Hash32.toHash
+hash32ToCausalHash = CausalHash
 
 -- | Convert an entity that came over the wire from Unison Share into an equivalent type that we can store in the
 -- `temp_entity` table.

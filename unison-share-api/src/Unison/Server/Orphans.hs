@@ -27,6 +27,8 @@ import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Hash (Hash (..))
 import Unison.Hash qualified as Hash
+import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -50,9 +52,15 @@ instance ToJSON Hash where
 instance FromJSON Hash where
   parseJSON = Aeson.withText "Hash" $ pure . Hash.unsafeFromBase32HexText
 
-deriving via Hash instance ToJSON CausalHash
+instance ToJSON Hash32 where
+  toJSON h = String $ Hash32.toText h
 
-deriving via Hash instance FromJSON CausalHash
+instance FromJSON Hash32 where
+  parseJSON = Aeson.withText "Hash" $ pure . Hash32.unsafeFromBase32HexText
+
+deriving via Hash32 instance ToJSON CausalHash
+
+deriving via Hash32 instance FromJSON CausalHash
 
 instance ToJSON ShortHash where
   toJSON = Aeson.String . SH.toText
@@ -146,8 +154,6 @@ instance ToSchema Reference where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 deriving via ShortByteString instance Binary Hash
-
-deriving via Hash instance Binary CausalHash
 
 deriving via Text instance ToHttpApiData ShortCausalHash
 

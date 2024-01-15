@@ -61,9 +61,7 @@ import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
-import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
-import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project
@@ -104,7 +102,7 @@ handleGist (GistInput repo) = do
       ReadRemoteNamespaceGit
         ReadGitRemoteNamespace
           { repo = writeToReadGit repo,
-            sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
+            sch = Just (SCH.fromHash32 schLength (Branch.headHash sourceBranch)),
             path = Path.empty
           }
 
@@ -243,7 +241,7 @@ pushLooseCodeToShareLooseCode localPath remote@WriteShareRemoteNamespace {server
 
   let checkAndSetPush :: Maybe Hash32 -> Cli (Maybe Int)
       checkAndSetPush remoteHash =
-        if Just (Hash32.fromHash (unCausalHash localCausalHash)) == remoteHash
+        if Just (unCausalHash localCausalHash) == remoteHash
           then pure Nothing
           else do
             let push =
@@ -810,7 +808,7 @@ loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Maybe Hash32)
 loadCausalHashToPush path =
   Operations.loadCausalHashAtPath Nothing segments <&> \case
     Nothing -> Nothing
-    Just (CausalHash hash) -> Just (Hash32.fromHash hash)
+    Just (CausalHash hash) -> Just hash
   where
     segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
 
@@ -820,8 +818,8 @@ wouldNotBeFastForward localBranchHead remoteBranchHead = do
   maybeHashIds <-
     runMaybeT $
       (,)
-        <$> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash (Hash32.toHash localBranchHead)))
-        <*> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash (Hash32.toHash remoteBranchHead)))
+        <$> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash localBranchHead))
+        <*> MaybeT (Queries.loadCausalHashIdByCausalHash (CausalHash remoteBranchHead))
   case maybeHashIds of
     Nothing -> pure True
     Just (localBranchHead1, remoteBranchHead1) -> not <$> Queries.before remoteBranchHead1 localBranchHead1

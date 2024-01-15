@@ -3,6 +3,7 @@ module Unison.Codebase.ShortCausalHash
     toHash,
     fromHash,
     fromText,
+    fromHash32,
     ShortCausalHash (..),
   )
 where
@@ -11,6 +12,8 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Hash qualified as Hash
+import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 
 -- | Causal Hash Prefix
@@ -26,6 +29,10 @@ toHash = fmap coerce . Hash.fromBase32HexText . toText
 fromHash :: (Coercible h Hash.Hash) => Int -> h -> ShortCausalHash
 fromHash len =
   ShortCausalHash . Text.take len . Hash.toBase32HexText . coerce
+
+fromHash32 :: (Coercible h Hash32) => Int -> h -> ShortCausalHash
+fromHash32 len =
+  ShortCausalHash . Text.take len . Hash32.toText . coerce
 
 -- abc -> SCH abc
 -- #abc -> SCH abc

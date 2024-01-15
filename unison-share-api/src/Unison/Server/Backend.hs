@@ -837,7 +837,7 @@ expandShortCausalHash hash = do
     [] -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
     _ ->
-      throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
+      throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash32 len) hashSet
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash ::
