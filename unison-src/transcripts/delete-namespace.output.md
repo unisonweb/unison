@@ -89,7 +89,12 @@ Deleting the root namespace should require confirmation if not forced.
 -- Should have an empty history
 .> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Deleting the root namespace shouldn't require confirmation if forced.
@@ -104,6 +109,11 @@ Deleting the root namespace shouldn't require confirmation if forced.
 -- Should have an empty history
 .> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
