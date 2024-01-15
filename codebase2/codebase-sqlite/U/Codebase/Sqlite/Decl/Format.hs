@@ -10,11 +10,17 @@ import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId)
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
+import Unison.Hash32 (Hash32)
 import Unison.Prelude
 
 -- | Add new formats here
-data DeclFormat = Decl LocallyIndexedComponent
+data DeclFormat' text defn = Decl (LocallyIndexedComponent' text defn)
   deriving (Show)
+
+type DeclFormat = DeclFormat' TextId ObjectId
+
+-- | A DeclFormat which uses hash references instead of database ids.
+type HashDeclFormat = DeclFormat' Text Hash32
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
