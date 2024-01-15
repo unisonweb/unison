@@ -420,11 +420,13 @@ string = queryToken getString
 --
 -- returns the result of combining elements with 'pair', alongside the annotation containing
 -- the full parenthesized expression.
-tupleOrParenthesized :: Ord v => P v m a -> (Ann -> a) -> (a -> a -> a) -> P v m (Ann, a)
-tupleOrParenthesized p unit pair = seq' "(" go p
+tupleOrParenthesized :: Ord v => P v m a -> (Ann -> a) -> (a -> a -> a) -> P v m (Ann {- spanAnn -}, a)
+tupleOrParenthesized p unit pair = do
+  seq' "(" go p
   where
     go ann [t] = (ann, t)
-    go ann xs = (ann, foldr pair (unit ann) xs)
+    go ann (t : ts) = (ann, foldr pair (unit mempty) (t Nel.:| ts))
+    go ann [] = (ann, unit ann)
 
 seq :: (Ord v) => (Ann -> [a] -> a) -> P v m a -> P v m a
 seq = seq' "["
@@ -434,9 +436,8 @@ seq' openStr f p = do
   open <- openBlockWith openStr <* redundant
   es <- sepEndBy (P.try $ optional semi *> reserved "," <* redundant) p
   close <- redundant *> closeBlock
-  pure $ go open es close
+  pure (f (ann open <> ann close) es)
   where
-    go open elems close = f (ann open <> ann close) elems
     redundant = P.skipMany (P.eitherP (reserved ",") semi)
 
 chainr1 :: (Ord v) => P v m a -> P v m (a -> a -> a) -> P v m a

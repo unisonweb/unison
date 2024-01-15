@@ -10,7 +10,6 @@ import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis, ppedForFile)
@@ -40,25 +39,7 @@ formatDefs fileUri =
       cwd <- lift getCurrentPath
       FileAnalysis {fileSummary = mayFileSummary} <- getFileAnalysis fileUri
       fileSummary <- hoistMaybe mayFileSummary
-      -- let FileSummary{dataDeclsBySymbol, effectDeclsBySymbol, termsBySymbol} = fileSummary
-      -- (datas, effects, termsAndWatches) <-
-      --   (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> do
-      --     let termsWithWatchKind =
-      --           Map.toList hashTermsId
-      --             <&> \(sym, (tldAnn, refId, wk, tm, _typ)) -> (sym, tldAnn, Just refId, tm, wk)
-      --     Debug.debugM Debug.Temp "term ranges" $ termsWithWatchKind
-      --     Debug.debugM Debug.Temp "decl ranges" $ dataDeclarationsId'
-      --     pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
-      --   (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
-      --     let termsWithKind = terms <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Nothing)
-      --     let _watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Just wk)
-      --     pure (dataDeclarationsId, effectDeclarationsId, termsWithKind {- <> watchesWithKind -})
-      --   (Nothing, Nothing) -> empty
       filePPED <- lift $ ppedForFile fileUri
-      -- let termsWithoutWatches =
-      --       termsAndWatches & filter \case
-      --         (_sym, _tldAnn, _mayRefId, _trm, wk) -> wk == Nothing
-      -- let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
       formattedDecls <- ifor (allTypeDecls fileSummary) \sym (ref, decl) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
@@ -101,7 +82,7 @@ formatDefs fileUri =
             (formattedTerms <> formattedDecls)
               & mapMaybe
                 ( \case
-                    (Ann.Ann {start, end}, txt) -> Just (Debug.debugLog Debug.Temp "start,end" $ (start, end), txt)
+                    (Ann.Ann {start, end}, txt) -> Just ((start, end), txt)
                     _ -> Nothing
                 )
       -- when (null filteredDefs) empty {- Don't format if we have no definitions or it wipes out the fold! -}

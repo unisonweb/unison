@@ -1251,7 +1251,7 @@ number' i u f = fmap go numeric
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do
   (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
-  pure $ tm {ABT.annotation = ABT.annotation tm <> spanAnn}
+  pure $ tm {ABT.annotation = spanAnn}
   where
     pair t1 t2 =
       Term.app
