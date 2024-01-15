@@ -258,8 +258,7 @@ modifyRootBranch f = do
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
   path <- getCurrentPath
-  Cli.Env {codebase} <- ask
-  liftIO $ Codebase.getBranchAtPath codebase path
+  getBranchAt path
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)
@@ -290,8 +289,8 @@ getBranch0At path =
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchAt :: Path.Absolute -> Cli (Maybe (Branch IO))
 getMaybeBranchAt path = do
-  rootBranch <- getRootBranch
-  pure (Branch.getAt (Path.unabsolute path) rootBranch)
+  Cli.Env {codebase} <- ask
+  liftIO $ Codebase.getBranchAtPathMaybe codebase path
 
 -- | Get the maybe-branch0 at an absolute path.
 getMaybeBranch0At :: Path.Absolute -> Cli (Maybe (Branch0 IO))
