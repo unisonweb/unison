@@ -44,6 +44,7 @@ module Unison.Codebase
     SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
     getShallowCausalAtPath,
+    getBranchAtPath,
     Operations.expectCausalBranchByCausalHash,
     getShallowCausalFromRoot,
     getShallowRootBranch,
@@ -115,7 +116,6 @@ where
 
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
-import Data.List as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2
@@ -242,23 +242,15 @@ getShallowBranchAtPath path mayBranch = do
           childBranch <- V2Causal.value childCausal
           getShallowBranchAtPath p (Just childBranch)
 
--- | Get a branch from the codebase.
-getBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Maybe (Branch m))
-getBranchForHash codebase h =
-  -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
-  -- If not found, attempt to find it in the Codebase (sqlite)
-  let nestedChildrenForDepth :: Int -> Branch m -> [Branch m]
-      nestedChildrenForDepth depth b =
-        if depth == 0
-          then []
-          else b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
-
-      headHashEq = (h ==) . Branch.headHash
-
-      find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
-   in do
-        rootBranch <- getRootBranch codebase
-        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
+-- | Get a v1 branch from the root following the given path.
+getBranchAtPath ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  Path.Absolute ->
+  m (Branch m)
+getBranchAtPath codebase path = do
+  V2Causal.Causal {causalHash} <- runTransaction codebase $ getShallowCausalAtPath (Path.unabsolute path) Nothing
+  expectBranchForHash codebase causalHash
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
 expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)

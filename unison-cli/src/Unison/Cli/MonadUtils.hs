@@ -258,7 +258,8 @@ modifyRootBranch f = do
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
   path <- getCurrentPath
-  getBranchAt path
+  Cli.Env {codebase} <- ask
+  liftIO $ Codebase.getBranchAtPath codebase path
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)
