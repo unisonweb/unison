@@ -257,8 +257,8 @@ parsePattern = label "pattern" root
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
     parenthesizedOrTuplePattern = do
-      (spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
-      pure (fmap (<> spanAnn) pat, pats)
+      (_spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
