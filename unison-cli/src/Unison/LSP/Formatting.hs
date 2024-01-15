@@ -4,7 +4,6 @@ module Unison.LSP.Formatting where
 
 import Control.Lens hiding (List)
 import Data.List.NonEmpty.Extra qualified as NEL
-import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
@@ -22,14 +21,11 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
-import Unison.Symbol qualified as Symbol
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
-import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Var qualified as Var
 
 formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
@@ -42,35 +38,37 @@ formatDefs fileUri =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {typecheckedFile, parsedFile} <- getFileAnalysis fileUri
-      (datas, effects, termsAndWatches) <- case (typecheckedFile, parsedFile) of
-        (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> do
-          let termsWithWatchKind =
-                Map.toList hashTermsId
-                  <&> \(sym, (tldAnn, refId, wk, tm, _typ)) -> (sym, tldAnn, Just refId, tm, wk)
-          Debug.debugM Debug.Temp "term ranges" $ termsWithWatchKind
-          Debug.debugM Debug.Temp "decl ranges" $ dataDeclarationsId'
-          pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
-        (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
-          let termsWithKind = terms <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Nothing)
-          let _watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Just wk)
-          pure (dataDeclarationsId, effectDeclarationsId, termsWithKind {- <> watchesWithKind -})
-        (Nothing, Nothing) -> empty
+      FileAnalysis {fileSummary = mayFileSummary} <- getFileAnalysis fileUri
+      fileSummary <- hoistMaybe mayFileSummary
+      -- let FileSummary{dataDeclsBySymbol, effectDeclsBySymbol, termsBySymbol} = fileSummary
+      -- (datas, effects, termsAndWatches) <-
+      --   (Just (UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId}), _) -> do
+      --     let termsWithWatchKind =
+      --           Map.toList hashTermsId
+      --             <&> \(sym, (tldAnn, refId, wk, tm, _typ)) -> (sym, tldAnn, Just refId, tm, wk)
+      --     Debug.debugM Debug.Temp "term ranges" $ termsWithWatchKind
+      --     Debug.debugM Debug.Temp "decl ranges" $ dataDeclarationsId'
+      --     pure (dataDeclarationsId', effectDeclarationsId', termsWithWatchKind)
+      --   (_, Just (UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches})) -> do
+      --     let termsWithKind = terms <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Nothing)
+      --     let _watchesWithKind = watches & ifoldMap \wk exprs -> exprs <&> \(sym, tldAnn, trm) -> (sym, tldAnn, Nothing, trm, Just wk)
+      --     pure (dataDeclarationsId, effectDeclarationsId, termsWithKind {- <> watchesWithKind -})
+      --   (Nothing, Nothing) -> empty
       filePPED <- lift $ ppedForFile fileUri
-      let termsWithoutWatches =
-            termsAndWatches & filter \case
-              (_sym, _tldAnn, _mayRefId, _trm, wk) -> wk == Nothing
-      let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
-      formattedDecls <- for decls \(sym, (ref, decl)) -> do
+      -- let termsWithoutWatches =
+      --       termsAndWatches & filter \case
+      --         (_sym, _tldAnn, _mayRefId, _trm, wk) -> wk == Nothing
+      -- let decls = Map.toList (fmap Right <$> datas) <> Map.toList (fmap Left <$> effects)
+      formattedDecls <- ifor (allTypeDecls fileSummary) \sym (ref, decl) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let declName = Name.fromSegments declNameSegments
         let hqName = HQ.fromName symName
         let biasedPPED = PPED.biasTo [declName] filePPED
         pure $
-          (either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
+          (either (Decl.annotation . Decl.toDataDecl) Decl.annotation decl, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
             & over _2 Pretty.syntaxToColor
-      formattedTerms <- for termsWithoutWatches \(sym, tldAnn, mayRefId, trm, wk) -> do
+      formattedTerms <- ifor (termsBySymbol fileSummary) \sym (tldAnn, mayRefId, trm, _typ) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute cwd)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
@@ -79,11 +77,15 @@ formatDefs fileUri =
         let definitionPPE = case mayRefId of
               Just refId -> PPE.declarationPPE biasedPPED (Reference.DerivedId refId)
               Nothing -> PPED.suffixifiedPPE biasedPPED
-        let formattedTerm =
-              case (wk, sym) of
-                (Nothing, _) -> Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
-                (Just wk, Symbol.Symbol _ (Var.User {})) -> Pretty.syntaxToColor $ Pretty.string wk <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
-                (Just wk, _) -> Pretty.string wk <> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
+        let formattedTerm = Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
+        -- let formattedWatches =
+        --       allWatches fileSummary & map \(_tldAnn, maySym, _mayRef, trm, _mayType, mayWatchKind) -> do
+        --         case (mayWatchKind, maySym) of
+        --           (Just wk, Just (Symbol.Symbol _ (Var.User {}))) ->
+        --             -- Watch with binding
+        --             Pretty.syntaxToColor $ Pretty.string wk <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
+        --           (Just wk, _) -> Pretty.string wk <> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
+        --           (Nothing, _) -> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
 
         -- let formattedTm = case sym of
         --       Symbol.Symbol _ (Var.User {}) -> Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature biasedPPE hqName trm

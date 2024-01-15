@@ -140,7 +140,7 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
             case wk of
               Nothing -> (Map.singleton sym (ann, Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
               Just TestWatch -> (mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
-              Just _ -> (mempty, mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)])
+              Just wk -> (mempty, mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ, Just wk)])
      in Just $
           FileSummary
             { dataDeclsBySymbol = dataDeclarationsId',
@@ -162,7 +162,7 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
             tms & foldMap \(v, ann, trm) ->
               case wk of
                 TestWatch -> ([(ann, assertUserSym v, Nothing, trm, Nothing)], mempty)
-                _ -> (mempty, [(ann, assertUserSym v, Nothing, trm, Nothing)])
+                _ -> (mempty, [(ann, assertUserSym v, Nothing, trm, Nothing, Just wk)])
      in Just $
           FileSummary
             { dataDeclsBySymbol = dataDeclarationsId,
@@ -204,7 +204,7 @@ getFileDefLocations uri = do
 
 -- | Compute the location of user defined definitions within the file
 fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
-fileDefLocations FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, testWatchSummary, exprWatchSummary, termsBySymbol} =
+fileDefLocations fs@FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, termsBySymbol} =
   fold
     [ dataDeclsBySymbol <&> \(_, decl) ->
         decl
@@ -215,8 +215,8 @@ fileDefLocations FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, testWatchS
           & DD.toDataDecl
           & DD.annotation
           & Set.singleton,
-      (testWatchSummary <> exprWatchSummary)
-        & foldMap \(ann, maySym, _id, _trm, _typ) ->
+      (allWatches fs)
+        & foldMap \(ann, maySym, _id, _trm, _typ, _wk) ->
           case maySym of
             Nothing -> mempty
             Just sym -> Map.singleton sym (Set.singleton ann),

@@ -47,6 +47,7 @@ import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.WatchKind qualified as WK
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -145,10 +146,21 @@ data FileSummary = FileSummary
     termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
     termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
     testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
+    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann), Maybe WK.WatchKind)],
     fileNames :: Names
   }
   deriving stock (Show)
+
+allWatches :: FileSummary -> [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann), Maybe WK.WatchKind)]
+allWatches FileSummary {testWatchSummary, exprWatchSummary} =
+  exprWatchSummary
+    <> (testWatchSummary <&> \(ann, sym, refId, tm, typ) -> (ann, sym, refId, tm, typ, Just WK.TestWatch))
+
+allTypeDecls :: FileSummary -> Map Symbol (Reference.Id, Either (DD.EffectDeclaration Symbol Ann) (DD.DataDeclaration Symbol Ann))
+allTypeDecls FileSummary {dataDeclsBySymbol, effectDeclsBySymbol} =
+  let dataDecls = dataDeclsBySymbol <&> \(refId, dd) -> (refId, Right dd)
+      effectDecls = effectDeclsBySymbol <&> \(refId, ed) -> (refId, Left ed)
+   in dataDecls <> effectDecls
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
