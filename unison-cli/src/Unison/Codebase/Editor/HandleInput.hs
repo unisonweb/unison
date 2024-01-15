@@ -544,7 +544,7 @@ loop e = do
             DocToMarkdownI docName -> do
               basicPrettyPrintNames <- getBasicPrettyPrintNames
               hqLength <- Cli.runTransaction Codebase.hashLength
-              let pped = PPED.fromNamesSuffixifiedByHash hqLength basicPrettyPrintNames
+              let pped = PPED.makePPED (PPE.hqNamer hqLength basicPrettyPrintNames) (PPE.suffixifyByHash basicPrettyPrintNames)
               basicPrettyPrintNames <- basicParseNames
               let nameSearch = NameSearch.makeNameSearch hqLength basicPrettyPrintNames
               Cli.Env {codebase, runtime} <- ask
@@ -675,7 +675,7 @@ loop e = do
                     let root0 = Branch.head root
                     let names = Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPED.fromNamesSuffixifiedByHash hqLength names
+                    let pped = PPED.makePPED (PPE.hqNamer hqLength names) (PPE.suffixifyByHash names)
                     pure (names, pped)
                   else do
                     currentBranch <- Cli.getCurrentBranch0
@@ -1640,7 +1640,7 @@ handleShowDefinition outputLoc showDefinitionScope query = do
     (_, ShowDefinitionGlobal) -> do
       let names = Names.makeAbsolute $ Branch.toNames root0
       -- Use an absolutely qualified ppe for view.global
-      let ppe = PPED.fromNamesSuffixifiedByHash hqLength names
+      let ppe = PPED.makePPED (PPE.hqNamer hqLength names) (PPE.suffixifyByHash names)
       pure (names, ppe)
     (_, ShowDefinitionLocal) -> do
       currentBranch <- Cli.getCurrentBranch0

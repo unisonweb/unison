@@ -14,16 +14,18 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Names (Names)
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.Backend qualified as Backend
 
-prettyPrintEnvDecl :: Names -> Cli PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: Names -> Cli PrettyPrintEnvDecl
 prettyPrintEnvDecl ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNamesSuffixifiedByHash` ns)
+  Cli.runTransaction Codebase.hashLength <&> \hashLen ->
+    PPED.makePPED (PPE.hqNamer hashLen ns) (PPE.suffixifyByHash ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl scoping = do
   root' <- Cli.getRootBranch
   currentPath <- Cli.getCurrentPath

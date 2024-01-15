@@ -9,8 +9,9 @@ import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
@@ -32,7 +33,7 @@ ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = 
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let ppe = PPE.fromNamesSuffixifiedByHash hl parseNames
+        let ppe = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
