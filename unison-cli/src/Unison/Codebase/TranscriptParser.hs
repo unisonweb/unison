@@ -49,7 +49,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Type qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
@@ -366,10 +365,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       [] -> awaitInput
                       args -> do
                         liftIO (output ("\n" <> show p <> "\n"))
-                        rootVar <- use #root
                         numberedArgs <- use #numberedArgs
-                        let getRoot = fmap Branch.head . atomically $ readTMVar rootVar
-                        liftIO (parseInput codebase getRoot curPath numberedArgs patternMap args) >>= \case
+                        liftIO (parseInput codebase curPath numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> do
                             liftIO $ writeIORef hasErrors True
