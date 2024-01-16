@@ -1174,7 +1174,18 @@ forkLocal =
     [ ("namespace", Required, namespaceArg),
       ("new location", Required, newNameArg)
     ]
-    (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
+    ( P.wrapColumn2
+        [ ( makeExample forkLocal ["src", "dest"],
+            "creates the namespace `dest` as a copy of `src`."
+          ),
+          ( makeExample forkLocal ["project0/branch0:a.path", "project1/branch1:foo"],
+            "creates the namespace `foo` in `branch1` of `project1` as a copy of `a.path` in `project0/branch0`."
+          ),
+          ( makeExample forkLocal ["srcproject/srcbranch", "dest"],
+            "creates the namespace `dest` as a copy of the branch `srcbranch` of `srcproject`."
+          )
+        ]
+    )
     ( \case
         [src, dest] -> do
           src <- Input.parseBranchId2 src

@@ -3,6 +3,7 @@ module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
     getCurrentProject,
     expectCurrentProject,
+    expectCurrentProjectIds,
     getCurrentProjectIds,
     getCurrentProjectBranch,
     getProjectBranchForPath,
@@ -12,6 +13,7 @@ module Unison.Cli.ProjectUtils
     projectBranchPath,
     projectBranchSegment,
     projectBranchPathPrism,
+    resolveBranchRelativePath,
     branchRelativePathToAbsolute,
 
     -- * Name hydration
@@ -50,7 +52,7 @@ import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath, ResolvedBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -59,24 +61,37 @@ import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
-branchRelativePathToAbsolute = \case
+branchRelativePathToAbsolute brp = resolveBranchRelativePath brp <&> \case
+  BranchRelativePath.ResolvedLoosePath p -> p
+  BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
+    let projectBranchIds = getIds projectBranch
+        handleRel = case mRel of
+          Nothing -> id
+          Just rel -> flip Path.resolve rel
+    in handleRel (projectBranchPath projectBranchIds)
+  where
+    getIds = \case
+      ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
+
+resolveBranchRelativePath :: BranchRelativePath -> Cli ResolvedBranchRelativePath
+resolveBranchRelativePath = \case
   BranchRelativePath.BranchRelative brp -> case brp of
-    These projectBranch path -> do
-      projectBranch <- getIds <$> expectProjectAndBranchByTheseNames (toThese projectBranch)
-      pure (Path.resolve (projectBranchPath projectBranch) path)
     This projectBranch -> do
-      projectBranch <- getIds <$> expectProjectAndBranchByTheseNames (toThese projectBranch)
-      pure (projectBranchPath projectBranch)
+      projectBranch <- expectProjectAndBranchByTheseNames (toThese projectBranch)
+      pure (BranchRelativePath.ResolvedBranchRelative projectBranch Nothing)
     That path -> do
-      projectBranch <- expectCurrentProjectIds
-      pure (Path.resolve (projectBranchPath projectBranch) path)
-  BranchRelativePath.LoosePath path -> Cli.resolvePath' path
+      (projectBranch, _) <- expectCurrentProjectBranch
+      pure (BranchRelativePath.ResolvedBranchRelative projectBranch (Just path))
+    These projectBranch path -> do
+      projectBranch <- expectProjectAndBranchByTheseNames (toThese projectBranch)
+      pure (BranchRelativePath.ResolvedBranchRelative projectBranch (Just path))
+  BranchRelativePath.LoosePath path ->
+    BranchRelativePath.ResolvedLoosePath <$> Cli.resolvePath' path
   where
     toThese = \case
       Left branchName -> That branchName
       Right (projectName, branchName) -> These projectName branchName
-    getIds = \case
-      ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
+    
 
 -- | Get the current project that a user is on.
 getCurrentProject :: Cli (Maybe Sqlite.Project)
