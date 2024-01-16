@@ -1068,12 +1068,24 @@ loop e = do
                 Nothing -> do
                   Cli.respond DebugFuzzyOptionsNoResolver
             DebugFormatI -> do
-              Cli.Env {writeSource} <- ask
-              _ <- runMaybeT do
+              Cli.Env {writeSource, loadSource} <- ask
+              void $ runMaybeT do
                 (filePath, _) <- MaybeT Cli.getLatestFile
-                Format.formatFile
-                writeSource filePath updatedSource
-              _
+                pf <- lift Cli.getLatestParsedFile
+                tf <- lift Cli.getLatestTypecheckedFile
+                names <- lift Cli.currentNames
+                let buildPPED uf tf =
+                      Cli.prettyPrintEnvDeclFromNames $ (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                let formatWidth = 80
+                currentPath <- lift $ Cli.getCurrentPath
+                updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
+                source <-
+                  liftIO (loadSource (Text.pack filePath)) >>= \case
+                    Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
+                    Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
+                    Cli.LoadSuccess contents -> pure contents
+                let updatedSource = Format.applyFormatUpdates updates source
+                liftIO $ writeSource (Text.pack filePath) updatedSource
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1345,6 +1357,7 @@ inputDescription input =
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
     DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
+    DebugFormatI -> pure "debug.format"
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat

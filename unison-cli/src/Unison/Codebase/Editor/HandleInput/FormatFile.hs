@@ -1,7 +1,8 @@
-module Unison.Codebase.Editor.HandleInput.FormatFile (formatFile) where
+module Unison.Codebase.Editor.HandleInput.FormatFile (formatFile, applyFormatUpdates) where
 
 import Control.Lens hiding (List)
 import Data.IntervalMap.Interval qualified as Interval
+import Data.List qualified as List
 import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
 import Data.Text qualified as Text
@@ -67,7 +68,13 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filter (\(tldAnn, _, _, _) -> shouldFormatTLD tldAnn)
+      & Map.filterWithKey
+        ( \sym (tldAnn, _, _, _) ->
+            shouldFormatTLD tldAnn
+              -- TODO: Fix printing of docs using {{  }} syntax.
+              -- For now we just skip them.
+              && (Name.lastSegment <$> Name.fromVar sym) /= Just "doc"
+        )
       & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
@@ -173,3 +180,42 @@ hasUserTypeSignature :: Eq v => UnisonFile v a -> v -> Bool
 hasUserTypeSignature parsedFile sym =
   UF.terms parsedFile
     & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
+
+-- | Apply a list of updates to a text, returning the updated text.
+--
+-- This isn't terribly efficient, but is fine for debugging and testing.
+--
+-- TODO: rewrite to sort replacements and run them in a single pass.
+--
+-- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 2 6))] "abcdefghijk\nlmnopqrstuv\nwxyz"
+-- "abcdefghijk\nlmhelloqrstuv\nwxyz"
+--
+-- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 3 2))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloxyz\n1234567890"
+--
+-- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 2 6)), ("world", Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
+applyFormatUpdates :: [(Text, Range)] -> Text -> Text
+applyFormatUpdates updates txt = foldl' applyUpdate txt updates
+  where
+    applyUpdate :: Text -> (Text, Range) -> Text
+    applyUpdate txt (newText, Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol')) = fromMaybe txt $ do
+      -- Convert from 1-based indexing
+      let startLine = startLine' - 1
+      let startCol = startCol' - 1
+      let endLine = endLine' - 1
+      let endCol = endCol' - 1
+      let ls = Text.lines txt
+          (beforeLines, afterLines) = List.splitAt startLine (ls)
+      if startLine == endLine
+        then do
+          (theLine NEL.:| rest) <- NEL.nonEmpty afterLines
+          let (prefix, _) = Text.splitAt startCol theLine
+          let (_, suffix) = Text.splitAt endCol theLine
+          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
+        else do
+          let (relevantLines', rest) = List.splitAt ((endLine + 1) - startLine) afterLines
+          relevantLines <- NEL.nonEmpty relevantLines'
+          let prefix = Text.take startCol (NEL.head relevantLines)
+          let (_, suffix) = Text.splitAt endCol (NEL.last relevantLines)
+          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
