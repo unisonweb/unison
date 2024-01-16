@@ -9,6 +9,7 @@ import Data.Char (isSpace)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
+import Text.Builder qualified
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
@@ -29,6 +30,31 @@ parseBranchRelativePath str =
   case Megaparsec.parse branchRelativePathParser "<none>" (Text.pack str) of
     Left e -> Left (P.string (Megaparsec.errorBundlePretty e))
     Right x -> Right x
+
+instance From BranchRelativePath Text where
+  from = \case
+    BranchRelative brArg -> case brArg of
+      This eitherProj ->
+        Text.Builder.run
+          ( Text.Builder.text (eitherProjToText eitherProj)
+              <> Text.Builder.char ':'
+          )
+      That path ->
+        Text.Builder.run
+          ( Text.Builder.char ':'
+              <> Text.Builder.text (Path.convert path)
+          )
+      These eitherProj path ->
+        Text.Builder.run
+          ( Text.Builder.text (eitherProjToText eitherProj)
+              <> Text.Builder.char ':'
+              <> Text.Builder.text (Path.convert path)
+          )
+    LoosePath path -> Path.toText' path
+    where
+      eitherProjToText = \case
+        Left branchName -> from @(These ProjectName ProjectBranchName) @Text (That branchName)
+        Right (projName, branchName) -> into @Text (These projName branchName)
 
 branchRelativePathParser :: Megaparsec.Parsec Void Text BranchRelativePath
 branchRelativePathParser =
