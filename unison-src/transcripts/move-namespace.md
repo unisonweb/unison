@@ -1,7 +1,9 @@
 # Tests for `move.namespace`
 
 ```ucm:hide
-.> builtins.mergeio
+.happy> builtins.merge
+.history> builtins.merge
+.existing> builtins.merge
 ```
 
 ## Happy path

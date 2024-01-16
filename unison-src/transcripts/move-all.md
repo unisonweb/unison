@@ -44,6 +44,7 @@ bonk = 5
 ```
 
 ```ucm
+.z> builtins.merge
 .z> add
 .z> move bonk zonk
 .z> ls
@@ -56,6 +57,7 @@ bonk.zonk = 5
 ```
 
 ```ucm
+.a> builtins.merge
 .a> add
 .a> move bonk zonk
 .a> ls

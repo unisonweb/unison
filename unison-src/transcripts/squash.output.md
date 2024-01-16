@@ -128,7 +128,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 .> fork trunk alice
 
@@ -152,9 +152,9 @@ neatoFun x = x
 
   ⍟ I've added these definitions:
   
-    bodaciousNumero : Nat
+    bodaciousNumero : ##Nat
     neatoFun        : x -> x
-    radNumber       : Nat
+    radNumber       : ##Nat
 
 .alice> rename.term radNumber superRadNumber
 
@@ -178,9 +178,9 @@ no more = no more
 
   ⍟ I've added these definitions:
   
-    babyDon'tHurtMe : Text
+    babyDon'tHurtMe : ##Text
     no              : more -> r
-    whatIsLove      : Text
+    whatIsLove      : ##Text
 
 ```
 At this point, Alice and Bob both have some history beyond what's in trunk:
@@ -456,12 +456,9 @@ This checks to see that squashing correctly preserves deletions:
 
   Name changes:
   
-    Original                    Changes
-    1. builtin.Nat.+         ┐  2. delete.builtin2.Nat.+ (removed)
-    3. builtin2.Nat.+        │  
-    4. delete.builtin.Nat.+  │  
-    5. delete.builtin2.Nat.+ │  
-    6. mybuiltin.Nat.+       ┘  
+    Original             Changes
+    1. builtin.Nat.+  ┐  2. builtin2.Nat.+ (removed)
+    3. builtin2.Nat.+ ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -469,12 +466,9 @@ This checks to see that squashing correctly preserves deletions:
 
   Name changes:
   
-    Original                    Changes
-    1. builtin.Nat.*         ┐  2. delete.builtin2.Nat.* (removed)
-    3. builtin2.Nat.*        │  
-    4. delete.builtin.Nat.*  │  
-    5. delete.builtin2.Nat.* │  
-    6. mybuiltin.Nat.*       ┘  
+    Original             Changes
+    1. builtin.Nat.*  ┐  2. builtin2.Nat.* (removed)
+    3. builtin2.Nat.* ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

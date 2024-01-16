@@ -29,7 +29,11 @@ quux.x = 4
 ```
 
 ```ucm
-  ☝️  The namespace .P0 is empty.
+  ☝️  The namespace .P0.lib is empty.
+
+.P0.lib> builtins.merge
+
+  Done.
 
 .P0> add
 
@@ -72,7 +76,7 @@ quux.y = 333
     foo.y  : Nat
     quux.y : Nat
 
-.P1> delete.term.verbose foo.w
+.> delete.term.verbose P1.foo.w
 
   Name changes:
   
@@ -234,7 +238,11 @@ f = (x y -> y) a "woot!"
 ```
 
 ```ucm
-  ☝️  The namespace .c1 is empty.
+  ☝️  The namespace .c1.lib is empty.
+
+.c1.lib> builtins.merge
+
+  Done.
 
 .c1> add
 

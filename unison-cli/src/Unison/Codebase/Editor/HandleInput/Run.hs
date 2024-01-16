@@ -12,7 +12,8 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (basicParseNames, displayNames, getBasicPrettyPrintNames)
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Native, Permissive), evalUnisonFile)
 import Unison.Codebase.Editor.Output qualified as Output
@@ -22,7 +23,7 @@ import Unison.Hash qualified as Hash
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
@@ -36,6 +37,7 @@ import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Var qualified as Var
 
 handleRun :: Bool -> String -> [String] -> Cli ()
@@ -44,11 +46,12 @@ handleRun native main args = do
     (sym, term, typ, otyp) <- getTerm main
     uf <- createWatcherFile sym term typ
     pure (uf, otyp)
-  ppe <- do
-    names <- displayNames unisonFile
-    Cli.runTransaction Codebase.hashLength <&> \hashLen -> PPE.makePPE (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
+  names <- Cli.currentNames
+  let namesWithFileDefinitions = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
+  pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+  let suffixifiedPPE = PPED.suffixifiedPPE pped
   let mode | native = Native | otherwise = Permissive
-  (_, xs) <- evalUnisonFile mode ppe unisonFile args
+  (_, xs) <- evalUnisonFile mode suffixifiedPPE unisonFile args
   mainRes :: Term Symbol () <-
     case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
       Nothing ->
@@ -59,7 +62,7 @@ handleRun native main args = do
           )
       Just x -> pure (stripUnisonFileReferences unisonFile x)
   #lastRunResult .= Just (Term.amap (\() -> External) mainRes, mainResType, unisonFile)
-  Cli.respond (Output.RunResult ppe mainRes)
+  Cli.respond (Output.RunResult suffixifiedPPE mainRes)
   where
     bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
       (watchKind, term1)
@@ -77,29 +80,24 @@ getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
-      ppe <- makePPE
-      Cli.returnEarly $ Output.NoMainFunction main ppe [mainType]
+      pped <- Cli.currentPrettyPrintEnvDecl
+      let suffixifiedPPE = PPED.suffixifiedPPE pped
+      Cli.returnEarly $ Output.NoMainFunction main suffixifiedPPE [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
-      ppe <- makePPE
-      Cli.returnEarly $ Output.BadMainFunction "run" main ty ppe [mainType]
+      pped <- Cli.currentPrettyPrintEnvDecl
+      let suffixifiedPPE = PPED.suffixifiedPPE pped
+      Cli.returnEarly $ Output.BadMainFunction "run" main ty suffixifiedPPE [mainType]
     GetTermSuccess x -> pure x
-  where
-    makePPE :: Cli PPE.PrettyPrintEnv
-    makePPE = do
-      basicPrettyPrintNames <- getBasicPrettyPrintNames
-      Cli.runTransaction Codebase.hashLength <&> \hashLen ->
-        PPE.makePPE (PPE.hqNamer hashLen basicPrettyPrintNames) (PPE.suffixifyByHash basicPrettyPrintNames)
 
 getTerm' :: String -> Cli GetTermResult
 getTerm' mainName =
   let getFromCodebase = do
         Cli.Env {codebase, runtime} <- ask
-
-        parseNames <- basicParseNames
+        names <- Cli.currentNames
         let loadTypeOfTerm ref = Cli.runTransaction (Codebase.getTypeOfTerm codebase ref)
         mainToFile
-          =<< MainTerm.getMainTerm loadTypeOfTerm parseNames mainName (Runtime.mainType runtime)
+          =<< MainTerm.getMainTerm loadTypeOfTerm names mainName (Runtime.mainType runtime)
         where
           mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
           mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
