@@ -71,6 +71,7 @@ import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
+import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -1067,6 +1068,13 @@ loop e = do
                     _ -> pure ()
                 Nothing -> do
                   Cli.respond DebugFuzzyOptionsNoResolver
+            DebugFormatI -> do
+              Cli.Env {writeSource} <- ask
+              _ <- runMaybeT do
+                (filePath, _) <- MaybeT Cli.getLatestFile
+                Format.formatFile
+                writeSource filePath updatedSource
+              _
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)

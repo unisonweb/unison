@@ -207,6 +207,7 @@ data Input
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments
+  | DebugFormatI
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
