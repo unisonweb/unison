@@ -53,7 +53,7 @@ myproject/main> upgrade old new
 bar : Nat
 bar =
   use Nat +
-  a.x.x.x.x + c.y.y.y.y
+  x + c.y.y.y.y
 
 d.y.y.y.y : Nat
 d.y.y.y.y =

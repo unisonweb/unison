@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.builtins> builtins.mergeio
+.ns> builtins.merge
 ```
 
 First we add an ability to the codebase.
@@ -67,6 +67,11 @@ We should also be able to successfully update the whole thing.
 ```
 
 # Constructor-term conflict
+
+```ucm:hide
+.ns2> builtins.merge
+```
+
 
 ```unison
 X.x = 1

@@ -138,7 +138,7 @@ a = 5
   
     ⍟ These new definitions are ok to `add`:
     
-      a : Nat
+      a : ##Nat
 
 ```
 ```ucm
@@ -146,7 +146,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    a : Nat
+    a : ##Nat
 
 foo/main> branch topic
 
@@ -180,7 +180,7 @@ a = 3
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      a : Nat
+      a : ##Nat
 
 ```
 ```ucm
@@ -222,7 +222,7 @@ main.a = 3
   
     ⍟ These new definitions are ok to `add`:
     
-      main.a : Nat
+      main.a : ##Nat
 
 ```
 ```ucm
@@ -230,7 +230,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    main.a : Nat
+    main.a : ##Nat
 
 foo/main> history
 
@@ -279,7 +279,7 @@ foo/topic> add
 
   ⍟ I've added these definitions:
   
-    main.a : Nat
+    main.a : ##Nat
 
 foo/topic> reset main
 

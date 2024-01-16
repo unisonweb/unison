@@ -2,6 +2,7 @@
 
 ```ucm:hide
 .> builtins.merge
+.merged> builtins.merge
 ```
 
 ```unison

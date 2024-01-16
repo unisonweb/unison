@@ -79,7 +79,7 @@ data Codebase m v a = Codebase
       Text -> -- Reason for the change, will be recorded in the reflog
       Branch m ->
       m (),
-    getBranchForHashImpl :: CausalHash -> m (Maybe (Branch m)),
+    getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --

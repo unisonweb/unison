@@ -12,6 +12,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name qualified as Name
 import Unison.Names (Names (..))
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -32,6 +33,9 @@ toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
+
+addNamesFromUnisonFile :: (Var v) => UnisonFile v a -> Names -> Names
+addNamesFromUnisonFile unisonFile names = Names.shadowing (toNames unisonFile) names
 
 typecheckedToNames :: (Var v) => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types
@@ -56,6 +60,9 @@ typecheckedToNames uf = Names (terms <> ctors) types
         . fmap (fmap Reference.DerivedId)
         . UF.hashConstructors
         $ uf
+
+addNamesFromTypeCheckedUnisonFile :: (Var v) => TypecheckedUnisonFile v a -> Names -> Names
+addNamesFromTypeCheckedUnisonFile unisonFile names = Names.shadowing (typecheckedToNames unisonFile) names
 
 typecheckedUnisonFile0 :: (Ord v) => TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty

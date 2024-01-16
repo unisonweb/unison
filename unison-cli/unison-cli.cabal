@@ -92,6 +92,7 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.Watch
       Unison.CommandLine
+      Unison.CommandLine.BranchRelativePath
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect

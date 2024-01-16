@@ -12,6 +12,7 @@ module U.Codebase.Sqlite.Serialization
     getDeclElementNumConstructors,
     getDeclFormat,
     getPatchFormat,
+    getLocalPatch,
     getTempCausalFormat,
     getTempDeclFormat,
     getTempNamespaceFormat,
@@ -583,15 +584,10 @@ putPatchFormat = \case
 getPatchFormat :: (MonadGet m) => m PatchFormat.PatchFormat
 getPatchFormat =
   getWord8 >>= \case
-    0 -> PatchFormat.Full <$> getPatchLocalIds <*> getPatchFull
+    0 -> PatchFormat.Full <$> getPatchLocalIds <*> getLocalPatch
     1 -> PatchFormat.Diff <$> getVarInt <*> getPatchLocalIds <*> getPatchDiff
     x -> unknownTag "getPatchFormat" x
   where
-    getPatchFull :: (MonadGet m) => m PatchFull.LocalPatch
-    getPatchFull =
-      PatchFull.Patch
-        <$> getMap getReferent (getSet getTermEdit)
-        <*> getMap getReference (getSet getTypeEdit)
     getPatchDiff :: (MonadGet m) => m PatchDiff.LocalPatchDiff
     getPatchDiff =
       PatchDiff.PatchDiff
@@ -599,12 +595,20 @@ getPatchFormat =
         <*> getMap getReference (getSet getTypeEdit)
         <*> getMap getReferent (getSet getTermEdit)
         <*> getMap getReference (getSet getTypeEdit)
-    getTermEdit :: (MonadGet m) => m TermEdit.LocalTermEdit
-    getTermEdit =
-      getWord8 >>= \case
-        0 -> pure TermEdit.Deprecate
-        1 -> TermEdit.Replace <$> getReferent <*> getTyping
-        x -> unknownTag "getTermEdit" x
+
+getLocalPatch :: (MonadGet m) => m PatchFull.LocalPatch
+getLocalPatch =
+  PatchFull.Patch
+    <$> getMap getReferent (getSet getTermEdit)
+    <*> getMap getReference (getSet getTypeEdit)
+
+getTermEdit :: (MonadGet m) => m TermEdit.LocalTermEdit
+getTermEdit =
+  getWord8 >>= \case
+    0 -> pure TermEdit.Deprecate
+    1 -> TermEdit.Replace <$> getReferent <*> getTyping
+    x -> unknownTag "getTermEdit" x
+  where
     getTyping :: (MonadGet m) => m TermEdit.Typing
     getTyping =
       getWord8 >>= \case
@@ -612,12 +616,13 @@ getPatchFormat =
         1 -> pure TermEdit.Subtype
         2 -> pure TermEdit.Different
         x -> unknownTag "getTyping" x
-    getTypeEdit :: (MonadGet m) => m TypeEdit.LocalTypeEdit
-    getTypeEdit =
-      getWord8 >>= \case
-        0 -> pure TypeEdit.Deprecate
-        1 -> TypeEdit.Replace <$> getReference
-        x -> unknownTag "getTypeEdit" x
+
+getTypeEdit :: (MonadGet m) => m TypeEdit.LocalTypeEdit
+getTypeEdit =
+  getWord8 >>= \case
+    0 -> pure TypeEdit.Deprecate
+    1 -> TypeEdit.Replace <$> getReference
+    x -> unknownTag "getTypeEdit" x
 
 getPatchLocalIds :: (MonadGet m) => m PatchFormat.PatchLocalIds
 getPatchLocalIds =
