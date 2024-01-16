@@ -11,6 +11,7 @@ import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
+import Unison.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
 import Unison.Debug qualified as Debug
@@ -82,8 +83,8 @@ formatDefs fileUri mayRangesToFormat =
             let definitionPPE = case mayRefId of
                   Just refId -> PPE.declarationPPE biasedPPED (Reference.DerivedId refId)
                   Nothing -> PPED.suffixifiedPPE biasedPPED
-            let formattedTerm = Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (removeGeneratedTypeAnnotations parsedFile sym trm)
-            Debug.debugM Debug.Temp "term" (sym, tldAnn, trm, hasUserTypeSignature parsedFile sym)
+            let formattedTerm = Pretty.syntaxToColor $ TermPrinter.prettyBinding definitionPPE hqName (removeGeneratedTypeAnnotations parsedFile sym trm)
+            -- TODO: format watch expressions and test watches
             -- let formattedWatches =
             --       allWatches fileSummary & map \(_tldAnn, maySym, _mayRef, trm, _mayType, mayWatchKind) -> do
             --         case (mayWatchKind, maySym) of
@@ -92,13 +93,6 @@ formatDefs fileUri mayRangesToFormat =
             --             Pretty.syntaxToColor $ Pretty.string wk <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
             --           (Just wk, _) -> Pretty.string wk <> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
             --           (Nothing, _) -> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
-
-            -- let formattedTm = case sym of
-            --       Symbol.Symbol _ (Var.User {}) -> Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature biasedPPE hqName trm
-            --       _ -> TermPrinter.pretty biasedPPE (stripTypeAnnotation trm)
-            -- let formatted = case wk of
-            --       Nothing -> Pretty.syntaxToColor $ TermPrinter.prettyBinding biasedPPE hqName trm
-            --       Just wk -> Pretty.string wk <> "> " <> formattedTm
             pure (tldAnn, formattedTerm)
 
       -- Only keep definitions which are _actually_ in the file, skipping generated accessors
