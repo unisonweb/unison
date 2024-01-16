@@ -29,6 +29,23 @@ data BranchRelativePath
   | LoosePath Path.Path'
   deriving stock (Eq, Show)
 
+-- | Strings without colons are parsed as loose code paths. A path with a colon may specify:
+-- 1. A project and branch
+-- 2. Only a branch, in which case the project is assumed to be the current project
+-- 3. Only a path, in which case the path is rooted at the branch root
+--
+-- Specifying only a project is not allowed.
+--
+-- >>> parseBranchRelativePath "foo"
+-- Right (LoosePath foo)
+-- >>> parseBranchRelativePath "foo/bar:"
+-- Right (BranchRelative (This (Right (UnsafeProjectName "foo",UnsafeProjectBranchName "bar"))))
+-- >>> parseBranchRelativePath "foo/bar:some.path"
+-- Right (BranchRelative (These (Right (UnsafeProjectName "foo",UnsafeProjectBranchName "bar")) some.path))
+-- >>> parseBranchRelativePath "/bar:some.path"
+-- Right (BranchRelative (These (Left (UnsafeProjectBranchName "bar")) some.path))
+-- >>> parseBranchRelativePath ":some.path"
+-- Right (BranchRelative (That some.path))
 parseBranchRelativePath :: String -> Either (P.Pretty CT.ColorText) BranchRelativePath
 parseBranchRelativePath str =
   case Megaparsec.parse branchRelativePathParser "<none>" (Text.pack str) of
