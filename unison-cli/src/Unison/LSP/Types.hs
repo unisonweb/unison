@@ -146,7 +146,6 @@ getParseNames = asks parseNamesCache >>= liftIO
 
 data Config = Config
   { formattingWidth :: Int,
-    rewriteNamesOnFormat :: Bool,
     -- 'Nothing' will load ALL available completions, which is slower, but may provide a better
     -- solution for some users.
     --
@@ -161,14 +160,12 @@ instance Aeson.FromJSON Config where
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
     Debug.debugM Debug.LSP "Config" $ "maxCompletions: " <> show maxCompletions
     formattingWidth <- obj Aeson..:? "formattingWidth" Aeson..!= formattingWidth defaultLSPConfig
-    rewriteNamesOnFormat <- obj Aeson..:? "rewriteNamesOnFormat" Aeson..!= rewriteNamesOnFormat defaultLSPConfig
     pure Config {..}
 
 instance Aeson.ToJSON Config where
-  toJSON (Config formattingWidth rewriteNamesOnFormat maxCompletions) =
+  toJSON (Config formattingWidth maxCompletions) =
     Aeson.object
       [ "formattingWidth" Aeson..= formattingWidth,
-        "rewriteNamesOnFormat" Aeson..= rewriteNamesOnFormat,
         "maxCompletions" Aeson..= maxCompletions
       ]
 
@@ -176,7 +173,6 @@ defaultLSPConfig :: Config
 defaultLSPConfig = Config {..}
   where
     formattingWidth = 80
-    rewriteNamesOnFormat = True
     maxCompletions = Just 100
 
 -- | Lift a backend computation into the Lsp monad.
