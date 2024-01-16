@@ -104,9 +104,11 @@ push n0 ns = unionLeft0 n1 ns
         uniqueTerms = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList terms']
         uniqueTypes = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList types']
 
+-- | Prefer names in the first argument, falling back to names in the second.
+-- This can be used to shadow names in the codebase with names in a unison file for instance:
+-- e.g. @shadowing scratchFileNames codebaseNames@
 shadowing :: Names -> Names -> Names
-shadowing =
-  Names.unionLeft
+shadowing = Names.unionLeft
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise

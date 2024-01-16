@@ -56,13 +56,13 @@ module Unison.Name
   )
 where
 
-import Data.Monoid (Sum(..))
 import Control.Lens (mapped, over, _1, _2)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
+import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal

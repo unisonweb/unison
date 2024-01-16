@@ -1,7 +1,6 @@
 The `branch` command creates a new branch.
 
 ```ucm:hide
-.> builtins.merge
 .> project.create-empty foo
 .> project.create-empty bar
 ```
@@ -13,6 +12,7 @@ someterm = 18
 ```
 
 ```ucm
+.some.loose.code.lib> builtins.merge
 .some.loose.code> add
 ```
 

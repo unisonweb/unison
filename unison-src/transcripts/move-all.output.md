@@ -129,6 +129,10 @@ bonk = 5
 ```ucm
   ☝️  The namespace .z is empty.
 
+.z> builtins.merge
+
+  Done.
+
 .z> add
 
   ⍟ I've added these definitions:
@@ -141,7 +145,8 @@ bonk = 5
 
 .z> ls
 
-  1. zonk (##Nat)
+  1. builtin/ (453 terms, 70 types)
+  2. zonk     (Nat)
 
 ```
 ## Happy Path - Just namespace
@@ -167,6 +172,10 @@ bonk.zonk = 5
 ```ucm
   ☝️  The namespace .a is empty.
 
+.a> builtins.merge
+
+  Done.
+
 .a> add
 
   ⍟ I've added these definitions:
@@ -179,7 +188,8 @@ bonk.zonk = 5
 
 .a> ls
 
-  1. zonk/ (1 term)
+  1. builtin/ (453 terms, 70 types)
+  2. zonk/    (1 term)
 
 .a> view zonk.zonk
 

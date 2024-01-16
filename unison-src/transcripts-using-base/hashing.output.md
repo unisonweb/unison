@@ -122,7 +122,7 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  hash : HashAlgorithm -> a -> Bytes
+  1.  hash : HashAlgorithm -> a -> ##Bytes
   2.  builtin type HashAlgorithm
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
@@ -133,9 +133,9 @@ And here's the full API:
   9.  HashAlgorithm.Sha2_512 : HashAlgorithm
   10. HashAlgorithm.Sha3_256 : HashAlgorithm
   11. HashAlgorithm.Sha3_512 : HashAlgorithm
-  12. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  13. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  14. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  12. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
+  13. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
+  14. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
   
 
 .> cd .
@@ -144,7 +144,7 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```unison
-> crypto.hash Sha3_256 (fromHex "3849238492")
+> hash Sha3_256 (fromHex "3849238492")
 ```
 
 ```ucm
@@ -158,7 +158,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | > crypto.hash Sha3_256 (fromHex "3849238492")
+    1 | > hash Sha3_256 (fromHex "3849238492")
           ⧩
           0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
 

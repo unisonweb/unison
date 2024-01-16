@@ -4,6 +4,8 @@ import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Text (Text)
+import U.Codebase.HashTags
 import U.Codebase.Reference (Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
@@ -25,6 +27,9 @@ import Unison.Util.Set qualified as Set
 --   }
 -- @
 type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
+
+-- | A version of Patch' which can be used for hashing.
+type HashPatch = Patch' Text ComponentHash ComponentHash
 
 -- |
 -- @

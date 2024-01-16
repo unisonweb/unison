@@ -49,6 +49,7 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
@@ -528,11 +529,11 @@ ppedForFileHelper uf tf = do
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
       let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
+          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
       let fileNames = UF.toNames uf
-          filePPED = PPED.fromNamesSuffixifiedByHash hashLen fileNames
+          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint

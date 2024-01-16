@@ -28,7 +28,6 @@ import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
@@ -58,11 +57,10 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
   IO Input
-getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
+getUserInput codebase authHTTPClient currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -101,7 +99,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -178,7 +176,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
         getUserInput
           codebase
           authHTTPClient
-          (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult

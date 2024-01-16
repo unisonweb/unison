@@ -619,6 +619,7 @@ data EntityValidationError
   = EntityHashMismatch EntityType HashMismatchForEntity
   | UnsupportedEntityType Hash32 EntityType
   | InvalidByteEncoding Hash32 EntityType Text {- decoding err msg -}
+  | HashResolutionFailure Hash32
   deriving stock (Show, Eq, Ord)
   deriving anyclass (Exception)
 
@@ -627,6 +628,7 @@ instance ToJSON EntityValidationError where
     EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
     UnsupportedEntityType hash typ -> jsonUnion "unsupported_entity_type" (object ["hash" .= hash, "type" .= typ])
     InvalidByteEncoding hash typ errMsg -> jsonUnion "invalid_byte_encoding" (object ["hash" .= hash, "type" .= typ, "error" .= errMsg])
+    HashResolutionFailure hash -> jsonUnion "hash_resolution_failure" hash
 
 instance FromJSON EntityValidationError where
   parseJSON = Aeson.withObject "EntityValidationError" \obj ->

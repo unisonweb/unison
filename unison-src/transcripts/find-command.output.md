@@ -2,7 +2,6 @@
 foo = 1
 lib.foo = 2
 lib.bar = 3
-foo.lib.qux = 4
 ```
 
 ```ucm
@@ -15,10 +14,9 @@ foo.lib.qux = 4
   
     ⍟ These new definitions are ok to `add`:
     
-      foo         : ##Nat
-      foo.lib.qux : ##Nat
-      lib.bar     : ##Nat
-      lib.foo     : ##Nat
+      foo     : ##Nat
+      lib.bar : ##Nat
+      lib.foo : ##Nat
 
 ```
 ```ucm
@@ -26,17 +24,25 @@ foo.lib.qux = 4
 
   ⍟ I've added these definitions:
   
-    foo         : ##Nat
-    foo.lib.qux : ##Nat
-    lib.bar     : ##Nat
-    lib.foo     : ##Nat
+    foo     : ##Nat
+    lib.bar : ##Nat
+    lib.foo : ##Nat
 
 ```
 ```ucm
 .> find foo
 
   1. foo : ##Nat
-  2. foo.lib.qux : ##Nat
+  
+
+```
+```ucm
+  ☝️  The namespace .somewhere is empty.
+
+.somewhere> find.global foo
+
+  1. .foo : ##Nat
+  2. .lib.foo : ##Nat
   
 
 ```
@@ -67,13 +73,6 @@ foo.lib.qux = 4
   
   `find.global` can be used to search outside the current
   namespace.
-
-```
-```ucm
-.> find qux
-
-  1. foo.lib.qux : ##Nat
-  
 
 ```
 ```ucm

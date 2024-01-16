@@ -126,7 +126,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
               namesPerspective <- Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce . Path.toList $ fromMaybe Path.Empty relativeTo)
               PPESqlite.ppedForReferences namesPerspective deps
           False -> do
-            (_localNames, ppe) <- Backend.scopedNamesForBranchHash codebase (Just root) relativeToPath
+            (_localNames, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just root) relativeToPath
             pure ppe
       let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
       let summary = mkSummary termReference formattedTermSig

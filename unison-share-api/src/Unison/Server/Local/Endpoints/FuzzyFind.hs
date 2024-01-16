@@ -160,7 +160,7 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
   rootCausal <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       Backend.normaliseRootCausalHash mayRoot
-  (localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) path
+  (localNamesOnly, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just rootCausal) path
   relativeToBranch <- do
     (lift . Codebase.runTransaction codebase) do
       relativeToCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)

@@ -9,7 +9,7 @@ x = 23
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 .b1> alias.term x fslkdjflskdjflksjdf
 
@@ -35,7 +35,7 @@ fslkdjflskdjflksjdf = 663
 
   ⍟ I've added these definitions:
   
-    fslkdjflskdjflksjdf : Nat
+    fslkdjflskdjflksjdf : ##Nat
 
 .> merge b0 b1
 
@@ -75,10 +75,10 @@ fslkdjflskdjflksjdf = 663
 
   Resolved name conflicts:
   
-    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
-    2. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
+    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : ##Nat
+    2. └ fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
        ↓
-    3. fslkdjflskdjflksjdf#u520d1t9kc : Nat
+    3. fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
   
   Name changes:
   
@@ -119,11 +119,11 @@ structural ability X a1 a2 where x : ()
   
     structural type A a
     structural ability X a1 a2
-    b          : Nat
-    bdependent : Nat
-    c          : Nat
-    fromJust   : Nat
-    helloWorld : Text
+    b          : ##Nat
+    bdependent : ##Nat
+    c          : ##Nat
+    fromJust   : ##Nat
+    helloWorld : ##Text
 
 .ns1> alias.term fromJust fromJust'
 
@@ -167,7 +167,7 @@ fromJust = "asldkfjasldkfj"
 
   ⍟ I've added these definitions:
   
-    fromJust : Text
+    fromJust : ##Text
 
 .> merge ns1b ns1
 
@@ -203,14 +203,14 @@ unique type Y a b = Y a b
   ⍟ I've added these definitions:
   
     type Y a b
-    d : Nat
-    e : Nat
-    f : Nat
+    d : ##Nat
+    e : ##Nat
+    f : ##Nat
   
   ⍟ I've updated these names to your new definition:
   
-    b        : Text
-    fromJust : Nat
+    b        : ##Text
+    fromJust : ##Nat
       (The old definition was also named fromJust'.)
 
 .> diff.namespace ns1 ns2
@@ -348,7 +348,7 @@ bdependent = "banana"
 
   ⍟ I've updated these names to your new definition:
   
-    bdependent : Text
+    bdependent : ##Text
 
 .> diff.namespace ns2 ns3
 
@@ -382,8 +382,8 @@ b = a + 1
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    b : Nat
+    a : ##Nat
+    b : ##Nat
 
 .> fork nsx nsy
 
@@ -403,7 +403,7 @@ a = 444
 
   ⍟ I've updated these names to your new definition:
   
-    a : Nat
+    a : ##Nat
 
 ```
 ```unison
@@ -415,7 +415,7 @@ a = 555
 
   ⍟ I've updated these names to your new definition:
   
-    a : Nat
+    a : ##Nat
 
 .> merge nsy nsw
 
@@ -489,21 +489,17 @@ a = 555
 
 .nsw> view a b
 
-  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 : ##Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t : ##Nat
   a#vrs8gtkl2t = 555
   
-  b#aapqletas7 : Nat
-  b#aapqletas7 =
-    use Nat +
-    a#vrs8gtkl2t + 1
+  b#aapqletas7 : ##Nat
+  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
   
-  b#unkqhuu66p : Nat
-  b#unkqhuu66p =
-    use Nat +
-    a#mdl4vqtu00 + 1
+  b#unkqhuu66p : ##Nat
+  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
 
 ```
 ## Should be able to diff a namespace hash from history.
@@ -522,7 +518,7 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : Nat
+      x : ##Nat
 
 ```
 ```ucm
@@ -532,7 +528,7 @@ x = 1
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 ```
 ```unison
@@ -549,7 +545,7 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : Nat
+      y : ##Nat
 
 ```
 ```ucm
@@ -557,7 +553,7 @@ y = 2
 
   ⍟ I've added these definitions:
   
-    y : Nat
+    y : ##Nat
 
 .hashdiff> history
 
@@ -576,7 +572,7 @@ y = 2
 
   Added definitions:
   
-    1. y : Nat
+    1. y : ##Nat
 
 ```
 ##
