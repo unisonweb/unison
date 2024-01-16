@@ -1,6 +1,7 @@
-#!racket/base
+#lang racket/base
 
 (require
+  racket/pretty
   (except-in racket false true unit any)
   compiler/embed
   unison/boot
@@ -29,9 +30,7 @@
 
 (define (build-main-module main-def)
   `(module unison-main racket/base
-     (require
-       unison/boot)
-
+     (require unison/boot)
      (provide main)
 
      (define (main)
@@ -45,13 +44,44 @@
             ((termlink->proc main-ref))
             (data 'unit 0))))
 
-; stub implementation
-(define (do-compile output) (void))
-  ; (let-values ([(code main-ref) (decode-input)])
-  ;   (create-embedding-executable
-  ;     output
-  ;     #:modules '((#f unison-main))
-  ;     #:literal-expression '(begin (require unison-main) (main)))))
+(define (write-module srcf main-ref icode)
+  (call-with-output-file
+    srcf
+    (lambda (port)
+      (parameterize ([print-as-expression #t])
+        (display "#lang racket/base\n\n" port)
+
+        (for ([expr (build-intermediate-expressions main-ref icode)])
+          (pretty-print expr port 1)
+          (newline port))
+        (newline port)))
+    #:exists 'replace))
+
+(define (do-compile output)
+  (define-values (icode main-ref) (decode-input))
+
+  (define srcf (path->string (path-replace-extension output ".rkt")))
+  (define dstf (embedding-executable-add-suffix output #f))
+  (define chop (path->string (path-replace-extension output "")))
+  (define mod-sym (string->symbol (string-append "#%unison:" chop)))
+
+  (define primary
+    (parameterize ([current-namespace (make-base-namespace)])
+      (compile
+        `(begin
+           (namespace-require '',mod-sym)
+           (when (module-declared? '',mod-sym)
+             ((dynamic-require '',mod-sym 'main)))))))
+
+  (write-module srcf main-ref icode)
+
+  (create-embedding-executable
+    dstf
+    #:modules `((#%unison: (file ,srcf)))
+    #:variant 'cs
+    ; #:cmdline '("-U" "--")
+    #:configure-via-first-module? #t
+    #:literal-expressions (list primary)))
 
 (define runtime-namespace
   (let ([ns (variable-reference->namespace (#%variable-reference))])

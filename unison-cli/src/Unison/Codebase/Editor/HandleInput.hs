@@ -971,7 +971,7 @@ loop e = do
               when (not updated) (Cli.respond $ NothingToPatch patchPath scopePath')
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
-            CompileSchemeI output main -> doCompileScheme output main
+            CompileSchemeI output main -> doCompile True output main
             ExecuteSchemeI main args -> doRunAsScheme main args
             GenSchemeLibsI mdir ->
               doGenerateSchemeBoot True Nothing mdir
@@ -2071,21 +2071,21 @@ runScheme file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: String -> String -> Cli ()
-buildScheme main file = do
-  ensureSchemeExists
-  statDir <- getSchemeStaticLibDir
-  genDir <- getSchemeGenLibDir
-  buildRacket genDir statDir main file
+-- buildScheme :: String -> String -> Cli ()
+-- buildScheme main file = do
+--   ensureSchemeExists
+--   statDir <- getSchemeStaticLibDir
+--   genDir <- getSchemeGenLibDir
+--   buildRacket genDir statDir main file
 
-buildRacket :: String -> String -> String -> String -> Cli ()
-buildRacket genDir statDir main file =
-  let args = ["-l", "raco", "--", "exe", "-o", main, file]
-      opts = racketOpts genDir statDir args
-   in void . liftIO $
-        catch
-          (True <$ callProcess "racket" opts)
-          (\(_ :: IOException) -> pure False)
+-- buildRacket :: String -> String -> String -> String -> Cli ()
+-- buildRacket genDir statDir main file =
+--   let args = ["-l", "raco", "--", "exe", "-o", main, file]
+--       opts = racketOpts genDir statDir args
+--    in void . liftIO $
+--         catch
+--           (True <$ callProcess "racket" opts)
+--           (\(_ :: IOException) -> pure False)
 
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do
@@ -2111,9 +2111,9 @@ doRunAsScheme main0 args = case HQ.fromString main0 of
     runScheme fullpath args
   Nothing -> Cli.respond $ BadName main0
 
-doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
-doCompileScheme out main =
-  generateSchemeFile True out main >>= buildScheme out
+-- doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
+-- doCompileScheme out main =
+--   generateSchemeFile True out main >>= buildScheme out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do

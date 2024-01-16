@@ -476,8 +476,9 @@ nativeCompile ::
 nativeCompile _version ctxVar cl ppe base path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl base
-  (_, codes) <- loadDeps cl ppe ctx tyrs tmrs
-  nativeCompileCodes codes base path
+  (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
+  Just ibase <- pure $ baseToIntermed ctx base
+  nativeCompileCodes codes ibase path
 
 interpCompile ::
   Text ->
@@ -655,6 +656,14 @@ schemeProc args =
       std_err = Inherit
     }
 
+racketProc :: [String] -> CreateProcess
+racketProc args =
+  (proc "racket" ("scheme-libs/racket/runner.rkt":args))
+    { std_in = CreatePipe,
+      std_out = Inherit,
+      std_err = Inherit
+    }
+
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
 -- reason is that the executed code can cause output to occur, which
@@ -712,7 +721,7 @@ nativeCompileCodes codes base path = do
         waitForProcess ph
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
-  withCreateProcess (schemeProc ["-o", path]) callout
+  withCreateProcess (racketProc ["-o", path]) callout
 
 evalInContext ::
   PrettyPrintEnv ->
