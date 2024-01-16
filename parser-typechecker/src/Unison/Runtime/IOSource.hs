@@ -7,7 +7,6 @@ import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
-import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Text.RawString.QQ (r)
 import Unison.Builtin qualified as Builtin

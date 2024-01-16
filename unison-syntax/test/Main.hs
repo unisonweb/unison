@@ -1,40 +1,17 @@
-<<<<<<< HEAD
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
-||||||| bf0186aef
-=======
 {-# OPTIONS_GHC -Wno-orphans #-}
 
->>>>>>> f746fb7927c4b906d8141b4d0d7d5a0fff184a24
 module Main (main) where
 
-<<<<<<< HEAD
-import qualified Data.Text as Text
-||||||| bf0186aef
-=======
 import Data.Maybe (fromJust)
 import Data.Text qualified as Text
->>>>>>> f746fb7927c4b906d8141b4d0d7d5a0fff184a24
 import EasyTest
 import System.IO.CodePage (withCP65001)
-<<<<<<< HEAD
-import qualified Unison.HashQualified' as HQ'
-import Unison.Prelude
-import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as ShortHash
-||||||| bf0186aef
-import qualified Unison.ShortHash as ShortHash
-=======
+import Unison.HashQualified' qualified as HQ'
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
->>>>>>> f746fb7927c4b906d8141b4d0d7d5a0fff184a24
 import Unison.Syntax.Lexer
-import qualified Unison.Syntax.Name as Name (unsafeFromString)
-
-instance IsString ShortHash where
-  fromString =
-    ShortHash.unsafeFromText . Text.pack
+import Unison.Syntax.Name qualified as Name (unsafeFromString)
 
 main :: IO ()
 main =
@@ -112,16 +89,8 @@ test =
         ],
       t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"],
       -- idents with hashes
-<<<<<<< HEAD
       t "foo#bar" [WordyId (HQ'.HashQualified "foo" "#bar")],
       t "+#bar" [SymbolyId (HQ'.HashQualified "+" "#bar")],
-||||||| bf0186aef
-      t "foo#bar" [WordyId "foo" (Just (ShortHash.unsafeFromText "#bar"))],
-      t "+#bar" [SymbolyId "+" (Just (ShortHash.unsafeFromText "#bar"))],
-=======
-      t "foo#bar" [WordyId "foo" (Just "#bar")],
-      t "+#bar" [SymbolyId "+" (Just "#bar")],
->>>>>>> f746fb7927c4b906d8141b4d0d7d5a0fff184a24
       -- note - these are all the same, just with different spacing
       let ex1 = "if x then y else z"
           ex2 = unlines ["if", "  x", "then", "  y", "else z"]
