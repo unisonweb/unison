@@ -2,9 +2,11 @@ module Unison.CommandLine.BranchRelativePath
   ( BranchRelativePath (..),
     parseBranchRelativePath,
     branchRelativePathParser,
+    ResolvedBranchRelativePath (..),
   )
 where
 
+import Control.Lens (view)
 import Data.Char (isSpace)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -12,6 +14,8 @@ import Data.These (These (..))
 import Text.Builder qualified
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char qualified as Megaparsec
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Prelude
@@ -55,6 +59,20 @@ instance From BranchRelativePath Text where
       eitherProjToText = \case
         Left branchName -> from @(These ProjectName ProjectBranchName) @Text (That branchName)
         Right (projName, branchName) -> into @Text (These projName branchName)
+
+data ResolvedBranchRelativePath
+  = ResolvedBranchRelative (Project.ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) (Maybe Path.Relative)
+  | ResolvedLoosePath Path.Absolute
+
+instance From ResolvedBranchRelativePath BranchRelativePath where
+  from = \case
+    ResolvedBranchRelative (Project.ProjectAndBranch proj branch) mRel -> case mRel of
+      Nothing -> BranchRelative (This (Right (view #name proj, view #name branch)))
+      Just rel -> BranchRelative (These (Right (view #name proj, view #name branch)) rel)
+    ResolvedLoosePath p -> LoosePath (Path.absoluteToPath' p)
+
+instance From ResolvedBranchRelativePath Text where
+  from = from . into @BranchRelativePath
 
 branchRelativePathParser :: Megaparsec.Parsec Void Text BranchRelativePath
 branchRelativePathParser =

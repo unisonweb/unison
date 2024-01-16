@@ -10,7 +10,7 @@ where
 
 import Control.Error.Util qualified as ErrorUtil
 import Control.Exception (catch)
-import Control.Lens
+import Control.Lens hiding (from)
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
 import Control.Monad.State qualified as State
@@ -1385,7 +1385,7 @@ inputDescription input =
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
-    brp = fmap tShow . ProjectUtils.branchRelativePathToAbsolute
+    brp = fmap from . ProjectUtils.resolveBranchRelativePath
     ops' :: Maybe Path.Split' -> Cli Text
     ops' = maybe (pure ".") ps'
     opatch :: Maybe Path.Split' -> Cli Text
