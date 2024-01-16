@@ -20,18 +20,18 @@ module Unison.Hashing.V2.Type
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Hashing.V2.ABT as ABT
-import qualified Unison.Hashing.V2.Kind as K
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Unison.ABT qualified as ABT
+import Unison.Hashing.V2.ABT qualified as ABT
+import Unison.Hashing.V2.Kind qualified as K
 import Unison.Hashing.V2.Reference (Reference (..), pattern ReferenceDerived)
 import Unison.Hashing.V2.Tokenizable (Hashable1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
-import qualified Unison.Name as Name
-import qualified Unison.Names.ResolutionResult as Names
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
+import Unison.Name qualified as Name
+import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
 -- | Base functor for types in the Unison language
@@ -55,11 +55,11 @@ freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
 bindExternal ::
-  ABT.Var v => [(v, Reference)] -> Type v a -> Type v a
+  (ABT.Var v) => [(v, Reference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
 bindReferences ::
-  Var v =>
+  (Var v) =>
   (v -> Name.Name) ->
   Set v ->
   Map Name.Name Reference ->
@@ -90,7 +90,7 @@ unForalls t = go t []
     go body vs = Just (reverse vs, body)
 
 -- some smart constructors
-ref :: Ord v => a -> Reference -> Type v a
+ref :: (Ord v) => a -> Reference -> Type v a
 ref a = ABT.tm' a . TypeRef
 
 intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, effectRef :: Reference
@@ -103,11 +103,11 @@ charRef = ReferenceBuiltin "Char"
 listRef = ReferenceBuiltin "Sequence"
 effectRef = ReferenceBuiltin "Effect"
 
-forall :: Ord v => a -> v -> Type v a -> Type v a
+forall :: (Ord v) => a -> v -> Type v a -> Type v a
 forall a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
-generalize :: Ord v => [v] -> Type v a -> Type v a
+generalize :: (Ord v) => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
   where
     f v t =

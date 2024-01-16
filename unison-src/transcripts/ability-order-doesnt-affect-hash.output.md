@@ -16,14 +16,16 @@ term2 _ = ()
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Bar
-      unique ability Foo
+      ability Bar
+      ability Foo
       term1 : '{Bar, Foo} ()
       term2 : '{Bar, Foo} ()
 
@@ -33,8 +35,8 @@ term2 _ = ()
 
   ⍟ I've added these definitions:
   
-    unique ability Bar
-    unique ability Foo
+    ability Bar
+    ability Foo
     term1 : '{Bar, Foo} ()
     term2 : '{Bar, Foo} ()
 

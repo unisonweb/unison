@@ -12,16 +12,18 @@ extra-source-files:
 
 dependencies:
   - Only
+  - aeson
   - base
   - bytes
   - bytestring
   - containers
   - extra
-  - here
-  - lens
   - generic-lens
+  - lens
   - monad-validate
   - mtl
+  - network-uri
+  - network-uri-orphans-sqlite
   - nonempty-containers
   - safe
   - text
@@ -29,16 +31,21 @@ dependencies:
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-core-orphans-sqlite
   - unison-hash
   - unison-hash-orphans-sqlite
   - unison-prelude
   - unison-sqlite
   - unison-util-base32hex
   - unison-util-cache
+  - unison-util-file-embed
   - unison-util-serialization
   - unison-util-term
   - unliftio
+  - uuid
+  - uuid-orphans-sqlite
   - vector
+  - witch
 
 default-extensions:
   - ApplicativeDo
@@ -58,10 +65,12 @@ default-extensions:
   - FlexibleInstances
   - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - QuasiQuotes

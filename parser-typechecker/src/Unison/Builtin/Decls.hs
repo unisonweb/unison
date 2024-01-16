@@ -2,29 +2,29 @@ module Unison.Builtin.Decls where
 
 import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text, unpack)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls)
-import qualified Unison.Pattern as Pattern
+import Unison.Pattern qualified as Pattern
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
@@ -78,11 +78,12 @@ tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
-runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef :: Reference
+runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: Reference
 runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
 arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
 miscFailureRef = lookupDeclRef "io2.MiscFailure"
 stmFailureRef = lookupDeclRef "io2.STMFailure"
+threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
 
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -150,6 +151,86 @@ okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
 failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
 
+rewriteTermRef :: Reference
+rewriteTermRef = lookupDeclRef "RewriteTerm"
+
+pattern RewriteTerm' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+pattern RewriteTerm' lhs rhs <- (unRewriteTerm -> Just (lhs, rhs))
+
+unRewriteTerm :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
+unRewriteTerm (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
+  | r == rewriteTermRef = Just (lhs, rhs)
+unRewriteTerm _ = Nothing
+
+rewriteCaseRef :: Reference
+rewriteCaseRef = lookupDeclRef "RewriteCase"
+
+pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
+
+rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
+  where
+    a1 = ABT.annotation tm1
+    r = ConstructorReference rewriteCaseRef 0
+
+rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
+  where
+    a1 = ABT.annotation tm1
+    r = ConstructorReference rewriteTermRef 0
+
+unRewriteCase :: Term2 vt at ap v a -> Maybe (Term2 vt at ap v a, Term2 vt at ap v a)
+unRewriteCase (Term.Apps' (Term.Constructor' (ConstructorReference r _)) [lhs, rhs])
+  | r == rewriteCaseRef = Just (lhs, rhs)
+unRewriteCase _ = Nothing
+
+rewriteTypeRef :: Reference
+rewriteTypeRef = lookupDeclRef "RewriteSignature"
+
+pattern RewriteSignature' :: forall vt at ap v a. [vt] -> Type vt at -> Type vt at -> Term2 vt at ap v a
+pattern RewriteSignature' vs lhs rhs <- (unRewriteSignature -> Just (vs, lhs, rhs))
+
+rewriteType :: (Var v, Semigroup a) => a -> [v] -> Type v a -> Type v a -> Term2 v a a v a
+rewriteType a vs lhs rhs =
+  Term.app
+    a
+    (Term.constructor la (ConstructorReference rewriteTypeRef 0))
+    ( Term.ann
+        a
+        (Term.delay a (Term.delay a (unitTerm a)))
+        (Type.foralls a vs (Type.arrow (la <> ra) lhs (Type.arrow ra rhs (unitType ra))))
+    )
+  where
+    la = ABT.annotation lhs
+    ra = ABT.annotation rhs
+
+unRewriteSignature :: Term2 vt at ap v a -> Maybe ([vt], Type vt at, Type vt at)
+unRewriteSignature
+  ( Term.App'
+      (Term.Constructor' (ConstructorReference r _))
+      (Term.Ann' _ (Type.ForallsNamedOpt' vs (Type.Arrow' lhs (Type.Arrow' rhs _unit))))
+    )
+    | r == rewriteTypeRef = Just (vs, lhs, rhs)
+unRewriteSignature _ = Nothing
+
+rewritesRef :: Reference
+rewritesRef = lookupDeclRef "Rewrites"
+
+pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
+pattern Rewrites' ts <- (unRewrites -> Just ts)
+
+rewrites :: (Var v, Monoid a) => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
+rewrites a [] = Term.app a (Term.constructor a (ConstructorReference rewritesRef 0)) (tupleTerm [])
+rewrites a ts@(hd : _) = Term.app a (Term.constructor a1 (ConstructorReference rewritesRef 0)) (tupleTerm ts)
+  where
+    a1 = ABT.annotation hd
+
+unRewrites :: Term2 vt at ap v a -> Maybe [Term2 vt at ap v a]
+unRewrites (Term.App' (Term.Constructor' (ConstructorReference r _)) tup)
+  | r == rewritesRef, TupleTerm' ts <- tup = Just ts
+unRewrites _ = Nothing
+
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
@@ -184,7 +265,12 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.RuntimeFailure", runtimeFailure),
           (v "io2.ArithmeticFailure", arithmeticFailure),
           (v "io2.MiscFailure", miscFailure),
-          (v "io2.STMFailure", stmFailure)
+          (v "io2.STMFailure", stmFailure),
+          (v "io2.ThreadKilledFailure", threadKilledFailure),
+          (v "RewriteTerm", rewriteTerm),
+          (v "RewriteSignature", rewriteType),
+          (v "RewriteCase", rewriteCase),
+          (v "Rewrites", rewrites)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -246,6 +332,58 @@ builtinDataDecls = rs1 ++ rs
               ()
               [v "a", v "b"]
               (var "b" `arr` Type.apps' (var "Either") [var "a", var "b"])
+          )
+        ]
+    rewriteCase =
+      DataDeclaration
+        (Unique "a116f0f1a8d16aba115b7790b09c56820be48798d9fef64fda3ec2325388f769")
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteCase.RewriteCase",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` Type.apps' (var "RewriteCase") [var "a", var "b"]))
+          )
+        ]
+    rewriteTerm =
+      DataDeclaration
+        (Unique "d577219dc862f148bbdbeb78ae977f6a7da22eb44a1b43d484cabd3e4d7e76a1")
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteTerm.RewriteTerm",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              (var "a" `arr` (var "b" `arr` Type.apps' (var "RewriteTerm") [var "a", var "b"]))
+          )
+        ]
+    rewriteType =
+      DataDeclaration
+        (Unique "f9ae4c4263c2f173deeb550dc1f798147c301ea3a6b306810988e4634834507b")
+        ()
+        [v "a", v "b"]
+        [ ( (),
+            v "RewriteSignature.RewriteSignature",
+            Type.foralls
+              ()
+              [v "a", v "b"]
+              ((var "a" `arr` (var "b" `arr` var "Unit")) `arr` Type.apps' (var "RewriteSignature") [var "a", var "b"])
+          )
+        ]
+    rewrites =
+      DataDeclaration
+        (Unique "f64795bf31f7eb41e59b31379d6576a4abaca5b4c1bfc0b8c211e608906aff1a")
+        ()
+        [v "a"]
+        [ ( (),
+            v "Rewrites.Rewrites",
+            Type.foralls
+              ()
+              [v "a"]
+              (var "a" `arr` Type.apps' (var "Rewrites") [var "a"])
           )
         ]
     isTest =
@@ -363,6 +501,13 @@ builtinDataDecls = rs1 ++ rs
         []
         []
 
+    threadKilledFailure =
+      DataDeclaration
+        (Unique "e7e479ebb757edcd5acff958b00aa228ac75b0c53638d44cf9d62fca045c33cf")
+        ()
+        []
+        []
+
     stdhnd =
       DataDeclaration
         (Unique "67bf7a8e517cbb1e9f42bc078e35498212d3be3c")
@@ -460,7 +605,7 @@ pattern OptionalSome' ::
   ABT.Term (Term.F typeVar typeAnn patternAnn) v a
 pattern OptionalSome' d <- Term.App' (Term.Constructor' (ConstructorReference OptionalRef ((==) someId -> True))) d
 
-pattern TupleType' :: Var v => [Type v a] -> Type v a
+pattern TupleType' :: (Var v) => [Type v a] -> Type v a
 pattern TupleType' ts <- (unTupleType -> Just ts)
 
 pattern TupleTerm' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
@@ -576,9 +721,12 @@ unitType,
   seekModeType,
   stdHandleType,
   failureType,
+  thunkArgType,
   exceptionType ::
-    Ord v => a -> Type v a
+    (Ord v) => a -> Type v a
 unitType a = Type.ref a unitRef
+-- used for the type of the argument to force a thunk
+thunkArgType = unitType
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
@@ -592,10 +740,10 @@ stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
 exceptionType a = Type.ref a exceptionRef
 
-tlsSignedCertType :: Var v => a -> Type v a
+tlsSignedCertType :: (Var v) => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
-unitTerm :: Var v => a -> Term v a
+unitTerm :: (Var v) => a -> Term2 vt at ap v a
 unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)
 
 tupleConsTerm ::
@@ -606,16 +754,16 @@ tupleConsTerm ::
 tupleConsTerm hd tl =
   Term.apps' (Term.constructor (ABT.annotation hd) (ConstructorReference pairRef 0)) [hd, tl]
 
-tupleTerm :: (Var v, Monoid a) => [Term v a] -> Term v a
+tupleTerm :: (Var v, Monoid a) => [Term2 vt at ap v a] -> Term2 vt at ap v a
 tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
-forceTerm :: Var v => a -> a -> Term v a -> Term v a
+forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: Var v => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.named "()"
+delayTerm :: (Var v) => a -> Term v a -> Term v a
+delayTerm a = Term.lam a $ Var.typed Var.Delay
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->
@@ -626,7 +774,7 @@ unTupleTerm t = case t of
   Term.Constructor' (ConstructorReference UnitRef 0) -> Just []
   _ -> Nothing
 
-unTupleType :: Var v => Type v a -> Maybe [Type v a]
+unTupleType :: (Var v) => Type v a -> Maybe [Type v a]
 unTupleType t = case t of
   Type.Apps' (Type.Ref' PairRef) [fst, snd] -> (fst :) <$> unTupleType snd
   Type.Ref' UnitRef -> Just []

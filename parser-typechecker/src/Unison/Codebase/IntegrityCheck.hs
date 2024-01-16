@@ -14,28 +14,27 @@ module Unison.Codebase.IntegrityCheck
 where
 
 import Control.Lens
-import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as NEList
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
-import Data.String.Here.Uninterpolated (here)
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.IO as TL
+import Data.Set.NonEmpty qualified as NESet
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.IO qualified as TL
 import Data.Void
 import Text.Pretty.Simple
 import U.Codebase.HashTags (BranchHash (..))
-import qualified U.Codebase.Sqlite.Branch.Full as DBBranch
-import qualified U.Codebase.Sqlite.DbId as DB
-import qualified U.Codebase.Sqlite.Operations as Ops
-import qualified U.Codebase.Sqlite.Queries as Q
-import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Helpers
-import qualified Unison.Debug as Debug
+import U.Codebase.Sqlite.Branch.Full qualified as DBBranch
+import U.Codebase.Sqlite.DbId qualified as DB
+import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers qualified as Helpers
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM)
-import qualified Unison.Util.Pretty as P
+import Unison.Util.Pretty qualified as P
 import Prelude hiding (log)
 
 debugLog :: TL.Text -> Sqlite.Transaction ()
@@ -78,7 +77,7 @@ instance Monoid IntegrityResult where
 
 integrityCheckAllHashObjects :: Sqlite.Transaction IntegrityResult
 integrityCheckAllHashObjects = do
-  Sqlite.queryListCol_ @DB.ObjectId objectsWithoutHashObjectsSQL >>= \case
+  Sqlite.queryListCol @DB.ObjectId objectsWithoutHashObjectsSQL >>= \case
     (o : os) -> do
       let badObjects = NESet.fromList (o NEList.:| os)
       pure $ IntegrityErrorDetected (NESet.singleton $ DetectedObjectsWithoutCorrespondingHashObjects badObjects)
@@ -86,15 +85,21 @@ integrityCheckAllHashObjects = do
       pure NoIntegrityErrors
   where
     objectsWithoutHashObjectsSQL =
-      [here|
-          SELECT o.id FROM object AS o WHERE NOT EXISTS (SELECT 1 FROM hash_object as ho WHERE ho.object_id = o.id)
-        |]
+      [Sqlite.sql|
+        SELECT o.id
+        FROM object AS o
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM hash_object as ho
+          WHERE ho.object_id = o.id
+        )
+      |]
 
 -- | Performs a bevy of checks on causals.
 integrityCheckAllCausals :: Sqlite.Transaction IntegrityResult
 integrityCheckAllCausals = do
   branchObjIntegrity <-
-    Sqlite.queryListRow_ @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
+    Sqlite.queryListRow @(DB.CausalHashId, DB.BranchHashId) causalsWithMissingBranchObjects >>= \case
       [] -> pure NoIntegrityErrors
       (c : cs) -> do
         badCausals <- for (c NEList.:| cs) $ \(causalHashId, branchHashId) -> do
@@ -106,7 +111,7 @@ integrityCheckAllCausals = do
         pure $ IntegrityErrorDetected (NESet.singleton $ DetectedCausalsWithoutCorrespondingBranchObjects $ NESet.fromList badCausals)
 
   differingBranchHashIntegrity <-
-    Sqlite.queryListCol_ @DB.HashId causalsWithMatchingValueHashAndSelfHash >>= \case
+    Sqlite.queryListCol @DB.HashId causalsWithMatchingValueHashAndSelfHash >>= \case
       [] -> pure NoIntegrityErrors
       (c : cs) -> do
         badCausalHashes <- for (c NEList.:| cs) Q.expectHash
@@ -115,34 +120,37 @@ integrityCheckAllCausals = do
   where
     causalsWithMissingBranchObjects :: Sqlite.Sql
     causalsWithMissingBranchObjects =
-      [here|
-          SELECT c.self_hash_id, c.value_hash_id
-            FROM causal c
-            WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
-          |]
+      [Sqlite.sql|
+        SELECT c.self_hash_id, c.value_hash_id
+          FROM causal c
+          WHERE NOT EXISTS (SELECT 1 from object o WHERE o.primary_hash_id = c.value_hash_id);
+      |]
     causalsWithMatchingValueHashAndSelfHash :: Sqlite.Sql
     causalsWithMatchingValueHashAndSelfHash =
-      [here|
-        SELECT self_hash_id FROM causal WHERE self_hash_id = value_hash_id
-        |]
+      [Sqlite.sql|
+        SELECT self_hash_id
+          FROM causal
+          WHERE self_hash_id = value_hash_id
+      |]
 
 -- | Performs a bevy of checks on branch objects and their relation to causals.
 integrityCheckAllBranches :: Sqlite.Transaction IntegrityResult
 integrityCheckAllBranches = do
-  branchObjIds <- Sqlite.queryListCol_ allBranchObjectIdsSql
+  branchObjIds <- Sqlite.queryListCol allBranchObjectIdsSql
   flip foldMapM branchObjIds integrityCheckBranch
   where
     allBranchObjectIdsSql :: Sqlite.Sql
     allBranchObjectIdsSql =
-      [here|
+      [Sqlite.sql|
         SELECT id FROM object WHERE type_id = 2;
       |]
 
-    doesCausalExistForCausalHashId :: Sqlite.Sql
-    doesCausalExistForCausalHashId =
-      [here|
-        SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
-      |]
+    doesCausalExistForCausalHashId :: DB.CausalHashId -> Sqlite.Transaction Bool
+    doesCausalExistForCausalHashId hashId =
+      Sqlite.queryOneCol
+        [Sqlite.sql|
+          SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = :hashId)
+        |]
 
     integrityCheckBranch :: DB.BranchObjectId -> Sqlite.Transaction IntegrityResult
     integrityCheckBranch objId = do
@@ -179,7 +187,7 @@ integrityCheckAllBranches = do
               pure (Set.singleton $ MissingObject branchObjId)
         assertCausalExists :: DB.CausalHashId -> Sqlite.Transaction (Set BranchError)
         assertCausalExists causalHashId = do
-          Sqlite.queryOneCol doesCausalExistForCausalHashId (Sqlite.Only causalHashId) >>= \case
+          doesCausalExistForCausalHashId causalHashId >>= \case
             True -> pure mempty
             False -> do
               ch <- Q.expectHash (DB.unCausalHashId causalHashId)
@@ -203,7 +211,7 @@ integrityCheckAllBranches = do
                   pure (Set.singleton $ MismatchedObjectForChild ch branchObjId foundBranchId)
               | otherwise -> pure mempty
 
-prettyPrintIntegrityErrors :: Foldable f => f IntegrityError -> P.Pretty P.ColorText
+prettyPrintIntegrityErrors :: (Foldable f) => f IntegrityError -> P.Pretty P.ColorText
 prettyPrintIntegrityErrors xs
   | null xs = mempty
   | otherwise =

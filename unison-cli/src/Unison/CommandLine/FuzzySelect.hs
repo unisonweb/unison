@@ -10,17 +10,17 @@ module Unison.CommandLine.FuzzySelect
 where
 
 import Control.Monad.Except (runExceptT, throwError)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.IO.Handle (hDuplicateTo)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import Unison.Prelude
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
-import qualified UnliftIO.Process as Proc
+import UnliftIO.Process qualified as Proc
 
 -- | Fuzzy Selection options
 data Options = Options
@@ -89,25 +89,28 @@ fuzzySelect opts intoSearchText choices =
         hDuplicateTo stdin stdin'
         void $ Proc.waitForProcess procHandle
         Text.lines <$> liftIO (Text.hGetContents stdout')
-      -- Ignore any errors from fzf, or from trying to write to pipes which may have been
-      -- closed by a ctrl-c, just treat it as an empty selection.
-      let selections = fromRight [] result
       -- Since we prefixed every search term with its number earlier, we know each result
       -- is prefixed with a number, we need to parse it and use it to select the matching
       -- value from our input list.
-      let selectedNumbers =
-            selections
-              & mapMaybe (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
-              & Set.fromList
-      pure $ mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing) numberedChoices
+      pure $ case result of
+        Left _ -> Nothing
+        Right selections ->
+          selections
+            & mapMaybe (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
+            & Set.fromList
+            & ( \selectedNumbers ->
+                  numberedChoices
+                    & mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing)
+              )
+            & Just
   where
     handleException :: SomeException -> IO (Maybe [a])
     handleException err = traceShowM err *> hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
-    handleError :: IO (Either Text [a]) -> IO (Maybe [a])
+    handleError :: IO (Either Text (Maybe [a])) -> IO (Maybe [a])
     handleError m =
       m >>= \case
         Left err -> Text.hPutStrLn stderr err *> pure Nothing
-        Right as -> pure (Just as)
+        Right as -> pure as
     restoreBuffering :: IO c -> IO c
     restoreBuffering action =
       bracket (hGetBuffering stdin) (hSetBuffering stdin) (const action)

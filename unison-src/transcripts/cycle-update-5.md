@@ -25,7 +25,7 @@ inner.ping _ = !pong + 3
 ```
 
 ```ucm
-.inner> update
+.inner> update.old
 .> view inner.ping
 ```
 

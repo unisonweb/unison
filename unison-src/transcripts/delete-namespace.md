@@ -47,11 +47,15 @@ Deleting the root namespace should require confirmation if not forced.
 ```ucm
 .> delete.namespace .
 .> delete.namespace .
+-- Should have an empty history
+.> history .
 ```
 
 Deleting the root namespace shouldn't require confirmation if forced.
 
 ```ucm
 .> delete.namespace.force .
+-- Should have an empty history
+.> history .
 ```
 

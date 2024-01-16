@@ -1,42 +1,47 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Debug as Debug
+import Unison.Codebase.Path qualified as Path
+import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
-import qualified Unison.LSP.VFS as VFS
-import Unison.NamesWithHistory (NamesWithHistory)
-import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.LSP.VFS qualified as VFS
+import Unison.Names (Names)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Server.Backend qualified as Backend
+import Unison.Server.NameSearch (NameSearch)
+import Unison.Server.NameSearch.FromNames qualified as NameSearch
+import Unison.Sqlite qualified as Sqlite
 import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
   TVar PrettyPrintEnvDecl ->
-  TVar NamesWithHistory ->
+  TVar Names ->
+  TVar (NameSearch Sqlite.Transaction) ->
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar getLatestRoot getLatestPath = do
+ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let ppe = PPE.fromNamesDecl hl parseNames
+        let ppe = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppeVar ppe
+          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree $ NamesWithHistory.currentNames parseNames)
+          writeTVar completionsVar (namesToCompletionTree parseNames)
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath

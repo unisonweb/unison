@@ -3,32 +3,63 @@
 
 module Unison.Runtime.IOSource where
 
-import Control.Lens (view, _1)
+import Control.Lens (view, _2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import qualified Data.Map as Map
+import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Text.RawString.QQ (r)
-import qualified Unison.Builtin as Builtin
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
-import qualified Unison.Codebase.CodeLookup.Util as CL
+import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DataDeclaration.ConstructorId as DD
-import Unison.FileParsers (parseAndSynthesizeFile)
-import qualified Unison.NamesWithHistory as Names
+import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.ConstructorId qualified as DD
+import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
 import Unison.Parser.Ann (Ann (..))
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import qualified Unison.Reference as R
-import qualified Unison.Result as Result
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrintError qualified as PrintError
+import Unison.Reference qualified as R
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Term as Term
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Var as Var
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Term qualified as Term
+import Unison.Typechecker qualified as Typechecker
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Pretty qualified as Pretty
+import Unison.Var qualified as Var
 
 debug :: Bool
 debug = False
+
+parsingEnv :: Parser.ParsingEnv Identity
+parsingEnv =
+  Parser.ParsingEnv
+    { uniqueNames = mempty,
+      uniqueTypeGuid = \_ -> pure Nothing,
+      names = Builtin.names
+    }
+
+typecheckingEnv :: Typechecker.Env Symbol Ann
+typecheckingEnv =
+  runIdentity do
+    computeTypecheckingEnvironment
+      (ShouldUseTndr'Yes parsingEnv)
+      []
+      (\_ -> pure (External <$ Builtin.typeLookup))
+      parsedFile
+
+parsedFile :: UF.UnisonFile Symbol Ann
+parsedFile =
+  case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
+    Left err -> error (Pretty.toAnsiUnbroken (PrintError.prettyParseError sourceString err))
+    Right file -> file
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile =
@@ -37,17 +68,12 @@ typecheckedFile =
 
 typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile' =
-  let tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-      tl = const $ pure (External <$ Builtin.typeLookup)
-      env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
-      r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-   in case runIdentity $ Result.runResultT r of
-        (Nothing, notes) -> error $ "parsing failed: " <> show (toList notes)
-        (Just Left {}, notes) -> error $ "typechecking failed: " <> show (toList notes)
-        (Just (Right file), _) -> file
+  case synthesizeFile typecheckingEnv parsedFile of
+    Result.Result notes Nothing -> error (showNotes sourceString ppEnv notes)
+    Result.Result _ (Just file) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
-typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
+typecheckedFileTerms = view _2 <$> UF.hashTerms typecheckedFile
 
 termNamed :: String -> R.Reference
 termNamed s =
@@ -57,7 +83,7 @@ termNamed s =
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
-codeLookupM :: Applicative m => CodeLookup Symbol m Ann
+codeLookupM :: (Applicative m) => CodeLookup Symbol m Ann
 codeLookupM = hoist (pure . runIdentity) codeLookup
 
 typeNamedId :: String -> R.Id
@@ -193,6 +219,16 @@ doc2FrontMatterRef = typeNamed "Doc2.FrontMatter"
 
 pattern Doc2FrontMatterRef <- ((== doc2FrontMatterRef) -> True)
 
+doc2LaTeXInlineRef :: R.Reference
+doc2LaTeXInlineRef = typeNamed "Doc2.LaTeXInline"
+
+pattern Doc2LaTeXInlineRef <- ((== doc2LaTeXInlineRef) -> True)
+
+doc2SvgRef :: R.Reference
+doc2SvgRef = typeNamed "Doc2.Svg"
+
+pattern Doc2SvgRef <- ((== doc2SvgRef) -> True)
+
 pattern Doc2Word txt <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2WordId -> True))) (Term.Text' txt)
 
 pattern Doc2Code d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeId -> True))) d
@@ -300,6 +336,10 @@ pattern Doc2MediaSource src mimeType <- Term.Apps' (Term.Constructor' (Construct
 pattern Doc2SpecialFormEmbedVideo sources config <- Doc2SpecialFormEmbed (Term.App' _ (Term.Apps' (Term.Constructor' (ConstructorReference Doc2VideoRef _)) [Term.List' (toList -> sources), Term.List' (toList -> config)]))
 
 pattern Doc2SpecialFormEmbedFrontMatter frontMatter <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2FrontMatterRef _)) (Term.List' (toList -> frontMatter))))
+
+pattern Doc2SpecialFormEmbedLaTeXInline latex <- Doc2SpecialFormEmbedInline (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2LaTeXInlineRef _)) (Term.Text' latex)))
+
+pattern Doc2SpecialFormEmbedSvg svg <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2SvgRef _)) (Term.Text' svg)))
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
@@ -479,6 +519,10 @@ constructorName ref cid =
 
 -- .. todo - fill in the rest of these
 
+sourceString :: String
+sourceString =
+  Text.unpack source
+
 source :: Text
 source =
   fromString
@@ -553,8 +597,17 @@ unique[b2ada5dfd4112ca3a7ba0a6483ce3d82811400c56eff8e6eca1b3fbf] type Doc2.Video
 unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter
   = FrontMatter [(Text, Text)]
 
+-- Similar to using triple backticks with a latex pragma (```latex), but for
+-- when you'd want to render LaTeX inline
+unique[d1dc0515a2379df8a4c91571fe2f9bf9322adaf97677c87b806e49572447c688] type Doc2.LaTeXInline
+  = LaTeXInline Text
+
+-- Used for embedding SVGs
+unique[ae4e05d8bede04825145db1a6a2222fdf2d890b3044d86fd4368f53b265de7f9] type Doc2.Svg
+  = Svg Text
+
 -- ex: Doc2.term 'List.map
-Doc2.term : 'a -> Doc2.Term
+Doc2.term : ∀ a g1 g. '{g} a ->{g1} Doc2.Term
 Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
@@ -684,6 +737,7 @@ Pretty.map f p =
     Lit _ t -> Lit () (f t)
     Wrap _ p -> Wrap () (go p)
     OrElse _ p1 p2 -> OrElse () (go p1) (go p2)
+    Table _ xs -> Table () (List.map (List.map go) xs)
     Indent _ i0 iN p -> Indent () (go i0) (go iN) (go p)
     Annotated.Append _ ps -> Annotated.Append () (List.map go ps)
   Pretty (go (Pretty.get p))
@@ -935,3 +989,21 @@ syntax.docFormatConsole d =
     Special sf -> Pretty.lit (Left sf)
   go d
 |]
+
+type Note = Result.Note Symbol Ann
+
+type TFile = UF.TypecheckedUnisonFile Symbol Ann
+
+type SynthResult =
+  Result.Result
+    (Seq Note)
+    (Either (UF.UnisonFile Symbol Ann) TFile)
+
+type EitherResult = Either String TFile
+
+showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
+showNotes source env =
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+
+ppEnv :: PPE.PrettyPrintEnv
+ppEnv = PPE.makePPE (PPE.hqNamer 10 Builtin.names) PPE.dontSuffixify

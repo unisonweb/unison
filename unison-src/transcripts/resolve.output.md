@@ -18,6 +18,8 @@ a.foo = 42
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -63,6 +65,8 @@ foo = 43
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -74,7 +78,7 @@ foo = 43
 
 ```
 ```ucm
-.example.resolve.a> update
+.example.resolve.a> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -93,6 +97,8 @@ foo = 44
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -104,7 +110,7 @@ foo = 44
 
 ```
 ```ucm
-.example.resolve.b> update
+.example.resolve.b> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -155,6 +161,8 @@ Let's now merge these namespaces into `c`:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
 ```ucm
 .example.resolve> merge b c
@@ -176,6 +184,8 @@ Let's now merge these namespaces into `c`:
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.

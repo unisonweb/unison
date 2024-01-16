@@ -4,91 +4,115 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import qualified Control.Concurrent.Async as Async
-import Control.Exception (catch, finally, mask)
-import Control.Lens ((?~), (^.))
-import Control.Monad.Catch (MonadMask)
-import qualified Crypto.Random as Random
+import Control.Concurrent.Async qualified as Async
+import Control.Exception (catch, displayException, finally, mask)
+import Control.Lens (preview, (?~), (^.))
+import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy.IO as Text.Lazy
-import qualified Ki
-import qualified System.Console.Haskeline as Line
-import System.IO (hPutStrLn, stderr)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Ki qualified
+import System.Console.Haskeline qualified as Line
+import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import Text.Pretty.Simple (pShow)
-import qualified U.Codebase.Sqlite.Operations as Operations
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import qualified Unison.Auth.HTTPClient as AuthN
-import qualified Unison.Auth.Tokens as AuthN
-import qualified Unison.Cli.Monad as Cli
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.Pretty (prettyProjectAndBranchName)
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
-import qualified Unison.CommandLine.InputPatterns as IP
+import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
-import qualified Unison.CommandLine.Welcome as Welcome
+import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Project (ProjectAndBranch (..))
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.Parser as Parser
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
-import qualified UnliftIO
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
+import UnliftIO qualified
+import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
-  forall m v a.
-  (MonadIO m, MonadMask m) =>
-  Codebase m v a ->
+  Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  IO (Branch m) ->
+  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
-  m Input
+  IO Input
 getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
   where
     -- Catch ctrl-c and simply re-render the prompt.
-    haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+    haskelineCtrlCHandling :: Line.InputT IO b -> Line.InputT IO b
     haskelineCtrlCHandling act = do
       -- We return a Maybe result to ensure we don't nest an action within the masked exception
       -- handler.
       Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
         Nothing -> haskelineCtrlCHandling act
         Just a -> pure a
-    go :: Line.InputT m Input
+    go :: Line.InputT IO Input
     go = do
-      line <-
-        Line.getInputLine $
-          P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
+      promptString <-
+        case preview projectBranchPathPrism currentPath of
+          Nothing -> pure ((P.green . P.shown) currentPath)
+          Just (ProjectAndBranch projectId branchId, restPath) -> do
+            lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
+              -- If the project branch has been deleted from sqlite, just show a borked prompt
+              Nothing -> P.red "???"
+              Just (projectName, branchName) ->
+                P.sep
+                  " "
+                  ( catMaybes
+                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
+                        case restPath of
+                          Path.Empty -> Nothing
+                          _ -> (Just . P.green . P.shown) restPath
+                      ]
+                  )
+      let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
+      line <- Line.getInputLine fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
-              Right i -> pure i
-    settings :: Line.Settings m
+              Right Nothing -> do
+                -- Ctrl-c or some input cancel, re-run the prompt
+                go
+              Right (Just (expandedArgs, i)) -> do
+                when (expandedArgs /= ws) $ do
+                  liftIO . putStrLn $ fullPrompt <> unwords expandedArgs
+                pure i
+    settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
@@ -100,6 +124,7 @@ main ::
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
@@ -107,21 +132,23 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
-  _ <- Ki.fork scope $ do
+  _ <- Ki.fork scope do
     root <- Codebase.getRootBranch codebase
-    atomically $ do
+    atomically do
       -- Try putting the root, but if someone else as already written over the root, don't
       -- overwrite it.
       void $ tryPutTMVar rootVar root
-    -- Start forcing the thunk in a background thread.
+    -- Start forcing thunks in a background thread.
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
-    void $ UnliftIO.evaluate root
+    UnliftIO.concurrently_
+      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
-  Ki.fork_ scope $ do
+  Ki.fork_ scope do
     let loop lastRoot = do
           -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
           -- most recent version at any given time, so it's fine to skip some intermediate
@@ -134,8 +161,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
           loop currentRoot
     loop Nothing
   eventQueue <- Q.newIO
-  welcomeEvents <- Welcome.run codebase welcome
-  initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
+  initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
   pageOutput <- newIORef True
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())
@@ -143,8 +169,12 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+  initialEcho <- hGetEcho stdin
+  let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
   let getInput :: Cli.LoopState -> IO Input
       getInput loopState = do
+        currentEcho <- hGetEcho stdin
+        liftIO $ restoreEcho currentEcho
         getUserInput
           codebase
           authHTTPClient
@@ -193,6 +223,13 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                 writeIORef pageOutput True
                 pure x
 
+  let foldLine :: Text
+      foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+  let writeSourceFile :: Text -> Text -> IO ()
+      writeSourceFile fp contents = do
+        path <- Directory.canonicalizePath (Text.unpack fp)
+        prependUtf8 path (contents <> foldLine)
+
   let env =
         Cli.Env
           { authHTTPClient,
@@ -200,6 +237,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
             config,
             credentialManager,
             loadSource = loadSourceFile,
+            writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->
@@ -207,6 +245,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
                in putPrettyNonempty p $> args,
             runtime,
             sandboxedRuntime = sbRuntime,
+            nativeRuntime = nRuntime,
             serverBaseUrl,
             ucmVersion
           }
@@ -219,7 +258,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
@@ -231,7 +270,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime codebase ser
               loop0 s0
             -- Exception during command execution
             Right (Left e) -> do
-              Text.Lazy.hPutStrLn stderr ("Encountered exception:\n" <> pShow e)
+              Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
               loop0 s0
             Right (Right (result, s1)) -> do
               when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)

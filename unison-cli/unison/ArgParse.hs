@@ -10,9 +10,9 @@ module ArgParse where
 import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional)
 import Data.Foldable (Foldable (fold))
 import Data.Functor ((<&>))
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Options.Applicative
   ( CommandFields,
     Mod,
@@ -49,19 +49,19 @@ import Options.Applicative
     strOption,
     subparserInline,
   )
-import qualified Options.Applicative as OptParse
+import Options.Applicative qualified as OptParse
 import Options.Applicative.Builder.Internal (noGlobal {- https://github.com/pcapriotti/optparse-applicative/issues/461 -})
 import Options.Applicative.Help (bold, (<+>))
-import qualified Options.Applicative.Help.Pretty as P
+import Options.Applicative.Help.Pretty qualified as P
 import Stats
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
-import qualified Unison.PrettyTerminal as PT
+import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Util.Pretty (Width (..))
 
 -- The name of a symbol to execute.
@@ -80,13 +80,8 @@ data ShouldForkCodebase
   | DontFork
   deriving (Show, Eq)
 
-data ShouldDownloadBase
-  = ShouldDownloadBase
-  | ShouldNotDownloadBase
-  deriving (Show, Eq)
-
 data ShouldSaveCodebase
-  = SaveCodebase
+  = SaveCodebase (Maybe FilePath)
   | DontSaveCodebase
   deriving (Show, Eq)
 
@@ -109,7 +104,6 @@ data Command
   = Launch
       IsHeadless
       CodebaseServerOpts
-      ShouldDownloadBase
       -- Starting path
       (Maybe Path.Absolute)
       ShouldWatchFiles
@@ -157,6 +151,7 @@ codebaseServerOptsFromEnv :: IO CodebaseServerOpts
 codebaseServerOptsFromEnv = do
   token <- lookupEnv Server.ucmTokenVar
   host <- lookupEnv Server.ucmHostVar
+  allowCorsHost <- lookupEnv Server.ucmAllowCorsHost
   port <- lookupEnv Server.ucmPortVar <&> (>>= readMaybe)
   codebaseUIPath <- lookupEnv Server.ucmUIVar
   pure $ CodebaseServerOpts {..}
@@ -179,7 +174,9 @@ initCommand = command "init" (info initParser (progDesc initHelp))
 
 runDesc :: String -> String -> String
 runDesc cmd location =
-  "Execute a definition from " <> location <> ", passing on the provided arguments. "
+  "Execute a definition from "
+    <> location
+    <> ", passing on the provided arguments. "
     <> " To pass flags to your program, use `"
     <> cmd
     <> " -- --my-flag`"
@@ -310,12 +307,14 @@ codebaseServerOptsParser envOpts = do
   cliToken <- tokenFlag <|> pure (token envOpts)
   cliHost <- hostFlag <|> pure (host envOpts)
   cliPort <- portFlag <|> pure (port envOpts)
+  cliAllowCorsHost <- allowCorsHostFlag <|> pure (allowCorsHost envOpts)
   cliCodebaseUIPath <- codebaseUIPathFlag <|> pure (codebaseUIPath envOpts)
   pure
     CodebaseServerOpts
       { token = cliToken <|> token envOpts,
         host = cliHost <|> host envOpts,
         port = cliPort <|> port envOpts,
+        allowCorsHost = cliAllowCorsHost <|> allowCorsHost envOpts,
         codebaseUIPath = cliCodebaseUIPath <|> codebaseUIPath envOpts
       }
   where
@@ -337,6 +336,12 @@ codebaseServerOptsParser envOpts = do
           <> metavar "NUMBER"
           <> help "Codebase server port"
           <> noGlobal
+    allowCorsHostFlag =
+      optional . strOption $
+        long "allow-cors-host"
+          <> metavar "STRING"
+          <> help "Host that should be allowed to access api (cors)"
+          <> noGlobal
     codebaseUIPathFlag =
       optional . strOption $
         long "ui"
@@ -348,10 +353,9 @@ launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do
   -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
-  downloadBase <- downloadBaseFlag
   startingPath <- startingPathOption
   shouldWatchFiles <- noFileWatchFlag
-  pure (Launch isHeadless codebaseServerOpts downloadBase startingPath shouldWatchFiles)
+  pure (Launch isHeadless codebaseServerOpts startingPath shouldWatchFiles)
 
 initParser :: Parser Command
 initParser = pure Init
@@ -369,7 +373,8 @@ runSymbolParser =
 runFileParser :: Parser Command
 runFileParser =
   Run
-    <$> ( RunFromFile <$> fileArgument "path/to/file"
+    <$> ( RunFromFile
+            <$> fileArgument "path/to/file"
             <*> strArgument (metavar "SYMBOL")
         )
     <*> runArgumentParser
@@ -392,21 +397,22 @@ rtsStatsOption =
    in optional (option OptParse.str meta)
 
 saveCodebaseFlag :: Parser ShouldSaveCodebase
-saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
+saveCodebaseFlag = flag DontSaveCodebase (SaveCodebase Nothing) (long "save-codebase" <> help saveHelp)
   where
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
 
-downloadBaseFlag :: Parser ShouldDownloadBase
-downloadBaseFlag =
-  flag
-    ShouldDownloadBase
-    ShouldNotDownloadBase
-    ( long "no-base"
-        <> help downloadBaseHelp
-        <> noGlobal
+saveCodebaseToFlag :: Parser ShouldSaveCodebase
+saveCodebaseToFlag = do
+  path <-
+    optional . strOption $
+      long "save-codebase-to"
+        <> short 'S'
+        <> help "Where the codebase should be created. Implies --save-codebase"
+  pure
+    ( case path of
+        Just _ -> SaveCodebase path
+        _ -> DontSaveCodebase
     )
-  where
-    downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
 
 startingPathOption :: Parser (Maybe Path.Absolute)
 startingPathOption =
@@ -457,18 +463,30 @@ fileArgument varName =
 transcriptParser :: Parser Command
 transcriptParser = do
   -- ApplicativeDo
+  shouldSaveCodebaseTo <- saveCodebaseToFlag
   shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript DontFork shouldSaveCodebase mrtsStatsFp files)
+  pure
+    ( let saveCodebase = case shouldSaveCodebaseTo of
+            DontSaveCodebase -> shouldSaveCodebase
+            _ -> shouldSaveCodebaseTo
+       in Transcript DontFork saveCodebase mrtsStatsFp files
+    )
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do
   -- ApplicativeDo
+  shouldSaveCodebaseTo <- saveCodebaseToFlag
   shouldSaveCodebase <- saveCodebaseFlag
   mrtsStatsFp <- rtsStatsOption
   files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
-  pure (Transcript UseFork shouldSaveCodebase mrtsStatsFp files)
+  pure
+    ( let saveCodebase = case shouldSaveCodebaseTo of
+            DontSaveCodebase -> shouldSaveCodebase
+            _ -> shouldSaveCodebaseTo
+       in Transcript UseFork saveCodebase mrtsStatsFp files
+    )
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (P.text -> executable) (P.text -> version) =

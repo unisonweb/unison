@@ -17,12 +17,15 @@ module Unison.Name
     isRelative,
     isPrefixOf,
     beginsWithSegment,
+    endsWith,
     endsWithReverseSegments,
     endsWithSegments,
     stripReversedPrefix,
+    tryStripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
+    lastSegment,
 
     -- * Basic manipulation
     makeAbsolute,
@@ -33,15 +36,18 @@ module Unison.Name
     unqualified,
 
     -- * To organize later
-    sortNames,
-    sortNamed,
-    sortByText,
-    searchBySuffix,
-    searchByRankedSuffix,
-    suffixFrom,
-    shortestUniqueSuffix,
     commonPrefix,
+    libSegment,
+    preferShallowLibDepth,
+    searchByRankedSuffix,
+    searchBySuffix,
+    suffixifyByName,
+    suffixifyByHash,
+    sortByText,
+    sortNamed,
+    sortNames,
     splits,
+    suffixFrom,
 
     -- * Re-exports
     module Unison.Util.Alphabetical,
@@ -51,22 +57,23 @@ module Unison.Name
   )
 where
 
+import Data.Monoid (Sum(..))
 import Control.Lens (mapped, over, _1, _2)
-import qualified Data.List as List
-import qualified Data.List.Extra as List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as List.NonEmpty
-import qualified Data.Map as Map
-import qualified Data.RFC5051 as RFC5051
-import qualified Data.Set as Set
+import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.Map qualified as Map
+import Data.RFC5051 qualified as RFC5051
+import Data.Set qualified as Set
 import Unison.Name.Internal
 import Unison.NameSegment (NameSegment (NameSegment))
-import qualified Unison.NameSegment as NameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
-import qualified Unison.Util.List as List
-import qualified Unison.Util.Relation as R
+import Unison.Util.List qualified as List
+import Unison.Util.Relation qualified as R
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
@@ -104,7 +111,7 @@ compareSuffix (Name _ ss0) =
 -- /Precondition/: the name is relative
 --
 -- /O(n)/, where /n/ is the number of segments.
-cons :: HasCallStack => NameSegment -> Name -> Name
+cons :: (HasCallStack) => NameSegment -> Name -> Name
 cons x name =
   case name of
     Name Absolute _ ->
@@ -175,17 +182,36 @@ endsWithReverseSegments :: Name -> [NameSegment] -> Bool
 endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
 
--- >>> stripReversedPrefix "a.b.c" ["b", "a"]
--- Just c
--- >>> stripReversedPrefix "x.y" ["b", "a"]
+-- >>> endsWith "a.b.c" "b.c"
+-- True
+endsWith :: Name -> Name -> Bool
+endsWith overall suffix = endsWithReverseSegments overall (toList $ reverseSegments suffix)
+
+-- >>> stripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Just (Name Relative (NameSegment {toText = "c"} :| []))
+-- >>> stripReversedPrefix (fromReverseSegments ("y" :| ["x"])) ["b", "a"]
 -- Nothing
--- >>> stripReversedPrefix "a.b" ["b", "a"]
--- Nothing
+--
+-- >>> stripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Just (Name Relative (NameSegment {toText = "c"} :| []))
 stripReversedPrefix :: Name -> [NameSegment] -> Maybe Name
 stripReversedPrefix (Name p segs) suffix = do
   stripped <- List.stripSuffix suffix (toList segs)
   nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
   pure $ Name p nonEmptyStripped
+
+-- | Like 'stripReversedPrefix' but if the prefix doesn't match, or if it would strip the
+-- entire name away just return the original name.
+--
+-- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "c"} :| [])
+-- >>> tryStripReversedPrefix (fromReverseSegments ("y" :| ["x"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "y"} :| [NameSegment {toText = "x"}])
+--
+-- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
+-- Name Relative (NameSegment {toText = "c"} :| [])
+tryStripReversedPrefix :: Name -> [NameSegment] -> Name
+tryStripReversedPrefix n s = fromMaybe n (stripReversedPrefix n s)
 
 -- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
 -- and the other is absolute.
@@ -204,7 +230,7 @@ isPrefixOf :: Name -> Name -> Bool
 isPrefixOf (Name p0 ss0) (Name p1 ss1) =
   p0 == p1 && List.isPrefixOf (reverse (toList ss0)) (reverse (toList ss1))
 
-joinDot :: HasCallStack => Name -> Name -> Name
+joinDot :: (HasCallStack) => Name -> Name -> Name
 joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
   case p1 of
     Relative -> Name p0 (ss1 <> ss0)
@@ -291,6 +317,13 @@ reverseSegments :: Name -> NonEmpty NameSegment
 reverseSegments (Name _ ss) =
   ss
 
+-- | Return the final segment of a name.
+--
+-- >>> lastSegment (fromSegments ("base" :| ["List", "map"]))
+-- NameSegment {toText = "map"}
+lastSegment :: Name -> NameSegment
+lastSegment = List.NonEmpty.head . reverseSegments
+
 -- If there's no exact matches for `suffix` in `rel`, find all
 -- `r` in `rel` whose corresponding name `suffix` as a suffix.
 -- For example, `searchBySuffix List.map {(base.List.map, r1)}`
@@ -311,24 +344,32 @@ searchBySuffix suffix rel =
 -- Example: foo.bar shadows lib.foo.bar
 -- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
 searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
-searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
-  rs | Set.size rs <= 1 -> rs
-  rs -> case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
-    -- anything with more than one lib in it is treated the same
-    Nothing -> rs
-    Just rs -> Set.fromList rs
-    where
-      byDepth =
-        List.multimap
-          [ (minLibs ns, r)
-            | r <- toList rs,
-              ns <- [filter ok (toList (R.lookupRan r rel))]
-          ]
-      lib = NameSegment "lib"
-      libCount = length . filter (== lib) . toList . reverseSegments
-      minLibs [] = 0
-      minLibs ns = minimum (map libCount ns)
-      ok name = compareSuffix suffix name == EQ
+searchByRankedSuffix suffix rel =
+  let rs = searchBySuffix suffix rel
+   in case Set.size rs <= 1 of
+        True -> rs
+        False ->
+          let ok name = compareSuffix suffix name == EQ
+              withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
+           in preferShallowLibDepth withNames
+
+-- | precondition: input list is deduped, and so is the Name list in
+-- the tuple
+preferShallowLibDepth :: Ord r => [([Name], r)] -> Set r
+preferShallowLibDepth = \case
+  [] -> Set.empty
+  [x] -> Set.singleton (snd x)
+  rs ->
+    let byDepth = List.multimap (map (first minLibs) rs)
+        libCount = length . filter (== libSegment) . toList . reverseSegments
+        minLibs [] = 0
+        minLibs ns = minimum (map libCount ns)
+     in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
+          Nothing -> Set.fromList (map snd rs)
+          Just rs -> Set.fromList rs
+
+libSegment :: NameSegment
+libSegment = NameSegment "lib"
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
@@ -361,7 +402,7 @@ sortNames toText =
 -- @
 --
 -- /Precondition/: the name is relative.
-splits :: HasCallStack => Name -> [([NameSegment], Name)]
+splits :: (HasCallStack) => Name -> [([NameSegment], Name)]
 splits (Name p ss0) =
   ss0
     & List.NonEmpty.toList
@@ -373,7 +414,7 @@ splits (Name p ss0) =
     -- ([], a.b.c) : over (mapped . _1) (a.) (splits b.c)
     -- ([], a.b.c) : over (mapped . _1) (a.) (([], b.c) : over (mapped . _1) (b.) (splits c))
     -- [([], a.b.c), ([a], b.c), ([a.b], c)]
-    splits0 :: HasCallStack => [a] -> [([a], NonEmpty a)]
+    splits0 :: (HasCallStack) => [a] -> [([a], NonEmpty a)]
     splits0 = \case
       [] -> []
       [x] -> [([], x :| [])]
@@ -434,7 +475,7 @@ suffixFrom (Name p0 ss0) (Name _ ss1) = do
     -- that match.
     --
     -- align [a,b] [x,a,b,y] = Just [x,a,b]
-    align :: forall a. Eq a => [a] -> [a] -> Maybe [a]
+    align :: forall a. (Eq a) => [a] -> [a] -> Maybe [a]
     align xs =
       go id
       where
@@ -457,26 +498,44 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
--- Tries to shorten `fqn` to the smallest suffix that still refers
--- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
+-- Tries to shorten `fqn` to the smallest suffix that still
+-- unambiguously refers to the same name. Uses an efficient
+-- logarithmic lookup in the provided relation.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByName fqn rel =
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  where
+    isOk :: Name -> Bool
+    isOk suffix = matchingNameCount == 1
+      where
+        matchingNameCount :: Int
+        matchingNameCount =
+          getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
+
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
+-- Uses an efficient logarithmic lookup in the provided relation.
 -- The returned `Name` may refer to multiple hashes if the original FQN
 -- did as well.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. Ord r => Name -> r -> R.Relation Name r -> Name
-shortestUniqueSuffix fqn r rel =
+suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByHash fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
-    allowed :: Set r
-    allowed =
+    allRefs :: Set r
+    allRefs =
       R.lookupDom fqn rel
+
     isOk :: Name -> Bool
     isOk suffix =
-      (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      Set.size refs == 1 || refs == allRefs
       where
-        rs :: Set r
-        rs =
+        refs :: Set r
+        refs =
           R.searchDom (compareSuffix suffix) rel
 
 -- | Returns the common prefix of two names as segments

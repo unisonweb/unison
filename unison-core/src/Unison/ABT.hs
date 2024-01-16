@@ -25,15 +25,19 @@ module Unison.ABT
     unvar,
     freshenS,
     freshInBoth,
+    freshenBothWrt,
+    freshenWrt,
     visit,
     visit',
     visit_,
     visitPure,
     changeVars,
     allVars,
+    numberedFreeVars,
     subterms,
     annotateBound,
     rebuildUp,
+    rebuildMaybeUp,
     rebuildUp',
     reannotateUp,
     rewriteDown,
@@ -58,6 +62,8 @@ module Unison.ABT
     find,
     find',
     FindAction (..),
+    containsExpression,
+    rewriteExpression,
 
     -- * Optics
     baseFunctor_,
@@ -75,14 +81,18 @@ module Unison.ABT
     abs',
     absr,
     unabs,
+    unabsA,
+    dropAbs,
     cycle,
     cycle',
     cycler,
     pattern Abs',
     pattern Abs'',
     pattern AbsN',
+    pattern AbsNA',
     pattern Var',
     pattern Cycle',
+    pattern Cycle'',
     pattern CycleA',
     pattern Tm',
 
@@ -92,18 +102,20 @@ module Unison.ABT
   )
 where
 
-import Control.Lens (Lens', lens, use, (%%~), (.=))
-import Control.Monad.State (MonadState)
-import qualified Data.Foldable as Foldable
+import Control.Lens (Lens', lens, (%%~))
+import Control.Monad.State (MonadState, evalState, get, put, runState)
+import Data.Foldable qualified as Foldable
 import Data.List hiding (cycle, find)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
+    allVars,
     cata,
     foreachSubterm,
     freshInBoth,
+    freshenS,
     para,
     rename,
     subst',
@@ -115,17 +127,18 @@ import U.Core.ABT
     unabs,
     visit,
     visit',
-    visit_,
     visitPure,
+    visit_,
     vmap,
+    vmapM,
     pattern AbsN',
     pattern Tm',
     pattern Var',
   )
-import qualified U.Core.ABT
+import U.Core.ABT qualified
 import U.Core.ABT.Var (Var (freshIn))
 import Unison.Prelude
-import qualified Unison.Util.Components as Components
+import Unison.Util.Components qualified as Components
 import Prelude hiding (abs, cycle)
 
 abt_ :: Lens' (Term f v a) (ABT f v (Term f v a))
@@ -135,14 +148,15 @@ abt_ = lens out setter
 
 -- a.k.a. baseFunctor_ :: Traversal' (Term f v a) (f _)
 baseFunctor_ ::
-  Applicative m =>
+  (Applicative m) =>
   (f (Term f v a) -> m (f (Term f v a))) ->
   Term f v a ->
   m (Term f v a)
 baseFunctor_ f t =
-  t & abt_ %%~ \case
-    Tm fx -> Tm <$> f (fx)
-    x -> pure x
+  t
+    & abt_ %%~ \case
+      Tm fx -> Tm <$> f (fx)
+      x -> pure x
 
 -- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
 
@@ -152,7 +166,7 @@ unvar :: V v -> v
 unvar (Free v) = v
 unvar (Bound v) = v
 
-instance Var v => Var (V v) where
+instance (Var v) => Var (V v) where
   freshIn s v = freshIn (Set.map unvar s) <$> v
 
 wrap :: (Functor f, Foldable f, Var v) => v -> Term f (V v) a -> (V v, Term f (V v) a)
@@ -182,19 +196,12 @@ annotateBound = go Set.empty
             Tm body -> tm' a (go bound <$> body)
 
 -- | `True` if `v` is a member of the set of free variables of `t`
-isFreeIn :: Ord v => v -> Term f v a -> Bool
+isFreeIn :: (Ord v) => v -> Term f v a -> Bool
 isFreeIn v t = Set.member v (freeVars t)
 
 -- | Replace the annotation with the given argument.
 annotate :: a -> Term f v a -> Term f v a
 annotate a (Term fvs _ out) = Term fvs a out
-
-vmapM :: (Applicative m, Traversable f, Foldable f, Ord v2) => (v -> m v2) -> Term f v a -> m (Term f v2 a)
-vmapM f (Term _ a out) = case out of
-  Var v -> annotatedVar a <$> f v
-  Tm fa -> tm' a <$> traverse (vmapM f) fa
-  Cycle r -> cycle' a <$> vmapM f r
-  Abs v body -> abs' a <$> f v <*> vmapM f body
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
 amap = amap' . const
@@ -206,10 +213,10 @@ amap' f t@(Term _ a out) = case out of
   Cycle r -> cycle' (f t a) (amap' f r)
   Abs v body -> abs' (f t a) v (amap' f body)
 
-extraMap :: Functor g => (forall k. f k -> g k) -> Term f v a -> Term g v a
+extraMap :: (Functor g) => (forall k. f k -> g k) -> Term f v a -> Term g v a
 extraMap p (Term fvs a sub) = Term fvs a (go p sub)
   where
-    go :: Functor g => (forall k. f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
+    go :: (Functor g) => (forall k. f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
     go p = \case
       Var v -> Var v
       Cycle r -> Cycle (extraMap p r)
@@ -218,6 +225,9 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub)
 
 pattern Cycle' :: [v] -> f (Term f v a) -> Term f v a
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
+
+pattern Cycle'' :: Term f v a -> Term f v a
+pattern Cycle'' t <- Term _ _ (Cycle t)
 
 pattern Abs'' :: v -> Term f v a -> Term f v a
 pattern Abs'' v body <- Term _ _ (Abs v body)
@@ -233,6 +243,11 @@ pattern AbsNA' avs body <- (unabsA -> (avs, body))
 
 {-# COMPLETE Var', Cycle', Abs'', Tm' #-}
 
+dropAbs :: Int -> Term f v a -> Term f v a
+dropAbs z tm | z <= 0 = tm
+dropAbs n (Term _ _ (Abs _ body)) = dropAbs (n - 1) body
+dropAbs _ tm = tm
+
 unabsA :: Term f v a -> ([(a, v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
   let (tl, body') = unabsA body in ((a, hd) : tl, body')
@@ -244,10 +259,10 @@ var = annotatedVar ()
 annotatedVar :: a -> v -> Term f v a
 annotatedVar = U.Core.ABT.var
 
-abs :: Ord v => v -> Term f v () -> Term f v ()
+abs :: (Ord v) => v -> Term f v () -> Term f v ()
 abs = abs' ()
 
-abs' :: Ord v => a -> v -> Term f v a -> Term f v a
+abs' :: (Ord v) => a -> v -> Term f v a -> Term f v a
 abs' = U.Core.ABT.abs
 
 absr :: (Functor f, Foldable f, Var v) => v -> Term f (V v) () -> Term f (V v) ()
@@ -257,10 +272,10 @@ absr = absr' ()
 absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
 absr' a v body = wrap' v body $ \v body -> abs' a v body
 
-absChain :: Ord v => [v] -> Term f v () -> Term f v ()
+absChain :: (Ord v) => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
 
-absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
+absChain' :: (Ord v) => [(a, v)] -> Term f v a -> Term f v a
 absChain' vs t = foldr (\(a, v) t -> abs' a v t) t vs
 
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
@@ -328,29 +343,20 @@ changeVars m t = case out t of
     Just v -> annotatedVar (annotation t) v
   Tm v -> tm' (annotation t) (changeVars m <$> v)
 
-fresh :: Var v => Term f v a -> v -> v
+fresh :: (Var v) => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
 
-allVars :: Foldable f => Term f v a -> [v]
-allVars t = case out t of
-  Var v -> [v]
-  Cycle body -> allVars body
-  Abs v body -> v : allVars body
-  Tm v -> Foldable.toList v >>= allVars
-
--- | Freshens the given variable wrt. the set of used variables
--- tracked by state. Adds the result to the set of used variables.
-freshenS :: (Var v, MonadState (Set v) m) => v -> m v
-freshenS = freshenS' id
-
--- | A more general version of `freshenS` that uses a lens
--- to focus on used variables inside state.
-freshenS' :: (Var v, MonadState s m) => Lens' s (Set v) -> v -> m v
-freshenS' uvLens v = do
-  usedVars <- use uvLens
-  let v' = freshIn usedVars v
-  uvLens .= Set.insert v' usedVars
-  pure v'
+-- Numbers the free vars by the position where they're first
+-- used within the term. See usage in `Type.normalizeForallOrder`
+numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
+numberedFreeVars t =
+  Map.fromList $ reverse (go mempty t `zip` [0 ..])
+  where
+    go bound t = case out t of
+      Var v -> if v `elem` bound then [] else [v]
+      Cycle body -> go bound body
+      Abs v body -> go (v : bound) body
+      Tm v -> Foldable.toList v >>= go bound
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
@@ -402,6 +408,22 @@ rebuildUp' f (Term _ ann body) = case body of
   Abs x e -> f $ abs' ann x (rebuildUp' f e)
   Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
 
+rebuildMaybeUp ::
+  (Ord v, Foldable f, Functor f) =>
+  (Term f v a -> Maybe (Term f v a)) ->
+  Term f v a ->
+  Maybe (Term f v a)
+rebuildMaybeUp f tm@(Term _ ann body) = f $ case body of
+  Var _ -> tm
+  Cycle body -> fromMaybe tm $ fmap (cycle' ann) (rebuildMaybeUp f body)
+  Abs x e -> fromMaybe tm $ fmap (abs' ann x) (rebuildMaybeUp f e)
+  Tm body ->
+    if all (isNothing . snd) body'
+      then tm
+      else tm' ann (fmap (uncurry fromMaybe) body')
+    where
+      body' = fmap (\tm -> (tm, rebuildMaybeUp f tm)) body
+
 freeVarOccurrences :: (Traversable f, Ord v) => Set v -> Term f v a -> [(v, a)]
 freeVarOccurrences except t =
   [(v, a) | (v, a) <- go $ annotateBound t, not (Set.member v except)]
@@ -443,7 +465,7 @@ rewriteDown_ f t = do
     Tm body -> tm' (annotation t') <$> (traverse (rewriteDown_ f) body)
 
 data Subst f v a = Subst
-  { freshen :: forall m v'. Monad m => (v -> m v') -> m v',
+  { freshen :: forall m v'. (Monad m) => (v -> m v') -> m v',
     bind :: Term f v a -> Term f v a,
     bindInheritAnnotation :: forall b. Term f v b -> Term f v a,
     variable :: v
@@ -480,6 +502,131 @@ reannotateUp g t = case out t of
         ann = g t <> foldMap (snd . annotation) body'
      in tm' (annotation t, ann) body'
 
+-- Given a list of terms, freshen all their free variables
+-- to not overlap with any variables used within `wrt`.
+-- The `afterFreshen` function is applied to each freshened
+-- variable. It can be the identity function or `Var.bakeId`,
+-- or it can do some other tagging of freshened variables.
+--
+-- This is used by structural find and replace to ensure that rules
+-- don't accidentally capture local variables.
+freshenWrt :: (Var v, Traversable f) => (v -> v) -> Term f v a -> [Term f v a] -> [Term f v a]
+freshenWrt afterFreshen wrt tms = renames varChanges <$> tms
+  where
+    used = Set.fromList (allVars wrt)
+    varChanges =
+      fst $ foldl go (Map.empty, used) (foldMap freeVars tms)
+      where
+        go (m, u) v = let v' = afterFreshen $ freshIn u v in (Map.insert v v' m, Set.insert v' u)
+
+freshenBothWrt :: (Var v, Traversable f) => Term f v a -> Term f v a -> Term f v a -> (Term f v a, Term f v a)
+freshenBothWrt wrt tm1 tm2 = case freshenWrt id wrt [tm1, tm2] of
+  [tm1, tm2] -> (tm1, tm2)
+  _ -> error "freshenWrt impossible"
+
+-- | Core logic of structured find and replace. Works for any base functor.
+-- Returns `Nothing` if no replacements.
+rewriteExpression ::
+  forall f v a.
+  (Var v, Show v, forall a. (Eq a) => Eq (f a), forall a. (Show a) => Show (f a), Traversable f) =>
+  Term f v a ->
+  Term f v a ->
+  Term f v a ->
+  Maybe (Term f v a)
+rewriteExpression query0 replacement0 tm = rewriteHere tm
+  where
+    (query, replacement) = freshenBothWrt tm query0 replacement0
+    env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
+    vs0 = Map.keysSet env0
+    rewriteHere :: Term f v a -> Maybe (Term f v a)
+    rewriteHere tm =
+      case runState (go query tm) env0 of
+        (False, _) -> descend tm
+        (True, subs) ->
+          let tm' = substs [(k, v) | (k, Just v) <- Map.toList subs] replacement
+           in descend tm' <|> Just tm'
+      where
+        descend :: Term f v a -> Maybe (Term f v a)
+        descend tm0 = case out tm0 of
+          Abs v tm -> abs' (annotation tm0) v <$> rewriteHere tm
+          Cycle tm -> cycle' (annotation tm0) <$> rewriteHere tm
+          Var _v -> Nothing
+          Tm f ->
+            let ps = (\t -> (t, rewriteHere t)) <$> f
+             in if all (isNothing . snd) (toList ps)
+                  then Nothing
+                  else Just $ tm' (annotation tm0) (uncurry fromMaybe <$> ps)
+        go ::
+          (MonadState (Map v (Maybe (Term f v a))) m) =>
+          Term f v a ->
+          Term f v a ->
+          m Bool
+        go tm0@(Var' v) tm = do
+          env <- get
+          case Map.lookup v env of
+            Just Nothing -> put (Map.insert v (Just tm) env) *> pure True
+            Just (Just b) -> go b tm
+            Nothing -> pure $ tm0 == tm
+        go (Tm' fq) (Tm' tm) =
+          if void fq == void tm
+            then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go fq tm)
+            else pure False
+        go (Cycle'' q) (Cycle'' tm) = go q tm
+        go (Abs'' v1 body1) (Abs'' v2 body2) =
+          if v1 == v2
+            then go body1 body2
+            else
+              let v3 = freshIn vs0 $ freshInBoth body1 body2 v1
+               in go (rename v1 v3 body1) (rename v2 v3 body2)
+        go _ _ = pure False
+
+-- | Core logic of structured find. Works for any base functor.
+-- Returns `True` if there's a subexpression of `tm` which matches `query0`
+-- for some assignment of variables.
+containsExpression :: forall f v a. (Var v, forall a. (Eq a) => Eq (f a), Traversable f) => Term f v a -> Term f v a -> Bool
+containsExpression query0 tm = matchesHere tm
+  where
+    used = Set.fromList (allVars tm)
+    varChanges =
+      fst $ foldl go (Map.empty, used) (freeVars query0)
+      where
+        go (m, u) v = let v' = freshIn u v in (Map.insert v v' m, Set.insert v' u)
+    -- rename free vars to avoid possible capture of things in `tm`
+    query = renames varChanges query0
+    env0 = Map.fromList [(v, Nothing) | v <- toList (freeVars query)]
+    vs0 = Map.keysSet env0
+    matchesHere :: Term f v a -> Bool
+    matchesHere tm =
+      evalState (go (out query) (out tm)) env0 || case out tm of
+        Abs _v tm -> matchesHere tm
+        Cycle tm -> matchesHere tm
+        Var _v -> False
+        Tm f -> any matchesHere (toList f)
+      where
+        go ::
+          (MonadState (Map v (Maybe (ABT f v (Term f v a)))) m) =>
+          ABT f v (Term f v a) ->
+          ABT f v (Term f v a) ->
+          m Bool
+        go tm0@(Var v) tm = do
+          env <- get
+          case Map.lookup v env of
+            Just Nothing -> put (Map.insert v (Just tm) env) *> pure True
+            Just (Just b) -> go b tm
+            Nothing -> pure (tm0 == tm)
+        go (Tm fq) (Tm tm) =
+          if void fq == void tm
+            then all id <$> (for (toList fq `zip` toList tm) $ \(fq, tm) -> go (out fq) (out tm))
+            else pure False
+        go (Cycle q) (Cycle tm) = go (out q) (out tm)
+        go (Abs v1 body1) (Abs v2 body2) =
+          if v1 == v2
+            then go (out body1) (out body2)
+            else
+              let v3 = freshIn vs0 $ freshInBoth body1 body2 v1
+               in go (out $ rename v1 v3 body1) (out $ rename v2 v3 body2)
+        go _ _ = pure False
+
 -- Find all subterms that match a predicate.  Prune the search for speed.
 -- (Some patterns of pruning can cut the complexity of the search.)
 data FindAction x = Found x | Prune | Continue
@@ -508,21 +655,21 @@ find' ::
   [Term f v a]
 find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
-components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
 -- Converts to strongly connected components while preserving the
 -- order of definitions. Satisfies `join (orderedComponents bs) == bs`.
-orderedComponents' :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+orderedComponents' :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
 orderedComponents' tms = go [] Set.empty tms
   where
     go [] _ [] = []
     go [] deps (hd : rem) = go [hd] (deps <> freeVars (snd hd)) rem
     go cur deps rem = case findIndex isDep rem of
       Nothing ->
-        reverse cur :
-        let (hd, tl) = splitAt 1 rem
-         in go hd (depsFor hd) tl
+        reverse cur
+          : let (hd, tl) = splitAt 1 rem
+             in go hd (depsFor hd) tl
       Just i -> go (reverse newMembers ++ cur) deps' (drop (i + 1) rem)
         where
           deps' = deps <> depsFor newMembers
@@ -538,10 +685,10 @@ orderedComponents' tms = go [] Set.empty tms
 -- Example: given `[[x],[ping,r,s,pong]]`, where `ping` and `pong`
 -- are mutually recursive but `r` and `s` are uninvolved, this produces:
 -- `[[x], [ping,pong], [r], [s]]`.
-orderedComponents :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+orderedComponents :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
 orderedComponents bs0 = tweak =<< orderedComponents' bs0
   where
-    tweak :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+    tweak :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
     tweak bs@(_ : _ : _) = case takeWhile isCyclic (components bs) of
       [] -> [bs]
       cycles -> cycles <> orderedComponents rest

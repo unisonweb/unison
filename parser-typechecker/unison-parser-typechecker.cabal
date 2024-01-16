@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -35,6 +35,7 @@ library
       Unison.Codebase
       Unison.Codebase.Branch
       Unison.Codebase.Branch.BranchDiff
+      Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
       Unison.Codebase.Branch.Raw
@@ -43,7 +44,6 @@ library
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
@@ -75,13 +75,13 @@ library
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema4To5
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -90,12 +90,43 @@ library
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.UniqueTypeGuidLookup
       Unison.Codebase.Verbosity
-      Unison.Codebase.Watch
       Unison.CodebasePath
+      Unison.DataDeclaration.Dependencies
       Unison.FileParsers
       Unison.Hashing.V2.Convert
+      Unison.KindInference
+      Unison.KindInference.Constraint.Context
+      Unison.KindInference.Constraint.Pretty
+      Unison.KindInference.Constraint.Provenance
+      Unison.KindInference.Constraint.Solved
+      Unison.KindInference.Constraint.StarProvenance
+      Unison.KindInference.Constraint.Unsolved
+      Unison.KindInference.Error
+      Unison.KindInference.Error.Pretty
+      Unison.KindInference.Generate
+      Unison.KindInference.Generate.Monad
+      Unison.KindInference.Solve
+      Unison.KindInference.Solve.Monad
+      Unison.KindInference.UVar
       Unison.Parsers
+      Unison.PatternMatchCoverage
+      Unison.PatternMatchCoverage.Class
+      Unison.PatternMatchCoverage.Constraint
+      Unison.PatternMatchCoverage.Desugar
+      Unison.PatternMatchCoverage.EffectHandler
+      Unison.PatternMatchCoverage.Fix
+      Unison.PatternMatchCoverage.GrdTree
+      Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.ListPat
+      Unison.PatternMatchCoverage.Literal
+      Unison.PatternMatchCoverage.NormalizedConstraints
+      Unison.PatternMatchCoverage.PmGrd
+      Unison.PatternMatchCoverage.PmLit
+      Unison.PatternMatchCoverage.Pretty
+      Unison.PatternMatchCoverage.Solve
+      Unison.PatternMatchCoverage.UFMap
       Unison.PrettyPrintEnv
       Unison.PrettyPrintEnv.FQN
       Unison.PrettyPrintEnv.MonadPretty
@@ -103,9 +134,12 @@ library
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
       Unison.PrettyPrintEnvDecl.Names
+      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
+      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
@@ -125,6 +159,7 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Share.Types
+      Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
@@ -152,6 +187,7 @@ library
       Unison.Util.Logger
       Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
+      Unison.Util.RefPromise
       Unison.Util.Star3
       Unison.Util.Text
       Unison.Util.Text.Pattern
@@ -174,9 +210,11 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -193,6 +231,7 @@ library
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -219,14 +258,11 @@ library
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -237,6 +273,7 @@ library
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -259,6 +296,7 @@ library
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -268,7 +306,7 @@ library
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -291,25 +329,29 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp
+    , witch
+    , witherable
     , x509
     , x509-store
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK
-  default-language: Haskell2010
 
 test-suite parser-typechecker-tests
   type: exitcode-stdio-1.0
@@ -328,7 +370,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Referent
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
-      Unison.Test.Syntax.TermPrinter
       Unison.Test.Syntax.TypePrinter
       Unison.Test.Term
       Unison.Test.Type
@@ -359,9 +400,11 @@ test-suite parser-typechecker-tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -378,6 +421,7 @@ test-suite parser-typechecker-tests
     , aeson
     , ansi-terminal
     , async
+    , atomic-primops
     , base
     , base16 >=0.2.1.0
     , base64-bytestring
@@ -407,14 +451,11 @@ test-suite parser-typechecker-tests
     , filepath
     , fingertree
     , free
-    , fsnotify
     , fuzzyfind
     , generic-lens
-    , generic-monoid
     , hashable
     , hashtables
     , haskeline
-    , here
     , http-client
     , http-media
     , http-types
@@ -425,6 +466,7 @@ test-suite parser-typechecker-tests
     , mmorph
     , monad-validate
     , mtl
+    , murmur-hash
     , mutable-containers
     , mwc-random
     , natural-transformation
@@ -447,6 +489,7 @@ test-suite parser-typechecker-tests
     , safe
     , safe-exceptions
     , semialign
+    , semigroups
     , servant
     , servant-client
     , servant-docs
@@ -457,7 +500,7 @@ test-suite parser-typechecker-tests
     , stm
     , tagged
     , temporary
-    , terminal-size
+    , terminal-size >=0.3.3
     , text
     , text-short
     , these
@@ -481,22 +524,26 @@ test-suite parser-typechecker-tests
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
     , unliftio
     , uri-encode
     , utf8-string
+    , uuid
     , vector
     , wai
     , warp
+    , witch
+    , witherable
     , x509
     , x509-store
     , x509-system
     , yaml
     , zlib
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK
-  default-language: Haskell2010

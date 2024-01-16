@@ -21,7 +21,7 @@ hey = "hello"
 Update
 
 ```ucm
-.> update
+.> update.old
 .> find.patch
 .> view.patch 1
 ```

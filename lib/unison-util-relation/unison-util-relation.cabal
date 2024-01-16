@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -17,19 +17,21 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Util.BiMultimap
       Unison.Util.Relation
       Unison.Util.Relation3
       Unison.Util.Relation4
   hs-source-dirs:
       src
   default-extensions:
-      ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -43,6 +45,7 @@ library
     , containers
     , deepseq
     , extra
+    , nonempty-containers
     , unison-prelude
   default-language: Haskell2010
 
@@ -52,13 +55,14 @@ test-suite util-relation-tests
   hs-source-dirs:
       test
   default-extensions:
-      ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -74,6 +78,7 @@ test-suite util-relation-tests
     , deepseq
     , easytest
     , extra
+    , nonempty-containers
     , random
     , unison-prelude
     , unison-util-relation
@@ -85,13 +90,14 @@ benchmark relation
   hs-source-dirs:
       benchmarks/relation
   default-extensions:
-      ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -106,6 +112,7 @@ benchmark relation
     , containers
     , deepseq
     , extra
+    , nonempty-containers
     , random
     , tasty-bench
     , unison-prelude

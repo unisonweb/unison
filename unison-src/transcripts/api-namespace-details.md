@@ -19,5 +19,5 @@ Here's a *README*!
 
 ```api
 -- Should find names by suffix
-GET /api/namespaces/nested.names
+GET /api/non-project-code/namespaces/nested.names
 ```

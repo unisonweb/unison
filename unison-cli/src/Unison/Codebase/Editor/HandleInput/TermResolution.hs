@@ -13,37 +13,29 @@ import Control.Monad.Trans (liftIO)
 import Data.Maybe (catMaybes, fromJust)
 import Data.Set (fromList, toList)
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
+import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils (basicParseNames, basicPrettyPrintNamesA)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path (hqSplitFromName')
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference
-import qualified Unison.HashQualified as HQ
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names (Names)
-import Unison.NamesWithHistory
-  ( NamesWithHistory (..),
-    lookupHQTerm,
-  )
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.PrettyPrintEnv.Names (fromSuffixNames)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 import Unison.Type (Type)
-import qualified Unison.Typechecker as Typechecker
-
-addHistory :: Names -> NamesWithHistory
-addHistory names = NamesWithHistory names mempty
+import Unison.Typechecker qualified as Typechecker
 
 lookupTerm :: HQ.HashQualified Name -> Names -> [Referent]
-lookupTerm hq parseNames = toList (lookupHQTerm hq hnames)
-  where
-    hnames = addHistory parseNames
+lookupTerm hq parseNames = toList (Names.lookupHQTerm Names.IncludeSuffixes hq parseNames)
 
 lookupCon ::
   HQ.HashQualified Name ->
@@ -80,34 +72,46 @@ lookupTermRefWithType codebase name = do
       fmap ((,) tm) <$> Codebase.getTypeOfTerm codebase tm
 
 resolveTerm :: HQ.HashQualified Name -> Cli Referent
-resolveTerm name =
+resolveTerm name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupTerm name nms of
       [] -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       [rf] -> pure rf
-      rfs -> Cli.returnEarly (TermAmbiguous name (fromList rfs))
+      rfs ->
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfs))
+        where
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
-resolveCon name =
+resolveCon name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupCon name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([co], _) -> pure co
-      (_, rfts) -> Cli.returnEarly (TermAmbiguous name (fromList rfts))
+      (_, rfts) ->
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
+        where
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveTermRef :: HQ.HashQualified Name -> Cli Reference
-resolveTermRef name =
+resolveTermRef name = do
+  hashLength <- Cli.runTransaction Codebase.hashLength
   basicParseNames >>= \nms ->
     case lookupTermRefs name nms of
       ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
         where
           parsed = hqSplitFromName' =<< HQ.toName name
       ([rf], _) -> pure rf
-      (_, rfts) -> Cli.returnEarly (TermAmbiguous name (fromList rfts))
+      (_, rfts) ->
+        Cli.returnEarly (TermAmbiguous ppe name (fromList rfts))
+        where
+          ppe = PPE.makePPE (PPE.hqNamer hashLength nms) (PPE.suffixifyByHash nms)
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do
@@ -116,7 +120,7 @@ resolveMainRef main = do
       smain = HQ.toString main
   parseNames <- basicPrettyPrintNamesA
   k <- Cli.runTransaction Codebase.hashLength
-  let ppe = fromSuffixNames k (addHistory parseNames)
+  let ppe = PPE.makePPE (PPE.hqNamer k parseNames) (PPE.suffixifyByHash parseNames)
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, ppe)

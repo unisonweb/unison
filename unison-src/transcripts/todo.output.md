@@ -20,7 +20,7 @@ structural type MyType = MyType Text
 ```
 
 ```ucm
-.simple> update
+.simple> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -34,8 +34,8 @@ structural type MyType = MyType Text
   The namespace has 2 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    structural type MyType#68k40ra7l7
-    x#gjmq673r1v : Nat
+    structural type #68k40ra7l7
+    #gjmq673r1v : Nat
   
   I recommend working on them in the following order:
   
@@ -77,12 +77,9 @@ structural type MyType = MyType Int
   New name conflicts:
   
     1.  structural type MyType#68k40ra7l7
-           
         ↓
     2.  ┌ structural type MyType#68k40ra7l7
-             
     3.  └ structural type MyType#eo6rj0lj1b
-             
     
     4.  MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
         ↓
@@ -102,6 +99,8 @@ structural type MyType = MyType Int
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
   I tried to auto-apply the patch, but couldn't because it
   contained contradictory entries.
@@ -139,6 +138,8 @@ foo = 801
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -162,6 +163,8 @@ foo = 802
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -173,7 +176,7 @@ foo = 802
 
 ```
 ```ucm
-.lhs> update
+.lhs> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -185,6 +188,8 @@ oldfoo = 801
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -231,6 +236,8 @@ odd = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -256,6 +263,8 @@ even = 17
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -267,7 +276,7 @@ even = 17
 
 ```
 ```ucm
-.cycle2> update
+.cycle2> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -282,7 +291,7 @@ even = 17
   The namespace has 1 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    even#kkohl7ba1e : Nat -> Boolean
+    #kkohl7ba1e : Nat -> Boolean
   
   I recommend working on them in the following order:
   

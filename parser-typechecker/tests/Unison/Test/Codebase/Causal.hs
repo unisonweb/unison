@@ -3,17 +3,18 @@
 
 module Unison.Test.Codebase.Causal (test) where
 
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import EasyTest
 import Unison.Codebase.Causal (Causal, one)
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Hash as Hash
-import qualified Unison.Hashing.V2 as Hashing
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2 qualified as Hashing
 import Unison.Prelude
 
 -- Dummy instances for this test suite. Would probably be better if they weren't orphans.
 instance Hashing.ContentAddressable Int64 where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
+
 instance Hashing.ContentAddressable (Set Int64) where contentHash = Hash.fromByteString . Text.encodeUtf8 . tShow
 
 test :: Test ()
@@ -38,7 +39,7 @@ test =
         --  $  prop_mergeCommutative
         {- , scope "threeWayMerge.commonAncestor"
         .  expect
-        $  testCommonAncestor
+        \$  testCommonAncestor
         -- $  prop_mergeCommonAncestor --}
         scope "lca.hasLca" lcaPairTest,
         scope "lca.noLca" noLcaPairTest,
@@ -140,13 +141,13 @@ testThreeWay =
   runIdentity $
     threeWayMerge' oneRemoved twoRemoved
 
-setCombine :: Applicative m => Ord a => Set a -> Set a -> m (Set a)
+setCombine :: (Applicative m) => (Ord a) => Set a -> Set a -> m (Set a)
 setCombine a b = pure $ a <> b
 
-setDiff :: Applicative m => Ord a => Set a -> Set a -> m (Set a, Set a)
+setDiff :: (Applicative m) => (Ord a) => Set a -> Set a -> m (Set a, Set a)
 setDiff old new = pure (Set.difference new old, Set.difference old new)
 
-setPatch :: Applicative m => Ord a => Set a -> (Set a, Set a) -> m (Set a)
+setPatch :: (Applicative m) => (Ord a) => Set a -> (Set a, Set a) -> m (Set a)
 setPatch s (added, removed) = pure (added <> Set.difference s removed)
 
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course

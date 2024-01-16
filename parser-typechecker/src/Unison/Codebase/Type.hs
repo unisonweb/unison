@@ -13,29 +13,28 @@ module Unison.Codebase.Type
   )
 where
 
-import U.Codebase.HashTags (BranchHash, CausalHash)
-import qualified U.Codebase.Reference as V2
+import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Reference qualified as V2
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
-import qualified Unison.ConstructorType as CT
+import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
-import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
+import Unison.Reference (Reference, TypeReference)
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
-import qualified Unison.Sqlite as Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Unison.WatchKind as WK
+import Unison.WatchKind qualified as WK
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -61,7 +60,7 @@ data Codebase m v a = Codebase
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
-    getDeclType :: V2.Reference -> m CT.ConstructorType,
+    getDeclType :: V2.Reference -> Sqlite.Transaction CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
@@ -99,23 +98,12 @@ data Codebase m v a = Codebase
     termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
     termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
+    -- | Return the subset of the given set that has the given type.
+    filterTermsByReferenceIdHavingTypeImpl :: TypeReference -> Set Reference.Id -> Sqlite.Transaction (Set Reference.Id),
+    -- | Return the subset of the given set that has the given type.
+    filterTermsByReferentIdHavingTypeImpl :: TypeReference -> Set Referent.Id -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id),
-    -- Updates the root namespace names index from an old BranchHash to a new one.
-    -- This isn't run automatically because it can be a bit slow.
-    updateNameLookup ::
-      -- Path to the root of the _changes_.
-      -- E.g. if you know that all the changes occur at "base.List", you can pass "base.List"
-      -- here, and pass the old and new branch hashes for the branch as "base.List".
-      -- This allows us to avoid searching for changes in areas where it's impossible for it
-      -- to have occurred.
-      Path ->
-      -- The branch hash at 'Path' which the existing index was built from.
-      -- Pass 'Nothing' to build the index from scratch (i.e. compute a diff from an empty branch).
-      Maybe BranchHash ->
-      -- The new branch
-      BranchHash ->
-      Sqlite.Transaction (),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.

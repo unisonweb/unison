@@ -12,6 +12,8 @@ Stream.send _ = ()
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ❗️
   
   I found multiple bindings with the name Stream.send:
@@ -33,6 +35,8 @@ X.x _ = ()
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ❗️
   
   I found multiple bindings with the name X.x:
@@ -53,6 +57,8 @@ structural ability X where
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found two types called X:
   
       1 | structural type X = x 
@@ -71,6 +77,8 @@ X.x = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ❗️
   
@@ -102,6 +110,8 @@ X = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -29,6 +29,8 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -78,7 +80,9 @@ serverThread portVar toSend = 'let
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
 
        -- assume there is exactly one key decoded from our Bytes
-    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with k +: _ -> k
+    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with 
+      k +: _ -> k
+      [] -> bug "oh no"
 
        -- create a default configuration using our credentials (certificate chain and key)
     tlsconfig = Tls.ServerConfig.default [cert] key
@@ -214,6 +218,8 @@ testCNReject _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

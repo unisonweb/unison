@@ -10,13 +10,13 @@
 module Unison.Hashing.V2.ABT (Unison.ABT.Term, hash, hashComponents) where
 
 import Data.List hiding (cycle, find)
-import qualified Data.List as List (sort)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.List qualified as List (sort)
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ABT
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Tokenizable (Hashable1, hash1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
@@ -105,7 +105,8 @@ hash' env = \case
       hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
       die =
         error $
-          "unknown var in environment: " ++ show v
+          "unknown var in environment: "
+            ++ show v
             ++ " environment = "
             ++ show env
   Cycle' vs t -> hash1 (hashCycle vs env) undefined t

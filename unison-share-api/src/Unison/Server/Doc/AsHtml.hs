@@ -2,31 +2,31 @@
 module Unison.Server.Doc.AsHtml where
 
 import Control.Monad.State.Class (MonadState)
-import qualified Control.Monad.State.Class as State
+import Control.Monad.State.Class qualified as State
 import Control.Monad.Trans.State (evalStateT)
 import Control.Monad.Writer.Class (MonadWriter)
-import qualified Control.Monad.Writer.Class as Writer
+import Control.Monad.Writer.Class qualified as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Data.Foldable
 import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Unison.Syntax.Name as Name (toText)
+import Data.Map qualified as Map
 import Data.Maybe
 import Data.Sequence (Seq)
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Lucid
-import qualified Lucid as L
-import qualified Lucid.Base as LB
+import Lucid qualified as L
+import Lucid.Base qualified as LB
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
+import Unison.Referent qualified as Referent
 import Unison.Server.Doc
-import qualified Unison.Server.Doc as Doc
+import Unison.Server.Doc qualified as Doc
 import Unison.Server.Syntax (SyntaxText)
-import qualified Unison.Server.Syntax as Syntax
+import Unison.Server.Syntax qualified as Syntax
+import Unison.Syntax.Name qualified as Name (toText)
 
 data NamedLinkHref
   = Href Text
@@ -468,16 +468,22 @@ toHtml docNamesByRef document =
                           go ("poster", p) = [LB.makeAttribute "poster" p]
                           go ("autoplay", "true") = [LB.makeAttribute "autoplay" "autoplay"]
                           go ("loop", "true") = [loop_ "loop"]
+                          go ("controls", "true") = [loop_ "controls"]
                           go ("muted", "true") = [LB.makeAttribute "muted" "muted"]
                           go _ = []
                    in pure $ video_ attrs' $ mapM_ source sources
                 Doc.FrontMatter fm -> do
                   Writer.tell (pure $ FrontMatterContent fm)
                   pure mempty
+                LaTeXInline latex ->
+                  pure $ div_ [class_ "source rich embed latex-inline"] $ codeBlock [] (L.toHtml latex)
+                Svg svg ->
+                  pure $ iframe_ [class_ "embed svg", sandbox_ "true", srcdoc_ svg] $ sequence_ []
                 Embed syntax ->
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
                   pure $ span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
+                RenderError (InvalidTerm err) -> pure $ Syntax.toHtml err
             Join docs ->
               span_ [class_ "join"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " docs)
             UntitledSection docs ->

@@ -6,5 +6,5 @@ import Data.Set (Set)
 --
 --   * `Set.notMember (freshIn vs v) vs`:
 --     `freshIn` returns a variable not used in the `Set`
-class Ord v => Var v where
+class (Ord v) => Var v where
   freshIn :: Set v -> v -> v

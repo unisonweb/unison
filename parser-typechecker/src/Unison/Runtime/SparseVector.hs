@@ -6,10 +6,10 @@ module Unison.Runtime.SparseVector where
 
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.))
-import qualified Data.Bits as B
-import qualified Data.Vector.Unboxed as UV
-import qualified Data.Vector.Unboxed.Mutable as MUV
-import qualified GHC.Exts as Exts
+import Data.Bits qualified as B
+import Data.Vector.Unboxed qualified as UV
+import Data.Vector.Unboxed.Mutable qualified as MUV
+import GHC.Exts qualified as Exts
 import Prelude hiding (unzip)
 
 -- Denotes a `Nat -> Maybe a`.

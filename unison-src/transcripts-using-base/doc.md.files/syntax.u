@@ -6,7 +6,7 @@ basicFormatting = {{
     have a title and 0 or more paragraphs or other section elements.
     
     Text can be **bold**, __italicized__, ~~strikethrough~~, or
-    ''monospaced''.
+    ''monospaced'' (or `monospaced`).
     
     You can link to Unison terms, types, and external URLs:
     

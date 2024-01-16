@@ -4,12 +4,12 @@
 
 module Unison.Util.CyclicOrd where
 
-import qualified Data.Sequence as S
+import Data.Sequence qualified as S
 import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Unison.Prelude
 import Unison.Util.CycleTable (CycleTable)
-import qualified Unison.Util.CycleTable as CT
+import Unison.Util.CycleTable qualified as CT
 
 -- Same idea as `CyclicEq`, but for ordering.
 class CyclicOrd a where
@@ -45,16 +45,16 @@ bothOrd h1 h2 a1 a2 b1 b2 =
       then cyclicOrd h1 h2 b1 b2
       else pure b
 
-instance CyclicOrd a => CyclicOrd [a] where
+instance (CyclicOrd a) => CyclicOrd [a] where
   cyclicOrd h1 h2 (x : xs) (y : ys) = bothOrd h1 h2 x y xs ys
   cyclicOrd _ _ [] [] = pure EQ
   cyclicOrd _ _ [] _ = pure LT
   cyclicOrd _ _ _ [] = pure GT
 
-instance CyclicOrd a => CyclicOrd (S.Seq a) where
+instance (CyclicOrd a) => CyclicOrd (S.Seq a) where
   cyclicOrd h1 h2 xs ys = cyclicOrd h1 h2 (toList xs) (toList ys)
 
-instance CyclicOrd a => CyclicOrd (Vector a) where
+instance (CyclicOrd a) => CyclicOrd (Vector a) where
   cyclicOrd h1 h2 xs ys = go 0 h1 h2 xs ys
     where
       go !i !h1 !h2 !xs !ys =

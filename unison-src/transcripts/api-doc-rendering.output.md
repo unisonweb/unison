@@ -41,9 +41,7 @@ Inline code:
 
 `` 1 + 2 ``
 
-`
-"doesn't typecheck" + 1
-`
+`"doesn't typecheck" + 1`
 
 [Link](https://unison-lang.org)
 
@@ -111,7 +109,7 @@ term = 42
     
       `1 Nat.+ 2`
     
-      ` "doesn't typecheck" + 1 `
+      `"doesn't typecheck" + 1`
     
       Link
     
@@ -149,7 +147,7 @@ term = 42
 
 ```
 ```api
-GET /api/getDefinition?names=term
+GET /api/non-project-code/getDefinition?names=term
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -224,7 +222,7 @@ GET /api/getDefinition?names=term
             "termDocs": [
                 [
                     "doc",
-                    "#343l8ugvo7vgp7d1fp4rlnf272k3ea8111m2f97ckuovkutulvmac6jej39kk95s0fdpma0vkhtios6ihh9jo968gb9c5cde0spa9co",
+                    "#kjfaflbrgl89j2uq4ruubejakm6s02cp3m61ufu7rv7tkbd4nmkvcn1fciue53v0msir9t7ds111ab9er8qfa06gsa9ddfrdfgc99mo",
                     {
                         "contents": [
                             {
@@ -606,28 +604,11 @@ GET /api/getDefinition?names=term
                                             {
                                                 "contents": [
                                                     {
-                                                        "contents": "`",
-                                                        "tag": "Word"
-                                                    },
-                                                    {
-                                                        "contents": "\"doesn't",
-                                                        "tag": "Word"
-                                                    },
-                                                    {
-                                                        "contents": "typecheck\"",
-                                                        "tag": "Word"
-                                                    },
-                                                    {
-                                                        "contents": "+",
-                                                        "tag": "Word"
-                                                    },
-                                                    {
-                                                        "contents": "1",
-                                                        "tag": "Word"
-                                                    },
-                                                    {
-                                                        "contents": "`",
-                                                        "tag": "Word"
+                                                        "contents": {
+                                                            "contents": "\"doesn't typecheck\" + 1",
+                                                            "tag": "Word"
+                                                        },
+                                                        "tag": "Code"
                                                     }
                                                 ],
                                                 "tag": "Paragraph"

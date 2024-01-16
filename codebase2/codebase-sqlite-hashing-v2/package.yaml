@@ -9,6 +9,7 @@ dependencies:
   - bytes
   - bytestring
   - containers
+  - generic-lens
   - lens
   - text
   - unison-codebase
@@ -19,6 +20,7 @@ dependencies:
   - unison-hashing-v2
   - unison-prelude
   - unison-sqlite
+  - unison-syntax
   - unison-util-base32hex
   - unison-util-term
   - vector
@@ -45,9 +47,11 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RecordWildCards

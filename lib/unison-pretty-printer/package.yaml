@@ -13,6 +13,7 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
@@ -52,6 +53,7 @@ library:
     - text
     - mtl
     - unliftio
+    - pretty-simple
     - process
     - extra
     - terminal-size

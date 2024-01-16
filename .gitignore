@@ -3,6 +3,7 @@
 test-output
 transcript-*
 scratch.u
+unisonLocal.zip
 
 # Stack
 .stack-work
@@ -13,3 +14,10 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+/.direnv/
+/.envrc
+
+# Mac developers
+**/.DS_Store
+
+/libb2.dylib

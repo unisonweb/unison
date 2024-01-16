@@ -1,21 +1,21 @@
 module Unison.Hashable (accumulate', hash, toBytes) where
 
-import qualified Crypto.Hash as CH
-import qualified Data.ByteArray as BA
-import qualified Data.ByteString as B
+import Crypto.Hash qualified as CH
+import Data.ByteArray qualified as BA
+import Data.ByteString qualified as B
 import Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString, word64BE)
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.ByteString.Lazy qualified as BL
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
 import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as Relation3
+import Unison.Util.Relation3 qualified as Relation3
 import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as Relation4
+import Unison.Util.Relation4 qualified as Relation4
 
 data Token h
   = Tag !Word8
@@ -45,9 +45,9 @@ hash = accumulate'
 -- useful in algorithms, the runtime, etc.
 -- Consider carefully which class you want in each use-case.
 class Hashable t where
-  tokens :: Accumulate h => t -> [Token h]
+  tokens :: (Accumulate h) => t -> [Token h]
 
-instance Hashable a => Hashable [a] where
+instance (Hashable a) => Hashable [a] where
   tokens = map accumulateToken
 
 instance (Hashable a, Hashable b) => Hashable (a, b) where
@@ -109,7 +109,7 @@ instance Accumulate Hash where
         let tbytes = encodeUtf8 txt
          in [encodeLength (B.length tbytes), tbytes]
       toBS (Hashed h) = [Hash.toByteString h]
-      encodeLength :: Integral n => n -> B.ByteString
+      encodeLength :: (Integral n) => n -> B.ByteString
       encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
   fromBytes = Hash.fromByteString
   toBytes = Hash.toByteString

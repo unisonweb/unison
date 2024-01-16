@@ -6,12 +6,12 @@ module Unison.Test.Util.PinBoard
   )
 where
 
-import qualified Data.ByteString as ByteString
+import Data.ByteString qualified as ByteString
 import EasyTest
 import GHC.Exts (isTrue#, reallyUnsafePtrEquality#, touch#)
 import GHC.IO (IO (IO))
 import System.Mem (performGC)
-import qualified Unison.Util.PinBoard as PinBoard
+import Unison.Util.PinBoard qualified as PinBoard
 
 test :: Test ()
 test =

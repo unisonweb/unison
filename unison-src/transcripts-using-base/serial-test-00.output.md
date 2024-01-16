@@ -64,10 +64,12 @@ mkTestCase = do
   f = evaluate balancedSum catenate
   tup = (tree0, tree1, tree2, tree3)
 
-  saveTestCase "case-00" f tup
+  saveTestCase "case-00" "v4" f tup
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -80,7 +82,7 @@ mkTestCase = do
                    -> (Tree Text -> Text)
                    -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
                    -> Text
-      foldMap    : ∀ a r g2 g1 g.
+      foldMap    : ∀ r g2 g1 a g.
                      r
                      -> (r ->{g2} r ->{g1} r)
                      -> (a ->{g} r)
@@ -103,7 +105,7 @@ mkTestCase = do
                  -> (Tree Text -> Text)
                  -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
                  -> Text
-    foldMap    : ∀ a r g2 g1 g.
+    foldMap    : ∀ r g2 g1 a g.
                    r
                    -> (r ->{g2} r ->{g1} r)
                    -> (a ->{g} r)

@@ -1,5 +1,7 @@
 name: "release"
 
+run-name: "release ${{inputs.version}}"
+
 defaults:
   run:
     shell: bash
@@ -8,11 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (E.g. M4 or M4a)'
-        required: true
-        type: string
-      share_base_path:
-        description: 'Path to base version that UCM should pull by default (E.g. `unison.public.base.releases.M4`)'
+        description: 'Release Version (E.g. M4 or M4a or 0.4.1)'
         required: true
         type: string
       target:
@@ -61,8 +59,6 @@ jobs:
 
     name: "build_linux"
     runs-on: ubuntu-20.04
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -104,12 +100,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-linux-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -123,6 +119,21 @@ jobs:
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
+      - name: build and push docker container
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+
+      - name: Log in to docker registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+
+      - name: Push docker image
+        run: |
+          IMAGE_NAME=${{github.repository}}
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          VERSION=${{inputs.version}}
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+
       - name: Upload linux artifact
         uses: actions/upload-artifact@v2
         with:
@@ -132,9 +143,7 @@ jobs:
 
   build_macos:
     name: "build_macos"
-    runs-on: macos-11
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v2
         with:
@@ -151,11 +160,11 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}-${{github.sha}}
+          key: stack-0_macOS-12-${{hashFiles('stack.yaml')}}-${{github.sha}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: |
-            stack-0_macOS-11.0-${{hashFiles('stack.yaml')}}
-            stack-0_macOS-11.0
+            stack-0_macOS-12-${{hashFiles('stack.yaml')}}
+            stack-0_macOS-12
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v3
@@ -169,14 +178,14 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-3_macOS-11.0-${{github.sha}}
-          restore-keys: stack-work-3_macOS-11.0
+          key: stack-work-3_macOS-12-${{github.sha}}
+          restore-keys: stack-work-3_macOS-12
 
       - name: install stack (macOS)
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-osx-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-osx-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: remove ~/.stack/setup-exe-cache on macOS
@@ -184,7 +193,7 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
           stack --no-terminal build --flag unison-parser-typechecker:optimized
@@ -208,9 +217,6 @@ jobs:
   build_windows:
     name: "build_windows"
     runs-on: windows-2019
-    env:
-      UNISON_BASE_PATH: "${{inputs.share_base_path}}"
-
     steps:
       - uses: actions/checkout@v2
         with:
@@ -252,12 +258,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-windows-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: build
         run: |
-          # unison-cli checks env vars for which base version to automatically pull,
+          # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
 
@@ -277,7 +283,7 @@ jobs:
         run: |
           mkdir -p tmp\ui
           mkdir -p release\ui
-          $UCM = .\stack\stack-2.7.5-windows-x86_64\stack.exe exec -- where unison
+          $UCM = .\stack\stack-2.9.1-windows-x86_64\stack.exe exec -- where unison
           cp $UCM .\release\ucm.exe
           Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
           Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui

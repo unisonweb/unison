@@ -13,4 +13,5 @@ search hit bot top =
         +0 -> Some mid
         -1 -> go bot (drop mid 1)
         +1 -> go (mid + 1) top
+        _ -> bug "unexpected"
   go bot top

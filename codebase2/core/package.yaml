@@ -10,12 +10,15 @@ library:
 dependencies:
   - base
   - containers
+  - lens
+  - mtl
+  - recover-rtti
   - rfc5051
   - text
-  - vector
   - unison-hash
   - unison-prelude
   - unison-util-base32hex
+  - vector
 
 default-extensions:
   - ApplicativeDo
@@ -31,12 +34,13 @@ default-extensions:
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedStrings
-  - QuantifiedConstraints
   - PatternSynonyms
+  - QuantifiedConstraints
   - RankNTypes
   - ScopedTypeVariables
   - StandaloneDeriving

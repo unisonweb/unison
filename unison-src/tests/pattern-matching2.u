@@ -15,7 +15,8 @@ y = match Foo1 1 with
   Foo1 _ -> 10
 
 z = match Foo2 1 "hi" with
-  Foo2 x "bye" -> x
   Foo2 1 "hi" -> 1
+  Foo2 x "bye" -> x
+  _ -> bug "unexpected"
 
 > z

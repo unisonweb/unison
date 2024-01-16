@@ -69,6 +69,27 @@ unique type Record4 =
 .> view Record4
 ```
 
+## Record with user-defined type fields
+
+This record type has two fields whose types are user-defined (`Record4` and `UserType`).
+
+```unison:hide
+unique type UserType = UserType Nat
+
+unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
+```
+
+```ucm:hide
+.> add
+```
+
+If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
+
+```ucm
+.> view RecordWithUserType
+```
+
+
 ## Syntax
 
 Trailing commas are allowed.

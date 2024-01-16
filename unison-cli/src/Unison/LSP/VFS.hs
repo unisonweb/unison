@@ -5,25 +5,26 @@
 
 module Unison.LSP.VFS where
 
-import qualified Colog.Core as Colog
+import Colog.Core qualified as Colog
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Char
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
-import qualified Data.Text as Text
-import qualified Data.Text.Utf16.Rope as Rope
+import Data.Text qualified as Text
+import Data.Text.Utf16.Rope qualified as Rope
 import Data.Tuple (swap)
-import qualified Language.LSP.Logging as LSP
-import Language.LSP.Types
-import Language.LSP.Types.Lens (HasCharacter (character), HasParams (params), HasPosition (position), HasTextDocument (textDocument), HasUri (uri))
-import qualified Language.LSP.Types.Lens as LSP
+import Language.LSP.Logging qualified as LSP
+import Language.LSP.Protocol.Lens (HasCharacter (character), HasParams (params), HasTextDocument (textDocument), HasUri (uri))
+import Language.LSP.Protocol.Lens qualified as LSP
+import Language.LSP.Protocol.Message qualified as Msg
+import Language.LSP.Protocol.Types
 import Language.LSP.VFS as VFS hiding (character)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.Prelude
+import Unison.Syntax.Lexer qualified as Lexer
 import UnliftIO
 
 -- | Some VFS combinators require Monad State, this provides it in a transactionally safe
@@ -50,8 +51,16 @@ vfsLogger = Colog.cmap (fmap tShow) (Colog.hoistLogAction lift LSP.defaultClient
 markFilesDirty :: (Foldable f, HasUri doc Uri) => f doc -> Lsp ()
 markFilesDirty docs = do
   dirtyFilesV <- asks dirtyFilesVar
+  checkedFilesV <- asks checkedFilesVar
   let dirtyUris = setOf (folded . uri) docs
-  atomically $ modifyTVar' dirtyFilesV (Set.union dirtyUris)
+  atomically $ do
+    modifyTVar' dirtyFilesV (Set.union dirtyUris)
+    checkedFiles <- readTVar checkedFilesV
+    -- Clear the analysis for any files which need to be re-checked.
+    for_ dirtyUris \uri -> do
+      case Map.lookup uri checkedFiles of
+        Nothing -> pure ()
+        Just mvar -> void $ tryTakeTMVar mvar
 
 -- | Mark all files for re-checking.
 --
@@ -62,47 +71,43 @@ markAllFilesDirty = do
   markFilesDirty $ Map.keys (vfs ^. vfsMap)
 
 -- | Returns the name or symbol which the provided position is contained in.
-identifierAtPosition :: (HasPosition p Position, HasTextDocument p TextDocumentIdentifier) => p -> MaybeT Lsp Text
-identifierAtPosition p = do
-  identifierSplitAtPosition p <&> \(before, after) -> (before <> after)
+identifierAtPosition :: Uri -> Position -> MaybeT Lsp Text
+identifierAtPosition uri pos = do
+  identifierSplitAtPosition uri pos <&> \(before, after) -> (before <> after)
 
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
-identifierSplitAtPosition :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Text, Text)
-identifierSplitAtPosition p = do
-  vf <- getVirtualFile (p ^. textDocument . uri)
-  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix (p ^. position) vf)
+identifierSplitAtPosition :: Uri -> Position -> MaybeT Lsp (Text, Text)
+identifierSplitAtPosition uri pos = do
+  vf <- getVirtualFile uri
+  PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
-  pure $ (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
+  pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
-    -- TODO: Should probably use something from the Lexer here
-    isIdentifierChar = \case
-      c
-        | isSpace c -> False
-        | elem c ("[]()`'\"" :: String) -> False
-        | otherwise -> True
+    isIdentifierChar c =
+      Lexer.wordyIdChar c || Lexer.symbolyIdChar c
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
-completionPrefix :: (HasPosition p Position, HasTextDocument p docId, HasUri docId Uri) => p -> MaybeT Lsp (Range, Text)
-completionPrefix p = do
-  (before, _) <- identifierSplitAtPosition p
-  let posLine = p ^. position . LSP.line
-  let posChar = (p ^. position . LSP.character)
+completionPrefix :: Uri -> Position -> MaybeT Lsp (Range, Text)
+completionPrefix uri pos = do
+  (before, _) <- identifierSplitAtPosition uri pos
+  let posLine = pos ^. LSP.line
+  let posChar = pos ^. LSP.character
   let range = mkRange posLine (posChar - fromIntegral (Text.length before)) posLine posChar
   pure (range, before)
 
 --- Handlers for tracking file changes.
 
-lspOpenFile :: NotificationMessage 'TextDocumentDidOpen -> Lsp ()
+lspOpenFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidOpen -> Lsp ()
 lspOpenFile msg = do
   usingVFS . openVFS vfsLogger $ msg
   markFilesDirty [msg ^. params . textDocument]
 
-lspCloseFile :: NotificationMessage 'TextDocumentDidClose -> Lsp ()
+lspCloseFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidClose -> Lsp ()
 lspCloseFile msg =
   usingVFS . closeVFS vfsLogger $ msg
 
-lspChangeFile :: NotificationMessage 'TextDocumentDidChange -> Lsp ()
+lspChangeFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidChange -> Lsp ()
 lspChangeFile msg = do
   usingVFS . changeFromClientVFS vfsLogger $ msg
   markFilesDirty [msg ^. params . textDocument]

@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -28,41 +27,45 @@ import Control.Concurrent as SYS
     threadDelay,
   )
 import Control.Concurrent.MVar as SYS
-import qualified Control.Concurrent.STM as STM
+import Control.Concurrent.STM qualified as STM
 import Control.DeepSeq (NFData)
 import Control.Exception (evaluate)
-import qualified Control.Exception.Safe as Exception
+import Control.Exception.Safe qualified as Exception
 import Control.Monad.Catch (MonadCatch)
-import qualified Control.Monad.Primitive as PA
+import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
-import qualified Crypto.Hash as Hash
-import qualified Crypto.MAC.HMAC as HMAC
+import Crypto.Hash qualified as Hash
+import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
-import qualified Data.ByteArray as BA
+import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Default (def)
+import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IORef as SYS
   ( IORef,
     newIORef,
     readIORef,
     writeIORef,
   )
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Set (insert)
-import qualified Data.Set as Set
-import qualified Data.Text
-import qualified Data.Text.IO as Text.IO
+import Data.Set qualified as Set
+import Data.Text qualified
+import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
+    posixSecondsToUTCTime,
     utcTimeToPOSIXSeconds,
   )
-import qualified Data.X509 as X
-import qualified Data.X509.CertificateStore as X
-import qualified Data.X509.Memory as X
-import qualified GHC.Conc as STM
+import Data.Time.LocalTime (TimeZone (..), getTimeZone)
+import Data.X509 qualified as X
+import Data.X509.CertificateStore qualified as X
+import Data.X509.Memory qualified as X
+import GHC.Conc qualified as STM
 import GHC.IO (IO (IO))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
@@ -100,6 +103,8 @@ import System.Environment as SYS
   ( getArgs,
     getEnv,
   )
+import System.Exit as SYS (ExitCode (..))
+import System.FilePath (isPathSeparator)
 import System.IO (Handle)
 import System.IO as SYS
   ( IOMode (..),
@@ -121,41 +126,62 @@ import System.IO as SYS
     stdout,
   )
 import System.IO.Temp (createTempDirectory)
-import qualified System.X509 as X
+import System.Process as SYS
+  ( getProcessExitCode,
+    proc,
+    runInteractiveProcess,
+    terminateProcess,
+    waitForProcess,
+    withCreateProcess,
+  )
+import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
-import qualified Unison.Builtin as Ty (builtinTypes)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin qualified as Ty (builtinTypes)
+import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
-import Unison.Referent (pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize as ANF
-import qualified Unison.Runtime.Array as PA
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
     pattern Failure,
   )
-import qualified Unison.Runtime.Foreign as F
+import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.Stack (Closure)
-import qualified Unison.Runtime.Stack as Closure
+import Unison.Runtime.Stack qualified as Closure
 import Unison.Symbol
-import qualified Unison.Type as Ty
-import qualified Unison.Util.Bytes as Bytes
+import Unison.Type (charRef)
+import Unison.Type qualified as Ty
+import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
+import Unison.Util.RefPromise
+  ( Promise,
+    Ticket,
+    casIORef,
+    newPromise,
+    peekTicket,
+    readForCAS,
+    readPromise,
+    tryReadPromise,
+    writePromise,
+  )
 import Unison.Util.Text (Text)
-import qualified Unison.Util.Text as Util.Text
-import qualified Unison.Util.Text.Pattern as TPat
+import Unison.Util.Text qualified as Util.Text
+import Unison.Util.Text.Pattern qualified as TPat
 import Unison.Var
 
 type Failure = F.Failure Closure
 
-freshes :: Var v => Int -> [v]
+freshes :: (Var v) => Int -> [v]
 freshes = freshes' mempty
 
-freshes' :: Var v => Set v -> Int -> [v]
+freshes' :: (Var v) => Set v -> Int -> [v]
 freshes' avoid0 = go avoid0 []
   where
     go _ vs 0 = vs
@@ -165,108 +191,108 @@ freshes' avoid0 = go avoid0 []
 
 class Fresh t where fresh :: t
 
-fresh1 :: Var v => v
+fresh1 :: (Var v) => v
 fresh1 = head $ freshes 1
 
-instance Var v => Fresh (v, v) where
+instance (Var v) => Fresh (v, v) where
   fresh = (v1, v2)
     where
       [v1, v2] = freshes 2
 
-instance Var v => Fresh (v, v, v) where
+instance (Var v) => Fresh (v, v, v) where
   fresh = (v1, v2, v3)
     where
       [v1, v2, v3] = freshes 3
 
-instance Var v => Fresh (v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v) where
   fresh = (v1, v2, v3, v4)
     where
       [v1, v2, v3, v4] = freshes 4
 
-instance Var v => Fresh (v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5)
     where
       [v1, v2, v3, v4, v5] = freshes 5
 
-instance Var v => Fresh (v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6)
     where
       [v1, v2, v3, v4, v5, v6] = freshes 6
 
-instance Var v => Fresh (v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7)
     where
       [v1, v2, v3, v4, v5, v6, v7] = freshes 7
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8] = freshes 8
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9] = freshes 9
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10] = freshes 10
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11] = freshes 11
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13] = freshes 13
 
-instance Var v => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v, v) where
+instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v, v) where
   fresh = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14)
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14] = freshes 14
 
-fls, tru :: Var v => ANormal v
+fls, tru :: (Var v) => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
-none :: Var v => ANormal v
+none :: (Var v) => ANormal v
 none = TCon Ty.optionalRef (fromIntegral Ty.noneId) []
 
-some, left, right :: Var v => v -> ANormal v
+some, left, right :: (Var v) => v -> ANormal v
 some a = TCon Ty.optionalRef (fromIntegral Ty.someId) [a]
 left x = TCon Ty.eitherRef (fromIntegral Ty.eitherLeftId) [x]
 right x = TCon Ty.eitherRef (fromIntegral Ty.eitherRightId) [x]
 
-seqViewEmpty :: Var v => ANormal v
+seqViewEmpty :: (Var v) => ANormal v
 seqViewEmpty = TCon Ty.seqViewRef (fromIntegral Ty.seqViewEmpty) []
 
-seqViewElem :: Var v => v -> v -> ANormal v
+seqViewElem :: (Var v) => v -> v -> ANormal v
 seqViewElem l r = TCon Ty.seqViewRef (fromIntegral Ty.seqViewElem) [l, r]
 
-boolift :: Var v => v -> ANormal v
+boolift :: (Var v) => v -> ANormal v
 boolift v =
   TMatch v $ MatchIntegral (mapFromList [(0, fls), (1, tru)]) Nothing
 
-notlift :: Var v => v -> ANormal v
+notlift :: (Var v) => v -> ANormal v
 notlift v =
   TMatch v $ MatchIntegral (mapFromList [(1, fls), (0, tru)]) Nothing
 
-unbox :: Var v => v -> Reference -> v -> ANormal v -> ANormal v
+unbox :: (Var v) => v -> Reference -> v -> ANormal v -> ANormal v
 unbox v0 r v b =
   TMatch v0 $
     MatchData r (mapSingleton 0 $ ([UN], TAbs v b)) Nothing
 
-unenum :: Var v => Int -> v -> Reference -> v -> ANormal v -> ANormal v
+unenum :: (Var v) => Int -> v -> Reference -> v -> ANormal v -> ANormal v
 unenum n v0 r v nx =
   TMatch v0 $ MatchData r cases Nothing
   where
     mkCase i = (toEnum i, ([], TLetD v UN (TLit . I $ fromIntegral i) nx))
     cases = mapFromList . fmap mkCase $ [0 .. n - 1]
 
-unop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
+unop0 :: (Var v) => Int -> ([v] -> ANormal v) -> SuperNormal v
 unop0 n f =
   Lambda [BX]
     . TAbss [x0]
@@ -274,7 +300,7 @@ unop0 n f =
   where
     xs@(x0 : _) = freshes (1 + n)
 
-binop0 :: Var v => Int -> ([v] -> ANormal v) -> SuperNormal v
+binop0 :: (Var v) => Int -> ([v] -> ANormal v) -> SuperNormal v
 binop0 n f =
   Lambda [BX, BX]
     . TAbss [x0, y0]
@@ -282,21 +308,21 @@ binop0 n f =
   where
     xs@(x0 : y0 : _) = freshes (2 + n)
 
-unop :: Var v => POp -> Reference -> SuperNormal v
+unop :: (Var v) => POp -> Reference -> SuperNormal v
 unop pop rf = unop' pop rf rf
 
-unop' :: Var v => POp -> Reference -> Reference -> SuperNormal v
+unop' :: (Var v) => POp -> Reference -> Reference -> SuperNormal v
 unop' pop rfi rfo =
   unop0 2 $ \[x0, x, r] ->
     unbox x0 rfi x
       . TLetD r UN (TPrm pop [x])
       $ TCon rfo 0 [r]
 
-binop :: Var v => POp -> Reference -> SuperNormal v
+binop :: (Var v) => POp -> Reference -> SuperNormal v
 binop pop rf = binop' pop rf rf rf
 
 binop' ::
-  Var v =>
+  (Var v) =>
   POp ->
   Reference ->
   Reference ->
@@ -309,7 +335,7 @@ binop' pop rfx rfy rfr =
       . TLetD r UN (TPrm pop [x, y])
       $ TCon rfr 0 [r]
 
-cmpop :: Var v => POp -> Reference -> SuperNormal v
+cmpop :: (Var v) => POp -> Reference -> SuperNormal v
 cmpop pop rf =
   binop0 3 $ \[x0, y0, x, y, b] ->
     unbox x0 rf x
@@ -317,7 +343,7 @@ cmpop pop rf =
       . TLetD b UN (TPrm pop [x, y])
       $ boolift b
 
-cmpopb :: Var v => POp -> Reference -> SuperNormal v
+cmpopb :: (Var v) => POp -> Reference -> SuperNormal v
 cmpopb pop rf =
   binop0 3 $ \[x0, y0, x, y, b] ->
     unbox x0 rf x
@@ -325,7 +351,7 @@ cmpopb pop rf =
       . TLetD b UN (TPrm pop [y, x])
       $ boolift b
 
-cmpopn :: Var v => POp -> Reference -> SuperNormal v
+cmpopn :: (Var v) => POp -> Reference -> SuperNormal v
 cmpopn pop rf =
   binop0 3 $ \[x0, y0, x, y, b] ->
     unbox x0 rf x
@@ -333,7 +359,7 @@ cmpopn pop rf =
       . TLetD b UN (TPrm pop [x, y])
       $ notlift b
 
-cmpopbn :: Var v => POp -> Reference -> SuperNormal v
+cmpopbn :: (Var v) => POp -> Reference -> SuperNormal v
 cmpopbn pop rf =
   binop0 3 $ \[x0, y0, x, y, b] ->
     unbox x0 rf x
@@ -341,7 +367,7 @@ cmpopbn pop rf =
       . TLetD b UN (TPrm pop [y, x])
       $ notlift b
 
-addi, subi, muli, divi, modi, shli, shri, powi :: Var v => SuperNormal v
+addi, subi, muli, divi, modi, shli, shri, powi :: (Var v) => SuperNormal v
 addi = binop ADDI Ty.intRef
 subi = binop SUBI Ty.intRef
 muli = binop MULI Ty.intRef
@@ -351,7 +377,7 @@ shli = binop' SHLI Ty.intRef Ty.natRef Ty.intRef
 shri = binop' SHRI Ty.intRef Ty.natRef Ty.intRef
 powi = binop' POWI Ty.intRef Ty.natRef Ty.intRef
 
-addn, subn, muln, divn, modn, shln, shrn, pown :: Var v => SuperNormal v
+addn, subn, muln, divn, modn, shln, shrn, pown :: (Var v) => SuperNormal v
 addn = binop ADDN Ty.natRef
 subn = binop' SUBN Ty.natRef Ty.natRef Ty.intRef
 muln = binop MULN Ty.natRef
@@ -361,7 +387,7 @@ shln = binop SHLN Ty.natRef
 shrn = binop SHRN Ty.natRef
 pown = binop POWN Ty.natRef
 
-eqi, eqn, lti, ltn, lei, len :: Var v => SuperNormal v
+eqi, eqn, lti, ltn, lei, len :: (Var v) => SuperNormal v
 eqi = cmpop EQLI Ty.intRef
 lti = cmpopbn LEQI Ty.intRef
 lei = cmpop LEQI Ty.intRef
@@ -369,21 +395,21 @@ eqn = cmpop EQLN Ty.natRef
 ltn = cmpopbn LEQN Ty.natRef
 len = cmpop LEQN Ty.natRef
 
-gti, gtn, gei, gen :: Var v => SuperNormal v
+gti, gtn, gei, gen :: (Var v) => SuperNormal v
 gti = cmpopn LEQI Ty.intRef
 gei = cmpopb LEQI Ty.intRef
 gtn = cmpopn LEQN Ty.intRef
 gen = cmpopb LEQN Ty.intRef
 
-inci, incn :: Var v => SuperNormal v
+inci, incn :: (Var v) => SuperNormal v
 inci = unop INCI Ty.intRef
 incn = unop INCN Ty.natRef
 
-sgni, negi :: Var v => SuperNormal v
+sgni, negi :: (Var v) => SuperNormal v
 sgni = unop SGNI Ty.intRef
 negi = unop NEGI Ty.intRef
 
-lzeron, tzeron, lzeroi, tzeroi, popn, popi :: Var v => SuperNormal v
+lzeron, tzeron, lzeroi, tzeroi, popn, popi :: (Var v) => SuperNormal v
 lzeron = unop LZRO Ty.natRef
 tzeron = unop TZRO Ty.natRef
 popn = unop POPC Ty.natRef
@@ -391,7 +417,7 @@ popi = unop' POPC Ty.intRef Ty.natRef
 lzeroi = unop' LZRO Ty.intRef Ty.natRef
 tzeroi = unop' TZRO Ty.intRef Ty.natRef
 
-andn, orn, xorn, compln, andi, ori, xori, compli :: Var v => SuperNormal v
+andn, orn, xorn, compln, andi, ori, xori, compli :: (Var v) => SuperNormal v
 andn = binop ANDN Ty.natRef
 orn = binop IORN Ty.natRef
 xorn = binop XORN Ty.natRef
@@ -409,7 +435,7 @@ addf,
   sqrtf,
   logf,
   logbf ::
-    Var v => SuperNormal v
+    (Var v) => SuperNormal v
 addf = binop ADDF Ty.floatRef
 subf = binop SUBF Ty.floatRef
 mulf = binop MULF Ty.floatRef
@@ -419,11 +445,11 @@ sqrtf = unop SQRT Ty.floatRef
 logf = unop LOGF Ty.floatRef
 logbf = binop LOGB Ty.floatRef
 
-expf, absf :: Var v => SuperNormal v
+expf, absf :: (Var v) => SuperNormal v
 expf = unop EXPF Ty.floatRef
 absf = unop ABSF Ty.floatRef
 
-cosf, sinf, tanf, acosf, asinf, atanf :: Var v => SuperNormal v
+cosf, sinf, tanf, acosf, asinf, atanf :: (Var v) => SuperNormal v
 cosf = unop COSF Ty.floatRef
 sinf = unop SINF Ty.floatRef
 tanf = unop TANF Ty.floatRef
@@ -438,7 +464,7 @@ coshf,
   asinhf,
   atanhf,
   atan2f ::
-    Var v => SuperNormal v
+    (Var v) => SuperNormal v
 coshf = unop COSH Ty.floatRef
 sinhf = unop SINH Ty.floatRef
 tanhf = unop TANH Ty.floatRef
@@ -447,7 +473,7 @@ asinhf = unop ASNH Ty.floatRef
 atanhf = unop ATNH Ty.floatRef
 atan2f = binop ATN2 Ty.floatRef
 
-ltf, gtf, lef, gef, eqf, neqf :: Var v => SuperNormal v
+ltf, gtf, lef, gef, eqf, neqf :: (Var v) => SuperNormal v
 ltf = cmpopbn LEQF Ty.floatRef
 gtf = cmpopn LEQF Ty.floatRef
 lef = cmpop LEQF Ty.floatRef
@@ -455,11 +481,11 @@ gef = cmpopb LEQF Ty.floatRef
 eqf = cmpop EQLF Ty.floatRef
 neqf = cmpopn EQLF Ty.floatRef
 
-minf, maxf :: Var v => SuperNormal v
+minf, maxf :: (Var v) => SuperNormal v
 minf = binop MINF Ty.floatRef
 maxf = binop MAXF Ty.floatRef
 
-ceilf, floorf, truncf, roundf, i2f, n2f :: Var v => SuperNormal v
+ceilf, floorf, truncf, roundf, i2f, n2f :: (Var v) => SuperNormal v
 ceilf = unop' CEIL Ty.floatRef Ty.intRef
 floorf = unop' FLOR Ty.floatRef Ty.intRef
 truncf = unop' TRNF Ty.floatRef Ty.intRef
@@ -467,7 +493,7 @@ roundf = unop' RNDF Ty.floatRef Ty.intRef
 i2f = unop' ITOF Ty.intRef Ty.floatRef
 n2f = unop' NTOF Ty.natRef Ty.floatRef
 
-trni :: Var v => SuperNormal v
+trni :: (Var v) => SuperNormal v
 trni = unop0 3 $ \[x0, x, z, b] ->
   unbox x0 Ty.intRef x
     . TLetD z UN (TLit $ I 0)
@@ -477,7 +503,7 @@ trni = unop0 3 $ \[x0, x, z, b] ->
       (mapSingleton 1 $ TCon Ty.natRef 0 [z])
       (Just $ TCon Ty.natRef 0 [x])
 
-modular :: Var v => POp -> (Bool -> ANormal v) -> SuperNormal v
+modular :: (Var v) => POp -> (Bool -> ANormal v) -> SuperNormal v
 modular pop ret =
   unop0 3 $ \[x0, x, m, t] ->
     unbox x0 Ty.intRef x
@@ -488,13 +514,13 @@ modular pop ret =
         (mapSingleton 1 $ ret True)
         (Just $ ret False)
 
-evni, evnn, oddi, oddn :: Var v => SuperNormal v
+evni, evnn, oddi, oddn :: (Var v) => SuperNormal v
 evni = modular MODI (\b -> if b then fls else tru)
 oddi = modular MODI (\b -> if b then tru else fls)
 evnn = modular MODN (\b -> if b then fls else tru)
 oddn = modular MODN (\b -> if b then tru else fls)
 
-dropn :: Var v => SuperNormal v
+dropn :: (Var v) => SuperNormal v
 dropn = binop0 4 $ \[x0, y0, x, y, b, r] ->
   unbox x0 Ty.natRef x
     . unbox y0 Ty.natRef y
@@ -510,7 +536,7 @@ dropn = binop0 4 $ \[x0, y0, x, y, b, r] ->
       )
     $ TCon Ty.natRef 0 [r]
 
-appendt, taket, dropt, sizet, unconst, unsnoct :: Var v => SuperNormal v
+appendt, taket, dropt, indext, indexb, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
 appendt = binop0 0 $ \[x, y] -> TPrm CATT [x, y]
 taket = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
@@ -518,9 +544,57 @@ taket = binop0 1 $ \[x0, y, x] ->
 dropt = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
     TPrm DRPT [x, y]
+
+atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm IDXB [n, b])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indext = binop0 3 $ \[x, y, t, r0, r] ->
+  TLetD t UN (TPrm IXOT [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs r0
+              . TLetD r BX (TCon Ty.natRef 0 [r0])
+              $ some r
+          )
+        )
+      ]
+
+indexb = binop0 3 $ \[x, y, t, i, r] ->
+  TLetD t UN (TPrm IXOB [x, y])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs i
+              . TLetD r BX (TCon Ty.natRef 0 [i])
+              $ some r
+          )
+        )
+      ]
+
 sizet = unop0 1 $ \[x, r] ->
   TLetD r UN (TPrm SIZT [x]) $
     TCon Ty.natRef 0 [r]
+
 unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
   TLetD t UN (TPrm UCNS [x])
     . TMatch t
@@ -538,6 +612,7 @@ unconst = unop0 7 $ \[x, t, c0, c, y, p, u, yp] ->
           )
         )
       ]
+
 unsnoct = unop0 7 $ \[x, t, c0, c, y, p, u, cp] ->
   TLetD t UN (TPrm USNC [x])
     . TMatch t
@@ -556,17 +631,17 @@ unsnoct = unop0 7 $ \[x, t, c0, c, y, p, u, cp] ->
         )
       ]
 
-appends, conss, snocs :: Var v => SuperNormal v
+appends, conss, snocs :: (Var v) => SuperNormal v
 appends = binop0 0 $ \[x, y] -> TPrm CATS [x, y]
 conss = binop0 0 $ \[x, y] -> TPrm CONS [x, y]
 snocs = binop0 0 $ \[x, y] -> TPrm SNOC [x, y]
 
-coerceType :: Var v => Reference -> Reference -> SuperNormal v
+coerceType :: (Var v) => Reference -> Reference -> SuperNormal v
 coerceType fromType toType = unop0 1 $ \[x, r] ->
   unbox x fromType r $
     TCon toType 0 [r]
 
-takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
+takes, drops, sizes, ats, emptys :: (Var v) => SuperNormal v
 takes = binop0 1 $ \[x0, y, x] ->
   unbox x0 Ty.natRef x $
     TPrm TAKS [x, y]
@@ -587,7 +662,7 @@ ats = binop0 3 $ \[x0, y, x, t, r] ->
       ]
 emptys = Lambda [] $ TPrm BLDS []
 
-viewls, viewrs :: Var v => SuperNormal v
+viewls, viewrs :: (Var v) => SuperNormal v
 viewls = unop0 3 $ \[s, u, h, t] ->
   TLetD u UN (TPrm VWLS [s])
     . TMatch u
@@ -603,6 +678,26 @@ viewrs = unop0 3 $ \[s, u, i, l] ->
     $ mapFromList
       [ (0, ([], seqViewEmpty)),
         (1, ([BX, BX], TAbss [i, l] $ seqViewElem i l))
+      ]
+
+splitls, splitrs :: (Var v) => SuperNormal v
+splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLL [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLR [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
       ]
 
 eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
@@ -647,21 +742,6 @@ takeb = binop0 1 $ \[n0, b, n] ->
 dropb = binop0 1 $ \[n0, b, n] ->
   unbox n0 Ty.natRef n $
     TPrm DRPB [n, b]
-atb = binop0 4 $ \[n0, b, n, t, r0, r] ->
-  unbox n0 Ty.natRef n
-    . TLetD t UN (TPrm IDXB [n, b])
-    . TMatch t
-    . MatchSum
-    $ mapFromList
-      [ (0, ([], none)),
-        ( 1,
-          ( [UN],
-            TAbs r0
-              . TLetD r BX (TCon Ty.natRef 0 [r0])
-              $ some r
-          )
-        )
-      ]
 sizeb = unop0 1 $ \[b, n] ->
   TLetD n UN (TPrm SIZB [b]) $
     TCon Ty.natRef 0 [n]
@@ -846,27 +926,36 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 4 $ \[r, f, n, j, k] ->
-    TMatch r . flip (MatchData Ty.exceptionRef) Nothing $
-      mapFromList
-        [ (0, ([BX], TAbs f $ TVar f)),
-          ( i,
-            ( [UN, BX],
-              TAbss [j, f]
-                . TShift Ty.exceptionRef k
-                . TLetD n BX (TLit $ T "builtin.raise")
-                $ TPrm EROR [n, f]
-            )
-          )
-        ]
-  where
-    i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+  unop0 3 $ \[r, f, n, k] ->
+    TMatch r
+      . flip MatchRequest (TAbs f $ TVar f)
+      . Map.singleton Ty.exceptionRef
+      $ mapSingleton
+        0
+        ( [BX],
+          TAbs f
+            . TShift Ty.exceptionRef k
+            . TLetD n BX (TLit $ T "builtin.raise")
+            $ TPrm EROR [n, f]
+        )
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
   binop0 0 $ \[t, v] ->
     TLets Direct [] [] (TPrm TRCE [t, v]) $
       TCon Ty.unitRef 0 []
+
+debug'text :: SuperNormal Symbol
+debug'text =
+  unop0 3 $ \[c, r, t, e] ->
+    TLetD r UN (TPrm DBTX [c])
+      . TMatch r
+      . MatchSum
+      $ mapFromList
+        [ (0, ([], none)),
+          (1, ([BX], TAbs t . TLetD e BX (left t) $ some e)),
+          (2, ([BX], TAbs t . TLetD e BX (right t) $ some e))
+        ]
 
 code'missing :: SuperNormal Symbol
 code'missing =
@@ -935,6 +1024,19 @@ check'sandbox =
   where
     (refs, val, b) = fresh
 
+sandbox'links :: SuperNormal Symbol
+sandbox'links = Lambda [BX] . TAbs ln $ TPrm SDBL [ln]
+  where
+    ln = fresh1
+
+value'sandbox :: SuperNormal Symbol
+value'sandbox =
+  Lambda [BX, BX]
+    . TAbss [refs, val]
+    $ TPrm SDBV [refs, val]
+  where
+    (refs, val) = fresh
+
 stm'atomic :: SuperNormal Symbol
 stm'atomic =
   Lambda [BX]
@@ -979,7 +1081,7 @@ seek'handle instr =
   where
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh
 
-no'buf, line'buf, block'buf, sblock'buf :: Enum e => e
+no'buf, line'buf, block'buf, sblock'buf :: (Enum e) => e
 no'buf = toEnum $ fromIntegral Ty.bufferModeNoBufferingId
 line'buf = toEnum $ fromIntegral Ty.bufferModeLineBufferingId
 block'buf = toEnum $ fromIntegral Ty.bufferModeBlockBufferingId
@@ -989,6 +1091,39 @@ infixr 0 -->
 
 (-->) :: a -> b -> (a, b)
 x --> y = (x, y)
+
+-- Box an unboxed value
+-- Takes the boxed variable, the unboxed variable, and the type of the value
+box :: (Var v) => v -> v -> Reference -> Term ANormalF v -> Term ANormalF v
+box b u ty = TLetD b BX (TCon ty 0 [u])
+
+time'zone :: ForeignOp
+time'zone instr =
+  ([BX],)
+    . TAbss [bsecs]
+    . unbox bsecs Ty.intRef secs
+    . TLets Direct [offset, summer, name] [UN, UN, BX] (TFOp instr [secs])
+    . box bsummer summer Ty.natRef
+    . box boffset offset Ty.intRef
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [name, un])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [bsummer, p2])
+    $ TCon Ty.pairRef 0 [boffset, p1]
+  where
+    (secs, bsecs, offset, boffset, summer, bsummer, name, un, p2, p1) = fresh
+
+start'process :: ForeignOp
+start'process instr =
+  ([BX, BX],)
+    . TAbss [exe, args]
+    . TLets Direct [hin, hout, herr, hproc] [BX, BX, BX, BX] (TFOp instr [exe, args])
+    . TLetD un BX (TCon Ty.unitRef 0 [])
+    . TLetD p3 BX (TCon Ty.pairRef 0 [hproc, un])
+    . TLetD p2 BX (TCon Ty.pairRef 0 [herr, p3])
+    . TLetD p1 BX (TCon Ty.pairRef 0 [hout, p2])
+    $ TCon Ty.pairRef 0 [hin, p1]
+  where
+    (exe, args, hin, hout, herr, hproc, un, p3, p2, p1) = fresh
 
 set'buffering :: ForeignOp
 set'buffering instr =
@@ -1000,12 +1135,16 @@ set'buffering instr =
       [ no'buf --> [] --> k1 no'buf,
         line'buf --> [] --> k1 line'buf,
         block'buf --> [] --> k1 block'buf,
-        sblock'buf --> [BX]
-          --> TAbs n . TMatch n . MatchDataCover Ty.bufferModeRef
+        sblock'buf
+          --> [BX]
+          --> TAbs n
+          . TMatch n
+          . MatchDataCover Ty.bufferModeRef
           $ mapFromList
-            [ 0 --> [UN]
+            [ 0
+                --> [UN]
                 --> TAbs w
-                  . TLetD tag UN (TLit (N sblock'buf))
+                . TLetD tag UN (TLit (N sblock'buf))
                 $ k2 [tag, w]
             ]
       ]
@@ -1018,7 +1157,7 @@ set'buffering instr =
         outIoFailUnit s1 s2 s3 u f r
     (handle, bmode, tag, n, w, s1, s2, s3, u, f, r) = fresh
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+get'buffering'output :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
 get'buffering'output eitherResult stack1 stack2 stack3 resultTag anyVar failVar successVar =
   TMatch eitherResult . MatchSum $
     mapFromList
@@ -1029,19 +1168,23 @@ get'buffering'output eitherResult stack1 stack2 stack3 resultTag anyVar failVar 
             . TMatch resultTag
             . MatchSum
             $ mapFromList
-              [ no'buf --> []
+              [ no'buf
+                  --> []
                   --> TLetD successVar BX (TCon Ty.bufferModeRef no'buf [])
                   $ right successVar,
-                line'buf --> []
+                line'buf
+                  --> []
                   --> TLetD successVar BX (TCon Ty.bufferModeRef line'buf [])
                   $ right successVar,
-                block'buf --> []
+                block'buf
+                  --> []
                   --> TLetD successVar BX (TCon Ty.bufferModeRef block'buf [])
                   $ right successVar,
-                sblock'buf --> [UN]
+                sblock'buf
+                  --> [UN]
                   --> TAbs stack1
-                    . TLetD stack2 BX (TCon Ty.natRef 0 [stack1])
-                    . TLetD successVar BX (TCon Ty.bufferModeRef sblock'buf [stack2])
+                  . TLetD stack2 BX (TCon Ty.natRef 0 [stack1])
+                  . TLetD successVar BX (TCon Ty.bufferModeRef sblock'buf [stack2])
                   $ right successVar
               ]
         )
@@ -1062,6 +1205,16 @@ crypto'hash instr =
     $ TFOp instr [alg, vl]
   where
     (alg, x, vl) = fresh
+
+murmur'hash :: ForeignOp
+murmur'hash instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vl BX (TPrm VALU [x])
+    . TLetD result UN (TFOp instr [vl])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (x, vl, result) = fresh
 
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
@@ -1088,19 +1241,19 @@ crypto'hmac instr =
 --
 
 -- () -> ...
-inUnit :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inUnit :: forall v. (Var v) => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inUnit unit result cont instr =
   ([BX], TAbs unit $ TLetD result UN (TFOp instr []) cont)
 
 -- a -> ...
-inBx :: forall v. Var v => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBx :: forall v. (Var v) => v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBx arg result cont instr =
   ([BX],)
     . TAbs arg
     $ TLetD result UN (TFOp instr [arg]) cont
 
 -- Nat -> ...
-inNat :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inNat :: forall v. (Var v) => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inNat arg nat result cont instr =
   ([BX],)
     . TAbs arg
@@ -1108,7 +1261,7 @@ inNat arg nat result cont instr =
     $ TLetD result UN (TFOp instr [nat]) cont
 
 -- Maybe a -> b -> ...
-inMaybeBx :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inMaybeBx :: forall v. (Var v) => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inMaybeBx arg1 arg2 arg3 mb result cont instr =
   ([BX, BX],)
     . TAbss [arg1, arg2]
@@ -1125,11 +1278,18 @@ inMaybeBx arg1 arg2 arg3 mb result cont instr =
       ]
 
 -- a -> b -> ...
-inBxBx :: forall v. Var v => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBx :: forall v. (Var v) => v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxBx arg1 arg2 result cont instr =
   ([BX, BX],)
     . TAbss [arg1, arg2]
     $ TLetD result UN (TFOp instr [arg1, arg2]) cont
+
+-- a -> b -> c -> ...
+inBxBxBx :: forall v. (Var v) => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxBxBx arg1 arg2 arg3 result cont instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    $ TLetD result UN (TFOp instr [arg1, arg2, arg3]) cont
 
 set'echo :: ForeignOp
 set'echo instr =
@@ -1142,7 +1302,7 @@ set'echo instr =
     (arg1, arg2, bol, stack1, stack2, stack3, unit, fail, result) = fresh
 
 -- a -> Nat -> ...
-inBxNat :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNat :: forall v. (Var v) => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxNat arg1 arg2 nat result cont instr =
   ([BX, BX],)
     . TAbss [arg1, arg2]
@@ -1150,7 +1310,7 @@ inBxNat arg1 arg2 nat result cont instr =
     $ TLetD result UN (TFOp instr [arg1, nat]) cont
 
 inBxNatNat ::
-  Var v => v -> v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+  (Var v) => v -> v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxNatNat arg1 arg2 arg3 nat1 nat2 result cont instr =
   ([BX, BX, BX],)
     . TAbss [arg1, arg2, arg3]
@@ -1158,7 +1318,7 @@ inBxNatNat arg1 arg2 arg3 nat1 nat2 result cont instr =
     . unbox arg3 Ty.natRef nat2
     $ TLetD result UN (TFOp instr [arg1, nat1, nat2]) cont
 
-inBxNatBx :: Var v => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxNatBx :: (Var v) => v -> v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxNatBx arg1 arg2 arg3 nat result cont instr =
   ([BX, BX, BX],)
     . TAbss [arg1, arg2, arg3]
@@ -1166,7 +1326,7 @@ inBxNatBx arg1 arg2 arg3 nat result cont instr =
     $ TLetD result UN (TFOp instr [arg1, nat, arg3]) cont
 
 -- a -> IOMode -> ...
-inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
+inBxIomr :: forall v. (Var v) => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], ANormal v)
 inBxIomr arg1 arg2 fm result cont instr =
   ([BX, BX],)
     . TAbss [arg1, arg2]
@@ -1184,7 +1344,8 @@ inBxIomr arg1 arg2 fm result cont instr =
 -- All of these functions will take a Var named result containing the
 -- result of the foreign call
 --
-outMaybe :: forall v. Var v => v -> v -> ANormal v
+
+outMaybe :: forall v. (Var v) => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $
     mapFromList
@@ -1192,7 +1353,21 @@ outMaybe maybe result =
         (1, ([BX], TAbs maybe $ some maybe))
       ]
 
-outMaybeNTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeNat :: (Var v) => v -> v -> v -> ANormal v
+outMaybeNat tag result n =
+  TMatch tag . MatchSum $
+    mapFromList
+      [ (0, ([], none)),
+        ( 1,
+          ( [UN],
+            TAbs result
+              . TLetD n BX (TCon Ty.natRef 0 [n])
+              $ some n
+          )
+        )
+      ]
+
+outMaybeNTup :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> v -> ANormal v
 outMaybeNTup a b n u bp p result =
   TMatch result . MatchSum $
     mapFromList
@@ -1209,7 +1384,7 @@ outMaybeNTup a b n u bp p result =
         )
       ]
 
-outMaybeTup :: Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeTup :: (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outMaybeTup a b u bp ap result =
   TMatch result . MatchSum $
     mapFromList
@@ -1225,7 +1400,7 @@ outMaybeTup a b u bp ap result =
         )
       ]
 
-outIoFail :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFail :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFail stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1233,7 +1408,7 @@ outIoFail stack1 stack2 stack3 any fail result =
         (1, ([BX], TAbs stack1 $ right stack1))
       ]
 
-outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailNat :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailNat stack1 stack2 stack3 fail extra result =
   TMatch result . MatchSum $
     mapFromList
@@ -1246,7 +1421,7 @@ outIoFailNat stack1 stack2 stack3 fail extra result =
         )
       ]
 
-outIoFailChar :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailChar :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailChar stack1 stack2 stack3 fail extra result =
   TMatch result . MatchSum $
     mapFromList
@@ -1260,25 +1435,27 @@ outIoFailChar stack1 stack2 stack3 fail extra result =
       ]
 
 failureCase ::
-  Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+  (Var v) => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
 failureCase stack1 stack2 stack3 any fail =
-  (0,) . ([BX, BX, BX],)
+  (0,)
+    . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
     . TLetD any BX (TCon Ty.anyRef 0 [stack3])
     . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
     $ left fail
 
 exnCase ::
-  Var v => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+  (Var v) => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
 exnCase stack1 stack2 stack3 any fail =
-  (0,) . ([BX, BX, BX],)
+  (0,)
+    . ([BX, BX, BX],)
     . TAbss [stack1, stack2, stack3]
     . TLetD any BX (TCon Ty.anyRef 0 [stack3])
     . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, any])
     $ TReq Ty.exceptionRef 0 [fail]
 
 outIoExnNat ::
-  forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+  forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnNat stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1291,7 +1468,7 @@ outIoExnNat stack1 stack2 stack3 any fail result =
       ]
 
 outIoExnUnit ::
-  forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+  forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnUnit stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1300,7 +1477,7 @@ outIoExnUnit stack1 stack2 stack3 any fail result =
       ]
 
 outIoExnBox ::
-  Var v => v -> v -> v -> v -> v -> v -> ANormal v
+  (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoExnBox stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1308,7 +1485,25 @@ outIoExnBox stack1 stack2 stack3 any fail result =
         (1, ([BX], TAbs stack1 $ TVar stack1))
       ]
 
-outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnEBoxBox ::
+  (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 res =
+  TMatch t0 . MatchSum $
+    mapFromList
+      [ exnCase stack1 stack2 stack3 any fail,
+        ( 1,
+          ([UN],)
+            . TAbs t1
+            . TMatch t1
+            . MatchSum
+            $ mapFromList
+              [ (0, ([BX], TAbs res $ left res)),
+                (1, ([BX], TAbs res $ right res))
+              ]
+        )
+      ]
+
+outIoFailBox :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailBox stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1320,20 +1515,19 @@ outIoFailBox stack1 stack2 stack3 any fail result =
         )
       ]
 
-outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailUnit :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailUnit stack1 stack2 stack3 extra fail result =
   TMatch result . MatchSum $
     mapFromList
       [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
-          ([BX],)
-            . TAbss [stack3]
+          ([],)
             . TLetD extra BX (TCon Ty.unitRef 0 [])
             $ right extra
         )
       ]
 
-outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailBool :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailBool stack1 stack2 stack3 extra fail result =
   TMatch result . MatchSum $
     mapFromList
@@ -1347,7 +1541,7 @@ outIoFailBool stack1 stack2 stack3 extra fail result =
       ]
 
 outIoFailG ::
-  Var v =>
+  (Var v) =>
   v ->
   v ->
   v ->
@@ -1451,6 +1645,16 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
+-- a -> b ->{E} Nat
+boxBoxToNat :: ForeignOp
+boxBoxToNat instr =
+  ([BX, BX],)
+    . TAbss [arg1, arg2]
+    . TLetD result UN (TFOp instr [arg1, arg2])
+    $ TCon Ty.natRef 0 [result]
+  where
+    (arg1, arg2, result) = fresh
+
 -- a -> b -> Option c
 
 -- a -> Bool
@@ -1468,6 +1672,13 @@ boxBoxToBool =
   where
     (arg1, arg2, result) = fresh
 
+-- a -> b -> c -> Bool
+boxBoxBoxToBool :: ForeignOp
+boxBoxBoxToBool =
+  inBxBxBx arg1 arg2 arg3 result $ boolift result
+  where
+    (arg1, arg2, arg3, result) = fresh
+
 -- Nat -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordDirect Ty.natRef`, `wordDirect Ty.floatRef`
@@ -1480,6 +1691,16 @@ wordDirect wordType instr =
     $ TFOp instr [ub1]
   where
     (b1, ub1) = fresh
+
+-- Nat -> Bool
+boxWordToBool :: Reference -> ForeignOp
+boxWordToBool wordType instr =
+  ([BX, BX],)
+    . TAbss [b1, w1]
+    . unbox w1 wordType uw1
+    $ TLetD result UN (TFOp instr [b1, uw1]) (boolift result)
+  where
+    (b1, w1, uw1, result) = fresh
 
 -- Nat -> Nat -> c
 wordWordDirect :: Reference -> Reference -> ForeignOp
@@ -1564,6 +1785,12 @@ boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh
+
+-- a -> Maybe Nat
+boxToMaybeNat :: ForeignOp
+boxToMaybeNat = inBx arg tag $ outMaybeNat tag result n
+  where
+    (arg, tag, result, n) = fresh
 
 -- a -> Maybe (Nat, b)
 boxToMaybeNTup :: ForeignOp
@@ -1730,6 +1957,16 @@ boxNatBoxNatNatToExnUnit instr =
   where
     (a0, a1, a2, a3, a4, ua1, ua3, ua4, result, stack1, stack2, stack3, any, fail) = fresh
 
+-- a ->{Exception} Either b c
+boxToExnEBoxBox :: ForeignOp
+boxToExnEBoxBox instr =
+  ([BX],)
+    . TAbs a
+    . TLetD t0 UN (TFOp instr [a])
+    $ outIoExnEBoxBox stack1 stack2 stack3 any fail t0 t1 result
+  where
+    (a, stack1, stack2, stack3, any, fail, t0, t1, result) = fresh
+
 -- Nat -> Either Failure b
 -- natToEFBox :: ForeignOp
 -- natToEFBox = inNat arg nat result $ outIoFail stack1 stack2 fail result
@@ -1876,6 +2113,7 @@ builtinLookup =
         ("Text.++", (Untracked, appendt)),
         ("Text.take", (Untracked, taket)),
         ("Text.drop", (Untracked, dropt)),
+        ("Text.indexOf", (Untracked, indext)),
         ("Text.size", (Untracked, sizet)),
         ("Text.==", (Untracked, eqt)),
         ("Text.!=", (Untracked, neqt)),
@@ -1894,6 +2132,7 @@ builtinLookup =
         ("todo", (Untracked, bug "builtin.todo")),
         ("Debug.watch", (Tracked, watch)),
         ("Debug.trace", (Tracked, gen'trace)),
+        ("Debug.toText", (Tracked, debug'text)),
         ("unsafe.coerceAbilities", (Untracked, poly'coerce)),
         ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef)),
         ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef)),
@@ -1904,6 +2143,7 @@ builtinLookup =
         ("Bytes.take", (Untracked, takeb)),
         ("Bytes.drop", (Untracked, dropb)),
         ("Bytes.at", (Untracked, atb)),
+        ("Bytes.indexOf", (Untracked, indexb)),
         ("Bytes.size", (Untracked, sizeb)),
         ("Bytes.flatten", (Untracked, flattenb)),
         ("List.take", (Untracked, takes)),
@@ -1916,6 +2156,8 @@ builtinLookup =
         ("List.empty", (Untracked, emptys)),
         ("List.viewl", (Untracked, viewls)),
         ("List.viewr", (Untracked, viewrs)),
+        ("List.splitLeft", (Untracked, splitls)),
+        ("List.splitRight", (Untracked, splitrs)),
         --
         --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
         ("Universal.==", (Untracked, equ)),
@@ -1940,6 +2182,8 @@ builtinLookup =
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
+        ("Value.validateSandboxed", (Tracked, value'sandbox)),
+        ("sandboxLinks", (Tracked, sandbox'links)),
         ("IO.tryEval", (Tracked, try'eval))
       ]
       ++ foreignWrappers
@@ -2077,22 +2321,28 @@ declareForeigns = do
   declareForeign Tracked "IO.putBytes.impl.v3" boxBoxToEF0 . mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
 
   declareForeign Tracked "IO.systemTime.impl.v3" unitToEFNat $
-    mkForeignIOF $ \() -> getPOSIXTime
+    mkForeignIOF $
+      \() -> getPOSIXTime
 
   declareForeign Tracked "IO.systemTimeMicroseconds.v1" unitToInt $
-    mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
+    mkForeign $
+      \() -> fmap (1e6 *) getPOSIXTime
 
   declareForeign Tracked "Clock.internals.monotonic.v1" unitToEFBox $
-    mkForeignIOF $ \() -> getTime Monotonic
+    mkForeignIOF $
+      \() -> getTime Monotonic
 
   declareForeign Tracked "Clock.internals.realtime.v1" unitToEFBox $
-    mkForeignIOF $ \() -> getTime Realtime
+    mkForeignIOF $
+      \() -> getTime Realtime
 
   declareForeign Tracked "Clock.internals.processCPUTime.v1" unitToEFBox $
-    mkForeignIOF $ \() -> getTime ProcessCPUTime
+    mkForeignIOF $
+      \() -> getTime ProcessCPUTime
 
   declareForeign Tracked "Clock.internals.threadCPUTime.v1" unitToEFBox $
-    mkForeignIOF $ \() -> getTime ThreadCPUTime
+    mkForeignIOF $
+      \() -> getTime ThreadCPUTime
 
   declareForeign Tracked "Clock.internals.sec.v1" boxToInt $
     mkForeign (\n -> pure (fromIntegral $ sec n :: Word64))
@@ -2102,13 +2352,23 @@ declareForeigns = do
   declareForeign Tracked "Clock.internals.nsec.v1" boxToNat $
     mkForeign (\n -> pure (fromIntegral $ nsec n :: Word64))
 
+  declareForeign Tracked "Clock.internals.systemTimeZone.v1" time'zone $
+    mkForeign
+      ( \secs -> do
+          TimeZone offset summer name <- getTimeZone (posixSecondsToUTCTime (fromIntegral (secs :: Int)))
+          pure (offset :: Int, summer, name)
+      )
+
+  let chop = reverse . dropWhile isPathSeparator . reverse
+
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox $
-    mkForeignIOF $ \() -> getTemporaryDirectory
+    mkForeignIOF $
+      \() -> chop <$> getTemporaryDirectory
 
   declareForeign Tracked "IO.createTempDirectory.impl.v3" boxToEFBox $
     mkForeignIOF $ \prefix -> do
       temp <- getTemporaryDirectory
-      createTempDirectory temp prefix
+      chop <$> createTempDirectory temp prefix
 
   declareForeign Tracked "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF
@@ -2124,28 +2384,33 @@ declareForeigns = do
     mkForeignIOF getEnv
 
   declareForeign Tracked "IO.getArgs.impl.v1" unitToEFBox $
-    mkForeignIOF $ \() -> fmap Util.Text.pack <$> SYS.getArgs
+    mkForeignIOF $
+      \() -> fmap Util.Text.pack <$> SYS.getArgs
 
   declareForeign Tracked "IO.isDirectory.impl.v3" boxToEFBool $
     mkForeignIOF doesDirectoryExist
 
   declareForeign Tracked "IO.createDirectory.impl.v3" boxToEF0 $
-    mkForeignIOF $ createDirectoryIfMissing True
+    mkForeignIOF $
+      createDirectoryIfMissing True
 
   declareForeign Tracked "IO.removeDirectory.impl.v3" boxToEF0 $
     mkForeignIOF removeDirectoryRecursive
 
   declareForeign Tracked "IO.renameDirectory.impl.v3" boxBoxToEF0 $
-    mkForeignIOF $ uncurry renameDirectory
+    mkForeignIOF $
+      uncurry renameDirectory
 
   declareForeign Tracked "IO.directoryContents.impl.v3" boxToEFBox $
-    mkForeignIOF $ (fmap Util.Text.pack <$>) . getDirectoryContents
+    mkForeignIOF $
+      (fmap Util.Text.pack <$>) . getDirectoryContents
 
   declareForeign Tracked "IO.removeFile.impl.v3" boxToEF0 $
     mkForeignIOF removeFile
 
   declareForeign Tracked "IO.renameFile.impl.v3" boxBoxToEF0 $
-    mkForeignIOF $ uncurry renameFile
+    mkForeignIOF $
+      uncurry renameFile
 
   declareForeign Tracked "IO.getFileTimestamp.impl.v3" boxToEFNat
     . mkForeignIOF
@@ -2183,7 +2448,7 @@ declareForeigns = do
 
   declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF
-    $ \sk -> SYS.listenSock sk 2
+    $ \sk -> SYS.listenSock sk 2048
 
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
@@ -2205,7 +2470,7 @@ declareForeigns = do
     $ \(hs, n) ->
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign Tracked "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
+  declareForeign Tracked "IO.kill.impl.v3" boxToEF0 $ mkForeignIOF killThread
 
   declareForeign Tracked "IO.delay.impl.v3" natToEFUnit $
     mkForeignIOF threadDelay
@@ -2213,10 +2478,31 @@ declareForeigns = do
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
     $ \(n :: Int) -> case n of
-      0 -> pure (Just SYS.stdin)
-      1 -> pure (Just SYS.stdout)
-      2 -> pure (Just SYS.stderr)
-      _ -> pure Nothing
+      0 -> pure SYS.stdin
+      1 -> pure SYS.stdout
+      2 -> pure SYS.stderr
+      _ -> die "IO.stdHandle: invalid input."
+
+  let exitDecode ExitSuccess = 0
+      exitDecode (ExitFailure n) = n
+
+  declareForeign Tracked "IO.process.call" boxBoxToNat . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      withCreateProcess (proc exe args) $ \_ _ _ p ->
+        exitDecode <$> waitForProcess p
+
+  declareForeign Tracked "IO.process.start" start'process . mkForeign $
+    \(exe, map Util.Text.unpack -> args) ->
+      runInteractiveProcess exe args Nothing Nothing
+
+  declareForeign Tracked "IO.process.kill" boxTo0 . mkForeign $
+    terminateProcess
+
+  declareForeign Tracked "IO.process.wait" boxToNat . mkForeign $
+    \ph -> exitDecode <$> waitForProcess ph
+
+  declareForeign Tracked "IO.process.exitCode" boxToMaybeNat . mkForeign $
+    fmap (fmap exitDecode) . getProcessExitCode
 
   declareForeign Tracked "MVar.new" boxDirect
     . mkForeign
@@ -2338,13 +2624,58 @@ declareForeigns = do
 
   declareForeign Tracked "IO.ref" boxDirect
     . mkForeign
-    $ \(c :: Closure) -> newIORef c
+    $ \(c :: Closure) -> evaluate c >>= newIORef
 
+  -- The docs for IORef state that IORef operations can be observed
+  -- out of order ([1]) but actually GHC does emit the appropriate
+  -- load and store barriers nowadays ([2], [3]).
+  --
+  -- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
+  -- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
+  -- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
   declareForeign Untracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
-    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+    \(r :: IORef Closure, c :: Closure) -> evaluate c >>= writeIORef r
+
+  declareForeign Tracked "Ref.readForCas" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readForCAS r
+
+  declareForeign Tracked "Ref.Ticket.read" boxDirect . mkForeign $
+    \(t :: Ticket Closure) -> pure $ peekTicket t
+
+  -- In GHC, CAS returns both a Boolean and the current value of the
+  -- IORef, which can be used to retry a failed CAS.
+  -- This strategy is more efficient than returning a Boolean only
+  -- because it uses a single call to cmpxchg in assembly (see [1]) to
+  -- avoid an extra read per CAS iteration, however it's not supported
+  -- in Scheme.
+  -- Therefore, we adopt the more common signature that only returns a
+  -- Boolean, which doesn't even suffer from spurious failures because
+  -- GHC issues loads of mutable variables with memory_order_acquire
+  -- (see [2])
+  --
+  -- [1]: https://github.com/ghc/ghc/blob/master/rts/PrimOps.cmm#L697
+  -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
+  declareForeign Tracked "Ref.cas" boxBoxBoxToBool . mkForeign $
+    \(r :: IORef Closure, t :: Ticket Closure, v :: Closure) -> fmap fst $
+      do
+        t <- evaluate t
+        casIORef r t v
+
+  declareForeign Tracked "Promise.new" unitDirect . mkForeign $
+    \() -> newPromise @Closure
+
+  -- the only exceptions from Promise.read are async and shouldn't be caught
+  declareForeign Tracked "Promise.read" boxDirect . mkForeign $
+    \(p :: Promise Closure) -> readPromise p
+
+  declareForeign Tracked "Promise.tryRead" boxToMaybeBox . mkForeign $
+    \(p :: Promise Closure) -> tryReadPromise p
+
+  declareForeign Tracked "Promise.write" boxBoxToBool . mkForeign $
+    \(p :: Promise Closure, a :: Closure) -> writePromise p a
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \( config :: TLS.ClientParams,
@@ -2359,7 +2690,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
-  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEF0 . mkForeignTls $
     \( tls :: TLS.Context,
        bytes :: Bytes.Bytes
        ) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
@@ -2382,16 +2713,22 @@ declareForeigns = do
     \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
 
   declareForeign Tracked "Tls.encodePrivateKey" boxDirect . mkForeign $
-    \(privateKey :: X.PrivKey) -> pure $ Util.Text.pack $ show privateKey
+    \(privateKey :: X.PrivKey) -> pure $ Util.Text.toUtf8 $ Util.Text.pack $ show privateKey
 
   declareForeign Tracked "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls
       pure $ Bytes.fromArray bs
 
-  declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.terminate.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
+  declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
+    . mkForeign
+    $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
+      let f (msg, rs) =
+            Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
+      pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
     $ \(sg :: SuperGroup Symbol) ->
@@ -2415,7 +2752,7 @@ declareForeigns = do
     . mkForeign
     $ pure . deserializeValue . Bytes.toArray
   -- Hashing functions
-  let declareHashAlgorithm :: forall alg. Hash.HashAlgorithm alg => Data.Text.Text -> alg -> FDecl Symbol ()
+  let declareHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> FDecl Symbol ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
         declareForeign Untracked ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
@@ -2429,6 +2766,7 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_512" Hash.Blake2b_512
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
+  declareHashAlgorithm "Md5" Hash.MD5
 
   declareForeign Untracked "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
@@ -2446,7 +2784,7 @@ declareForeigns = do
   declareForeign Untracked "crypto.hash" crypto'hash . mkForeign $
     \(HashAlgorithm _ alg, x) ->
       let hashlazy ::
-            Hash.HashAlgorithm a =>
+            (Hash.HashAlgorithm a) =>
             a ->
             L.ByteString ->
             Hash.Digest a
@@ -2456,7 +2794,7 @@ declareForeigns = do
   declareForeign Untracked "crypto.hmac" crypto'hmac . mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
-            Hash.HashAlgorithm a => a -> L.ByteString -> HMAC.HMAC a
+            (Hash.HashAlgorithm a) => a -> L.ByteString -> HMAC.HMAC a
           hmac _ s =
             HMAC.finalize
               . HMAC.updates
@@ -2470,6 +2808,12 @@ declareForeigns = do
         pure $ case e of
           Left se -> Left (Util.Text.pack (show se))
           Right a -> Right a
+
+  declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
+    pure . asWord64 . hash64 . serializeValueLazy
+
+  declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
+    \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
 
   declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
   declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
@@ -2704,36 +3048,38 @@ declareForeigns = do
   declareForeign Untracked "Text.patterns.literal" boxDirect . mkForeign $
     \txt -> evaluate . TPat.cpattern $ TPat.Literal txt
   declareForeign Untracked "Text.patterns.digit" direct . mkForeign $
-    let v = TPat.cpattern TPat.Digit in \() -> pure v
+    let v = TPat.cpattern (TPat.Char (TPat.CharRange '0' '9')) in \() -> pure v
   declareForeign Untracked "Text.patterns.letter" direct . mkForeign $
-    let v = TPat.cpattern TPat.Letter in \() -> pure v
+    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Letter)) in \() -> pure v
   declareForeign Untracked "Text.patterns.space" direct . mkForeign $
-    let v = TPat.cpattern TPat.Space in \() -> pure v
+    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Whitespace)) in \() -> pure v
   declareForeign Untracked "Text.patterns.punctuation" direct . mkForeign $
-    let v = TPat.cpattern TPat.Punctuation in \() -> pure v
+    let v = TPat.cpattern (TPat.Char (TPat.CharClass TPat.Punctuation)) in \() -> pure v
   declareForeign Untracked "Text.patterns.anyChar" direct . mkForeign $
-    let v = TPat.cpattern TPat.AnyChar in \() -> pure v
+    let v = TPat.cpattern (TPat.Char TPat.Any) in \() -> pure v
   declareForeign Untracked "Text.patterns.eof" direct . mkForeign $
     let v = TPat.cpattern TPat.Eof in \() -> pure v
   let ccd = wordWordDirect Ty.charRef Ty.charRef
   declareForeign Untracked "Text.patterns.charRange" ccd . mkForeign $
-    \(beg, end) -> evaluate . TPat.cpattern $ TPat.CharRange beg end
+    \(beg, end) -> evaluate . TPat.cpattern . TPat.Char $ TPat.CharRange beg end
   declareForeign Untracked "Text.patterns.notCharRange" ccd . mkForeign $
-    \(beg, end) -> evaluate . TPat.cpattern $ TPat.NotCharRange beg end
+    \(beg, end) -> evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharRange beg end
   declareForeign Untracked "Text.patterns.charIn" boxDirect . mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       Closure.DataU1 _ _ i -> pure (toEnum i)
       _ -> die "Text.patterns.charIn: non-character closure"
-    evaluate . TPat.cpattern $ TPat.CharIn cs
+    evaluate . TPat.cpattern . TPat.Char $ TPat.CharSet cs
   declareForeign Untracked "Text.patterns.notCharIn" boxDirect . mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       Closure.DataU1 _ _ i -> pure (toEnum i)
       _ -> die "Text.patterns.notCharIn: non-character closure"
-    evaluate . TPat.cpattern $ TPat.NotCharIn cs
+    evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
   declareForeign Untracked "Pattern.many" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
+    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $
@@ -2748,6 +3094,32 @@ declareForeigns = do
 
   declareForeign Untracked "Pattern.isMatch" boxBoxToBool . mkForeign $
     \(TPat.CP _ matcher, input :: Text) -> pure . isJust $ matcher input
+
+  declareForeign Untracked "Char.Class.any" direct . mkForeign $ \() -> pure TPat.Any
+  declareForeign Untracked "Char.Class.not" boxDirect . mkForeign $ pure . TPat.Not
+  declareForeign Untracked "Char.Class.and" boxBoxDirect . mkForeign $ \(a, b) -> pure $ TPat.Intersect a b
+  declareForeign Untracked "Char.Class.or" boxBoxDirect . mkForeign $ \(a, b) -> pure $ TPat.Union a b
+  declareForeign Untracked "Char.Class.range" (wordWordDirect charRef charRef) . mkForeign $ \(a, b) -> pure $ TPat.CharRange a b
+  declareForeign Untracked "Char.Class.anyOf" boxDirect . mkForeign $ \ccs -> do
+    cs <- for ccs $ \case
+      Closure.DataU1 _ _ i -> pure (toEnum i)
+      _ -> die "Text.patterns.charIn: non-character closure"
+    evaluate $ TPat.CharSet cs
+  declareForeign Untracked "Char.Class.alphanumeric" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.AlphaNum)
+  declareForeign Untracked "Char.Class.upper" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Upper)
+  declareForeign Untracked "Char.Class.lower" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Lower)
+  declareForeign Untracked "Char.Class.whitespace" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Whitespace)
+  declareForeign Untracked "Char.Class.control" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Control)
+  declareForeign Untracked "Char.Class.printable" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Printable)
+  declareForeign Untracked "Char.Class.mark" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.MarkChar)
+  declareForeign Untracked "Char.Class.number" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Number)
+  declareForeign Untracked "Char.Class.punctuation" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Punctuation)
+  declareForeign Untracked "Char.Class.symbol" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Symbol)
+  declareForeign Untracked "Char.Class.separator" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Separator)
+  declareForeign Untracked "Char.Class.letter" direct . mkForeign $ \() -> pure (TPat.CharClass TPat.Letter)
+  declareForeign Untracked "Char.Class.is" (boxWordToBool charRef) . mkForeign $ \(cl, c) -> evaluate $ TPat.charPatternPred cl c
+  declareForeign Untracked "Text.patterns.char" boxDirect . mkForeign $ \c ->
+    let v = TPat.cpattern (TPat.Char c) in pure v
 
 type RW = PA.PrimState IO
 
