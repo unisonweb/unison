@@ -15,7 +15,8 @@ import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (annToInterval, annToRange, rangeToInterval)
-import Unison.LSP.FileAnalysis (getFileAnalysis, hasUserTypeSignature, ppedForFile)
+import Unison.LSP.FileAnalysis (getFileAnalysis, hasUserTypeSignature)
+import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.Types
 import Unison.Name qualified as Name
 import Unison.Parser.Ann qualified as Ann
@@ -28,7 +29,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
-import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty qualified as Pretty
 
 formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
@@ -48,10 +49,11 @@ formatDefs fileUri mayRangesToFormat =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {fileSummary = mayFileSummary, parsedFile = mayParsedFile} <- getFileAnalysis fileUri
+      FileAnalysis {parsedFile = mayParsedFile, typecheckedFile = mayTypecheckedFile} <- getFileAnalysis fileUri
+      (mayParsedFile, mayTypecheckedFile) <- lift $ mkUnisonFilesDeterministic mayParsedFile mayTypecheckedFile
+      fileSummary <- hoistMaybe $ FileAnalysis.mkFileSummary mayParsedFile mayTypecheckedFile
+      filePPED <- lift $ FileAnalysis.ppedForFileHelper mayParsedFile mayTypecheckedFile
       parsedFile <- hoistMaybe mayParsedFile
-      fileSummary <- hoistMaybe mayFileSummary
-      filePPED <- lift $ ppedForFile fileUri
       formattedDecls <-
         (allTypeDecls fileSummary)
           & fmap
@@ -66,6 +68,13 @@ formatDefs fileUri mayRangesToFormat =
             let declName = Name.fromSegments declNameSegments
             let hqName = HQ.fromName symName
             let biasedPPED = PPED.biasTo [declName] filePPED
+            -- If it's a unique type the parser will re-order constructors arbitrarily because
+            -- the random unique seed gets mixed in and then things are ordered by hash.
+            --
+            -- The constructor order will always be re-ordered on definition Add anyways, so we
+            -- just force alphabetical order for unique types for sanity reasons.
+            -- Doesn't work unless we alter it before building the pped
+            -- let deterministicDecl = decl & Decl.declAsDataDecl_ . Decl.constructors_ %~ sortOn (view _1)
             pure $
               (tldAnn, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
                 & over _2 Pretty.syntaxToColor
@@ -129,3 +138,31 @@ formatDefs fileUri mayRangesToFormat =
     removeGeneratedTypeAnnotations uf v = \case
       Term.Ann' tm _annotation | not (hasUserTypeSignature uf v) -> tm
       x -> x
+
+    -- This is a bit of a hack.
+    -- The file parser uses a different unique ID for unique types on every parse,
+    -- that id changes hashes, and constructors are ordered by that hash.
+    -- This means that pretty-printing isn't deterministic and constructors will re-order
+    -- themselves on every save :|
+    --
+    -- It's difficult and a bad idea to change the parser to use a deterministic unique ID,
+    -- so instead we just re-sort the constructors by their source-file annotation AFTER
+    -- parsing. This is fine for pretty-printing, but don't use this for anything other than
+    -- formatting since the Decls it produces aren't technically valid.
+    mkUnisonFilesDeterministic :: Maybe (UnisonFile Symbol Ann.Ann) -> Maybe (TypecheckedUnisonFile Symbol Ann.Ann) -> Lsp (Maybe (UnisonFile Symbol Ann.Ann), Maybe (TypecheckedUnisonFile Symbol Ann.Ann))
+    mkUnisonFilesDeterministic mayUnisonFile mayTypecheckedFile = do
+      let sortedUF =
+            mayUnisonFile
+              & _Just . #dataDeclarationsId . traversed . _2 %~ sortConstructors
+              & _Just . #effectDeclarationsId . traversed . _2 . Decl.asDataDecl_ %~ sortConstructors
+      let sortedTF =
+            mayTypecheckedFile
+              & _Just . #dataDeclarationsId' . traversed . _2 %~ sortConstructors
+              & _Just . #effectDeclarationsId' . traversed . _2 . Decl.asDataDecl_ %~ sortConstructors
+      pure (sortedUF, sortedTF)
+
+    -- ppedForFileHelper
+    sortConstructors :: Decl.DataDeclaration v Ann.Ann -> Decl.DataDeclaration v Ann.Ann
+    sortConstructors dd =
+      -- Sort by their Ann so we keep the order they were in the original file.
+      dd & Decl.constructors_ %~ sortOn @Ann.Ann (view _1)
