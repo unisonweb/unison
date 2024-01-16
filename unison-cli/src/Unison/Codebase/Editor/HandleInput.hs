@@ -202,6 +202,7 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
 import Witch (unsafeFrom)
+import qualified Unison.PrettyPrintEnv.Names as PPE
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -419,20 +420,21 @@ loop e = do
                 Cli.updateRoot newRoot description
                 Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
-              srcb <-
+              (srcb, branchEmpty) <-
                 case src0 of
-                  Left hash -> Cli.resolveShortCausalHash hash
-                  Right path' -> Cli.expectBranchAtPath' path'
-              Cli.assertNoBranchAtPath' dest0
+                  Left hash -> (, WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
+                  Right path' -> do
+                    absPath <- ProjectUtils.branchRelativePathToAbsolute path'
+                    let srcp = Path.convert absPath
+                    srcb <- Cli.expectBranchAtPath' srcp
+                    pure (srcb, WhichBranchEmptyPath srcp)
               description <- inputDescription input
-              dest <- Cli.resolvePath' dest0
+              dest <- ProjectUtils.branchRelativePathToAbsolute dest0
               ok <- Cli.updateAtM description dest (const $ pure srcb)
               Cli.respond
                 if ok
                   then Success
-                  else BranchEmpty case src0 of
-                    Left hash -> WhichBranchEmptyHash hash
-                    Right path -> WhichBranchEmptyPath path
+                  else BranchEmpty branchEmpty
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
@@ -672,9 +674,9 @@ loop e = do
                 if global || any Name.isAbsolute query
                   then do
                     let root0 = Branch.head root
-                    let names = Names.makeAbsolute $ Branch.toNames root0
                     -- Use an absolutely qualified ppe for view.global
-                    let pped = PPED.fromNamesSuffixifiedByHash hqLength names
+                    let names = Names.makeAbsolute $ Branch.toNames root0
+                    let pped = PPED.makePPED (PPE.hqNamer hqLength names) (PPE.suffixifyByHash names)
                     pure (names, pped)
                   else do
                     names <- Cli.currentNames
@@ -1172,10 +1174,11 @@ loop e = do
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    ForkLocalBranchI src0 dest0 -> do
-      src <- hp' src0
-      dest <- p' dest0
-      pure ("fork " <> src <> " " <> dest)
+    SaveExecuteResultI _str -> pure "save-execute-result"
+    ForkLocalBranchI _src0 _dest0 -> do
+      -- src <- hp' src0
+      -- dest <- p' dest0
+      pure ("fork ") -- todo
     MergeLocalBranchI src0 dest0 mode -> do
       src <- looseCodeOrProjectToText src0
       dest <- looseCodeOrProjectToText dest0
@@ -1366,7 +1369,6 @@ inputDescription input =
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
-    SaveExecuteResultI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     ShowReflogI {} -> wat

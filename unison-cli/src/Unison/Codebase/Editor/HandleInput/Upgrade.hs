@@ -12,7 +12,6 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Sqlite.DbId (ProjectId)
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -27,6 +26,8 @@ import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
     findCtorNames,
     forwardCtorNames,
+    getNamespaceDependentsOf,
+    makeComplicatedPPE,
     makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
@@ -44,7 +45,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
@@ -151,28 +151,27 @@ handleUpgrade oldDepName newDepName = do
 
   (unisonFile, printPPE) <-
     Cli.runTransactionWithRollback \abort -> do
-      -- Create a Unison file that contains all of our dependents of modified defns of `lib.old`. todo: twiddle
+      dependents <-
+        getNamespaceDependentsOf
+          namesExcludingLibdeps
+          ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
+              <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
+              <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
+              <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
+          )
       unisonFile <- do
-        dependents <-
-          Operations.dependentsWithinScope
-            (Names.referenceIds namesExcludingLibdeps)
-            ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
-                <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
-                <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
-                <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
-            )
         addDefinitionsToUnisonFile
-          Output.UOUUpgrade
           abort
           codebase
-          namesExcludingLibdeps
-          constructorNamesExcludingLibdeps
+          (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps)
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
-      let primaryPPE = makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-      let secondaryPPE = PPED.fromNamesSuffixifiedByName hashLength namesExcludingOldDep
-      pure (unisonFile, primaryPPE `PPED.addFallback` secondaryPPE)
+      pure
+        ( unisonFile,
+          makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
+            `PPED.addFallback` makeComplicatedPPE hashLength namesExcludingOldDep mempty dependents
+        )
 
   parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
   typecheckedUnisonFile <-
@@ -253,7 +252,7 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
           )
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixifyByName namesExcludingOldDep)
+          suffixifiedPPE = makePPE (PPE.suffixifyByHash namesExcludingOldDep)
         }
   where
     oldNames = Branch.toNames oldDep

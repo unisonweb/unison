@@ -8,6 +8,7 @@ module Unison.Server.Backend
     Backend (..),
     ShallowListEntry (..),
     BackendEnv (..),
+    TermEntry (..),
     TypeEntry (..),
     FoundRef (..),
     IncludeCycles (..),
@@ -41,7 +42,6 @@ module Unison.Server.Backend
     termEntryDisplayName,
     termEntryHQName,
     termEntryToNamedTerm,
-    termEntryType,
     termEntryLabeledDependencies,
     termListEntry,
     termReferentsByShortHash,
@@ -67,7 +67,6 @@ module Unison.Server.Backend
     termsToSyntax,
     typesToSyntax,
     definitionResultsDependencies,
-    termEntryTag,
     evalDocRef,
     mkTermDefinition,
     mkTypeDefinition,
@@ -140,6 +139,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -395,11 +395,11 @@ isDoc codebase ref = do
 
 isDoc' :: (Var v, Monoid loc) => Maybe (Type v loc) -> Bool
 isDoc' typeOfTerm = do
-  -- A term is a dococ if its type conforms to the `Doc` type.
+  -- A term is a doc if its type conforms to the `Doc` type.
   case typeOfTerm of
     Just t ->
-      Typechecker.isSubtype t doc1Type
-        || Typechecker.isSubtype t doc2Type
+      Typechecker.isEqual t doc1Type
+        || Typechecker.isEqual t doc2Type
     Nothing -> False
 
 doc1Type :: (Ord v, Monoid a) => Type v a
@@ -411,7 +411,7 @@ doc2Type = Type.ref mempty DD.doc2Ref
 isTestResultList :: forall v a. (Var v, Monoid a) => Maybe (Type v a) -> Bool
 isTestResultList typ = case typ of
   Nothing -> False
-  Just t -> Typechecker.isSubtype t resultListType
+  Just t -> Typechecker.isEqual t resultListType
 
 resultListType :: (Ord v, Monoid a) => Type v a
 resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
@@ -457,15 +457,11 @@ getTermTag ::
   m TermTag
 getTermTag codebase r sig = do
   -- A term is a doc if its type conforms to the `Doc` type.
-  let isDoc = case sig of
-        Just t ->
-          Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
-            || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
-        Nothing -> False
+  let isDoc = isDoc' sig
   -- A term is a test if it has the type [test.Result]
   let isTest = case sig of
         Just t ->
-          Typechecker.isSubtype t (Decls.testResultType mempty)
+          Typechecker.isEqual t (Decls.testResultType mempty)
         Nothing -> False
   constructorType <- case r of
     V2Referent.Ref {} -> pure Nothing
@@ -890,7 +886,7 @@ docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
         Referent.Ref r ->
           maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
         _ -> pure []
-      pure [r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)]
+      pure [r | (r, t) <- rts, isDoc' (Just t)]
 
 -- | Evaluate and render the given docs
 renderDocRefs ::
@@ -1041,7 +1037,7 @@ namesAtPathFromRootBranchHash codebase mbh path = do
         lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
         Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash (Just rootCausalHash) codebase
-  let pped = PPED.fromNamesSuffixifiedByHash hashLen names
+  let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   pure (names, pped)
 
 resolveCausalHash ::

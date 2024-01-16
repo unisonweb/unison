@@ -27,10 +27,26 @@ data Search m r = Search
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
+hoistSearch :: (forall x. m x -> n x) -> Search m r -> Search n r
+hoistSearch f Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} =
+  Search
+    { lookupNames = f . lookupNames,
+      lookupRelativeHQRefs' = \st n -> f $ lookupRelativeHQRefs' st n,
+      makeResult = \n r -> f . makeResult n r,
+      matchesNamedRef = \n r -> matchesNamedRef n r
+    }
+
 data NameSearch m = NameSearch
   { typeSearch :: Search m Reference,
     termSearch :: Search m Referent
   }
+
+hoistNameSearch :: (forall x. m x -> n x) -> NameSearch m -> NameSearch n
+hoistNameSearch f NameSearch {typeSearch, termSearch} =
+  NameSearch
+    { typeSearch = hoistSearch f typeSearch,
+      termSearch = hoistSearch f termSearch
+    }
 
 -- | Interpret a 'Search' as a function from name to search results.
 applySearch :: (Show r, Monad m) => Search m r -> SearchType -> HQ'.HashQualified Name -> m [SR.SearchResult]

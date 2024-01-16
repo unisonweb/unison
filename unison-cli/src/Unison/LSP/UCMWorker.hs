@@ -11,6 +11,7 @@ import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.NameSearch (NameSearch)
@@ -34,7 +35,7 @@ ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath =
         let currentBranch0 = Branch.getAt0 (Path.unabsolute currentPath) (Branch.head currentRoot)
         let parseNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let pped = PPED.fromNamesSuffixifiedByHash hl parseNames
+        let pped = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
         atomically $ do
           writeTVar parseNamesVar parseNames
           writeTVar ppedVar pped

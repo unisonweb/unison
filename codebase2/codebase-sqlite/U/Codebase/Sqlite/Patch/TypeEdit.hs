@@ -3,6 +3,8 @@ module U.Codebase.Sqlite.Patch.TypeEdit where
 import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bitraversable (Bitraversable (bitraverse))
+import Data.Text (Text)
+import U.Codebase.HashTags
 import U.Codebase.Reference (Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId qualified as Db
@@ -11,6 +13,8 @@ import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 type LocalTypeEdit = TypeEdit' LocalTextId LocalDefnId
 
 type TypeEdit = TypeEdit' Db.TextId Db.ObjectId
+
+type HashTypeEdit = TypeEdit' Text ComponentHash
 
 data TypeEdit' t h = Replace (Reference' t h) | Deprecate
   deriving (Eq, Ord, Show)
