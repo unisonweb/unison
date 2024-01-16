@@ -26,7 +26,6 @@ import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
@@ -36,7 +35,6 @@ import Unison.Names (Names)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Result (Note)
 import Unison.Server.Backend qualified as Backend
@@ -44,10 +42,9 @@ import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
 import Unison.Syntax.Lexer qualified as Lexer
-import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.WatchKind qualified as WK
+import Unison.UnisonFile.Summary (FileSummary (..))
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -131,36 +128,6 @@ data FileAnalysis = FileAnalysis
     fileSummary :: Maybe FileSummary
   }
   deriving stock (Show)
-
--- | A file that parses might not always type-check, but often we just want to get as much
--- information as we have available. This provides a type where we can summarize the
--- information available in a Unison file.
---
--- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
--- they will be Nothing.
-data FileSummary = FileSummary
-  { dataDeclsBySymbol :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
-    dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
-    effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
-    effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
-    termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
-    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
-    testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann), Maybe WK.WatchKind)],
-    fileNames :: Names
-  }
-  deriving stock (Show)
-
-allWatches :: FileSummary -> [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann), Maybe WK.WatchKind)]
-allWatches FileSummary {testWatchSummary, exprWatchSummary} =
-  exprWatchSummary
-    <> (testWatchSummary <&> \(ann, sym, refId, tm, typ) -> (ann, sym, refId, tm, typ, Just WK.TestWatch))
-
-allTypeDecls :: FileSummary -> Map Symbol (Reference.Id, Either (DD.EffectDeclaration Symbol Ann) (DD.DataDeclaration Symbol Ann))
-allTypeDecls FileSummary {dataDeclsBySymbol, effectDeclsBySymbol} =
-  let dataDecls = dataDeclsBySymbol <&> \(refId, dd) -> (refId, Right dd)
-      effectDecls = effectDeclsBySymbol <&> \(refId, ed) -> (refId, Left ed)
-   in dataDecls <> effectDecls
 
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO

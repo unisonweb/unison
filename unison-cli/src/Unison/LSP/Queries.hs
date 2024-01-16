@@ -55,6 +55,7 @@ import Unison.Term (MatchCase (MatchCase), Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.

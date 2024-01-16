@@ -56,23 +56,22 @@ import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import Unison.Symbol qualified as Symbol
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
-import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.UnisonFile.Summary (FileSummary (..), fileDefLocations)
+import Unison.UnisonFile.Summary qualified as FileSummary
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as R1
 import Unison.Var qualified as Var
-import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.STM
 import Witherable
 
@@ -111,7 +110,7 @@ checkFile doc = runMaybeT do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
-  let fileSummary = mkFileSummary parsedFile typecheckedFile
+  let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
@@ -123,105 +122,10 @@ checkFile doc = runMaybeT do
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
   pure fileAnalysis
 
--- | If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
-assertUserSym :: Symbol -> Maybe Symbol
-assertUserSym sym = case sym of
-  Symbol.Symbol _ (Var.User {}) -> Just sym
-  _ -> Nothing
-
--- | Summarize the information available to us from the current state of the file.
--- See 'FileSummary' for more information.
-mkFileSummary :: Maybe (UF.UnisonFile Symbol Ann) -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> Maybe FileSummary
-mkFileSummary parsed typechecked = case (parsed, typechecked) of
-  (Nothing, Nothing) -> Nothing
-  (_, Just tf@(UF.TypecheckedUnisonFileId {dataDeclarationsId', effectDeclarationsId', hashTermsId})) ->
-    let (trms, testWatches, exprWatches) =
-          hashTermsId & ifoldMap \sym (ann, ref, wk, trm, typ) ->
-            case wk of
-              Nothing -> (Map.singleton sym (ann, Just ref, trm, getUserTypeAnnotation sym <|> Just typ), mempty, mempty)
-              Just TestWatch -> (mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ)], mempty)
-              Just wk -> (mempty, mempty, [(ann, assertUserSym sym, Just ref, trm, getUserTypeAnnotation sym <|> Just typ, Just wk)])
-     in Just $
-          FileSummary
-            { dataDeclsBySymbol = dataDeclarationsId',
-              dataDeclsByReference = declsRefMap dataDeclarationsId',
-              effectDeclsBySymbol = effectDeclarationsId',
-              effectDeclsByReference = declsRefMap effectDeclarationsId',
-              termsBySymbol = trms,
-              termsByReference = termsRefMap trms,
-              testWatchSummary = testWatches,
-              exprWatchSummary = exprWatches,
-              fileNames = UF.typecheckedToNames tf
-            }
-  (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
-    let trms =
-          terms & foldMap \(sym, ann, trm) ->
-            (Map.singleton sym (ann, Nothing, trm, Nothing))
-        (testWatches, exprWatches) =
-          watches & ifoldMap \wk tms ->
-            tms & foldMap \(v, ann, trm) ->
-              case wk of
-                TestWatch -> ([(ann, assertUserSym v, Nothing, trm, Nothing)], mempty)
-                _ -> (mempty, [(ann, assertUserSym v, Nothing, trm, Nothing, Just wk)])
-     in Just $
-          FileSummary
-            { dataDeclsBySymbol = dataDeclarationsId,
-              dataDeclsByReference = declsRefMap dataDeclarationsId,
-              effectDeclsBySymbol = effectDeclarationsId,
-              effectDeclsByReference = declsRefMap effectDeclarationsId,
-              termsBySymbol = trms,
-              termsByReference = termsRefMap trms,
-              testWatchSummary = testWatches,
-              exprWatchSummary = exprWatches,
-              fileNames = UF.toNames uf
-            }
-  where
-    declsRefMap :: (Ord v, Ord r) => Map v (r, a) -> Map r (Map v a)
-    declsRefMap m =
-      m
-        & Map.toList
-        & fmap (\(v, (r, a)) -> (r, Map.singleton v a))
-        & Map.fromListWith (<>)
-    termsRefMap :: (Ord v, Ord r) => Map v (ann, r, a, b) -> Map r (Map v (ann, a, b))
-    termsRefMap m =
-      m
-        & Map.toList
-        & fmap (\(v, (ann, r, a, b)) -> (r, Map.singleton v (ann, a, b)))
-        & Map.fromListWith (<>)
-    -- Gets the user provided type annotation for a term if there is one.
-    -- This type sig will have Ann's within the file if it exists.
-    getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
-    getUserTypeAnnotation v = do
-      UF.UnisonFileId {terms, watches} <- parsed
-      trm <- (terms <> fold watches) ^? folded . filteredBy (_1 . only v) . _3
-      typ <- Term.getTypeAnnotation trm
-      pure typ
-
 -- | Get the location of user defined definitions within the file
 getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
 getFileDefLocations uri = do
   fileDefLocations <$> getFileSummary uri
-
--- | Compute the location of user defined definitions within the file
-fileDefLocations :: FileSummary -> Map Symbol (Set Ann)
-fileDefLocations fs@FileSummary {dataDeclsBySymbol, effectDeclsBySymbol, termsBySymbol} =
-  fold
-    [ dataDeclsBySymbol <&> \(_, decl) ->
-        decl
-          & DD.annotation
-          & Set.singleton,
-      effectDeclsBySymbol <&> \(_, decl) ->
-        decl
-          & DD.toDataDecl
-          & DD.annotation
-          & Set.singleton,
-      (allWatches fs)
-        & foldMap \(ann, maySym, _id, _trm, _typ, _wk) ->
-          case maySym of
-            Nothing -> mempty
-            Just sym -> Map.singleton sym (Set.singleton ann),
-      termsBySymbol <&> \(ann, _id, _trm, _typ) -> Set.singleton ann
-    ]
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -562,10 +466,3 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
             )
    in typeHints
-
--- | Returns 'True' if the given symbol is a term with a user provided type signature in the
--- parsed file, false otherwise.
-hasUserTypeSignature :: Eq v => UF.UnisonFile v a -> v -> Bool
-hasUserTypeSignature parsedFile sym =
-  UF.terms parsedFile
-    & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))

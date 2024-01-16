@@ -59,6 +59,7 @@ dependencies:
   - http-client
   - http-media
   - http-types
+  - IntervalMap
   - lens
   - lucid
   - megaparsec

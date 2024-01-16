@@ -32,6 +32,9 @@ lspToUPos Position {_line = line, _character = char} =
 uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
+lspToURange :: Range -> Range.Range
+lspToURange (Range start end) = Range.Range (lspToUPos start) (lspToUPos end)
+
 annToRange :: Ann -> Maybe Range
 annToRange = \case
   Ann.Intrinsic -> Nothing

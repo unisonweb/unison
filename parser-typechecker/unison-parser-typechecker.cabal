@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -177,6 +177,7 @@ library
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Names
+      Unison.UnisonFile.Summary
       Unison.UnisonFile.Type
       Unison.Util.Convert
       Unison.Util.CycleTable
@@ -226,7 +227,8 @@ library
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , NanoID
     , aeson
     , ansi-terminal
@@ -416,7 +418,8 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      ListLike
+      IntervalMap
+    , ListLike
     , NanoID
     , aeson
     , ansi-terminal
