@@ -30,8 +30,11 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -402,15 +405,21 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: (Ord v) => String -> P v m (L.Token ())
+quasikeyword :: Ord v => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
-  L.WordyId s Nothing | s == kw -> Just ()
+  L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
 
-symbolyQuasikeyword :: (Ord v) => String -> P v m (L.Token ())
+symbolyQuasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 symbolyQuasikeyword kw = queryToken \case
-  L.SymbolyId s Nothing | s == kw -> Just ()
+  L.SymbolyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
+
+nameIsKeyword :: Name -> Text -> Bool
+nameIsKeyword name keyword =
+  case (Name.isRelative name, Name.reverseSegments name) of
+    (True, segment NonEmpty.:| []) -> NameSegment.toText segment == keyword
+    _ -> False
 
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
@@ -960,9 +969,9 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
-    <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
-    <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ":+"))))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "+:"))))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "++"))))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf

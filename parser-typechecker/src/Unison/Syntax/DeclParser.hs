@@ -6,7 +6,6 @@ where
 import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
 import Data.Map qualified as Map
-import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
@@ -113,11 +112,11 @@ modifier = do
   where
     unique = do
       tok <- openBlockWith "unique"
-      optional (openBlockWith "[" *> wordyIdString <* closeBlock) >>= \case
+      optional (openBlockWith "[" *> importWordyId <* closeBlock) >>= \case
         Nothing -> do
           guid <- uniqueName 32
           pure (UnresolvedModifier'UniqueWithoutGuid guid <$ tok)
-        Just guid -> pure (UnresolvedModifier'UniqueWithGuid (Text.pack (L.payload guid)) <$ tok)
+        Just guid -> pure (UnresolvedModifier'UniqueWithGuid (Name.toText (L.payload guid)) <$ tok)
     structural = do
       tok <- openBlockWith "structural"
       pure (UnresolvedModifier'Structural <$ tok)

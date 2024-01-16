@@ -20,11 +20,13 @@ import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -1629,16 +1631,17 @@ renderParseErrors s = \case
                   then unknownTypesMsg
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
-    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing))) =
-      let msg =
-            mconcat
-              [ "This looks like the start of an expression here but I was expecting a binding.",
-                "\nDid you mean to use a single " <> style Code ":",
-                " here for a type signature?",
-                "\n\n",
-                tokenAsErrorSite s t
-              ]
-       in (msg, [rangeForToken t])
+    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
+      | name == Name.fromSegment (NameSegment "::") =
+          let msg =
+                mconcat
+                  [ "This looks like the start of an expression here but I was expecting a binding.",
+                    "\nDid you mean to use a single " <> style Code ":",
+                    " here for a type signature?",
+                    "\n\n",
+                    tokenAsErrorSite s t
+                  ]
+           in (msg, [rangeForToken t])
     go (Parser.DidntExpectExpression tok _nextTok) =
       let msg =
             mconcat

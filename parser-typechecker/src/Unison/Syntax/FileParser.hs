@@ -9,6 +9,7 @@ import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -16,7 +17,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toString, unsafeFromVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Term (Term)
@@ -216,10 +217,10 @@ stanza = watchExpression <|> unexpectedAction <|> binding
 
 watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
 watched = P.try do
-  kind <- optional wordyIdString
+  kind <- (fmap . fmap . fmap) Name.toString (optional importWordyId)
   guid <- uniqueName 10
-  op <- optional (L.payload <$> P.lookAhead symbolyIdString)
-  guard (op == Just ">")
+  op <- optional (L.payload <$> P.lookAhead importSymbolyId)
+  guard (op == Just (Name.fromSegment (NameSegment ">")))
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)

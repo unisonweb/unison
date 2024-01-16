@@ -44,14 +44,12 @@ module Unison.Syntax.Parser
     sepBy1,
     string,
     symbolyDefinitionName,
-    symbolyIdString,
     tok,
     tokenToPair,
     tupleOrParenthesized,
     uniqueBase32Namegen,
     uniqueName,
     wordyDefinitionName,
-    wordyIdString,
     wordyPatternName,
   )
 where
@@ -74,8 +72,10 @@ import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -85,7 +85,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (unsafeFromString)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeFromString)
 import Unison.Term (MatchCase (..))
 import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
@@ -274,8 +274,9 @@ matchToken x = P.satisfy ((==) x . L.payload)
 importDotId :: (Ord v) => P v m (L.Token Name)
 importDotId = queryToken go
   where
-    go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromString ".")
-    go _ = Nothing
+    go = \case
+      L.SymbolyId (HQ'.NameOnly name@(Name.reverseSegments -> NameSegment "." Nel.:| [])) -> Just name
+      _ -> Nothing
 
 -- Consume a virtual semicolon
 semi :: (Ord v) => P v m (L.Token ())
@@ -288,9 +289,9 @@ semi = label "newline or semicolon" $ queryToken go
 closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
-wordyPatternName :: (Var v) => P v m (L.Token v)
+wordyPatternName :: Var v => P v m (L.Token v)
 wordyPatternName = queryToken \case
-  L.WordyId s Nothing -> Just $ Var.nameds s
+  L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
   _ -> Nothing
 
 -- Parse an prefix identifier e.g. Foo or (+), discarding any hash
@@ -304,44 +305,36 @@ prefixTermName :: (Var v) => P v m (L.Token v)
 prefixTermName = wordyTermName <|> parenthesize symbolyTermName
   where
     wordyTermName = queryToken \case
-      L.WordyId s Nothing -> Just $ Var.nameds s
+      L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
       L.Blank s -> Just $ Var.nameds ("_" <> s)
       _ -> Nothing
     symbolyTermName = queryToken \case
-      L.SymbolyId s Nothing -> Just $ Var.nameds s
+      L.SymbolyId (HQ'.NameOnly n) -> Just $ Name.toVar n
       _ -> Nothing
 
 -- Parse a wordy identifier e.g. Foo, discarding any hash
-wordyDefinitionName :: (Var v) => P v m (L.Token v)
-wordyDefinitionName = queryToken \case
-  L.WordyId s _ -> Just $ Var.nameds s
+wordyDefinitionName :: Var v => P v m (L.Token v)
+wordyDefinitionName = queryToken $ \case
+  L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
   L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing
 
--- Parse a wordyId as a String, rejecting any hash
-wordyIdString :: (Ord v) => P v m (L.Token String)
-wordyIdString = queryToken \case
-  L.WordyId s Nothing -> Just s
-  _ -> Nothing
-
 -- Parse a wordyId as a Name, rejecting any hash
-importWordyId :: (Ord v) => P v m (L.Token Name)
-importWordyId = (fmap . fmap) Name.unsafeFromString wordyIdString
+importWordyId :: Ord v => P v m (L.Token Name)
+importWordyId = queryToken \case
+  L.WordyId (HQ'.NameOnly n) -> Just n
+  _ -> Nothing
 
 -- The `+` in: use Foo.bar + as a Name
-importSymbolyId :: (Ord v) => P v m (L.Token Name)
-importSymbolyId = (fmap . fmap) Name.unsafeFromString symbolyIdString
-
--- Parse a symbolyId as a String, rejecting any hash
-symbolyIdString :: (Ord v) => P v m (L.Token String)
-symbolyIdString = queryToken \case
-  L.SymbolyId s Nothing -> Just s
+importSymbolyId :: Ord v => P v m (L.Token Name)
+importSymbolyId = queryToken \case
+  L.SymbolyId (HQ'.NameOnly n) -> Just n
   _ -> Nothing
 
--- Parse a symboly ID like >>= or Docs.&&, discarding any hash
-symbolyDefinitionName :: (Var v) => P v m (L.Token v)
-symbolyDefinitionName = queryToken \case
-  L.SymbolyId s _ -> Just $ Var.nameds s
+-- Parse a symboly ID like >>= or &&, discarding any hash
+symbolyDefinitionName :: Var v => P v m (L.Token v)
+symbolyDefinitionName = queryToken $ \case
+  L.SymbolyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
 
 parenthesize :: (Ord v) => P v m a -> P v m a
@@ -352,21 +345,17 @@ hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
 hqInfixId = hqSymbolyId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
+hqWordyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
-  L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.WordyId s (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
-  L.WordyId s Nothing -> Just $ HQ.NameOnly (Name.unsafeFromString s)
+  L.WordyId n -> Just $ HQ'.toHQ n
   L.Hash h -> Just $ HQ.HashOnly h
   L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromString ("_" <> s))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
+hqSymbolyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
 hqSymbolyId_ = queryToken \case
-  L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.SymbolyId s (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
-  L.SymbolyId s Nothing -> Just $ HQ.NameOnly (Name.unsafeFromString s)
+  L.SymbolyId n -> Just (HQ'.toHQ n)
   _ -> Nothing
 
 -- Parse a reserved word
