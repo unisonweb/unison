@@ -13,9 +13,10 @@ import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (annToInterval, annToRange, rangeToInterval)
-import Unison.LSP.FileAnalysis (getFileAnalysis, ppedForFile)
+import Unison.LSP.FileAnalysis (getFileAnalysis, hasUserTypeSignature, ppedForFile)
 import Unison.LSP.Types
 import Unison.Name qualified as Name
 import Unison.Parser.Ann qualified as Ann
@@ -23,10 +24,12 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
+import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
+import Unison.UnisonFile (UnisonFile)
 import Unison.Util.Pretty qualified as Pretty
 
 formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
@@ -46,7 +49,8 @@ formatDefs fileUri mayRangesToFormat =
   fromMaybe []
     <$> runMaybeT do
       cwd <- lift getCurrentPath
-      FileAnalysis {fileSummary = mayFileSummary} <- getFileAnalysis fileUri
+      FileAnalysis {fileSummary = mayFileSummary, parsedFile = mayParsedFile} <- getFileAnalysis fileUri
+      parsedFile <- hoistMaybe mayParsedFile
       fileSummary <- hoistMaybe mayFileSummary
       filePPED <- lift $ ppedForFile fileUri
       formattedDecls <-
@@ -78,7 +82,8 @@ formatDefs fileUri mayRangesToFormat =
             let definitionPPE = case mayRefId of
                   Just refId -> PPE.declarationPPE biasedPPED (Reference.DerivedId refId)
                   Nothing -> PPED.suffixifiedPPE biasedPPED
-            let formattedTerm = Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
+            let formattedTerm = Pretty.syntaxToColor $ TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (removeGeneratedTypeAnnotations parsedFile sym trm)
+            Debug.debugM Debug.Temp "term" (sym, tldAnn, trm, hasUserTypeSignature parsedFile sym)
             -- let formattedWatches =
             --       allWatches fileSummary & map \(_tldAnn, maySym, _mayRef, trm, _mayType, mayWatchKind) -> do
             --         case (mayWatchKind, maySym) of
@@ -124,8 +129,11 @@ formatDefs fileUri mayRangesToFormat =
       annToInterval a & \case
         Nothing -> False
         Just annI -> rangeToInterval r `Interval.overlaps` annI
-    stripTypeAnnotation ::
-      (Term.Term v a) -> (Term.Term v a)
-    stripTypeAnnotation = \case
-      Term.Ann' tm _annotation -> tm
+
+    -- Typechecking ALWAYS adds a type-signature, but we don't want to add ones that didn't
+    -- already exist in the source file.
+    removeGeneratedTypeAnnotations ::
+      UnisonFile Symbol a -> Symbol -> (Term.Term Symbol a) -> (Term.Term Symbol a)
+    removeGeneratedTypeAnnotations uf v = \case
+      Term.Ann' tm _annotation | not (hasUserTypeSignature uf v) -> tm
       x -> x

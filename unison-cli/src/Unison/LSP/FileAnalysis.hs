@@ -562,3 +562,10 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
             )
    in typeHints
+
+-- | Returns 'True' if the given symbol is a term with a user provided type signature in the
+-- parsed file, false otherwise.
+hasUserTypeSignature :: Eq v => UF.UnisonFile v a -> v -> Bool
+hasUserTypeSignature parsedFile sym =
+  UF.terms parsedFile
+    & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
