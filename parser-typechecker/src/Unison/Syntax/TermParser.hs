@@ -45,7 +45,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeFromVar)
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.TypeParser qualified as TypeParser
@@ -407,16 +407,19 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
 quasikeyword :: Ord v => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
-  L.WordyId (HQ'.NameOnly n) ->
-    case (Name.isRelative n, Name.reverseSegments n) of
-      (True, s NonEmpty.:| []) | NameSegment.toText s == kw -> Just ()
-      _ -> Nothing
+  L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
 
-symbolyQuasikeyword :: (Ord v) => String -> P v m (L.Token ())
+symbolyQuasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 symbolyQuasikeyword kw = queryToken \case
-  L.SymbolyId (HQ'.NameOnly n) | Name.toString n == kw -> Just ()
+  L.SymbolyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
+
+nameIsKeyword :: Name -> Text -> Bool
+nameIsKeyword name keyword =
+  case (Name.isRelative name, Name.reverseSegments name) of
+    (True, segment NonEmpty.:| []) -> NameSegment.toText segment == keyword
+    _ -> False
 
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
