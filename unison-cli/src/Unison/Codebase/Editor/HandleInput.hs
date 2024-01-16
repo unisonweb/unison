@@ -122,6 +122,7 @@ import Unison.Codebase.TermEdit.Typing qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.Codebase.Verbosity qualified as Verbosity
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
 import Unison.CommandLine.InputPattern qualified as IP
@@ -422,7 +423,7 @@ loop e = do
             ForkLocalBranchI src0 dest0 -> do
               (srcb, branchEmpty) <-
                 case src0 of
-                  Left hash -> (, WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
+                  Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
                   Right path' -> do
                     absPath <- ProjectUtils.branchRelativePathToAbsolute path'
                     let srcp = Path.convert absPath
@@ -1175,10 +1176,10 @@ inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
     SaveExecuteResultI _str -> pure "save-execute-result"
-    ForkLocalBranchI _src0 _dest0 -> do
-      -- src <- hp' src0
-      -- dest <- p' dest0
-      pure ("fork ") -- todo
+    ForkLocalBranchI src0 dest0 -> do
+      src <- either (pure . Text.pack . show) brp src0
+      dest <- brp dest0
+      pure ("fork " <> src <> " " <> dest)
     MergeLocalBranchI src0 dest0 mode -> do
       src <- looseCodeOrProjectToText src0
       dest <- looseCodeOrProjectToText dest0
@@ -1383,6 +1384,8 @@ inputDescription input =
     hp' = either (pure . Text.pack . show) p'
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
+    brp :: BranchRelativePath -> Cli Text
+    brp = fmap tShow . ProjectUtils.branchRelativePathToAbsolute
     ops' :: Maybe Path.Split' -> Cli Text
     ops' = maybe (pure ".") ps'
     opatch :: Maybe Path.Split' -> Cli Text
