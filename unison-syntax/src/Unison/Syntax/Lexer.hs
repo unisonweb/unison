@@ -34,7 +34,6 @@ module Unison.Syntax.Lexer
   )
 where
 
-import Control.Lens.TH (makePrisms)
 import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Control.Monad.State qualified as S
 import Data.Char
@@ -145,8 +144,6 @@ data Lexeme
   deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
-
-makePrisms ''Lexeme
 
 lexemeToHQName :: Lexeme -> Maybe (HQ.HashQualified Name)
 lexemeToHQName = \case
