@@ -5,8 +5,11 @@
     * [`UNISON_DEBUG`](#unison_debug)
     * [`UNISON_PAGER`](#unison_pager)
     * [`UNISON_LSP_PORT`](#unison_lsp_port)
+    * [`UNISON_LSP_ENABLED`](#unison_lsp_enabled)
     * [`UNISON_SHARE_HOST`](#unison_share_host)
     * [`UNISON_SHARE_ACCESS_TOKEN`](#unison_share_access_token)
+    * [`UNISON_READONLY`](#unison_readonly)
+    * [`UNISON_ENTITY_VALIDATION`](#unison_entity_validation)
     * [Local Codebase Server](#local-codebase-server)
 * [Codebase Configuration](#codebase-configuration)
 
@@ -50,6 +53,31 @@ E.g.
 $ UNISON_LSP_PORT=8080 ucm
 ```
 
+### `UNISON_LSP_ENABLED`
+
+Allows explicitly enabling or disabling the LSP server.
+Acceptable values are 'true' or 'false'
+
+Note for Windows users: Due to an outstanding issue with GHC's IO manager on Windows, the LSP is **disabled by default** on Windows machines.
+Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
+Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
+
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+
+You can set this persistently in powershell using:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable('UNISON_LSP_ENABLED','true')
+```
+
+See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
+
+E.g.
+
+```sh
+$ UNISON_LSP_ENABLED=true ucm
+```
+
 ### `UNISON_SHARE_HOST`
 
 Allows selecting the location for the default Share server.
@@ -68,6 +96,22 @@ E.g.
 
 ```sh
 $ UNISON_SHARE_ACCESS_TOKEN="my.token.string" ucm
+```
+
+### `UNISON_READONLY`
+
+Force unison to use readonly connections to codebases.
+
+```sh
+$ UNISON_READONLY="true" ucm
+```
+
+### `UNISON_ENTITY_VALIDATION`
+
+Enable validation of entities pulled from a codebase server.
+
+```sh
+$ UNISON_ENTITY_VALIDATION="true" ucm
 ```
 
 ### Local Codebase Server

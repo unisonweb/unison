@@ -5,33 +5,36 @@
 
 module Unison.Server.Errors where
 
-import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.Set as Set
-import qualified Data.Text.Lazy as Text
-import qualified Data.Text.Lazy.Encoding as Text
+import Data.ByteString.Lazy qualified as LazyByteString
+import Data.ByteString.Lazy.Char8 qualified as BSC
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LazyText
+import Data.Text.Lazy.Encoding qualified as LazyText
 import Servant (ServerError (..), err400, err404, err409, err500)
-import U.Codebase.HashTags (CausalHash)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.ShortCausalHash as SCH
-import qualified Unison.HashQualified as HQ
+import U.Codebase.HashTags (BranchHash, CausalHash)
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
-import qualified Unison.Reference as Reference
-import qualified Unison.Server.Backend as Backend
+import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Reference qualified as Reference
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( HashQualifiedName,
     munge,
     mungeShow,
     mungeString,
   )
-import qualified Unison.ShortHash as SH
-import qualified Unison.Syntax.HashQualified as HQ (toString)
+import Unison.ShortHash qualified as SH
+import Unison.Syntax.HashQualified qualified as HQ (toString)
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn =
   err400
     { errBody =
-        Text.encodeUtf8 (Text.fromStrict hqn)
+        LazyText.encodeUtf8 (LazyText.fromStrict hqn)
           <> " is not a well-formed name, hash, or hash-qualified name. "
           <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
     }
@@ -42,16 +45,19 @@ backendError = \case
     noSuchNamespace . Path.toText $ Path.unabsolute n
   Backend.BadNamespace err namespace -> badNamespace err namespace
   Backend.NoBranchForHash h ->
-    noSuchNamespace . Text.toStrict . Text.pack $ show h
+    noSuchNamespace . LazyText.toStrict . LazyText.pack $ show h
   Backend.CouldntLoadBranch h ->
     couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
-    noSuchNamespace . Text.toStrict . Text.pack $ show h
+    noSuchNamespace . LazyText.toStrict . LazyText.pack $ show h
   Backend.AmbiguousBranchHash sch hashes ->
     ambiguousNamespace (SCH.toText sch) (Set.map SCH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
   Backend.NoSuchDefinition hqName -> noSuchDefinition hqName
   Backend.AmbiguousHashForDefinition shorthash -> ambiguousHashForDefinition shorthash
+  Backend.ExpectedNameLookup branchHash -> expectedNameLookup branchHash
+  Backend.DisjointProjectAndPerspective perspective projectRoot -> disjointProjectAndPerspective perspective projectRoot
+  Backend.ProjectBranchNameNotFound projectName branchName -> projectBranchNameNotFound projectName branchName
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace =
@@ -72,7 +78,7 @@ couldntLoadBranch h =
   err404
     { errBody =
         "The namespace "
-          <> munge (Text.toStrict . Text.pack $ show h)
+          <> munge (LazyText.toStrict . LazyText.pack $ show h)
           <> " exists but couldn't be loaded."
     }
 
@@ -109,5 +115,34 @@ ambiguousHashForDefinition :: SH.ShortHash -> ServerError
 ambiguousHashForDefinition shorthash =
   err400
     { errBody =
-        "The hash prefix " <> BSC.pack (SH.toString shorthash) <> " is ambiguous"
+        "The hash prefix " <> LazyByteString.fromStrict (Text.encodeUtf8 (SH.toText shorthash)) <> " is ambiguous"
+    }
+
+expectedNameLookup :: BranchHash -> ServerError
+expectedNameLookup branchHash =
+  err500
+    { errBody =
+        "Name lookup index required for branch hash: " <> BSC.pack (show branchHash)
+    }
+
+disjointProjectAndPerspective :: Path.Path -> Path.Path -> ServerError
+disjointProjectAndPerspective perspective projectRoot =
+  err500
+    { errBody =
+        "The project root "
+          <> munge (Path.toText projectRoot)
+          <> " is disjoint with the perspective "
+          <> munge (Path.toText perspective)
+          <> ". This is a bug, please report it."
+    }
+
+projectBranchNameNotFound :: ProjectName -> ProjectBranchName -> ServerError
+projectBranchNameNotFound projectName branchName =
+  err404
+    { errBody =
+        "The project branch "
+          <> (LazyText.encodeUtf8 . LazyText.fromStrict $ into @Text projectName)
+          <> "/"
+          <> (LazyText.encodeUtf8 . LazyText.fromStrict $ into @Text branchName)
+          <> " does not exist."
     }

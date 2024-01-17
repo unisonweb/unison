@@ -10,6 +10,8 @@ isEmpty x = match x with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -28,6 +30,8 @@ isEmpty2 = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -88,6 +92,8 @@ merge2 = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -119,13 +125,14 @@ Here's another example:
 ```unison
 structural type B = T | F
 
+blah : B -> B -> Text
 blah = cases
   T, x -> "hi"
-  x, F -> "bye"
+  x, y -> "bye"
 
 blorf = cases
   x, T -> x
-  T, x -> x
+  x, y -> y
 
 > blah T F
 > blah F F
@@ -133,6 +140,8 @@ blorf = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -147,15 +156,15 @@ blorf = cases
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    11 | > blah T F
+    12 | > blah T F
            ⧩
            "hi"
   
-    12 | > blah F F
+    13 | > blah F F
            ⧩
            "bye"
   
-    13 | > blorf T F
+    14 | > blorf T F
            ⧩
            F
 
@@ -172,6 +181,8 @@ merge3 = cases
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -212,6 +223,8 @@ merge4 a b = match (a,b) with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

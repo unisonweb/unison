@@ -11,6 +11,8 @@ Here's a *README*!
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -34,7 +36,7 @@ Here's a *README*!
 ```
 ```api
 --  Should find names by suffix
-GET /api/namespaces/nested.names
+GET /api/non-project-code/namespaces/nested.names
 {
     "fqn": "nested.names",
     "hash": "#6tnmlu9knsce0u2991u6fvcmf4v44fdf0aiqtmnq7mjj0gi5sephg3lf12iv3odr5rc7vlgq75ciborrd3625c701bdmdomia2gcm3o",

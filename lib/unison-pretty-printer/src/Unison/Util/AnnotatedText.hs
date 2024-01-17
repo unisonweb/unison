@@ -8,13 +8,13 @@
 
 module Unison.Util.AnnotatedText where
 
-import qualified Data.Foldable as Foldable
-import qualified Data.List as L
-import qualified Data.ListLike as LL
-import qualified Data.Map as Map
+import Data.Foldable qualified as Foldable
+import Data.List qualified as L
+import Data.ListLike qualified as LL
+import Data.Map qualified as Map
 import Data.Sequence (Seq ((:<|), (:|>)))
-import qualified Data.Sequence as Seq
-import qualified GHC.Exts
+import Data.Sequence qualified as Seq
+import GHC.Exts qualified
 import Unison.Lexer.Pos (Line, Pos (..))
 import Unison.Prelude
 import Unison.Util.Monoid (intercalateMap)
@@ -182,10 +182,10 @@ snipWithContext margin source =
           text', text2' :: [String]
           (text', text2') =
             splitAt takeLineCount (drop dropLineCount (lines (text source)))
-       in AnnotatedExcerpt startLine' (unlines text') group' :
-          snipWithContext
-            margin
-            (AnnotatedExcerpt (endLine' + 1) (unlines text2') rest')
+       in AnnotatedExcerpt startLine' (unlines text') group'
+            : snipWithContext
+              margin
+              (AnnotatedExcerpt (endLine' + 1) (unlines text2') rest')
   where
     withinMargin :: Range -> Range -> Bool
     withinMargin (Range _start1 (Pos end1 _)) (Range (Pos start2 _) _end2) =

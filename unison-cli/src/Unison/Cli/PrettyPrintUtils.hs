@@ -1,31 +1,32 @@
 -- | Utilities that have to do with constructing pretty-print environments, given stateful information in the Cli monad
 -- state/environment, such as the current path.
 module Unison.Cli.PrettyPrintUtils
-  ( prettyPrintEnvDecl,
+  ( prettyPrintEnvDeclFromNames,
     currentPrettyPrintEnvDecl,
   )
 where
 
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
-import Unison.NamesWithHistory (NamesWithHistory (..))
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
+import Unison.Names (Names)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import qualified Unison.PrettyPrintEnvDecl.Names as PPE
-import qualified Unison.Server.Backend as Backend
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 
-prettyPrintEnvDecl :: NamesWithHistory -> Cli PPE.PrettyPrintEnvDecl
-prettyPrintEnvDecl ns =
-  Cli.runTransaction Codebase.hashLength <&> (`PPE.fromNamesDecl` ns)
+-- | Builds a pretty print env decl from a names object.
+prettyPrintEnvDeclFromNames :: Names -> Cli PPE.PrettyPrintEnvDecl
+prettyPrintEnvDeclFromNames ns =
+  Cli.runTransaction Codebase.hashLength <&> \hashLen ->
+    PPED.makePPED (PPE.hqNamer hashLen ns) (PPE.suffixifyByHash ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
-currentPrettyPrintEnvDecl :: (Path -> Backend.NameScoping) -> Cli PPE.PrettyPrintEnvDecl
-currentPrettyPrintEnvDecl scoping = do
-  root' <- Cli.getRootBranch
-  currentPath <- Cli.getCurrentPath
-  hqLen <- Cli.runTransaction Codebase.hashLength
-  pure $ Backend.getCurrentPrettyNames hqLen (scoping (Path.unabsolute currentPath)) root'
+--
+-- Prefer using 'prettyPrintEnvDeclFromNames' when you've already got
+-- a 'Names' value around, since using 'currentPrettyPrintEnvDecl' rebuilds the underlying
+-- names object.
+currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl = do
+  Cli.currentNames >>= prettyPrintEnvDeclFromNames

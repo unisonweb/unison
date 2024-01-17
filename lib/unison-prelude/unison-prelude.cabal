@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -22,6 +22,7 @@ library
       Unison.Prelude
       Unison.Util.Alternative
       Unison.Util.Lens
+      Unison.Util.List
       Unison.Util.Map
       Unison.Util.Monoid
       Unison.Util.Set
@@ -33,17 +34,31 @@ library
       BangPatterns
       BlockArguments
       ConstraintKinds
+      DeriveAnyClass
       DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
-      ScopedTypeVariables
+      NamedFieldPuns
+      OverloadedLabels
+      OverloadedStrings
+      PatternSynonyms
       RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
       TypeApplications
+      TypeFamilies
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
@@ -51,6 +66,8 @@ library
     , containers
     , either
     , extra
+    , filepath
+    , generic-lens
     , lens
     , mtl
     , pretty-simple
@@ -60,5 +77,6 @@ library
     , transformers
     , unliftio
     , vector
+    , witch
     , witherable
   default-language: Haskell2010

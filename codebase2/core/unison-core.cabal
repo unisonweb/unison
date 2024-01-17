@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -17,9 +17,12 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.HashTags
+      U.Codebase.Reference
       U.Core.ABT
       U.Core.ABT.Var
+      Unison.Core.Project
       Unison.NameSegment
+      Unison.ShortHash
       Unison.Util.Alphabetical
   hs-source-dirs:
       ./
@@ -37,12 +40,13 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedStrings
-      QuantifiedConstraints
       PatternSynonyms
+      QuantifiedConstraints
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
@@ -52,8 +56,12 @@ library
   build-depends:
       base
     , containers
+    , lens
+    , mtl
+    , recover-rtti
     , rfc5051
     , text
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
     , vector

@@ -62,7 +62,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.7.5/stack-2.7.5-linux-x86_64.tar.gz | tar -xz
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-linux-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
@@ -90,11 +90,9 @@ jobs:
           # Erase any stale files
           cd "$GITHUB_WORKSPACE"/haddocks
           rm -rf ./*
+          git checkout --orphan fresh-haddocks-branch
           cp -r "${docs_root}"/* "$GITHUB_WORKSPACE"/haddocks
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo No changes.
-          else
-            git add .
-            git commit -m "Regenerated haddocks based on ${GITHUB_SHA}"
-            git push
-          fi
+          git add .
+          git commit -m "Regenerated haddocks based on ${GITHUB_SHA}"
+          # Push the branch with only a single commit over the remote
+          git push --force origin fresh-haddocks-branch:haddocks

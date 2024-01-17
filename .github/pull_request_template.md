@@ -2,7 +2,9 @@
 
 ## Overview
 
-What does this change accomplish and why? i.e. How does it change the user experience?
+What does this change accomplish and why?
+i.e. How does it change the user experience?
+i.e. What was the old behavior/API and what is the new behavior/API?
 
 Feel free to include "before and after" examples if appropriate. (You can copy/paste screenshots directly into this editor.)
 
@@ -14,14 +16,16 @@ How does it accomplish it, in broad strokes? i.e. How does it change the Haskell
 
 ## Interesting/controversial decisions
 
-Include anything that you thought twice about, debated, chose arbitrarily, etc. 
+Include anything that you thought twice about, debated, chose arbitrarily, etc.
 What could have been done differently, but wasn't? And why?
 
 ## Test coverage
 
-Have you included tests (which could be a transcript) for this change, or is it somehow covered by existing tests? 
+Have you included tests (which could be a transcript) for this change, or is it somehow covered by existing tests?
 
 Would you recommend improving the test coverage (either as part of this PR or as a separate issue) or do you think it’s adequate?
+
+If you only tested by hand, because that's all that's practical to do for this change, mention that.
 
 ## Loose ends
 

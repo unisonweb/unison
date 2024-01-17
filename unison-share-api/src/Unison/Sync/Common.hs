@@ -10,26 +10,26 @@ module Unison.Sync.Common
   )
 where
 
-import qualified Control.Lens as Lens
-import qualified Data.Set as Set
-import qualified Data.Vector as Vector
+import Control.Lens qualified as Lens
+import Data.Set qualified as Set
+import Data.Vector qualified as Vector
 import U.Codebase.HashTags (CausalHash (..))
-import qualified U.Codebase.Sqlite.Branch.Format as NamespaceFormat
-import qualified U.Codebase.Sqlite.Causal as Causal
-import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
-import qualified U.Codebase.Sqlite.Entity as Entity
+import U.Codebase.Sqlite.Branch.Format qualified as NamespaceFormat
+import U.Codebase.Sqlite.Causal qualified as Causal
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.LocalIds
-import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import qualified U.Codebase.Sqlite.TempEntity as Sqlite
-import qualified U.Codebase.Sqlite.TempEntity as TempEntity
-import qualified U.Codebase.Sqlite.Term.Format as TermFormat
-import U.Util.Hash32 (Hash32)
-import qualified U.Util.Hash32 as Hash32
+import U.Codebase.Sqlite.TempEntity qualified as Sqlite
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
-import qualified Unison.Sqlite as Sqlite
-import qualified Unison.Sync.Types as Share
+import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Types qualified as Share
 
 -- | Read an entity out of the database that we know is in main storage.
 expectEntity :: Hash32 -> Sqlite.Transaction (Share.Entity Text Hash32 Hash32)

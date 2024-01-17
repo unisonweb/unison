@@ -1,7 +1,9 @@
 # Tests for `move.namespace`
 
 ```ucm:hide
-.> builtins.mergeio
+.happy> builtins.merge
+.history> builtins.merge
+.existing> builtins.merge
 ```
 
 ## Happy path
@@ -58,7 +60,9 @@ b.termInB = 11
 .history> update
 ```
 
-Now, if we soft-delete a namespace, but move another over it we expect the history to be replaced, and we expect the history from the source to be wiped out.
+Deleting a namespace should not leave behind any history,
+if we move another to that location we expect the history to simply be the history
+of the moved namespace. 
 
 ```ucm
 .history> delete.namespace b

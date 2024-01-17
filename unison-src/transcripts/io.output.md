@@ -47,6 +47,8 @@ testCreateRename _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -126,6 +128,8 @@ testOpenClose _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -214,6 +218,8 @@ testGetSomeBytes _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -320,6 +326,8 @@ testAppend _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -377,6 +385,8 @@ testSystemTime _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -652,5 +662,56 @@ Calling our examples with the wrong number of args will error.
   
   Stack trace:
     ##raise
+
+```
+### Get the time zone
+
+```unison
+testTimeZone = do
+  (offset, summer, name) = Clock.internals.systemTimeZone +0
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testTimeZone : '{IO} ()
+
+.> run testTimeZone
+
+  ()
+
+```
+### Get some random bytes
+
+```unison
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testRandom : '{IO} [Result]
+
+.> io.test testGetEnv
+
+    New test results:
+  
+  ◉ testGetEnv   PATH environent variable should be set
+  ◉ testGetEnv   DOESNTEXIST didn't exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetEnv to view the source of a test.
 
 ```

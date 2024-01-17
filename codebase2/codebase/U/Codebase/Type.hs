@@ -1,27 +1,13 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module U.Codebase.Type where
 
-import qualified Control.Monad.Writer.Strict as Writer
-import Data.Bifunctor (Bifunctor (bimap))
-import Data.Functor (($>))
-import qualified Data.Maybe as Maybe
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Text (Text)
+import Control.Monad.Writer.Strict qualified as Writer
+import Data.Maybe qualified as Maybe
+import Data.Set qualified as Set
 import U.Codebase.Kind (Kind)
 import U.Codebase.Reference (Reference, Reference')
-import qualified U.Core.ABT as ABT
-import U.Util.Hash (Hash)
+import U.Core.ABT qualified as ABT
+import Unison.Hash (Hash)
+import Unison.Prelude
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | For standalone types, like those in Term.Ann
@@ -51,17 +37,24 @@ type TypeD v = ABT.Term FD v ()
 
 type TypeR r v = ABT.Term (F' r) v ()
 
-rmap :: Ord v => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
-rmap f = ABT.transform \case
-  Ref r -> Ref (f r)
-  x -> unsafeCoerce x
+rmap :: (Ord v) => (r -> r') -> ABT.Term (F' r) v a -> ABT.Term (F' r') v a
+rmap f = runIdentity . rmapM (Identity . f)
 
-typeD2T :: Ord v => Hash -> TypeD v -> TypeT v
+rmapM ::
+  (Ord v, Monad f) =>
+  (r -> f r') ->
+  ABT.Term (F' r) v a ->
+  f (ABT.Term (F' r') v a)
+rmapM f = ABT.transformM \case
+  Ref r -> Ref <$> f r
+  x -> pure $ unsafeCoerce x
+
+typeD2T :: (Ord v) => Hash -> TypeD v -> TypeT v
 typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 
 dependencies :: (Ord v, Ord r) => ABT.Term (F' r) v a -> Set r
 dependencies = Writer.execWriter . ABT.visit' f
   where
-    f :: Ord r => F' r a -> Writer.Writer (Set r) (F' r a)
+    f :: (Ord r) => F' r a -> Writer.Writer (Set r) (F' r a)
     f t@(Ref r) = Writer.tell (Set.singleton r) $> t
     f t = pure t

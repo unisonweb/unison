@@ -10,10 +10,11 @@ library:
 
 dependencies:
   - NanoID
-  - aeson
+  - aeson >= 2.0.0.0
   - async
   - base
   - binary
+  - bytes
   - bytestring
   - containers
   - directory
@@ -42,14 +43,18 @@ dependencies:
   - transformers
   - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
   - unison-core
   - unison-core1
+  - unison-hash
+  - unison-hash-orphans-aeson
+  - unison-hashing-v2
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
   - unison-util-base32hex
-  - unison-util-base32hex-orphans-aeson
   - unison-util-relation
+  - unison-share-projects-api
   - unison-sqlite
   - unison-syntax
   - unliftio
@@ -58,6 +63,7 @@ dependencies:
   - utf8-string
   - vector
   - wai
+  - wai-cors
   - warp
   - yaml
 
@@ -79,6 +85,7 @@ default-extensions:
   - GADTs
   - GeneralizedNewtypeDeriving
   - KindSignatures
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
@@ -92,3 +99,4 @@ default-extensions:
   - TypeApplications
   - TypeOperators
   - ViewPatterns
+  - ImportQualifiedPost

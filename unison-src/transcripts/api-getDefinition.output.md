@@ -2,107 +2,21 @@
 
 ```unison
 {{ Documentation }}
-nested.names.x = 42
+names.x = 42
 ```
 
 ```api
---  Should find names by suffix
-GET /api/getDefinition?names=x
+--  Should NOT find names by suffix
+GET /api/non-project-code/getDefinition?names=x
 {
-    "missingDefinitions": [],
-    "termDefinitions": {
-        "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
-            "bestTermName": "x",
-            "defnTermTag": "Plain",
-            "signature": [
-                {
-                    "annotation": {
-                        "contents": "##Nat",
-                        "tag": "TypeReference"
-                    },
-                    "segment": "Nat"
-                }
-            ],
-            "termDefinition": {
-                "contents": [
-                    {
-                        "annotation": {
-                            "contents": "x",
-                            "tag": "HashQualifier"
-                        },
-                        "segment": "x"
-                    },
-                    {
-                        "annotation": {
-                            "tag": "TypeAscriptionColon"
-                        },
-                        "segment": " :"
-                    },
-                    {
-                        "annotation": null,
-                        "segment": " "
-                    },
-                    {
-                        "annotation": {
-                            "contents": "##Nat",
-                            "tag": "TypeReference"
-                        },
-                        "segment": "Nat"
-                    },
-                    {
-                        "annotation": null,
-                        "segment": "\n"
-                    },
-                    {
-                        "annotation": {
-                            "contents": "x",
-                            "tag": "HashQualifier"
-                        },
-                        "segment": "x"
-                    },
-                    {
-                        "annotation": {
-                            "tag": "BindingEquals"
-                        },
-                        "segment": " ="
-                    },
-                    {
-                        "annotation": null,
-                        "segment": " "
-                    },
-                    {
-                        "annotation": {
-                            "tag": "NumericLiteral"
-                        },
-                        "segment": "42"
-                    }
-                ],
-                "tag": "UserObject"
-            },
-            "termDocs": [
-                [
-                    "doc",
-                    "#ulr9f75rpcrv79d7sfo2ep2tvbntu3e360lfomird2bdpj4bnea230e8o5j0b9our8vggocpa7eck3pus14fcfajlttat1bg71t6rbg",
-                    {
-                        "contents": [
-                            {
-                                "contents": "Documentation",
-                                "tag": "Word"
-                            }
-                        ],
-                        "tag": "Paragraph"
-                    }
-                ]
-            ],
-            "termNames": [
-                "nested.names.x"
-            ]
-        }
-    },
+    "missingDefinitions": [
+        "x"
+    ],
+    "termDefinitions": {},
     "typeDefinitions": {}
 }
 --  Term names should strip relativeTo prefix.
-GET /api/getDefinition?names=x&relativeTo=nested
+GET /api/non-project-code/getDefinition?names=names.x&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -197,7 +111,7 @@ GET /api/getDefinition?names=x&relativeTo=nested
     "typeDefinitions": {}
 }
 --  Should find definitions by hash, names should be relative
-GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
+GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -291,100 +205,19 @@ GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=nested
     },
     "typeDefinitions": {}
 }
---  Should filter out any definitions which aren't in the provided namespace even if the hash matches.
-GET /api/getDefinition?names=%23qkhkl0n238&relativeTo=emptypath
-{
-    "missingDefinitions": [],
-    "termDefinitions": {
-        "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8": {
-            "bestTermName": "x",
-            "defnTermTag": "Plain",
-            "signature": [
-                {
-                    "annotation": {
-                        "contents": "##Nat",
-                        "tag": "TypeReference"
-                    },
-                    "segment": "Nat"
-                }
-            ],
-            "termDefinition": {
-                "contents": [
-                    {
-                        "annotation": {
-                            "contents": "x",
-                            "tag": "HashQualifier"
-                        },
-                        "segment": "x"
-                    },
-                    {
-                        "annotation": {
-                            "tag": "TypeAscriptionColon"
-                        },
-                        "segment": " :"
-                    },
-                    {
-                        "annotation": null,
-                        "segment": " "
-                    },
-                    {
-                        "annotation": {
-                            "contents": "##Nat",
-                            "tag": "TypeReference"
-                        },
-                        "segment": "Nat"
-                    },
-                    {
-                        "annotation": null,
-                        "segment": "\n"
-                    },
-                    {
-                        "annotation": {
-                            "contents": "x",
-                            "tag": "HashQualifier"
-                        },
-                        "segment": "x"
-                    },
-                    {
-                        "annotation": {
-                            "tag": "BindingEquals"
-                        },
-                        "segment": " ="
-                    },
-                    {
-                        "annotation": null,
-                        "segment": " "
-                    },
-                    {
-                        "annotation": {
-                            "tag": "NumericLiteral"
-                        },
-                        "segment": "42"
-                    }
-                ],
-                "tag": "UserObject"
-            },
-            "termDocs": [],
-            "termNames": [
-                ".nested.names.x"
-            ]
-        }
-    },
-    "typeDefinitions": {}
-}
 ``````unison
-doctest.thing.doc = {{ The correct docs for the thing }}
-doctest.thing = "A thing"
-doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
-doctest.thingalias = "A thing"
-doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
-doctest.otherstuff.thing = "A different thing"
+thing.doc = {{ The correct docs for the thing }}
+thing = "A thing"
+thingalias.doc = {{ Docs for the alias, should not be displayed }}
+thingalias = "A thing"
+otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
+otherstuff.thing = "A different thing"
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
 ```api
-GET /api/getDefinition?names=thing&relativeTo=doctest
+GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -502,7 +335,7 @@ GET /api/getDefinition?names=thing&relativeTo=doctest
 ```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
 ```api
-GET /api/getDefinition?names=thing.doc&relativeTo=doctest
+GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {

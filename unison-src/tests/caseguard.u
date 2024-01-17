@@ -10,6 +10,6 @@ use Universal ==
 
 f = cases
   x | x == "woot" -> false
-  y | y == "foo" -> true
+  y | otherwise -> true
 
 -- > f "woot"

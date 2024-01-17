@@ -13,7 +13,7 @@ x = 2
 ```
 
 ```ucm
-.> update
+.> update.old
 .> view.patch
 ```
 
@@ -35,7 +35,7 @@ unique[b] type Foo = Foo | Bar
 ```
 
 ```ucm
-.> update
+.> update.old
 .> view.patch
 ```
 
@@ -58,7 +58,7 @@ unique[bb] type bar = Foo | Bar
 ```
 
 ```ucm
-.> update
+.> update.old
 .> view.patch
 .> delete.type-replacement 1
 .> view.patch

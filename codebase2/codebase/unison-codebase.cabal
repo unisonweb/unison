@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -17,13 +17,12 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Branch.Type
+      U.Codebase.BranchV3
       U.Codebase.Causal
       U.Codebase.Decl
       U.Codebase.Kind
-      U.Codebase.Reference
       U.Codebase.Referent
       U.Codebase.Reflog
-      U.Codebase.ShortHash
       U.Codebase.Term
       U.Codebase.TermEdit
       U.Codebase.Type
@@ -32,21 +31,9 @@ library
   hs-source-dirs:
       ./
   default-extensions:
-      ApplicativeDo
       BlockArguments
-      DeriveFunctor
-      DeriveGeneric
       DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
       LambdaCase
-      MultiParamTypeClasses
-      NamedFieldPuns
-      PatternSynonyms
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
   build-depends:
       base
     , containers
@@ -56,6 +43,7 @@ library
     , text
     , time
     , unison-core
+    , unison-hash
     , unison-prelude
     , unison-util-base32hex
-  default-language: Haskell2010
+  default-language: GHC2021

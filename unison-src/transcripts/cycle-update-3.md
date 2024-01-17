@@ -22,6 +22,6 @@ ping = 3
 ```
 
 ```ucm
-.> update
+.> update.old
 .> view ping pong
 ```

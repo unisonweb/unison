@@ -1,15 +1,15 @@
 module Unison.Codebase.Branch.BranchDiff where
 
 import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Lazy as MapMerge
+import Data.Map qualified as Map
+import Data.Map.Merge.Lazy qualified as MapMerge
 import Unison.Codebase.Branch.Type (Branch0 (_edits, _terms, _types))
-import qualified Unison.Codebase.Metadata as Metadata
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Metadata qualified as Metadata
+import Unison.Codebase.Patch qualified as Patch
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Star3 qualified as Star3
 
 type Star r n = Metadata.Star r n
 
@@ -25,7 +25,7 @@ data BranchDiff = BranchDiff
   }
   deriving (Eq, Ord, Show)
 
-diff0 :: Monad m => Branch0 m -> Branch0 m -> m BranchDiff
+diff0 :: (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = do
   newEdits <- sequenceA $ snd <$> _edits new
   oldEdits <- sequenceA $ snd <$> _edits old

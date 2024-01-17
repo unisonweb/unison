@@ -2,11 +2,13 @@ module Unison.Hashing.V2.TypeEdit (TypeEdit (..)) where
 
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
-import qualified Unison.Hashing.V2.Tokenizable as H
+import Unison.Hashing.V2.Tokenizable qualified as H
 
-data TypeEdit = Replace Reference | Deprecate
+data TypeEdit
+  = TypeEditReplace Reference
+  | TypeEditDeprecate
   deriving (Eq, Ord, Show)
 
 instance Tokenizable TypeEdit where
-  tokens (Replace r) = H.Tag 0 : H.tokens r
-  tokens Deprecate = [H.Tag 1]
+  tokens (TypeEditReplace r) = H.Tag 0 : H.tokens r
+  tokens TypeEditDeprecate = [H.Tag 1]

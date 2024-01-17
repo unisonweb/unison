@@ -29,6 +29,7 @@ module Unison.Util.Bytes
     at,
     take,
     drop,
+    indexOf,
     size,
     empty,
     encodeNat16be,
@@ -53,31 +54,32 @@ module Unison.Util.Bytes
 where
 
 import Basement.Block.Mutable (Block (Block))
-import qualified Codec.Compression.GZip as GZip
-import qualified Codec.Compression.Zlib as Zlib
+import Codec.Compression.GZip qualified as GZip
+import Codec.Compression.Zlib qualified as Zlib
 import Control.DeepSeq (NFData (..))
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftL, shiftR, (.|.))
-import qualified Data.ByteArray as BA
-import qualified Data.ByteArray.Encoding as BE
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
+import Data.ByteArray qualified as BA
+import Data.ByteArray.Encoding qualified as BE
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as LB
+import Data.ByteString.Lazy.Search qualified as SS
 import Data.Char
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
     copyByteArrayToPtr,
   )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
-import qualified Data.Text as Text
-import qualified Data.Vector.Primitive as V
-import qualified Data.Vector.Primitive.Mutable as MV
-import qualified Data.Vector.Storable as SV
-import qualified Data.Vector.Storable.ByteString as BSV
-import qualified Data.Vector.Storable.Mutable as MSV
+import Data.Text qualified as Text
+import Data.Vector.Primitive qualified as V
+import Data.Vector.Primitive.Mutable qualified as MV
+import Data.Vector.Storable qualified as SV
+import Data.Vector.Storable.ByteString qualified as BSV
+import Data.Vector.Storable.Mutable qualified as MSV
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Storable (pokeByteOff)
 import Unison.Prelude hiding (ByteString, empty)
-import qualified Unison.Util.Rope as R
+import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
 
@@ -115,10 +117,10 @@ fromByteString b = snoc empty (byteStringToChunk b)
 toByteString :: Bytes -> B.ByteString
 toByteString b = B.concat (map chunkToByteString (chunks b))
 
-toArray :: BA.ByteArray b => Bytes -> b
+toArray :: (BA.ByteArray b) => Bytes -> b
 toArray b = chunkToArray $ V.concat (chunks b)
 
-fromArray :: BA.ByteArrayAccess b => b -> Bytes
+fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
 byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
@@ -192,6 +194,15 @@ take n (Bytes bs) = Bytes (R.take n bs)
 
 drop :: Int -> Bytes -> Bytes
 drop n (Bytes bs) = Bytes (R.drop n bs)
+
+indexOf :: Bytes -> Bytes -> Maybe Word64
+indexOf needle haystack =
+  case SS.indices needle' haystack' of
+    [] -> Nothing
+    (i : _) -> Just (fromIntegral i)
+  where
+    needle' = toByteString needle
+    haystack' = toLazyByteString haystack
 
 at, index :: Int -> Bytes -> Maybe Word8
 at n (Bytes bs) = R.index n bs
@@ -341,7 +352,7 @@ toBase16 bs = foldl' step empty (chunks bs)
             BE.convertToBase BE.Base16 (chunkToArray @BA.Bytes b)
         )
 
-chunkToArray, arrayFromChunk :: BA.ByteArray b => Chunk -> b
+chunkToArray, arrayFromChunk :: (BA.ByteArray b) => Chunk -> b
 chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
   let go !ind =
         if ind < V.length bs
@@ -350,7 +361,7 @@ chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
    in go 0
 arrayFromChunk = chunkToArray
 
-arrayToChunk, chunkFromArray :: BA.ByteArrayAccess b => b -> Chunk
+arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
   Block bs -> V.Vector 0 n (ByteArray bs)
   where
@@ -359,13 +370,7 @@ arrayToChunk bs = case BA.convert bs :: Block Word8 of
 chunkFromArray = arrayToChunk
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
-fromBase16 bs = case traverse convert (chunks bs) of
-  Left e -> Left (Text.pack e)
-  Right bs -> Right (fromChunks bs)
-  where
-    convert b =
-      BE.convertFromBase BE.Base16 (chunkToArray @BA.Bytes b)
-        <&> arrayToChunk @BA.Bytes
+fromBase16 = fromBase BE.Base16
 
 toBase32, toBase64, toBase64UrlUnpadded :: Bytes -> Bytes
 toBase32 = toBase BE.Base32

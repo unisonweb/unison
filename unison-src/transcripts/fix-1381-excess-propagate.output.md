@@ -23,9 +23,10 @@ a = "an update"
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Text
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;

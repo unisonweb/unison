@@ -4,10 +4,17 @@ module Unison.Prelude
     safeReadUtf8,
     safeReadUtf8StdIn,
     writeUtf8,
+    prependUtf8,
     uncurry4,
     reportBug,
     tShow,
     wundefined,
+
+    -- * @Bool@ control flow
+    onFalse,
+    onFalseM,
+    onTrue,
+    onTrueM,
 
     -- * @Maybe@ control flow
     onNothing,
@@ -20,6 +27,7 @@ module Unison.Prelude
     maybeToEither,
     altSum,
     altMap,
+    hoistMaybe,
 
     -- * @Either@ control flow
     onLeft,
@@ -42,15 +50,18 @@ import Control.Monad.IO.Class as X (MonadIO (liftIO))
 import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
+import Data.Bifunctor as X (Bifunctor (..))
 import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Either.Extra (eitherToMaybe, maybeToEither)
-import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
+import Data.Foldable as X (fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Functor.Identity as X
+-- #labelSyntax for generics-derived lenses
+import Data.Generics.Labels ()
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
 import Data.Map as X (Map)
@@ -59,22 +70,30 @@ import Data.Sequence as X (Seq)
 import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
-import qualified Data.Text.IO as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
+import Data.Void as X (Void)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
-import qualified GHC.IO.Handle as Handle
+import GHC.IO.Handle qualified as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
-import qualified System.IO as IO
+import System.FilePath qualified as FilePath
+import System.IO qualified as IO
 import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
-import qualified UnliftIO
+import UnliftIO qualified
+import UnliftIO.Directory qualified as UnliftIO
+import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
+
+-- | Can be removed when we upgrade transformers to a more recent version.
+hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe = MaybeT . pure
 
 -- | Like 'fold' but for Alternative.
 altSum :: (Alternative f, Foldable t) => t (f a) -> f a
@@ -84,48 +103,78 @@ altSum = foldl' (<|>) empty
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
 
+-- |
+-- > condition & onFalse do
+-- >   shortCircuit
+onFalse :: (Applicative m) => m () -> Bool -> m ()
+onFalse action = \case
+  False -> action
+  True -> pure ()
+
+-- |
+-- > action & onFalseM do
+-- >   shortCircuit
+onFalseM :: (Monad m) => m () -> m Bool -> m ()
+onFalseM x y =
+  y >>= onFalse x
+
+-- |
+-- > condition & onTrue do
+-- >   shortCircuit
+onTrue :: (Applicative m) => m () -> Bool -> m ()
+onTrue action = \case
+  True -> action
+  False -> pure ()
+
+-- |
+-- > action & onTrueM do
+-- >   shortCircuit
+onTrueM :: (Monad m) => m () -> m Bool -> m ()
+onTrueM x y =
+  y >>= onTrue x
+
 -- | E.g.
 --
 -- @@
 -- onNothing (throwIO MissingPerson) $ mayThing
 -- @@
-onNothing :: Applicative m => m a -> Maybe a -> m a
+onNothing :: (Applicative m) => m a -> Maybe a -> m a
 onNothing m may = maybe m pure may
 
-onNothingM :: Monad m => m a -> m (Maybe a) -> m a
+onNothingM :: (Monad m) => m a -> m (Maybe a) -> m a
 onNothingM =
   flip whenNothingM
 
 -- | E.g. @maybePerson `whenNothing` throwIO MissingPerson@
-whenNothing :: Applicative m => Maybe a -> m a -> m a
+whenNothing :: (Applicative m) => Maybe a -> m a -> m a
 whenNothing may m = maybe m pure may
 
-whenNothingM :: Monad m => m (Maybe a) -> m a -> m a
+whenNothingM :: (Monad m) => m (Maybe a) -> m a -> m a
 whenNothingM mx my =
   mx >>= maybe my pure
 
-whenJust :: Applicative m => Maybe a -> (a -> m ()) -> m ()
+whenJust :: (Applicative m) => Maybe a -> (a -> m ()) -> m ()
 whenJust mx f =
   maybe (pure ()) f mx
 
-whenJustM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenJustM :: (Monad m) => m (Maybe a) -> (a -> m ()) -> m ()
 whenJustM mx f = do
   mx >>= maybe (pure ()) f
 
-onLeft :: Applicative m => (a -> m b) -> Either a b -> m b
+onLeft :: (Applicative m) => (a -> m b) -> Either a b -> m b
 onLeft =
   flip whenLeft
 
-onLeftM :: Monad m => (a -> m b) -> m (Either a b) -> m b
+onLeftM :: (Monad m) => (a -> m b) -> m (Either a b) -> m b
 onLeftM =
   flip whenLeftM
 
-whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
+whenLeft :: (Applicative m) => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
 
-whenLeftM :: Monad m => m (Either a b) -> (a -> m b) -> m b
+whenLeftM :: (Monad m) => m (Either a b) -> (a -> m b) -> m b
 whenLeftM m f =
   m >>= \case
     Left x -> f x
@@ -146,7 +195,7 @@ throwEitherM = throwEitherMWith id
 throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
-tShow :: Show a => a -> Text
+tShow :: (Show a) => a -> Text
 tShow = Text.pack . show
 
 -- | Strictly read an entire file decoding UTF8.
@@ -187,6 +236,24 @@ writeUtf8 fileName txt = do
     Handle.hSetEncoding handle IO.utf8
     Text.hPutStr handle txt
 
+-- | Atomically prepend some text to a file
+prependUtf8 :: FilePath -> Text -> IO ()
+prependUtf8 path txt = do
+  let withTempFile tmpFilePath tmpHandle = do
+        Text.hPutStrLn tmpHandle txt
+        IO.withFile path IO.ReadMode \currentScratchFile -> do
+          let copyLoop = do
+                chunk <- Text.hGetChunk currentScratchFile
+                case Text.length chunk == 0 of
+                  True -> pure ()
+                  False -> do
+                    Text.hPutStr tmpHandle chunk
+                    copyLoop
+          copyLoop
+        IO.hClose tmpHandle
+        UnliftIO.renameFile tmpFilePath path
+  UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
+
 reportBug :: String -> String -> String
 reportBug bugId msg =
   unlines
@@ -206,5 +273,5 @@ reportBug bugId msg =
     ]
 
 {-# WARNING wundefined "You left this wundefined." #-}
-wundefined :: HasCallStack => a
+wundefined :: (HasCallStack) => a
 wundefined = undefined

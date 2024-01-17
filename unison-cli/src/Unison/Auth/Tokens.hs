@@ -1,32 +1,20 @@
 module Unison.Auth.Tokens where
 
 import Control.Monad.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Text as Text
-import Data.Time.Clock.POSIX (getPOSIXTime)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as HTTP
-import qualified Network.HTTP.Types as Network
-import Network.URI (URI)
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Char8 qualified as BSC
+import Data.Text qualified as Text
+import Data.Time.Clock (getCurrentTime)
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client.TLS qualified as HTTP
+import Network.HTTP.Types qualified as Network
 import Unison.Auth.CredentialManager
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
+import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
-import qualified UnliftIO
-import UnliftIO.Exception
-import Web.JWT
-import qualified Web.JWT as JWT
-
--- | Checks whether a JWT access token is expired.
-isExpired :: MonadIO m => AccessToken -> m Bool
-isExpired accessToken = liftIO do
-  jwt <- JWT.decode accessToken `whenNothing` (throwIO $ InvalidJWT "Failed to decode JWT")
-  now <- getPOSIXTime
-  expDate <- JWT.exp (claims jwt) `whenNothing` (throwIO $ InvalidJWT "Missing exp claim on JWT")
-  let expiry = JWT.secondsSinceEpoch expDate
-  pure (now >= expiry)
+import UnliftIO qualified
 
 -- | Given a 'CodeserverId', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
@@ -35,26 +23,28 @@ type TokenProvider = CodeserverId -> IO (Either CredentialFailure AccessToken)
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
 newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
-  CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
+  creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
   let Tokens {accessToken = currentAccessToken} = tokens
-  expired <- isExpired currentAccessToken
+  expired <- isExpired creds
   if expired
     then do
-      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryURI tokens
-      saveCredentials manager host (codeserverCredentials discoveryURI newTokens)
+      discoveryDoc <- throwEitherM $ fetchDiscoveryDoc discoveryURI
+      fetchTime <- getCurrentTime
+      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryDoc tokens
+      userInfo <- throwEitherM $ getUserInfo discoveryDoc newAccessToken
+      saveCredentials manager host (codeserverCredentials discoveryURI newTokens fetchTime userInfo)
       pure $ newAccessToken
     else pure currentAccessToken
 
 -- | Don't yet support automatically refreshing tokens.
 --
 -- Specification: https://datatracker.ietf.org/doc/html/rfc6749#section-6
-performTokenRefresh :: MonadIO m => URI -> Tokens -> m (Either CredentialFailure Tokens)
-performTokenRefresh discoveryURI (Tokens {refreshToken = currentRefreshToken}) = runExceptT $
+performTokenRefresh :: (MonadIO m) => DiscoveryDoc -> Tokens -> m (Either CredentialFailure Tokens)
+performTokenRefresh DiscoveryDoc {tokenEndpoint} (Tokens {refreshToken = currentRefreshToken}) = runExceptT $
   case currentRefreshToken of
     Nothing ->
       throwError $ (RefreshFailure . Text.pack $ "Unable to refresh authentication, please run auth.login and try again.")
     Just rt -> do
-      DiscoveryDoc {tokenEndpoint} <- ExceptT $ fetchDiscoveryDoc discoveryURI
       req <- liftIO $ HTTP.requestFromURI tokenEndpoint
       let addFormData =
             HTTP.urlEncodedBody

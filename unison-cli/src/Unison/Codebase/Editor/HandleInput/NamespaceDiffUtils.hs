@@ -5,29 +5,26 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
 where
 
 import Control.Monad.Reader (ask)
-import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
+import Data.Map qualified as Map
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
-import qualified Unison.Cli.Monad as Cli
-import qualified Unison.Cli.MonadUtils as Cli
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.BranchDiff as BranchDiff
-import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.DataDeclaration as DD
-import Unison.NamesWithHistory (NamesWithHistory (..))
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchDiff qualified as BranchDiff
+import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
+import Unison.DataDeclaration qualified as DD
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE hiding (biasTo)
-import Unison.Reference (Reference (..))
-import qualified Unison.Reference as Reference
-import qualified Unison.Server.Backend as Backend
-import qualified Unison.Sqlite as Sqlite
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 
 diffHelper ::
@@ -37,20 +34,18 @@ diffHelper ::
 diffHelper before after =
   Cli.time "diffHelper" do
     Cli.Env {codebase} <- ask
-    rootBranch <- Cli.getRootBranch
-    currentPath <- Cli.getCurrentPath
     hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
-    let (_parseNames, prettyNames0, _local) = Backend.namesForBranch rootBranch (Backend.AllNames $ Path.unabsolute currentPath)
-    ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
-    fmap (ppe,) do
+    names <- Cli.currentNames
+    pped <- Cli.prettyPrintEnvDeclFromNames names
+    let suffixifiedPPE = PPED.suffixifiedPPE pped
+    fmap (suffixifiedPPE,) do
       OBranchDiff.toOutput
         (Cli.runTransaction . Codebase.getTypeOfReferent codebase)
         (Cli.runTransaction . declOrBuiltin codebase)
         hqLength
         (Branch.toNames before)
         (Branch.toNames after)
-        ppe
         diff
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))

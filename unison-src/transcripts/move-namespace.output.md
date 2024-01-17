@@ -11,24 +11,24 @@ unique type a.T = T
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
 ```ucm
-  ☝️  The namespace .happy is empty.
-
 .happy> add
 
   ⍟ I've added these definitions:
   
-    unique type a.T
+    type a.T
     a.termInA : Nat
 
 ```
@@ -39,6 +39,8 @@ unique type a.T = T1 | T2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -46,17 +48,17 @@ unique type a.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
 ```ucm
 .happy> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    unique type a.T
-    a.termInA : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
@@ -77,7 +79,7 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #imgt3sdjum
+  ⊙ 1. #4j747vnmdk
   
     + Adds / updates:
     
@@ -102,6 +104,8 @@ b.termInB = 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -113,8 +117,6 @@ b.termInB = 10
 
 ```
 ```ucm
-  ☝️  The namespace .history is empty.
-
 .history> add
 
   ⍟ I've added these definitions:
@@ -130,6 +132,8 @@ b.termInB = 11
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -144,13 +148,15 @@ b.termInB = 11
 ```ucm
 .history> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a.termInA : Nat
-    b.termInB : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
-Now, if we soft-delete a namespace, but move another over it we expect the history to be replaced, and we expect the history from the source to be wiped out.
+Deleting a namespace should not leave behind any history,
+if we move another to that location we expect the history to simply be the history
+of the moved namespace. 
 
 ```ucm
 .history> delete.namespace b
@@ -192,6 +198,8 @@ b.termInB = 10
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -203,8 +211,6 @@ b.termInB = 10
 
 ```
 ```ucm
-  ☝️  The namespace .existing is empty.
-
 .existing> add
 
   ⍟ I've added these definitions:
@@ -220,6 +226,8 @@ b.termInB = 11
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -234,10 +242,10 @@ b.termInB = 11
 ```ucm
 .existing> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a.termInA : Nat
-    b.termInB : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .existing> move.namespace a b
 
@@ -246,6 +254,8 @@ b.termInB = 11
   A branch existed at the destination: b so I over-wrote it.
   
   Tip: You can use `undo` or `reflog` to undo this change.
+
+  Done.
 
 ```
 ## Moving the Root 
@@ -267,7 +277,7 @@ I should be able to move the root into a sub-namespace
 
 .> ls
 
-  1. root/ (581 terms, 78 types)
+  1. root/ (1364 terms, 211 types)
 
 .> history
 
@@ -276,23 +286,22 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #q3966917gb (start of history)
+  □ 1. #2vg6il9d4g (start of history)
 
 ```
 ```ucm
 .> ls .root.at.path
 
-  1. builtin/  (576 terms, 77 types)
-  2. existing/ (1 term)
-  3. happy/    (3 terms, 1 type)
-  4. history/  (1 term)
+  1. existing/ (454 terms, 70 types)
+  2. happy/    (456 terms, 71 types)
+  3. history/  (454 terms, 70 types)
 
 .> history .root.at.path
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #k5qut7l83d
+  ⊙ 1. #m44k1k58ou
   
     - Deletes:
     
@@ -303,7 +312,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #ufgblvn6fs
+  ⊙ 2. #7r4j4dmhru
   
     + Adds / updates:
     
@@ -315,26 +324,26 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #4jti34auic
+  ⊙ 3. #qlh1ogmt6v
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #c3arv0etko
+  ⊙ 4. #v3oiqufnsl
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #hpqjvcomfm
+  ⊙ 5. #g19oumvmue
   
     - Deletes:
     
       history.b.termInB
   
-  ⊙ 6. #i22kafeklo
+  ⊙ 6. #73204ctkae
   
     + Adds / updates:
     
@@ -345,13 +354,13 @@ I should be able to move the root into a sub-namespace
       Original name   New name(s)
       happy.b.termInA history.a.termInA
   
-  ⊙ 7. #itf9pe81hk
+  ⊙ 7. #cgiold3l98
   
     + Adds / updates:
     
       history.a.termInA history.b.termInB
   
-  ⊙ 8. #e40v255vc3
+  ⊙ 8. #8qrf3qbi9i
   
     > Moves:
     
@@ -361,7 +370,7 @@ I should be able to move the root into a sub-namespace
       happy.a.T.T2    happy.b.T.T2
       happy.a.termInA happy.b.termInA
   
-  ⊙ 9. #n19k3oti8l
+  ⊙ 9. #e90bu6v600
   
     + Adds / updates:
     
@@ -371,7 +380,7 @@ I should be able to move the root into a sub-namespace
     
       happy.a.T.T
   
-  ⊙ 10. #42rrfc9heu
+  ⊙ 10. #lc2ce2arha
   
     + Adds / updates:
     
@@ -383,7 +392,7 @@ I should be able to move the root into a sub-namespace
   
   ⠇
   
-  ⊙ 11. #l7cnk7raag
+  ⊙ 11. #9ck3j8r41m
   
 
 ```
@@ -404,27 +413,27 @@ I should be able to move a sub namespace _over_ the root.
 
 .> ls
 
-  1. b/    (3 terms, 1 type)
-  2. patch (patch)
+  1. b/       (3 terms, 1 type)
+  2. builtin/ (453 terms, 70 types)
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ddf955gbso
+  ⊙ 1. #ian8vro0cp
   
     + Adds / updates:
     
       b.T b.T.T1 b.T.T2 b.termInA
   
-  ⊙ 2. #8c8naats2k
+  ⊙ 2. #gt9figld7p
   
     - Deletes:
     
       a.T a.T.T1 a.T.T2 a.termInA
   
-  ⊙ 3. #qat4i8g3qm
+  ⊙ 3. #i8i5on9i6t
   
     + Adds / updates:
     
@@ -434,7 +443,13 @@ I should be able to move a sub namespace _over_ the root.
     
       a.T.T
   
-  □ 4. #kfuu64io6v (start of history)
+  ⊙ 4. #ucfoesjvhd
+  
+    + Adds / updates:
+    
+      a.T a.T.T a.termInA
+  
+  □ 5. #1t2hb5o115 (start of history)
 
 ```
 ```ucm

@@ -17,6 +17,7 @@ dependencies:
   - text-builder
   - unison-core
   - unison-core1
+  - unison-hash
   - unison-prelude
   - unison-util-base32hex
   - unison-util-bytes
@@ -56,6 +57,7 @@ default-extensions:
   - FlexibleInstances
   - FunctionalDependencies
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

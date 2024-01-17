@@ -8,6 +8,8 @@ x = 1
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,7 +41,8 @@ z
 
   ⚠️
   
-  I don't know about that name.
+  The following names were not found in the codebase. Check your spelling.
+    foo
 
 ```
 ```ucm
@@ -47,7 +50,8 @@ z
 
   ⚠️
   
-  I don't know about that name.
+  The following names were not found in the codebase. Check your spelling.
+    lineToken.call
 
 ```
 However handling of blocks of other languages should be supported.

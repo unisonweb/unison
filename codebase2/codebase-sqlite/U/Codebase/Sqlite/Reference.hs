@@ -65,9 +65,9 @@ referenceFromRow' = liftA3 mkRef field field field
       where
         str = "(" ++ show t ++ ", " ++ show h ++ ", " ++ show i ++ ")"
 
-instance ToField h => ToRow (Id' h) where
+instance (ToField h) => ToRow (Id' h) where
   toRow = \case
     Id h i -> toRow (Only h) ++ toRow (Only i)
 
-instance FromField h => FromRow (Id' h) where
+instance (FromField h) => FromRow (Id' h) where
   fromRow = Id <$> field <*> field

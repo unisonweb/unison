@@ -12,8 +12,11 @@ dependencies:
   - base
   - bytestring
   - containers
+  - generic-lens
   - either
   - extra
+  - filepath
+  - generic-lens
   - lens
   - mtl
   - pretty-simple
@@ -23,6 +26,7 @@ dependencies:
   - transformers
   - unliftio
   - vector
+  - witch
   - witherable
 
 ghc-options:
@@ -33,14 +37,28 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - ConstraintKinds
+  - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
-  - ScopedTypeVariables
+  - NamedFieldPuns
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
   - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

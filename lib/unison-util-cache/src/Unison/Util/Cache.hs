@@ -1,19 +1,20 @@
-module Unison.Util.Cache 
- ( Cache
- , cache
- , nullCache
- , semispaceCache
- , lookup
- , insert
- , apply
- , applyDefined
- ) where
+module Unison.Util.Cache
+  ( Cache,
+    cache,
+    nullCache,
+    semispaceCache,
+    lookup,
+    insert,
+    apply,
+    applyDefined,
+  )
+where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (for_)
 import Data.Functor (($>))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import UnliftIO (MonadIO, atomically, modifyTVar', newTVarIO, readTVar, readTVarIO, writeTVar)
 import Prelude hiding (lookup)
 
@@ -22,10 +23,10 @@ data Cache k v = Cache
     insert_ :: k -> v -> IO ()
   }
 
-lookup :: MonadIO m => Cache k v -> k -> m (Maybe v)
+lookup :: (MonadIO m) => Cache k v -> k -> m (Maybe v)
 lookup c k = liftIO (lookup_ c k)
 
-insert :: MonadIO m => Cache k v -> k -> v -> m ()
+insert :: (MonadIO m) => Cache k v -> k -> v -> m ()
 insert c k v = liftIO (insert_ c k v)
 
 -- Create a cache of unbounded size.
@@ -80,7 +81,7 @@ semispaceCache maxSize = do
 
 -- Cached function application: if a key `k` is not in the cache,
 -- calls `f` and inserts `f k` results in the cache.
-apply :: MonadIO m => Cache k v -> (k -> m v) -> k -> m v
+apply :: (MonadIO m) => Cache k v -> (k -> m v) -> k -> m v
 apply c f k =
   lookup c k >>= \case
     Just v -> pure v

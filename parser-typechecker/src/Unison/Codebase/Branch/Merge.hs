@@ -10,8 +10,8 @@ module Unison.Codebase.Branch.Merge
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Lazy as Map
+import Data.Map qualified as Map
+import Data.Map.Merge.Lazy qualified as Map
 import U.Codebase.HashTags (PatchHash (..))
 import Unison.Codebase.Branch
   ( Branch (..),
@@ -25,22 +25,22 @@ import Unison.Codebase.Branch
     isEmpty0,
   )
 import Unison.Codebase.Branch.BranchDiff (BranchDiff (BranchDiff))
-import qualified Unison.Codebase.Branch.BranchDiff as BDiff
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch.BranchDiff qualified as BDiff
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Patch as Patch
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Codebase.Patch qualified as Patch
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Prelude hiding (empty)
 import Unison.Util.Map (unionWithM)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Relation qualified as R
+import Unison.Util.Star3 qualified as Star3
 import Prelude hiding (head, read, subtract)
 
 data MergeMode = RegularMerge | SquashMerge deriving (Eq, Ord, Show)
 
 merge'' ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) -> -- lca calculator
   MergeMode ->
   Branch m ->
@@ -111,7 +111,7 @@ merge'' lca mode (Branch x) (Branch y) =
 
 merge0 ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) ->
   MergeMode ->
   Branch0 m ->

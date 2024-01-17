@@ -8,6 +8,8 @@ x = 42
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -54,6 +56,8 @@ y = "hello"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -70,7 +74,7 @@ y = "hello"
 
   ⍟ I've added these definitions:
   
-    y : Text
+    y : ##Text
 
 .master> merge .feature1
 
@@ -86,6 +90,8 @@ y = "hello"
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .master> view y
 
   y : Text
@@ -96,7 +102,8 @@ y = "hello"
 
 Notice that `master` now has the definition of `y` we wrote.
 
-We can also delete the fork if we're done with it. (Don't worry, it's still in the `history` and can be resurrected at any time.)
+We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty, 
+it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
 .> delete.namespace .feature1
@@ -105,29 +112,20 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 
 .> history .feature1
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #hsbtlt2og6
-  
-    - Deletes:
-    
-      y
-  
-  □ 2. #q95r47tc4l (start of history)
+  ☝️  The namespace .feature1 is empty.
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #jvvtvqg91i
+  ⊙ 1. #733ouv89e4
   
     - Deletes:
     
       feature1.y
   
-  ⊙ 2. #pdn0nrdikc
+  ⊙ 2. #nomh416gj1
   
     + Adds / updates:
     
@@ -138,26 +136,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ 3. #j275561d72
+  ⊙ 3. #bsnvm0os4j
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ 4. #aib93cgn8r
+  ⊙ 4. #gipijd9j3c
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ 5. #22gtrovg7e
+  ⊙ 5. #2dhojv53dl
   
     + Adds / updates:
     
       x
   
-  □ 6. #qehn7jqmaf (start of history)
+  □ 6. #gndb53fevj (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -184,6 +182,8 @@ z = 99
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -202,11 +202,9 @@ z = 99
 
 .feature2> delete.term.verbose x
 
-  Name changes:
+  Removed definitions:
   
-    Original         Changes
-    1. feature2.x ┐  2. feature2.x (removed)
-    3. master.x   ┘  
+    1. x : Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -219,6 +217,8 @@ master.frobnicate n = n + 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -233,15 +233,10 @@ master.frobnicate n = n + 1
 ```ucm
 .> update
 
-  ⍟ I've added these definitions:
-  
-    master.frobnicate : Nat -> Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    master.y : Text
-      (The old definition was also named feature2.y. I updated
-      this name too.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> view master.y
 
@@ -275,6 +270,8 @@ At this point, `master` and `feature2` both have some changes the other doesn't 
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 ```
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

@@ -17,35 +17,36 @@ module Unison.Syntax.TypePrinter
   )
 where
 
-import qualified Data.Map as Map
-import qualified Unison.Builtin.Decls as DD
+import Data.Map qualified as Map
+import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
 import Unison.PrettyPrintEnv.MonadPretty (MonadPretty, getPPE, runPretty, willCapture)
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (Referent)
+import Unison.Settings qualified as Settings
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Type
 import Unison.Util.ColorText (toPlain)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
-import qualified Unison.Util.Pretty as PP
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as PP
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
-pretty :: Var v => PrettyPrintEnv -> Type v a -> Pretty ColorText
+pretty :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe t = PP.syntaxToColor $ prettySyntax ppe t
 
-prettySyntax :: Var v => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
+prettySyntax :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettySyntax ppe = runPretty ppe . pretty0 Map.empty (-1)
 
-prettyStr :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
+prettyStr :: (Var v) => Maybe Width -> PrettyPrintEnv -> Type v a -> String
 prettyStr (Just width) ppe t =
   toPlain . PP.render width . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
 prettyStr Nothing ppe t =
@@ -75,16 +76,16 @@ prettyStr Nothing ppe t =
 
 pretty0 ::
   forall v a m.
-  MonadPretty v m =>
+  (MonadPretty v m) =>
   Imports ->
   Int ->
   Type v a ->
   m (Pretty SyntaxText)
-pretty0 im p tp = prettyRaw im p (cleanup (removePureEffects tp))
+pretty0 im p tp = prettyRaw im p (removeEmptyEffects $ cleanup tp)
 
 prettyRaw ::
   forall v a m.
-  MonadPretty v m =>
+  (MonadPretty v m) =>
   Imports ->
   Int ->
   Type v a ->
@@ -123,7 +124,7 @@ prettyRaw im p tp = go im p tp
          in -- if we're printing a type signature, and all the type variables
             -- are universally quantified, then we can omit the `forall` keyword
             -- only if the type variables are not bound in an outer scope
-            if p < 0 && all Var.universallyQuantifyIfFree vs
+            if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCapture vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
       t@(Arrow' _ _) -> case t of
@@ -133,7 +134,7 @@ prettyRaw im p tp = go im p tp
           case fst of
             Var' v
               | Var.name v == "()" ->
-                PP.parenthesizeIf (p >= 10) <$> arrows True True rest
+                  PP.parenthesizeIf (p >= 10) <$> arrows True True rest
             _ ->
               PP.parenthesizeIf (p >= 0)
                 <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
@@ -182,14 +183,14 @@ fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
 prettySignaturesCT ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   [Pretty ColorText]
 prettySignaturesCT ppe ts = map PP.syntaxToColor $ prettySignaturesST ppe ts
 
 prettySignaturesCTCollapsed ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   Pretty ColorText
@@ -199,7 +200,7 @@ prettySignaturesCTCollapsed ppe ts =
     $ prettySignaturesCT ppe ts
 
 prettySignaturesST ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   [(Referent, HashQualified Name, Type v a)] ->
   [Pretty SyntaxText]
@@ -215,7 +216,7 @@ prettySignaturesST ppe ts =
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt' ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
   [Pretty ColorText]
@@ -224,7 +225,7 @@ prettySignaturesAlt' ppe ts = runPretty ppe $
     ts' <- traverse f ts
     pure $ map PP.syntaxToColor $ PP.align ts'
   where
-    f :: MonadPretty v m => ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
+    f :: (MonadPretty v m) => ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
     f (names, typ) = do
       typ' <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "
@@ -237,7 +238,7 @@ prettySignaturesAlt' ppe ts = runPretty ppe $
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
 
 prettySignaturesAlt ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   [([HashQualified Name], Type v a)] ->
   Pretty ColorText

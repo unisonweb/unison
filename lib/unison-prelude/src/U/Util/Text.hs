@@ -3,10 +3,10 @@ module U.Util.Text
   )
 where
 
-import qualified Data.Char as Char
+import Data.Char qualified as Char
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Safe.Foldable (minimumMay)
 
 -- | remove however many spaces prefix all of the lines of the input
@@ -21,7 +21,8 @@ import Safe.Foldable (minimumMay)
 stripMargin :: Text -> Text
 stripMargin str =
   let stripLen =
-        Data.Maybe.fromMaybe 0 . minimumMay
+        Data.Maybe.fromMaybe 0
+          . minimumMay
           . map (Text.length . fst . Text.span (== ' '))
           . filter (not . Text.all (Char.isSpace))
           $ Text.lines str

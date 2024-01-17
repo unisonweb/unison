@@ -4,26 +4,26 @@ module Unison.Codebase.Editor.AuthorInfo where
 
 import Crypto.Random (getRandomBytes)
 import Data.ByteString (unpack)
-import qualified Data.Foldable as Foldable
-import qualified Data.Map as Map
+import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Text (Text)
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.Hashing.V2.Convert as H
+import Unison.Hashing.V2.Convert qualified as H
 import Unison.Prelude (MonadIO, Word8)
-import qualified Unison.Reference as Reference
-import qualified Unison.Runtime.IOSource as IOSource
+import Unison.Reference qualified as Reference
+import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
+import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 import UnliftIO (liftIO)
 
 data AuthorInfo v a = AuthorInfo
   {guid, author, copyrightHolder :: (Reference.Id, Term v a, Type v a)}
 
-createAuthorInfo :: forall m v a. MonadIO m => Var v => a -> Text -> m (AuthorInfo v a)
+createAuthorInfo :: forall m v a. (MonadIO m) => (Var v) => a -> Text -> m (AuthorInfo v a)
 createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
   where
     createAuthorInfo' :: [Word8] -> AuthorInfo v a
@@ -64,8 +64,8 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
       Term v a ->
       (Reference.Id, Term v a)
     hashAndWrangle v typ tm =
-      case Foldable.toList $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ)) of
-        [(id, tm, _tp)] -> (id, tm)
+      case Foldable.toList $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ, ())) of
+        [(id, tm, _tp, ())] -> (id, tm)
         _ -> error "hashAndWrangle: Expected a single definition."
     (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
     (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)

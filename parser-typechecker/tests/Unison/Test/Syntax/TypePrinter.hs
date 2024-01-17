@@ -4,14 +4,14 @@
 
 module Unison.Test.Syntax.TypePrinter where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import EasyTest
-import qualified Unison.Builtin
-import qualified Unison.PrettyPrintEnv.Names as PPE
+import Unison.Builtin qualified
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Syntax.TypePrinter
-import qualified Unison.Test.Common as Common
+import Unison.Test.Common qualified as Common
 import Unison.Util.ColorText (toPlain)
-import qualified Unison.Util.Pretty as PP
+import Unison.Util.Pretty qualified as PP
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -21,7 +21,7 @@ import qualified Unison.Util.Pretty as PP
 tc_diff_rtt :: Bool -> String -> String -> PP.Width -> Test ()
 tc_diff_rtt rtt s expected width =
   let input_type = Common.t s
-      get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
+      get_names = PPE.makePPE (PPE.hqNamer Common.hqLength Unison.Builtin.names) PPE.dontSuffixify
       prettied = fmap toPlain $ PP.syntaxToColor . runPretty get_names $ prettyRaw Map.empty (-1) input_type
       actual =
         if width == 0
@@ -92,69 +92,64 @@ test =
       tc "[a]",
       tc "[a -> b]",
       tc "[a ->{g} b]",
-      tc "'a",
-      tc "'Pair a a",
-      tc "a -> 'b",
-      tc "'(a -> b)",
+      tc_diff "'a" "'{} a",
+      tc_diff "'Pair a a" "'{} Pair a a",
+      tc_diff "a -> 'b" "a -> '{} b",
+      tc_diff "'(a -> b)" "'{} (a -> b)",
       tc "(a -> b) -> c",
-      tc "'a -> b",
+      tc_diff "'a -> b" "'{} a -> b",
       tc "∀ A. A -> A",
       tc "∀ foo.A. foo.A -> foo.A",
       tc "∀ A B. A -> B -> (A, B)",
-      tc "a -> 'b -> c",
+      tc_diff "a -> 'b -> c" "a -> '{} b -> c",
       tc "a -> (b -> c) -> d",
       tc "(a -> b) -> c -> d",
       tc "((a -> b) -> c) -> d",
-      tc "(∀ a. 'a) -> ()",
-      tc "(∀ a. (∀ b. 'b) -> a) -> ()",
-      tc_diff "∀ a. 'a" $ "'a",
-      tc "a -> '(b -> c)",
+      tc_diff "(∀ a. 'a) -> ()" "(∀ a. '{} a) -> ()",
+      tc_diff "(∀ a. (∀ b. 'b) -> a) -> ()" "(∀ a. (∀ b. '{} b) -> a) -> ()",
+      tc_diff "∀ a. 'a" $ "'{} a",
+      tc_diff "a -> '(b -> c)" "a -> '{} (b -> c)",
       tc "a -> b -> c -> d",
-      tc "a -> 'Pair b c",
-      tc "a -> b -> 'c",
-      tc "a ->{e} 'b",
+      tc_diff "a -> 'Pair b c" "a -> '{} Pair b c",
+      tc_diff "a -> b -> 'c" "a -> b -> '{} c",
+      tc_diff "a ->{e} 'b" "a ->{e} '{} b",
       tc "a -> '{e} b",
       tc "a -> '{e} b -> c",
       tc "a -> '{e} b ->{f} c",
       tc "a -> '{e} (b -> c)",
       tc "a -> '{e} (b ->{f} c)",
-      tc "a -> 'b",
-      tc "a -> '('b)",
-      tc "a -> '('(b -> c))",
-      tc "a -> '('('(b -> c)))",
-      tc "a -> '{e} ('('(b -> c)))",
-      tc "a -> '('{e} ('(b -> c)))",
-      tc "a -> '('('{e} (b -> c)))",
-      tc "a -> 'b ->{f} c",
-      tc "a -> '(b -> c)",
-      tc "a -> '(b ->{f} c)",
-      tc "a -> '{e} ('b)",
+      tc_diff "a -> 'b" "a -> '{} b",
+      tc_diff "a -> '('b)" "a -> '{} ('{} b)",
+      tc_diff "a -> '('(b -> c))" "a -> '{} ('{} (b -> c))",
+      tc_diff "a -> '('('(b -> c)))" "a -> '{} ('{} ('{} (b -> c)))",
+      tc_diff "a -> '{e} ('('(b -> c)))" "a -> '{e} ('{} ('{} (b -> c)))",
+      tc_diff "a -> 'b ->{f} c" "a -> '{} b ->{f} c",
+      tc_diff "a -> '(b -> c)" "a -> '{} (b -> c)",
+      tc_diff "a -> '(b ->{f} c)" "a -> '{} (b ->{f} c)",
+      tc_diff "a -> '{e} ('b)" "a -> '{e} ('{} b)",
       pending $ tc "a -> '{e} 'b", -- issue #249
       pending $ tc "a -> '{e} '{f} b", -- issue #249
-      tc "a -> '{e} ('b)",
-      tc_diff "a -> () ->{e} () -> b -> c" $ "a -> '{e} ('(b -> c))",
-      tc "a -> '{e} ('(b -> c))",
+      tc_diff "a -> '{e} ('(b -> c))" "a -> '{e} ('{} (b -> c))",
       tc_diff "a ->{e} () ->{f} b" $ "a ->{e} '{f} b",
       tc "a ->{e} '{f} b",
       tc_diff "a -> () ->{e} () ->{f} b" $ "a -> '{e} ('{f} b)",
       tc "a -> '{e} ('{f} b)",
       tc "a -> '{e} () ->{f} b",
       tc "a -> '{e} ('{f} (b -> c))",
-      tc "a ->{e} '(b -> c)",
+      tc_diff "a ->{e} '(b -> c)" "a ->{e} '{} (b -> c)",
       tc "a -> '{e} (b -> c)",
-      tc_diff "a -> () ->{e} () -> b" $ "a -> '{e} ('b)",
       tc "'{e} a",
       tc "'{e} (a -> b)",
       tc "'{e} (a ->{f} b)",
       tc "Pair a ('{e} b)",
-      tc "'(a -> 'a)",
-      tc "'()",
-      tc "'('a)",
-      tc_diff "''a" "'('a)",
-      tc_diff "'''a" "'('('a))",
+      tc_diff "'(a -> 'a)" "'{} (a -> '{} a)",
+      tc_diff "'()" "'{} ()",
+      tc_diff "'('a)" "'{} ('{} a)",
+      tc_diff "''a" "'{} ('{} a)",
+      tc_diff "'''a" "'{} ('{} ('{} a))",
       tc_diff "∀ a . a" $ "a",
       tc_diff "∀ a. a" $ "a",
-      tc_diff "∀ a . 'a" $ "'a",
+      tc_diff "∀ a . 'a" $ "'{} a",
       pending $ tc_diff "∀a . a" $ "a", -- lexer doesn't accept, treats ∀a as one lexeme - feels like it should work
       pending $ tc_diff "∀ A . 'A" $ "'A", -- 'unknown parse error' - should this be accepted?
       tc_diff_rtt

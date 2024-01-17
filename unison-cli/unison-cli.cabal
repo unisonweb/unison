@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -30,21 +30,52 @@ library
       Unison.Auth.HTTPClient
       Unison.Auth.Tokens
       Unison.Auth.Types
+      Unison.Auth.UserInfo
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
+      Unison.Cli.Pretty
       Unison.Cli.PrettyPrintUtils
+      Unison.Cli.ProjectUtils
+      Unison.Cli.ServantClientUtils
+      Unison.Cli.Share.Projects
+      Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
+      Unison.Cli.UniqueTypeGuidLookup
       Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.AddRun
       Unison.Codebase.Editor.HandleInput.AuthLogin
-      Unison.Codebase.Editor.HandleInput.MetadataUtils
+      Unison.Codebase.Editor.HandleInput.Branch
+      Unison.Codebase.Editor.HandleInput.Branches
+      Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.DeleteBranch
+      Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.FindAndReplace
+      Unison.Codebase.Editor.HandleInput.Load
+      Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
+      Unison.Codebase.Editor.HandleInput.MoveTerm
+      Unison.Codebase.Editor.HandleInput.MoveType
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
+      Unison.Codebase.Editor.HandleInput.ProjectClone
+      Unison.Codebase.Editor.HandleInput.ProjectCreate
+      Unison.Codebase.Editor.HandleInput.ProjectRename
+      Unison.Codebase.Editor.HandleInput.Projects
+      Unison.Codebase.Editor.HandleInput.ProjectSwitch
+      Unison.Codebase.Editor.HandleInput.Pull
+      Unison.Codebase.Editor.HandleInput.Push
+      Unison.Codebase.Editor.HandleInput.ReleaseDraft
+      Unison.Codebase.Editor.HandleInput.Run
+      Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.TermResolution
+      Unison.Codebase.Editor.HandleInput.Tests
+      Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
+      Unison.Codebase.Editor.HandleInput.Update2
+      Unison.Codebase.Editor.HandleInput.Upgrade
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
@@ -57,22 +88,26 @@ library
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Watch
       Unison.CommandLine
+      Unison.CommandLine.BranchRelativePath
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
-      Unison.CommandLine.Globbing
+      Unison.CommandLine.FZFResolvers
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
+      Unison.JitInfo
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction
+      Unison.LSP.CodeLens
+      Unison.LSP.Commands
       Unison.LSP.Completion
       Unison.LSP.Configuration
       Unison.LSP.Conversions
@@ -110,9 +145,12 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -127,8 +165,9 @@ library
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -146,10 +185,10 @@ library
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -157,8 +196,8 @@ library
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -170,15 +209,19 @@ library
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , stm
     , text
+    , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -186,27 +229,32 @@ library
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
     build-depends:
         unix
-  default-language: Haskell2010
 
 executable cli-integration-tests
   main-is: Suite.hs
@@ -231,9 +279,12 @@ executable cli-integration-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -250,8 +301,9 @@ executable cli-integration-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -271,10 +323,10 @@ executable cli-integration-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -282,8 +334,8 @@ executable cli-integration-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -295,16 +347,20 @@ executable cli-integration-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
     , stm
     , text
+    , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -312,24 +368,29 @@ executable cli-integration-tests
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable transcripts
   main-is: Transcripts.hs
@@ -352,9 +413,12 @@ executable transcripts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -369,8 +433,9 @@ executable transcripts
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -390,10 +455,10 @@ executable transcripts
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -401,8 +466,8 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -414,16 +479,21 @@ executable transcripts
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
+    , silently
     , stm
     , text
+    , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -432,24 +502,29 @@ executable transcripts
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 executable unison
   main-is: Main.hs
@@ -477,9 +552,12 @@ executable unison
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -494,8 +572,9 @@ executable unison
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -514,10 +593,10 @@ executable unison
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
-    , here
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -525,8 +604,8 @@ executable unison
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -539,9 +618,11 @@ executable unison
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
@@ -549,8 +630,10 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -559,24 +642,29 @@ executable unison
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010
 
 test-suite cli-tests
   type: exitcode-stdio-1.0
@@ -588,7 +676,6 @@ test-suite cli-tests
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
-      Unison.Test.VersionParser
   hs-source-dirs:
       tests
   default-extensions:
@@ -608,9 +695,12 @@ test-suite cli-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       InstanceSigs
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -625,8 +715,9 @@ test-suite cli-tests
   build-depends:
       IntervalMap
     , ListLike
-    , aeson
+    , aeson >=2.0.0.0
     , aeson-pretty
+    , ansi-terminal
     , async
     , base
     , bytes
@@ -646,6 +737,7 @@ test-suite cli-tests
     , filepath
     , free
     , friendly-time
+    , fsnotify
     , fuzzyfind
     , generic-lens
     , haskeline
@@ -657,8 +749,8 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp
-    , lsp-types
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
     , megaparsec
     , memory
     , mtl
@@ -670,17 +762,21 @@ test-suite cli-tests
     , pretty-simple
     , process
     , random >=1.2.0
+    , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
+    , semigroups
     , servant
     , servant-client
     , shellmet
     , stm
     , temporary
     , text
+    , text-builder
     , text-rope
     , these
+    , these-lens
     , time
     , transformers
     , unison-cli
@@ -689,21 +785,26 @@ test-suite cli-tests
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-share-api
+    , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
     , uri-encode
+    , uuid
     , vector
     , wai
     , warp
+    , witch
     , witherable
+  default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  default-language: Haskell2010

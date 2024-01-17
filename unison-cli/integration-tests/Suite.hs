@@ -5,7 +5,7 @@ module Main where
 
 import Control.Monad
 import EasyTest
-import qualified IntegrationTests.ArgumentParsing as ArgumentParsing
+import IntegrationTests.ArgumentParsing qualified as ArgumentParsing
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)

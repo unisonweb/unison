@@ -1,23 +1,37 @@
 packages:
-  yaks/easytest
-  parser-typechecker
-  unison-core
-  unison-cli
-  unison-share-api
-
   codebase2/codebase
   codebase2/codebase-sqlite
+  codebase2/codebase-sqlite-hashing-v2
   codebase2/codebase-sync
   codebase2/core
-  codebase2/util
   codebase2/util-serialization
   codebase2/util-term
 
+  lib/orphans/network-uri-orphans-sqlite
+  lib/orphans/unison-core-orphans-sqlite
+  lib/orphans/unison-hash-orphans-aeson
+  lib/orphans/unison-hash-orphans-sqlite
+  lib/orphans/uuid-orphans-sqlite
+
+  lib/unison-hash
+  lib/unison-hashing
   lib/unison-prelude
+  lib/unison-pretty-printer
   lib/unison-sqlite
   lib/unison-util-base32hex
+  lib/unison-util-bytes
+  lib/unison-util-cache
   lib/unison-util-relation
-  lib/unison-pretty-printer
+  lib/unison-util-rope
+
+  parser-typechecker
+  unison-core
+  unison-cli
+  unison-hashing-v2
+  unison-share-api
+  unison-share-projects-api
+  unison-syntax
+  yaks/easytest
 
 source-repository-package
   type: git
@@ -27,69 +41,103 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/unisonweb/haskeline.git
-  tag: 2944b11d19ee034c48276edc991736105c9d6143
+  tag: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
-source-repository-package
-  type: git
-  location: https://github.com/unisonweb/megaparsec.git
-  tag: c4463124c578e8d1074c04518779b5ce5957af6b
-
-source-repository-package
-  type: git
-  location: https://github.com/unisonweb/shellmet.git
-  tag: 2fd348592c8f51bb4c0ca6ba4bc8e38668913746
-
-allow-newer: 
-  haskeline:base
+constraints:
+  fsnotify < 0.4,
+  crypton-x509-store <= 1.6.8,
+  lsp < 2.0.0.0,
+  servant <= 0.19.1,
+  optparse-applicative <= 0.17.1.0
 
 -- For now there is no way to apply ghc-options for all local packages
 -- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
-package easytest
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package parser-typechecker
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-core
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-cli
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-share-api
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
 package codebase
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package codebase-sqlite
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
+package codebase-sqlite-hashing-v2
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
 package codebase-sync
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
-package core
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package util
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package util-serialization
+package util-serializatio
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package util-term
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
+package network-uri-orphans-sqlite
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-core-orphans-sqlite
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-hash-orphans-aeson
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-hash-orphans-sqlite
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package uuid-orphans-sqlite
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-hash
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-hashing
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
 package unison-prelude
-  ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-pretty-printer
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-sqlite
-  ghc-options: -Wall         -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-util-base32hex
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-util-bytes
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-util-cache
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-util-relation
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
-package unison-pretty-printer
+package unison-util-rope
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package parser-typechecker
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-cli
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-core
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-hashing-v2
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-share-api
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+-- adding -Wno-deprecations cause jose-0.10 has deprecated Crypto.JWT.addClaim
+package unison-share-projects-api
+  ghc-options: -Wall -Werror -Wno-deprecations -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-syntax
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package easytest
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 -- This options are applied to all packages, local ones and also external dependencies.

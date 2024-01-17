@@ -6,6 +6,8 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -28,6 +30,8 @@ baz x = x - 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

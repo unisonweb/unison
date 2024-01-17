@@ -58,6 +58,15 @@ Exception.unsafeRun! e =
 structural ability Throw e where
   throw : e -> a
 
+List.range : Nat -> Nat -> [Nat]
+List.range m =
+  go acc n =
+    if n <= m then acc
+    else
+      n' = drop n 1
+      go (n' +: acc) n'
+  go []
+
 List.all : (a ->{ε} Boolean) -> [a] ->{ε} Boolean
 List.all f = cases
   [] -> true
@@ -86,6 +95,30 @@ List.forEach l f =
     x +: xs -> f x ; go xs
     [] -> ()
   go l
+
+List.zip : [a] -> [b] -> [(a,b)]
+List.zip = cases
+  [], _ -> []
+  _, [] -> []
+  x +: xs, y +: ys -> (x,y) +: List.zip xs ys
+
+List.unzip : [(a,b)] -> ([a],[b])
+List.unzip =
+  loop = cases
+    acc, [] -> acc
+    (as,bs), (a,b) +: abs ->
+      loop (as :+ a, bs :+ b) abs
+  loop ([],[])
+
+List.reverse : [a] -> [a]
+List.reverse =
+  loop acc = cases
+    [] -> acc
+    x +: xs -> loop (x +: acc) xs
+  loop []
+
+first : (a -> b) -> (a,c) -> (b,c)
+first f = cases (x,y) -> (f x, y)
 
 check: Text -> Boolean -> {Stream Result} ()
 check msg test = if test then emit (Ok msg) else emit (Fail msg)
@@ -274,7 +307,7 @@ bSearch m k =
       Some (k', v)
         | k == k' -> Some v
         | k > k' -> find (i+1) u
-        | k < k' -> find l i
+        | otherwise -> find l i
       None -> None
   find 0 (size m)
 
@@ -299,7 +332,7 @@ bSplit m k =
       Some (k', _)
         | k == k' -> (List.take i m, List.drop (i+1) m)
         | k > k' -> find (i+1) u
-        | k < k' -> find l i
+        | otherwise -> find l i
       None -> (m, [])
   find 0 (size m)
 
@@ -386,9 +419,15 @@ loadCodeBytes bs = match Code.deserialize bs with
   Right co -> co
 
 cache : [(Link.Term, Code)] -> ()
-cache deps = match cache_ deps with
-  [] -> ()
-  l -> fail "code not self-contained" l
+cache deps =
+  match validateLinks deps with
+    Left rs -> fail "cache: missing binding group" rs
+    Right [] -> ()
+    Right rs -> fail "cache: rehash failed" rs
+
+  match cache_ deps with
+    [] -> ()
+    l -> fail "code not self-contained" l
 
 loadSelfContained : Text ->{IO, Exception} a
 loadSelfContained path =
@@ -399,12 +438,12 @@ loadSelfContained path =
     Left l -> fail "value missing deps" l
     Right x -> x
 
-saveTestCase : Text -> (a ->{} Text) -> a ->{IO,Exception} ()
-saveTestCase name f i =
+saveTestCase : Text -> Text -> (a ->{} Text) -> a ->{IO,Exception} ()
+saveTestCase name ver f i =
   dir = "unison-src/transcripts-using-base/serialized-cases/"
-  sfile = dir ++ name ++ ".ser"
+  sfile = dir ++ name ++ "." ++ ver ++ ".ser"
   ofile = dir ++ name ++ ".out"
-  hfile = dir ++ name ++ ".hash"
+  hfile = dir ++ name ++ "." ++ ver ++ ".hash"
 
   output = f i
 

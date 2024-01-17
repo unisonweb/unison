@@ -3,24 +3,23 @@
 
 module Unison.Test.DataDeclaration where
 
-import Data.Bifunctor (second)
 import Data.Map ((!))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import EasyTest
 import Text.RawString.QQ
-import qualified U.Util.Hash as Hash
 import Unison.DataDeclaration (DataDeclaration (..), Decl)
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.DataDeclaration qualified as DD
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers (unsafeParseFile)
 import Unison.Prelude
-import qualified Unison.Reference as R
+import Unison.Reference qualified as R
 import Unison.Symbol (Symbol)
-import qualified Unison.Test.Common as Common
-import qualified Unison.Type as Type
+import Unison.Test.Common qualified as Common
+import Unison.Type qualified as Type
 import Unison.UnisonFile (UnisonFile (..))
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =
@@ -42,7 +41,7 @@ test =
 
 file :: UnisonFile Symbol Ann
 file =
-  flip unsafeParseFile Common.parsingEnv $
+  runIdentity . flip unsafeParseFile Common.parsingEnv $
     [r|
 
 structural type Bool = True | False

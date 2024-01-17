@@ -15,7 +15,7 @@ x = 2
 ```
 
 ```ucm
-.> update foo.patch
+.> update.old foo.patch
 ```
 
 Copy the patch and make sure it's still there.

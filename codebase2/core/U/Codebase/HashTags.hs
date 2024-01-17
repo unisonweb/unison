@@ -1,6 +1,10 @@
 module U.Codebase.HashTags where
 
-import U.Util.Hash (Hash)
+import Unison.Hash (Hash)
+
+-- | Represents a hash of a type or term component
+newtype ComponentHash = ComponentHash {unComponentHash :: Hash}
+  deriving stock (Eq, Ord, Show)
 
 newtype BranchHash = BranchHash {unBranchHash :: Hash} deriving (Eq, Ord)
 

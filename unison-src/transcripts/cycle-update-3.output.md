@@ -10,6 +10,8 @@ pong _ = !ping + 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -36,6 +38,8 @@ ping = 3
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -47,7 +51,7 @@ ping = 3
 
 ```
 ```ucm
-.> update
+.> update.old
 
   ⍟ I've updated these names to your new definition:
   

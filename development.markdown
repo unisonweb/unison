@@ -16,6 +16,20 @@ To get cracking with Unison:
 
 On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
+## Autoformatting your code with Ormolu
+
+We use 0.5.0.1 of Ormolu and CI will add an extra commit, if needed, to autoformat your code.
+
+Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
+
+```
+{- ORMOLU_DISABLE -}
+dontFormatMe = do blah
+                    blah
+                  blah
+{- ORMOLU_ENABLE -}
+```
+
 ## Running Tests
 
 * `stack test --fast` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
@@ -70,6 +84,10 @@ its location on the command line.
 
 * The install directory can be modified with the option `--installdir: ...`
 
+* Take in account that if you want to load the project in haskell-language-server using cabal instead stack you will need:
+  * Copy or link `./contrib/cabal.project` to `./cabal.project`
+  * Delete or rename the existing `./hie.yaml`. The default behaviour without `hie.yaml` works with cabal.
+
 ## Building on Windows
 
 ### I get an error about unison/sql/something
@@ -92,3 +110,80 @@ More context at: https://stackoverflow.com/a/59761201/310162
 ### I get an error about `removeDirectoryRecursive`/`removeContentsRecursive`/`removePathRecursive`/`permission denied (Access is denied.)`
 
 Stack doesn't work deterministically in Windows due to mismatched expectations about how file deletion works. If you get this error, you can just retry the build and it will probably make more progress than the last time.
+
+## Building with Nix
+
+## Building package components with nix
+
+### Build the unison executable
+```
+nix build
+```
+
+### Build a specific component
+This is specified with the normal
+`<package>:<component-type>:<component-name>` triple.
+
+Some examples:
+```
+nix build '.#unison-cli:lib:unison-cli'
+nix build '.#unison-syntax:test:syntax-tests'
+nix build '.#unison-cli:exe:transcripts'
+```
+
+### Development environments
+
+#### Get into a development environment for building with stack
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. These
+include:
+
+- ghc
+- stack
+- ormolu
+- haskell-language-server
+
+```
+nix develop
+```
+
+#### Get into a development environment for building with cabal
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. Additionally,
+all non-local haskell dependencies (including profiling dependencies)
+are provided in the nix shell.
+
+```
+nix develop '.#local'
+```
+
+#### Get into a development environment for building a specific package
+This gets you into a development environment with the preferred
+versions of the compiler and other development tools. Additionally,
+all haskell dependencies of this package are provided by the nix shell
+(including profiling dependencies).
+
+```
+nix develop '.#<package-name>'
+```
+
+for example:
+
+```
+nix develop '.#unison-cli'
+```
+or
+```
+nix develop '.#unison-parser-typechecker'
+```
+
+This is useful if you wanted to profile a package. For example, if you
+want to profile `unison-cli:exe:unison` then you could get into one of these
+shells, cd into its directory, then run the program with
+profiling.
+
+```
+nix develop '.#unison-parser-typechecker'
+cd unison-cli
+cabal run --enable-profiling unison-cli:exe:unison -- +RTS -p
+```

@@ -19,7 +19,7 @@ x = 2
 ```
 
 ```ucm
-.> update foo.patch
+.> update.old foo.patch
 
   ⍟ I've updated these names to your new definition:
   

@@ -1,41 +1,27 @@
 module Unison.Codebase.BranchDiff where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0 (..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Patch (Patch, PatchDiff)
-import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Patch qualified as Patch
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.IOSource (isPropagatedValue)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
-import Unison.Util.Relation3 (Relation3)
-import qualified Unison.Util.Relation3 as R3
-import qualified Unison.Util.Relation4 as R4
+import Unison.Util.Relation qualified as R
 
 data DiffType a = Create a | Delete a | Modify a deriving (Show)
-
--- todo: maybe simplify this file using Relation3?
-data NamespaceSlice r = NamespaceSlice
-  { names :: Relation r Name,
-    metadata :: Relation3 r Name Metadata.Value
-  }
-  deriving (Show)
 
 data DiffSlice r = DiffSlice
   { --  tpatchUpdates :: Relation r r, -- old new
     tallnamespaceUpdates :: Map Name (Set r, Set r),
     talladds :: Relation r Name,
     tallremoves :: Relation r Name,
-    trenames :: Map r (Set Name, Set Name), -- ref (old, new)
-    taddedMetadata :: Relation3 r Name Metadata.Value,
-    tremovedMetadata :: Relation3 r Name Metadata.Value
+    trenames :: Map r (Set Name, Set Name)
   }
   deriving stock (Generic, Show)
 
@@ -46,17 +32,17 @@ data BranchDiff = BranchDiff
   }
   deriving stock (Generic, Show)
 
-diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
+diff0 :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = BranchDiff terms types <$> patchDiff old new
   where
     (terms, types) =
       computeSlices
-        (deepr4ToSlice (Branch.deepTerms old) (Branch.deepTermMetadata old))
-        (deepr4ToSlice (Branch.deepTerms new) (Branch.deepTermMetadata new))
-        (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
-        (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
+        (Branch.deepTerms old)
+        (Branch.deepTerms new)
+        (Branch.deepTypes old)
+        (Branch.deepTypes new)
 
-patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
+patchDiff :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
   let oldDeepEdits, newDeepEdits :: Map Name (PatchHash, m Patch)
       oldDeepEdits = Branch.deepEdits' old
@@ -79,52 +65,37 @@ patchDiff old new = do
   modified <- foldM f mempty (Set.intersection (Map.keysSet oldDeepEdits) (Map.keysSet newDeepEdits))
   pure $ added <> removed <> modified
 
-deepr4ToSlice ::
-  Ord r =>
-  R.Relation r Name ->
-  Metadata.R4 r Name ->
-  NamespaceSlice r
-deepr4ToSlice deepNames deepMetadata =
-  NamespaceSlice deepNames (R4.d124 deepMetadata)
-
 computeSlices ::
-  NamespaceSlice Referent ->
-  NamespaceSlice Referent ->
-  NamespaceSlice Reference ->
-  NamespaceSlice Reference ->
+  Relation Referent Name ->
+  Relation Referent Name ->
+  Relation Reference Name ->
+  Relation Reference Name ->
   (DiffSlice Referent, DiffSlice Reference)
 computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
   where
     termsOut =
-      let nc = allNames oldTerms newTerms
+      let nc = R.outerJoinDomMultimaps oldTerms newTerms
           nu = allNamespaceUpdates oldTerms newTerms
        in DiffSlice
             { tallnamespaceUpdates = nu,
               talladds = allAdds nc nu,
               tallremoves = allRemoves nc nu,
-              trenames = remainingNameChanges nc,
-              taddedMetadata = addedMetadata oldTerms newTerms,
-              tremovedMetadata = removedMetadata oldTerms newTerms
+              trenames = remainingNameChanges nc
             }
     typesOut =
-      let nc = allNames oldTypes newTypes
+      let nc = R.outerJoinDomMultimaps oldTypes newTypes
           nu = allNamespaceUpdates oldTypes newTypes
        in DiffSlice
             { tallnamespaceUpdates = nu,
               talladds = allAdds nc nu,
               tallremoves = allRemoves nc nu,
-              trenames = remainingNameChanges nc,
-              taddedMetadata = addedMetadata oldTypes newTypes,
-              tremovedMetadata = removedMetadata oldTypes newTypes
+              trenames = remainingNameChanges nc
             }
-
-    allNames :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map r (Set Name, Set Name)
-    allNames old new = R.outerJoinDomMultimaps (names old) (names new)
 
     allAdds,
       allRemoves ::
         forall r.
-        Ord r =>
+        (Ord r) =>
         Map r (Set Name, Set Name) ->
         Map Name (Set r, Set r) ->
         Relation r Name
@@ -147,39 +118,20 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
     -- renames and stuff, name changes without a reference change
     remainingNameChanges ::
       forall r.
-      Ord r =>
+      (Ord r) =>
       Map r (Set Name, Set Name) ->
       Map r (Set Name, Set Name)
     remainingNameChanges =
       Map.filter (\(old, new) -> not (null old) && not (null new) && old /= new)
 
-    allNamespaceUpdates :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Map Name (Set r, Set r)
+    allNamespaceUpdates :: (Ord r) => Relation r Name -> Relation r Name -> Map Name (Set r, Set r)
     allNamespaceUpdates old new =
-      Map.filter f $ R.innerJoinRanMultimaps (names old) (names new)
+      Map.filter f $ R.innerJoinRanMultimaps old new
       where
         f (old, new) = old /= new
 
-    addedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
-    addedMetadata old new = metadata new `R3.difference` metadata old
-
-    removedMetadata :: Ord r => NamespaceSlice r -> NamespaceSlice r -> Relation3 r Name Metadata.Value
-    removedMetadata old new = metadata old `R3.difference` metadata new
-
--- the namespace updates that aren't propagated
-namespaceUpdates :: Ord r => DiffSlice r -> Map Name (Set r, Set r)
-namespaceUpdates s = Map.mapMaybeWithKey f (tallnamespaceUpdates s)
+namespaceUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
+namespaceUpdates s = Map.mapMaybe f (tallnamespaceUpdates s)
   where
-    f name (olds, news) =
-      let news' = Set.difference news (Map.findWithDefault mempty name propagated)
-       in if null news' then Nothing else Just (olds, news')
-    propagated = propagatedUpdates s
-
-propagatedUpdates :: Ord r => DiffSlice r -> Map Name (Set r)
-propagatedUpdates s =
-  Map.fromList
-    [ (name, news)
-      | (name, (_olds0, news0)) <- Map.toList $ tallnamespaceUpdates s,
-        let news = Set.filter propagated news0
-            propagated rnew = R3.member rnew name isPropagatedValue (taddedMetadata s),
-        not (null news)
-    ]
+    f (olds, news) =
+      if null news then Nothing else Just (olds, news)
