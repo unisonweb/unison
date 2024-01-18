@@ -381,7 +381,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getTermComponentWithTypes,
                   getRootBranch,
                   putRootBranch,
-                  getBranchForHashImpl = getBranchForHash,
+                  getBranchForHash,
                   putBranch,
                   syncFromDirectory,
                   syncToDirectory,

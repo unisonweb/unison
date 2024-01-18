@@ -58,7 +58,7 @@ inner.ping _ = !pong + 3
 
   ⍟ I've added these definitions:
   
-    inner.ping : 'Nat
+    inner.ping : '##Nat
 
 .> view inner.ping
 

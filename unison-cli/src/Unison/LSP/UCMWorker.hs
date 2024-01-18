@@ -3,15 +3,17 @@ module Unison.LSP.UCMWorker where
 import Control.Monad.Reader
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
 import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
-import Unison.Server.Backend qualified as Backend
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Sqlite qualified as Sqlite
@@ -25,17 +27,18 @@ ucmWorker ::
   STM (Branch IO) ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppeVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
+ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (Branch IO, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
-        let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) currentRoot
+        let currentBranch0 = Branch.getAt0 (Path.unabsolute currentPath) (Branch.head currentRoot)
+        let parseNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let ppe = PPE.fromNamesSuffixifiedByHash hl parseNames
+        let pped = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
         atomically $ do
           writeTVar parseNamesVar parseNames
-          writeTVar ppeVar ppe
+          writeTVar ppedVar pped
           writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty

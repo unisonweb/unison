@@ -74,7 +74,7 @@ y = "hello"
 
   ⍟ I've added these definitions:
   
-    y : Text
+    y : ##Text
 
 .master> merge .feature1
 
@@ -202,11 +202,9 @@ z = 99
 
 .feature2> delete.term.verbose x
 
-  Name changes:
+  Removed definitions:
   
-    Original         Changes
-    1. feature2.x ┐  2. feature2.x (removed)
-    3. master.x   ┘  
+    1. x : Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

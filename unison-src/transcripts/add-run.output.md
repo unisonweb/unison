@@ -302,7 +302,7 @@ main = '5
 
 .> view .an.absolute.name
 
-  an.absolute.name : Nat
-  an.absolute.name = 5
+  .an.absolute.name : Nat
+  .an.absolute.name = 5
 
 ```

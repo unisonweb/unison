@@ -12,6 +12,7 @@ module Unison.Cli.ProjectUtils
     projectBranchPath,
     projectBranchSegment,
     projectBranchPathPrism,
+    branchRelativePathToAbsolute,
 
     -- * Name hydration
     hydrateNames,
@@ -49,11 +50,33 @@ import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
+import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Project.Util
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
+
+branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
+branchRelativePathToAbsolute = \case
+  BranchRelativePath.BranchRelative brp -> case brp of
+    These projectBranch path -> do
+      projectBranch <- getIds <$> expectProjectAndBranchByTheseNames (toThese projectBranch)
+      pure (Path.resolve (projectBranchPath projectBranch) path)
+    This projectBranch -> do
+      projectBranch <- getIds <$> expectProjectAndBranchByTheseNames (toThese projectBranch)
+      pure (projectBranchPath projectBranch)
+    That path -> do
+      projectBranch <- expectCurrentProjectIds
+      pure (Path.resolve (projectBranchPath projectBranch) path)
+  BranchRelativePath.LoosePath path -> Cli.resolvePath' path
+  where
+    toThese = \case
+      Left branchName -> That branchName
+      Right (projectName, branchName) -> These projectName branchName
+    getIds = \case
+      ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
 
 -- | Get the current project that a user is on.
 getCurrentProject :: Cli (Maybe Sqlite.Project)
@@ -75,6 +98,11 @@ expectCurrentProject = do
 getCurrentProjectIds :: Cli (Maybe (ProjectAndBranch ProjectId ProjectBranchId))
 getCurrentProjectIds =
   fmap fst . preview projectBranchPathPrism <$> Cli.getCurrentPath
+
+-- | Like 'getCurrentProjectIds', but fails with a message if the user is not on a project branch.
+expectCurrentProjectIds :: Cli (ProjectAndBranch ProjectId ProjectBranchId)
+expectCurrentProjectIds =
+  getCurrentProjectIds & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
 -- | Get the current project+branch+branch path that a user is on.
 getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))

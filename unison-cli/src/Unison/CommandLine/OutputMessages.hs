@@ -2390,6 +2390,7 @@ prettyEntityValidationError = \case
         P.wrap $ "The error was: " <> P.text err
       ]
   Share.HashResolutionFailure hash ->
+    -- See https://github.com/unisonweb/unison/pull/4381#discussion_r1452652087 for discussion.
     P.lines
       [ P.wrap $ "Failed to resolve data when hashing " <> prettyHash32 hash <> ".",
         "Please create an issue and report this to the Unison team"

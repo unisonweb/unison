@@ -28,6 +28,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -98,9 +99,9 @@ lookupRewrite onErr prepare rule = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   hqLength <- Cli.runTransaction Codebase.hashLength
-  fileNames <- Cli.getNamesFromLatestParsedFile
+  fileNames <- Cli.getNamesFromLatestFile
   let currentNames = fileNames <> Branch.toNames currentBranch
-  let ppe = PPED.fromNamesSuffixifiedByHash hqLength currentNames
+  let ppe = PPED.makePPED (PPE.hqNamer hqLength currentNames) (PPE.suffixifyByHash currentNames)
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
