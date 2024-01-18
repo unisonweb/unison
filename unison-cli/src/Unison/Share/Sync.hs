@@ -80,7 +80,7 @@ maxSimultaneousPullDownloaders = 5
 -- Share currently parallelizes on it's own in the backend, and any more than one push worker
 -- just results in serialization conflicts which slow things down.
 maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = 5
+maxSimultaneousPushWorkers = 1
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
