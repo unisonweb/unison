@@ -4,14 +4,17 @@ module Unison.Syntax.NameSegment
     unsafeFromText,
 
     -- * Name segment parsers
+    isSymboly,
+
+    -- * Name segment classifiers
     symbolyP,
+    wordyP,
 
     -- * Character classifiers
     segmentStartChar,
     symbolyIdChar,
     wordyIdStartChar,
     wordyIdChar,
-    reservedSymbolySegments,
   )
 where
 
@@ -23,6 +26,8 @@ import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
 import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
+import Unison.Syntax.Lexer.Token (Token (..), posP)
+import Unison.Syntax.ReservedWords (keywords, reservedOperators)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
@@ -34,8 +39,6 @@ unsafeFromText =
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Name segment parsers
-
--- type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
 -- | A symboly name segment parser, which consists only of symboly characters.
 --
@@ -53,15 +56,17 @@ unsafeFromText =
 -- The backticks of escaped symboly segments are not present in the data itself, i.e. the string "`.~`" corresponds
 -- to the data NameSegment ".~".
 --
--- Returns @Left@ if the symboly name segment is reserved, e.g. "="
-symbolyP :: Ord e => ParsecT e [Char] s (Either Text NameSegment)
+-- Throws the parsed name segment as an error if it's reserved, e.g. "=".
+symbolyP :: ParsecT (Token Text) [Char] m NameSegment
 symbolyP = do
+  start <- posP
   string <- unescaped <|> escaped
   let text = Text.pack string
-  pure
-    if Set.member text reservedSymbolySegments
-      then Left text
-      else Right (NameSegment text)
+  if Set.member text reservedOperators
+    then do
+      end <- posP
+      P.customFailure (Token text start end)
+    else pure (NameSegment text)
   where
     unescaped =
       P.takeWhile1P (Just (description symbolyIdChars)) symbolyIdChar
@@ -74,6 +79,30 @@ symbolyP = do
 
     description valid =
       "operator (valid characters: " ++ Set.toList valid ++ ")"
+
+-- | A wordy name segment parser, which consists only of wordy characters.
+--
+-- Throws the parsed name segment as an error if it's a keyword, e.g. "match".
+wordyP :: ParsecT (Token Text) [Char] m NameSegment
+wordyP = do
+  start <- posP
+  ch <- P.satisfy wordyIdStartChar
+  rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
+  let word = Text.pack (ch : rest)
+  if Set.member word keywords
+    then do
+      end <- posP
+      P.customFailure (Token word start end)
+    else pure (NameSegment word)
+  where
+    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+
+------------------------------------------------------------------------------------------------------------------------
+-- Character classifiers
+
+isSymboly :: NameSegment -> Bool
+isSymboly =
+  not . wordyIdStartChar . Text.head . toText
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers
@@ -96,20 +125,6 @@ escapedSymbolyIdChar = (`Set.member` escapedSymbolyIdChars)
 -- | The set of characters allowed in an escaped symboly identifier.
 escapedSymbolyIdChars :: Set Char
 escapedSymbolyIdChars = Set.insert '.' symbolyIdChars
-
-reservedSymbolySegments :: Set Text
-reservedSymbolySegments =
-  Set.fromList
-    [ "=",
-      "->",
-      ":",
-      "&&",
-      "||",
-      "|",
-      "!",
-      "'",
-      "==>"
-    ]
 
 wordyIdStartChar :: Char -> Bool
 wordyIdStartChar ch =

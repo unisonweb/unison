@@ -22,9 +22,11 @@ library
       Unison.Syntax.HashQualified
       Unison.Syntax.HashQualified'
       Unison.Syntax.Lexer
+      Unison.Syntax.Lexer.Token
       Unison.Syntax.Name
       Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.ReservedWords
       Unison.UnisonFile.Error
   hs-source-dirs:
       src

@@ -7,7 +7,6 @@ module Unison.Syntax.Lexer
     Err (..),
     Pos (..),
     Lexeme (..),
-    lexemeToHQName,
     lexer,
     simpleWordyId,
     simpleSymbolyId,
@@ -20,9 +19,6 @@ module Unison.Syntax.Lexer
     debugLex''',
     showEscapeChar,
     touches,
-    typeModifiers,
-    typeOrAbilityAlt,
-    typeModifiersAlt,
     -- todo: these probably don't belong here
     wordyIdChar,
     wordyIdStartChar,
@@ -34,7 +30,6 @@ module Unison.Syntax.Lexer
   )
 where
 
-import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
 import Data.List (intercalate, isPrefixOf)
@@ -49,7 +44,6 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
-import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
@@ -60,22 +54,17 @@ import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toString)
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromString)
-import Unison.Syntax.NameSegment (reservedSymbolySegments, segmentStartChar, symbolyIdChar, wordyIdChar, wordyIdStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (symbolyP)
+import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
+import Unison.Syntax.Name qualified as Name (ParseErr (..), isSymboly, nameP, toText, unsafeFromString)
+import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
+import Unison.Syntax.NameSegment qualified as NameSegment (wordyP)
+import Unison.Syntax.ReservedWords (keywords, reservedOperators, typeModifiers, typeOrAbility)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
 type BlockName = String
 
 type Layout = [(BlockName, Column)]
-
-data Token a = Token
-  { payload :: a,
-    start :: !Pos,
-    end :: !Pos
-  }
-  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data ParsingEnv = ParsingEnv
   { layout :: !Layout, -- layout stack
@@ -147,13 +136,6 @@ data Lexeme
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
-lexemeToHQName :: Lexeme -> Maybe (HQ.HashQualified Name)
-lexemeToHQName = \case
-  WordyId n -> Just (HQ'.toHQ n)
-  SymbolyId n -> Just (HQ'.toHQ n)
-  Hash sh -> Just (HQ.HashOnly sh)
-  _ -> Nothing
-
 space :: P ()
 space =
   LP.space
@@ -169,11 +151,6 @@ lit = P.try . LP.symbol (pure ())
 token :: P Lexeme -> P [Token Lexeme]
 token = token' (\a start end -> [Token a start end])
 
-pos :: P Pos
-pos = do
-  p <- P.getSourcePos
-  pure $ Pos (P.unPos (P.sourceLine p)) (P.unPos (P.sourceColumn p))
-
 -- Token parser: strips trailing whitespace and comments after a
 -- successful parse, and also takes care of emitting layout tokens
 -- (such as virtual semicolons and closing tokens).
@@ -183,7 +160,7 @@ token' tok p = LP.lexeme space (token'' tok p)
 -- Committed failure
 err :: Pos -> Err -> P x
 err start t = do
-  stop <- pos
+  stop <- posP
   -- This consumes a character and therefore produces committed failure,
   -- so `err s t <|> p2` won't try `p2`
   _ <- void P.anySingle <|> P.eof
@@ -205,7 +182,7 @@ commitAfter2 a b f = do
 -- but does emit layout tokens such as virtual semicolons and closing tokens.
 token'' :: (a -> Pos -> Pos -> [Token Lexeme]) -> P a -> P [Token Lexeme]
 token'' tok p = do
-  start <- pos
+  start <- posP
   -- We save the current state so we can backtrack the state if `p` fails.
   env <- S.get
   layoutToks <- case opening env of
@@ -238,7 +215,7 @@ token'' tok p = do
     -- the layout stack and/or emit virtual semicolons.
     Nothing -> if inLayout env then pops start else pure []
   a <- p <|> (S.put env >> fail "resetting state")
-  end <- pos
+  end <- posP
   pure $ layoutToks ++ tok a start end
   where
     pops :: Pos -> P [Token Lexeme]
@@ -334,7 +311,7 @@ lexemes = lexemes' eof
   where
     eof :: P [Token Lexeme]
     eof = P.try do
-      p <- P.eof >> pos
+      p <- P.eof >> posP
       n <- maybe 0 (const 1) <$> S.gets opening
       l <- S.gets layout
       pure $ replicate (length l + n) (Token Close p p)
@@ -402,11 +379,11 @@ lexemes' eof =
         wordyKw kw = separated wordySep (lit kw)
         subsequentTypeName = P.lookAhead . P.optional $ do
           let lit' s = lit s <* sp
-          let modifier = typeModifiersAlt lit'
-          let typeOrAbility' = typeOrAbilityAlt wordyKw
+          let modifier = typeModifiersAlt (lit' . Text.unpack)
+          let typeOrAbility' = typeOrAbilityAlt (wordyKw . Text.unpack)
           _ <- modifier <* typeOrAbility' *> sp
-          (start, name, stop) <- positioned identifierP
-          if isSymbolyIdentifier name
+          Token name start stop <- tokenP identifierP
+          if Name.isSymboly (HQ'.toName name)
             then P.customFailure (Token (InvalidSymbolyId (Text.unpack (HQ'.toTextWith Name.toText name))) start stop)
             else pure (WordyId name)
         ignore _ _ _ = []
@@ -477,8 +454,8 @@ lexemes' eof =
               s <- lexemes' inlineEvalClose
               pure s
 
-        typeLink = wrap "syntax.docEmbedTypeLink" $ do
-          _ <- typeOrAbilityAlt wordyKw <* CP.space
+        typeLink = wrap "syntax.docEmbedTypeLink" do
+          _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
           tok identifierLexemeP <* CP.space
 
         termLink =
@@ -490,7 +467,7 @@ lexemes' eof =
             tok identifierLexemeP <* CP.space
 
         groupy closing p = do
-          (start, p, stop) <- positioned p
+          Token p start stop <- tokenP p
           after <- P.optional . P.try $ leafy closing
           pure $ case after of
             Nothing -> p
@@ -506,7 +483,7 @@ lexemes' eof =
 
         verbatim =
           P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
-            (start, txt, stop) <- positioned $ do
+            Token txt start stop <- tokenP do
               -- a single backtick followed by a non-backtick is treated as monospaced
               let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
               -- also two or more ' followed by that number of closing '
@@ -679,7 +656,7 @@ lexemes' eof =
 
         listItemStart' gutter = P.try $ do
           nonNewlineSpaces
-          col <- column <$> pos
+          col <- column <$> posP
           parentCol <- S.gets parentListColumn
           guard (col > parentCol)
           (col,) <$> gutter
@@ -691,7 +668,7 @@ lexemes' eof =
             num n = Numeric (show n)
 
         listItemParagraph = wrap "syntax.docParagraph" $ do
-          col <- column <$> pos
+          col <- column <$> posP
           join <$> P.some (leaf <* sep col)
           where
             -- Trickiness here to support hard line breaks inside of
@@ -708,7 +685,7 @@ lexemes' eof =
                   newline
                     *> nonNewlineSpaces
                     *> do
-                      col2 <- column <$> pos
+                      col2 <- column <$> posP
                       guard $ col2 >= col
                       (P.notFollowedBy $ numberedStart <|> bulletedStart)
               pure ()
@@ -759,7 +736,7 @@ lexemes' eof =
 
         wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
         wrap o p = do
-          start <- pos
+          start <- posP
           lexemes <- p
           pure $ go start lexemes
           where
@@ -812,7 +789,7 @@ lexemes' eof =
       n <- many (char '"')
       _ <- optional (char '\n') -- initial newline is skipped
       s <- P.manyTill P.anySingle (lit (replicate (length n + 3) '"'))
-      col0 <- column <$> pos
+      col0 <- column <$> posP
       let col = col0 - (length n) - 3 -- this gets us first col of closing quotes
       let leading = replicate (max 0 (col - 1)) ' '
       -- a last line that's equal to `leading` is ignored, since leading
@@ -839,7 +816,7 @@ lexemes' eof =
         intOrNat = P.try $ num <$> sign <*> LP.decimal
         float = do
           _ <- P.try (P.lookAhead (sign >> (LP.decimal :: P Int) >> (char '.' <|> char 'e' <|> char 'E'))) -- commit after this
-          start <- pos
+          start <- posP
           sign <- fromMaybe "" <$> sign
           base <- P.takeWhile1P (Just "base") isDigit
           decimals <-
@@ -855,7 +832,7 @@ lexemes' eof =
           pure $ Numeric (sign <> base <> fromMaybe "" decimals <> fromMaybe "" exp)
 
         bytes = do
-          start <- pos
+          start <- posP
           _ <- lit "0xs"
           s <- map toLower <$> P.takeWhileP (Just "hexidecimal character") isAlphaNum
           case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
@@ -863,11 +840,11 @@ lexemes' eof =
             Right bs -> pure (Bytes bs)
         otherbase = octal <|> hex
         octal = do
-          start <- pos
+          start <- posP
           commitAfter2 sign (lit "0o") $ \sign _ ->
             fmap (num sign) LP.octal <|> err start InvalidOctalLiteral
         hex = do
-          start <- pos
+          start <- posP
           commitAfter2 sign (lit "0x") $ \sign _ ->
             fmap (num sign) LP.hexadecimal <|> err start InvalidHexLiteral
 
@@ -909,7 +886,7 @@ lexemes' eof =
         symbolyKw s = separated (not . symbolyIdChar) (kw s)
 
         kw :: String -> P [Token Lexeme]
-        kw s = positioned (lit s) <&> \(pos1, s, pos2) -> [Token (Reserved s) pos1 pos2]
+        kw s = tokenP (lit s) <&> \token -> [Reserved <$> token]
 
         layoutKeywords :: P [Token Lexeme]
         layoutKeywords =
@@ -930,8 +907,8 @@ lexemes' eof =
               openKw "if"
                 <|> closeKw' (Just "then") ["if"] (lit "then")
                 <|> closeKw' (Just "else") ["then"] (lit "else")
-            modKw = typeModifiersAlt (openKw1 wordySep)
-            typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
+            modKw = typeModifiersAlt (openKw1 wordySep . Text.unpack)
+            typeOrAbilityKw = typeOrAbilityAlt (openTypeKw1 . Text.unpack)
             typ = modKw <|> typeOrAbilityKw
 
             withKw = do
@@ -954,14 +931,14 @@ lexemes' eof =
             openTypeKw1 t = do
               b <- S.gets (topBlockName . layout)
               case b of
-                Just mod | Set.member mod typeModifiers -> wordyKw t
+                Just mod | Set.member (Text.pack mod) typeModifiers -> wordyKw t
                 _ -> openKw1 wordySep t
 
             -- layout keyword which bumps the layout column by 1, rather than looking ahead
             -- to the next token to determine the layout column
             openKw1 :: (Char -> Bool) -> String -> P [Token Lexeme]
             openKw1 sep kw = do
-              (pos0, kw, pos1) <- positioned $ separated sep (lit kw)
+              Token kw pos0 pos1 <- tokenP $ separated sep (lit kw)
               S.modify (\env -> env {layout = (kw, column $ inc pos0) : layout env})
               pure [Token (Open kw) pos0 pos1]
 
@@ -970,7 +947,7 @@ lexemes' eof =
               env <- S.get
               case topBlockName (layout env) of
                 -- '=' does not open a layout block if within a type declaration
-                Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
+                Just t | t == "type" || Set.member (Text.pack t) typeModifiers -> pure [Token (Reserved "=") start end]
                 Just _ -> S.put (env {opening = Just "="}) >> pure [Token (Open "=") start end]
                 _ -> err start LayoutError
 
@@ -1017,12 +994,12 @@ lexemes' eof =
 
         delim = P.try $ do
           ch <- P.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
-          pos <- pos
+          pos <- posP
           pure [Token (Reserved [ch]) pos (inc pos)]
 
         delayOrForce = separated ok $ do
-          (start, op, end) <- positioned $ P.satisfy isDelayOrForce
-          pure [Token (Reserved [op]) start end]
+          token <- tokenP $ P.satisfy isDelayOrForce
+          pure [token <&> \op -> Reserved [op]]
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
@@ -1034,25 +1011,25 @@ open b = openAs b b
 
 openAs :: String -> String -> P [Token Lexeme]
 openAs syntax b = do
-  (start, _, end) <- positioned $ lit syntax
+  token <- tokenP $ lit syntax
   env <- S.get
   S.put (env {opening = Just b})
-  pure [Token (Open b) start end]
+  pure [Open b <$ token]
 
 openKw :: String -> P [Token Lexeme]
 openKw s = separated wordySep $ do
-  (pos1, s, pos2) <- positioned $ lit s
+  token <- tokenP $ lit s
   env <- S.get
   S.put (env {opening = Just s})
-  pure [Token (Open s) pos1 pos2]
+  pure [Open <$> token]
 
 wordySep :: Char -> Bool
 wordySep c = isSpace c || not (wordyIdChar c)
 
 tok :: P a -> P [Token a]
 tok p = do
-  (start, a, stop) <- positioned p
-  pure [Token a start stop]
+  token <- tokenP p
+  pure [token]
 
 -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
 -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
@@ -1065,26 +1042,15 @@ tok p = do
 identifierP :: P (HQ'.HashQualified Name)
 identifierP = do
   P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
-    P.try do
-      leadingDot <- isJust <$> P.optional (char '.')
-      segments <- Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) separatorP
-      let name = (if leadingDot then Name.makeAbsolute else id) (Name.fromSegments segments)
-      P.optional shorthashP <&> \case
-        Nothing -> HQ'.fromName name
-        Just shorthash -> HQ'.HashQualified name shorthash
+    name <- PI.withParsecT (fmap nameParseErrToErr) Name.nameP
+    P.optional shorthashP <&> \case
+      Nothing -> HQ'.fromName name
+      Just shorthash -> HQ'.HashQualified name shorthash
   where
-    -- The separator between segments is just a dot, but we don't want to commit to parsing another segment unless the
-    -- character after the dot can begin a segment.
-    --
-    -- This allows (for example) the "a." in "forall a. a -> a" to successfully parse as an identifier "a" followed by
-    -- the reserved symbol ".", rathern than fail to parse as an identifier, because it looks like the prefix of some
-    -- "a.b" that stops in the middle.
-    separatorP :: P Char
-    separatorP =
-      P.try do
-        c <- char '.'
-        P.lookAhead (P.satisfy segmentStartChar)
-        pure c
+    nameParseErrToErr :: Name.ParseErr -> Err
+    nameParseErrToErr = \case
+      Name.ReservedOperator s -> ReservedSymbolyId (Text.unpack s)
+      Name.ReservedWord s -> ReservedWordyId (Text.unpack s)
 
 -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
 -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
@@ -1098,59 +1064,29 @@ identifierLexemeP :: P Lexeme
 identifierLexemeP = do
   name <- identifierP
   pure
-    if isSymbolyIdSeg (Name.lastSegment (HQ'.toName name))
+    if Name.isSymboly (HQ'.toName name)
       then SymbolyId name
       else WordyId name
 
-isSymbolyIdentifier :: HQ'.HashQualified Name -> Bool
-isSymbolyIdentifier =
-  isSymbolyIdSeg . Name.lastSegment . HQ'.toName
-
-symbolyIdSegP :: P NameSegment
-symbolyIdSegP = do
-  start <- pos
-  NameSegment.symbolyP >>= \case
-    Left segment -> do
-      stop <- pos
-      P.customFailure (Token (ReservedSymbolyId (Text.unpack segment)) start stop)
-    Right segment -> pure segment
-
 wordyIdSegP :: P NameSegment
 wordyIdSegP =
-  P.try do
-    start <- pos
-    ch <- P.satisfy wordyIdStartChar
-    rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
-    let word = ch : rest
-    when (Set.member word keywords) $ do
-      stop <- pos
-      P.customFailure (Token (ReservedWordyId word) start stop)
-    pure (NameSegment (Text.pack (ch : rest)))
-  where
-    wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+  PI.withParsecT (fmap (ReservedWordyId . Text.unpack)) NameSegment.wordyP
 
 shorthashP :: P ShortHash
 shorthashP =
   P.label hashMsg do
     P.lookAhead (char '#')
     -- `foo#xyz` should parse
-    (start, potentialHash, _) <- positioned $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
+    Token potentialHash start _ <- tokenP $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
     case SH.fromText (Text.pack potentialHash) of
       Nothing -> err start (InvalidShortHash potentialHash)
       Just sh -> pure sh
   where
     hashMsg = "hash (ex: #af3sj3)"
 
-positioned :: P a -> P (Pos, a, Pos)
-positioned p = do
-  start <- pos
-  a <- p
-  stop <- pos
-  pure (start, a, stop)
-
 blockDelimiter :: [String] -> P String -> P [Token Lexeme]
 blockDelimiter open closeP = do
-  (pos1, close, pos2) <- positioned $ closeP
+  Token close pos1 pos2 <- tokenP closeP
   env <- S.get
   case findClose open (layout env) of
     Nothing -> err pos1 (UnexpectedDelimiter (quote close))
@@ -1169,7 +1105,7 @@ closeKw' reopenBlockname open closeP = close' reopenBlockname open (separated wo
 
 close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
 close' reopenBlockname open closeP = do
-  (pos1, close, pos2) <- positioned $ closeP
+  Token close pos1 pos2 <- tokenP closeP
   env <- S.get
   case findClose open (layout env) of
     Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
@@ -1273,8 +1209,8 @@ reorder = join . sortWith f . stanzas
   where
     f [] = 3 :: Int
     f (t0 : _) = case payload $ headToken t0 of
-      Open mod | Set.member mod typeModifiers -> 1
-      Open typOrA | Set.member typOrA typeOrAbility -> 1
+      Open mod | Set.member (Text.pack mod) typeModifiers -> 1
+      Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 1
       Reserved "use" -> 0
       _ -> 3 :: Int
 
@@ -1319,9 +1255,9 @@ isSep c = isSpace c || Set.member c delimiters
 
 -- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
 wordyId0 :: String -> Either Err (String, String)
-wordyId0 s = span' wordyIdChar s $ \case
+wordyId0 s = span' wordyIdChar s \case
   (id@(ch : _), rem)
-    | not (Set.member id keywords)
+    | not (Set.member (Text.pack id) keywords)
         && wordyIdStartChar ch ->
         Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
@@ -1359,51 +1295,14 @@ wordyId' s = case wordyId0 s of
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s \case
-  (id@(_ : _), rem) | not (Set.member (Text.pack id) reservedSymbolySegments) -> Right (id, rem)
+  (id@(_ : _), rem) | not (Set.member (Text.pack id) reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
-isSymbolyIdSeg :: NameSegment -> Bool
-isSymbolyIdSeg =
-  not . wordyIdStartChar . Text.head . NameSegment.toText
-
-keywords :: Set String
-keywords =
-  Set.fromList
-    [ "if",
-      "then",
-      "else",
-      "do",
-      "forall",
-      "∀",
-      "handle",
-      "with",
-      "where",
-      "use",
-      "true",
-      "false",
-      "alias",
-      "typeLink",
-      "termLink",
-      "let",
-      "namespace",
-      "match",
-      "cases",
-      "@rewrite"
-    ]
-    <> typeModifiers
-    <> typeOrAbility
-
-typeOrAbility :: Set String
-typeOrAbility = Set.fromList ["type", "ability"]
-
-typeOrAbilityAlt :: (Alternative f) => (String -> f a) -> f a
+typeOrAbilityAlt :: (Alternative f) => (Text -> f a) -> f a
 typeOrAbilityAlt f =
   asum $ map f (toList typeOrAbility)
 
-typeModifiers :: Set String
-typeModifiers = Set.fromList ["structural", "unique"]
-
-typeModifiersAlt :: (Alternative f) => (String -> f a) -> f a
+typeModifiersAlt :: (Alternative f) => (Text -> f a) -> f a
 typeModifiersAlt f =
   asum $ map f (toList typeModifiers)
 
@@ -1489,7 +1388,3 @@ instance P.VisualStream [Token Lexeme] where
         if line1 == line2
           then replicate (col2 - col1) ' '
           else replicate (line2 - line1) '\n' ++ replicate col2 ' '
-
-instance Applicative Token where
-  pure a = Token a (Pos 0 0) (Pos 0 0)
-  Token f start _ <*> Token a _ end = Token (f a) start end
