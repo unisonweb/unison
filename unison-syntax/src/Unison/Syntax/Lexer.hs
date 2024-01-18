@@ -36,8 +36,8 @@ where
 
 import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Control.Monad.State qualified as S
-import Data.Char
-import Data.List
+import Data.Char (isAlpha, isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
+import Data.List (intercalate, isPrefixOf)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -61,6 +61,8 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toString)
 import Unison.Syntax.Name qualified as Name (toText, unsafeFromString)
+import Unison.Syntax.NameSegment (reservedSymbolySegments, symbolyIdChar)
+import Unison.Syntax.NameSegment qualified as NameSegment (symbolyP)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -259,20 +261,21 @@ token'' tok p = do
       name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
 
 showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
-showErrorFancy (P.ErrorFail msg) = msg
-showErrorFancy (P.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got "
-    <> show (P.unPos actual)
-    <> ", should be "
-    <> p
-    <> show (P.unPos ref)
-    <> ")"
-  where
-    p = case ord of
-      LT -> "less than "
-      EQ -> "equal to "
-      GT -> "greater than "
-showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+showErrorFancy = \case
+  P.ErrorFail msg -> msg
+  P.ErrorIndentation ord ref actual ->
+    "incorrect indentation (got "
+      <> show (P.unPos actual)
+      <> ", should be "
+      <> p
+      <> show (P.unPos ref)
+      <> ")"
+    where
+      p = case ord of
+        LT -> "less than "
+        EQ -> "equal to "
+        GT -> "greater than "
+  P.ErrorCustom a -> P.showErrorComponent a
 
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
@@ -410,9 +413,7 @@ lexemes' eof =
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
         paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
-        reserved word =
-          isPrefixOf "}}" word
-            || all (== '#') word
+        reserved word = isPrefixOf "}}" word || all (== '#') word
 
         wordy closing = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
           let end =
@@ -1095,20 +1096,11 @@ isSymbolyIdentifier =
 symbolyIdSegP :: P NameSegment
 symbolyIdSegP = do
   start <- pos
-  segment <-
-    let unescaped = P.takeWhile1P (Just symbolMsg) symbolyIdChar
-        escaped = do
-          _ <- lit "`"
-          s <- P.takeWhile1P (Just symbolMsg) escapedSymbolyIdChar
-          _ <- lit "`"
-          pure s
-     in unescaped <|> escaped
-  when (Set.member segment reservedOperators) do
-    stop <- pos
-    P.customFailure (Token (ReservedSymbolyId segment) start stop)
-  pure (NameSegment (Text.pack segment))
-  where
-    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+  NameSegment.symbolyP >>= \case
+    Left segment -> do
+      stop <- pos
+      P.customFailure (Token (ReservedSymbolyId (Text.unpack segment)) start stop)
+    Right segment -> pure segment
 
 wordyIdSegP :: P NameSegment
 wordyIdSegP =
@@ -1364,22 +1356,8 @@ wordyId' s = case wordyId0 s of
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s \case
-  (id@(_ : _), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
+  (id@(_ : _), rem) | not (Set.member (Text.pack id) reservedSymbolySegments) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
-
-symbolyIdChar :: Char -> Bool
-symbolyIdChar ch = Set.member ch symbolyIdChars
-
--- | The set of characters allowed in an unescaped symboly identifier.
-symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
-
-escapedSymbolyIdChar :: Char -> Bool
-escapedSymbolyIdChar = (`Set.member` escapedSymbolyIdChars)
-
--- | The set of characters allowed in an escaped symboly identifier.
-escapedSymbolyIdChars :: Set Char
-escapedSymbolyIdChars = Set.insert '.' symbolyIdChars
 
 isSymbolyIdSeg :: NameSegment -> Bool
 isSymbolyIdSeg =
@@ -1431,9 +1409,6 @@ delimiters = Set.fromList "()[]{},?;"
 
 isDelimiter :: Char -> Bool
 isDelimiter ch = Set.member ch delimiters
-
-reservedOperators :: Set String
-reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'", "==>"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

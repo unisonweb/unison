@@ -23,6 +23,7 @@ library
       Unison.Syntax.HashQualified'
       Unison.Syntax.Lexer
       Unison.Syntax.Name
+      Unison.Syntax.NameSegment
       Unison.Syntax.Parser
       Unison.UnisonFile.Error
   hs-source-dirs:
