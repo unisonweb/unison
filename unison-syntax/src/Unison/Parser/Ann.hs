@@ -10,8 +10,9 @@ data Ann
   = -- Used for things like Builtins which don't have a source position.
     Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
   | External
-  | -- Indicates that the construct was generated from something at the given location.
-    -- E.g. record constructors are generated from their field definition.
+  | -- Indicates that the term was generated from something at this location.
+    -- E.g. generated record field accessors (get, modify, etc.) are generated from their field definition, so are tagged
+    -- with @GeneratedFrom <field position>@
     GeneratedFrom Ann
   | Ann {start :: L.Pos, end :: L.Pos}
   deriving (Eq, Ord, Show)

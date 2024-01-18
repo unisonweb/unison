@@ -13,7 +13,6 @@ import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.Types
 import Unison.Prelude
-import Unison.Util.Range qualified as URange
 
 formatDocRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFormatting -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFormatting) -> Lsp ()) -> Lsp ()
 formatDocRequest m respond = do
@@ -35,7 +34,7 @@ formatDefs fileUri mayRangesToFormat =
     Config {formattingWidth} <- lift getConfig
     MaybeT $
       Formatting.formatFile (\uf tf -> FileAnalysis.ppedForFileHelper uf tf) formattingWidth currentPath mayParsedFile mayTypecheckedFile (Set.map lspToURange <$> mayRangesToFormat)
-        <&> (fmap . fmap) uTextEditToLSP
+        <&> (fmap . fmap) uTextReplacementToLSP
   where
-    uTextEditToLSP :: (Text, URange.Range) -> TextEdit
-    uTextEditToLSP (newText, range) = TextEdit (uToLspRange range) newText
+    uTextReplacementToLSP :: Formatting.TextReplacement -> TextEdit
+    uTextReplacementToLSP (Formatting.TextReplacement newText range) = TextEdit (uToLspRange range) newText

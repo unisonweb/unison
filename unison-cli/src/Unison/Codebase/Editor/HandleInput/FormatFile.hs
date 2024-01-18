@@ -1,4 +1,9 @@
-module Unison.Codebase.Editor.HandleInput.FormatFile (formatFile, applyFormatUpdates) where
+module Unison.Codebase.Editor.HandleInput.FormatFile
+  ( formatFile,
+    applyFormatUpdates,
+    TextReplacement (..),
+  )
+where
 
 import Control.Lens hiding (List)
 import Data.IntervalMap.Interval qualified as Interval
@@ -27,7 +32,7 @@ import Unison.UnisonFile.Summary qualified as FileSummary
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Range (Range (..))
 
--- | Format a file, returning a list of TextEdits to apply to the file.
+-- | Format a file, returning a list of Text replacements to apply to the file.
 formatFile ::
   Monad m =>
   (Maybe (UnisonFile Symbol Ann.Ann) -> Maybe (TypecheckedUnisonFile Symbol Ann.Ann) -> m PPED.PrettyPrintEnvDecl) ->
@@ -36,7 +41,7 @@ formatFile ::
   Maybe (UnisonFile Symbol Ann.Ann) ->
   Maybe (TypecheckedUnisonFile Symbol Ann.Ann) ->
   Maybe (Set Range) ->
-  m (Maybe [(Text, Range)])
+  m (Maybe [TextReplacement])
 formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputTypecheckedFile mayRangesToFormat = runMaybeT $ do
   let (mayParsedFile, mayTypecheckedFile) = mkUnisonFilesDeterministic inputParsedFile inputTypecheckedFile
   fileSummary <- hoistMaybe $ FileSummary.mkFileSummary mayParsedFile mayTypecheckedFile
@@ -109,7 +114,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
   let textEdits =
         nonGeneratedDefs & foldMap \((start, end), txt) -> do
           range <- maybeToList $ annToRange (Ann.Ann start end)
-          pure $ (Text.pack $ Pretty.toPlain (Pretty.Width formattingWidth) txt, range)
+          pure $ (TextReplacement (Text.pack $ Pretty.toPlain (Pretty.Width formattingWidth) txt) range)
   pure textEdits
   where
     shouldFormatTLD :: Ann.Ann -> Bool
@@ -181,25 +186,33 @@ hasUserTypeSignature parsedFile sym =
   UF.terms parsedFile
     & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
 
--- | Apply a list of updates to a text, returning the updated text.
+data TextReplacement = TextReplacement
+  { -- The new new text to replace the old text in the range with. w
+    replacementText :: Text,
+    -- The range to replace.
+    replacementRange :: Range
+  }
+  deriving (Eq, Show)
+
+-- | Apply a list of range replacements to a text, returning the updated text.
 --
 -- This isn't terribly efficient, but is fine for debugging and testing.
 --
 -- TODO: rewrite to sort replacements and run them in a single pass.
 --
--- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 2 6))] "abcdefghijk\nlmnopqrstuv\nwxyz"
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6))] "abcdefghijk\nlmnopqrstuv\nwxyz"
 -- "abcdefghijk\nlmhelloqrstuv\nwxyz"
 --
--- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 3 2))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 3 2))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
 -- "abcdefghijk\nlmhelloxyz\n1234567890"
 --
--- >>> applyFormatUpdates [("hello", Range (Pos.Pos 2 3) (Pos.Pos 2 6)), ("world", Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
 -- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
-applyFormatUpdates :: [(Text, Range)] -> Text -> Text
+applyFormatUpdates :: [TextReplacement] -> Text -> Text
 applyFormatUpdates updates txt = foldl' applyUpdate txt updates
   where
-    applyUpdate :: Text -> (Text, Range) -> Text
-    applyUpdate txt (newText, Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol')) = fromMaybe txt $ do
+    applyUpdate :: Text -> TextReplacement -> Text
+    applyUpdate txt (TextReplacement newText (Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol'))) = fromMaybe txt $ do
       -- Convert from 1-based indexing
       let startLine = startLine' - 1
       let startCol = startCol' - 1
