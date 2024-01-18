@@ -7,11 +7,15 @@ module Unison.Syntax.NameSegment
     symbolyP,
 
     -- * Character classifiers
+    segmentStartChar,
     symbolyIdChar,
+    wordyIdStartChar,
+    wordyIdChar,
     reservedSymbolySegments,
   )
 where
 
+import Data.Char qualified as Char
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec (ParsecT)
@@ -74,6 +78,10 @@ symbolyP = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers
 
+segmentStartChar :: Char -> Bool
+segmentStartChar c =
+  wordyIdStartChar c || symbolyIdChar c || c == '`' -- backtick starts an escaped symboly segment
+
 symbolyIdChar :: Char -> Bool
 symbolyIdChar =
   (`Set.member` symbolyIdChars)
@@ -102,3 +110,15 @@ reservedSymbolySegments =
       "'",
       "==>"
     ]
+
+wordyIdStartChar :: Char -> Bool
+wordyIdStartChar ch =
+  Char.isAlpha ch || isEmoji ch || ch == '_'
+
+wordyIdChar :: Char -> Bool
+wordyIdChar ch =
+  Char.isAlphaNum ch || isEmoji ch || ch == '_' || ch == '!' || ch == '\''
+
+isEmoji :: Char -> Bool
+isEmoji c =
+  c >= '\x1F300' && c <= '\x1FAFF'

@@ -36,7 +36,7 @@ where
 
 import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Control.Monad.State qualified as S
-import Data.Char (isAlpha, isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
+import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
@@ -61,7 +61,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toString)
 import Unison.Syntax.Name qualified as Name (toText, unsafeFromString)
-import Unison.Syntax.NameSegment (reservedSymbolySegments, symbolyIdChar)
+import Unison.Syntax.NameSegment (reservedSymbolySegments, segmentStartChar, symbolyIdChar, wordyIdChar, wordyIdStartChar)
 import Unison.Syntax.NameSegment qualified as NameSegment (symbolyP)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
@@ -1066,12 +1066,25 @@ identifierP :: P (HQ'.HashQualified Name)
 identifierP = do
   P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
     P.try do
-      maybeDot <- P.optional (lit ".")
-      segments <- Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) (lit ".")
-      let name = (if isJust maybeDot then Name.makeAbsolute else id) (Name.fromSegments segments)
+      leadingDot <- isJust <$> P.optional (char '.')
+      segments <- Monad.sepBy1 (symbolyIdSegP <|> wordyIdSegP) separatorP
+      let name = (if leadingDot then Name.makeAbsolute else id) (Name.fromSegments segments)
       P.optional shorthashP <&> \case
         Nothing -> HQ'.fromName name
         Just shorthash -> HQ'.HashQualified name shorthash
+  where
+    -- The separator between segments is just a dot, but we don't want to commit to parsing another segment unless the
+    -- character after the dot can begin a segment.
+    --
+    -- This allows (for example) the "a." in "forall a. a -> a" to successfully parse as an identifier "a" followed by
+    -- the reserved symbol ".", rathern than fail to parse as an identifier, because it looks like the prefix of some
+    -- "a.b" that stops in the middle.
+    separatorP :: P Char
+    separatorP =
+      P.try do
+        c <- char '.'
+        P.lookAhead (P.satisfy segmentStartChar)
+        pure c
 
 -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
 -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
@@ -1312,16 +1325,6 @@ wordyId0 s = span' wordyIdChar s $ \case
         && wordyIdStartChar ch ->
         Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
-
-wordyIdStartChar :: Char -> Bool
-wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
-
-wordyIdChar :: Char -> Bool
-wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` ['_', '!', '\'']
-
-isEmoji :: Char -> Bool
-isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
 symbolyId :: String -> Either Err (String, String)
 symbolyId r@('.' : s)
