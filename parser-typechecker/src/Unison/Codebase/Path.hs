@@ -65,6 +65,7 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Parse` instances
     splitFromName,
+    splitFromName',
     hqSplitFromName',
 
     -- * things that could be replaced with `Cons` instances
@@ -256,9 +257,19 @@ hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
 -- >>> splitFromName "foo"
 -- (,foo)
 splitFromName :: Name -> Split
-splitFromName name =
+splitFromName =
+  over _1 fromPath' . splitFromName'
+
+splitFromName' :: Name -> Split'
+splitFromName' name =
   case Name.reverseSegments name of
-    (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
+    (seg :| pathSegments) ->
+      let path = fromList (reverse pathSegments)
+       in ( if Name.isAbsolute name
+              then AbsolutePath' (Absolute path)
+              else RelativePath' (Relative path),
+            seg
+          )
 
 -- | Remove a path prefix from a name.
 -- Returns 'Nothing' if there are no remaining segments to construct the name from.
@@ -522,7 +533,8 @@ instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 
-instance Convert Name Split where convert = splitFromName
+instance Convert Name Split where
+  convert = splitFromName
 
 instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
   convert (path, name) =

@@ -3,18 +3,15 @@
 module Unison.Codebase.Path.Parse
   ( parsePath',
     parseSplit',
-    definitionNameSegment,
     parseHQSplit,
     parseHQSplit',
     parseShortHashOrHQSplit',
-    wordyNameSegment,
   )
 where
 
 import Control.Lens (over, _1)
 import Control.Lens qualified as Lens
 import Data.List.Extra (stripPrefix)
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.Codebase.Path
@@ -26,20 +23,12 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr)
 
--- .libs.blah.poo is Absolute
--- libs.blah.poo is Relative
--- Left is some parse error tbd
-parsePath' :: String -> Either String Path'
+parsePath' :: String -> Either Text Path'
 parsePath' = \case
   "." -> Right absoluteEmpty'
-  path ->
-    case P.runParser (Name.nameP <* P.eof) "" path of
-      Left err -> Left (renderErr err)
-      Right name -> Right (fromName' name)
-  where
-    renderErr =
-      P.parseErrorTextPretty . P.mapParseError Lexer.payload . List.NonEmpty.head . P.bundleErrors
+  path -> unsplit' <$> parseSplit' path
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
@@ -100,17 +89,11 @@ definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
       Right (a, rem) ->
         Left $ "trailing characters after " <> show a <> ": " <> show rem
 
--- parseSplit' wordyNameSegment "foo.bar.baz" returns Right (foo.bar, baz)
--- parseSplit' wordyNameSegment "foo.bar.+" returns Left err
--- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
-parseSplit' ::
-  (String -> Either String NameSegment) ->
-  String ->
-  Either String Split'
-parseSplit' lastSegment p = do
-  (p', rem) <- parsePathImpl' p
-  seg <- lastSegment rem
-  pure (p', seg)
+parseSplit' :: String -> Either Text Split'
+parseSplit' path = do
+  case P.runParser (Name.nameP <* P.eof) "" path of
+    Left err -> Left (NameSegment.renderParseErr err)
+    Right name -> Right (splitFromName' name)
 
 parseShortHashOrHQSplit' :: String -> Either String (Either ShortHash HQSplit')
 parseShortHashOrHQSplit' s =

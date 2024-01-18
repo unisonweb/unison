@@ -55,9 +55,9 @@ import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toString)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
-import Unison.Syntax.Name qualified as Name (ParseErr (..), isSymboly, nameP, toText, unsafeFromString)
+import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeFromString)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (wordyP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr(..), wordyP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators, typeModifiers, typeOrAbility)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
@@ -1042,15 +1042,15 @@ tok p = do
 identifierP :: P (HQ'.HashQualified Name)
 identifierP = do
   P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
-    name <- PI.withParsecT (fmap nameParseErrToErr) Name.nameP
+    name <- PI.withParsecT (fmap nameSegmentParseErrToErr) Name.nameP
     P.optional shorthashP <&> \case
       Nothing -> HQ'.fromName name
       Just shorthash -> HQ'.HashQualified name shorthash
   where
-    nameParseErrToErr :: Name.ParseErr -> Err
-    nameParseErrToErr = \case
-      Name.ReservedOperator s -> ReservedSymbolyId (Text.unpack s)
-      Name.ReservedWord s -> ReservedWordyId (Text.unpack s)
+    nameSegmentParseErrToErr :: NameSegment.ParseErr -> Err
+    nameSegmentParseErrToErr = \case
+      NameSegment.ReservedOperator s -> ReservedSymbolyId (Text.unpack s)
+      NameSegment.ReservedWord s -> ReservedWordyId (Text.unpack s)
 
 -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
 -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).

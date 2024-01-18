@@ -13,7 +13,6 @@ module Unison.Syntax.Name
     toVar,
 
     -- * Name parsers
-    ParseErr (..),
     nameP,
 
     -- * Name classifiers
@@ -31,7 +30,6 @@ import Data.Text.Lazy.Builder qualified as Text.Builder
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
-import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Name qualified as Name (fromSegments, lastSegment, makeAbsolute)
 import Unison.Name.Internal (Name (Name))
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -40,7 +38,7 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.NameSegment (segmentStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (isSymboly, symbolyP, wordyP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr, isSymboly, segmentP)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -137,31 +135,13 @@ unsafeFromVar =
 ------------------------------------------------------------------------------------------------------------------------
 -- Name parsers
 
-data ParseErr
-  = ReservedOperator !Text
-  | ReservedWord !Text
-  deriving stock (Eq, Ord)
-
-instance P.ShowErrorComponent ParseErr where
-  showErrorComponent = \case
-    ReservedOperator s -> Text.unpack ("reserved operator: " <> s)
-    ReservedWord s -> Text.unpack ("reserved word: " <> s)
-  errorComponentLen = \case
-    ReservedOperator s -> Text.length s
-    ReservedWord s -> Text.length s
-
-nameP :: forall m. Monad m => ParsecT (Token ParseErr) [Char] m Name
+nameP :: forall m. Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
 nameP =
   P.try do
     leadingDot <- isJust <$> P.optional (P.char '.')
-    name <- Name.fromSegments <$> Monad.sepBy1 segmentP separatorP
+    name <- Name.fromSegments <$> Monad.sepBy1 NameSegment.segmentP separatorP
     pure (if leadingDot then Name.makeAbsolute name else name)
   where
-    segmentP :: ParsecT (Token ParseErr) [Char] m NameSegment
-    segmentP =
-      P.withParsecT (fmap ReservedOperator) NameSegment.symbolyP
-        <|> P.withParsecT (fmap ReservedWord) NameSegment.wordyP
-
     -- The separator between segments is just a dot, but we don't want to commit to parsing another segment unless the
     -- character after the dot can begin a segment.
     --

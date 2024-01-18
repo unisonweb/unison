@@ -61,6 +61,7 @@ import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), Projec
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (fromString)
 import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segmentP)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as P
@@ -152,8 +153,8 @@ todo =
         ]
     )
     ( \case
-        patchStr : ws -> mapLeft (warn . fromString) $ do
-          patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+        patchStr : ws -> mapLeft (warn . P.text) $ do
+          patch <- Path.parseSplit' patchStr
           branch <- case ws of
             [] -> pure Path.relativeEmpty'
             [pathStr] -> Path.parsePath' pathStr
@@ -315,9 +316,7 @@ updateOld =
     )
     \case
       patchStr : ws -> do
-        patch <-
-          first fromString $
-            Path.parseSplit' Path.definitionNameSegment patchStr
+        patch <- first P.text $ Path.parseSplit' patchStr
         pure $
           Input.UpdateI
             (Input.UsePatch patch)
@@ -365,8 +364,8 @@ patch =
         ]
     )
     \case
-      patchStr : ws -> first fromString $ do
-        patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patchStr : ws -> first P.text do
+        patch <- Path.parseSplit' patchStr
         branch <- case ws of
           [pathStr] -> Path.parsePath' pathStr
           _ -> pure Path.relativeEmpty'
@@ -500,7 +499,7 @@ ui =
       help = P.wrap "`ui` opens the Local UI in the default browser.",
       parse = \case
         [] -> pure $ Input.UiI Path.relativeEmpty'
-        [path] -> first fromString $ do
+        [path] -> first P.text $ do
           p <- Path.parsePath' path
           pure $ Input.UiI p
         _ -> Left (I.help ui)
@@ -641,7 +640,7 @@ findShallow =
     )
     ( \case
         [] -> pure $ Input.FindShallowI Path.relativeEmpty'
-        [path] -> first fromString $ do
+        [path] -> first P.text $ do
           p <- Path.parsePath' path
           pure $ Input.FindShallowI p
         _ -> Left (I.help findShallow)
@@ -694,9 +693,9 @@ renameTerm =
     ]
     "`move.term foo bar` renames `foo` to `bar`."
     ( \case
-        [oldName, newName] -> first fromString $ do
-          src <- Path.parseHQSplit' oldName
-          target <- Path.parseSplit' Path.definitionNameSegment newName
+        [oldName, newName] -> first P.text do
+          src <- mapLeft Text.pack (Path.parseHQSplit' oldName)
+          target <- Path.parseSplit' newName
           pure $ Input.MoveTermI src target
         _ ->
           Left . P.warnCallout $
@@ -715,7 +714,7 @@ moveAll =
     ]
     "`move foo bar` renames the term, type, and namespace foo to bar."
     ( \case
-        [oldName, newName] -> first fromString $ do
+        [oldName, newName] -> first P.text $ do
           src <- Path.parsePath' oldName
           target <- Path.parsePath' newName
           pure $ Input.MoveAllI src target
@@ -736,9 +735,9 @@ renameType =
     ]
     "`move.type foo bar` renames `foo` to `bar`."
     ( \case
-        [oldName, newName] -> first fromString $ do
-          src <- Path.parseHQSplit' oldName
-          target <- Path.parseSplit' Path.definitionNameSegment newName
+        [oldName, newName] -> first P.text do
+          src <- mapLeft Text.pack (Path.parseHQSplit' oldName)
+          target <- Path.parseSplit' newName
           pure $ Input.MoveTypeI src target
         _ ->
           Left . P.warnCallout $
@@ -833,10 +832,7 @@ deleteReplacement isTerm =
     )
     ( \case
         query : patch -> do
-          patch <-
-            first fromString
-              . traverse (Path.parseSplit' Path.definitionNameSegment)
-              $ listToMaybe patch
+          patch <- first P.text . traverse Path.parseSplit' $ listToMaybe patch
           q <- parseHashQualifiedName query
           pure $ input q patch
         _ ->
@@ -919,9 +915,9 @@ aliasTerm =
     [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     ( \case
-        [oldName, newName] -> first fromString $ do
-          source <- Path.parseShortHashOrHQSplit' oldName
-          target <- Path.parseSplit' Path.definitionNameSegment newName
+        [oldName, newName] -> first P.text do
+          source <- mapLeft Text.pack (Path.parseShortHashOrHQSplit' oldName)
+          target <- Path.parseSplit' newName
           pure $ Input.AliasTermI source target
         _ ->
           Left . warn $
@@ -938,9 +934,9 @@ aliasType =
     [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     ( \case
-        [oldName, newName] -> first fromString $ do
-          source <- Path.parseShortHashOrHQSplit' oldName
-          target <- Path.parseSplit' Path.definitionNameSegment newName
+        [oldName, newName] -> first P.text do
+          source <- mapLeft Text.pack (Path.parseShortHashOrHQSplit' oldName)
+          target <- Path.parseSplit' newName
           pure $ Input.AliasTypeI source target
         _ ->
           Left . warn $
@@ -965,8 +961,8 @@ aliasMany =
         ]
     )
     ( \case
-        srcs@(_ : _) Cons.:> dest -> first fromString $ do
-          sourceDefinitions <- traverse Path.parseHQSplit srcs
+        srcs@(_ : _) Cons.:> dest -> first P.text do
+          sourceDefinitions <- mapLeft Text.pack (traverse Path.parseHQSplit srcs)
           destNamespace <- Path.parsePath' dest
           pure $ Input.AliasManyI sourceDefinitions destNamespace
         _ -> Left (I.help aliasMany)
@@ -1013,7 +1009,7 @@ cd =
     )
     ( \case
         [".."] -> Right Input.UpI
-        [p] -> first fromString $ do
+        [p] -> first P.text do
           p <- Path.parsePath' p
           pure . Input.SwitchBranchI $ p
         _ -> Left (I.help cd)
@@ -1066,8 +1062,8 @@ deleteNamespaceParser helpText insistence =
         first fromString
           . pure
           $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-      [p] -> first fromString $ do
-        p <- Path.parseSplit' Path.definitionNameSegment p
+      [p] -> first P.text do
+        p <- Path.parseSplit' p
         pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
       _ -> Left helpText
   )
@@ -1081,22 +1077,22 @@ deletePatch =
     [("patch to delete", Required, patchArg)]
     "`delete.patch <foo>` deletes the patch `foo`"
     ( \case
-        [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
+        [p] -> first P.text do
+          p <- Path.parseSplit' p
           pure . Input.DeleteI $ DeleteTarget'Patch p
         _ -> Left (I.help deletePatch)
     )
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
-movePatch src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+movePatch src dest = first P.text do
+  src <- Path.parseSplit' src
+  dest <- Path.parseSplit' dest
   pure $ Input.MovePatchI src dest
 
 copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
-copyPatch' src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+copyPatch' src dest = first P.text do
+  src <- Path.parseSplit' src
+  dest <- Path.parseSplit' dest
   pure $ Input.CopyPatchI src dest
 
 copyPatch :: InputPattern
@@ -1134,7 +1130,7 @@ renameBranch =
     [("namespace to move", Required, namespaceArg), ("new location", Required, newNameArg)]
     "`move.namespace foo bar` renames the path `foo` to `bar`."
     ( \case
-        [src, dest] -> first fromString $ do
+        [src, dest] -> first P.text do
           src <- Path.parsePath' src
           dest <- Path.parsePath' dest
           pure $ Input.MoveBranchI src dest
@@ -1158,7 +1154,7 @@ history =
         ]
     )
     ( \case
-        [src] -> first fromString $ do
+        [src] -> first P.text do
           p <- Input.parseBranchId src
           pure $ Input.HistoryI (Just 10) (Just 10) p
         [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
@@ -1262,7 +1258,7 @@ resetRoot =
         ]
     )
     ( \case
-        [src] -> first fromString $ do
+        [src] -> first P.text $ do
           src <- Input.parseBranchId src
           pure $ Input.ResetRootI src
         _ -> Left (I.help resetRoot)
@@ -1732,11 +1728,11 @@ diffNamespace =
         ]
     )
     ( \case
-        [before, after] -> first fromString $ do
+        [before, after] -> first P.text do
           before <- Input.parseBranchId before
           after <- Input.parseBranchId after
           pure $ Input.DiffNamespaceI before after
-        [before] -> first fromString $ do
+        [before] -> first P.text do
           before <- Input.parseBranchId before
           pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
@@ -1812,10 +1808,7 @@ replaceEdit f = self
         )
         ( \case
             source : target : patch -> do
-              patch <-
-                first fromString
-                  <$> traverse (Path.parseSplit' Path.definitionNameSegment)
-                  $ listToMaybe patch
+              patch <- first P.text <$> traverse Path.parseSplit' $ listToMaybe patch
               sourcehq <- parseHashQualifiedName source
               targethq <- parseHashQualifiedName target
               pure $ f sourcehq targethq patch
@@ -2136,8 +2129,8 @@ viewPatch =
     )
     ( \case
         [] -> Right $ Input.ListEditsI Nothing
-        [patchStr] -> mapLeft fromString $ do
-          patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+        [patchStr] -> mapLeft P.text do
+          patch <- Path.parseSplit' patchStr
           Right $ Input.ListEditsI (Just patch)
         _ -> Left $ warn "`view.patch` takes a patch and that's it."
     )
@@ -2195,7 +2188,7 @@ namespaceDependencies =
     [("namespace", Optional, namespaceArg)]
     "List the external dependencies of the specified namespace."
     ( \case
-        [p] -> first fromString $ do
+        [p] -> first P.text do
           p <- Path.parsePath' p
           pure $ Input.NamespaceDependenciesI (Just p)
         [] -> pure (Input.NamespaceDependenciesI Nothing)
@@ -2334,12 +2327,11 @@ docsToHtml =
           )
         ]
     )
-    ( \case
-        [namespacePath, destinationFilePath] -> first fromString $ do
-          np <- Path.parsePath' namespacePath
-          pure $ Input.DocsToHtmlI np destinationFilePath
-        _ -> Left $ showPatternHelp docsToHtml
-    )
+    \case
+      [namespacePath, destinationFilePath] -> first P.text do
+        np <- Path.parsePath' namespacePath
+        pure $ Input.DocsToHtmlI np destinationFilePath
+      _ -> Left $ showPatternHelp docsToHtml
 
 docToMarkdown :: InputPattern
 docToMarkdown =
@@ -2354,12 +2346,11 @@ docToMarkdown =
           )
         ]
     )
-    ( \case
-        [docNameText] -> first fromString $ do
-          docName <- maybeToEither "Invalid name" . Name.fromText . Text.pack $ docNameText
-          pure $ Input.DocToMarkdownI docName
-        _ -> Left $ showPatternHelp docToMarkdown
-    )
+    \case
+      [docNameText] -> first fromString $ do
+        docName <- maybeToEither "Invalid name" . Name.fromText . Text.pack $ docNameText
+        pure $ Input.DocToMarkdownI docName
+      _ -> Left $ showPatternHelp docToMarkdown
 
 execute :: InputPattern
 execute =
@@ -2377,11 +2368,10 @@ execute =
           )
         ]
     )
-    ( \case
-        [w] -> pure $ Input.ExecuteI w []
-        (w : ws) -> pure $ Input.ExecuteI w ws
-        _ -> Left $ showPatternHelp execute
-    )
+    \case
+      [w] -> pure $ Input.ExecuteI w []
+      (w : ws) -> pure $ Input.ExecuteI w ws
+      _ -> Left $ showPatternHelp execute
 
 saveExecuteResult :: InputPattern
 saveExecuteResult =
@@ -2393,10 +2383,9 @@ saveExecuteResult =
     ( "`add.run name` adds to the codebase the result of the most recent `run` command"
         <> "as `name`."
     )
-    ( \case
-        [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
-        _ -> Left $ showPatternHelp saveExecuteResult
-    )
+    \case
+      [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+      _ -> Left $ showPatternHelp saveExecuteResult
 
 ioTest :: InputPattern
 ioTest =
@@ -2449,11 +2438,10 @@ makeStandalone =
           )
         ]
     )
-    ( \case
-        [main, file] ->
-          Input.MakeStandaloneI file <$> parseHashQualifiedName main
-        _ -> Left $ showPatternHelp makeStandalone
-    )
+    \case
+      [main, file] ->
+        Input.MakeStandaloneI file <$> parseHashQualifiedName main
+      _ -> Left $ showPatternHelp makeStandalone
 
 runScheme :: InputPattern
 runScheme =
@@ -2468,10 +2456,9 @@ runScheme =
           )
         ]
     )
-    ( \case
-        (main : args) -> Right $ Input.ExecuteSchemeI main args
-        _ -> Left $ showPatternHelp runScheme
-    )
+    \case
+      (main : args) -> Right $ Input.ExecuteSchemeI main args
+      _ -> Left $ showPatternHelp runScheme
 
 compileScheme :: InputPattern
 compileScheme =
@@ -2488,11 +2475,10 @@ compileScheme =
           )
         ]
     )
-    ( \case
-        [main, file] ->
-          Input.CompileSchemeI file <$> parseHashQualifiedName main
-        _ -> Left $ showPatternHelp compileScheme
-    )
+    \case
+      [main, file] ->
+        Input.CompileSchemeI file <$> parseHashQualifiedName main
+      _ -> Left $ showPatternHelp compileScheme
 
 schemeLibgen :: InputPattern
 schemeLibgen =
@@ -2515,11 +2501,10 @@ schemeLibgen =
           )
         ]
     )
-    ( \case
-        [] -> pure $ Input.GenSchemeLibsI Nothing
-        [dir] -> pure . Input.GenSchemeLibsI $ Just dir
-        _ -> Left $ showPatternHelp schemeLibgen
-    )
+    \case
+      [] -> pure $ Input.GenSchemeLibsI Nothing
+      [dir] -> pure . Input.GenSchemeLibsI $ Just dir
+      _ -> Left $ showPatternHelp schemeLibgen
 
 fetchScheme :: InputPattern
 fetchScheme =
@@ -2552,16 +2537,15 @@ fetchScheme =
           )
         ]
     )
-    ( \case
-        [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
-        [name] -> pure (Input.FetchSchemeCompilerI name branch)
-          where
-            branch
-              | name == "unison" = JitInfo.currentRelease
-              | otherwise = "main"
-        [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
-        _ -> Left $ showPatternHelp fetchScheme
-    )
+    \case
+      [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
+      [name] -> pure (Input.FetchSchemeCompilerI name branch)
+        where
+          branch
+            | name == "unison" = JitInfo.currentRelease
+            | otherwise = "main"
+      [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
+      _ -> Left $ showPatternHelp fetchScheme
 
 createAuthor :: InputPattern
 createAuthor =
@@ -2582,8 +2566,10 @@ createAuthor =
           )
     )
     ( \case
-        symbolStr : authorStr@(_ : _) -> first fromString $ do
-          symbol <- Path.definitionNameSegment symbolStr
+        symbolStr : authorStr@(_ : _) -> first fromString do
+          symbol <-
+            Megaparsec.runParser (NameSegment.segmentP <* Megaparsec.eof) "" symbolStr
+              & mapLeft (Text.unpack . NameSegment.renderParseErr)
           -- let's have a real parser in not too long
           let author :: Text
               author = Text.pack $ case (unwords authorStr) of
@@ -2663,10 +2649,10 @@ diffNamespaceToPatch =
       help = P.wrap "Create a patch from a namespace diff.",
       parse = \case
         [branchId1, branchId2, patch] ->
-          mapLeft fromString do
+          mapLeft P.text do
             branchId1 <- Input.parseBranchId branchId1
             branchId2 <- Input.parseBranchId branchId2
-            patch <- Path.parseSplit' Path.definitionNameSegment patch
+            patch <- Path.parseSplit' patch
             pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
         _ -> Left (showPatternHelp diffNamespaceToPatch)
     }

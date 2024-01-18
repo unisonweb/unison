@@ -234,7 +234,7 @@ instance ToJSON ConstructorType where
 
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' p) -> Right p
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
 
@@ -243,7 +243,7 @@ instance ToHttpApiData Path.Relative where
 
 instance FromHttpApiData Path.Absolute where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' _) -> Left $ "Expected absolute path, but " <> txt <> " was relative."
     Right (Path.AbsolutePath' p) -> Right p
 
@@ -251,14 +251,14 @@ instance ToHttpApiData Path.Absolute where
   toUrlPiece = tShow
 
 instance FromHttpApiData Path.Path' where
-  parseUrlPiece txt = mapLeft Text.pack $ Path.parsePath' (Text.unpack txt)
+  parseUrlPiece txt = Path.parsePath' (Text.unpack txt)
 
 instance ToHttpApiData Path.Path' where
   toUrlPiece = tShow
 
 instance FromHttpApiData Path.Path where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
 

@@ -4,34 +4,17 @@ module Unison.Test.Codebase.Path where
 
 import Data.Maybe (fromJust)
 import EasyTest
-import Unison.Codebase.Path
-import Unison.Codebase.Path.Parse
+import Unison.Codebase.Path (Path (..), Path' (..), Relative (..))
+import Unison.Codebase.Path.Parse (parseHQSplit', parseShortHashOrHQSplit')
 import Unison.HashQualified' qualified as HQ'
-import Unison.NameSegment
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.ShortHash qualified as SH
 
 test :: Test ()
 test =
   scope "path" . tests $
-    [ scope "parseSplit'" . tests $
-        [ scope "wordyNameSegment" . tests $
-            [ let s = "foo.bar.baz"
-               in scope s . expect $
-                    parseSplit' wordyNameSegment s == Right (relative ["foo", "bar"], NameSegment "baz"),
-              let s = "foo.bar.baz#abc" in scope s . expect $ isLeft $ parseSplit' wordyNameSegment s,
-              let s = "foo.bar.+"
-               in scope s . expect $
-                    isLeft $
-                      parseSplit' wordyNameSegment s
-            ],
-          scope "definitionNameSegment" . tests $
-            [ let s = "foo.bar.+"
-               in scope s . expect $
-                    parseSplit' definitionNameSegment s == Right (relative ["foo", "bar"], NameSegment "+")
-            ]
-        ],
-      scope "parseShortHashOrHQSplit'" . tests $
+    [ scope "parseShortHashOrHQSplit'" . tests $
         [ let s = "foo.bar#34"
            in scope s . expect $
                 parseShortHashOrHQSplit' s

@@ -34,7 +34,7 @@ import Data.Text qualified as Text
 import Data.These (These)
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -42,8 +42,8 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Verbosity
-import Unison.CommandLine.BranchRelativePath
+import Unison.Codebase.Verbosity (Verbosity)
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -82,7 +82,7 @@ type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 data Insistence = Force | Try
   deriving (Show, Eq)
 
-parseBranchId :: String -> Either String BranchId
+parseBranchId :: String -> Either Text BranchId
 parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h

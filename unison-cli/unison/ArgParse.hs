@@ -1,7 +1,4 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | This module handles parsing CLI arguments into 'Command's.
 -- See the excellent documentation at https://hackage.haskell.org/package/optparse-applicative
@@ -13,6 +10,7 @@ import Data.Functor ((<&>))
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NE
+import Data.Text qualified as Text
 import Options.Applicative
   ( CommandFields,
     Mod,
@@ -450,7 +448,7 @@ readPath' :: ReadM Path.Path'
 readPath' = do
   strPath <- OptParse.str
   case Path.parsePath' strPath of
-    Left err -> OptParse.readerError err
+    Left err -> OptParse.readerError (Text.unpack err)
     Right path' -> pure path'
 
 fileArgument :: String -> Parser FilePath
