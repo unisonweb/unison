@@ -142,6 +142,14 @@ data ParseErr
   | ReservedWord !Text
   deriving stock (Eq, Ord)
 
+instance P.ShowErrorComponent ParseErr where
+  showErrorComponent = \case
+    ReservedOperator s -> Text.unpack ("reserved operator: " <> s)
+    ReservedWord s -> Text.unpack ("reserved word: " <> s)
+  errorComponentLen = \case
+    ReservedOperator s -> Text.length s
+    ReservedWord s -> Text.length s
+
 nameP :: forall m. Monad m => ParsecT (Token ParseErr) [Char] m Name
 nameP =
   P.try do

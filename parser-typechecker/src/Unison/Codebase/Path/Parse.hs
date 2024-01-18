@@ -1,12 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Path.Parse
   ( parsePath',
-    parsePathImpl',
     parseSplit',
     definitionNameSegment,
     parseHQSplit,
@@ -19,7 +14,9 @@ where
 import Control.Lens (over, _1)
 import Control.Lens qualified as Lens
 import Data.List.Extra (stripPrefix)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Text qualified as Text
+import Text.Megaparsec qualified as P
 import Unison.Codebase.Path
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -28,19 +25,21 @@ import Unison.Prelude hiding (empty, toList)
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.Lexer qualified as Lexer
+import Unison.Syntax.Name qualified as Name
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
-parsePath' p = case parsePathImpl' p of
-  Left e -> Left e
-  Right (p, "") -> Right p
-  Right (p, rem) -> case parseSegment rem of
-    Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
-    Right (_, rem) ->
-      Left ("extra characters after " <> show p <> ": " <> show rem)
-    Left e -> Left e
+parsePath' = \case
+  "." -> Right absoluteEmpty'
+  path ->
+    case P.runParser (Name.nameP <* P.eof) "" path of
+      Left err -> Left (renderErr err)
+      Right name -> Right (fromName' name)
+  where
+    renderErr =
+      P.parseErrorTextPretty . P.mapParseError Lexer.payload . List.NonEmpty.head . P.bundleErrors
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")

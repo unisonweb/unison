@@ -302,12 +302,11 @@ fromName :: Name -> Path
 fromName = fromList . List.NonEmpty.toList . Name.segments
 
 fromName' :: Name -> Path'
-fromName' n = case take 1 (Name.toString n) of
-  "." -> AbsolutePath' . Absolute $ Path seq
-  _ -> RelativePath' $ Relative path
+fromName' n
+  | Name.isAbsolute n = AbsolutePath' (Absolute path)
+  | otherwise = RelativePath' (Relative path)
   where
     path = fromName n
-    seq = toSeq path
 
 unsafeToName :: Path -> Name
 unsafeToName = Name.unsafeFromText . toText
