@@ -52,8 +52,8 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
-import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
-import Unison.Syntax.Name qualified as Name (fromText, toString, toText, unsafeFromText)
+import Unison.Syntax.Lexer (showEscapeChar)
+import Unison.Syntax.Name qualified as Name (fromText, fromTextEither, isSymboly, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
@@ -206,7 +206,7 @@ pretty0
       elideUnit = elideUnit
     }
   term =
-    specialCases term $ \case
+    specialCases term \case
       Var' v -> pure . parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
         where
           -- OK since all term vars are user specified, any freshening was just added during typechecking
@@ -298,7 +298,7 @@ pretty0
                     `PP.hang` pb
                     <> PP.softbreak
                     <> fmt S.ControlKeyword "with"
-                    `hangHandler` ph
+                      `hangHandler` ph
                 ]
       Delay' x
         | isLet x || p < 0 -> do
@@ -1078,14 +1078,8 @@ l :: (IsString s) => String -> Pretty s
 l = fromString
 
 isSymbolic :: HQ.HashQualified Name -> Bool
-isSymbolic (HQ.NameOnly name) = isSymbolic' name
-isSymbolic (HQ.HashQualified name _) = isSymbolic' name
-isSymbolic (HQ.HashOnly _) = False
-
-isSymbolic' :: Name -> Bool
-isSymbolic' name = case symbolyId . Name.toString $ name of
-  Right _ -> True
-  _ -> False
+isSymbolic =
+  maybe False Name.isSymboly . HQ.toName
 
 emptyAc :: AmbientContext
 emptyAc = ac (-1) Normal Map.empty MaybeDoc
@@ -1395,8 +1389,7 @@ calcImports im tm = (im', render $ getUses result)
         |> filter
           ( \s ->
               let (p, i) = lookupOrDie s m
-               in (i > 1 || isRight (symbolyId (unpack s)))
-                    && not (null p)
+               in (i > 1 || isRight (Name.fromTextEither s)) && not (null p)
           )
         |> map (\s -> (s, lookupOrDie s m))
         |> Map.fromList
@@ -1741,9 +1734,7 @@ prettyDoc2 ac tm = do
           <> PP.softbreak
           <> p
           <> PP.softbreak
-          <> fmt
-            S.DocDelimiter
-            "}}"
+          <> fmt S.DocDelimiter "}}"
       bail tm = brace <$> pretty0 ac tm
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =

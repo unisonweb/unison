@@ -95,7 +95,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty, toList)
-import Unison.Syntax.Name qualified as Name (toString, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (unsafeFromText)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 

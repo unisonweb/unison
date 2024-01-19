@@ -3,6 +3,7 @@ module Unison.Syntax.ReservedWords
     typeModifiers,
     typeOrAbility,
     reservedOperators,
+    delimiters,
   )
 where
 
@@ -57,3 +58,7 @@ reservedOperators =
       "'",
       "==>"
     ]
+
+delimiters :: Set Char
+delimiters =
+  Set.fromList "()[]{},?;"

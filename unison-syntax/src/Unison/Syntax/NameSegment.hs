@@ -7,11 +7,11 @@ module Unison.Syntax.NameSegment
     isSymboly,
 
     -- * Name segment classifiers
+    ParseErr (..),
+    renderParseErr,
     segmentP,
     symbolyP,
     wordyP,
-    ParseErr (..),
-    renderParseErr,
 
     -- * Character classifiers
     segmentStartChar,
@@ -22,7 +22,6 @@ module Unison.Syntax.NameSegment
 where
 
 import Data.Char qualified as Char
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec (ParsecT)
@@ -44,6 +43,16 @@ unsafeFromText =
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Name segment parsers
+
+data ParseErr
+  = ReservedOperator !Text
+  | ReservedWord !Text
+  deriving stock (Eq, Ord)
+
+renderParseErr :: ParseErr -> Text
+renderParseErr = \case
+  ReservedOperator s -> "reserved operator: " <> s
+  ReservedWord s -> "reserved word: " <> s
 
 segmentP :: Monad m => ParsecT (Token ParseErr) [Char] m NameSegment
 segmentP =
@@ -106,24 +115,6 @@ wordyP = do
     else pure (NameSegment word)
   where
     wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
-
-data ParseErr
-  = ReservedOperator !Text
-  | ReservedWord !Text
-  deriving stock (Eq, Ord)
-
-instance P.ShowErrorComponent ParseErr where
-  showErrorComponent = \case
-    ReservedOperator s -> Text.unpack ("reserved operator: " <> s)
-    ReservedWord s -> Text.unpack ("reserved word: " <> s)
-  errorComponentLen = \case
-    ReservedOperator s -> Text.length s
-    ReservedWord s -> Text.length s
-
--- | A convenience function for rendering a name segment parse error, because it's so weird and verbose to do so.
-renderParseErr :: P.ParseErrorBundle [Char] (Token ParseErr) -> Text
-renderParseErr =
-  Text.pack . P.parseErrorTextPretty . P.mapParseError payload . List.NonEmpty.head . P.bundleErrors
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers

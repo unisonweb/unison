@@ -20,6 +20,7 @@ import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
+import Text.Megaparsec.Internal qualified as Megaparsec (withParsecT)
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -472,10 +473,10 @@ docs =
         ]
     )
     ( \case
-        (x : xs) ->
+        x : xs ->
           (x NE.:| xs)
             & traverse Path.parseHQSplit'
-            & bimap fromString Input.DocsI
+            & bimap P.text Input.DocsI
         _ -> Left (I.help docs)
     )
 
@@ -694,7 +695,7 @@ renameTerm =
     "`move.term foo bar` renames `foo` to `bar`."
     ( \case
         [oldName, newName] -> first P.text do
-          src <- mapLeft Text.pack (Path.parseHQSplit' oldName)
+          src <- Path.parseHQSplit' oldName
           target <- Path.parseSplit' newName
           pure $ Input.MoveTermI src target
         _ ->
@@ -736,7 +737,7 @@ renameType =
     "`move.type foo bar` renames `foo` to `bar`."
     ( \case
         [oldName, newName] -> first P.text do
-          src <- mapLeft Text.pack (Path.parseHQSplit' oldName)
+          src <- Path.parseHQSplit' oldName
           target <- Path.parseSplit' newName
           pure $ Input.MoveTypeI src target
         _ ->
@@ -784,7 +785,7 @@ deleteGen suffix queryCompletionArg target mkTarget =
         info
         ( \case
             [] -> Left . P.warnCallout $ P.wrap warn
-            queries -> first fromString $ do
+            queries -> first P.text do
               paths <- traverse Path.parseHQSplit' queries
               pure $ Input.DeleteI (mkTarget paths)
         )
@@ -914,16 +915,15 @@ aliasTerm =
     I.Visible
     [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
-    ( \case
-        [oldName, newName] -> first P.text do
-          source <- mapLeft Text.pack (Path.parseShortHashOrHQSplit' oldName)
-          target <- Path.parseSplit' newName
-          pure $ Input.AliasTermI source target
-        _ ->
-          Left . warn $
-            P.wrap
-              "`alias.term` takes two arguments, like `alias.term oldname newname`."
-    )
+    \case
+      [oldName, newName] -> first P.text do
+        source <- Path.parseShortHashOrHQSplit' oldName
+        target <- Path.parseSplit' newName
+        pure $ Input.AliasTermI source target
+      _ ->
+        Left . warn $
+          P.wrap
+            "`alias.term` takes two arguments, like `alias.term oldname newname`."
 
 aliasType :: InputPattern
 aliasType =
@@ -933,16 +933,15 @@ aliasType =
     I.Visible
     [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
-    ( \case
-        [oldName, newName] -> first P.text do
-          source <- mapLeft Text.pack (Path.parseShortHashOrHQSplit' oldName)
-          target <- Path.parseSplit' newName
-          pure $ Input.AliasTypeI source target
-        _ ->
-          Left . warn $
-            P.wrap
-              "`alias.type` takes two arguments, like `alias.type oldname newname`."
-    )
+    \case
+      [oldName, newName] -> first P.text do
+        source <- Path.parseShortHashOrHQSplit' oldName
+        target <- Path.parseSplit' newName
+        pure $ Input.AliasTypeI source target
+      _ ->
+        Left . warn $
+          P.wrap
+            "`alias.type` takes two arguments, like `alias.type oldname newname`."
 
 aliasMany :: InputPattern
 aliasMany =
@@ -960,13 +959,12 @@ aliasMany =
               <> "creates aliases `.quux.foo.foo` and `.quux.bar.bar`."
         ]
     )
-    ( \case
-        srcs@(_ : _) Cons.:> dest -> first P.text do
-          sourceDefinitions <- mapLeft Text.pack (traverse Path.parseHQSplit srcs)
-          destNamespace <- Path.parsePath' dest
-          pure $ Input.AliasManyI sourceDefinitions destNamespace
-        _ -> Left (I.help aliasMany)
-    )
+    \case
+      srcs@(_ : _) Cons.:> dest -> first P.text do
+        sourceDefinitions <- traverse Path.parseHQSplit srcs
+        destNamespace <- Path.parsePath' dest
+        pure $ Input.AliasManyI sourceDefinitions destNamespace
+      _ -> Left (I.help aliasMany)
 
 up :: InputPattern
 up =
@@ -1007,13 +1005,12 @@ cd =
             ]
         ]
     )
-    ( \case
-        [".."] -> Right Input.UpI
-        [p] -> first P.text do
-          p <- Path.parsePath' p
-          pure . Input.SwitchBranchI $ p
-        _ -> Left (I.help cd)
-    )
+    \case
+      [".."] -> Right Input.UpI
+      [p] -> first P.text do
+        p <- Path.parsePath' p
+        pure . Input.SwitchBranchI $ p
+      _ -> Left (I.help cd)
 
 back :: InputPattern
 back =
@@ -1028,10 +1025,9 @@ back =
           )
         ]
     )
-    ( \case
-        [] -> pure Input.PopBranchI
-        _ -> Left (I.help cd)
-    )
+    \case
+      [] -> pure Input.PopBranchI
+      _ -> Left (I.help cd)
 
 deleteNamespace :: InputPattern
 deleteNamespace =
@@ -1056,17 +1052,15 @@ deleteNamespaceForce =
     (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
-deleteNamespaceParser helpText insistence =
-  ( \case
-      ["."] ->
-        first fromString
-          . pure
-          $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-      [p] -> first P.text do
-        p <- Path.parseSplit' p
-        pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
-      _ -> Left helpText
-  )
+deleteNamespaceParser helpText insistence = \case
+  ["."] ->
+    first fromString
+      . pure
+      $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
+  [p] -> first P.text do
+    p <- Path.parseSplit' p
+    pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
+  _ -> Left helpText
 
 deletePatch :: InputPattern
 deletePatch =
@@ -1076,12 +1070,11 @@ deletePatch =
     I.Visible
     [("patch to delete", Required, patchArg)]
     "`delete.patch <foo>` deletes the patch `foo`"
-    ( \case
-        [p] -> first P.text do
-          p <- Path.parseSplit' p
-          pure . Input.DeleteI $ DeleteTarget'Patch p
-        _ -> Left (I.help deletePatch)
-    )
+    \case
+      [p] -> first P.text do
+        p <- Path.parseSplit' p
+        pure . Input.DeleteI $ DeleteTarget'Patch p
+      _ -> Left (I.help deletePatch)
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
 movePatch src dest = first P.text do
@@ -1103,10 +1096,9 @@ copyPatch =
     I.Visible
     [("patch to copy", Required, patchArg), ("copy destination", Required, newNameArg)]
     "`copy.patch foo bar` copies the patch `foo` to `bar`."
-    ( \case
-        [src, dest] -> copyPatch' src dest
-        _ -> Left (I.help copyPatch)
-    )
+    \case
+      [src, dest] -> copyPatch' src dest
+      _ -> Left (I.help copyPatch)
 
 renamePatch :: InputPattern
 renamePatch =
@@ -1116,10 +1108,9 @@ renamePatch =
     I.Visible
     [("patch", Required, patchArg), ("new location", Required, newNameArg)]
     "`move.patch foo bar` renames the patch `foo` to `bar`."
-    ( \case
-        [src, dest] -> movePatch src dest
-        _ -> Left (I.help renamePatch)
-    )
+    \case
+      [src, dest] -> movePatch src dest
+      _ -> Left (I.help renamePatch)
 
 renameBranch :: InputPattern
 renameBranch =
@@ -1129,13 +1120,12 @@ renameBranch =
     I.Visible
     [("namespace to move", Required, namespaceArg), ("new location", Required, newNameArg)]
     "`move.namespace foo bar` renames the path `foo` to `bar`."
-    ( \case
-        [src, dest] -> first P.text do
-          src <- Path.parsePath' src
-          dest <- Path.parsePath' dest
-          pure $ Input.MoveBranchI src dest
-        _ -> Left (I.help renameBranch)
-    )
+    \case
+      [src, dest] -> first P.text do
+        src <- Path.parsePath' src
+        dest <- Path.parsePath' dest
+        pure $ Input.MoveBranchI src dest
+      _ -> Left (I.help renameBranch)
 
 history :: InputPattern
 history =
@@ -1153,13 +1143,12 @@ history =
           )
         ]
     )
-    ( \case
-        [src] -> first P.text do
-          p <- Input.parseBranchId src
-          pure $ Input.HistoryI (Just 10) (Just 10) p
-        [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
-        _ -> Left (I.help history)
-    )
+    \case
+      [src] -> first P.text do
+        p <- Input.parseBranchId src
+        pure $ Input.HistoryI (Just 10) (Just 10) p
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
+      _ -> Left (I.help history)
 
 forkLocal :: InputPattern
 forkLocal =
@@ -1182,13 +1171,12 @@ forkLocal =
           )
         ]
     )
-    ( \case
-        [src, dest] -> do
-          src <- Input.parseBranchId2 src
-          dest <- parseBranchRelativePath dest
-          pure $ Input.ForkLocalBranchI src dest
-        _ -> Left (I.help forkLocal)
-    )
+    \case
+      [src, dest] -> do
+        src <- Input.parseBranchId2 src
+        dest <- parseBranchRelativePath dest
+        pure $ Input.ForkLocalBranchI src dest
+      _ -> Left (I.help forkLocal)
 
 reset :: InputPattern
 reset =
@@ -1257,12 +1245,11 @@ resetRoot =
           )
         ]
     )
-    ( \case
-        [src] -> first P.text $ do
-          src <- Input.parseBranchId src
-          pure $ Input.ResetRootI src
-        _ -> Left (I.help resetRoot)
-    )
+    \case
+      [src] -> first P.text $ do
+        src <- Input.parseBranchId src
+        pure $ Input.ResetRootI src
+      _ -> Left (I.help resetRoot)
 
 pull :: InputPattern
 pull =
@@ -1420,11 +1407,10 @@ debugFuzzyOptions =
           P.wrap $ "or `debug.fuzzy-options merge - _`"
         ]
     )
-    ( \case
-        (cmd : args) ->
-          Right $ Input.DebugFuzzyOptionsI cmd args
-        _ -> Left (I.help debugFuzzyOptions)
-    )
+    \case
+      (cmd : args) ->
+        Right $ Input.DebugFuzzyOptionsI cmd args
+      _ -> Left (I.help debugFuzzyOptions)
 
 push :: InputPattern
 push =
@@ -2063,33 +2049,32 @@ help =
     I.Visible
     [("command", Optional, commandNameArg)]
     "`help` shows general help and `help <cmd>` shows help for one command."
-    ( \case
-        [] ->
-          Left $
-            intercalateMap
-              "\n\n"
-              showPatternHelp
-              visibleInputs
-        [cmd] ->
-          case (Map.lookup cmd commandsByName, isHelp cmd) of
-            (Nothing, Just msg) -> Left msg
-            (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
-            (Just pat, Nothing) -> Left $ showPatternHelp pat
-            -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
-            -- command's help that suggests running `help-topic command`
-            (Just pat, Just _) ->
-              Left $
-                showPatternHelp pat
-                  <> P.newline
-                  <> P.newline
-                  <> ( tip $
-                         "To read more about"
-                           <> P.group (P.string cmd <> ",")
-                           <> "use"
-                           <> makeExample helpTopics [P.string cmd]
-                     )
-        _ -> Left $ warn "Use `help <cmd>` or `help`."
-    )
+    \case
+      [] ->
+        Left $
+          intercalateMap
+            "\n\n"
+            showPatternHelp
+            visibleInputs
+      [cmd] ->
+        case (Map.lookup cmd commandsByName, isHelp cmd) of
+          (Nothing, Just msg) -> Left msg
+          (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
+          (Just pat, Nothing) -> Left $ showPatternHelp pat
+          -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
+          -- command's help that suggests running `help-topic command`
+          (Just pat, Just _) ->
+            Left $
+              showPatternHelp pat
+                <> P.newline
+                <> P.newline
+                <> ( tip $
+                       "To read more about"
+                         <> P.group (P.string cmd <> ",")
+                         <> "use"
+                         <> makeExample helpTopics [P.string cmd]
+                   )
+      _ -> Left $ warn "Use `help <cmd>` or `help`."
   where
     commandsByName =
       Map.fromList $ do
@@ -2106,10 +2091,9 @@ quit =
     I.Visible
     []
     "Exits the Unison command line interface."
-    ( \case
-        [] -> pure Input.QuitI
-        _ -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
-    )
+    \case
+      [] -> pure Input.QuitI
+      _ -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
 
 viewPatch :: InputPattern
 viewPatch =
@@ -2127,13 +2111,12 @@ viewPatch =
           )
         ]
     )
-    ( \case
-        [] -> Right $ Input.ListEditsI Nothing
-        [patchStr] -> mapLeft P.text do
-          patch <- Path.parseSplit' patchStr
-          Right $ Input.ListEditsI (Just patch)
-        _ -> Left $ warn "`view.patch` takes a patch and that's it."
-    )
+    \case
+      [] -> Right $ Input.ListEditsI Nothing
+      [patchStr] -> mapLeft P.text do
+        patch <- Path.parseSplit' patchStr
+        Right $ Input.ListEditsI (Just patch)
+      _ -> Left $ warn "`view.patch` takes a patch and that's it."
 
 names :: Input.IsGlobal -> InputPattern
 names isGlobal =
@@ -2143,15 +2126,14 @@ names isGlobal =
     I.Visible
     [("name or hash", Required, definitionQueryArg)]
     (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
-    ( \case
-        [thing] -> case HQ.fromString thing of
-          Just hq -> Right $ Input.NamesI isGlobal hq
-          Nothing ->
-            Left $
-              "I was looking for one of these forms: "
-                <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
-        _ -> Left (I.help (names isGlobal))
-    )
+    \case
+      [thing] -> case HQ.fromString thing of
+        Just hq -> Right $ Input.NamesI isGlobal hq
+        Nothing ->
+          Left $
+            "I was looking for one of these forms: "
+              <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
+      _ -> Left (I.help (names isGlobal))
   where
     cmdName = if isGlobal then "names.global" else "names"
 
@@ -2163,10 +2145,9 @@ dependents =
     I.Visible
     [("definition", Required, definitionQueryArg)]
     "List the named dependents of the specified definition."
-    ( \case
-        [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
-        _ -> Left (I.help dependents)
-    )
+    \case
+      [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
+      _ -> Left (I.help dependents)
 dependencies =
   InputPattern
     "dependencies"
@@ -2174,10 +2155,9 @@ dependencies =
     I.Visible
     [("definition", Required, definitionQueryArg)]
     "List the dependencies of the specified definition."
-    ( \case
-        [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
-        _ -> Left (I.help dependencies)
-    )
+    \case
+      [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
+      _ -> Left (I.help dependencies)
 
 namespaceDependencies :: InputPattern
 namespaceDependencies =
@@ -2187,13 +2167,12 @@ namespaceDependencies =
     I.Visible
     [("namespace", Optional, namespaceArg)]
     "List the external dependencies of the specified namespace."
-    ( \case
-        [p] -> first P.text do
-          p <- Path.parsePath' p
-          pure $ Input.NamespaceDependenciesI (Just p)
-        [] -> pure (Input.NamespaceDependenciesI Nothing)
-        _ -> Left (I.help namespaceDependencies)
-    )
+    \case
+      [p] -> first P.text do
+        p <- Path.parsePath' p
+        pure $ Input.NamespaceDependenciesI (Just p)
+      [] -> pure (Input.NamespaceDependenciesI Nothing)
+      _ -> Left (I.help namespaceDependencies)
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
@@ -2566,10 +2545,10 @@ createAuthor =
           )
     )
     ( \case
-        symbolStr : authorStr@(_ : _) -> first fromString do
+        symbolStr : authorStr@(_ : _) -> first P.text do
           symbol <-
-            Megaparsec.runParser (NameSegment.segmentP <* Megaparsec.eof) "" symbolStr
-              & mapLeft (Text.unpack . NameSegment.renderParseErr)
+            Megaparsec.runParser (Megaparsec.withParsecT (fmap NameSegment.renderParseErr) NameSegment.segmentP <* Megaparsec.eof) "" symbolStr
+              & mapLeft (Text.pack . Megaparsec.errorBundlePretty)
           -- let's have a real parser in not too long
           let author :: Text
               author = Text.pack $ case (unwords authorStr) of

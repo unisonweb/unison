@@ -19,14 +19,11 @@ module Unison.Syntax.Lexer
     debugLex''',
     showEscapeChar,
     touches,
-    -- todo: these probably don't belong here
+
+    -- * Character classifiers
     wordyIdChar,
     wordyIdStartChar,
-    wordyId,
-    symbolyId,
     symbolyIdChar,
-    wordyId0,
-    symbolyId0,
   )
 where
 
@@ -52,13 +49,13 @@ import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toString)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeFromString)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr(..), wordyP)
-import Unison.Syntax.ReservedWords (keywords, reservedOperators, typeModifiers, typeOrAbility)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
+import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
+import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -71,8 +68,7 @@ data ParsingEnv = ParsingEnv
     opening :: Maybe BlockName, -- `Just b` if a block of type `b` is being opened
     inLayout :: Bool, -- are we inside a construct that uses layout?
     parentSection :: Int, -- 1 means we are inside a # Heading 1
-    parentListColumn :: Int -- 4 means we are inside a list starting
-    -- at the fourth column
+    parentListColumn :: Int -- 4 means we are inside a list starting at the fourth column
   }
   deriving (Show)
 
@@ -852,7 +848,7 @@ lexemes' eof =
         num sign n = Numeric (fromMaybe "" sign <> show n)
         sign = P.optional (lit "+" <|> lit "-")
 
-    hash = Hash <$> P.try shorthashP
+    hash = Hash <$> P.try shortHashP
 
     reserved :: P [Token Lexeme]
     reserved =
@@ -1043,7 +1039,7 @@ identifierP :: P (HQ'.HashQualified Name)
 identifierP = do
   P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
     name <- PI.withParsecT (fmap nameSegmentParseErrToErr) Name.nameP
-    P.optional shorthashP <&> \case
+    P.optional shortHashP <&> \case
       Nothing -> HQ'.fromName name
       Just shorthash -> HQ'.HashQualified name shorthash
   where
@@ -1072,17 +1068,9 @@ wordyIdSegP :: P NameSegment
 wordyIdSegP =
   PI.withParsecT (fmap (ReservedWordyId . Text.unpack)) NameSegment.wordyP
 
-shorthashP :: P ShortHash
-shorthashP =
-  P.label hashMsg do
-    P.lookAhead (char '#')
-    -- `foo#xyz` should parse
-    Token potentialHash start _ <- tokenP $ P.takeWhile1P (Just hashMsg) (\ch -> not (isSep ch) && ch /= '`')
-    case SH.fromText (Text.pack potentialHash) of
-      Nothing -> err start (InvalidShortHash potentialHash)
-      Just sh -> pure sh
-  where
-    hashMsg = "hash (ex: #af3sj3)"
+shortHashP :: P ShortHash
+shortHashP =
+  PI.withParsecT (fmap (InvalidShortHash . Text.unpack)) ShortHash.shortHashP
 
 blockDelimiter :: [String] -> P String -> P [Token Lexeme]
 blockDelimiter open closeP = do
@@ -1227,8 +1215,7 @@ lexer scope rem =
 isDelayOrForce :: Char -> Bool
 isDelayOrForce op = op == '\'' || op == '!'
 
--- Mapping between characters and their escape codes. Use parse/showEscapeChar
--- to convert.
+-- Mapping between characters and their escape codes. Use parse/showEscapeChar to convert.
 escapeChars :: [(Char, Char)]
 escapeChars =
   [ ('0', '\0'),
@@ -1250,54 +1237,6 @@ showEscapeChar :: Char -> Maybe Char
 showEscapeChar c =
   Map.lookup c (Map.fromList [(x, y) | (y, x) <- escapeChars])
 
-isSep :: Char -> Bool
-isSep c = isSpace c || Set.member c delimiters
-
--- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
-wordyId0 :: String -> Either Err (String, String)
-wordyId0 s = span' wordyIdChar s \case
-  (id@(ch : _), rem)
-    | not (Set.member (Text.pack id) keywords)
-        && wordyIdStartChar ch ->
-        Right (id, rem)
-  (id, _rem) -> Left (InvalidWordyId id)
-
-symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.' : s)
-  | s == "" = symbolyId0 r --
-  | isSpace (head s) = symbolyId0 r -- lone dot treated as an operator
-  | isDelimiter (head s) = symbolyId0 r --
-  | otherwise = (\(s, rem) -> ('.' : s, rem)) <$> symbolyId' s
-symbolyId s = symbolyId' s
-
--- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
-symbolyId' :: String -> Either Err (String, String)
-symbolyId' s = case wordyId0 s of
-  Left _ -> symbolyId0 s
-  Right (wid, '.' : rem) -> case symbolyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w, _) -> Left (InvalidSymbolyId w)
-
-wordyId :: String -> Either Err (String, String)
-wordyId ('.' : s) = (\(s, rem) -> ('.' : s, rem)) <$> wordyId' s
-wordyId s = wordyId' s
-
--- Is a '.' delimited list of wordyId
-wordyId' :: String -> Either Err (String, String)
-wordyId' s = case wordyId0 s of
-  Left e -> Left e
-  Right (wid, '.' : rem@(ch : _)) | wordyIdStartChar ch -> case wordyId rem of
-    Left e -> Left e
-    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
-  Right (w, rem) -> Right (w, rem)
-
--- Returns either an error or an id and a remainder
-symbolyId0 :: String -> Either Err (String, String)
-symbolyId0 s = span' symbolyIdChar s \case
-  (id@(_ : _), rem) | not (Set.member (Text.pack id) reservedOperators) -> Right (id, rem)
-  (id, _rem) -> Left (InvalidSymbolyId id)
-
 typeOrAbilityAlt :: (Alternative f) => (Text -> f a) -> f a
 typeOrAbilityAlt f =
   asum $ map f (toList typeOrAbility)
@@ -1305,12 +1244,6 @@ typeOrAbilityAlt f =
 typeModifiersAlt :: (Alternative f) => (Text -> f a) -> f a
 typeModifiersAlt f =
   asum $ map f (toList typeModifiers)
-
-delimiters :: Set Char
-delimiters = Set.fromList "()[]{},?;"
-
-isDelimiter :: Char -> Bool
-isDelimiter ch = Set.member ch delimiters
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
@@ -1342,9 +1275,6 @@ debugLex' = debugLex'' . lexer "debugLex"
 
 debugLex''' :: String -> String -> String
 debugLex''' s = debugLex'' . lexer s
-
-span' :: (a -> Bool) -> [a] -> (([a], [a]) -> r) -> r
-span' f a k = k (span f a)
 
 instance EP.ShowErrorComponent (Token Err) where
   showErrorComponent (Token err _ _) = go err

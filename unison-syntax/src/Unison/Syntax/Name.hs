@@ -22,7 +22,6 @@ where
 
 import Control.Monad.Combinators.NonEmpty qualified as Monad
 import Data.List.NonEmpty (pattern (:|))
-import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Builder qualified as Text (Builder)
@@ -30,15 +29,16 @@ import Data.Text.Lazy.Builder qualified as Text.Builder
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
+import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Name qualified as Name (fromSegments, lastSegment, makeAbsolute)
 import Unison.Name.Internal (Name (Name))
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.NameSegment (segmentStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr, isSymboly, segmentP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr, isSymboly, renderParseErr, segmentP)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -86,30 +86,10 @@ fromText =
   eitherToMaybe . fromTextEither
 
 -- | Parse a name from a string literal.
---
--- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
--- no attempt at rejecting bogus names like "foo...bar...baz".
 fromTextEither :: Text -> Either Text Name
-fromTextEither = \case
-  "" -> Left "empty name"
-  "." -> Right $ Name Relative ("." :| [])
-  ".." -> Right $ Name Absolute ("." :| [])
-  name
-    | Text.any (== '#') name -> Left ("not a name: " <> tShow name)
-    | Text.head name == '.' -> Name Absolute <$> (go (Text.tail name))
-    | otherwise -> Name Relative <$> go name
-  where
-    go :: Text -> Either Text (List.NonEmpty NameSegment)
-    go name =
-      if ".." `Text.isSuffixOf` name
-        then Right $ "." :| split (Text.dropEnd 2 name)
-        else case split name of
-          [] -> Left "empty name"
-          s : ss -> Right $ s :| ss
-
-    split :: Text -> [NameSegment]
-    split =
-      reverse . map NameSegment . Text.split (== '.')
+fromTextEither s =
+  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack s)
+    & mapLeft (Text.pack . P.errorBundlePretty)
 
 -- | Unsafely parse a name from a string literal.
 -- See 'unsafeFromText'.
