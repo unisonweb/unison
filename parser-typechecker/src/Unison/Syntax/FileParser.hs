@@ -215,7 +215,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       binding@((_, v), _) <- TermParser.binding
       pure $ case doc of
         Nothing -> Binding binding
-        Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
+        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.joinDot v (Var.named "doc")), doc), binding]
 
 watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
 watched = P.try do
