@@ -120,7 +120,9 @@ jobs:
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
       - name: build and push docker container
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+        run: |
+            IMAGE_NAME=${{github.repository}}
+            docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
 
       - name: Log in to docker registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
