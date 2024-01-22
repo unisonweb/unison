@@ -10,7 +10,7 @@ This is a *doc*!
 
 term link {x}
 
-type link {type Optional}
+type link {type   Optional}
 
 }}
 x : 
@@ -20,6 +20,9 @@ x y =
     x   =     1 + 1
     x + y
 -- Should keep comments after
+
+-- Test for a previous regression that added extra brackets.
+emptyDoc = {{}}
 
 type Optional   a = More Text 
   | Some 

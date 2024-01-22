@@ -6,7 +6,7 @@ This is a *doc*!
 
 term link {x}
 
-type link {type Optional}
+type link {type   Optional}
 
 }}
 x : 
@@ -16,6 +16,9 @@ x y =
     x   =     1 + 1
     x + y
 -- Should keep comments after
+
+-- Test for a previous regression that added extra brackets.
+emptyDoc = {{}}
 
 type Optional   a = More Text 
   | Some 
@@ -39,8 +42,9 @@ ability Thing where
     
       type Optional a
       ability Thing
-      x     : Nat -> Nat
-      x.doc : Doc2
+      emptyDoc : Doc2
+      x        : Nat -> Nat
+      x.doc    : Doc2
 
 ```
 ```ucm
@@ -55,17 +59,14 @@ This is a *doc*!
 
 term link {x}
 
-type link {type Optional}
+type link {type   Optional}
 
 }}
 x : Nat -> Nat
 x y =
   use Nat +
   x = 1 + 1
-  x + y
--- Should keep comments after
-
-type Optional a = More Text | Some | Other a | None Nat 
+  x + yemptyDoc = {{  }}type Optional a = More Text | Some | Other a | None Nat 
 
 ability Thing where
   more  : Nat -> Text -> Nat
