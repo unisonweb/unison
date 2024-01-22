@@ -1,4 +1,11 @@
-module Unison.Server.NameSearch where
+module Unison.Server.NameSearch
+  ( Search(..)
+  , NameSearch(..)
+  , hoistSearch
+  , hoistNameSearch
+  , applySearch
+  , SearchType(..)
+  ) where
 
 import Control.Lens
 import Data.List qualified as List
@@ -6,7 +13,7 @@ import Data.Set qualified as Set
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import Unison.NamesWithHistory (SearchType)
+import Unison.NamesWithHistory (SearchType(..))
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -31,7 +38,7 @@ hoistSearch :: (forall x. m x -> n x) -> Search m r -> Search n r
 hoistSearch f Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} =
   Search
     { lookupNames = f . lookupNames,
-      lookupRelativeHQRefs' = \st n -> f $ lookupRelativeHQRefs' st n,
+      lookupRelativeHQRefs' = \st hqname -> f $ lookupRelativeHQRefs' st hqname,
       makeResult = \n r -> f . makeResult n r,
       matchesNamedRef = \n r -> matchesNamedRef n r
     }

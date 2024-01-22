@@ -56,4 +56,5 @@ library
     , text
     , unison-prelude
     , unison-util-base32hex
+    , witch
   default-language: Haskell2010
