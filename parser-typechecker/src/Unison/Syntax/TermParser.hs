@@ -25,6 +25,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Tuple.Extra qualified as TupleE
 import Text.Megaparsec qualified as P
+import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
@@ -507,24 +508,32 @@ doc2Block =
 
             -- regular is parsed into `f child1 child2 child3` for however many children
             regular = do
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f cs
+              cs <- P.many elem
+              end <- closeBlock
+              let trm = Term.apps' f cs
+              pure (trm {ABT.annotation = ann trm <> ann end})
 
             -- variadic is parsed into: `f [child1, child2, ...]`
             variadic = variadic' f
             variadic' f = do
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f [Term.list (ann cs) cs]
+              cs <- P.many elem
+              end <- closeBlock
+              let trm = Term.apps' f [Term.list (ann cs) cs]
+              pure (trm {ABT.annotation = ann trm <> ann end})
 
             -- sectionLike is parsed into: `f tm [child1, child2, ...]`
             sectionLike = do
               arg1 <- elem
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f [arg1, Term.list (ann cs) cs]
+              cs <- P.many elem
+              end <- closeBlock
+              let trm = Term.apps' f [arg1, Term.list (ann cs) cs]
+              pure (trm {ABT.annotation = ann trm <> ann end})
 
             evalLike wrap = do
-              tm <- term <* closeBlock
-              pure $ Term.apps' f [wrap tm]
+              tm <- term
+              end <- closeBlock
+              let trm = Term.apps' f [wrap tm]
+              pure (trm {ABT.annotation = ann trm <> ann end})
 
             -- converts `tm` to `'tm`
             --
@@ -547,11 +556,15 @@ doc2Block =
           "syntax.docSourceElement" -> do
             link <- elem
             anns <- P.optional $ reserved "@" *> elem
-            closeBlock $> Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
+            end <- closeBlock
+            let trm = Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
+            pure (trm {ABT.annotation = ann trm <> ann end})
           "syntax.docNumberedList" -> do
-            nitems@((n, _) : _) <- P.some nitem <* closeBlock
+            nitems@((n, _) : _) <- P.some nitem
+            end <- closeBlock
             let items = snd <$> nitems
-            pure $ Term.apps' f [n, Term.list (ann items) items]
+            let trm = Term.apps' f [n, Term.list (ann items) items]
+            pure (trm {ABT.annotation = ann trm <> ann end})
             where
               nitem = do
                 n <- number
@@ -563,15 +576,23 @@ doc2Block =
           -- @source{ type Blah, foo, type Bar }
           "syntax.docEmbedTermLink" -> do
             tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            closeBlock $> Term.apps' f [tm]
+            end <- closeBlock
+            let trm = Term.apps' f [tm]
+            pure (trm {ABT.annotation = ann trm <> ann end})
           "syntax.docEmbedSignatureLink" -> do
             tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            closeBlock $> Term.apps' f [tm]
+            end <- closeBlock
+            let trm = Term.apps' f [tm]
+            pure (trm {ABT.annotation = ann trm <> ann end})
           "syntax.docEmbedTypeLink" -> do
             r <- typeLink'
-            closeBlock $> Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-          "syntax.docExample" ->
-            (term <* closeBlock) <&> \case
+            end <- closeBlock
+            let trm = Term.apps' f [Term.typeLink (ann r) (L.payload r)]
+            pure (trm {ABT.annotation = ann trm <> ann end})
+          "syntax.docExample" -> do
+            trm <- term
+            end <- closeBlock
+            pure $ case trm {ABT.annotation = ann trm <> ann end} of
               tm@(Term.Apps' _ xs) ->
                 let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
                     n = Term.nat (ann tm) (fromIntegral (length fvs))
@@ -1171,21 +1192,22 @@ block' :: (Monad m, Var v) => IsTop -> String -> P v m (L.Token ()) -> P v m (L.
 block' isTop = block'' isTop False
 
 block'' ::
-  forall m v b.
-  (Monad m, Var v) =>
+  forall m v end.
+  (Monad m, Var v, Annotated end) =>
   IsTop ->
   Bool -> -- `True` means insert `()` at end of block if it ends with a statement
   String ->
   P v m (L.Token ()) ->
-  P v m b ->
+  P v m end ->
   TermP v m
 block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
   statements <- local (\e -> e {names = names}) $ sepBy semi statement
-  _ <- closeBlock
-  substImports names imports <$> go open statements
+  end <- closeBlock
+  result <- substImports names imports <$> go open statements
+  pure (result {ABT.annotation = ann result <> ann end})
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
