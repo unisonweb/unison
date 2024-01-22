@@ -1430,6 +1430,23 @@ debugFuzzyOptions =
         _ -> Left (I.help debugFuzzyOptions)
     )
 
+debugFormat :: InputPattern
+debugFormat =
+  InputPattern
+    "debug.format"
+    []
+    I.Hidden
+    [("source-file", Optional, filePathArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
+          makeExample' debugFormat
+        ]
+    )
+    ( \case
+        [] -> Right Input.DebugFormatI
+        _ -> Left (I.help debugFormat)
+    )
+
 push :: InputPattern
 push =
   InputPattern
@@ -2973,6 +2990,7 @@ validInputs =
       debugNumberedArgs,
       debugTabCompletion,
       debugFuzzyOptions,
+      debugFormat,
       delete,
       deleteBranch,
       deleteProject,

@@ -1,6 +1,7 @@
 module Unison.KindInference.Constraint.Context
-  ( ConstraintContext(..)
-  ) where
+  ( ConstraintContext (..),
+  )
+where
 
 import Unison.KindInference.UVar (UVar)
 import Unison.Type (Type)

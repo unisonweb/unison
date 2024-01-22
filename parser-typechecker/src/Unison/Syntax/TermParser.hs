@@ -259,7 +259,9 @@ parsePattern = label "pattern" root
     text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+    parenthesizedOrTuplePattern = do
+      (_spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
@@ -1073,7 +1075,9 @@ binding = label "binding" do
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
-      pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
+      let binding = mkBinding lhsLoc args body
+      let spanAnn = ann lhsLoc <> ann binding
+      pure $ ((spanAnn, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeFromVar name)
@@ -1081,14 +1085,14 @@ binding = label "binding" do
         customFailure $
           SignatureNeedsAccompanyingBody nameT
       body <- block "="
-      pure $
-        fmap
-          (\e -> Term.ann (ann nameT <> ann e) e typ)
-          (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
+      let binding = mkBinding lhsLoc args body
+      let spanAnn = ann nameT <> ann binding
+      pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
   where
-    mkBinding loc f [] body = ((loc, f), body)
-    mkBinding loc f args body =
-      ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+    mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
+    mkBinding _lhsLoc [] body = body
+    mkBinding lhsLoc args body =
+      (Term.lam' (lhsLoc <> ann body) (L.payload <$> args) body)
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
@@ -1256,7 +1260,9 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+tupleOrParenthesizedTerm = label "tuple" $ do
+  (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
+  pure $ tm {ABT.annotation = spanAnn}
   where
     pair t1 t2 =
       Term.app

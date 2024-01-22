@@ -71,6 +71,7 @@ import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
+import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -150,6 +151,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -203,7 +205,6 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
 import Witch (unsafeFrom)
-import qualified Unison.PrettyPrintEnv.Names as PPE
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -1067,6 +1068,25 @@ loop e = do
                     _ -> pure ()
                 Nothing -> do
                   Cli.respond DebugFuzzyOptionsNoResolver
+            DebugFormatI -> do
+              Cli.Env {writeSource, loadSource} <- ask
+              void $ runMaybeT do
+                (filePath, _) <- MaybeT Cli.getLatestFile
+                pf <- lift Cli.getLatestParsedFile
+                tf <- lift Cli.getLatestTypecheckedFile
+                names <- lift Cli.currentNames
+                let buildPPED uf tf =
+                      Cli.prettyPrintEnvDeclFromNames $ (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                let formatWidth = 80
+                currentPath <- lift $ Cli.getCurrentPath
+                updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
+                source <-
+                  liftIO (loadSource (Text.pack filePath)) >>= \case
+                    Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
+                    Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
+                    Cli.LoadSuccess contents -> pure contents
+                let updatedSource = Format.applyFormatUpdates updates source
+                liftIO $ writeSource (Text.pack filePath) updatedSource
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1338,6 +1358,7 @@ inputDescription input =
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
     DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
+    DebugFormatI -> pure "debug.format"
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
