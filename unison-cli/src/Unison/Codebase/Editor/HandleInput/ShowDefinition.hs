@@ -68,11 +68,6 @@ showDefinitions outputLoc pped terms types misses = do
       let numDefinitions = Map.size terms + Map.size types
       Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  for_ outputPath \p -> do
-    -- We set latestFile to be programmatically generated, if we
-    -- are viewing these definitions to a file - this will skip the
-    -- next update for that file (which will happen immediately)
-    #latestFile ?= (p, True)
   where
     -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
     getOutputPath :: Cli (Maybe FilePath)
