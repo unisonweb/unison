@@ -50,9 +50,9 @@ Announce on #general Slack channel. Template below.
 
 ---
 
-Release announcement template (be sure to update the release urls) -
+Release announcement template (be sure to update the release version) -
 
-We've just released a new version of Unison, $RELEASE_NAME, release notes here (link to the issue). Install/upgrade instructions in the thread.
+We've just released a new version of Unison, $RELEASE_NAME, [release notes here](https://github.com/unisonweb/unison/releases/latest). Install/upgrade instructions in the thread.
 
 Mac upgrade is just `brew upgrade unison-language`.
 
@@ -68,22 +68,22 @@ If you have previously done brew install unison-language --head to install a dev
 _Linux manual install:_
 
 ```
-mkdir unisonlanguage
-curl -L https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-linux.tar.gz --output unisonlanguage/ucm.tar.gz
-tar -xzf unisonlanguage/ucm.tar.gz -C unisonlanguage
-./unisonlanguage/ucm
+mkdir -p unisonlanguage && cd unisonlanguage
+curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-linux.tar.gz \
+	| tar -xz
+./ucm
 ```
 
 _Mac manual install:_
 
 ```
-mkdir unisonlanguage
-curl -L https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-macos.tar.gz --output unisonlanguage/ucm.tar.gz
-tar -xzf unisonlanguage/ucm.tar.gz -C unisonlanguage
-./unisonlanguage/ucm
+mkdir -p unisonlanguage && cd unisonlanguage
+curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-macos.tar.gz \
+  | tar -xz
+./ucm
 ```
 
 _Windows manual install:_
 * Recommended: [Set your default Terminal application](https://devblogs.microsoft.com/commandline/windows-terminal-as-your-default-command-line-experience/) to “Windows Terminal”.
-* Download [the release](https://github.com/unisonweb/unison/releases/download/release%2FM5h/ucm-windows.zip) and extract it to a location of your choosing.
+* Download [the release](https://github.com/unisonweb/unison/releases/latest/download/ucm-windows.zip) and extract it to a location of your choosing.
 * Run `ucm.exe`
