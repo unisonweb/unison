@@ -1879,6 +1879,21 @@ edit =
           [] -> Left (I.help edit)
     }
 
+editNamespace :: InputPattern
+editNamespace =
+  InputPattern
+    { patternName = "edit.namespace",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("namespace to load definitions from", ZeroPlus, namespaceArg)],
+      help =
+        P.lines
+          [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+            "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
+          ],
+      parse = Right . Input.EditNamespaceI . fmap (Path.fromText . Text.pack)
+    }
+
 topicNameArg :: ArgumentType
 topicNameArg =
   let topics = Map.keys helpTopicsMap
@@ -3014,6 +3029,7 @@ validInputs =
       docs,
       docsToHtml,
       edit,
+      editNamespace,
       execute,
       fetchScheme,
       find,
