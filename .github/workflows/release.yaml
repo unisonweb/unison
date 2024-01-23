@@ -119,23 +119,6 @@ jobs:
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
-      - name: build and push docker container
-        run: |
-            IMAGE_NAME=${{github.repository}}
-            docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
-
-      - name: Log in to docker registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
-
-      - name: Push docker image
-        run: |
-          IMAGE_NAME=${{github.repository}}
-          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
-          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-          VERSION=${{inputs.version}}
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-          docker push $IMAGE_ID:$VERSION
-
       - name: Upload linux artifact
         uses: actions/upload-artifact@v2
         with:
