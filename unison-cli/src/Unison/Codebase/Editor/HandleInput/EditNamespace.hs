@@ -16,7 +16,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.Server.Backend (NameScoping (Within))
 import Unison.Server.Backend qualified as Backend
 import Unison.Util.Monoid (foldMapM)
 
@@ -24,7 +23,7 @@ handleEditNamespace :: OutputLocation -> [Path] -> Cli ()
 handleEditNamespace outputLoc inputPaths = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
-  ppe <- NamesUtils.currentPrettyPrintEnvDecl Within
+  ppe <- NamesUtils.currentPrettyPrintEnvDecl
   let paths =
         if null inputPaths
           then [Path.empty]

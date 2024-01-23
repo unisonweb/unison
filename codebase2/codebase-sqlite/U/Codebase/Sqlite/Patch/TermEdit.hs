@@ -3,6 +3,8 @@ module U.Codebase.Sqlite.Patch.TermEdit where
 import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bitraversable (Bitraversable (bitraverse))
+import Data.Text (Text)
+import U.Codebase.HashTags
 import U.Codebase.Reference (Reference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent qualified as Referent
@@ -10,6 +12,8 @@ import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
 
 type TermEdit = TermEdit' Db.TextId Db.ObjectId
+
+type HashTermEdit = TermEdit' Text ComponentHash
 
 type LocalTermEdit = TermEdit' LocalTextId LocalDefnId
 

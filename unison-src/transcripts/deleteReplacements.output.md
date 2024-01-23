@@ -83,7 +83,7 @@ unique[a] type Foo = Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -91,7 +91,7 @@ unique[a] type Foo = Foo
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
 
 ```
 ```unison
@@ -109,7 +109,7 @@ unique[b] type Foo = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -117,7 +117,7 @@ unique[b] type Foo = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    unique type Foo
+    type Foo
 
 .> view.patch
 
@@ -153,7 +153,7 @@ unique[aa] type bar = Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type bar
+      type bar
       bar : ##Nat
 
 ```
@@ -162,7 +162,7 @@ unique[aa] type bar = Foo
 
   ⍟ I've added these definitions:
   
-    unique type bar
+    type bar
     bar : ##Nat
 
 ```
@@ -181,7 +181,7 @@ unique[bb] type bar = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type bar
+      type bar
 
 ```
 ```ucm
@@ -189,7 +189,7 @@ unique[bb] type bar = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    unique type bar
+    type bar
 
 .> view.patch
 
@@ -257,7 +257,7 @@ baz = 0
   ⚠️
   
   I was expecting the following names to be types, though I found terms instead.
-    .baz
+    baz
 
 .> view.patch
 
@@ -278,7 +278,7 @@ unique type qux = Qux
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type qux
+      type qux
 
 ```
 ```ucm
@@ -286,14 +286,14 @@ unique type qux = Qux
 
   ⍟ I've added these definitions:
   
-    unique type qux
+    type qux
 
 .> delete.term-replacement qux
 
   ⚠️
   
   I was expecting the following names to be terms, though I found types instead.
-    .qux
+    qux
 
 .> view.patch
 

@@ -54,8 +54,8 @@ library
       Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
+      Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Load
-      Unison.Codebase.Editor.HandleInput.MetadataUtils
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm
@@ -94,11 +94,11 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.Watch
       Unison.CommandLine
+      Unison.CommandLine.BranchRelativePath
       Unison.CommandLine.Completion
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.FZFResolvers
-      Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
@@ -117,6 +117,7 @@ library
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
       Unison.LSP.FoldingRange
+      Unison.LSP.Formatting
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers

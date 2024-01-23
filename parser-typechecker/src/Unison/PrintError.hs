@@ -20,11 +20,13 @@ import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -1218,16 +1220,18 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
               then "line " ++ show l
               else "lines " ++ show l ++ "—" ++ show l'
 
-annotatedToEnglish :: (Annotated a, IsString s) => a -> s
+annotatedToEnglish :: (Annotated a, IsString s, Semigroup s) => a -> s
 annotatedToEnglish a = case ann a of
-  Intrinsic -> "an intrinsic"
-  External -> "an external"
+  Intrinsic -> "<intrinsic>"
+  External -> "<external>"
+  GeneratedFrom a -> "generated from: " <> annotatedToEnglish a
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForAnnotated :: (Annotated a) => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic -> Nothing
   External -> Nothing
+  GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
 showLexerOutput :: Bool
@@ -1629,16 +1633,17 @@ renderParseErrors s = \case
                   then unknownTypesMsg
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
-    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing))) =
-      let msg =
-            mconcat
-              [ "This looks like the start of an expression here but I was expecting a binding.",
-                "\nDid you mean to use a single " <> style Code ":",
-                " here for a type signature?",
-                "\n\n",
-                tokenAsErrorSite s t
-              ]
-       in (msg, [rangeForToken t])
+    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
+      | name == Name.fromSegment (NameSegment "::") =
+          let msg =
+                mconcat
+                  [ "This looks like the start of an expression here but I was expecting a binding.",
+                    "\nDid you mean to use a single " <> style Code ":",
+                    " here for a type signature?",
+                    "\n\n",
+                    tokenAsErrorSite s t
+                  ]
+           in (msg, [rangeForToken t])
     go (Parser.DidntExpectExpression tok _nextTok) =
       let msg =
             mconcat
@@ -1938,8 +1943,8 @@ prettyResolutionFailures s allFailures =
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
-    ppeFromNames =
-      PPE.fromNames PPE.todoHashLength
+    ppeFromNames names =
+      PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

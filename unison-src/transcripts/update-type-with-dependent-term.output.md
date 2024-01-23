@@ -15,7 +15,7 @@ incrFoo = cases Bar n -> Bar (n+1)
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       incrFoo : Foo -> Foo
 
 ```
@@ -24,7 +24,7 @@ incrFoo = cases Bar n -> Bar (n+1)
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     incrFoo : Foo -> Foo
 
 ```
@@ -43,7 +43,7 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -63,6 +63,6 @@ unique type Foo = Bar Nat Nat
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n Nat.+ 1)
 
-unique type Foo = Bar Nat Nat
+type Foo = Bar Nat Nat
 ```
 

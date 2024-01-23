@@ -10,6 +10,7 @@ module Unison.Syntax.Name
     toString,
     toText,
     toVar,
+    fromVar,
   )
 where
 
@@ -111,3 +112,8 @@ unsafeFromText = either (error . Text.unpack) id . fromTextEither
 unsafeFromVar :: (Var v) => v -> Name
 unsafeFromVar =
   unsafeFromText . Var.name
+
+-- | Parse a name from a var, by first rendering the var as a string.
+fromVar :: Var v => v -> Maybe Name
+fromVar =
+  fromText . Var.name

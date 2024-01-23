@@ -166,7 +166,7 @@ bar = 100
 
   ⍟ I've added these definitions:
   
-    unique type A
+    type A
     bar   : Nat
     foo.a : Nat
 
@@ -198,7 +198,7 @@ fn = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type B
+      type B
       fn              : B -> Text
       foo.baz.qux.bar : Text
       zoink.a         : Text

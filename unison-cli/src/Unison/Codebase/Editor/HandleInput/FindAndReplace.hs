@@ -28,6 +28,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -86,7 +87,7 @@ handleStructuredFindI rule = do
   results0 <- traverse ok results
   let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
   let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  #numberedArgs .= map toNumArgs results
+  Cli.setNumberedArgs $ map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 
 lookupRewrite ::
@@ -98,9 +99,9 @@ lookupRewrite onErr prepare rule = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
   hqLength <- Cli.runTransaction Codebase.hashLength
-  fileNames <- Cli.getNamesFromLatestParsedFile
+  fileNames <- Cli.getNamesFromLatestFile
   let currentNames = fileNames <> Branch.toNames currentBranch
-  let ppe = PPED.fromNamesDecl hqLength currentNames
+  let ppe = PPED.makePPED (PPE.hqNamer hqLength currentNames) (PPE.suffixifyByHash currentNames)
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot
@@ -141,7 +142,4 @@ renderRewrittenFile ppe msg (vs, uf) = do
   let prettyVar = P.text . Var.name
       modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
       header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf <> foldLine)
-  where
-    foldLine :: (IsString s) => P.Pretty s
-    foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+   in (header <> "\n\n" <> P.prettyUnisonFile ppe uf)

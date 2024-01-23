@@ -15,6 +15,8 @@ on:
       - trunk
     tags:
       - release/*
+  workflow_dispatch:
+
 
 jobs:
 
@@ -229,11 +231,7 @@ jobs:
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: round-trip-tests
-        if: runner.os == 'macOS'
         run: |
-          mkdir -p /private/tmp
-          touch /private/tmp/roundtrip.u
-          touch /private/tmp/rewrite-tmp.u
           stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
           git add unison-src/transcripts-round-trip/main.output.md
           # Fail if any transcripts cause git diffs.

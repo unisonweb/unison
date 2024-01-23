@@ -15,6 +15,7 @@ module Unison.Codebase.Editor.Input
     AbsBranchId,
     LooseCodeOrProject,
     parseBranchId,
+    parseBranchId2,
     parseShortCausalHash,
     HashOrHQSplit',
     Insistence (..),
@@ -42,6 +43,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
+import Unison.CommandLine.BranchRelativePath
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -86,6 +88,12 @@ parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
 
+parseBranchId2 :: String -> Either (P.Pretty P.ColorText) (Either ShortCausalHash BranchRelativePath)
+parseBranchId2 ('#' : s) = case SCH.fromText (Text.pack s) of
+  Nothing -> Left "Invalid hash, expected a base32hex string."
+  Just h -> Right (Left h)
+parseBranchId2 s = Right <$> parseBranchRelativePath s
+
 parseShortCausalHash :: String -> Either String ShortCausalHash
 parseShortCausalHash ('#' : s) | Just sch <- SCH.fromText (Text.pack s) = Right sch
 parseShortCausalHash _ = Left "Invalid hash, expected a base32hex string."
@@ -102,7 +110,7 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    ForkLocalBranchI (Either ShortCausalHash Path') Path'
+    ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | -- merge first causal into destination
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
@@ -182,13 +190,6 @@ data Input
   | -- fetch scheme compiler from a given username and branch
     FetchSchemeCompilerI String String
   | TestI TestInput
-  | -- metadata
-    -- `link metadata definitions` (adds metadata to all of `definitions`)
-    LinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-    UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
-  | -- links from <type>
-    LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
@@ -214,6 +215,7 @@ data Input
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments
+  | DebugFormatI
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI

@@ -10,6 +10,8 @@ module Unison.Codebase.Editor.HandleInput.Update2
     makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
+    getNamespaceDependentsOf,
+    makeComplicatedPPE,
   )
 where
 
@@ -25,7 +27,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Lazy.Text
 import Text.Pretty.Simple (pShow)
-import U.Codebase.Reference (Reference, ReferenceType)
+import U.Codebase.Reference (Reference, TermReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Builtin.Decls qualified as Decls
@@ -52,23 +54,21 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.Names (Names)
+import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
@@ -88,13 +88,14 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Nametree (Defns (..))
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
@@ -106,21 +107,16 @@ handleUpdate2 = do
   Cli.respond Output.UpdateLookingForDependents
   (pped, bigUf) <- Cli.runTransactionWithRollback \abort -> do
     dependents <-
-      Ops.dependentsWithinScope
-        (Names.referenceIds namesExcludingLibdeps)
-        (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
-    -- - construct PPE for printing UF* for typechecking (whatever data structure we decide to print)
-    bigUf <- buildBigUnisonFile abort codebase tuf dependents namesExcludingLibdeps ctorNames
-    pped <-
-      ( \hlen ->
-          shadowNames
-            hlen
-            (UF.typecheckedToNames tuf)
-            namesIncludingLibdeps
-        )
-        <$> Codebase.hashLength
-
-    pure (pped, bigUf)
+      getNamespaceDependentsOf namesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
+    hashLen <- Codebase.hashLength
+    bigUf <-
+      addDefinitionsToUnisonFile
+        abort
+        codebase
+        (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames)
+        dependents
+        (UF.discardTypes tuf)
+    pure (makeComplicatedPPE hashLen namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents, bigUf)
 
   -- If the new-unison-file-to-typecheck is the same as old-unison-file-that-we-already-typechecked, then don't bother
   -- typechecking again.
@@ -140,9 +136,8 @@ handleUpdate2 = do
         parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
-            Cli.Env {isTranscript} <- ask
-            maybePath <- if isTranscript then pure Nothing else Just . fst <$> Cli.expectLatestFile
-            Cli.respond (Output.DisplayDefinitionsString maybePath prettyUf)
+            scratchFilePath <- fst <$> Cli.expectLatestFile
+            liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUf)
             Cli.returnEarly Output.UpdateTypecheckingFailure
         Cli.respond Output.UpdateTypecheckingSuccess
         pure secondTuf
@@ -234,13 +229,13 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
             Right actions -> pure actions
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol
-              insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId) Map.empty
+              insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
               insertTypeConstructorActions =
                 let referentIdsWithNames = zip (Decl.constructorVars (Decl.asDataDecl decl)) (Decl.declConstructorReferents typeRefId decl)
                  in map
                       ( \(sym, rid) ->
                           let splitConName = splitVar sym
-                           in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid) Map.empty
+                           in BranchUtil.makeAddTermName splitConName (Reference.fromId <$> rid)
                       )
                       referentIdsWithNames
               deleteStuff = deleteTypeAction : deleteConstructorActions
@@ -257,7 +252,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
             then
               let split = splitVar var
                in [ BranchUtil.makeAnnihilateTermName split,
-                    BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref) Map.empty
+                    BranchUtil.makeAddTermName split (Referent.fromTermReferenceId ref)
                   ]
             else []
 
@@ -272,49 +267,30 @@ getExistingReferencesNamed defns names = fromTerms <> fromTypes
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
     fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
 
-buildBigUnisonFile ::
-  (forall a. Output -> Transaction a) ->
-  Codebase IO Symbol Ann ->
-  TypecheckedUnisonFile Symbol Ann ->
-  Map Reference.Id ReferenceType ->
-  Names ->
-  Map ForwardName (Referent, Name) ->
-  Transaction (UnisonFile Symbol Ann)
-buildBigUnisonFile abort c tuf dependents names ctorNames =
-  addDefinitionsToUnisonFile Output.UOUUpdate abort c names ctorNames dependents (UF.discardTypes tuf)
-
--- | @addDefinitionsToUnisonFile abort codebase names ctorNames definitions file@ adds all @definitions@ to @file@, avoiding
--- overwriting anything already in @file@. Every definition is put into the file with every naming it has in @names@ "on
--- the left-hand-side of the equals" (but yes type decls don't really have a LHS).
+-- | @addDefinitionsToUnisonFile abort codebase doFindCtorNames definitions file@ adds all @definitions@ to @file@,
+-- avoiding overwriting anything already in @file@. Every definition is put into the file with every naming it has in
+-- @names@ "on the left-hand-side of the equals" (but yes type decls don't really have a LHS).
 --
 -- TODO: find a better module for this function, as it's used in a couple places
 addDefinitionsToUnisonFile ::
-  Output.UpdateOrUpgrade ->
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
-  Names ->
-  Map ForwardName (Referent, Name) ->
-  Map Reference.Id ReferenceType ->
+  (Maybe Int -> Name -> Either Output.Output [Name]) ->
+  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
   UnisonFile Symbol Ann ->
   Transaction (UnisonFile Symbol Ann)
-addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialUnisonFile =
-  -- for each dependent, add its definition with all its names to the UnisonFile
-  foldM addComponent initialUnisonFile (Map.toList dependents')
+addDefinitionsToUnisonFile abort codebase doFindCtorNames (terms, types) =
+  (\file -> foldM addTermComponent file (Set.map Reference.idToHash (Relation.ran terms)))
+    >=> (\file -> foldM addDeclComponent file (Set.map Reference.idToHash (Relation.ran types)))
   where
-    dependents' :: Map Hash ReferenceType = Map.mapKeys (\(Reference.Id h _pos) -> h) dependents
-    addComponent :: UnisonFile Symbol Ann -> (Hash, ReferenceType) -> Transaction (UnisonFile Symbol Ann)
-    addComponent uf (h, rt) = case rt of
-      Reference.RtTerm -> addTermComponent h uf
-      Reference.RtType -> addDeclComponent abort h uf
-    addTermComponent :: Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
-    addTermComponent h uf = do
-      termComponent <- Codebase.unsafeGetTermComponent c h
+    addTermComponent :: UnisonFile Symbol Ann -> Hash -> Transaction (UnisonFile Symbol Ann)
+    addTermComponent uf h = do
+      termComponent <- Codebase.unsafeGetTermComponent codebase h
       pure $ foldl' addTermElement uf (zip termComponent [0 ..])
       where
         addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
         addTermElement uf ((tm, tp), i) = do
-          let r :: Referent = Referent.Ref $ Reference.Derived h i
-              termNames = Relation.lookupRan r names.terms
+          let termNames = Relation.lookupRan (Reference.Id h i) terms
           foldl' (addDefinition tm tp) uf termNames
         addDefinition :: Term Symbol Ann -> Type Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
         addDefinition tm tp uf (Name.toVar -> v) =
@@ -328,19 +304,20 @@ addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialU
         termNames =
           Set.fromList [v | (v, _, _) <- uf.terms]
             <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) uf.watches
+
     isTest = Typechecker.isEqual (Decls.testResultType mempty)
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes
-    addDeclComponent :: (forall a. Output -> Transaction a) -> Hash -> UnisonFile Symbol Ann -> Transaction (UnisonFile Symbol Ann)
-    addDeclComponent abort h uf = do
+    addDeclComponent :: UnisonFile Symbol Ann -> Hash -> Transaction (UnisonFile Symbol Ann)
+    addDeclComponent uf h = do
       declComponent <- fromJust <$> Codebase.getDeclComponent h
       foldM addDeclElement uf (zip declComponent [0 ..])
       where
         -- for each name a decl has, update its constructor names according to what exists in the namespace
         addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UnisonFile Symbol Ann)
         addDeclElement uf (decl, i) = do
-          let declNames = Relation.lookupRan (Reference.Derived h i) names.types
+          let declNames = Relation.lookupRan (Reference.Id h i) types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldM (addRebuiltDefinition decl) uf declNames
           where
@@ -353,20 +330,22 @@ addDefinitionsToUnisonFile operation abort c names ctorNames dependents initialU
               Right dd ->
                 overwriteConstructorNames name dd >>= \case
                   dd' -> pure uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd') uf.dataDeclarationsId}
+
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
         overwriteConstructorNames name dd =
           let constructorNames :: Transaction [Symbol]
-              constructorNames = case findCtorNames operation names ctorNames (Just $ Decl.constructorCount dd) name of
-                Left err -> abort err
-                Right array | all (isJust . Name.stripNamePrefix name) array -> pure (map Name.toVar array)
-                Right array -> do
-                  traceM "I ran into a situation where a type's constructors didn't match its name,"
-                  traceM "in a spot where I didn't expect to be discovering that.\n\n"
-                  traceM "Type Name:"
-                  traceM . Lazy.Text.unpack $ pShow name
-                  traceM "Constructor Names:"
-                  traceM . Lazy.Text.unpack $ pShow array
-                  error "Sorry for crashing."
+              constructorNames =
+                case doFindCtorNames (Just $ Decl.constructorCount dd) name of
+                  Left err -> abort err
+                  Right array | all (isJust . Name.stripNamePrefix name) array -> pure (map Name.toVar array)
+                  Right array -> do
+                    traceM "I ran into a situation where a type's constructors didn't match its name,"
+                    traceM "in a spot where I didn't expect to be discovering that.\n\n"
+                    traceM "Type Name:"
+                    traceM . Lazy.Text.unpack $ pShow name
+                    traceM "Constructor Names:"
+                    traceM . Lazy.Text.unpack $ pShow array
+                    error "Sorry for crashing."
 
               swapConstructorNames oldCtors =
                 let (annotations, _vars, types) = unzip3 oldCtors
@@ -440,41 +419,64 @@ getTermAndDeclNames tuf =
     keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
     ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
 
--- | Combines 'n' and 'otherNames' then creates a ppe, but all references to
--- any name in 'n' are printed unqualified.
+-- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
+-- (transitive) dependents of the dependencies.
+getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+getNamespaceDependentsOf names dependencies = do
+  dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
+  let dependentTerms :: Set TermReferenceId
+      dependentTypes :: Set TypeReferenceId
+      (dependentTerms, dependentTypes) =
+        Map.foldlWithKey'
+          ( \(terms, types) refId -> \case
+              Reference.RtTerm -> let !terms1 = Set.insert refId terms in (terms1, types)
+              Reference.RtType -> let !types1 = Set.insert refId types in (terms, types1)
+          )
+          (Set.empty, Set.empty)
+          dependents
+  pure (foldMap nameTerm dependentTerms, foldMap nameType dependentTypes)
+  where
+    nameTerm :: TermReferenceId -> Relation Name TermReferenceId
+    nameTerm ref =
+      Relation.fromManyDom (Relation.lookupRan (Referent.fromTermReferenceId ref) (Names.terms names)) ref
+
+    nameType :: TypeReferenceId -> Relation Name TypeReferenceId
+    nameType ref =
+      Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
+
+-- The big picture behind PPE building, though there are many details:
 --
--- This is useful with the current update strategy where, for all
--- updates @#old -> #new@ we want to print dependents of #old and
--- #new, and have all occurrences of #old and #new be printed with the
--- unqualified name.
+--   * We are updating old references to new references by rendering old references as names that are then parsed
+--     back to resolve to new references (the world's weirdest implementation of AST substitution).
 --
--- For this usecase the names from the scratch file are passed as 'n'
--- and the names from the codebase are passed in 'otherNames'.
-shadowNames :: Int -> Names -> Names -> PrettyPrintEnvDecl
-shadowNames hashLen n otherNames =
-  let PPED.PrettyPrintEnvDecl unsuffixified0 suffixified0 = PPE.fromNamesDecl hashLen (n <> otherNames)
-      unsuffixified = patchPrettyPrintEnv unsuffixified0
-      suffixified = patchPrettyPrintEnv suffixified0
-      patchPrettyPrintEnv :: PrettyPrintEnv -> PrettyPrintEnv
-      patchPrettyPrintEnv PPE.PrettyPrintEnv {termNames, typeNames} =
-        PPE.PrettyPrintEnv
-          { termNames = patch shadowedTermRefs termNames,
-            typeNames = patch shadowedTypeRefs typeNames
-          }
-      patch shadowed f ref =
-        let res = f ref
-         in case Set.member ref shadowed of
-              True -> map (second stripHashQualified) res
-              False -> res
-      stripHashQualified = \case
-        HQ'.HashQualified b _ -> HQ'.NameOnly b
-        HQ'.NameOnly b -> HQ'.NameOnly b
-      shadowedTermRefs =
-        let names = Relation.dom (Names.terms n)
-            otherTermNames = Names.terms otherNames
-         in Relation.ran (Names.terms n) <> foldMap (\a -> Relation.lookupDom a otherTermNames) names
-      shadowedTypeRefs =
-        let names = Relation.dom (Names.types n)
-            otherTypeNames = Names.types otherNames
-         in Relation.ran (Names.types n) <> foldMap (\a -> Relation.lookupDom a otherTypeNames) names
-   in PPED.PrettyPrintEnvDecl unsuffixified suffixified
+--   * We have to render names that refer to definitions in the file with a different suffixification strategy
+--     (namely, "suffixify by name") than names that refer to things in the codebase.
+--
+--     This is because you *may* refer to aliases that share a suffix by that suffix for definitions in the
+--     codebase, but not in the file.
+--
+--     For example, the following file will fail to parse:
+--
+--       one.foo = 10
+--       two.foo = 10
+--       hey = foo + foo -- "Which foo do you mean? There are two."
+--
+--     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
+--
+--       hey = foo + foo
+makeComplicatedPPE ::
+  Int ->
+  Names ->
+  Names ->
+  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
+  PrettyPrintEnvDecl
+makeComplicatedPPE hashLen names initialFileNames (dependentTerms, dependentTypes) =
+  PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)
+    `PPED.addFallback` PPED.makePPED (PPE.hqNamer hashLen namesInTheNamespace) (PPE.suffixifyByHash namesInTheNamespace)
+  where
+    namesInTheFile =
+      initialFileNames
+        <> Names
+          (Relation.mapRan Referent.fromTermReferenceId dependentTerms)
+          (Relation.mapRan Reference.fromId dependentTypes)
+    namesInTheNamespace = Names.unionLeftName names initialFileNames

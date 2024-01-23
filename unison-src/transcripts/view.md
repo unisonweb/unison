@@ -1,7 +1,7 @@
 # View commands
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ```unison:hide

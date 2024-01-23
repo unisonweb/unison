@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ```unison:hide
@@ -24,9 +24,8 @@ fslkdjflskdjflksjdf = 663
 Things we want to test:
 
 * Diffing identical namespaces
-* Adds, removes, updates (with and without metadata updates)
+* Adds, removes, updates
   * Adds with multiple names
-  * Adds with multiple names and different metadata on each
 * Moved and copied definitions
   * Moves that have more that 1 initial or final name
 * ... terms and types
@@ -48,7 +47,6 @@ structural ability X a1 a2 where x : ()
 .ns1> add
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
-.ns1> link b fromJust
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 ```
@@ -83,16 +81,10 @@ unique type Y a b = Y a b
 
 ```ucm
 .ns2> update.old
-.ns2> links fromJust
 .> diff.namespace ns1 ns2
 .> alias.term ns2.d ns2.d'
 .> alias.type ns2.A ns2.A'
 .> alias.type ns2.X ns2.X'
-.> diff.namespace ns1 ns2
-.> link ns1.c ns2.f
-.> link ns2.c ns2.c
-.> diff.namespace ns1 ns2
-.> unlink ns2.b ns2.fromJust
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''
@@ -198,17 +190,10 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
 - [x] similarly, if a conflicted name is resolved by deleting the last name to
       a reference, I (arya) suspect it will show up as a Remove
 - [d] Maybe group and/or add headings to the types, constructors, terms
-- [x] check whether creating a name conflict + adding metadata puts the update
-      in both categories; if it does, then filter out metadataUpdates from the
-      other categories
 - [x] add tagging of propagated updates to test propagated updates output
 - [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
 - [x] delete.term has some bonkers output
 - [x] Make a decision about how we want to show constructors in the diff
-- [x] When you delete a name with metadata, it also shows up in updates section
-      with the deleted metadata.
-- [x] An add with new metadata is getting characterized as an update
-- [x] can there be a metadata-only update where it's not a singleton old and new reference
 - [x] 12.patch patch needs a space
 - [x] This looks like garbage
 - [x] Extra 2 blank lines at the end of the add section

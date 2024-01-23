@@ -6,7 +6,7 @@
 x = 1
 useX = x + 10
 
-structural type MyType = MyType Nat
+type MyType = MyType Nat
 useMyType = match MyType 1 with
   MyType a -> a + 10
 ```
@@ -16,7 +16,7 @@ Perform a type-changing update so dependents are added to our update frontier.
 ```unison
 x = -1
 
-structural type MyType = MyType Text
+type MyType = MyType Text
 ```
 
 ```ucm
@@ -24,7 +24,7 @@ structural type MyType = MyType Text
 
   ⍟ I've updated these names to your new definition:
   
-    structural type MyType
+    type MyType
     x : Int
 
 .simple> todo
@@ -34,7 +34,7 @@ structural type MyType = MyType Text
   The namespace has 2 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    structural type #68k40ra7l7
+    type #vijug0om28
     #gjmq673r1v : Nat
   
   I recommend working on them in the following order:
@@ -51,7 +51,7 @@ structural type MyType = MyType Text
 
 ```unison
 x = 1
-structural type MyType = MyType
+type MyType = MyType
 ```
 
 Set up two branches with the same starting point.
@@ -60,12 +60,12 @@ Update `x` to a different term in each branch.
 
 ```unison
 x = 2
-structural type MyType = MyType Nat
+type MyType = MyType Nat
 ```
 
 ```unison
 x = 3
-structural type MyType = MyType Int
+type MyType = MyType Int
 ```
 
 ```ucm
@@ -76,18 +76,15 @@ structural type MyType = MyType Int
   
   New name conflicts:
   
-    1.  structural type MyType#68k40ra7l7
-           
+    1.  type MyType#ig1g2ka7lv
         ↓
-    2.  ┌ structural type MyType#68k40ra7l7
-             
-    3.  └ structural type MyType#eo6rj0lj1b
-             
+    2.  ┌ type MyType#ig1g2ka7lv
+    3.  └ type MyType#m6mdqhqcr1
     
-    4.  MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
+    4.  MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
         ↓
-    5.  ┌ MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
-    6.  └ MyType.MyType#eo6rj0lj1b#0 : Int -> MyType#eo6rj0lj1b
+    5.  ┌ MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
+    6.  └ MyType.MyType#m6mdqhqcr1#0 : Int -> MyType#m6mdqhqcr1
     
     7.  x#dcgdua2lj6 : Nat
         ↓
@@ -116,17 +113,17 @@ structural type MyType = MyType Int
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The type 1. .builtin.Unit was replaced with
-      2. MyType#68k40ra7l7
-      3. MyType#eo6rj0lj1b
+    The type 1. #8h7qq3ougl was replaced with
+      2. MyType#ig1g2ka7lv
+      3. MyType#m6mdqhqcr1
     The term 4. #gjmq673r1v was replaced with
       5. x#dcgdua2lj6
       6. x#f3lgjvjqoo
   ❓
   
   The term MyType.MyType has conflicting definitions:
-    7. MyType.MyType#68k40ra7l7#0
-    8. MyType.MyType#eo6rj0lj1b#0
+    7. MyType.MyType#ig1g2ka7lv#0
+    8. MyType.MyType#m6mdqhqcr1#0
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `move.term` or `delete.term`

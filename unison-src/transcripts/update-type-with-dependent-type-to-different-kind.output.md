@@ -13,8 +13,8 @@ unique type Baz = Qux Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Baz
-      unique type Foo
+      type Baz
+      type Foo
 
 ```
 ```ucm
@@ -22,8 +22,8 @@ unique type Baz = Qux Foo
 
   ⍟ I've added these definitions:
   
-    unique type Baz
-    unique type Foo
+    type Baz
+    type Foo
 
 ```
 ```unison
@@ -41,7 +41,7 @@ unique type Foo a = Bar Nat a
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo a
+      type Foo a
 
 ```
 ```ucm
@@ -58,8 +58,8 @@ unique type Foo a = Bar Nat a
 
 ```
 ```unison:added-by-ucm scratch.u
-unique type Baz = Qux Foo
+type Baz = Qux Foo
 
-unique type Foo a = Bar Nat a
+type Foo a = Bar Nat a
 ```
 

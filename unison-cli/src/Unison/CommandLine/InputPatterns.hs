@@ -19,7 +19,7 @@ import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
-import Text.Megaparsec qualified as P
+import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -45,9 +45,9 @@ import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath)
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
-import Unison.CommandLine.Globbing qualified as Globbing
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
@@ -1174,11 +1174,22 @@ forkLocal =
     [ ("namespace", Required, namespaceArg),
       ("new location", Required, newNameArg)
     ]
-    (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
+    ( P.wrapColumn2
+        [ ( makeExample forkLocal ["src", "dest"],
+            "creates the namespace `dest` as a copy of `src`."
+          ),
+          ( makeExample forkLocal ["project0/branch0:a.path", "project1/branch1:foo"],
+            "creates the namespace `foo` in `branch1` of `project1` as a copy of `a.path` in `project0/branch0`."
+          ),
+          ( makeExample forkLocal ["srcproject/srcbranch", "dest"],
+            "creates the namespace `dest` as a copy of the branch `srcbranch` of `srcproject`."
+          )
+        ]
+    )
     ( \case
-        [src, dest] -> first fromString $ do
-          src <- Input.parseBranchId src
-          dest <- Path.parsePath' dest
+        [src, dest] -> do
+          src <- Input.parseBranchId2 src
+          dest <- parseBranchRelativePath dest
           pure $ Input.ForkLocalBranchI src dest
         _ -> Left (I.help forkLocal)
     )
@@ -1417,6 +1428,23 @@ debugFuzzyOptions =
         (cmd : args) ->
           Right $ Input.DebugFuzzyOptionsI cmd args
         _ -> Left (I.help debugFuzzyOptions)
+    )
+
+debugFormat :: InputPattern
+debugFormat =
+  InputPattern
+    "debug.format"
+    []
+    I.Hidden
+    [("source-file", Optional, filePathArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
+          makeExample' debugFormat
+        ]
+    )
+    ( \case
+        [] -> Right Input.DebugFormatI
+        _ -> Left (I.help debugFormat)
     )
 
 push :: InputPattern
@@ -1872,7 +1900,6 @@ topicNameArg =
    in ArgumentType
         { typeName = "topic",
           suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
-          globTargets = mempty,
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> topics)
         }
 
@@ -1881,7 +1908,6 @@ codebaseServerNameArg =
   ArgumentType
     { typeName = "codebase-server",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -2148,79 +2174,6 @@ viewPatch =
         _ -> Left $ warn "`view.patch` takes a patch and that's it."
     )
 
-link :: InputPattern
-link =
-  InputPattern
-    "link"
-    []
-    I.Visible
-    [("metadata", Required, definitionQueryArg), ("definition", OnePlus, definitionQueryArg)]
-    ( fromString $
-        concat
-          [ "`link metadata defn` creates a link to `metadata` from `defn`. ",
-            "Use `links defn` or `links defn <type>` to view outgoing links, ",
-            "and `unlink metadata defn` to remove a link. The `defn` can be either the ",
-            "name of a term or type, multiple such names, or a range like `1-4` ",
-            "for a range of definitions listed by a prior `find` command."
-          ]
-    )
-    ( \case
-        md : defs -> first fromString $ do
-          md <- case HQ.fromString md of
-            Nothing -> Left "Invalid hash qualified identifier for metadata."
-            Just hq -> pure hq
-          defs <- traverse Path.parseHQSplit' defs
-          Right $ Input.LinkI md defs
-        _ -> Left (I.help link)
-    )
-
-links :: InputPattern
-links =
-  InputPattern
-    "links"
-    []
-    I.Visible
-    [("definition to link", Required, definitionQueryArg), ("metadata", Optional, definitionQueryArg)]
-    ( P.column2
-        [ (makeExample links ["defn"], "shows all outgoing links from `defn`."),
-          (makeExample links ["defn", "<type>"], "shows all links of the given type.")
-        ]
-    )
-    ( \case
-        src : rest -> first fromString $ do
-          src <- Path.parseHQSplit' src
-          let ty = case rest of
-                [] -> Nothing
-                _ -> Just $ unwords rest
-           in Right $ Input.LinksI src ty
-        _ -> Left (I.help links)
-    )
-
-unlink :: InputPattern
-unlink =
-  InputPattern
-    "unlink"
-    ["delete.link"]
-    I.Visible
-    [("metadata", Required, definitionQueryArg), ("definition", OnePlus, definitionQueryArg)]
-    ( fromString $
-        concat
-          [ "`unlink metadata defn` removes a link to `metadata` from `defn`.",
-            "The `defn` can be either the ",
-            "name of a term or type, multiple such names, or a range like `1-4` ",
-            "for a range of definitions listed by a prior `find` command."
-          ]
-    )
-    ( \case
-        md : defs -> first fromString $ do
-          md <- case HQ.fromString md of
-            Nothing -> Left "Invalid hash qualified identifier for metadata."
-            Just hq -> pure hq
-          defs <- traverse Path.parseHQSplit' defs
-          Right $ Input.UnlinkI md defs
-        _ -> Left (I.help unlink)
-    )
-
 names :: Input.IsGlobal -> InputPattern
 names isGlobal =
   InputPattern
@@ -2352,7 +2305,7 @@ debugNameDiff =
       aliases = [],
       visibility = I.Hidden,
       args = [("before namespace", Required, namespaceArg), ("after namespace", Required, namespaceArg)],
-      help = P.wrap "List all name changes between two causal hashes. Does not detect patch or metadata changes.",
+      help = P.wrap "List all name changes between two causal hashes. Does not detect patch changes.",
       parse =
         ( \case
             [from, to] -> first fromString $ do
@@ -2902,7 +2855,6 @@ branchInputPattern =
       ArgumentType
         { typeName = "new-branch",
           suggestions = \_ _ _ _ -> pure [],
-          globTargets = mempty,
           fzfResolver = Nothing
         }
     suggestionsConfig =
@@ -3053,6 +3005,7 @@ validInputs =
       debugNumberedArgs,
       debugTabCompletion,
       debugFuzzyOptions,
+      debugFormat,
       delete,
       deleteBranch,
       deleteProject,
@@ -3095,8 +3048,6 @@ validInputs =
       history,
       ioTest,
       ioTestAll,
-      link,
-      links,
       load,
       makeStandalone,
       mergeBuiltins,
@@ -3142,7 +3093,6 @@ validInputs =
       todo,
       ui,
       undo,
-      unlink,
       up,
       update,
       updateBuiltins,
@@ -3174,7 +3124,6 @@ commandNameArg =
    in ArgumentType
         { typeName = "command",
           suggestions = \q _ _ _ -> pure (exactComplete q options),
-          globTargets = mempty,
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> options)
         }
 
@@ -3183,7 +3132,6 @@ exactDefinitionArg =
   ArgumentType
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3192,7 +3140,6 @@ fuzzyDefinitionQueryArg =
   ArgumentType
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term, Globbing.Type],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3204,7 +3151,6 @@ exactDefinitionTypeQueryArg =
   ArgumentType
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
-      globTargets = Set.fromList [Globbing.Type],
       fzfResolver = Just Resolvers.typeDefinitionResolver
     }
 
@@ -3213,7 +3159,6 @@ exactDefinitionTypeOrTermQueryArg =
   ArgumentType
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      globTargets = Set.fromList [Globbing.Term],
       fzfResolver = Just Resolvers.definitionResolver
     }
 
@@ -3222,7 +3167,6 @@ exactDefinitionTermQueryArg =
   ArgumentType
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
-      globTargets = Set.fromList [Globbing.Term],
       fzfResolver = Just Resolvers.termDefinitionResolver
     }
 
@@ -3231,7 +3175,6 @@ patchArg =
   ArgumentType
     { typeName = "patch",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      globTargets = Set.fromList [],
       fzfResolver = Nothing
     }
 
@@ -3240,7 +3183,6 @@ namespaceArg =
   ArgumentType
     { typeName = "namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = Set.fromList [Globbing.Namespace],
       fzfResolver = Just Resolvers.namespaceResolver
     }
 
@@ -3256,7 +3198,6 @@ namespaceOrProjectBranchArg config =
               [ projectAndOrBranchSuggestions config,
                 namespaceSuggestions
               ],
-      globTargets = mempty,
       fzfResolver = Just Resolvers.projectOrBranchResolver
     }
 
@@ -3268,7 +3209,6 @@ namespaceOrDefinitionArg =
         namespaces <- prefixCompleteNamespace q p
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
-      globTargets = Set.fromList [Globbing.Namespace, Globbing.Term, Globbing.Type],
       fzfResolver =
         Just Resolvers.namespaceOrDefinitionResolver
     }
@@ -3282,7 +3222,6 @@ newNameArg =
   ArgumentType
     { typeName = "new-name",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p),
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3291,7 +3230,6 @@ noCompletionsArg =
   ArgumentType
     { typeName = "word",
       suggestions = noCompletions,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3300,7 +3238,6 @@ filePathArg =
   ArgumentType
     { typeName = "file-path",
       suggestions = noCompletions,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3319,7 +3256,6 @@ gitUrlArg =
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> pure [],
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3339,7 +3275,6 @@ remoteNamespaceArg =
               "bbs" -> complete "git(git@bitbucket.com:"
               _ -> do
                 sharePathCompletion http input,
-      globTargets = mempty,
       fzfResolver = Nothing
     }
 
@@ -3579,7 +3514,6 @@ projectAndBranchNamesArg config =
   ArgumentType
     { typeName = "project-and-branch-names",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectAndOrBranchArg
     }
 
@@ -3589,7 +3523,6 @@ projectBranchNameArg config =
   ArgumentType
     { typeName = "project-branch-name",
       suggestions = projectAndOrBranchSuggestions config,
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
@@ -3599,7 +3532,6 @@ projectBranchNameWithOptionalProjectNameArg =
   ArgumentType
     { typeName = "project-branch-name-with-optional-project-name",
       suggestions = \_ _ _ _ -> pure [],
-      globTargets = Set.empty,
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
@@ -3613,7 +3545,6 @@ projectNameArg =
           Codebase.runTransaction codebase do
             Queries.loadAllProjectsBeginningWith (Just input)
         pure $ map projectToCompletion projects,
-      globTargets = Set.empty,
       fzfResolver = Just $ Resolvers.multiResolver [Resolvers.projectNameOptions]
     }
   where
@@ -3627,7 +3558,7 @@ projectNameArg =
 
 parsePullSource :: Text -> Maybe (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
 parsePullSource =
-  P.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
+  Megaparsec.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
 
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
@@ -3642,7 +3573,7 @@ parsePushSource sourceStr =
 -- | Parse a push target.
 parsePushTarget :: String -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
 parsePushTarget target =
-  case P.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
+  case Megaparsec.parseMaybe UriParser.writeRemoteNamespace (Text.pack target) of
     Nothing -> Left (I.help push)
     Just path -> Right path
 
@@ -3664,7 +3595,7 @@ parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitR
 parseWriteGitRepo label input = do
   first
     (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse (UriParser.writeGitRepo <* P.eof) label (Text.pack input))
+    (Megaparsec.parse (UriParser.writeGitRepo <* Megaparsec.eof) label (Text.pack input))
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
@@ -3685,23 +3616,23 @@ explainRemote pushPull =
   where
     gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
-showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
-showErrorFancy (P.ErrorFail msg) = msg
-showErrorFancy (P.ErrorIndentation ord ref actual) =
+showErrorFancy :: (Megaparsec.ShowErrorComponent e) => Megaparsec.ErrorFancy e -> String
+showErrorFancy (Megaparsec.ErrorFail msg) = msg
+showErrorFancy (Megaparsec.ErrorIndentation ord ref actual) =
   "incorrect indentation (got "
-    <> show (P.unPos actual)
+    <> show (Megaparsec.unPos actual)
     <> ", should be "
     <> p
-    <> show (P.unPos ref)
+    <> show (Megaparsec.unPos ref)
     <> ")"
   where
     p = case ord of
       LT -> "less than "
       EQ -> "equal to "
       GT -> "greater than "
-showErrorFancy (P.ErrorCustom a) = P.showErrorComponent a
+showErrorFancy (Megaparsec.ErrorCustom a) = Megaparsec.showErrorComponent a
 
-showErrorItem :: P.ErrorItem (P.Token Text) -> String
-showErrorItem (P.Tokens ts) = P.showTokens (Proxy @Text) ts
-showErrorItem (P.Label label) = NE.toList label
-showErrorItem P.EndOfInput = "end of input"
+showErrorItem :: Megaparsec.ErrorItem (Megaparsec.Token Text) -> String
+showErrorItem (Megaparsec.Tokens ts) = Megaparsec.showTokens (Proxy @Text) ts
+showErrorItem (Megaparsec.Label label) = NE.toList label
+showErrorItem Megaparsec.EndOfInput = "end of input"

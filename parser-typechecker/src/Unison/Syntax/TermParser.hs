@@ -30,8 +30,11 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -256,7 +259,9 @@ parsePattern = label "pattern" root
     text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+    parenthesizedOrTuplePattern = do
+      (_spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
@@ -402,15 +407,21 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: (Ord v) => String -> P v m (L.Token ())
+quasikeyword :: Ord v => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
-  L.WordyId s Nothing | s == kw -> Just ()
+  L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
 
-symbolyQuasikeyword :: (Ord v) => String -> P v m (L.Token ())
+symbolyQuasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 symbolyQuasikeyword kw = queryToken \case
-  L.SymbolyId s Nothing | s == kw -> Just ()
+  L.SymbolyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
+
+nameIsKeyword :: Name -> Text -> Bool
+nameIsKeyword name keyword =
+  case (Name.isRelative name, Name.reverseSegments name) of
+    (True, segment NonEmpty.:| []) -> NameSegment.toText segment == keyword
+    _ -> False
 
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
@@ -960,9 +971,9 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
-    <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
-    <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ":+"))))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "+:"))))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "++"))))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
@@ -1064,7 +1075,9 @@ binding = label "binding" do
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
-      pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
+      let binding = mkBinding lhsLoc args body
+      let spanAnn = ann lhsLoc <> ann binding
+      pure $ ((spanAnn, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeFromVar name)
@@ -1072,14 +1085,14 @@ binding = label "binding" do
         customFailure $
           SignatureNeedsAccompanyingBody nameT
       body <- block "="
-      pure $
-        fmap
-          (\e -> Term.ann (ann nameT <> ann e) e typ)
-          (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
+      let binding = mkBinding lhsLoc args body
+      let spanAnn = ann nameT <> ann binding
+      pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
   where
-    mkBinding loc f [] body = ((loc, f), body)
-    mkBinding loc f args body =
-      ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+    mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
+    mkBinding _lhsLoc [] body = body
+    mkBinding lhsLoc args body =
+      (Term.lam' (lhsLoc <> ann body) (L.payload <$> args) body)
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
@@ -1247,7 +1260,9 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+tupleOrParenthesizedTerm = label "tuple" $ do
+  (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
+  pure $ tm {ABT.annotation = spanAnn}
   where
     pair t1 t2 =
       Term.app

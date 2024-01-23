@@ -12,7 +12,7 @@ unique type Foo = { bar : Nat, baz : Int }
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -26,7 +26,7 @@ unique type Foo = { bar : Nat, baz : Int }
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     Foo.bar        : Foo -> Nat
     Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
     Foo.bar.set    : Nat -> Foo -> Foo
@@ -50,7 +50,7 @@ unique type Foo = { bar : Nat }
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
@@ -72,12 +72,12 @@ We want the field accessors to go away; but for now they are here, causing the u
 
 .> view Foo
 
-  unique type Foo = { bar : Nat, baz : Int }
+  type Foo = { bar : Nat, baz : Int }
 
 .> find.verbose
 
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
-     unique type Foo
+     type Foo
      
   2. -- #77mi33dv8ac2s90852khi35km5gsamhnpada8mai0k36obbttgg17qld719ospcs1ht9ctolg3pjsqs6qjnl3hfmu493rgsher73sc0
      Foo.bar : Foo -> Nat
@@ -113,6 +113,6 @@ Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
 Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
 Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
 
-unique type Foo = { bar : Nat }
+type Foo = { bar : Nat }
 ```
 

@@ -228,7 +228,6 @@ data Output
       [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
-  | ListOfLinks PPE.PrettyPrintEnv [(HQ.HashQualified Name, Reference, Maybe (Type Symbol Ann))]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListOfPatches (Set Name)
   | ListStructuredFind [HQ.HashQualified Name]
@@ -252,9 +251,7 @@ data Output
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
-  | -- Like `DisplayDefinitions`, but the definitions are already rendered. `Nothing` means they were output to the terminal.
-    DisplayDefinitionsString !(Maybe FilePath) !(P.Pretty P.ColorText {- rendered definitions -})
-  | LoadedDefinitionsToSourceFile FilePath (P.Pretty P.ColorText)
+  | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
   | TestResults
@@ -272,12 +269,9 @@ data Output
   | GitError GitError
   | ShareError ShareError
   | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
-  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
-  | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
-  | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   | AboutToPropagatePatch
   | -- todo: tell the user to run `todo` on the same patch they just used
     NothingToPatch PatchPath Path'
@@ -312,7 +306,6 @@ data Output
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
-  | DefaultMetadataNotification
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
@@ -394,7 +387,7 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !NameSegment !NameSegment
+  | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -509,7 +502,6 @@ isFailure o = case o of
   MovedOverExistingBranch {} -> False
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
-  ListOfLinks _ ds -> null ds
   ListOfDefinitions _ _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   ListStructuredFind tms -> null tms
@@ -524,7 +516,6 @@ isFailure o = case o of
   Typechecked {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
-  DisplayDefinitionsString {} -> False -- somewhat arbitrary :shrug:
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
@@ -532,11 +523,8 @@ isFailure o = case o of
   CantUndo {} -> True
   GitError {} -> True
   BustedBuiltins {} -> True
-  ConfiguredMetadataParseError {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
-  MetadataMissingType {} -> True
-  MetadataAmbiguous {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
   AboutToPropagatePatch {} -> False
@@ -558,7 +546,6 @@ isFailure o = case o of
   HashAmbiguous {} -> True
   ShowReflog {} -> False
   LoadPullRequest {} -> False
-  DefaultMetadataNotification -> False
   HelpMessage {} -> True
   NoOp -> False
   ListDependencies {} -> False

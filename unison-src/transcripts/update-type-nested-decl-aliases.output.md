@@ -17,7 +17,7 @@ structural type A = B.TheOtherAlias Foo
     
       structural type A
       structural type A.B
-      unique type Foo
+      type Foo
 
 ```
 ```ucm
@@ -27,7 +27,7 @@ structural type A = B.TheOtherAlias Foo
   
     structural type A
     structural type A.B
-    unique type Foo
+    type Foo
 
 ```
 ```unison
@@ -45,7 +45,7 @@ unique type Foo = Bar Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 Bug: we want this update to be rejected earlier, because it violates the "decl coherency" precondition that there's
@@ -70,6 +70,6 @@ structural type A = B.OneAlias Foo
 
 structural type A.B = OneAlias Foo
 
-unique type Foo = Bar Nat Nat
+type Foo = Bar Nat Nat
 ```
 

@@ -14,8 +14,8 @@ module Unison.PatternMatchCoverage.UFMap
   )
 where
 
-import Control.Monad.Trans.Class
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Foldable (foldl')
 import Data.Functor ((<&>))

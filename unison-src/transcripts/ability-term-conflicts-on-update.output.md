@@ -20,17 +20,15 @@ unique ability Channels where
   
     ⍟ These new definitions are ok to `add`:
     
-      unique ability Channels
+      ability Channels
 
 ```
 ```ucm
-  ☝️  The namespace .ns is empty.
-
 .ns> add
 
   ⍟ I've added these definitions:
   
-    unique ability Channels
+    ability Channels
 
 ```
 Now we update the ability, changing the name of the constructor, _but_, we simultaneously
@@ -64,7 +62,7 @@ thing _ = send 1
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique ability Channels
+      ability Channels
 
 ```
 These should fail with a term/ctor conflict since we exclude the ability from the update.
@@ -88,7 +86,7 @@ These should fail with a term/ctor conflict since we exclude the ability from th
   
   ⍟ I've updated these names to your new definition:
   
-    unique ability Channels
+    ability Channels
 
 ```
 If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
@@ -185,8 +183,6 @@ X.x = 1
 
 ```
 ```ucm
-  ☝️  The namespace .ns2 is empty.
-
 .ns2> add
 
   ⍟ I've added these definitions:

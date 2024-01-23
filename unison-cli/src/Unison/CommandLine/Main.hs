@@ -28,7 +28,6 @@ import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
@@ -58,11 +57,10 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
   IO Input
-getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
+getUserInput codebase authHTTPClient currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -101,7 +99,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -178,7 +176,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
         getUserInput
           codebase
           authHTTPClient
-          (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
@@ -225,19 +222,10 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
 
   let foldLine :: Text
       foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-  let prependToFile :: Text -> FilePath -> IO ()
-      prependToFile contents fp = do
-        exists <- Directory.doesFileExist fp
-        existingSource <-
-          if exists
-            then readUtf8 fp
-            else pure ""
-        writeUtf8 fp (Text.concat [contents, foldLine, existingSource])
-
   let writeSourceFile :: Text -> Text -> IO ()
       writeSourceFile fp contents = do
         path <- Directory.canonicalizePath (Text.unpack fp)
-        prependToFile contents path
+        prependUtf8 path (contents <> foldLine)
 
   let env =
         Cli.Env
@@ -245,7 +233,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             codebase,
             config,
             credentialManager,
-            isTranscript = False, -- we are not running a transcript
             loadSource = loadSourceFile,
             writeSource = writeSourceFile,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,

@@ -19,18 +19,16 @@ unique type a.T = T
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
 ```ucm
-  ☝️  The namespace .happy is empty.
-
 .happy> add
 
   ⍟ I've added these definitions:
   
-    unique type a.T
+    type a.T
     a.termInA : Nat
 
 ```
@@ -50,7 +48,7 @@ unique type a.T = T1 | T2
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type a.T
+      type a.T
       a.termInA : Nat
 
 ```
@@ -74,7 +72,7 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 
   1. T       (type)
   2. T/      (2 terms)
-  3. termInA (##Nat)
+  3. termInA (Nat)
 
 .happy> history b
 
@@ -119,8 +117,6 @@ b.termInB = 10
 
 ```
 ```ucm
-  ☝️  The namespace .history is empty.
-
 .history> add
 
   ⍟ I've added these definitions:
@@ -215,8 +211,6 @@ b.termInB = 10
 
 ```
 ```ucm
-  ☝️  The namespace .existing is empty.
-
 .existing> add
 
   ⍟ I've added these definitions:
@@ -283,7 +277,7 @@ I should be able to move the root into a sub-namespace
 
 .> ls
 
-  1. root/ (630 terms, 89 types)
+  1. root/ (1364 terms, 211 types)
 
 .> history
 
@@ -292,23 +286,22 @@ I should be able to move the root into a sub-namespace
   
   
   
-  □ 1. #4ussajn1fc (start of history)
+  □ 1. #2vg6il9d4g (start of history)
 
 ```
 ```ucm
 .> ls .root.at.path
 
-  1. builtin/  (625 terms, 88 types)
-  2. existing/ (1 term)
-  3. happy/    (3 terms, 1 type)
-  4. history/  (1 term)
+  1. existing/ (454 terms, 70 types)
+  2. happy/    (456 terms, 71 types)
+  3. history/  (454 terms, 70 types)
 
 .> history .root.at.path
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #sm3e1ff3o3
+  ⊙ 1. #m44k1k58ou
   
     - Deletes:
     
@@ -319,7 +312,7 @@ I should be able to move the root into a sub-namespace
       Original name      New name
       existing.a.termInA existing.b.termInA
   
-  ⊙ 2. #r9d6ogmf6k
+  ⊙ 2. #7r4j4dmhru
   
     + Adds / updates:
     
@@ -331,26 +324,26 @@ I should be able to move the root into a sub-namespace
       happy.b.termInA   existing.a.termInA
       history.b.termInA existing.a.termInA
   
-  ⊙ 3. #i3nbnio6so
+  ⊙ 3. #qlh1ogmt6v
   
     + Adds / updates:
     
       existing.a.termInA existing.b.termInB
   
-  ⊙ 4. #38b1mbqlu9
+  ⊙ 4. #v3oiqufnsl
   
     > Moves:
     
       Original name     New name
       history.a.termInA history.b.termInA
   
-  ⊙ 5. #8unpdmu968
+  ⊙ 5. #g19oumvmue
   
     - Deletes:
     
       history.b.termInB
   
-  ⊙ 6. #6keeqlbr7c
+  ⊙ 6. #73204ctkae
   
     + Adds / updates:
     
@@ -361,13 +354,13 @@ I should be able to move the root into a sub-namespace
       Original name   New name(s)
       happy.b.termInA history.a.termInA
   
-  ⊙ 7. #otsrjrs2el
+  ⊙ 7. #cgiold3l98
   
     + Adds / updates:
     
       history.a.termInA history.b.termInB
   
-  ⊙ 8. #irbtol8piu
+  ⊙ 8. #8qrf3qbi9i
   
     > Moves:
     
@@ -377,7 +370,7 @@ I should be able to move the root into a sub-namespace
       happy.a.T.T2    happy.b.T.T2
       happy.a.termInA happy.b.termInA
   
-  ⊙ 9. #s3ppk1c8qc
+  ⊙ 9. #e90bu6v600
   
     + Adds / updates:
     
@@ -387,7 +380,7 @@ I should be able to move the root into a sub-namespace
     
       happy.a.T.T
   
-  ⊙ 10. #8qf0jit35s
+  ⊙ 10. #lc2ce2arha
   
     + Adds / updates:
     
@@ -399,7 +392,7 @@ I should be able to move the root into a sub-namespace
   
   ⠇
   
-  ⊙ 11. #u4v65n4qcl
+  ⊙ 11. #9ck3j8r41m
   
 
 ```
@@ -420,26 +413,27 @@ I should be able to move a sub namespace _over_ the root.
 
 .> ls
 
-  1. b/ (3 terms, 1 type)
+  1. b/       (3 terms, 1 type)
+  2. builtin/ (453 terms, 70 types)
 
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #ur0jj0uuhu
+  ⊙ 1. #ian8vro0cp
   
     + Adds / updates:
     
       b.T b.T.T1 b.T.T2 b.termInA
   
-  ⊙ 2. #8a0jmdflfd
+  ⊙ 2. #gt9figld7p
   
     - Deletes:
     
       a.T a.T.T1 a.T.T2 a.termInA
   
-  ⊙ 3. #3sbe4c0ql9
+  ⊙ 3. #i8i5on9i6t
   
     + Adds / updates:
     
@@ -449,7 +443,13 @@ I should be able to move a sub namespace _over_ the root.
     
       a.T.T
   
-  □ 4. #kfuu64io6v (start of history)
+  ⊙ 4. #ucfoesjvhd
+  
+    + Adds / updates:
+    
+      a.T a.T.T a.termInA
+  
+  □ 5. #1t2hb5o115 (start of history)
 
 ```
 ```ucm
