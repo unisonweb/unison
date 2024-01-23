@@ -1,5 +1,4 @@
 {-# HLINT ignore "Use tuple-section" #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Unison.Codebase.Editor.HandleInput
