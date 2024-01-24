@@ -10,7 +10,9 @@ import Data.IntervalMap.Interval qualified as Interval
 import Data.List qualified as List
 import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
+import U.Core.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
 import Unison.Debug qualified as Debug
@@ -32,6 +34,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary qualified as FileSummary
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Range (Range (..))
+import Unison.Var qualified as Var
 
 -- | Format a file, returning a list of Text replacements to apply to the file.
 formatFile ::
@@ -48,6 +51,10 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
   fileSummary <- hoistMaybe $ FileSummary.mkFileSummary mayParsedFile mayTypecheckedFile
   filePPED <- lift $ makePPEDForFile mayParsedFile mayTypecheckedFile
   parsedFile <- hoistMaybe mayParsedFile
+  -- Don't format anything unless the file typechecks.
+  -- The formatter mostly works on a parsed file, but we currently fail to print
+  -- '{{ .. }}'-style docs correctly if they don't typecheck.
+  _typecheckedFile <- hoistMaybe mayTypecheckedFile
   formattedDecls <-
     (FileSummary.allTypeDecls fileSummary)
       & fmap
@@ -55,7 +62,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             let tldAnn = either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl
              in (tldAnn, ref, decl)
         )
-      & Map.filter (\(tldAnn, _, _) -> shouldFormatTLD tldAnn)
+      & Map.filter (\(tldAnn, _, _) -> isInFormatRange tldAnn)
       & itraverse \sym (tldAnn, ref, decl) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
@@ -74,9 +81,9 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filter (\(tldAnn, _, _, _) -> shouldFormatTLD tldAnn)
+      & Map.filter (\(tldAnn, _, trm, _) -> shouldFormatTerm tldAnn trm)
       & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
-        Debug.debugM Debug.Temp "format" $ (sym, tldAnn)
+        Debug.debugM Debug.Temp "formatting term" trm
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
@@ -113,11 +120,26 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
           pure $ (TextReplacement (Text.pack $ Pretty.toPlain (Pretty.Width formattingWidth) txt) range)
   pure textEdits
   where
-    shouldFormatTLD :: Ann.Ann -> Bool
-    shouldFormatTLD ann =
+    isInFormatRange :: Ann.Ann -> Bool
+    isInFormatRange ann =
       case mayRangesToFormat of
         Nothing -> True
         Just rangesToFormat -> any (annRangeOverlap ann) rangesToFormat
+    shouldFormatTerm :: Ann.Ann -> Term.Term Symbol Ann.Ann -> Bool
+    shouldFormatTerm ann trm =
+      isInFormatRange ann
+        && not (isUntypecheckedDoc trm)
+
+    -- The lexer converts '{{ .. }}' into 'syntax.docUntitledSection (..)', but the pretty
+    -- printer doesn't print it back as '{{ .. }}' unless it typechecks, so
+    -- we just don't format docs that have un-resolved 'docUntitledSection' symbols.
+    isUntypecheckedDoc :: Term.Term Symbol Ann.Ann -> Bool
+    isUntypecheckedDoc trm =
+      ABT.freeVars trm
+        & Set.map Var.nameStr
+        & Debug.debug Debug.Temp "free vars"
+        & Set.member "syntax.docUntitledSection"
+        & Debug.debug Debug.Temp "isUntypecheckedDoc"
     -- Does the given range overlap with the given annotation?
     annRangeOverlap :: Ann.Ann -> Range -> Bool
     annRangeOverlap a r =
