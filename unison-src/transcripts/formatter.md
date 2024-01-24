@@ -33,14 +33,28 @@ Or two
 }}
 -- After
 
+{{ 
+A Doc before a type 
+}}
 type Optional   a = More Text 
   | Some 
   | Other   a 
   | None Nat 
 
+{{ A doc before an ability }}
 ability Thing where
   more  : Nat -> Text -> Nat
   doThing  : Nat -> Int
+```
+
+```ucm
+.> debug.format
+```
+
+Formatter should leave things alone if the file doesn't typecheck.
+
+```unison:error
+brokenDoc = {{ hello }} + 1
 ```
 
 ```ucm

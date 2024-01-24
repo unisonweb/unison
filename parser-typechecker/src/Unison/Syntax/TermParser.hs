@@ -30,7 +30,6 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -495,7 +494,6 @@ termLeaf =
 doc2Block :: forall m v. (Monad m, Var v) => P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
 doc2Block = do
   e <- P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
-  Debug.debugM Debug.Temp "doc2Block" (fst e)
   pure e
   where
     -- For terms which aren't blocks the spanning annotation is the same as the
@@ -1100,8 +1098,7 @@ binding = label "binding" do
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      (bodySpanAnn, body) <- block "="
-      Debug.debugM Debug.Temp "binding body span" bodySpanAnn
+      (_bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
