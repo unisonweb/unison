@@ -493,8 +493,7 @@ termLeaf =
 -- overriding what functions the names `syntax.doc*` correspond to.
 doc2Block :: forall m v. (Monad m, Var v) => P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
 doc2Block = do
-  e <- P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
-  pure e
+  P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
   where
     -- For terms which aren't blocks the spanning annotation is the same as the
     -- term annotation.
