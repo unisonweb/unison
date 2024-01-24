@@ -33,6 +33,11 @@ Or two
 }}
 -- After
 
+{{ A doc before an ability }}
+ability Thing where
+  more  : Nat -> Text -> Nat
+  doThing  : Nat -> Int
+
 {{ 
 A Doc before a type 
 }}
@@ -41,10 +46,6 @@ type Optional   a = More Text
   | Other   a 
   | None Nat 
 
-{{ A doc before an ability }}
-ability Thing where
-  more  : Nat -> Text -> Nat
-  doThing  : Nat -> Int
 ```
 
 ```ucm

@@ -29,27 +29,26 @@ Or two
 }}
 -- After
 
-{{ 
-A Doc before a type 
-}}
+{{ A doc before an ability }}
+ability Thing where
+  more  : Nat -> Text -> Nat
+  doThing  : Nat -> Int
+
+{{ A Doc before a type }}
 type Optional   a = More Text 
   | Some 
   | Other   a 
   | None Nat 
 
-{{ A doc before an ability }}
-ability Thing where
-  more  : Nat -> Text -> Nat
-  doThing  : Nat -> Int
 ```
 
 ```ucm
 
   Loading changes detected in scratch.u.
 
-  offset=171:
-  unexpected Optional.doc
-     31 | {{ 
+  offset=4:
+  unexpected type
+     37 | type Optional   a = More Text 
   
 
 ```
@@ -61,8 +60,8 @@ ability Thing where
 The transcript failed due to an error in the stanza above. The error is:
 
 
-  offset=171:
-  unexpected Optional.doc
-     31 | {{ 
+  offset=4:
+  unexpected type
+     37 | type Optional   a = More Text 
   
 

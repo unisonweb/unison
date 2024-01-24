@@ -375,14 +375,18 @@ lexemes' eof =
 
     doc2 :: P [Token Lexeme]
     doc2 = do
+      P.lookAhead (token'' ignore (lit "{{"))
+      beforeStartToks <- token' ignore (pure ())
       startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
       env0 <- S.get
-      (bodyToks0, closeToks) <- local (\env -> env {inLayout = False}) do
+      (bodyToks0, closeTok) <- local (\env -> env {inLayout = False}) do
         bodyToks <- body
-        closeToks <- token (lit "}}" $> Close)
-        pure (bodyToks, closeToks)
-      space
-      let docToks = startToks <> bodyToks0 <> closeToks
+        closeStart <- pos
+        lit "}}"
+        closeEnd <- pos
+        pure (bodyToks, Token Close closeStart closeEnd)
+      let docToks = startToks <> bodyToks0 <> [closeTok]
+      endToks <- token' ignore (pure ())
       -- Hack to allow anonymous doc blocks before type decls
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
@@ -390,14 +394,16 @@ lexemes' eof =
       pure $ case (tn, docToks) of
         (Just (WordyId tname), ht : _)
           | isTopLevel ->
-              [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+              beforeStartToks
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
                 <> startToks
-                <> (bodyToks0)
-                <> [Close <$ last closeToks]
-                <> closeToks
+                <> bodyToks0
+                <> [closeTok]
+                <> [closeTok]
+                <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
-        _ -> docToks
+        _ -> docToks <> endToks
       where
         wordyKw kw = separated wordySep (lit kw)
         subsequentTypeName = P.lookAhead . P.optional $ do
@@ -406,7 +412,7 @@ lexemes' eof =
           let typeOrAbility' = typeOrAbilityAlt wordyKw
           _ <- optional modifier *> typeOrAbility' *> sp
           wordyId
-        -- ignore _ _ _ = []
+        ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
         paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
