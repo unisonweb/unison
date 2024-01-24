@@ -30,6 +30,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -455,7 +456,7 @@ termLeaf =
       (snd <$> delayBlock),
       bang,
       docBlock,
-      snd <$> doc2Block
+      doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
 
 -- Syntax for documentation v2 blocks, which are surrounded by {{ }}.
@@ -492,8 +493,10 @@ termLeaf =
 -- means that the documentation syntax can have its meaning changed by
 -- overriding what functions the names `syntax.doc*` correspond to.
 doc2Block :: forall m v. (Monad m, Var v) => P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
-doc2Block =
-  P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
+doc2Block = do
+  e <- P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
+  Debug.debugM Debug.Temp "doc2Block" (fst e)
+  pure e
   where
     -- For terms which aren't blocks the spanning annotation is the same as the
     -- term annotation.
@@ -1098,9 +1101,12 @@ binding = label "binding" do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       (bodySpanAnn, body) <- block "="
+      Debug.debugM Debug.Temp "binding body span" bodySpanAnn
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       let binding = mkBinding lhsLoc args body
-      let spanAnn = ann lhsLoc <> bodySpanAnn
+      -- We don't actually use the span annotation from the block (yet) because it
+      -- may contain a bunch of white-space and comments following a top-level-definition.
+      let spanAnn = ann lhsLoc <> ann binding
       pure $ ((spanAnn, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
@@ -1108,9 +1114,11 @@ binding = label "binding" do
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
-      (bodySpanAnn, body) <- block "="
+      (_bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body
-      let spanAnn = ann nameT <> bodySpanAnn
+      -- We don't actually use the span annotation from the block (yet) because it
+      -- may contain a bunch of white-space and comments following a top-level-definition.
+      let spanAnn = ann nameT <> ann binding
       pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
   where
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann

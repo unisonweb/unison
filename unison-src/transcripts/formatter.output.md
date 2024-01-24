@@ -6,7 +6,7 @@ This is a *doc*!
 
 term link {x}
 
-type link {type Optional}
+type link {type   Optional}
 
 }}
 x : 
@@ -16,6 +16,20 @@ x y =
     x   =     1 + 1
     x + y
 -- Should keep comments after
+
+-- Test for a previous regression that added extra brackets.
+oneLiner = {{ one liner }}
+-- After
+
+-- Before
+explicit.doc = {{
+# Here's a top-level doc
+
+With a paragraph
+
+Or two
+}}
+-- After
 
 type Optional   a = More Text 
   | Some 
@@ -39,8 +53,10 @@ ability Thing where
     
       type Optional a
       ability Thing
-      x     : Nat -> Nat
-      x.doc : Doc2
+      explicit.doc : Doc2
+      oneLiner     : Doc2
+      x            : Nat -> Nat
+      x.doc        : Doc2
 
 ```
 ```ucm
@@ -50,20 +66,31 @@ ability Thing where
 ```unison:added-by-ucm scratch.u
 -- TODO: support formatting docs with {{  }} syntax.
 -- For now we just skip formatting any .doc terms.
-{{ # Doc
-This is a *doc*! 
-
-term link {x}
-
-type link {type Optional}
-
-}}
+x.doc =
+  {{ # Doc This is a **doc**!
+  
+    term link {x}
+    
+    type link {type Optional} }}
 x : Nat -> Nat
 x y =
   use Nat +
   x = 1 + 1
   x + y
 -- Should keep comments after
+
+-- Test for a previous regression that added extra brackets.
+oneLiner = {{ one liner }}
+-- After
+
+-- Before
+explicit.doc =
+  {{ # Here's a top-level doc
+  
+    With a paragraph
+    
+    Or two }}
+-- After
 
 type Optional a = More Text | Some | Other a | None Nat 
 

@@ -49,6 +49,7 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
@@ -237,9 +238,10 @@ token'' tok p = do
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
     Nothing -> if inLayout env then pops start else pure []
+  beforeTokenPos <- pos
   a <- p <|> (S.put env >> fail "resetting state")
-  end <- pos
-  pure $ layoutToks ++ tok a start end
+  endPos <- pos
+  pure $ layoutToks ++ tok a beforeTokenPos endPos
   where
     pops :: Pos -> P [Token Lexeme]
     pops p = do
@@ -373,30 +375,31 @@ lexemes' eof =
         <|> (asum . map token) [semi, textual, hash]
 
     doc2 :: P [Token Lexeme]
-    doc2 = do
-      let start = token'' ignore (lit "{{")
-      startToks <- start <* CP.space
-      env0 <- S.get
-      docToks0 <-
-        wrap "syntax.docUntitledSection" $
-          local (\env -> env {inLayout = False}) (body <* lit "}}")
-      let docToks = startToks <> docToks0
-      endToks <- token' ignore (pure ())
-      -- Hack to allow anonymous doc blocks before type decls
-      --   {{ Some docs }}             Foo.doc = {{ Some docs }}
-      --   ability Foo where      =>   ability Foo where
-      tn <- subsequentTypeName
-      pure $ case (tn, docToks) of
-        (Just (WordyId tname), ht : _)
-          | isTopLevel ->
-              startToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
-                <> docToks0
-                <> [Close <$ last docToks]
-                <> endToks
-          where
-            isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
-        _ -> docToks <> endToks
+    doc2 =
+      Debug.debug Debug.Temp "doc2-lex" <$> do
+        startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
+        env0 <- S.get
+        (bodyToks0, closeToks) <- local (\env -> env {inLayout = False}) do
+          bodyToks <- body
+          closeToks <- Debug.debug Debug.Temp "lex close tokens" <$> token (lit "}}" $> Close)
+          pure (bodyToks, closeToks)
+        space
+        let docToks = startToks <> bodyToks0 <> closeToks
+        -- Hack to allow anonymous doc blocks before type decls
+        --   {{ Some docs }}             Foo.doc = {{ Some docs }}
+        --   ability Foo where      =>   ability Foo where
+        tn <- subsequentTypeName
+        pure $ case (tn, docToks) of
+          (Just (WordyId tname), ht : _)
+            | isTopLevel ->
+                startToks
+                  <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+                  <> (bodyToks0)
+                  <> [Close <$ last closeToks]
+                  <> closeToks
+            where
+              isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
+          _ -> docToks
       where
         wordyKw kw = separated wordySep (lit kw)
         subsequentTypeName = P.lookAhead . P.optional $ do
@@ -405,7 +408,7 @@ lexemes' eof =
           let typeOrAbility' = typeOrAbilityAlt wordyKw
           _ <- modifier <* typeOrAbility' *> sp
           wordyId
-        ignore _ _ _ = []
+        -- ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
         paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf

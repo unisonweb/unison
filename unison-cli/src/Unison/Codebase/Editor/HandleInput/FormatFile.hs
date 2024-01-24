@@ -13,6 +13,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Lexer.Pos qualified as Pos
 import Unison.Name qualified as Name
@@ -73,14 +74,9 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filterWithKey
-        ( \sym (tldAnn, _, _, _) ->
-            shouldFormatTLD tldAnn
-              -- TODO: Fix printing of docs using {{  }} syntax.
-              -- For now we just skip them.
-              && (Name.lastSegment <$> Name.fromVar sym) /= Just "doc"
-        )
+      & Map.filter (\(tldAnn, _, _, _) -> shouldFormatTLD tldAnn)
       & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
+        Debug.debugM Debug.Temp "format" $ (sym, tldAnn)
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
