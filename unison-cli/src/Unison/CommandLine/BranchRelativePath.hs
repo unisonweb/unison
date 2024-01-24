@@ -97,7 +97,9 @@ data IncrementalBranchRelativePath
     ProjectOrRelative Text Path.Path'
   | -- | dots, no slashes or colons
     LooseCode Path.Path'
-  | -- | valid project/branch, no colon
+  | -- | valid project, no slash
+    IncompleteProject ProjectName
+  | -- | valid project/branch, slash, no colon
     IncompleteBranch (Maybe ProjectName) (Maybe ProjectBranchName)
   | -- | valid project/branch, with colon
     IncompletePath (Either (ProjectAndBranch ProjectName ProjectBranchName) ProjectBranchName) (Maybe Path.Relative)
@@ -119,6 +121,12 @@ data IncrementalBranchRelativePath
 --
 -- >>> parseIncrementalBranchRelativePath ":some.path"
 -- Right (PathRelativeToCurrentBranch some.path)
+--
+-- >>> parseIncrementalBranchRelativePath "/branch"
+-- Right (IncompleteBranch Nothing (Just (UnsafeProjectBranchName "branch")))
+--
+-- >>> parseIncrementalBranchRelativePath "/"
+-- Right (IncompleteBranch Nothing Nothing)
 parseIncrementalBranchRelativePath :: String -> Either (P.Pretty CT.ColorText) IncrementalBranchRelativePath
 parseIncrementalBranchRelativePath str =
   case Megaparsec.parse incrementalBranchRelativePathParser "<none>" (Text.pack str) of
@@ -128,9 +136,9 @@ parseIncrementalBranchRelativePath str =
 incrementalBranchRelativePathParser :: Megaparsec.Parsec Void Text IncrementalBranchRelativePath
 incrementalBranchRelativePathParser =
   asum
-    [ projectName,
-      startingAtSlash Nothing,
-      pathRelativeToCurrentBranch
+    [ startingAtSlash Nothing,
+      pathRelativeToCurrentBranch,
+      projectName
     ]
   where
     projectName = do
@@ -148,7 +156,7 @@ incrementalBranchRelativePathParser =
         This (_, (projectName, False)) ->
           let end = do
                 Megaparsec.eof
-                pure (IncompleteBranch (Just projectName) Nothing)
+                pure (IncompleteProject projectName)
            in end <|> startingAtSlash (Just projectName)
         -- The string doesn't parse as a project name but does parse as a path
         That (_, path) -> pure (LooseCode path)
@@ -156,19 +164,12 @@ incrementalBranchRelativePathParser =
         These _ (_, path) -> ProjectOrRelative <$> Megaparsec.takeRest <*> pure path
 
     startingAtBranch :: Maybe ProjectName -> Megaparsec.Parsec Void Text IncrementalBranchRelativePath
-    startingAtBranch mproj = do
-      mbranch <- optionalBranch
-      case mproj of
-        Nothing -> do
-          case mbranch of
-            Nothing -> pure (IncompleteBranch Nothing Nothing)
-            Just branch -> startingAtColon (Right branch)
-        Just proj ->
-          case mbranch of
-            Nothing -> pure (IncompleteBranch (Just proj) Nothing)
-            Just branch ->
-              startingAtColon (Left (ProjectAndBranch proj branch))
-                <|> pure (IncompleteBranch (Just proj) (Just branch))
+    startingAtBranch mproj =
+      optionalBranch >>= \case
+        Nothing -> pure (IncompleteBranch mproj Nothing)
+        Just branch ->
+          startingAtColon (maybe (Right branch) (\proj -> Left (ProjectAndBranch proj branch)) mproj)
+            <|> pure (IncompleteBranch mproj (Just branch))
 
     startingAtSlash ::
       Maybe ProjectName ->
@@ -236,6 +237,7 @@ branchRelativePathParser =
   incrementalBranchRelativePathParser >>= \case
     ProjectOrRelative _txt path -> pure (LoosePath path)
     LooseCode path -> pure (LoosePath path)
+    IncompleteProject _proj -> fail "Branch relative paths require a branch. Expected `/` here."
     IncompleteBranch _mproj _mbranch -> fail "Branch relative paths require a colon. Expected `:` here."
     PathRelativeToCurrentBranch p -> pure (BranchRelative (That p))
     IncompletePath projStuff mpath ->

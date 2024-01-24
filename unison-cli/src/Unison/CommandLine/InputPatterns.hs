@@ -4,7 +4,7 @@
 
 module Unison.CommandLine.InputPatterns where
 
-import Control.Lens (preview, (^.))
+import Control.Lens (preview, review, (^.))
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -24,7 +24,7 @@ import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import Unison.Cli.Pretty (prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
+import Unison.Cli.Pretty (prettyProjectAndBranchName, prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -45,7 +45,8 @@ import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
-import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath)
+import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath, parseIncrementalBranchRelativePath)
+import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
@@ -1171,8 +1172,8 @@ forkLocal =
     "fork"
     ["copy.namespace"]
     I.Visible
-    [ ("namespace", Required, namespaceArg),
-      ("new location", Required, newNameArg)
+    [ ("source location", Required, branchRelativePathArg),
+      ("dest location", Required, branchRelativePathArg)
     ]
     ( P.wrapColumn2
         [ ( makeExample forkLocal ["src", "dest"],
@@ -3340,7 +3341,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap filterBranches do
+                  fmap (filterBranches config path) do
                     Queries.loadAllProjectBranchesBeginningWith projectId Nothing
           pure (map (projectBranchToCompletion projectName) branches)
         -- This branch is probably dead due to intercepting inputs that begin with "/" above
@@ -3353,13 +3354,13 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap filterBranches do
+                  fmap (filterBranches config path) do
                     Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
           pure (map (projectBranchToCompletion projectName) branches)
   where
     input = Text.strip . Text.pack $ inputStr
 
-    (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath path of
+    (mayCurrentProjectId, _mayCurrentBranchId) = case projectContextFromPath path of
       LooseCodePath {} -> (Nothing, Nothing)
       ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
 
@@ -3375,7 +3376,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
             case mayCurrentProjectId of
               Nothing -> pure []
               Just currentProjectId ->
-                fmap filterBranches do
+                fmap (filterBranches config path) do
                   Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
           projects <- case (projectInclusion config, mayCurrentProjectId) of
             (OnlyWithinCurrentProject, Just currentProjectId) -> Queries.loadProject currentProjectId <&> maybeToList
@@ -3460,16 +3461,9 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
           Nothing -> pure []
           Just (ProjectAndBranch currentProjectId _, _) ->
             Codebase.runTransaction codebase do
-              fmap filterBranches do
+              fmap (filterBranches config path) do
                 Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
-
-    filterBranches :: [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
-    filterBranches branches =
-      case (mayCurrentBranchId, branchInclusion config) of
-        (_, AllBranches) -> branches
-        (Nothing, _) -> branches
-        (Just currentBranchId, ExcludeCurrentBranch) -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
 
     filterProjects :: [Sqlite.Project] -> [Sqlite.Project]
     filterProjects projects =
@@ -3482,31 +3476,169 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
             & List.find (\Sqlite.Project {projectId} -> projectId == currentBranchId)
             & maybeToList
 
-    currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
-    currentProjectBranchToCompletion (_, branchName) =
+projectToCompletion :: Sqlite.Project -> Completion
+projectToCompletion project =
+  Completion
+    { replacement = stringProjectName,
+      display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
+      isFinished = False
+    }
+  where
+    stringProjectName = Text.unpack (into @Text (project ^. #name) <> "/")
+
+projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
+projectBranchToCompletion projectName (_, branchName) =
+  Completion
+    { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
+      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      isFinished = False
+    }
+
+handleBranchesComplete ::
+  MonadIO m =>
+  ProjectBranchSuggestionsConfig ->
+  Text ->
+  Codebase m v a ->
+  Path.Absolute ->
+  m [Completion]
+handleBranchesComplete config branchName codebase path = do
+  branches <-
+    case preview ProjectUtils.projectBranchPathPrism path of
+      Nothing -> pure []
+      Just (ProjectAndBranch currentProjectId _, _) ->
+        Codebase.runTransaction codebase do
+          fmap (filterBranches config path) do
+            Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
+  pure (map currentProjectBranchToCompletion branches)
+
+filterBranches :: ProjectBranchSuggestionsConfig -> Path.Absolute -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+filterBranches config path branches =
+  case (mayCurrentBranchId, branchInclusion config) of
+    (_, AllBranches) -> branches
+    (Nothing, _) -> branches
+    (Just currentBranchId, ExcludeCurrentBranch) -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
+  where
+    (_mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath path of
+      LooseCodePath {} -> (Nothing, Nothing)
+      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+
+currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
+currentProjectBranchToCompletion (_, branchName) =
+  Completion
+    { replacement = '/' : Text.unpack (into @Text branchName),
+      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      isFinished = False
+    }
+
+branchRelativePathSuggestions ::
+  MonadIO m =>
+  ProjectBranchSuggestionsConfig ->
+  String ->
+  Codebase m v a ->
+  AuthenticatedHttpClient ->
+  Path.Absolute -> -- Current path
+  m [Line.Completion]
+branchRelativePathSuggestions config inputStr codebase _httpClient currentPath = do
+  case parseIncrementalBranchRelativePath inputStr of
+    Left _ -> pure []
+    Right ibrp -> case ibrp of
+      BranchRelativePath.ProjectOrRelative _txt _path -> do
+        namespaceSuggestions <- Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
+        projectSuggestions <- projectNameSuggestions WithSlash inputStr codebase
+        pure (namespaceSuggestions ++ projectSuggestions)
+      BranchRelativePath.LooseCode _path ->
+        Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
+      BranchRelativePath.IncompleteProject _proj ->
+        projectNameSuggestions WithSlash inputStr codebase
+      BranchRelativePath.IncompleteBranch mproj mbranch -> case mproj of
+        Nothing -> map suffixPathSep <$> handleBranchesComplete config (maybe "" into mbranch) codebase currentPath
+        Just projectName -> do
+          branches <-
+            Codebase.runTransaction codebase do
+              Queries.loadProjectByName projectName >>= \case
+                Nothing -> pure []
+                Just project -> do
+                  let projectId = project ^. #projectId
+                  fmap (filterBranches config currentPath) do
+                    Queries.loadAllProjectBranchesBeginningWith projectId (into @Text <$> mbranch)
+          pure (map (projectBranchToCompletionWithSep projectName) branches)
+      BranchRelativePath.PathRelativeToCurrentBranch relPath -> Codebase.runTransaction codebase do
+        mprojectBranch <- runMaybeT do
+          (projectId, branchId) <- MaybeT (pure $ (,) <$> mayCurrentProjectId <*> mayCurrentBranchId)
+          MaybeT (Queries.loadProjectBranch projectId branchId)
+        case mprojectBranch of
+          Nothing -> pure []
+          Just projectBranch -> do
+            let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
+                projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
+            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+      BranchRelativePath.IncompletePath projStuff mpath -> do
+        Codebase.runTransaction codebase do
+          mprojectBranch <- runMaybeT do
+            case projStuff of
+              Left names@(ProjectAndBranch projectName branchName) -> do
+                (,Left names) <$> MaybeT (Queries.loadProjectBranchByNames projectName branchName)
+              Right branchName -> do
+                currentProjectId <- MaybeT (pure mayCurrentProjectId)
+                projectBranch <- MaybeT (Queries.loadProjectBranchByName currentProjectId branchName)
+                pure (projectBranch, Right (projectBranch ^. #name))
+          case mprojectBranch of
+            Nothing -> pure []
+            Just (projectBranch, prefix) -> do
+              let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
+                  projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
+              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+  where
+    (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
+      LooseCodePath {} -> (Nothing, Nothing)
+      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+
+    projectBranchToCompletionWithSep :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
+    projectBranchToCompletionWithSep projectName (_, branchName) =
       Completion
-        { replacement = '/' : Text.unpack (into @Text branchName),
-          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+        { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName) <> branchPathSep),
+          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName <> branchPathSepPretty),
           isFinished = False
         }
 
-    projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
-    projectBranchToCompletion projectName (_, branchName) =
-      Completion
-        { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
-          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
-          isFinished = False
+    prefixPathSep :: Completion -> Completion
+    prefixPathSep c =
+      c
+        { Line.replacement = branchPathSep <> Line.replacement c,
+          Line.display = P.toAnsiUnbroken branchPathSepPretty <> Line.display c
         }
 
-    projectToCompletion :: Sqlite.Project -> Completion
-    projectToCompletion project =
-      Completion
-        { replacement = stringProjectName,
-          display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
-          isFinished = False
+    suffixPathSep :: Completion -> Completion
+    suffixPathSep c =
+      c
+        { Line.replacement = Line.replacement c <> branchPathSep,
+          Line.display = Line.display c <> P.toAnsiUnbroken branchPathSepPretty
         }
-      where
-        stringProjectName = Text.unpack (into @Text (project ^. #name) <> "/")
+
+    addBranchPrefix ::
+      Either (ProjectAndBranch ProjectName ProjectBranchName) ProjectBranchName ->
+      Completion ->
+      Completion
+    addBranchPrefix eproj =
+      let (prefixText, prefixPretty) = case eproj of
+            Left pb ->
+              ( into @Text pb,
+                prettyProjectAndBranchName pb
+              )
+            Right branch ->
+              ( "/" <> into @Text branch,
+                prettySlashProjectBranchName branch
+              )
+       in \c ->
+            c
+              { Line.replacement = Text.unpack prefixText <> branchPathSep <> Line.replacement c,
+                Line.display = P.toAnsiUnbroken (prefixPretty <> branchPathSepPretty) <> Line.display c
+              }
+
+    branchPathSepPretty = P.hiBlack branchPathSep
+
+    branchPathSep :: IsString s => s
+    branchPathSep = ":"
 
 -- | A project name, branch name, or both.
 projectAndBranchNamesArg :: ProjectBranchSuggestionsConfig -> ArgumentType
@@ -3535,26 +3667,60 @@ projectBranchNameWithOptionalProjectNameArg =
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
+branchRelativePathArg :: ArgumentType
+branchRelativePathArg =
+  ArgumentType
+    { typeName = "branch-relative-path",
+      suggestions = branchRelativePathSuggestions config,
+      fzfResolver = Nothing
+    }
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = True,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
+
 -- | A project name.
 projectNameArg :: ArgumentType
 projectNameArg =
   ArgumentType
     { typeName = "project-name",
-      suggestions = \(Text.strip . Text.pack -> input) codebase _httpClient _path -> do
-        projects <-
-          Codebase.runTransaction codebase do
-            Queries.loadAllProjectsBeginningWith (Just input)
-        pure $ map projectToCompletion projects,
+      suggestions = \input codebase _httpClient _path -> projectNameSuggestions NoSlash input codebase,
       fzfResolver = Just $ Resolvers.multiResolver [Resolvers.projectNameOptions]
     }
+
+data OptionalSlash
+  = WithSlash
+  | NoSlash
+
+projectNameSuggestions ::
+  MonadIO m =>
+  OptionalSlash ->
+  String ->
+  Codebase m v a ->
+  m [Line.Completion]
+projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
+  projects <-
+    Codebase.runTransaction codebase do
+      Queries.loadAllProjectsBeginningWith (Just input)
+  pure $ map projectToCompletion projects
   where
     projectToCompletion :: Sqlite.Project -> Completion
-    projectToCompletion project =
-      Completion
-        { replacement = Text.unpack (into @Text (project ^. #name)),
-          display = P.toAnsiUnbroken (prettyProjectName (project ^. #name)),
-          isFinished = False
-        }
+    projectToCompletion =
+      let toPretty = case slash of
+            NoSlash -> prettyProjectName
+            WithSlash -> prettyProjectNameSlash
+          toText project = case slash of
+            NoSlash -> into @Text (project ^. #name)
+            WithSlash -> Text.snoc (into @Text (project ^. #name)) '/'
+       in \project ->
+            Completion
+              { replacement = Text.unpack (toText project),
+                display = P.toAnsiUnbroken (toPretty (project ^. #name)),
+                isFinished = False
+              }
 
 parsePullSource :: Text -> Maybe (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
 parsePullSource =
