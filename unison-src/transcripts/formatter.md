@@ -46,6 +46,19 @@ structural type Optional   a = More Text
   | Other   a 
   | None Nat 
 
+
+
+{{ two }}
+qqq = 2
+
+
+{{ hi }}
+test = 2
+
+
+{{ yo }}
+structural type MyEither = MyEither
+
 ```
 
 ```ucm
