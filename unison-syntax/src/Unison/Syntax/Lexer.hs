@@ -375,31 +375,30 @@ lexemes' eof =
         <|> (asum . map token) [semi, textual, hash]
 
     doc2 :: P [Token Lexeme]
-    doc2 =
-      Debug.debug Debug.Temp "doc2-lex" <$> do
-        startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
-        env0 <- S.get
-        (bodyToks0, closeToks) <- local (\env -> env {inLayout = False}) do
-          bodyToks <- body
-          closeToks <- Debug.debug Debug.Temp "lex close tokens" <$> token (lit "}}" $> Close)
-          pure (bodyToks, closeToks)
-        space
-        let docToks = startToks <> bodyToks0 <> closeToks
-        -- Hack to allow anonymous doc blocks before type decls
-        --   {{ Some docs }}             Foo.doc = {{ Some docs }}
-        --   ability Foo where      =>   ability Foo where
-        tn <- subsequentTypeName
-        pure $ case (tn, docToks) of
-          (Just (WordyId tname), ht : _)
-            | isTopLevel ->
-                startToks
-                  <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
-                  <> (bodyToks0)
-                  <> [Close <$ last closeToks]
-                  <> closeToks
-            where
-              isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
-          _ -> docToks
+    doc2 = do
+      startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
+      env0 <- S.get
+      (bodyToks0, closeToks) <- local (\env -> env {inLayout = False}) do
+        bodyToks <- body
+        closeToks <- token (lit "}}" $> Close)
+        pure (bodyToks, closeToks)
+      space
+      let docToks = startToks <> bodyToks0 <> closeToks
+      -- Hack to allow anonymous doc blocks before type decls
+      --   {{ Some docs }}             Foo.doc = {{ Some docs }}
+      --   ability Foo where      =>   ability Foo where
+      tn <- subsequentTypeName
+      pure $ case (tn, docToks) of
+        (Just (WordyId tname), ht : _)
+          | isTopLevel ->
+              startToks
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+                <> (bodyToks0)
+                <> [Close <$ last closeToks]
+                <> closeToks
+          where
+            isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
+        _ -> docToks
       where
         wordyKw kw = separated wordySep (lit kw)
         subsequentTypeName = P.lookAhead . P.optional $ do
