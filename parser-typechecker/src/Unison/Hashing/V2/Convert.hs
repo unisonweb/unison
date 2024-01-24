@@ -412,4 +412,5 @@ m2hBranch0 b =
     doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
-m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.NameSegment s
+m2hNameSegment =
+  Hashing.NameSegment . Memory.NameSegment.toUnescapedText

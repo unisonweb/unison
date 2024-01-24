@@ -26,7 +26,7 @@ import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -635,7 +635,7 @@ renderTypeError e env src curPath = case e of
             C.Exact -> (_1 %~ ((name, typ) :)) . r
             C.WrongType -> (_2 %~ ((name, typ) :)) . r
             C.WrongName -> (_3 %~ ((name, typ) :)) . r
-        libPath = Path.absoluteToPath' curPath Path.:> "lib"
+        libPath = Path.absoluteToPath' curPath Path.:> NameSegment.libSegment
      in mconcat
           [ "I couldn't find any definitions matching the name ",
             style ErrorSite (Var.nameStr unknownTermV),
@@ -653,7 +653,7 @@ renderTypeError e env src curPath = case e of
               )
               <> "\n\n"
               <> "To add a library to this project use the command: "
-              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown (libPath Path.:> "<libname>")),
+              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown libPath <> ".<libname>"),
             "\n\n",
             case expectedType of
               Type.Var' (TypeVar.Existential {}) -> "There are no constraints on its type."
@@ -1632,7 +1632,7 @@ renderParseErrors s = \case
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
     go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
-      | name == Name.fromSegment (NameSegment "::") =
+      | name == Name.fromSegment (NameSegment.unsafeFromUnescapedText "::") =
           let msg =
                 mconcat
                   [ "This looks like the start of an expression here but I was expecting a binding.",

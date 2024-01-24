@@ -168,6 +168,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeFromText)
 import Unison.Syntax.NamePrinter qualified as NP
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText, unsafeFromText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -202,8 +203,8 @@ listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry te -> termEntryDisplayName te
   ShallowTypeEntry te -> typeEntryDisplayName te
-  ShallowBranchEntry n _ _ -> NameSegment.toText n
-  ShallowPatchEntry n -> NameSegment.toText n
+  ShallowBranchEntry n _ _ -> NameSegment.toEscapedText n
+  ShallowPatchEntry n -> NameSegment.toEscapedText n
 
 data BackendError
   = NoSuchNamespace Path.Absolute
@@ -285,7 +286,7 @@ termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEn
       _ -> error "termEntryLabeledDependencies: not a constructor, but one was required"
 
 termEntryDisplayName :: TermEntry v a -> Text
-termEntryDisplayName = HQ'.toTextWith NameSegment.toText . termEntryHQName
+termEntryDisplayName = HQ'.toTextWith NameSegment.toEscapedText . termEntryHQName
 
 termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
 termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
@@ -307,7 +308,7 @@ typeEntryLabeledDependencies TypeEntry {typeEntryReference} =
   Set.singleton (LD.TypeReference typeEntryReference)
 
 typeEntryDisplayName :: TypeEntry -> Text
-typeEntryDisplayName = HQ'.toTextWith NameSegment.toText . typeEntryHQName
+typeEntryDisplayName = HQ'.toTextWith NameSegment.toEscapedText . typeEntryHQName
 
 typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
 typeEntryHQName TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference} =
@@ -761,7 +762,7 @@ mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
     liftIO $ Codebase.runTransaction codebase do
       causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
       branchAtPath <- V2Causal.value causalAtPath
-      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) r)
+      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeFromText bn) r)
   pure $
     TypeDefinition
       (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -795,7 +796,7 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
   tag <-
     lift
       ( termEntryTag
-          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) (Cv.referent1to2 referent))
+          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeFromText bn) (Cv.referent1to2 referent))
       )
   mk ts bn tag
   where
@@ -873,7 +874,7 @@ docsForDefinitionName ::
   Name ->
   IO [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
-  let potentialDocNames = [name, name Cons.:> "doc"]
+  let potentialDocNames = [name, name Cons.:> NameSegment.unsafeFromUnescapedText "doc"]
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
@@ -918,7 +919,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
-  let notLib (_, name) = "lib" `notElem` Name.segments name
+  let notLib (_, name) = NameSegment.libSegment `notElem` Name.segments name
   (docTermsWithNames, hqLength) <-
     Codebase.runTransaction codebase do
       docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
@@ -948,7 +949,7 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
     docFilePath :: FilePath -> Name -> FilePath
     docFilePath destination docFQN =
       let (dir, fileName) =
-            case unsnoc . map NameSegment.toString . toList . Name.segments $ docFQN of
+            case unsnoc . map (Text.unpack . NameSegment.toUnescapedText) . toList . Name.segments $ docFQN of
               Just (path, leafName) ->
                 (directoryPath path, docFileName leafName)
               Nothing ->

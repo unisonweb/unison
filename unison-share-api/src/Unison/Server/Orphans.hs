@@ -18,9 +18,7 @@ import U.Codebase.HashTags
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
-import Unison.Codebase.ShortCausalHash
-  ( ShortCausalHash (..),
-  )
+import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
@@ -32,7 +30,6 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
 import Unison.Reference qualified as Reference
@@ -42,6 +39,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (fromText)
 import Unison.Syntax.HashQualified' qualified as HQ' (fromText)
 import Unison.Syntax.Name qualified as Name (fromTextEither, toText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -308,13 +306,13 @@ instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toTextWith Name.toText
 
 instance ToJSON (HQ.HashQualified NameSegment) where
-  toJSON = Aeson.String . HQ.toTextWith NameSegment.toText
+  toJSON = Aeson.String . HQ.toTextWith NameSegment.toEscapedText
 
 instance ToJSON (HQ'.HashQualified Name) where
   toJSON = Aeson.String . HQ'.toTextWith Name.toText
 
 instance ToJSON (HQ'.HashQualified NameSegment) where
-  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toText
+  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toEscapedText
 
 instance FromJSON (HQ'.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified'" \txt ->

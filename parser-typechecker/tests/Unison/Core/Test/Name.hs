@@ -6,6 +6,7 @@ import Data.Set qualified as Set
 import EasyTest
 import Unison.Name as Name
 import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Syntax.NameSegment qualified as NameSegment (unsafeFromText)
 import Unison.Util.Relation qualified as R
 
 test :: Test ()
@@ -67,7 +68,7 @@ testSuffixes =
       expectEqual (suffixes "foo.bar") ["foo.bar", "bar"],
     scope "multiple namespaces" $
       expectEqual (suffixes "foo.bar.baz") ["foo.bar.baz", "bar.baz", "baz"],
-    scope "terms named `.`" $ expectEqual (suffixes "base..") ["base..", "."]
+    scope "terms named `.`" $ expectEqual (suffixes "base.`.`") ["base.`.`", "`.`"]
   ]
 
 testSuffixSearch :: [Test ()]
@@ -81,11 +82,11 @@ testSuffixSearch =
                 (n "foo.bar.baz", 3),
                 (n "a.b.c", 4),
                 (n "a1.b.c", 5),
-                (n "..", 6)
+                (n ".`.`", 6)
               ]
           n = Name.unsafeFromText
-      expectEqual' ("." :| []) (Name.segments (n ".."))
-      expectEqual' ("." :| []) (Name.reverseSegments (n ".."))
+      expectEqual' (NameSegment.unsafeFromText "." :| []) (Name.reverseSegments (n ".`.`"))
+      expectEqual' (NameSegment.unsafeFromText "." :| []) (Name.reverseSegments (n ".`.`"))
 
       expectEqual'
         (Set.fromList [1, 2])
@@ -105,13 +106,13 @@ testSuffixSearch =
       expectEqual'
         (n "a1.b.c")
         (Name.suffixifyByHash (n "a1.b.c") rel)
-      note . show $ Name.reverseSegments (n ".")
-      note . show $ Name.reverseSegments (n "..")
+      note . show $ Name.reverseSegments (n "`.`")
+      note . show $ Name.reverseSegments (n ".`.`")
       tests
         [ scope "(.) shortest unique suffix" $
-            expectEqual' (n ".") (Name.suffixifyByHash (n "..") rel),
+            expectEqual' (n "`.`") (Name.suffixifyByHash (n ".`.`") rel),
           scope "(.) search by suffix" $
-            expectEqual' (Set.fromList [6]) (Name.searchBySuffix (n ".") rel)
+            expectEqual' (Set.fromList [6]) (Name.searchBySuffix (n "`.`") rel)
         ]
       ok
   ]
@@ -119,12 +120,12 @@ testSuffixSearch =
 testUnsafeFromString :: [Test ()]
 testUnsafeFromString =
   [ scope "." do
-      expectEqual' (isAbsolute ".") False
-      expectEqual' (segments ".") ("." :| [])
+      expectEqual' (isAbsolute "`.`") False
+      expectEqual' (segments "`.`") (NameSegment.unsafeFromText "." :| [])
       ok,
-    scope ".." do
-      expectEqual' (isAbsolute "..") True
-      expectEqual' (segments "..") ("." :| [])
+    scope ".`.`" do
+      expectEqual' (isAbsolute ".`.`") True
+      expectEqual' (segments ".`.`") (NameSegment.unsafeFromText "." :| [])
       ok,
     scope "foo.bar" do
       expectEqual' (isAbsolute "foo.bar") False
@@ -134,8 +135,8 @@ testUnsafeFromString =
       expectEqual' (isAbsolute ".foo.bar") True
       expectEqual' (segments ".foo.bar") ("foo" :| ["bar"])
       ok,
-    scope "foo.." do
-      expectEqual' (isAbsolute "foo..") False
-      expectEqual' (segments "foo..") ("foo" :| ["."])
+    scope "foo.`.`" do
+      expectEqual' (isAbsolute "foo.`.`") False
+      expectEqual' (segments "foo.`.`") ("foo" :| [NameSegment.unsafeFromText "."])
       ok
   ]

@@ -39,7 +39,6 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -55,6 +54,7 @@ import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar)
 import Unison.Syntax.Name qualified as Name (fromText, fromTextEither, isSymboly, toText, unsafeFromText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
@@ -1308,7 +1308,7 @@ countName n =
     { usages =
         Map.fromList do
           (p, s) <- Name.splits n
-          pure (Name.toText s, Map.singleton (map NameSegment.toText p) 1)
+          pure (Name.toText s, Map.singleton (map NameSegment.toEscapedText p) 1)
     }
 
 joinName :: Prefix -> Suffix -> Name

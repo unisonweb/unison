@@ -1,9 +1,16 @@
 module Unison.Codebase.Path.Parse
-  ( parsePath',
+  ( -- * Path parsing functions
+    parsePath,
+    parsePath',
+    parseSplit,
     parseSplit',
     parseHQSplit,
     parseHQSplit',
     parseShortHashOrHQSplit',
+
+    -- * Path parsers
+    splitP,
+    splitP',
   )
 where
 
@@ -23,10 +30,20 @@ import Unison.Syntax.ShortHash qualified as ShortHash
 ------------------------------------------------------------------------------------------------------------------------
 -- Path parsing functions
 
+parsePath :: String -> Either Text Path
+parsePath = \case
+  "" -> Right empty
+  path -> unsplit <$> parseSplit path
+
 parsePath' :: String -> Either Text Path'
 parsePath' = \case
+  "" -> Right relativeEmpty'
   "." -> Right absoluteEmpty'
   path -> unsplit' <$> parseSplit' path
+
+parseSplit :: String -> Either Text Split
+parseSplit =
+  runParser splitP
 
 parseSplit' :: String -> Either Text Split'
 parseSplit' =
@@ -53,6 +70,10 @@ runParser p =
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Path parsers
+
+splitP :: Parsec (Lexer.Token Text) [Char] Split
+splitP =
+  splitFromName <$> P.withParsecT (fmap NameSegment.renderParseErr) Name.relativeNameP
 
 splitP' :: Parsec (Lexer.Token Text) [Char] Split'
 splitP' =

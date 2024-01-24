@@ -16,6 +16,10 @@ module U.Codebase.Sqlite.Queries
     expectText,
     expectTextCheck,
 
+    -- ** name segments
+    saveNameSegment,
+    expectNameSegment,
+
     -- * hash table
     saveHash,
     saveHashes,
@@ -388,6 +392,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
 import Unison.Util.Alternative qualified as Alternative
@@ -644,6 +650,14 @@ loadTextSql h =
     FROM text
     WHERE id = :h
   |]
+
+saveNameSegment :: NameSegment -> Transaction TextId
+saveNameSegment =
+ saveText . NameSegment.toUnescapedText
+
+expectNameSegment :: TextId -> Transaction NameSegment
+expectNameSegment =
+  fmap NameSegment.unsafeFromUnescapedText . expectText
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
 saveHashObject hId oId version =

@@ -54,7 +54,6 @@ module Unison.Codebase.Path
     toName',
     unsafeToName,
     unsafeToName',
-    toPath',
     toText,
     toText',
     unsplit,
@@ -92,12 +91,10 @@ import GHC.Exts qualified as GHC
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
-import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeFromText)
 import Unison.Util.List qualified as List
-import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path {toSeq :: Seq NameSegment}
@@ -226,12 +223,6 @@ relativeEmpty' = RelativePath' (Relative empty)
 absoluteEmpty' :: Path'
 absoluteEmpty' = AbsolutePath' (Absolute empty)
 
--- | Mitchell: this function is bogus, because an empty name segment is bogus
-toPath' :: Path -> Path'
-toPath' = \case
-  Path (NameSegment "" :<| tail) -> AbsolutePath' . Absolute . Path $ tail
-  p -> Path' . Right . Relative $ p
-
 -- Forget whether the path is absolute or relative
 fromPath' :: Path' -> Path
 fromPath' = \case
@@ -357,12 +348,15 @@ instance Show Path where
 
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
-toText (Path nss) = intercalateMap "." NameSegment.toText nss
+toText path =
+  case toName path of
+    Nothing -> "."
+    Just name -> Name.toText name
 
 fromText :: Text -> Path
 fromText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> NameSegment.segments' t
+  text -> fromName (Name.unsafeFromText text)
 
 -- | Construct a Path' from a text
 --
@@ -375,16 +369,16 @@ fromText = \case
 -- >>> show $ fromText' ""
 -- ""
 fromText' :: Text -> Path'
-fromText' txt =
-  case Text.uncons txt of
-    Nothing -> relativeEmpty'
-    Just ('.', p) -> AbsolutePath' . Absolute $ fromText p
-    Just _ -> RelativePath' . Relative $ fromText txt
+fromText' = \case
+  "" -> RelativePath' (Relative mempty)
+  "." -> AbsolutePath' (Absolute mempty)
+  text -> fromName' (Name.unsafeFromText text)
 
 toText' :: Path' -> Text
-toText' = \case
-  AbsolutePath' (Absolute path) -> Text.cons '.' (toText path)
-  RelativePath' (Relative path) -> toText path
+toText' path =
+  case toName' path of
+    Nothing -> if isAbsolute path then "." else ""
+    Just name -> Name.toText name
 
 {-# COMPLETE Empty, (:<) #-}
 

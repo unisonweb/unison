@@ -8,6 +8,8 @@ module Unison.Project.Util
     projectContextFromPath,
     pattern UUIDNameSegment,
     ProjectContext (..),
+    pattern ProjectsNameSegment,
+    pattern BranchesNameSegment,
   )
 where
 
@@ -18,6 +20,7 @@ import Data.UUID qualified as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Project (ProjectAndBranch (..))
 
 -- | Get the path that a project is stored at. Users aren't supposed to go here.
@@ -34,7 +37,7 @@ projectPath projectId =
 -- .__projects._ABCD.branches
 projectBranchesPath :: ProjectId -> Path.Absolute
 projectBranchesPath projectId =
-  snoc (projectPath projectId) "branches"
+  snoc (projectPath projectId) BranchesNameSegment
 
 -- | Get the path that a branch is stored at. Users aren't supposed to go here.
 --
@@ -54,9 +57,12 @@ projectBranchSegment (ProjectBranchId branchId) =
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-
-  NameSegment (Text.uncons -> Just ('_', UUID.fromText . Text.map (\c -> if c == '_' then '-' else c) -> Just uuid))
+  ( NameSegment.toUnescapedText ->
+      (Text.uncons -> Just ('_', UUID.fromText . Text.map (\c -> if c == '_' then '-' else c) -> Just uuid))
+    )
   where
-    UUIDNameSegment uuid = NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
+    UUIDNameSegment uuid =
+      NameSegment.unsafeFromUnescapedText (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
 
 -- | The prism between paths like
 --
@@ -75,16 +81,12 @@ projectPathPrism =
   where
     toPath :: ProjectId -> Path.Absolute
     toPath projectId =
-      Path.Absolute $
-        Path.fromList
-          [ "__projects",
-            UUIDNameSegment (unProjectId projectId)
-          ]
+      Path.Absolute (Path.fromList [ProjectsNameSegment, UUIDNameSegment (unProjectId projectId)])
 
     toId :: Path.Absolute -> Maybe ProjectId
     toId path =
       case Path.toList (Path.unabsolute path) of
-        ["__projects", UUIDNameSegment projectId] -> Just (ProjectId projectId)
+        [ProjectsNameSegment, UUIDNameSegment projectId] -> Just (ProjectId projectId)
         _ -> Nothing
 
 -- | The prism between paths like
@@ -106,9 +108,9 @@ projectBranchPathPrism =
     toPath (ProjectAndBranch {project = projectId, branch = branchId}, restPath) =
       Path.Absolute $
         Path.fromList
-          ( [ "__projects",
+          ( [ ProjectsNameSegment,
               UUIDNameSegment (unProjectId projectId),
-              "branches",
+              BranchesNameSegment,
               UUIDNameSegment (unProjectBranchId branchId)
             ]
               ++ Path.toList restPath
@@ -117,7 +119,7 @@ projectBranchPathPrism =
     toIds :: Path.Absolute -> Maybe (ProjectAndBranch ProjectId ProjectBranchId, Path.Path)
     toIds path =
       case Path.toList (Path.unabsolute path) of
-        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : restPath ->
+        ProjectsNameSegment : UUIDNameSegment projectId : BranchesNameSegment : UUIDNameSegment branchId : restPath ->
           Just (ProjectAndBranch {project = ProjectId projectId, branch = ProjectBranchId branchId}, Path.fromList restPath)
         _ -> Nothing
 
@@ -136,3 +138,23 @@ projectContextFromPath path =
       ProjectBranchPath projectId branchId restPath
     Nothing ->
       LooseCodePath path
+
+pattern ProjectsNameSegment :: NameSegment
+pattern ProjectsNameSegment <-
+  ((== projectsNameSegment) -> True)
+  where
+    ProjectsNameSegment = projectsNameSegment
+
+pattern BranchesNameSegment :: NameSegment
+pattern BranchesNameSegment <-
+  ((== branchesNameSegment) -> True)
+  where
+    BranchesNameSegment = branchesNameSegment
+
+projectsNameSegment :: NameSegment
+projectsNameSegment =
+  NameSegment.unsafeFromUnescapedText "__projects"
+
+branchesNameSegment :: NameSegment
+branchesNameSegment =
+  NameSegment.unsafeFromUnescapedText "branches"

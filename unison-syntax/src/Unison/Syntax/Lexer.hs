@@ -45,7 +45,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
@@ -364,7 +364,9 @@ lexemes' eof =
         (Just (WordyId tname), ht : _)
           | isTopLevel ->
               startToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+                <> [ WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment.unsafeFromUnescapedText "doc"))) <$ ht,
+                     Open "=" <$ ht
+                   ]
                 <> docToks0
                 <> [Close <$ last docToks]
                 <> endToks
@@ -775,7 +777,7 @@ lexemes' eof =
       separated wordySep do
         _ <- char '_'
         seg <- P.optional wordyIdSegP
-        pure (Blank (maybe "" (Text.unpack . NameSegment.toText) seg))
+        pure (Blank (maybe "" (Text.unpack . NameSegment.toUnescapedText) seg))
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted

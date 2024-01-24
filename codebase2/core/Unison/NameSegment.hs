@@ -4,14 +4,31 @@ import Data.Text qualified as Text
 import Data.Text.Lazy.Builder qualified as Text (Builder)
 import Data.Text.Lazy.Builder qualified as Text.Builder
 import Unison.Prelude
-import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import Unison.Util.Alphabetical (Alphabetical)
 
 -- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment {toText :: Text}
+newtype NameSegment
+  = UnsafeNameSegment Text
   deriving stock (Eq, Ord, Generic)
+  deriving newtype (Alphabetical)
 
-instance Alphabetical NameSegment where
-  compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
+instance Show NameSegment where
+  show = show . toUnescapedText
+
+-- | Convert a text to a name segment, when the text is known to be a valid name segment.
+--
+-- For example, to make a name segment containing the text ".~", use @unsafeFromUnescapedText ".~"@, even if that
+-- operator would need to be escaped (e.g. "`.~`") when written by a user.
+unsafeFromUnescapedText :: Text -> NameSegment
+unsafeFromUnescapedText =
+  UnsafeNameSegment
+
+-- | Convert a name segment to unescaped text.
+--
+-- > toUnescapedText (unsafeFromText ".~") = ".~"
+toUnescapedText :: NameSegment -> Text
+toUnescapedText =
+  coerce
 
 -- Split text into segments. A smarter version of `Text.splitOn` that handles
 -- the name `.` properly.
@@ -44,20 +61,17 @@ reverseSegments' = go
        in seg : go rem
 
 isEmpty :: NameSegment -> Bool
-isEmpty ns = toText ns == mempty
+isEmpty =
+  coerce Text.null
 
 isPrefixOf :: NameSegment -> NameSegment -> Bool
-isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
-
-toString :: NameSegment -> String
-toString = Text.unpack . toText
+isPrefixOf =
+  coerce Text.isPrefixOf
 
 toTextBuilder :: NameSegment -> Text.Builder
 toTextBuilder =
   coerce Text.Builder.fromText
 
-instance IsString NameSegment where
-  fromString = NameSegment . Text.pack
-
-instance Show NameSegment where
-  show = show . toText
+libSegment :: NameSegment
+libSegment =
+   unsafeFromUnescapedText "lib"

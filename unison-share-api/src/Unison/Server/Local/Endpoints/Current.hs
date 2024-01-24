@@ -16,9 +16,10 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project.Util (pattern UUIDNameSegment)
+import Unison.Project.Util (pattern BranchesNameSegment, pattern ProjectsNameSegment, pattern UUIDNameSegment)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 
@@ -58,7 +59,7 @@ serveCurrent = lift . getCurrentProjectBranch
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
   namespace <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
-  let segments = NameSegment <$> namespace
+  let segments = NameSegment.unsafeFromUnescapedText <$> namespace
   let absolutePath = toPath segments
   case toIds segments of
     ProjectAndBranch (Just projectId) branchId ->
@@ -72,9 +73,9 @@ getCurrentProjectBranch codebase = do
     toIds :: [NameSegment] -> ProjectAndBranch (Maybe ProjectId) (Maybe ProjectBranchId)
     toIds segments =
       case segments of
-        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : _ ->
+        ProjectsNameSegment : UUIDNameSegment projectId : BranchesNameSegment : UUIDNameSegment branchId : _ ->
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Just $ ProjectBranchId branchId}
-        "__projects" : UUIDNameSegment projectId : _ ->
+        ProjectsNameSegment : UUIDNameSegment projectId : _ ->
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Nothing}
         _ ->
           ProjectAndBranch {project = Nothing, branch = Nothing}

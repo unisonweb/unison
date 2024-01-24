@@ -21,7 +21,6 @@ import Lucid
 import Lucid qualified as L
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (SeqOp (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -29,6 +28,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HashQualified (toText)
 import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
     Segment (..),
@@ -269,7 +269,7 @@ nameToHtml name =
   span_ [class_ "fqn"] $ sequence_ parts
   where
     segments =
-      map (segment . L.toHtml . NameSegment.toText) $ List.NonEmpty.toList $ Name.segments name
+      map (segment . L.toHtml . NameSegment.toEscapedText) $ List.NonEmpty.toList $ Name.segments name
 
     segment =
       span_ [class_ "segment"]

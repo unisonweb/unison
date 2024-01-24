@@ -1,11 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Local.Endpoints.NamespaceDetails where
@@ -22,6 +16,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -78,4 +73,10 @@ namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
     pure $ NamespaceDetails namespacePath causalHash renderedReadme
   pure $ namespaceDetails
   where
-    readmeNames = Set.fromList ["README", "Readme", "ReadMe", "readme"]
+    readmeNames =
+      Set.fromList
+        [ NameSegment.unsafeFromUnescapedText "README",
+          NameSegment.unsafeFromUnescapedText "Readme",
+          NameSegment.unsafeFromUnescapedText "ReadMe",
+          NameSegment.unsafeFromUnescapedText "readme"
+        ]

@@ -1,6 +1,7 @@
 -- | Utilities related to the parsing and printing of name segments using the default syntax.
 module Unison.Syntax.NameSegment
   ( -- * String conversions
+    toEscapedText,
     unsafeFromText,
 
     -- * Name segment parsers
@@ -29,6 +30,7 @@ import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..), posP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators)
@@ -36,10 +38,23 @@ import Unison.Syntax.ReservedWords (keywords, reservedOperators)
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
 
--- | Convert a text to a name segment, when the text is known to be a valid name segment.
+-- | Convert a name segment to escaped text, for display purposes.
+--
+-- > toEscapedText (unsafeFromText ".~") = "`.~`"
+toEscapedText :: NameSegment -> Text
+toEscapedText =
+  wundefined
+
+-- | Convert text to a name segment.
+--
+-- > unsafeFromText "foo" = NameSegment "foo"
+-- > unsafeFromText ".~" = <error>
+-- > unsafeFromText "`.~`" = NameSegment ".~"
 unsafeFromText :: Text -> NameSegment
-unsafeFromText =
-  NameSegment
+unsafeFromText text =
+  case P.runParser (P.withParsecT (fmap renderParseErr) (segmentP <* P.eof)) "" (Text.unpack text) of
+    Left err -> error (P.errorBundlePretty err)
+    Right segment -> segment
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Name segment parsers
@@ -79,13 +94,13 @@ segmentP =
 symbolyP :: ParsecT (Token Text) [Char] m NameSegment
 symbolyP = do
   start <- posP
-  string <- unescaped <|> escaped
+  string <- escaped <|> unescaped
   let text = Text.pack string
   if Set.member text reservedOperators
     then do
       end <- posP
       P.customFailure (Token text start end)
-    else pure (NameSegment text)
+    else pure (NameSegment.unsafeFromUnescapedText text)
   where
     unescaped =
       P.takeWhile1P (Just (description symbolyIdChars)) symbolyIdChar
@@ -112,7 +127,7 @@ wordyP = do
     then do
       end <- posP
       P.customFailure (Token word start end)
-    else pure (NameSegment word)
+    else pure (NameSegment.unsafeFromUnescapedText word)
   where
     wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 
@@ -121,7 +136,7 @@ wordyP = do
 
 isSymboly :: NameSegment -> Bool
 isSymboly =
-  not . wordyIdStartChar . Text.head . toText
+  not . wordyIdStartChar . Text.head . NameSegment.toUnescapedText
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers

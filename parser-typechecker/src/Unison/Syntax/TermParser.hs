@@ -33,7 +33,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -46,6 +45,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeFromVar)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.TypeParser qualified as TypeParser
@@ -418,7 +418,7 @@ symbolyQuasikeyword kw = queryToken \case
 nameIsKeyword :: Name -> Text -> Bool
 nameIsKeyword name keyword =
   case (Name.isRelative name, Name.reverseSegments name) of
-    (True, segment NonEmpty.:| []) -> NameSegment.toText segment == keyword
+    (True, segment NonEmpty.:| []) -> NameSegment.toEscapedText segment == keyword
     _ -> False
 
 -- If the hash qualified is name only, it is treated as a var, if it
@@ -969,9 +969,9 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ":+"))))
-    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "+:"))))
-    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "++"))))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText ":+"))))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText "+:"))))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText "++"))))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf

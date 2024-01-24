@@ -43,7 +43,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
@@ -51,6 +50,7 @@ import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (fromText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -256,7 +256,7 @@ data NamedTerm = NamedTerm
 instance ToJSON NamedTerm where
   toJSON (NamedTerm n h typ tag) =
     Aeson.object
-      [ "termName" .= HQ'.toTextWith NameSegment.toText n,
+      [ "termName" .= HQ'.toTextWith NameSegment.toEscapedText n,
         "termHash" .= h,
         "termType" .= typ,
         "termTag" .= tag
@@ -282,7 +282,7 @@ data NamedType = NamedType
 instance ToJSON NamedType where
   toJSON (NamedType n h tag) =
     Aeson.object
-      [ "typeName" .= HQ'.toTextWith NameSegment.toText n,
+      [ "typeName" .= HQ'.toTextWith NameSegment.toEscapedText n,
         "typeHash" .= h,
         "typeTag" .= tag
       ]

@@ -14,6 +14,7 @@ module Unison.Syntax.Name
 
     -- * Name parsers
     nameP,
+    relativeNameP,
 
     -- * Name classifiers
     isSymboly,
@@ -115,12 +116,18 @@ unsafeFromVar =
 ------------------------------------------------------------------------------------------------------------------------
 -- Name parsers
 
+-- | A name parser.
 nameP :: forall m. Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
 nameP =
   P.try do
     leadingDot <- isJust <$> P.optional (P.char '.')
-    name <- Name.fromSegments <$> Monad.sepBy1 NameSegment.segmentP separatorP
+    name <- relativeNameP
     pure (if leadingDot then Name.makeAbsolute name else name)
+
+-- | A relative name parser.
+relativeNameP :: forall m. Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
+relativeNameP = do
+  Name.fromSegments <$> Monad.sepBy1 NameSegment.segmentP separatorP
   where
     -- The separator between segments is just a dot, but we don't want to commit to parsing another segment unless the
     -- character after the dot can begin a segment.

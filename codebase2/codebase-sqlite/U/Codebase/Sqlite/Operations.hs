@@ -200,8 +200,7 @@ import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
@@ -577,7 +576,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       Transaction (Map NameSegment (Map C.Referent (Transaction C.Branch.MdValues)))
     doTerms =
       Map.bitraverse
-        (fmap NameSegment . Q.expectText)
+        Q.expectNameSegment
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
@@ -587,7 +586,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       Transaction (Map NameSegment (Map C.Reference (Transaction C.Branch.MdValues)))
     doTypes =
       Map.bitraverse
-        (fmap NameSegment . Q.expectText)
+        Q.expectNameSegment
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
               pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
@@ -595,14 +594,14 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     doPatches ::
       Map Db.TextId Db.PatchObjectId ->
       Transaction (Map NameSegment (PatchHash, Transaction C.Branch.Patch))
-    doPatches = Map.bitraverse (fmap NameSegment . Q.expectText) \patchId -> do
+    doPatches = Map.bitraverse Q.expectNameSegment \patchId -> do
       h <- PatchHash <$> (Q.expectPrimaryHashByObjectId . Db.unPatchObjectId) patchId
       pure (h, expectPatch patchId)
 
     doChildren ::
       Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) ->
       Transaction (Map NameSegment (C.Branch.CausalBranch Transaction))
-    doChildren = Map.bitraverse (fmap NameSegment . Q.expectText) \(boId, chId) ->
+    doChildren = Map.bitraverse Q.expectNameSegment \(boId, chId) ->
       C.Causal
         <$> Q.expectCausalHash chId
         <*> expectValueHashByCausalHashId chId
@@ -718,15 +717,15 @@ saveNamespace hh bhId me = do
     c2sBranch :: BranchV Transaction -> Transaction DbBranchV
     c2sBranch = \case
       BranchV2 branch -> do
-        terms <- Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) (branch ^. #terms)
-        types <- Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) (branch ^. #types)
-        patches <- Map.bitraverse saveNameSegment savePatchObjectId (branch ^. #patches)
-        children <- Map.bitraverse saveNameSegment (saveBranch hh) (branch ^. #children)
+        terms <- Map.bitraverse Q.saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) (branch ^. #terms)
+        types <- Map.bitraverse Q.saveNameSegment (Map.bitraverse c2sReference c2sMetadata) (branch ^. #types)
+        patches <- Map.bitraverse Q.saveNameSegment savePatchObjectId (branch ^. #patches)
+        children <- Map.bitraverse Q.saveNameSegment (saveBranch hh) (branch ^. #children)
         pure (DbBranchV2 S.Branch {terms, types, patches, children})
       BranchV3 branch -> do
-        children <- Map.bitraverse saveNameSegment (saveBranchV3 hh) (branch ^. #children)
-        terms <- Map.bitraverse saveNameSegment c2sReferent (branch ^. #terms)
-        types <- Map.bitraverse saveNameSegment c2sReference (branch ^. #types)
+        children <- Map.bitraverse Q.saveNameSegment (saveBranchV3 hh) (branch ^. #children)
+        terms <- Map.bitraverse Q.saveNameSegment c2sReferent (branch ^. #terms)
+        types <- Map.bitraverse Q.saveNameSegment c2sReference (branch ^. #types)
         pure (DbBranchV3 S.BranchV3 {children, terms, types})
 
     c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
@@ -739,9 +738,6 @@ saveNamespace hh bhId me = do
       Q.loadPatchObjectIdForPrimaryHash h & onNothingM do
         patch <- mp
         savePatch hh h patch
-
-    saveNameSegment :: NameSegment -> Transaction Db.TextId
-    saveNameSegment = Q.saveText . NameSegment.toText
 
 -- Save just the causal object (i.e. the `causal` row and its associated `causal_parents`). Internal helper shared by
 -- `saveBranch` and `saveBranchV3`.
