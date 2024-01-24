@@ -375,7 +375,7 @@ lexemes' eof =
 
     doc2 :: P [Token Lexeme]
     doc2 = do
-      P.lookAhead (token'' ignore (lit "{{"))
+      P.lookAhead (lit "{{")
       beforeStartToks <- token' ignore (pure ())
       startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
       env0 <- S.get

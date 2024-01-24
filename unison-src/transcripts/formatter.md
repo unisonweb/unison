@@ -41,7 +41,7 @@ ability Thing where
 {{ 
 A Doc before a type 
 }}
-type Optional   a = More Text 
+structural type Optional   a = More Text 
   | Some 
   | Other   a 
   | None Nat 
