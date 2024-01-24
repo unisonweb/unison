@@ -49,7 +49,6 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
@@ -391,8 +390,8 @@ lexemes' eof =
       pure $ case (tn, docToks) of
         (Just (WordyId tname), ht : _)
           | isTopLevel ->
-              startToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+              [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
+                <> startToks
                 <> (bodyToks0)
                 <> [Close <$ last closeToks]
                 <> closeToks
