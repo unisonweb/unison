@@ -406,7 +406,7 @@ lexemes' eof =
           let lit' s = lit s <* sp
           let modifier = typeModifiersAlt lit'
           let typeOrAbility' = typeOrAbilityAlt wordyKw
-          _ <- modifier <* typeOrAbility' *> sp
+          _ <- optional modifier *> typeOrAbility' *> sp
           wordyId
         -- ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
