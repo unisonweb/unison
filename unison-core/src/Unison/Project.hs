@@ -18,6 +18,8 @@ module Unison.Project
     projectAndBranchNamesParser,
     ProjectAndBranchNames (..),
     projectAndBranchNamesParser2,
+    projectNameParser,
+    projectBranchNameParser,
 
     -- ** Semver
     Semver (..),
