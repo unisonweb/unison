@@ -1,8 +1,8 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
+import U.Codebase.HashTags
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
@@ -24,15 +24,15 @@ ucmWorker ::
   TVar PrettyPrintEnvDecl ->
   TVar Names ->
   TVar (NameSearch Sqlite.Transaction) ->
-  STM (Branch IO) ->
+  STM CausalHash ->
   STM Path.Absolute ->
   Lsp ()
 ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
-  let loop :: (Branch IO, Path.Absolute) -> Lsp a
+  let loop :: (CausalHash, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
-        let currentBranch0 = Branch.getAt0 (Path.unabsolute currentPath) (Branch.head currentRoot)
+        currentBranch0 <- fmap Branch.head . liftIO $ (Codebase.getBranchAtPath codebase currentPath)
         let parseNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let pped = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
@@ -50,8 +50,8 @@ ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath =
           guard $ (currentRoot /= latestRoot || currentPath /= latestPath)
           pure (latestRoot, latestPath)
         loop latest
-
-  -- Bootstrap manually from codebase just in case we're in headless mode and don't get any
-  -- updates from UCM
-  rootBranch <- liftIO $ Codebase.getRootBranch codebase
-  loop (rootBranch, Path.absoluteEmpty)
+  (rootBranch, currentPath) <- atomically $ do
+    rootBranch <- getLatestRoot
+    currentPath <- getLatestPath
+    pure (rootBranch, currentPath)
+  loop (rootBranch, currentPath)
