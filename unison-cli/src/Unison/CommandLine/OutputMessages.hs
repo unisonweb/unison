@@ -1120,11 +1120,11 @@ notifyUser dir = \case
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors curPath src ppenv notes -> do
+  TypeErrors _curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    pure . showNote $ notes
+    pure $ showNote notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
@@ -2296,30 +2296,30 @@ prettyUploadEntitiesError = \case
 
 prettyValidationFailure :: Share.EntityValidationError -> Pretty
 prettyValidationFailure = \case
-    Share.EntityHashMismatch entityType (Share.HashMismatchForEntity{supplied, computed}) ->
-      P.lines
-        [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
-          "",
-          P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
-          P.wrap $ "The computed hash is: " <> prettyHash32 computed
-        ]
-    Share.UnsupportedEntityType hash32 entityType ->
-      P.lines
-        [ P.wrap $ "The entity with hash " <> prettyHash32 hash32 <> " of type " <> prettyEntityType entityType <> " is not supported by your version of ucm.",
-          P.wrap $ "Try upgrading to the latest version of ucm."
-        ]
-    Share.InvalidByteEncoding hash32 entityType msg  ->
-      P.lines
-        [ P.wrap $ "Failed to decode a " <> prettyEntityType entityType <> " entity with the hash " <> prettyHash32 hash32 <> ".",
-          "Please create an issue and report this to the Unison team",
-          "",
-          P.wrap $ "The error was: " <> P.text msg
-        ]
-    Share.HashResolutionFailure hash32 ->
-      P.lines
-        [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
-          "Please create an issue and report this to the Unison team"
-        ]
+  Share.EntityHashMismatch entityType (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash32 entityType ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash32 <> " of type " <> prettyEntityType entityType <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash32 entityType msg ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType entityType <> " entity with the hash " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text msg
+      ]
+  Share.HashResolutionFailure hash32 ->
+    P.lines
+      [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
   where
     prettyEntityType = \case
       Share.TermComponentType -> "term component"
@@ -2737,7 +2737,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2752,7 +2752,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

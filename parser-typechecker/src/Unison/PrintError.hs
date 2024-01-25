@@ -171,9 +171,8 @@ renderTypeError ::
   TypeError v loc ->
   Env ->
   String ->
-  Path.Absolute ->
   Pretty ColorText
-renderTypeError e env src _curPath = case e of
+renderTypeError e env src = case e of
   BooleanMismatch {..} ->
     mconcat
       [ Pr.wrap $
@@ -1264,10 +1263,9 @@ renderNoteAsANSI ::
   Pr.Width ->
   Env ->
   String ->
-  Path.Absolute ->
   Note v a ->
   String
-renderNoteAsANSI w e s curPath n = Pr.toANSI w $ printNoteWithSource e s curPath n
+renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
 
 renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
@@ -1276,19 +1274,18 @@ printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>
   Env ->
   String ->
-  Path.Absolute ->
   Note v a ->
   Pretty ColorText
-printNoteWithSource env _s _curPath (TypeInfo n) = prettyTypeInfo n env
-printNoteWithSource _env s _curPath (Parsing e) = prettyParseError s e
-printNoteWithSource env s curPath (TypeError e) = prettyTypecheckError e env s curPath
-printNoteWithSource _env _s _curPath (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s _curPath (UnknownSymbol v a) =
+printNoteWithSource env _s (TypeInfo n) = prettyTypeInfo n env
+printNoteWithSource _env s (Parsing e) = prettyParseError s e
+printNoteWithSource env s (TypeError e) = prettyTypecheckError e env s
+printNoteWithSource _env _s (NameResolutionFailures _es) = undefined
+printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
-printNoteWithSource env s _curPath (CompilerBug (Result.TypecheckerBug c)) =
+printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
-printNoteWithSource _env _s _curPath (CompilerBug c) =
+printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
@@ -1899,10 +1896,9 @@ prettyTypecheckError ::
   C.ErrorNote v loc ->
   Env ->
   String ->
-  Path.Absolute ->
   Pretty ColorText
-prettyTypecheckError note env src curPath =
-  renderTypeError (typeErrorFromNote note) env src curPath
+prettyTypecheckError note env src =
+  renderTypeError (typeErrorFromNote note) env src
 
 prettyTypeInfo ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
