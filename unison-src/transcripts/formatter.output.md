@@ -51,20 +51,17 @@ type Two = One Nat | Two Text
 
 ```
 ```unison:added-by-ucm scratch.u
-{{ # Doc
-This is a *doc*! 
-
-term link {x}
-
-type link {type   Optional}
-
-}}
-x : 
-  Nat 
-  -> Nat
+x.doc =
+  {{ # Doc This is a **doc**!
+  
+    term link {x}
+    
+    type link {type Optional} }}
+x : Nat -> Nat
 x y =
-    x   =     1 + 1
-    x + y
+  use Nat +
+  x = 1 + 1
+  x + y
 -- Should keep comments after
 
 -- Test for a previous regression that added extra brackets.
@@ -72,26 +69,23 @@ oneLiner = {{ one liner }}
 -- After
 
 -- Before
-explicit.doc = {{
-# Here's a top-level doc
-
-With a paragraph
-
-Or two
-}}
+explicit.doc =
+  {{ # Here's a top-level doc
+  
+    With a paragraph
+    
+    Or two }}
 -- After
 
-{{ A doc before an ability }}
+Thing.doc = {{ A doc before an ability }}
 ability Thing where
-  more  : Nat -> Text -> Nat
-  doThing  : Nat -> Int
+  more : Nat -> Text ->{Thing} Nat
+  doThing : Nat ->{Thing} Int
 
-{{ 
-A Doc before a type 
-}}
-structural type Optional a = More Text | Some | Other a | None Nat
 Optional.doc = {{ A Doc before a type }}
- A doc before a type with no type-vars }}
+structural type Optional a = More Text | Some | Other a | None Nat 
+
+Two.doc = {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
 ```
 
