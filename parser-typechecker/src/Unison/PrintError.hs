@@ -676,7 +676,7 @@ renderTypeError e env src _curPath = case e of
                           <> "\n\n"
                           <> Pr.wrap "If that's not what you expected, you may have a type error somewhere else in your code."
                     <> " "
-                    <> Pr.wrap (Pr.bold "Help me out by using a more specific name here or adding a type annotation.")
+                    <> Pr.wrap ("Help me out by" <> Pr.bold "using a more specific name here" <> "or" <> Pr.bold "adding a type annotation.")
                     <> "\n\n"
                     <> formatWrongs wrongTypeText wrongs
               suggs ->
