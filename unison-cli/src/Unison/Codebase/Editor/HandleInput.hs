@@ -1086,7 +1086,7 @@ loop e = do
                     Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
                     Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
                     Cli.LoadSuccess contents -> pure contents
-                let updatedSource = Format.applyFormatUpdates updates source
+                let updatedSource = Format.applyTextReplacements updates source
                 liftIO $ writeSource (Text.pack filePath) updatedSource
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
