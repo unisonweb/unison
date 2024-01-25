@@ -306,21 +306,17 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 
   Loading changes detected in scratch.u.
 
-  I couldn't find any definitions matching the name bar21 inside the namespace .
+  I couldn't figure out what bar21 refers to here:
   
      19 |   bar21
   
+  Its type should conform to _ .
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree
     * The definition is part of a library which hasn't been
       added to this project
-  
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
-  
-  There are no constraints on its type.
-  
-  
+    * You have a typo in the name
 
 ```
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
@@ -366,21 +362,17 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 
   Loading changes detected in scratch.u.
 
-  I couldn't find any definitions matching the name a1 inside the namespace .
+  I couldn't figure out what a1 refers to here:
   
       6 |   a1
   
+  Its type should conform to _ .
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree
     * The definition is part of a library which hasn't been
       added to this project
-  
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
-  
-  There are no constraints on its type.
-  
-  
+    * You have a typo in the name
 
 ```
 ## Structural find
