@@ -82,7 +82,7 @@ checkFile doc = runMaybeT do
   currentPath <- lift getCurrentPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
-  parseNames <- lift getParseNames
+  parseNames <- lift getCurrentNames
   let sourceName = getUri $ doc ^. uri
   let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
@@ -158,7 +158,7 @@ fileAnalysisWorker = forever do
 
 analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText notes = do
-  pped <- PPED.suffixifiedPPE <$> LSP.globalPPED
+  pped <- PPED.suffixifiedPPE <$> LSP.currentPPED
   (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
@@ -167,7 +167,7 @@ analyseFile fileUri srcText notes = do
 computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
 computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
   let defLocations = fileDefLocations fileSummary
-  conflictedNames <- Names.conflicts <$> getParseNames
+  conflictedNames <- Names.conflicts <$> getCurrentNames
   let locationForName :: Name -> Set Ann
       locationForName name = fold $ Map.lookup (Name.toVar name) defLocations
   let conflictedTermLocations =
@@ -360,7 +360,7 @@ analyseNotes fileUri ppe src notes = do
       | not (isUserBlank v) = pure []
       | otherwise = do
           Env {codebase} <- ask
-          ppe <- PPED.suffixifiedPPE <$> globalPPED
+          ppe <- PPED.suffixifiedPPE <$> currentPPED
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
           refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
@@ -395,7 +395,10 @@ getFileAnalysis uri = do
         writeTVar checkedFilesV $ Map.insert uri mvar checkedFiles
         pure mvar
       Just mvar -> pure mvar
-  atomically (readTMVar tmvar)
+  Debug.debugM Debug.LSP "Waiting on file analysis" uri
+  r <- atomically (readTMVar tmvar)
+  Debug.debugM Debug.LSP "Got file analysis" uri
+  pure r
 
 -- | Build a Names from a file if it's parseable.
 --
@@ -427,7 +430,7 @@ ppedForFile fileUri = do
 
 ppedForFileHelper :: Maybe (UF.UnisonFile Symbol a) -> Maybe (UF.TypecheckedUnisonFile Symbol a) -> Lsp PPED.PrettyPrintEnvDecl
 ppedForFileHelper uf tf = do
-  codebasePPED <- globalPPED
+  codebasePPED <- currentPPED
   hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
   pure $ case (uf, tf) of
     (Nothing, Nothing) -> codebasePPED

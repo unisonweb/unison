@@ -21,13 +21,14 @@ import UnliftIO.STM
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
-  TVar PrettyPrintEnvDecl ->
-  TVar Names ->
-  TVar (NameSearch Sqlite.Transaction) ->
+  TMVar PrettyPrintEnvDecl ->
+  TMVar Names ->
+  TMVar (NameSearch Sqlite.Transaction) ->
+  TMVar Path.Absolute ->
   STM CausalHash ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath = do
+ucmWorker ppedVar parseNamesVar nameSearchCacheVar currentPathVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (CausalHash, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
@@ -37,21 +38,31 @@ ucmWorker ppedVar parseNamesVar nameSearchCacheVar getLatestRoot getLatestPath =
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let pped = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
         atomically $ do
-          writeTVar parseNamesVar parseNames
-          writeTVar ppedVar pped
-          writeTVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
+          writeTMVar currentPathVar currentPath
+          writeTMVar parseNamesVar parseNames
+          writeTMVar ppedVar pped
+          writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTVar completionsVar (namesToCompletionTree parseNames)
+          writeTMVar completionsVar (namesToCompletionTree parseNames)
+        Debug.debugLogM Debug.LSP "LSP Initialized"
         latest <- atomically $ do
           latestRoot <- getLatestRoot
           latestPath <- getLatestPath
           guard $ (currentRoot /= latestRoot || currentPath /= latestPath)
           pure (latestRoot, latestPath)
+        Debug.debugLogM Debug.LSP "LSP Change detected"
         loop latest
   (rootBranch, currentPath) <- atomically $ do
     rootBranch <- getLatestRoot
     currentPath <- getLatestPath
     pure (rootBranch, currentPath)
   loop (rootBranch, currentPath)
+  where
+    -- This is added in stm-2.5.1, remove this if we upgrade.
+    writeTMVar :: TMVar a -> a -> STM ()
+    writeTMVar var a =
+      tryReadTMVar var >>= \case
+        Nothing -> putTMVar var a
+        Just _ -> void $ swapTMVar var a

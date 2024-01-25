@@ -46,8 +46,6 @@ import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
@@ -134,20 +132,25 @@ lspDoInitialize ::
   Msg.TMessage 'Msg.Method_Initialize ->
   IO (Either Msg.ResponseError Env)
 lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath lspContext _initMsg = do
-  -- TODO: some of these should probably be MVars so that we correctly wait for names and
-  -- things to be generated before serving requests.
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
-  ppedCacheVar <- newTVarIO PPED.empty
-  parseNamesCacheVar <- newTVarIO mempty
-  currentPathCacheVar <- newTVarIO Path.absoluteEmpty
+  ppedCacheVar <- newEmptyTMVarIO
+  currentNamesCacheVar <- newEmptyTMVarIO
+  currentPathCacheVar <- newEmptyTMVarIO
   cancellationMapVar <- newTVarIO mempty
-  completionsVar <- newTVarIO mempty
-  nameSearchCacheVar <- newTVarIO $ NameSearch.makeNameSearch 0 mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
+  completionsVar <- newEmptyTMVarIO
+  nameSearchCacheVar <- newEmptyTMVarIO
+  let env =
+        Env
+          { ppedCache = atomically $ readTMVar ppedCacheVar,
+            currentNamesCache = atomically $ readTMVar currentNamesCacheVar,
+            currentPathCache = atomically $ readTMVar currentPathCacheVar,
+            nameSearchCache = atomically $ readTMVar nameSearchCacheVar,
+            ..
+          }
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestRootHash latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar latestRootHash latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
