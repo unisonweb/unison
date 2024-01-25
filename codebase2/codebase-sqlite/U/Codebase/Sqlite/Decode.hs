@@ -1,6 +1,6 @@
 -- | This module contains decoders for blobs stored in SQLite.
 module U.Codebase.Sqlite.Decode
-  ( DecodeError,
+  ( DecodeError (..),
 
     -- * @object.bytes@
     decodeBranchFormat,

@@ -83,7 +83,7 @@ hashFieldAccessors ::
   )
 hashFieldAccessors ppe declName vars declRef dd = do
   let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors (map (,()) vars) declName declRef
+      accessors = DD.generateRecordAccessors mempty (map (,()) vars) declName declRef
   let typeLookup :: TypeLookup v ()
       typeLookup =
         TypeLookup

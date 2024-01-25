@@ -10,6 +10,7 @@ dependencies:
   - text
   - unison-prelude
   - unison-util-base32hex
+  - witch
 
 library:
   source-dirs: src

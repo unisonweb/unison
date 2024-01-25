@@ -8,7 +8,6 @@ module Unison.KindInference.Solve
   )
 where
 
-import Unison.KindInference.Error (KindError(..), ConstraintConflict(..), improveError)
 import Control.Lens (Prism', prism', review, (%~))
 import Control.Monad.Reader (asks)
 import Control.Monad.Reader qualified as M
@@ -22,6 +21,7 @@ import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Solved qualified as Solved
 import Unison.KindInference.Constraint.StarProvenance (StarProvenance (..))
 import Unison.KindInference.Constraint.Unsolved qualified as Unsolved
+import Unison.KindInference.Error (ConstraintConflict (..), KindError (..), improveError)
 import Unison.KindInference.Generate (builtinConstraints)
 import Unison.KindInference.Generate.Monad (Gen (..), GeneratedConstraint)
 import Unison.KindInference.Solve.Monad
@@ -123,9 +123,9 @@ markVisiting x = do
   OccCheckState {visitingSet, visitingStack} <- M.get
   case Set.member x visitingSet of
     True -> do
-      OccCheckState{solvedConstraints} <- M.get
+      OccCheckState {solvedConstraints} <- M.get
       let loc = case U.lookupCanon x solvedConstraints of
-            Just (_, _, Descriptor { descriptorConstraint = Just (Solved.IsArr (Provenance _ loc) _ _ )}, _) -> loc
+            Just (_, _, Descriptor {descriptorConstraint = Just (Solved.IsArr (Provenance _ loc) _ _)}, _) -> loc
             _ -> error "cycle without IsArr constraint"
       addError (CycleDetected loc x solvedConstraints)
       pure Cycle

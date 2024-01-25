@@ -55,6 +55,7 @@ import Unison.Term (MatchCase (MatchCase), Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
@@ -360,6 +361,7 @@ annIsFilePosition = \case
   Ann.Intrinsic -> False
   Ann.External -> False
   Ann.Ann {} -> True
+  Ann.GeneratedFrom ann -> annIsFilePosition ann
 
 -- | Okay, so currently during synthesis in typechecking the typechecker adds `Ann` nodes
 -- to the term specifying types of subterms. This is a problem because we the types in these

@@ -47,9 +47,10 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
             (compare `on` fst)
       grouped = group bindings
       dupes = filter ok grouped
-        where 
-          ok (v, as) | Var.name v == "_" = False
-                     | otherwise         = length as > 1
+        where
+          ok (v, as)
+            | Var.name v == "_" = False
+            | otherwise = length as > 1
    in if not $ null dupes
         then Left $ Nel.fromList dupes
         else

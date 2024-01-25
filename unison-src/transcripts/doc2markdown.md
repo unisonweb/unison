@@ -92,3 +92,20 @@ Table
 ```ucm
 .> debug.doc-to-markdown fulldoc
 ```
+
+You can add docs to a term or type with a top-level doc literal above the binding:
+
+```unison
+{{ This is a term doc }}
+myTerm = 10
+
+-- Regression tests for https://github.com/unisonweb/unison/issues/4634
+{{ This is a type doc }}
+type MyType = MyType
+
+{{ This is a unique type doc }}
+unique type MyUniqueType = MyUniqueType
+
+{{ This is a structural type doc }}
+structural type MyStructuralType = MyStructuralType
+```

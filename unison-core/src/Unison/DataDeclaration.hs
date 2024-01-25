@@ -147,23 +147,25 @@ withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 -- propose to move this code to some very feature-specific module —AI
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
+  (a -> a) ->
   [(v, a)] ->
   v ->
   Reference ->
   [(v, a, Term v a)]
-generateRecordAccessors fields typename typ =
+generateRecordAccessors generatedAnn fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
-    tm (fname, ann) i =
+    tm (fname, fieldAnn) i =
       [ (Var.namespaced [typename, fname], ann, get),
         (Var.namespaced [typename, fname, Var.named "set"], ann, set),
         (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
+        ann = generatedAnn fieldAnn
         -- example: `point -> case point of Point x _ -> x`
         get =
-          Term.lam ann argname $
+          Term.lam (generatedAnn fieldAnn) argname $
             Term.match
               ann
               (Term.var ann argname)
@@ -177,7 +179,7 @@ generateRecordAccessors fields typename typ =
             rhs = ABT.abs' ann fname (Term.var ann fname)
         -- example: `x point -> case point of Point _ y -> Point x y`
         set =
-          Term.lam' ann [fname', argname] $
+          Term.lam' (generatedAnn ann) [fname', argname] $
             Term.match
               ann
               (Term.var ann argname)
@@ -202,7 +204,7 @@ generateRecordAccessors fields typename typ =
               ]
         -- example: `f point -> case point of Point x y -> Point (f x) y`
         modify =
-          Term.lam' ann [fname', argname] $
+          Term.lam' (generatedAnn ann) [fname', argname] $
             Term.match
               ann
               (Term.var ann argname)

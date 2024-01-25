@@ -5,6 +5,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
@@ -140,7 +141,7 @@ dataDeclaration ::
   Maybe (L.Token UnresolvedModifier) ->
   P v m (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration maybeUnresolvedModifier = do
-  _ <- fmap void (reserved "type") <|> openBlockWith "type"
+  typeToken <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
     (,)
       <$> TermParser.verifyRelativeVarName prefixDefinitionName
@@ -166,7 +167,7 @@ dataDeclaration maybeUnresolvedModifier = do
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
       dataConstructor :: P v m (Ann, v, Type v Ann)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
-      record :: P v m ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])])
+      record :: P v m ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])], Ann)
       record = do
         _ <- openBlockWith "{"
         let field :: P v m [(L.Token v, Type v Ann)]
@@ -178,29 +179,35 @@ dataDeclaration maybeUnresolvedModifier = do
                         Just _ -> maybe [f] (f :) <$> (optional semi *> optional field)
                     )
         fields <- field
-        _ <- closeBlock
+        closingToken <- closeBlock
         let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
-        pure ([go lastSegment (snd <$> fields)], [(name, fields)])
-  (constructors, accessors) <-
-    msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
+        pure ([go lastSegment (snd <$> fields)], [(name, fields)], ann closingToken)
+  (constructors, accessors, closingAnn) <-
+    msum [Left <$> record, Right <$> sepBy (reserved "|") dataConstructor] <&> \case
+      Left (constructors, accessors, closingAnn) -> (constructors, accessors, closingAnn)
+      Right constructors ->
+        let closingAnn :: Ann
+            closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(_, _, t) -> ann t) <$> constructors))
+         in (constructors, [], closingAnn)
   _ <- closeBlock
-  let -- the annotation of the last constructor if present,
-      -- otherwise ann of name
-      closingAnn :: Ann
-      closingAnn = last (ann eq : ((\(_, _, t) -> ann t) <$> constructors))
   case maybeUnresolvedModifier of
     Nothing -> do
       modifier <- defaultUniqueModifier (L.payload name)
+      -- ann spanning the whole Decl.
+      let declSpanAnn = ann typeToken <> closingAnn
       pure
         ( L.payload name,
-          DD.mkDataDecl' modifier closingAnn typeArgVs constructors,
+          DD.mkDataDecl' modifier declSpanAnn typeArgVs constructors,
           accessors
         )
     Just unresolvedModifier -> do
       modifier <- resolveUnresolvedModifier unresolvedModifier (L.payload name)
+      -- ann spanning the whole Decl.
+      -- Technically the typeToken is redundant here, but this is more future proof.
+      let declSpanAnn = ann typeToken <> ann modifier <> closingAnn
       pure
         ( L.payload name,
-          DD.mkDataDecl' (L.payload modifier) (ann modifier <> closingAnn) typeArgVs constructors,
+          DD.mkDataDecl' (L.payload modifier) declSpanAnn typeArgVs constructors,
           accessors
         )
 
@@ -210,7 +217,7 @@ effectDeclaration ::
   Maybe (L.Token UnresolvedModifier) ->
   P v m (v, EffectDeclaration v Ann)
 effectDeclaration maybeUnresolvedModifier = do
-  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  abilityToken <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
@@ -224,17 +231,22 @@ effectDeclaration maybeUnresolvedModifier = do
   case maybeUnresolvedModifier of
     Nothing -> do
       modifier <- defaultUniqueModifier (L.payload name)
+      -- ann spanning the whole ability declaration.
+      let abilitySpanAnn = ann abilityToken <> closingAnn
       pure
         ( L.payload name,
-          DD.mkEffectDecl' modifier closingAnn typeArgVs constructors
+          DD.mkEffectDecl' modifier abilitySpanAnn typeArgVs constructors
         )
     Just unresolvedModifier -> do
       modifier <- resolveUnresolvedModifier unresolvedModifier (L.payload name)
+      -- ann spanning the whole ability declaration.
+      -- Technically the abilityToken is redundant here, but this is more future proof.
+      let abilitySpanAnn = ann abilityToken <> ann modifier <> closingAnn
       pure
         ( L.payload name,
           DD.mkEffectDecl'
             (L.payload modifier)
-            (ann modifier <> closingAnn)
+            abilitySpanAnn
             typeArgVs
             constructors
         )

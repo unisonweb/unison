@@ -13,7 +13,6 @@
 -- Afterwards, the 'SolveState' holds the kinds of all decls and we
 -- can check that type annotations in terms that may mention the
 -- decls are well-kinded with 'kindCheckAnnotations'.
-
 module Unison.KindInference
   ( inferDecls,
     kindCheckAnnotations,
@@ -28,7 +27,7 @@ import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
-import Unison.KindInference.Solve (KindError, verify, initialState, step, defaultUnconstrainedVars)
+import Unison.KindInference.Solve (KindError, defaultUnconstrainedVars, initialState, step, verify)
 import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGen)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv

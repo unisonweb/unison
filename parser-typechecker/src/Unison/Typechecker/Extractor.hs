@@ -1,12 +1,12 @@
 module Unison.Typechecker.Extractor where
 
-import Unison.KindInference (KindError)
 import Control.Monad.Reader
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term

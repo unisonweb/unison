@@ -52,7 +52,9 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
+      Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
@@ -70,6 +72,7 @@ library
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
+      Unison.Codebase.Editor.HandleInput.ShowDefinition
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests
       Unison.Codebase.Editor.HandleInput.UI
@@ -114,6 +117,7 @@ library
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
       Unison.LSP.FoldingRange
+      Unison.LSP.Formatting
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
