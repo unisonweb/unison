@@ -635,7 +635,6 @@ renderTypeError e env src _curPath = case e of
             C.Exact -> (_1 %~ (s :)) . r
             C.WrongType -> (_2 %~ (s :)) . r
             C.WrongName -> (_3 %~ (s :)) . r
-        -- libPath = Path.absoluteToPath' curPath Path.:> "lib"
         undefinedSymbolHelp =
           Pr.wrap $
             mconcat
