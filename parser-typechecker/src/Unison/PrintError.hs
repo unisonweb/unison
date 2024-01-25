@@ -629,7 +629,7 @@ renderTypeError e env src _curPath = case e of
         _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
-          foldr sep id suggestions ([], [], [])
+          foldr sep id (sortOn (Text.length . C.suggestionName) suggestions) ([], [], [])
         sep s@(C.Suggestion _ _ _ match) r =
           case match of
             C.Exact -> (_1 %~ (s :)) . r
