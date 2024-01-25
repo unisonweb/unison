@@ -635,9 +635,9 @@ renderTypeError e env src = case e of
             C.WrongType -> (_2 %~ (s :)) . r
             C.WrongName -> (_3 %~ (s :)) . r
         undefinedSymbolHelp =
-          Pr.wrap $
+          Pr.wrapPreserveSpaces $
             mconcat
-              [ mconcat ["Its type should conform to ", style Type1 (renderType' env expectedType), "."],
+              [ mconcat ["Its type should conform to ", style Type1 (renderType' env expectedType)],
                 Pr.hang
                   "Some common causes of this error include:"
                   ( Pr.bulleted
