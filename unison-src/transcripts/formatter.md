@@ -46,8 +46,7 @@ structural type Optional   a = More Text
   | Other   a 
   | None Nat 
 
-{{ A doc before a type with no type-vars 
-}}
+{{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
 ```
 

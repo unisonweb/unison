@@ -6,12 +6,14 @@ module Unison.Codebase.Editor.HandleInput.FormatFile
 where
 
 import Control.Lens hiding (List)
+import Control.Monad.State
 import Data.IntervalMap.Interval qualified as Interval
 import Data.List qualified as List
 import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Text.Builder qualified as TB
 import U.Core.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
@@ -32,6 +34,7 @@ import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary qualified as FileSummary
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Range (Range (..))
 import Unison.Var qualified as Var
@@ -46,7 +49,7 @@ formatFile ::
   Maybe (TypecheckedUnisonFile Symbol Ann.Ann) ->
   Maybe (Set Range) ->
   m (Maybe [TextReplacement])
-formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputTypecheckedFile mayRangesToFormat = runMaybeT $ do
+formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputTypecheckedFile mayRangesToFormat = fmap (Debug.debug Debug.Temp "text replacements") . runMaybeT $ do
   let (mayParsedFile, mayTypecheckedFile) = mkUnisonFilesDeterministic inputParsedFile inputTypecheckedFile
   fileSummary <- hoistMaybe $ FileSummary.mkFileSummary mayParsedFile mayTypecheckedFile
   filePPED <- lift $ makePPEDForFile mayParsedFile mayTypecheckedFile
@@ -207,7 +210,7 @@ hasUserTypeSignature parsedFile sym =
 data TextReplacement = TextReplacement
   { -- The new new text to replace the old text in the range with. w
     replacementText :: Text,
-    -- The range to replace.
+    -- The range to replace, [start, end)
     replacementRange :: Range
   }
   deriving (Eq, Show)
@@ -226,27 +229,153 @@ data TextReplacement = TextReplacement
 --
 -- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
 -- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
-applyFormatUpdates :: [TextReplacement] -> Text -> Text
-applyFormatUpdates updates txt = foldl' applyUpdate txt updates
+--
+-- Can update last line
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
+-- applyFormatUpdates :: [TextReplacement] -> Text -> Text
+-- applyFormatUpdates updates txt = foldl' applyUpdate txt updates
+--   where
+--     applyUpdate :: Text -> TextReplacement -> Text
+--     applyUpdate txt (TextReplacement newText (Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol'))) = fromMaybe txt $ do
+--       -- Convert from 1-based indexing
+--       let startLine = startLine' - 1
+--       let startCol = startCol' - 1
+--       let endLine = endLine' - 1
+--       let endCol = endCol' - 1
+--       let ls = Text.lines txt
+--           (beforeLines, afterLines) = List.splitAt startLine (ls)
+--       if startLine == endLine
+--         then do
+--           (theLine NEL.:| rest) <- Debug.debug Debug.Temp "afterLines" $ NEL.nonEmpty afterLines
+--           let (prefix, _) = Text.splitAt startCol theLine
+--           let (_, suffix) = Text.splitAt endCol theLine
+--           pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
+--         else do
+--           let (relevantLines', rest) = Debug.debug Debug.Temp "relevant, rest" $ List.splitAt ((endLine + 1) - startLine) afterLines
+--           relevantLines <- Debug.debug Debug.Temp "relevantlines" $ NEL.nonEmpty relevantLines'
+--           let prefix = Text.take startCol (NEL.head relevantLines)
+--           let (_, suffix) = Text.splitAt endCol (NEL.last relevantLines)
+--           pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
+
+-- >>> numberText "abc\ndef\nghi"
+-- [((0,0),'a'),((0,1),'b'),((0,2),'c'),((1,-1),'\n'),((1,0),'d'),((1,1),'e'),((1,2),'f'),((2,-1),'\n'),((2,0),'g'),((2,1),'h'),((2,2),'i')]
+numberText :: Text -> [((Int, Int), Char)]
+numberText txt =
+  lines (Text.unpack txt)
+    & ifoldMap
+      ( \lineNum line ->
+          Monoid.whenM (lineNum /= 0) [((lineNum, -1), '\n')] <> zipWith (\col c -> ((fromIntegral lineNum, col), c)) [0 ..] line
+      )
+
+applyUpdate :: TextReplacement -> [((Int, Int), Char)] -> (Text, [((Int, Int), Char)])
+applyUpdate (TextReplacement newText (Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol'))) inp = do
+  -- Convert from 1-based indexing
+  let startLine = startLine' - 1
+      startCol = startCol' - 1
+      endLine = endLine' - 1
+      endCol = endCol' - 1
+      (unrelatedPrefix, relevant) = splitWhen ((>= (startLine, startCol)) . fst) inp
+      (_, unrelatedSuffix) = splitWhen ((>= (endLine, endCol)) . fst) relevant
+   in (Text.pack (fmap snd unrelatedPrefix) <> newText, unrelatedSuffix)
+
+-- | Split a list into two lists, the first containing all elements up to but not including
+-- the first element for which the predicate returns 'True'
+--
+-- >>> splitWhen (== 3) [1,2,3,4,5]
+-- ([1,2],[3,4,5])
+splitWhen :: (a -> Bool) -> [a] -> ([a], [a])
+splitWhen p xs = go xs
   where
-    applyUpdate :: Text -> TextReplacement -> Text
-    applyUpdate txt (TextReplacement newText (Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol'))) = fromMaybe txt $ do
-      -- Convert from 1-based indexing
-      let startLine = startLine' - 1
-      let startCol = startCol' - 1
-      let endLine = endLine' - 1
-      let endCol = endCol' - 1
-      let ls = Text.lines txt
-          (beforeLines, afterLines) = List.splitAt startLine (ls)
-      if startLine == endLine
-        then do
-          (theLine NEL.:| rest) <- NEL.nonEmpty afterLines
-          let (prefix, _) = Text.splitAt startCol theLine
-          let (_, suffix) = Text.splitAt endCol theLine
-          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
-        else do
-          let (relevantLines', rest) = List.splitAt ((endLine + 1) - startLine) afterLines
-          relevantLines <- NEL.nonEmpty relevantLines'
-          let prefix = Text.take startCol (NEL.head relevantLines)
-          let (_, suffix) = Text.splitAt endCol (NEL.last relevantLines)
-          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
+    go [] = ([], [])
+    go (x : xs)
+      | p x = ([], x : xs)
+      | otherwise =
+          let (ys, zs) = go xs
+           in (x : ys, zs)
+
+-- | Apply a list of range replacements to a text, returning the updated text.
+--
+-- This isn't terribly efficient, but is fine for debugging and testing.
+--
+-- TODO: rewrite to sort replacements and run them in a single pass.
+--
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6))] "abcdefghijk\nlmnopqrstuv\nwxyz"
+-- "abcdefghijk\nlmhelloqrstuv\nwxyz"
+--
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 3 2))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloxyz\n1234567890"
+--
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
+--
+-- Can update last line
+-- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
+-- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
+_applyFormatUpdates3 :: [TextReplacement] -> Text -> Text
+_applyFormatUpdates3 updates txt =
+  let numberedText = numberText txt
+      (newText, remainder) = foldl' (\(txt, inp) replacement -> first (txt <>) $ applyUpdate replacement inp) ("", numberedText) (List.sortOn replacementRange updates)
+   in newText <> Text.pack (fmap snd remainder)
+
+-- | Given a list of offsets, return a list of offsets where each offset is positioned relative to the previous offset.
+--
+-- >>> relativizeOffsets [(0, 0), (0, 4), (0, 10), (1, 0), (1, 5), (5, 10)]
+-- [(0,0),(0,4),(0,6),(1,0),(0,5),(4,10)]
+relativizeOffsets :: [(Int, Int, Maybe Text)] -> [(Int, Int, Maybe Text)]
+relativizeOffsets xs =
+  let grouped = List.groupBy (\(a, _, _) (b, _, _) -> a == b) xs
+   in grouped
+        & fmap (snd . List.mapAccumL (\acc (line, col, r) -> (col, (line, col - acc, r))) 0)
+        & List.concat
+        & snd . List.mapAccumL (\acc (line, col, r) -> (line, (line - acc, col, r))) 0
+
+-- | Apply a list of range replacements to a text, returning the updated text.
+--
+-- >>> applyFormatUpdates [TextReplacement "cakes" (Range (Pos.Pos 1 21) (Pos.Pos 1 28))] "my favorite food is oranges because\nthey are delicious and nutritious"
+-- "my favorite food is cakes because\nthey are delicious and nutritious"
+--
+-- Multiple replacements.
+-- >>> let txt = "my favorite food is oranges because\nthey are delicious and nutritious"
+-- >>> let replacements = [TextReplacement "cakes" (Range (Pos.Pos 1 21) (Pos.Pos 1 28)), TextReplacement "decadent" (Range (Pos.Pos 2 10) (Pos.Pos 2 19)), TextReplacement "tasty" (Range (Pos.Pos 2 24) (Pos.Pos 2 34))]
+-- >>> applyFormatUpdates replacements txt
+-- "my favorite food is cakes because\nthey are decadent and tasty"
+--
+-- Multi-line replacements.
+-- >>> let txt = "mary had a little lamb\nwhose fleece was white as snow\nand everywhere that mary went\nthe lamb was sure to go"
+-- >>> let replacements = [TextReplacement "lambo, which" (Range (Pos.Pos 1 19) (Pos.Pos 2 13)), TextReplacement " the people stared" (Range (Pos.Pos 3 99) (Pos.Pos 4 99))]
+-- >>> applyFormatUpdates replacements txt
+-- "mary had a little lambo, which was white as snow\nand everywhere that mary went the people stared"
+applyFormatUpdates :: [TextReplacement] -> Text -> Text
+applyFormatUpdates replacements inputText = allSplits (relativeOffsets) (Text.lines inputText) & fold & TB.run
+  where
+    tupleReplacements :: [(Int, Int, Maybe Text)]
+    tupleReplacements =
+      replacements
+        & foldMap
+          ( \(TextReplacement txt (Range (Pos.Pos startLine startCol) (Pos.Pos endLine endCol))) ->
+              -- Convert from 1-based indexing to 0-based indexing
+              [(startLine - 1, startCol - 1, Nothing), (endLine - 1, endCol - 1, Just txt)]
+          )
+    relativeOffsets = relativizeOffsets (List.sortOn (\(line, col, _) -> (line, col)) tupleReplacements)
+
+-- | Split a text into a list of text segments at the given offsets.
+--
+-- >>> allSplits [(0, 1, Nothing), (0, 4, Just "1"), (0, 2, Nothing), (1, 3, Just "2"), (0, 5, Nothing), (1, 10, Just "3")] ["abcdefghijk", "lmnopqrstuv", "wxyz", "1234567890"] & fold & TB.run
+-- "a1fg2opqrs3\n1234567890"
+allSplits :: [(Int, Int, Maybe Text)] -> [Text] -> [TB.Builder]
+allSplits [] ls = [TB.intercalate "\n" (TB.text <$> ls)]
+allSplits _ [] = []
+allSplits ((0, col, r) : rest) (l : ls) =
+  let (prefix, suffix) = Text.splitAt col l
+   in TB.text (fromMaybe prefix r) : allSplits rest (suffix : ls)
+allSplits ((line, col, r) : rest) ls =
+  case List.splitAt line ls of
+    (prefixLines, []) -> [TB.intercalate "\n" (TB.text <$> prefixLines)]
+    (prefixLines, (lastLine : restLines)) ->
+      let (prefixChars, suffixChars) = Text.splitAt col lastLine
+          segment =
+            (TB.intercalate "\n" $ fmap TB.text prefixLines)
+              <> TB.char '\n'
+              <> TB.text prefixChars
+       in maybe segment TB.text r : allSplits rest (suffixChars : restLines)

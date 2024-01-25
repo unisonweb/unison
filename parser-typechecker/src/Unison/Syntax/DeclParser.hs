@@ -11,7 +11,6 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -191,9 +190,7 @@ dataDeclaration maybeUnresolvedModifier = do
       Right constructors -> do
         let closingAnn :: Ann
             closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(constrSpanAnn, _) -> constrSpanAnn) <$> constructors))
-         in Debug.debug Debug.Temp "inner constructors" $ (constructors, [], closingAnn)
-  Debug.debugM Debug.Temp "constructors" (name, constructors)
-  Debug.debugM Debug.Temp "closingAnn" (name, closingAnn)
+         in (constructors, [], closingAnn)
   _ <- closeBlock
   case maybeUnresolvedModifier of
     Nothing -> do
