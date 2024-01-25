@@ -46,13 +46,15 @@ structural type Optional   a = More Text
   | Other   a 
   | None Nat 
 
-
-
-{{ two }}
+{{ 
+two 
+}}
 qqq = 2
 
 
-{{ hi }}
+{{ 
+hi 
+}}
 test = 2
 
 

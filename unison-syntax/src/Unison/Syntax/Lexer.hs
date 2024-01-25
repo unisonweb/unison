@@ -376,8 +376,12 @@ lexemes' eof =
     doc2 :: P [Token Lexeme]
     doc2 = do
       P.lookAhead (lit "{{")
+      openStart <- pos
       beforeStartToks <- token' ignore (pure ())
-      startToks <- token (lit "{{" $> Open "syntax.docUntitledSection")
+      void $ lit "{{"
+      openEnd <- pos
+      CP.space
+      let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
       env0 <- S.get
       (bodyToks0, closeTok) <- local (\env -> env {inLayout = False}) do
         bodyToks <- body
@@ -385,18 +389,18 @@ lexemes' eof =
         lit "}}"
         closeEnd <- pos
         pure (bodyToks, Token Close closeStart closeEnd)
-      let docToks = startToks <> bodyToks0 <> [closeTok]
+      let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
       endToks <- token' ignore (pure ())
       -- Hack to allow anonymous doc blocks before type decls
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
-      pure $ case (tn, docToks) of
-        (Just (WordyId tname), ht : _)
+      pure $ case (tn) of
+        (Just (WordyId tname))
           | isTopLevel ->
               beforeStartToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ ht, Open "=" <$ ht]
-                <> startToks
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ openTok, Open "=" <$ openTok]
+                <> [openTok]
                 <> bodyToks0
                 <> [closeTok]
                 <> [closeTok]
