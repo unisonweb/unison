@@ -42,50 +42,11 @@ structural type Optional   a = More Text
   | Other   a 
   | None Nat 
 
-{{ 
-two 
+{{ A doc before a type with no type-vars 
 }}
-qqq = 2
-
-
-{{ 
-hi 
-}}
-test = 2
-
-
-{{ yo }}
-structural type MyEither = MyEither
-
+type Two = One Nat | Two Text
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type MyEither
-        (also named builtin.Unit)
-      structural type Optional a
-      ability Thing
-      MyEither.doc : Doc2
-      Optional.doc : Doc2
-      Thing.doc    : Doc2
-      explicit.doc : Doc2
-      oneLiner     : Doc2
-      qqq          : Nat
-      qqq.doc      : Doc2
-      test         : Nat
-      test.doc     : Doc2
-      x            : Nat -> Nat
-      x.doc        : Doc2
-
-```
 ```ucm
 .> debug.format
 
@@ -125,18 +86,9 @@ ability Thing where
 Optional.doc = {{ A Doc before a type }}
 structural type Optional a = More Text | Some | Other a | None Nat 
 
-{{ 
-two 
+{{ A doc before a type with no type-vars 
 }}
-qqq = 2
-
-
-qqq.doc = {{ two }}
-qqq = 22
-
-
-MyEither.doc = {{ yo }}
-structural type MyEither = MyEither = MyEither
+type Two = One Nat | Two Text
 ```
 
 Formatter should leave things alone if the file doesn't typecheck.

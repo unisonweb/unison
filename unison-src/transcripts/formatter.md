@@ -2,7 +2,7 @@
 .> builtins.mergeio
 ```
 
-```unison
+```unison:hide
 {{ # Doc
 This is a *doc*! 
 
@@ -46,21 +46,9 @@ structural type Optional   a = More Text
   | Other   a 
   | None Nat 
 
-{{ 
-two 
+{{ A doc before a type with no type-vars 
 }}
-qqq = 2
-
-
-{{ 
-hi 
-}}
-test = 2
-
-
-{{ yo }}
-structural type MyEither = MyEither
-
+type Two = One Nat | Two Text
 ```
 
 ```ucm
