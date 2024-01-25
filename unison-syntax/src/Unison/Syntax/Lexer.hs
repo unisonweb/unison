@@ -375,14 +375,20 @@ lexemes' eof =
 
     doc2 :: P [Token Lexeme]
     doc2 = do
+      -- Ensure we're at a doc before we start consuming tokens
       P.lookAhead (lit "{{")
       openStart <- pos
+      -- Produce any layout tokens, such as closing the last open block or virtual semicolons
+      -- We don't use 'token' on "{{" directly because we don't want to duplicate layout
+      -- tokens if we do the rewrite hack for type-docs below.
       beforeStartToks <- token' ignore (pure ())
       void $ lit "{{"
       openEnd <- pos
       CP.space
+      -- Construct the token for opening the doc block.
       let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
       env0 <- S.get
+      -- Disable layout while parsing the doc block
       (bodyToks0, closeTok) <- local (\env -> env {inLayout = False}) do
         bodyToks <- body
         closeStart <- pos
@@ -390,12 +396,14 @@ lexemes' eof =
         closeEnd <- pos
         pure (bodyToks, Token Close closeStart closeEnd)
       let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
+      -- Parse any layout tokens after the doc block, e.g. virtual semicolon
       endToks <- token' ignore (pure ())
       -- Hack to allow anonymous doc blocks before type decls
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
       pure $ case (tn) of
+        -- If we're followed by a type, we rewrite the doc block to be a named doc block.
         (Just (WordyId tname))
           | isTopLevel ->
               beforeStartToks
@@ -403,6 +411,7 @@ lexemes' eof =
                 <> [openTok]
                 <> bodyToks0
                 <> [closeTok]
+                -- We need an extra 'Close' here because we added an extra Open above.
                 <> [closeTok]
                 <> endToks
           where
