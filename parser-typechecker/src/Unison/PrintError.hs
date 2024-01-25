@@ -35,7 +35,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
-import Unison.Referent (Referent, pattern Ref)
+import Unison.Referent (Referent, toReference, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -173,7 +173,7 @@ renderTypeError ::
   String ->
   Path.Absolute ->
   Pretty ColorText
-renderTypeError e env src curPath = case e of
+renderTypeError e env src _curPath = case e of
   BooleanMismatch {..} ->
     mconcat
       [ Pr.wrap $
@@ -630,50 +630,67 @@ renderTypeError e env src curPath = case e of
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
-        sep (C.Suggestion name typ _ match) r =
+        sep s@(C.Suggestion _ _ _ match) r =
           case match of
-            C.Exact -> (_1 %~ ((name, typ) :)) . r
-            C.WrongType -> (_2 %~ ((name, typ) :)) . r
-            C.WrongName -> (_3 %~ ((name, typ) :)) . r
-        libPath = Path.absoluteToPath' curPath Path.:> "lib"
+            C.Exact -> (_1 %~ (s :)) . r
+            C.WrongType -> (_2 %~ (s :)) . r
+            C.WrongName -> (_3 %~ (s :)) . r
+        -- libPath = Path.absoluteToPath' curPath Path.:> "lib"
+        undefinedSymbolHelp =
+          Pr.wrap $
+            mconcat
+              [ mconcat ["Its type should conform to ", style Type1 (renderType' env expectedType), "."],
+                Pr.hang
+                  "Some common causes of this error include:"
+                  ( Pr.bulleted
+                      [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
+                        Pr.wrap "The definition is part of a library which hasn't been added to this project",
+                        Pr.wrap "You have a typo in the name"
+                      ]
+                  )
+              ]
      in mconcat
-          [ "I couldn't find any definitions matching the name ",
+          [ "I couldn't figure out what ",
             style ErrorSite (Var.nameStr unknownTermV),
-            " inside the namespace ",
-            prettyPath' (Path.absoluteToPath' curPath),
-            "\n\n",
+            " refers to here:\n\n",
             annotatedAsErrorSite src termSite,
             "\n",
-            Pr.hang
-              "Some common causes of this error include:"
-              ( Pr.bulleted
-                  [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
-                    Pr.wrap "The definition is part of a library which hasn't been added to this project"
-                  ]
-              )
-              <> "\n\n"
-              <> "To add a library to this project use the command: "
-              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown (libPath Path.:> "<libname>")),
-            "\n\n",
-            case expectedType of
-              Type.Var' (TypeVar.Existential {}) -> "There are no constraints on its type."
-              _ ->
-                "Whatever it is, its type should conform to "
-                  <> style Type1 (renderType' env expectedType)
-                  <> ".",
-            "\n\n",
-            -- ++ showTypeWithProvenance env src Type1 expectedType
             case correct of
               [] -> case wrongTypes of
                 [] -> case wrongNames of
-                  [] -> mempty
+                  [] -> undefinedSymbolHelp
                   wrongs -> formatWrongs wrongNameText wrongs
-                wrongs -> formatWrongs wrongTypeText wrongs
+                wrongs ->
+                  Pr.wrap
+                    ( "The name "
+                        <> style Identifier (Var.nameStr unknownTermV)
+                        <> " is ambiguous. I tried to resolve it by type but"
+                    )
+                    <> " "
+                    <> case expectedType of
+                      Type.Var' (TypeVar.Existential {}) -> Pr.wrap "its type could be anything." <> "\n"
+                      _ ->
+                        Pr.wrap
+                          "no term with that name would pass typechecking. I think its type should be:"
+                          <> "\n\n"
+                          <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                          <> "\n\n"
+                          <> Pr.wrap "If that's not what you expected, you may have a type error somewhere else in your code."
+                    <> " "
+                    <> Pr.wrap (Pr.bold "Help me out by using a more specific name here or adding a type annotation.")
+                    <> "\n\n"
+                    <> formatWrongs wrongTypeText wrongs
               suggs ->
                 mconcat
-                  [ "I found some terms in scope that have matching names and types. ",
-                    "Maybe you meant one of these:\n\n",
-                    intercalateMap "\n" formatSuggestion suggs
+                  [ "The name "
+                      <> style Identifier (Var.nameStr unknownTermV)
+                      <> " is ambiguous. ",
+                    "Its type should conform to:\n\n",
+                    Pr.indentN 4 (style Type1 (renderType' env expectedType)),
+                    "\n\n",
+                    Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
+                    "\n\n",
+                    intercalateMap "\n" (renderSuggestion env) suggs
                   ]
           ]
   DuplicateDefinitions {..} ->
@@ -735,47 +752,48 @@ renderTypeError e env src curPath = case e of
       ]
   where
     wrongTypeText pl =
-      mconcat
-        [ "I found ",
-          pl "a term" "some terms",
-          " in scope with ",
-          pl "a " "",
-          "matching name",
-          pl "" "s",
-          " but ",
-          pl "a " "",
-          "different type",
-          pl "" "s",
-          ". ",
-          "If ",
-          pl "this" "one of these",
-          " is what you meant, try using the fully qualified name and I might ",
-          "be able to give you a more illuminating error message: \n\n"
-        ]
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching name",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different type",
+              pl "" "s",
+              ". ",
+              "If ",
+              pl "this" "one of these",
+              " is what you meant, try using its full name:"
+            ]
+        )
+        <> "\n\n"
     wrongNameText pl =
-      mconcat
-        [ "I found ",
-          pl "a term" "some terms",
-          " in scope with ",
-          pl "a " "",
-          "matching type",
-          pl "" "s",
-          " but ",
-          pl "a " "",
-          "different name",
-          pl "" "s",
-          ". ",
-          "Maybe you meant ",
-          pl "this" "one of these",
-          ":\n\n"
-        ]
-    formatSuggestion :: (Text, C.Type v loc) -> Pretty ColorText
-    formatSuggestion (name, typ) =
-      "  - " <> fromString (Text.unpack name) <> " : " <> renderType' env typ
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching type",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different name",
+              pl "" "s",
+              ". ",
+              "Maybe you meant ",
+              pl "this" "one of these",
+              ":\n\n"
+            ]
+        )
     formatWrongs txt wrongs =
       let sz = length wrongs
           pl a b = if sz == 1 then a else b
-       in mconcat [txt pl, intercalateMap "\n" formatSuggestion wrongs]
+       in mconcat [txt pl, intercalateMap "\n" (renderSuggestion env) wrongs]
     ordinal :: (IsString s) => Int -> s
     ordinal n =
       fromString $
@@ -1134,7 +1152,12 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
 renderSuggestion ::
   (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  fromString (Text.unpack $ C.suggestionName sug)
+  renderTerm
+    env
+    ( case C.suggestionReplacement sug of
+        Right ref -> Term.ref () (toReference ref)
+        Left v -> Term.var () v
+    )
     <> " : "
     <> renderType'
       env
