@@ -90,7 +90,7 @@ ex4 =
   
       2 |   (a,b) = (a Nat.+ b, 19)
   
-  Its type should conform to Nat .
+  Its type should conform to Nat
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree

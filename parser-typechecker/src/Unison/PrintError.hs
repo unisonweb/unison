@@ -4,10 +4,12 @@ module Unison.PrintError where
 
 import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
-import Data.List (find, intersperse)
+import Data.Function (on)
+import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
+import Data.Ord (comparing)
 import Data.Proxy
 import Data.Sequence (Seq (..))
 import Data.Set qualified as Set
@@ -628,14 +630,23 @@ renderTypeError e env src = case e of
         _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
-          foldr sep id (sortOn (length . Text.splitOn "." . C.suggestionName) suggestions) ([], [], [])
+          foldr
+            sep
+            id
+            ( sortBy
+                ( comparing length <> compare
+                    `on` (Text.splitOn "." . C.suggestionName)
+                )
+                suggestions
+            )
+            ([], [], [])
         sep s@(C.Suggestion _ _ _ match) r =
           case match of
             C.Exact -> (_1 %~ (s :)) . r
             C.WrongType -> (_2 %~ (s :)) . r
             C.WrongName -> (_3 %~ (s :)) . r
         undefinedSymbolHelp =
-          Pr.wrapPreserveSpaces $
+          Pr.wrap $
             mconcat
               [ mconcat ["Its type should conform to ", style Type1 (renderType' env expectedType)],
                 Pr.hang

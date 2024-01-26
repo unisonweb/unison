@@ -310,7 +310,7 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
   
      19 |   bar21
   
-  Its type should conform to _ .
+  Its type should conform to _
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree
@@ -366,7 +366,7 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
   
       6 |   a1
   
-  Its type should conform to _ .
+  Its type should conform to _
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree
