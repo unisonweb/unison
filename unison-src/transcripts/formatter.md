@@ -2,15 +2,13 @@
 .> builtins.mergeio
 ```
 
-```unison
--- TODO: support formatting docs with {{  }} syntax.
--- For now we just skip formatting any .doc terms.
+```unison:hide
 {{ # Doc
 This is a *doc*! 
 
 term link {x}
 
-type link {type Optional}
+type link {type   Optional}
 
 }}
 x : 
@@ -21,14 +19,45 @@ x y =
     x + y
 -- Should keep comments after
 
-type Optional   a = More Text 
+-- Test for a previous regression that added extra brackets.
+oneLiner = {{ one liner }}
+-- After
+
+-- Before
+explicit.doc = {{
+# Here's a top-level doc
+
+With a paragraph
+
+Or two
+}}
+-- After
+
+{{ A doc before an ability }}
+ability Thing where
+  more  : Nat -> Text -> Nat
+  doThing  : Nat -> Int
+
+{{ 
+A Doc before a type 
+}}
+structural type Optional   a = More Text 
   | Some 
   | Other   a 
   | None Nat 
 
-ability Thing where
-  more  : Nat -> Text -> Nat
-  doThing  : Nat -> Int
+{{ A doc before a type with no type-vars }}
+type Two = One Nat | Two Text
+```
+
+```ucm
+.> debug.format
+```
+
+Formatter should leave things alone if the file doesn't typecheck.
+
+```unison:error
+brokenDoc = {{ hello }} + 1
 ```
 
 ```ucm

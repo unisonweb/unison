@@ -150,7 +150,7 @@ dataDeclaration maybeUnresolvedModifier = do
   eq <- reserved "="
   let -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
-      go :: L.Token v -> [Type v Ann] -> (Ann, v, Type v Ann)
+      go :: L.Token v -> [Type v Ann] -> (Ann {- Ann spanning the constructor and its args -}, (Ann, v, Type v Ann))
       go ctorName ctorArgs =
         let arrow i o = Type.arrow (ann i <> ann o) i o
             app f arg = Type.app (ann f <> ann arg) f arg
@@ -160,14 +160,16 @@ dataDeclaration maybeUnresolvedModifier = do
             --    or just `Optional a` in the case of `None`
             ctorType = foldr arrow ctorReturnType ctorArgs
             ctorAnn = ann ctorName <> maybe (ann ctorName) ann (lastMay ctorArgs)
-         in ( ann ctorName,
-              Var.namespaced [L.payload name, L.payload ctorName],
-              Type.foralls ctorAnn typeArgVs ctorType
+         in ( ctorAnn,
+              ( ann ctorName,
+                Var.namespaced [L.payload name, L.payload ctorName],
+                Type.foralls ctorAnn typeArgVs ctorType
+              )
             )
       prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
-      dataConstructor :: P v m (Ann, v, Type v Ann)
+      dataConstructor :: P v m (Ann, (Ann, v, Type v Ann))
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
-      record :: P v m ([(Ann, v, Type v Ann)], [(L.Token v, [(L.Token v, Type v Ann)])], Ann)
+      record :: P v m ([(Ann, (Ann, v, Type v Ann))], [(L.Token v, [(L.Token v, Type v Ann)])], Ann)
       record = do
         _ <- openBlockWith "{"
         let field :: P v m [(L.Token v, Type v Ann)]
@@ -185,9 +187,9 @@ dataDeclaration maybeUnresolvedModifier = do
   (constructors, accessors, closingAnn) <-
     msum [Left <$> record, Right <$> sepBy (reserved "|") dataConstructor] <&> \case
       Left (constructors, accessors, closingAnn) -> (constructors, accessors, closingAnn)
-      Right constructors ->
+      Right constructors -> do
         let closingAnn :: Ann
-            closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(_, _, t) -> ann t) <$> constructors))
+            closingAnn = NonEmpty.last (ann eq NonEmpty.:| ((\(constrSpanAnn, _) -> constrSpanAnn) <$> constructors))
          in (constructors, [], closingAnn)
   _ <- closeBlock
   case maybeUnresolvedModifier of
@@ -197,7 +199,7 @@ dataDeclaration maybeUnresolvedModifier = do
       let declSpanAnn = ann typeToken <> closingAnn
       pure
         ( L.payload name,
-          DD.mkDataDecl' modifier declSpanAnn typeArgVs constructors,
+          DD.mkDataDecl' modifier declSpanAnn typeArgVs (snd <$> constructors),
           accessors
         )
     Just unresolvedModifier -> do
@@ -207,7 +209,7 @@ dataDeclaration maybeUnresolvedModifier = do
       let declSpanAnn = ann typeToken <> ann modifier <> closingAnn
       pure
         ( L.payload name,
-          DD.mkDataDecl' (L.payload modifier) declSpanAnn typeArgVs constructors,
+          DD.mkDataDecl' (L.payload modifier) declSpanAnn typeArgVs (snd <$> constructors),
           accessors
         )
 

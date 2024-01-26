@@ -1,16 +1,20 @@
 module Unison.Codebase.Editor.HandleInput.FormatFile
   ( formatFile,
-    applyFormatUpdates,
+    applyTextReplacements,
     TextReplacement (..),
   )
 where
 
 import Control.Lens hiding (List)
+import Control.Monad.State
 import Data.IntervalMap.Interval qualified as Interval
 import Data.List qualified as List
 import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Text.Builder qualified as TB
+import U.Core.ABT qualified as ABT
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as Decl
 import Unison.HashQualified qualified as HQ
@@ -31,6 +35,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary qualified as FileSummary
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Range (Range (..))
+import Unison.Var qualified as Var
 
 -- | Format a file, returning a list of Text replacements to apply to the file.
 formatFile ::
@@ -47,6 +52,10 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
   fileSummary <- hoistMaybe $ FileSummary.mkFileSummary mayParsedFile mayTypecheckedFile
   filePPED <- lift $ makePPEDForFile mayParsedFile mayTypecheckedFile
   parsedFile <- hoistMaybe mayParsedFile
+  -- Don't format anything unless the file typechecks.
+  -- The formatter mostly works on a parsed file, but we currently fail to print
+  -- '{{ .. }}'-style docs correctly if they don't typecheck.
+  _typecheckedFile <- hoistMaybe mayTypecheckedFile
   formattedDecls <-
     (FileSummary.allTypeDecls fileSummary)
       & fmap
@@ -54,7 +63,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             let tldAnn = either (Decl.annotation . Decl.toDataDecl) (Decl.annotation) decl
              in (tldAnn, ref, decl)
         )
-      & Map.filter (\(tldAnn, _, _) -> shouldFormatTLD tldAnn)
+      & Map.filter (\(tldAnn, _, _) -> isInFormatRange tldAnn)
       & itraverse \sym (tldAnn, ref, decl) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
@@ -73,13 +82,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filterWithKey
-        ( \sym (tldAnn, _, _, _) ->
-            shouldFormatTLD tldAnn
-              -- TODO: Fix printing of docs using {{  }} syntax.
-              -- For now we just skip them.
-              && (Name.lastSegment <$> Name.fromVar sym) /= Just "doc"
-        )
+      & Map.filter (\(tldAnn, _, trm, _) -> shouldFormatTerm tldAnn trm)
       & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
         symName <- hoistMaybe (Name.fromVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
@@ -117,11 +120,24 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
           pure $ (TextReplacement (Text.pack $ Pretty.toPlain (Pretty.Width formattingWidth) txt) range)
   pure textEdits
   where
-    shouldFormatTLD :: Ann.Ann -> Bool
-    shouldFormatTLD ann =
+    isInFormatRange :: Ann.Ann -> Bool
+    isInFormatRange ann =
       case mayRangesToFormat of
         Nothing -> True
         Just rangesToFormat -> any (annRangeOverlap ann) rangesToFormat
+    shouldFormatTerm :: Ann.Ann -> Term.Term Symbol Ann.Ann -> Bool
+    shouldFormatTerm ann trm =
+      isInFormatRange ann
+        && not (isUntypecheckedDoc trm)
+
+    -- The lexer converts '{{ .. }}' into 'syntax.docUntitledSection (..)', but the pretty
+    -- printer doesn't print it back as '{{ .. }}' unless it typechecks, so
+    -- we just don't format docs that have un-resolved 'docUntitledSection' symbols.
+    isUntypecheckedDoc :: Term.Term Symbol Ann.Ann -> Bool
+    isUntypecheckedDoc trm =
+      ABT.freeVars trm
+        & Set.map Var.nameStr
+        & Set.member "syntax.docUntitledSection"
     -- Does the given range overlap with the given annotation?
     annRangeOverlap :: Ann.Ann -> Range -> Bool
     annRangeOverlap a r =
@@ -186,49 +202,80 @@ hasUserTypeSignature parsedFile sym =
   UF.terms parsedFile
     & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
 
+-- | A text replacement to apply to a file.
 data TextReplacement = TextReplacement
   { -- The new new text to replace the old text in the range with. w
     replacementText :: Text,
-    -- The range to replace.
+    -- The range to replace, [start, end)
     replacementRange :: Range
   }
   deriving (Eq, Show)
 
 -- | Apply a list of range replacements to a text, returning the updated text.
 --
--- This isn't terribly efficient, but is fine for debugging and testing.
+-- >>> applyFormatUpdates [TextReplacement "cakes" (Range (Pos.Pos 1 21) (Pos.Pos 1 28))] "my favorite food is oranges because\nthey are delicious and nutritious"
+-- "my favorite food is cakes because\nthey are delicious and nutritious"
 --
--- TODO: rewrite to sort replacements and run them in a single pass.
+-- Multiple replacements.
+-- >>> let txt = "my favorite food is oranges because\nthey are delicious and nutritious"
+-- >>> let replacements = [TextReplacement "cakes" (Range (Pos.Pos 1 21) (Pos.Pos 1 28)), TextReplacement "decadent" (Range (Pos.Pos 2 10) (Pos.Pos 2 19)), TextReplacement "tasty" (Range (Pos.Pos 2 24) (Pos.Pos 2 34))]
+-- >>> applyFormatUpdates replacements txt
+-- "my favorite food is cakes because\nthey are decadent and tasty"
 --
--- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6))] "abcdefghijk\nlmnopqrstuv\nwxyz"
--- "abcdefghijk\nlmhelloqrstuv\nwxyz"
---
--- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 3 2))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
--- "abcdefghijk\nlmhelloxyz\n1234567890"
---
--- >>> applyFormatUpdates [TextReplacement "hello" (Range (Pos.Pos 2 3) (Pos.Pos 2 6)), TextReplacement "world" (Range (Pos.Pos 3 3) (Pos.Pos 4 3))] "abcdefghijk\nlmnopqrstuv\nwxyz\n1234567890"
--- "abcdefghijk\nlmhelloqrstuv\nwxworld34567890"
-applyFormatUpdates :: [TextReplacement] -> Text -> Text
-applyFormatUpdates updates txt = foldl' applyUpdate txt updates
+-- Multi-line replacements.
+-- >>> let txt = "mary had a little lamb\nwhose fleece was white as snow\nand everywhere that mary went\nthe lamb was sure to go"
+-- >>> let replacements = [TextReplacement "lambo, which" (Range (Pos.Pos 1 19) (Pos.Pos 2 13)), TextReplacement " the people stared" (Range (Pos.Pos 3 99) (Pos.Pos 4 99))]
+-- >>> applyFormatUpdates replacements txt
+-- "mary had a little lambo, which was white as snow\nand everywhere that mary went the people stared"
+applyTextReplacements :: [TextReplacement] -> Text -> Text
+applyTextReplacements replacements inputText = applyTextReplacementsHelper relativeOffsets (Text.lines inputText) & TB.run
   where
-    applyUpdate :: Text -> TextReplacement -> Text
-    applyUpdate txt (TextReplacement newText (Range (Pos.Pos startLine' startCol') (Pos.Pos endLine' endCol'))) = fromMaybe txt $ do
-      -- Convert from 1-based indexing
-      let startLine = startLine' - 1
-      let startCol = startCol' - 1
-      let endLine = endLine' - 1
-      let endCol = endCol' - 1
-      let ls = Text.lines txt
-          (beforeLines, afterLines) = List.splitAt startLine (ls)
-      if startLine == endLine
-        then do
-          (theLine NEL.:| rest) <- NEL.nonEmpty afterLines
-          let (prefix, _) = Text.splitAt startCol theLine
-          let (_, suffix) = Text.splitAt endCol theLine
-          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
-        else do
-          let (relevantLines', rest) = List.splitAt ((endLine + 1) - startLine) afterLines
-          relevantLines <- NEL.nonEmpty relevantLines'
-          let prefix = Text.take startCol (NEL.head relevantLines)
-          let (_, suffix) = Text.splitAt endCol (NEL.last relevantLines)
-          pure $ Text.intercalate "\n" $ beforeLines <> [prefix <> newText <> suffix] <> rest
+    tupleReplacements :: [(Int, Int, Maybe Text)]
+    tupleReplacements =
+      replacements
+        & foldMap
+          ( \(TextReplacement txt (Range (Pos.Pos startLine startCol) (Pos.Pos endLine endCol))) ->
+              -- Convert from 1-based indexing to 0-based indexing
+              [(startLine - 1, startCol - 1, Nothing), (endLine - 1, endCol - 1, Just txt)]
+          )
+    relativeOffsets = relativizeOffsets (List.sortOn (\(line, col, _) -> (line, col)) tupleReplacements)
+
+-- | Given a list of offsets, return a list of offsets where each offset is positioned relative to the previous offset.
+-- I.e. if the first offset is at line 3 col 4, and the next is at line 5 col 6, we subtract 3
+-- from the 5 but leave the column alone since it's on a different line, resulting in [(3,4), (2,6)]
+--
+-- If the first offset is at line 3 col 4, and the next is at line 3 col 6, we subtract 3 from
+-- the line number AND subtract 4 from the column number since they're on the same line.
+-- Resulting in [(3,4), (0,2)]
+--
+--
+-- >>> relativizeOffsets [(0, 0, Nothing), (0, 4, Just "1"), (0, 10, Nothing), (1, 0, Just "2"), (1, 5, Nothing), (5, 10, Just "3")]
+-- NOW [(0,0,Nothing),(0,4,Just "1"),(0,6,Nothing),(1,0,Just "2"),(0,5,Nothing),(4,10,Just "3")]
+relativizeOffsets :: [(Int, Int, Maybe Text)] -> [(Int, Int, Maybe Text)]
+relativizeOffsets xs =
+  let grouped = List.groupBy (\(a, _, _) (b, _, _) -> a == b) xs
+   in grouped
+        & fmap (snd . List.mapAccumL (\acc (line, col, r) -> (col, (line, col - acc, r))) 0)
+        & List.concat
+        & snd . List.mapAccumL (\acc (line, col, r) -> (line, (line - acc, col, r))) 0
+
+-- | Apply a list of range replacements to a list of lines, returning the result.
+--
+-- >>> applyTextReplacementsHelper [(0, 1, Nothing), (0, 4, Just "1"), (0, 2, Nothing), (1, 3, Just "2"), (0, 5, Nothing), (1, 10, Just "3")] ["abcdefghijk", "lmnopqrstuv", "wxyz", "1234567890"] & TB.run
+-- "a1fg2opqrs3\n1234567890"
+applyTextReplacementsHelper :: [(Int, Int, Maybe Text)] -> [Text] -> TB.Builder
+applyTextReplacementsHelper [] ls = TB.intercalate "\n" (TB.text <$> ls)
+applyTextReplacementsHelper _ [] = mempty
+applyTextReplacementsHelper ((0, col, r) : rest) (l : ls) =
+  let (prefix, suffix) = Text.splitAt col l
+   in TB.text (fromMaybe prefix r) <> applyTextReplacementsHelper rest (suffix : ls)
+applyTextReplacementsHelper ((line, col, r) : rest) ls =
+  case List.splitAt line ls of
+    (prefixLines, []) -> TB.intercalate "\n" (TB.text <$> prefixLines)
+    (prefixLines, (lastLine : restLines)) ->
+      let (prefixChars, suffixChars) = Text.splitAt col lastLine
+          segment =
+            (TB.intercalate "\n" $ fmap TB.text prefixLines)
+              <> TB.char '\n'
+              <> TB.text prefixChars
+       in maybe segment TB.text r <> applyTextReplacementsHelper rest (suffixChars : restLines)
