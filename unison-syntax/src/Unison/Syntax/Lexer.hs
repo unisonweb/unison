@@ -259,7 +259,7 @@ token'' tok p = do
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
     topHasClosePair ((name, _) : _) =
-      name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
+      name `elem` ["syntax.docTransclude", "{", "(", "[", "handle", "match", "if", "then"]
 
 showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
