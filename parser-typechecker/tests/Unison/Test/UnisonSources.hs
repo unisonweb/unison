@@ -10,7 +10,6 @@ import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
