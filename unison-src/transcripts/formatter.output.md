@@ -99,25 +99,28 @@ brokenDoc = {{ hello }} + 1
 
   Loading changes detected in scratch.u.
 
-  I couldn't find any definitions matching the name + inside the namespace .
+  I couldn't figure out what + refers to here:
   
       1 | brokenDoc = {{ hello }} + 1
   
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
+  The name + is ambiguous. I tried to resolve it by type but no
+  term with that name would pass typechecking. I think its type
+  should be:
   
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
+      Doc2 -> Nat -> o
   
-  Whatever it is, its type should conform to Doc2 -> Nat -> o.
+  If that's not what you expected, you may have a type error
+  somewhere else in your code.
+  Help me out by using a more specific name here or adding a
+  type annotation.
   
-  I found some terms in scope with matching names but different types. If one of these is what you meant, try using the fully qualified name and I might be able to give you a more illuminating error message: 
+  I found some terms in scope with matching names but different 
+  types. If one of these is what you meant, try using its full 
+  name:
   
-    - builtin.Float.+ : Float -> Float -> Float
-    - builtin.Int.+ : Int -> Int -> Int
-    - builtin.Nat.+ : Nat -> Nat -> Nat
+  (Float.+) : Float -> Float -> Float
+  (Int.+) : Int -> Int -> Int
+  (Nat.+) : Nat -> Nat -> Nat
 
 ```
 ```ucm

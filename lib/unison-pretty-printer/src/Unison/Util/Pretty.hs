@@ -229,7 +229,7 @@ wrapImplPreserveSpaces = \case
       (Lit s) -> fromMaybe False (fmap (isSpaceNotNewline . fst) $ LL.uncons s)
       _ -> False
     f p | startsWithSpace p = p `orElse` newline
-    f p = p
+    f p = p `orElse` (newline <> p)
 
 isSpaceNotNewline :: Char -> Bool
 isSpaceNotNewline c = isSpace c && not (c == '\n')

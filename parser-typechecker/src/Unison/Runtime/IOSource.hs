@@ -12,7 +12,6 @@ import Text.RawString.QQ (r)
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.CodeLookup.Util qualified as CL
-import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
@@ -1002,7 +1001,7 @@ type EitherResult = Either String TFile
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.makePPE (PPE.hqNamer 10 Builtin.names) PPE.dontSuffixify
