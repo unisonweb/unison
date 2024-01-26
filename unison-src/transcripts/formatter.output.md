@@ -51,12 +51,14 @@ type Two = One Nat | Two Text
 
 ```
 ```unison:added-by-ucm scratch.u
-x.doc =
-  {{ # Doc This is a **doc**!
-  
-    term link {x}
-    
-    type link {type Optional} }}
+{{ # Doc
+This is a *doc*! 
+
+term link {x}
+
+type link {type   Optional}
+
+}}
 x : Nat -> Nat
 x y =
   use Nat +
@@ -65,27 +67,30 @@ x y =
 -- Should keep comments after
 
 -- Test for a previous regression that added extra brackets.
-oneLiner = {{ one liner }}
+oneLiner = {{ one liner }} }}
 -- After
 
 -- Before
-explicit.doc =
-  {{ # Here's a top-level doc
-  
-    With a paragraph
-    
-    Or two }}
+explicit.doc = {{
+# Here's a top-level doc
+
+With a paragraph
+
+Or two
+}}
 -- After
 
-Thing.doc = {{ A doc before an ability }}
+{{ A doc before an ability }}
 ability Thing where
   more : Nat -> Text ->{Thing} Nat
   doThing : Nat ->{Thing} Int
 
-Optional.doc = {{ A Doc before a type }}
+{{ 
+A Doc before a type 
+}}
 structural type Optional a = More Text | Some | Other a | None Nat 
 
-Two.doc = {{ A doc before a type with no type-vars }}
+{{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
 ```
 
@@ -99,28 +104,34 @@ brokenDoc = {{ hello }} + 1
 
   Loading changes detected in scratch.u.
 
-  I couldn't find any definitions matching the name + inside the namespace .
+  I couldn't figure out what + refers to here:
   
       1 | brokenDoc = {{ hello }} + 1
   
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
+  The name + is ambiguous. I tried to resolve it by type but no
+  term with that name would pass typechecking. I think its type
+  should be:
   
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
+      Doc2 -> Nat -> o
   
-  Whatever it is, its type should conform to Doc2 -> Nat -> o.
+  If that's not what you expected, you may have a type error
+  somewhere else in your code. Help me out by using a more
+  specific name here or adding a type annotation.
   
-  I found some terms in scope with matching names but different types. If one of these is what you meant, try using the fully qualified name and I might be able to give you a more illuminating error message: 
+  I found some terms in scope with matching names but different 
+  types. If one of these is what you meant, try using its full 
+  name:
   
-    - builtin.Float.+ : Float -> Float -> Float
-    - builtin.Int.+ : Int -> Int -> Int
-    - builtin.Nat.+ : Nat -> Nat -> Nat
+  (Float.+) : Float -> Float -> Float
+  (Int.+) : Int -> Int -> Int
+  (Nat.+) : Nat -> Nat -> Nat
 
 ```
 ```ucm
 .> debug.format
 
 ```
+```unison:added-by-ucm scratch.u
+brokenDoc = {{ hello }} + 1
+```
+
