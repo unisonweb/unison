@@ -27,6 +27,7 @@ import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
@@ -50,6 +51,7 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualified' qualified as HQ'
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
@@ -59,6 +61,7 @@ import Unison.Server.Types qualified as Server
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Types qualified as Share
 import Unison.Sqlite qualified as Sqlite
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
@@ -159,28 +162,30 @@ completeWithinNamespace compTypes query currentPath = do
   pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
   where
     queryPathPrefix :: Path.Path'
-    querySuffix :: NameSegment.NameSegment
+    querySuffix :: Text
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
-    getChildSuggestions shortHashLen b = do
-      nonEmptyChildren <- V2Branch.nonEmptyChildren b
-      case querySuffix of
-        "" -> pure []
-        suffix -> do
-          case Map.lookup suffix nonEmptyChildren of
-            Nothing -> pure []
-            Just childCausal -> do
-              childBranch <- V2Causal.value childCausal
-              nib <- namesInBranch shortHashLen childBranch
-              nib
-                & fmap
-                  ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.unsafeFromText match)
-                  )
-                & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-                & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-                & pure
+    getChildSuggestions shortHashLen b
+      | Text.null querySuffix = pure []
+      | otherwise =
+          case NameSegment.fromText querySuffix of
+            Nothing -> pure Nothing
+            Just suffix -> do
+              nonEmptyChildren <- V2Branch.nonEmptyChildren b
+              case Map.lookup querySuffix nonEmptyChildren of
+                Nothing -> pure []
+                Just childCausal -> do
+                  childBranch <- V2Causal.value childCausal
+                  nib <- namesInBranch shortHashLen childBranch
+                  nib
+                    & fmap
+                      ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.unsafeFromText match)
+                      )
+                    & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+                    & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+                    & pure
     namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
@@ -389,8 +394,13 @@ shareCompletion completionTypes authHTTPClient str =
           & filter (\(typ, name) -> typ `NESet.member` completionTypes && NameSegment.toEscapedText pathSuffix `Text.isPrefixOf` name)
           & fmap
             ( \(_, name) ->
-                let queryPath = userHandle : coerce (Path.toList path)
-                    result = Text.unpack $ Text.intercalate "." (queryPath <> [name])
+                let queryPath = userHandle : Path.toList path
+                    result =
+                      (queryPath ++ [NameSegment.unsafeFromText name])
+                        & List.NonEmpty.fromList
+                        & Name.fromSegments
+                        & Name.toText
+                        & Text.unpack
                  in prettyCompletionWithQueryPrefix False str result
             )
           & pure

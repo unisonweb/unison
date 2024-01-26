@@ -2,6 +2,7 @@
 module Unison.Syntax.NameSegment
   ( -- * String conversions
     toEscapedText,
+    fromText,
     unsafeFromText,
 
     -- * Name segment parsers
@@ -47,14 +48,19 @@ toEscapedText =
 
 -- | Convert text to a name segment.
 --
--- > unsafeFromText "foo" = NameSegment "foo"
--- > unsafeFromText ".~" = <error>
--- > unsafeFromText "`.~`" = NameSegment ".~"
-unsafeFromText :: Text -> NameSegment
-unsafeFromText text =
+-- > fromText "foo" = Right (NameSegment "foo")
+-- > fromText ".~" = Left ...
+-- > fromText "`.~`" = Right (NameSegment ".~")
+fromText :: Text -> Either Text NameSegment
+fromText text =
   case P.runParser (P.withParsecT (fmap renderParseErr) (segmentP <* P.eof)) "" (Text.unpack text) of
-    Left err -> error (P.errorBundlePretty err)
-    Right segment -> segment
+    Left err -> Left (Text.pack (P.errorBundlePretty err))
+    Right segment -> Right segment
+
+-- | Convert text to a name segment.
+unsafeFromText :: Text -> NameSegment
+unsafeFromText =
+  either (error . Text.unpack) id . fromText
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Name segment parsers
