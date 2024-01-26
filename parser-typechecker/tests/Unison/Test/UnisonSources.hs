@@ -89,7 +89,7 @@ go rt files how = do
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)
