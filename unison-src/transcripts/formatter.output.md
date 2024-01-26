@@ -110,8 +110,9 @@ brokenDoc = {{ hello }} + 1
       Doc2 -> Nat -> o
   
   If that's not what you expected, you may have a type error
-  somewhere else in your code. Help me out by using a more
-  specific name here or adding a type annotation.
+  somewhere else in your code.
+  Help me out by using a more specific name here or adding a
+  type annotation.
   
   I found some terms in scope with matching names but different 
   types. If one of these is what you meant, try using its full 

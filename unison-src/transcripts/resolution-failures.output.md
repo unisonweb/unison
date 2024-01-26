@@ -116,9 +116,8 @@ useAmbiguousTerm = ambiguousTerm
   
       1 | useAmbiguousTerm = ambiguousTerm
   
-  The name ambiguousTerm is ambiguous. Its type should conform to:
-  
-      _
+  The name ambiguousTerm is ambiguous. I couldn't narrow it down
+  by type, as any type would work here.
   
   I found some terms in scope that have matching names and
   types. Maybe you meant one of these:

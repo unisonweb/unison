@@ -646,18 +646,27 @@ renderTypeError e env src = case e of
             C.WrongType -> (_2 %~ (s :)) . r
             C.WrongName -> (_3 %~ (s :)) . r
         undefinedSymbolHelp =
-          Pr.wrap $
-            mconcat
-              [ mconcat ["Its type should conform to ", style Type1 (renderType' env expectedType)],
-                Pr.hang
-                  "Some common causes of this error include:"
-                  ( Pr.bulleted
-                      [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
-                        Pr.wrap "The definition is part of a library which hasn't been added to this project",
-                        Pr.wrap "You have a typo in the name"
+          mconcat
+            [ ( case expectedType of
+                  Type.Var' (TypeVar.Existential {}) ->
+                    Pr.wrap "I also don't know what type it should be."
+                  _ ->
+                    mconcat
+                      [ Pr.wrap "I think its type should be:",
+                        "\n\n",
+                        Pr.indentN 4 (style Type1 (renderType' env expectedType))
                       ]
-                  )
-              ]
+              ),
+              "\n\n",
+              Pr.hang
+                "Some common causes of this error include:"
+                ( Pr.bulleted
+                    [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
+                      Pr.wrap "The definition is part of a library which hasn't been added to this project",
+                      Pr.wrap "You have a typo in the name"
+                    ]
+                )
+            ]
      in mconcat
           [ "I couldn't figure out what ",
             style ErrorSite (Var.nameStr unknownTermV),
@@ -670,32 +679,59 @@ renderTypeError e env src = case e of
                   [] -> undefinedSymbolHelp
                   wrongs -> formatWrongs wrongNameText wrongs
                 wrongs ->
-                  Pr.wrap
-                    ( "The name "
-                        <> style Identifier (Var.nameStr unknownTermV)
-                        <> " is ambiguous. I tried to resolve it by type but"
-                    )
-                    <> " "
-                    <> case expectedType of
-                      Type.Var' (TypeVar.Existential {}) -> Pr.wrap "its type could be anything." <> "\n"
-                      _ ->
+                  let helpMeOut =
                         Pr.wrap
-                          "no term with that name would pass typechecking. I think its type should be:"
-                          <> "\n\n"
-                          <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
-                          <> "\n\n"
-                          <> Pr.wrap "If that's not what you expected, you may have a type error somewhere else in your code."
-                    <> " "
-                    <> Pr.wrap ("Help me out by" <> Pr.bold "using a more specific name here" <> "or" <> Pr.bold "adding a type annotation.")
-                    <> "\n\n"
-                    <> formatWrongs wrongTypeText wrongs
+                          ( mconcat
+                              [ "Help me out by",
+                                Pr.bold "using a more specific name here",
+                                "or",
+                                Pr.bold "adding a type annotation."
+                              ]
+                          )
+                   in Pr.wrap
+                        ( "The name "
+                            <> style Identifier (Var.nameStr unknownTermV)
+                            <> " is ambiguous. I tried to resolve it by type but"
+                        )
+                        <> " "
+                        <> case expectedType of
+                          Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything." <> helpMeOut) <> "\n"
+                          _ ->
+                            mconcat
+                              [ ( Pr.wrap $
+                                    mconcat
+                                      [ "no term with that name would pass typechecking.",
+                                        "I think its type should be:"
+                                      ]
+                                ),
+                                "\n\n",
+                                Pr.indentN 4 (style Type1 (renderType' env expectedType)),
+                                "\n\n",
+                                Pr.wrap
+                                  ( mconcat
+                                      [ "If that's not what you expected, you may have a type error somewhere else in your code.",
+                                        helpMeOut
+                                      ]
+                                  )
+                              ]
+                        <> "\n\n"
+                        <> formatWrongs wrongTypeText wrongs
               suggs ->
                 mconcat
-                  [ "The name "
-                      <> style Identifier (Var.nameStr unknownTermV)
-                      <> " is ambiguous. ",
-                    "Its type should conform to:\n\n",
-                    Pr.indentN 4 (style Type1 (renderType' env expectedType)),
+                  [ Pr.wrap
+                      ( mconcat
+                          [ mconcat
+                              [ "The name ",
+                                style Identifier (Var.nameStr unknownTermV),
+                                " is ambiguous. "
+                              ],
+                            case expectedType of
+                              Type.Var' (TypeVar.Existential {}) -> "I couldn't narrow it down by type, as any type would work here."
+                              _ ->
+                                "Its type should be:\n\n"
+                                  <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                          ]
+                      ),
                     "\n\n",
                     Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
                     "\n\n",
