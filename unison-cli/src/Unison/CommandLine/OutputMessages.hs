@@ -1934,12 +1934,16 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
-    pure . P.wrap $
-      "Pushing failed because the target"
+    let push = P.group . P.backticked . IP.patternName $ IP.push
+    in pure . P.wrap $
+      "The previous push target named"
         <> prettyProjectAndBranchName projectAndBranch
-        <> "does not exist on"
+        <> "has been deleted from"
         <> P.group (prettyURI host <> ".")
-        <> "This invalid default push target has been removed."
+        <> "I've deleted the invalid push target."
+        <> "Run the"
+        <> push
+        <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
