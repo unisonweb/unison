@@ -1933,6 +1933,13 @@ notifyUser dir = \case
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+  RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
+    pure . P.wrap $
+      "Pushing failed because the target"
+        <> prettyProjectAndBranchName projectAndBranch
+        <> "does not exist on"
+        <> P.group (prettyURI host <> ".")
+        <> "This invalid default push target has been removed."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
