@@ -25,6 +25,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
+import Debug.RecoverRTTI qualified as RTTI
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
@@ -1772,6 +1773,32 @@ notifyUser dir = \case
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DebugTerm builtinOrTerm -> pure $ case builtinOrTerm of
+    Left builtin -> P.wrap $ "The term is a builtin: " <> P.text builtin
+    Right trm ->
+      P.lines
+        [ "Verbose:",
+          P.string $ RTTI.anythingToString trm,
+          "",
+          "Abridged:",
+          P.shown trm
+        ]
+  DebugDecl typ mayConId -> do
+    let constructorMsg = case mayConId of
+          Nothing -> ""
+          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:"
+    pure $
+      P.lines $
+        [ constructorMsg,
+          "Verbose:",
+          P.string $ RTTI.anythingToString typ,
+          "",
+          "Abridged:",
+          P.shown typ,
+          "",
+          "ConstructorId:",
+          P.string $ show mayConId
+        ]
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -2737,7 +2764,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2752,7 +2779,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

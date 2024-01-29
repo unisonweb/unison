@@ -47,6 +47,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -324,6 +325,8 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | DebugDisplayFuzzyOptions Text [String {- arg description, options -}]
   | DebugFuzzyOptionsNoResolver
+  | DebugTerm (Either (Text {- A builtin hash -}) (Term Symbol Ann))
+  | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -568,6 +571,8 @@ isFailure o = case o of
   DisplayDebugCompletions {} -> False
   DebugDisplayFuzzyOptions {} -> False
   DebugFuzzyOptionsNoResolver {} -> True
+  DebugTerm {} -> False
+  DebugDecl {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False

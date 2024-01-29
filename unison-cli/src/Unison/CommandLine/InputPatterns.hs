@@ -2275,6 +2275,32 @@ debugDumpNamespaceSimple =
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
+debugTerm :: InputPattern
+debugTerm =
+  InputPattern
+    "debug.term"
+    []
+    I.Hidden
+    [("term", Required, exactDefinitionTermQueryArg)]
+    "View debugging information for a given term."
+    ( \case
+        [thing] -> fmap Input.DebugTermI $ parseHashQualifiedName thing
+        _ -> Left (I.help debugTerm)
+    )
+
+debugType :: InputPattern
+debugType =
+  InputPattern
+    "debug.type"
+    []
+    I.Hidden
+    [("type", Required, exactDefinitionTypeQueryArg)]
+    "View debugging information for a given type."
+    ( \case
+        [thing] -> fmap Input.DebugTypeI $ parseHashQualifiedName thing
+        _ -> Left (I.help debugType)
+    )
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache =
   InputPattern
