@@ -639,6 +639,16 @@ modifyContext f = do
 appendContext :: (Var v, Ord loc) => [Element v loc] -> M v loc ()
 appendContext = traverse_ extendContext
 
+markRetained :: (Var v, Ord loc) => Set v -> M v loc ()
+markRetained keep = setContext . marks =<< getContext
+  where
+    marks (Context eis) = Context (fmap mark eis)
+    mark (Existential B.Blank v, i)
+      | v `Set.member` keep = (Var (TypeVar.Existential B.Retain v), i)
+    mark (Solved B.Blank v t, i)
+      | v `Set.member` keep = (Solved B.Retain v t, i)
+    mark p = p
+
 extendContext :: (Var v) => Element v loc -> M v loc ()
 extendContext e =
   isReserved (varOf e) >>= \case
@@ -1191,7 +1201,7 @@ synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding e) = do
-  (tbinding, wb) <- synthesizeBinding binding
+  (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
@@ -1375,27 +1385,46 @@ synthesizeWanted _e = compilerCrash PatternMatchFailure
 synthesizeBinding ::
   (Var v) =>
   (Ord loc) =>
+  Bool ->
   Term v loc ->
   M v loc (Type v loc, Wanted v loc)
-synthesizeBinding binding = do
-  markThenCallWithRetract Var.inferOther \retract -> do
+synthesizeBinding top binding = do
+  markThenCallWithRetract Var.inferOther \retract -> adjustNotes do
     (tb, wb) <- synthesize binding
     if not (null wb)
-      then (,wb) <$> applyM tb
+      then fmap (\t -> ((t, wb), id)) (applyM tb)
+      else if top then do
+        ctx <- retract
+        pure ((generalizeExistentials ctx tb, []), substituteSolved ctx)
       else do
         ctx <- retract
-        let erecs = [ v | Existential B.Recorded{} v <- ctx ]
+        -- Note: this is conservative about what we avoid
+        -- generalizing. Right now only TDNR causes variables to be
+        -- retained. It might be possible to make this happen for any
+        -- `Recorded` to do more inference for unknown variable errors
+        -- (or whatever the other cases are for), at the expense of
+        -- less generalization in the process of reporting those.
+        let retain (B.Recorded B.Resolve{}) = True
+            retain B.Retain = True
+            retain _ = False
+
+            erecs = [ v | Existential b v <- ctx, retain b ]
             srecs =
               [ v
-              | Solved B.Recorded {} _ sa <- ctx
+              | Solved b _ sa <- ctx
+              , retain b
               , TypeVar.Existential _ v <-
                   Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa ]
             keep = Set.fromList (erecs ++ srecs)
-            p (Existential _ v) = v `Set.member` keep
-            p _ = False
-            (repush, discard) = partition p ctx
+            p (Existential _ v)
+              | v `Set.member` keep =
+                Left . Var $ TypeVar.Existential B.Retain v
+            p e = Right e
+            (repush, discard) = partitionEithers $ fmap p ctx
         appendContext repush
-        pure $ (generalizeExistentials discard tb, [])
+        markRetained keep
+        let tf = generalizeExistentials discard (applyCtx ctx tb)
+        pure ((tf, []), substituteSolved ctx)
 
 getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructorsAtType t0 = do
@@ -2393,8 +2422,8 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want (Term.Let1' binding m) t = do
-  (tbinding, wbinding) <- synthesizeBinding binding
+checkWanted want (Term.Let1Top' top binding m) t = do
+  (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
   markThenRetractWanted v $ do
