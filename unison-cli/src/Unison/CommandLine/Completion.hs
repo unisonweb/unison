@@ -53,7 +53,6 @@ import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
@@ -171,10 +170,10 @@ completeWithinNamespace compTypes query currentPath = do
       | Text.null querySuffix = pure []
       | otherwise =
           case NameSegment.fromText querySuffix of
-            Nothing -> pure Nothing
-            Just suffix -> do
+            Left _ -> pure []
+            Right suffix -> do
               nonEmptyChildren <- V2Branch.nonEmptyChildren b
-              case Map.lookup querySuffix nonEmptyChildren of
+              case Map.lookup suffix nonEmptyChildren of
                 Nothing -> pure []
                 Just childCausal -> do
                   childBranch <- V2Causal.value childCausal
@@ -213,7 +212,7 @@ completeWithinNamespace compTypes query currentPath = do
         -- completions.
         qualifyRefs :: NameSegment -> Map r metadata -> [HQ'.HashQualified NameSegment]
         qualifyRefs n refs
-          | ((Text.isInfixOf "#" . NameSegment.toEscapedText) querySuffix) || length refs > 1 = refs & Map.keys <&> qualify n
+          | Text.isInfixOf "#" querySuffix || length refs > 1 = refs & Map.keys <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically
@@ -251,22 +250,9 @@ completeWithinNamespace compTypes query currentPath = do
 -- (base,"List")
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
-  case P.runParser (((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt)) of
-    _ -> wundefined
-
--- case unsnoc (Text.splitOn "." txt) of
---   -- This case is impossible due to the behaviour of 'splitOn'
---   Nothing -> undefined
---   -- ".base."
---   -- ".base.List"
---   Just ("" : pathPrefix, querySegment) -> (Path.AbsolutePath' . Path.Absolute . Path.fromList . fmap NameSegment $ pathPrefix, NameSegment querySegment)
---   -- ""
---   -- "base"
---   -- "base.List"
---   Just (pathPrefix, querySegment) ->
---     ( Path.RelativePath' . Path.Relative . Path.fromList . fmap NameSegment $ pathPrefix,
---       NameSegment querySegment
---     )
+  case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
+    Left _err -> (Path.RelativePath' (Path.Relative Path.empty), txt)
+    Right (path, rest) -> (Path.unsplit' path, Text.pack rest)
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
@@ -372,7 +358,7 @@ shareCompletion completionTypes authHTTPClient str =
       Right (userHandle : path0) -> do
         let (path, pathSuffix) =
               case unsnoc path0 of
-                Just (path, pathSuffix) -> (Path.fromList path, pathSuffix)
+                Just (path, pathSuffix) -> (Path.fromList path, NameSegment.toEscapedText pathSuffix)
                 Nothing -> (Path.empty, "")
         NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient (NameSegment.toEscapedText userHandle) path
         namespaceListingChildren
@@ -391,7 +377,7 @@ shareCompletion completionTypes authHTTPClient str =
                   let name = Server.patchName np
                    in (NamespaceCompletion, name)
             )
-          & filter (\(typ, name) -> typ `NESet.member` completionTypes && NameSegment.toEscapedText pathSuffix `Text.isPrefixOf` name)
+          & filter (\(typ, name) -> typ `NESet.member` completionTypes && pathSuffix `Text.isPrefixOf` name)
           & fmap
             ( \(_, name) ->
                 let queryPath = userHandle : Path.toList path

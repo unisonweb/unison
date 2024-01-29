@@ -38,6 +38,6 @@ loadUniqueTypeGuid currentPath name0 = do
   -- an appropriate time, such as after the current unison file finishes parsing).
   let loadBranchAtPath :: [NameSegment] -> Sqlite.Transaction (Maybe (Codebase.Branch.Branch Sqlite.Transaction))
       loadBranchAtPath segments =
-        Operations.loadBranchAtPath Nothing (map NameSegment.toText segments)
+        Operations.loadBranchAtPath Nothing (map NameSegment.toUnescapedText segments)
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath (Foldable.toList @Seq branchPath) name

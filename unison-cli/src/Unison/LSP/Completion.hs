@@ -10,6 +10,7 @@ import Control.Lens hiding (List, (:<))
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
+import Data.Foldable qualified as Foldable
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
@@ -18,6 +19,7 @@ import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
+import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
@@ -41,7 +43,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name qualified as Name (fromText, toText)
+import Unison.Syntax.Name qualified as Name (fromText, nameP, toText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
@@ -190,7 +192,7 @@ namesToCompletionTree Names {terms, types} =
     -- Special docs like "README" will still appear since they're not named 'doc'
     isDefinitionDoc name =
       case Name.reverseSegments name of
-        ("doc" :| _) -> True
+        ((NameSegment.toUnescapedText -> "doc") :| _) -> True
         _ -> False
 
 nameToCompletionTree :: Name -> LabeledDependency -> CompletionTree
@@ -228,27 +230,25 @@ nameToCompletionTree name ref =
 -- @@
 matchCompletions :: CompletionTree -> Text -> [(Path, Name, LabeledDependency)]
 matchCompletions (CompletionTree tree) txt =
-  matchSegments segments (Set.toList <$> tree)
+  case Megaparsec.runParser (Name.nameP <* Megaparsec.eof) "" (Text.unpack txt) of
+    Left _ -> []
+    Right name -> matchSegments (Foldable.toList @NonEmpty (Name.segments name)) (Set.toList <$> tree)
   where
-    segments :: [Text]
-    segments =
-      Text.splitOn "." txt
-        & filter (not . Text.null)
-    matchSegments :: [Text] -> Cofree (Map NameSegment) [(Name, LabeledDependency)] -> [(Path, Name, LabeledDependency)]
+    matchSegments :: [NameSegment] -> Cofree (Map NameSegment) [(Name, LabeledDependency)] -> [(Path, Name, LabeledDependency)]
     matchSegments xs (currentMatches :< subtreeMap) =
       case xs of
         [] ->
           let current = currentMatches <&> (\(name, def) -> (Path.empty, name, def))
            in (current <> mkDefMatches subtreeMap)
         [prefix] ->
-          Map.dropWhileAntitone ((< prefix) . NameSegment.toText) subtreeMap
-            & Map.takeWhileAntitone (Text.isPrefixOf prefix . NameSegment.toText)
+          Map.dropWhileAntitone (< prefix) subtreeMap
+            & Map.takeWhileAntitone (NameSegment.isPrefixOf prefix)
             & \matchingSubtrees ->
               let subMatches = ifoldMap (\ns subTree -> matchSegments [] subTree & consPathPrefix ns) matchingSubtrees
                in subMatches
         (ns : rest) ->
-          foldMap (matchSegments rest) (Map.lookup (NameSegment ns) subtreeMap)
-            & consPathPrefix (NameSegment ns)
+          foldMap (matchSegments rest) (Map.lookup ns subtreeMap)
+            & consPathPrefix ns
     consPathPrefix :: NameSegment -> ([(Path, Name, LabeledDependency)]) -> [(Path, Name, LabeledDependency)]
     consPathPrefix ns = over (mapped . _1) (Path.cons ns)
     mkDefMatches :: Map NameSegment (Cofree (Map NameSegment) [(Name, LabeledDependency)]) -> [(Path, Name, LabeledDependency)]

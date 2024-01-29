@@ -58,7 +58,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment (UnsafeNameSegment))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -101,7 +102,7 @@ handleUpdate2 = do
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
-  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
+  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
@@ -394,12 +395,12 @@ incrementLastSegmentChar (ForwardName segments) =
    in ForwardName $ maybe (NonEmpty.singleton incrementedLastSegment) (|> incrementedLastSegment) (NonEmpty.nonEmpty initSegments)
   where
     incrementLastCharInSegment :: NameSegment -> NameSegment
-    incrementLastCharInSegment (NameSegment text) =
+    incrementLastCharInSegment (UnsafeNameSegment text) =
       let incrementedText =
             if Text.null text
               then text
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
-       in NameSegment incrementedText
+       in UnsafeNameSegment incrementedText
 
 -- @getTermAndDeclNames file@ returns the names of the terms and decls defined in a typechecked Unison file.
 getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)

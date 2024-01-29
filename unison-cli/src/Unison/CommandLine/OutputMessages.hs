@@ -140,6 +140,7 @@ import Unison.Syntax.NamePrinter
     prettyShortHash,
     styleHashQualified,
   )
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -486,7 +487,7 @@ notifyNumbered = \case
         E.AmbiguousReset'Hash -> \xs -> xs
         E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
       reset = IP.makeExample IP.reset
-      relPath0 = prettyPath' (Path.toPath' path)
+      relPath0 = prettyPath path
       absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
   ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
   ListNamespaceDependencies ppe path' externalDependencies ->
@@ -741,7 +742,7 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.todo
-                [ prettyPath' (snoc mergedPath "patch"),
+                [ prettyPath' (snoc mergedPath (NameSegment.unsafeFromUnescapedText "patch")),
                   prettyPath' mergedPath
                 ]
               <> "to see what work is remaining for the merge.",
@@ -1844,7 +1845,16 @@ notifyUser dir = \case
                   <> "or"
                   <> IP.makeExample
                     IP.mergeLocal
-                    [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                    [ prettyAbsolute
+                        ( Path.Absolute
+                            ( Path.fromList
+                                [ NameSegment.unsafeFromUnescapedText "path",
+                                  NameSegment.unsafeFromUnescapedText "to",
+                                  NameSegment.unsafeFromUnescapedText "code"
+                                ]
+                            )
+                        )
+                    ]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
@@ -2178,19 +2188,19 @@ notifyUser dir = \case
   UpgradeFailure path old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
-        <> P.text (NameSegment.toText old)
+        <> P.text (NameSegment.toEscapedText old)
         <> "to"
-        <> P.group (P.text (NameSegment.toText new) <> ".")
+        <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"
-        <> P.text (NameSegment.toText old)
+        <> P.text (NameSegment.toEscapedText old)
         <> "to"
-        <> P.group (P.text (NameSegment.toText new) <> ",")
+        <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
-        <> P.group (P.text (NameSegment.toText old) <> ".")
+        <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2700,7 +2710,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2715,7 +2725,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          `P.hang` P.lines replacements
+            `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

@@ -29,7 +29,6 @@ import Unison.Cli.Pretty (prettyProjectName, prettyProjectNameSlash, prettySlash
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
@@ -56,7 +55,6 @@ import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
@@ -3144,10 +3142,6 @@ namespaceOrDefinitionArg =
         Just Resolvers.namespaceOrDefinitionResolver
     }
 
--- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.
-childNamespaceNames :: Branch.Branch0 m -> [Text]
-childNamespaceNames b = NameSegment.toText <$> Map.keys (Branch.nonEmptyChildren b)
-
 newNameArg :: ArgumentType
 newNameArg =
   ArgumentType
@@ -3204,8 +3198,7 @@ remoteNamespaceArg =
               "ghs" -> complete "git(git@github.com:"
               "gls" -> complete "git(git@gitlab.com:"
               "bbs" -> complete "git(git@bitbucket.com:"
-              _ -> do
-                sharePathCompletion http input,
+              _ -> sharePathCompletion http input,
       fzfResolver = Nothing
     }
 

@@ -113,6 +113,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -499,7 +500,8 @@ getTypesAt path = do
 -- Getting patches
 
 defaultPatchNameSegment :: NameSegment
-defaultPatchNameSegment = "patch"
+defaultPatchNameSegment =
+  NameSegment.unsafeFromUnescapedText "patch"
 
 -- | The default patch path.
 defaultPatchPath :: Path.Split'

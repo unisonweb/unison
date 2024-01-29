@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -278,7 +277,7 @@ main = do
                       Just startingPath -> pure startingPath
                       Nothing -> do
                         segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                        pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+                        pure (Path.Absolute (Path.fromList (map NameSegment.unsafeFromUnescapedText segments)))
                   Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
                 rootVar <- newEmptyTMVarIO
                 pathVar <- newTVarIO startingPath

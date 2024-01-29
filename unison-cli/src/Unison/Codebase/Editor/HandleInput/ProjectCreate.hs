@@ -23,8 +23,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Pull qualified as Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.API.Hash qualified as Share.API
@@ -137,12 +136,12 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 projectBranchLibBaseObject =
                   over
                     Branch.children
-                    (Map.insert (NameSegment "base") baseLatestReleaseBranchObject)
+                    (Map.insert (NameSegment.unsafeFromUnescapedText "base") baseLatestReleaseBranchObject)
                     Branch.empty0
                 projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
              in over
                   Branch.children
-                  (Map.insert Name.libSegment projectBranchLibObject)
+                  (Map.insert NameSegment.libSegment projectBranchLibObject)
                   Branch.empty0
 
   Cli.stepAt reflogDescription (Path.unabsolute path, const projectBranchObject)

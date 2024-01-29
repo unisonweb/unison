@@ -150,6 +150,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -177,6 +178,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
@@ -203,7 +205,6 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
 import Witch (unsafeFrom)
-import qualified Unison.PrettyPrintEnv.Names as PPE
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -706,8 +707,8 @@ loop e = do
               -- add the new definitions to the codebase and to the namespace
               Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder])
               authorPath <- Cli.resolveSplit' authorPath'
-              copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
-              guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
+              copyrightHolderPath <- Cli.resolveSplit' (base |> NameSegment.unsafeFromUnescapedText "copyrightHolders" |> authorNameSegment)
+              guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.unsafeFromUnescapedText "guid")
               Cli.stepManyAt
                 description
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
@@ -727,8 +728,8 @@ loop e = do
               where
                 d :: Reference.Id -> Referent
                 d = Referent.Ref . Reference.DerivedId
-                base :: Path.Split' = (Path.relativeEmpty', "metadata")
-                authorPath' = base |> "authors" |> authorNameSegment
+                base :: Path.Split' = (Path.relativeEmpty', NameSegment.unsafeFromUnescapedText "metadata")
+                authorPath' = base |> NameSegment.unsafeFromUnescapedText "authors" |> authorNameSegment
             MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
             MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
             MoveAllI src' dest' -> do
@@ -816,11 +817,11 @@ loop e = do
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
-                  fixup case e of
-                    ShallowTypeEntry te -> Text.unpack $ Backend.typeEntryDisplayName te
-                    ShallowTermEntry te -> Text.unpack $ Backend.termEntryDisplayName te
-                    ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                    ShallowPatchEntry ns -> NameSegment.toString ns
+                  fixup $ Text.unpack case e of
+                    ShallowTypeEntry te -> Backend.typeEntryDisplayName te
+                    ShallowTermEntry te -> Backend.termEntryDisplayName te
+                    ShallowBranchEntry ns _ _ -> NameSegment.toEscapedText ns
+                    ShallowPatchEntry ns -> NameSegment.toEscapedText ns
                   where
                     fixup s = case pathArgStr of
                       "" -> s
@@ -997,7 +998,7 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` NameSegment.unsafeFromUnescapedText "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1021,7 +1022,7 @@ loop e = do
               let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` NameSegment.unsafeFromUnescapedText "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1104,14 +1105,14 @@ loop e = do
                                [ Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents)),
                                  Monoid.unlessM (null terms) $ P.lit "Terms:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Referent.toText) $ Map.toList terms)),
                                  Monoid.unlessM (null types) $ P.lit "Types:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Reference.toText) $ Map.toList types)),
-                                 Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toText) P.shown) $ Map.toList patches)),
-                                 Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toText) P.shown) $ Map.toList children))
+                                 Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toEscapedText) P.shown) $ Map.toList patches)),
+                                 Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toEscapedText) P.shown) $ Map.toList children))
                                ]
                          )
                     where
                       prettyRef renderR r = P.indentN 2 $ P.text (renderR r)
                       prettyDefn renderR (r, Foldable.toList -> names) =
-                        P.lines (P.text . NameSegment.toText <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyRef renderR r
+                        P.lines (P.text <$> if null names then ["<unnamed>"] else NameSegment.toEscapedText <$> names) <> P.newline <> prettyRef renderR r
               rootBranch <- Cli.getRootBranch
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal rootBranch]
             DebugDumpNamespaceSimpleI -> do
@@ -1307,7 +1308,7 @@ inputDescription input =
         "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
     FetchSchemeCompilerI name branch ->
       pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
-    CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
+    CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
@@ -1321,7 +1322,6 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
-    UpgradeI old new -> pure (Text.unwords ["upgrade", NameSegment.toText old, NameSegment.toText new])
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1378,6 +1378,7 @@ inputDescription input =
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
+    UpgradeI {} -> wat
     VersionI -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
@@ -1398,7 +1399,7 @@ inputDescription input =
     hqs' :: Path.HQSplit' -> Cli Text
     hqs' (p0, hq) = do
       p <- if Path.isRoot' p0 then pure mempty else p' p0
-      pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
+      pure (p <> "." <> HQ'.toTextWith NameSegment.toEscapedText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
     looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
@@ -1471,7 +1472,7 @@ handleFindI isVerbose fscope ws input = do
       Cli.respond FindNoLocalMatches
       -- We've already searched everything else, so now we search JUST the
       -- names in lib.
-      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ (\cs -> Map.singleton "lib" <$> Map.lookup "lib" cs)
+      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
       case mayOnlyLibBranch of
         Nothing -> respondResults []
         Just onlyLibBranch -> do
@@ -1548,7 +1549,7 @@ handleDependents hq = do
           r <- Set.toList dependents
           Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
           fullName <- [HQ'.toName hq]
-          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          guard (not (Name.beginsWithSegment fullName NameSegment.libSegment))
           Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
           pure (isTerm, HQ'.toHQ shortName, r)
     pure results
@@ -1921,7 +1922,7 @@ searchBranchScored names0 score queries =
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
   where
-    segs = NameSegment <$> ["unison", "internal"]
+    segs = NameSegment.unsafeFromUnescapedText <$> ["unison", "internal"]
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 

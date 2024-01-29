@@ -22,15 +22,15 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path (Path' (..))
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
+import Unison.Syntax.NameSegment qualified as NameSegment
 
 configKey :: Text -> Path.Absolute -> Text
 configKey k p =
   Text.intercalate "." . toList $
     k
       :<| fmap
-        NameSegment.toText
+        NameSegment.toEscapedText
         (Path.toSeq $ Path.unabsolute p)
 
 gitUrlKey :: Path.Absolute -> Text
