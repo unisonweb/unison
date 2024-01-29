@@ -1393,38 +1393,41 @@ synthesizeBinding top binding = do
     (tb, wb) <- synthesize binding
     if not (null wb)
       then fmap (\t -> ((t, wb), id)) (applyM tb)
-      else if top then do
-        ctx <- retract
-        pure ((generalizeExistentials ctx tb, []), substituteSolved ctx)
-      else do
-        ctx <- retract
-        -- Note: this is conservative about what we avoid
-        -- generalizing. Right now only TDNR causes variables to be
-        -- retained. It might be possible to make this happen for any
-        -- `Recorded` to do more inference for unknown variable errors
-        -- (or whatever the other cases are for), at the expense of
-        -- less generalization in the process of reporting those.
-        let retain (B.Recorded B.Resolve{}) = True
-            retain B.Retain = True
-            retain _ = False
+      else
+        if top
+          then do
+            ctx <- retract
+            pure ((generalizeExistentials ctx tb, []), substituteSolved ctx)
+          else do
+            ctx <- retract
+            -- Note: this is conservative about what we avoid
+            -- generalizing. Right now only TDNR causes variables to be
+            -- retained. It might be possible to make this happen for any
+            -- `Recorded` to do more inference for unknown variable errors
+            -- (or whatever the other cases are for), at the expense of
+            -- less generalization in the process of reporting those.
+            let retain (B.Recorded B.Resolve {}) = True
+                retain B.Retain = True
+                retain _ = False
 
-            erecs = [ v | Existential b v <- ctx, retain b ]
-            srecs =
-              [ v
-              | Solved b _ sa <- ctx
-              , retain b
-              , TypeVar.Existential _ v <-
-                  Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa ]
-            keep = Set.fromList (erecs ++ srecs)
-            p (Existential _ v)
-              | v `Set.member` keep =
-                Left . Var $ TypeVar.Existential B.Retain v
-            p e = Right e
-            (repush, discard) = partitionEithers $ fmap p ctx
-        appendContext repush
-        markRetained keep
-        let tf = generalizeExistentials discard (applyCtx ctx tb)
-        pure ((tf, []), substituteSolved ctx)
+                erecs = [v | Existential b v <- ctx, retain b]
+                srecs =
+                  [ v
+                    | Solved b _ sa <- ctx,
+                      retain b,
+                      TypeVar.Existential _ v <-
+                        Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa
+                  ]
+                keep = Set.fromList (erecs ++ srecs)
+                p (Existential _ v)
+                  | v `Set.member` keep =
+                      Left . Var $ TypeVar.Existential B.Retain v
+                p e = Right e
+                (repush, discard) = partitionEithers $ fmap p ctx
+            appendContext repush
+            markRetained keep
+            let tf = generalizeExistentials discard (applyCtx ctx tb)
+            pure ((tf, []), substituteSolved ctx)
 
 getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructorsAtType t0 = do

@@ -28,12 +28,12 @@ data Recorded loc
 -- - Recorded indicates that we want to remember the variable's solution
 --   for some kind of
 data Blank loc
-  = Blank
-  -- ^ just a dummy annotation
-  | Recorded (Recorded loc)
-  -- ^ indicates that we want to remember the variable's solution for
-  -- some reason
-  | Retain
-  -- ^ indicates that we want to prefer keeping the variable in the
-  -- context to better refine the above recorded solutions
+  = -- | just a dummy annotation
+    Blank
+  | -- | indicates that we want to remember the variable's solution for
+    -- some reason
+    Recorded (Recorded loc)
+  | -- | indicates that we want to prefer keeping the variable in the
+    -- context to better refine the above recorded solutions
+    Retain
   deriving (Show, Eq, Ord, Functor, Generic)
