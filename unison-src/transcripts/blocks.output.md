@@ -209,7 +209,7 @@ ex n =
 
   Loading changes detected in scratch.u.
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: pong9
+  These definitions depend on each other cyclically but aren't guarded by a lambda: pong8
       2 |   pong = ping + 1
       3 |   ping = 42
   
@@ -227,7 +227,7 @@ ex n =
 
   Loading changes detected in scratch.u.
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: loop9
+  These definitions depend on each other cyclically but aren't guarded by a lambda: loop8
       2 |   loop = loop
   
 

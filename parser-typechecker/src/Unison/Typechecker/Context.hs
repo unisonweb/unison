@@ -218,6 +218,15 @@ mapErrors f r = case r of
   CompilerBug bug es is -> CompilerBug bug (f <$> es) is
   s@(Success _ _) -> s
 
+-- Allows modifying the stored notes in a scoped way.
+-- This is based on the `pass` function in e.g. Control.Monad.Writer
+adjustResultNotes ::
+  Result v loc (a, InfoNote v loc -> InfoNote v loc) ->
+  Result v loc a
+adjustResultNotes (Success notes (r, f)) = Success (fmap f notes) r
+adjustResultNotes (TypeError e i) = TypeError e i
+adjustResultNotes (CompilerBug c e i) = CompilerBug c e i
+
 data PatternMatchCoverageCheckAndKindInferenceSwitch
   = PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
   | PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled
@@ -250,6 +259,15 @@ liftTotalM :: TotalM v loc a -> M v loc a
 liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects env -> case m ppe pmcSwitch datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a -> Success mempty a
+
+-- Allows modifying the stored notes in a scoped way.
+-- This is based on the `pass` function in e.g. Control.Monad.Writer
+adjustNotes ::
+  M v loc (a, InfoNote v loc -> InfoNote v loc) -> M v loc a
+adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects env ->
+  adjustResultNotes (twiddle <$> m ppe pmcSwitch datas effects env)
+  where
+    twiddle ((a, c), b) = ((a, b), c)
 
 -- errorNote :: Cause v loc -> M v loc ()
 -- errorNote = liftResult . errorNote
@@ -337,6 +355,27 @@ data InfoNote v loc
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
 topLevelComponent = TopLevelComponent . fmap (over _2 removeSyntheticTypeVars)
+
+-- Given a list of Elements that are going to be discarded from a
+-- context, substitutes the informataion into the solved blank types
+-- of an InfoNote. This should give better TDNR results, because it
+-- allows the stored solutions to incorporate information from later
+-- in the type checking process, instead of it being entirely reliant
+-- on information in the local scope of the reference to be resolved.
+--
+-- Note: this does not take any care to abstract over the variables
+-- stored in the notes, so it is _heavily_ reliant on the fact that we
+-- never reuse variable names/numberings in the typechecker. If this
+-- becomes untrue, then we need to revisit this and instead properly
+-- generalize types stored in the notes.
+substituteSolved ::
+  (Var v, Ord loc) =>
+  [Element v loc] ->
+  InfoNote v loc ->
+  InfoNote v loc
+substituteSolved ctx (SolvedBlank b v t) =
+  SolvedBlank b v (applyCtx ctx t)
+substituteSolved _ i = i
 
 -- The typechecker generates synthetic type variables as part of type inference.
 -- This function converts these synthetic type variables to regular named type
@@ -434,8 +473,7 @@ data Info v loc = Info
     solvedExistentials :: Map v (Monotype v loc), -- `v` is solved to some monotype
     universalVars :: Set v, -- set of universals seen so far
     termVarAnnotations :: Map v (Type v loc),
-    allVars :: Set v, -- all variables seen so far
-    previouslyTypecheckedVars :: Set v -- term vars already typechecked
+    allVars :: Set v -- all variables seen so far
   }
 
 -- | The empty context
@@ -472,11 +510,24 @@ retract0 e (Context ctx) = case focusAt (\(e', _) -> e' == e) ctx of
 -- of `body` and the discarded context (not including the marker), respectively.
 -- Freshened `markerHint` is used to create the marker.
 markThenRetract :: (Var v, Ord loc) => v -> M v loc a -> M v loc (a, [Element v loc])
-markThenRetract markerHint body = do
-  v <- freshenVar markerHint
+markThenRetract hint body =
+  markThenCallWithRetract hint \retract -> adjustNotes do
+    r <- body
+    ctx <- retract
+    pure ((r, ctx), substituteSolved ctx)
+
+markThenRetract0 :: (Var v, Ord loc) => v -> M v loc a -> M v loc ()
+markThenRetract0 markerHint body = () <$ markThenRetract markerHint body
+
+markThenCallWithRetract ::
+  (Var v, Ord loc) =>
+  v ->
+  (M v loc [Element v loc] -> M v loc a) ->
+  M v loc a
+markThenCallWithRetract hint k = do
+  v <- freshenVar hint
   extendContext (Marker v)
-  a <- body
-  (a,) <$> doRetract (Marker v)
+  k (doRetract (Marker v))
   where
     doRetract :: (Var v, Ord loc) => Element v loc -> M v loc [Element v loc]
     doRetract e = do
@@ -497,9 +548,6 @@ markThenRetract markerHint body = do
           Foldable.traverse_ go (solved ++ unsolved)
           setContext t
           pure discarded
-
-markThenRetract0 :: (Var v, Ord loc) => v -> M v loc a -> M v loc ()
-markThenRetract0 markerHint body = () <$ markThenRetract markerHint body
 
 -- unsolved' :: Context v loc -> [(B.Blank loc, v)]
 -- unsolved' (Context ctx) = [(b,v) | (Existential b v, _) <- ctx]
@@ -591,6 +639,16 @@ modifyContext f = do
 appendContext :: (Var v, Ord loc) => [Element v loc] -> M v loc ()
 appendContext = traverse_ extendContext
 
+markRetained :: (Var v, Ord loc) => Set v -> M v loc ()
+markRetained keep = setContext . marks =<< getContext
+  where
+    marks (Context eis) = Context (fmap mark eis)
+    mark (Existential B.Blank v, i)
+      | v `Set.member` keep = (Var (TypeVar.Existential B.Retain v), i)
+    mark (Solved B.Blank v t, i)
+      | v `Set.member` keep = (Solved B.Retain v t, i)
+    mark p = p
+
 extendContext :: (Var v) => Element v loc -> M v loc ()
 extendContext e =
   isReserved (varOf e) >>= \case
@@ -654,14 +712,6 @@ freshenTypeVar v =
          in (Var.freshenId id (TypeVar.underlying v), e {freshId = id + 1})
     )
 
-isClosed :: (Var v) => Term v loc -> M v loc Bool
-isClosed e = Set.null <$> freeVars e
-
-freeVars :: (Var v) => Term v loc -> M v loc (Set v)
-freeVars e = do
-  ctx <- getContext
-  pure $ ABT.freeVars e `Set.difference` previouslyTypecheckedVars (info ctx)
-
 -- todo: do we want this to return a location for the aspect of the type that was not well formed
 -- todo: or maybe a note / list of notes, or an M
 
@@ -690,7 +740,7 @@ wellformedType c t = case t of
 
 -- | Return the `Info` associated with the last element of the context, or the zero `Info`.
 info :: (Ord v) => Context v loc -> Info v loc
-info (Context []) = Info mempty mempty mempty mempty mempty mempty
+info (Context []) = Info mempty mempty mempty mempty mempty
 info (Context ((_, i) : _)) = i
 
 -- | Add an element onto the end of this `Context`. Takes `O(log N)` time,
@@ -699,19 +749,19 @@ info (Context ((_, i) : _)) = i
 extend' :: (Var v) => Element v loc -> Context v loc -> Either (CompilerBug v loc) (Context v loc)
 extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
   where
-    Info es ses us uas vs pvs = info c
+    Info es ses us uas vs = info c
     -- see figure 7
     i' = case e of
       Var v -> case v of
         -- UvarCtx - ensure no duplicates
         TypeVar.Universal v ->
           if Set.notMember v vs
-            then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs) pvs
+            then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs)
             else crash $ "variable " <> show v <> " already defined in the context"
         -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
         TypeVar.Existential _ v ->
           if Set.notMember v vs
-            then pure $ Info (Set.insert v es) ses us uas (Set.insert v vs) pvs
+            then pure $ Info (Set.insert v es) ses us uas (Set.insert v vs)
             else crash $ "variable " <> show v <> " already defined in the context"
       -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
       Solved _ v sa@(Type.getPolytype -> t)
@@ -719,7 +769,7 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
         | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
         | otherwise ->
             pure $
-              Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs) pvs
+              Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs)
       -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
       Ann v t
         | Set.member v vs -> crash $ "variable " <> show v <> " already defined in the context"
@@ -732,12 +782,11 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
                 us
                 (Map.insert v t uas)
                 (Set.insert v vs)
-                ((if Set.null (Type.freeVars t) then Set.insert v else id) pvs)
       -- MarkerCtx - note that since a Marker is always the first mention of a variable, suffices to
       -- just check that `v` is not previously mentioned
       Marker v ->
         if Set.notMember v vs
-          then pure $ Info es ses us uas (Set.insert v vs) pvs
+          then pure $ Info es ses us uas (Set.insert v vs)
           else crash $ "marker variable " <> show v <> " already defined in the context"
     crash reason = Left $ IllegalContextExtension c e reason
 
@@ -1152,21 +1201,7 @@ synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding e) = do
-  isClosed <- isClosed binding
-  -- note: no need to freshen binding, it can't refer to v
-  ((tb, wb), ctx2) <- markThenRetract Var.inferOther $ do
-    _ <- extendExistential Var.inferOther
-    synthesize binding
-  -- regardless of whether we generalize existentials, we'll need to
-  -- process the wanted abilities with respect to things falling out
-  -- of scope.
-  wb <- substAndDefaultWanted wb ctx2
-  -- If the binding has no free variables, we generalize over its
-  -- existentials
-  tbinding <-
-    if isClosed
-      then pure $ generalizeExistentials ctx2 tb
-      else applyM . applyCtx ctx2 $ tb
+  (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
@@ -1310,6 +1345,89 @@ synthesizeWanted e
   where
     l = loc e
 synthesizeWanted _e = compilerCrash PatternMatchFailure
+
+-- | Synthesizes a type for a local binding, for use in synthesizing
+-- or checking `Let1` expressions. There is a bit of wrapping around
+-- the call to `synthesize` to attempt to generalize certain
+-- definitions.
+--
+-- We want to generalize self-contained definitions when possible, so
+-- that things like:
+--
+--   id x = x
+--   id ()
+--   id "hello"
+--
+-- will work. However, note that just checking that the definition is
+-- self contained is insufficient, because:
+--
+--   r = IO.ref '(bug "whatever")
+--
+-- is self-contained (in the free variable sense), but would yield a
+-- polymorphic reference. So, I think it is also necessary to check
+-- that the binding has no wanted abilities. This automatically covers
+-- the local function definitions we want.
+--
+-- ---
+--
+-- The current strategy for generalization is a bit sophisticated as
+-- well. We want to generalize local definitions when possible.
+-- However, when doing type directed name resolution, we _don't_ want
+-- to generalize over variables that will help us figure out which
+-- selection to make.
+--
+-- So, when we _do_ generalize, we first partition the discarded
+-- context into the portion that is involved in TDNR solutions, and
+-- the portion that isn't. We generalize the variables that aren't
+-- involved in TDNR, and re-push the variables that are, so that they
+-- can be refined later. This is a bit unusual for the algorithm we
+-- use, but it seems like it should be safe.
+synthesizeBinding ::
+  (Var v) =>
+  (Ord loc) =>
+  Bool ->
+  Term v loc ->
+  M v loc (Type v loc, Wanted v loc)
+synthesizeBinding top binding = do
+  markThenCallWithRetract Var.inferOther \retract -> adjustNotes do
+    (tb, wb) <- synthesize binding
+    if not (null wb)
+      then fmap (\t -> ((t, wb), id)) (applyM tb)
+      else
+        if top
+          then do
+            ctx <- retract
+            pure ((generalizeExistentials ctx tb, []), substituteSolved ctx)
+          else do
+            ctx <- retract
+            -- Note: this is conservative about what we avoid
+            -- generalizing. Right now only TDNR causes variables to be
+            -- retained. It might be possible to make this happen for any
+            -- `Recorded` to do more inference for unknown variable errors
+            -- (or whatever the other cases are for), at the expense of
+            -- less generalization in the process of reporting those.
+            let retain (B.Recorded B.Resolve {}) = True
+                retain B.Retain = True
+                retain _ = False
+
+                erecs = [v | Existential b v <- ctx, retain b]
+                srecs =
+                  [ v
+                    | Solved b _ sa <- ctx,
+                      retain b,
+                      TypeVar.Existential _ v <-
+                        Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa
+                  ]
+                keep = Set.fromList (erecs ++ srecs)
+                p (Existential _ v)
+                  | v `Set.member` keep =
+                      Left . Var $ TypeVar.Existential B.Retain v
+                p e = Right e
+                (repush, discard) = partitionEithers $ fmap p ctx
+            appendContext repush
+            markRetained keep
+            let tf = generalizeExistentials discard (applyCtx ctx tb)
+            pure ((tf, []), substituteSolved ctx)
 
 getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructorsAtType t0 = do
@@ -2307,10 +2425,10 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want (Term.Let1' binding m) t = do
-  v <- ABT.freshen m freshenVar
-  (tbinding, wbinding) <- synthesize binding
+checkWanted want (Term.Let1Top' top binding m) t = do
+  (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
+  v <- ABT.freshen m freshenVar
   markThenRetractWanted v $ do
     when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
