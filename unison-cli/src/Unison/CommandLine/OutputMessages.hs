@@ -1773,31 +1773,23 @@ notifyUser dir = \case
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
-  DebugTerm builtinOrTerm -> pure $ case builtinOrTerm of
+  DebugTerm verbose builtinOrTerm -> pure $ case builtinOrTerm of
     Left builtin -> P.wrap $ "The term is a builtin: " <> P.text builtin
     Right trm ->
-      P.lines
-        [ "Verbose:",
-          P.string $ RTTI.anythingToString trm,
-          "",
-          "Abridged:",
-          P.shown trm
-        ]
-  DebugDecl typ mayConId -> do
+      if verbose
+        then P.string $ RTTI.anythingToString trm
+        else P.shown trm
+  DebugDecl verbose typ mayConId -> do
     let constructorMsg = case mayConId of
           Nothing -> ""
           Just conId -> "Constructor #" <> P.shown conId <> " of the following type:"
     pure $
       P.lines $
         [ constructorMsg,
-          "Verbose:",
-          P.string $ RTTI.anythingToString typ,
           "",
-          "Abridged:",
-          P.shown typ,
-          "",
-          "ConstructorId:",
-          P.string $ show mayConId
+          if verbose
+            then P.string $ RTTI.anythingToString typ
+            else P.shown typ
         ]
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =

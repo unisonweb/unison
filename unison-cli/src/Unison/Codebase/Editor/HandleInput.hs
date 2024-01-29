@@ -1142,8 +1142,8 @@ loop e = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-            DebugTermI hqName -> DebugDefinition.debugTerm hqName
-            DebugTypeI hqName -> DebugDefinition.debugDecl hqName
+            DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
+            DebugTypeI isVerbose hqName -> DebugDefinition.debugDecl isVerbose hqName
             DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
             DebugDoctorI {} -> do
@@ -1358,8 +1358,14 @@ inputDescription input =
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
-    DebugTermI hqName -> pure ("debug.term " <> HQ.toText hqName)
-    DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
+    DebugTermI verbose hqName ->
+      if verbose
+        then pure ("debug.term.verbose " <> HQ.toText hqName)
+        else pure ("debug.term " <> HQ.toText hqName)
+    DebugTypeI verbose hqName ->
+      if verbose
+        then pure ("debug.type.verbose " <> HQ.toText hqName)
+        else pure ("debug.type " <> HQ.toText hqName)
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat

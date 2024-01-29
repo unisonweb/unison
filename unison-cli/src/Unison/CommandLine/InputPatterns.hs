@@ -2284,8 +2284,21 @@ debugTerm =
     [("term", Required, exactDefinitionTermQueryArg)]
     "View debugging information for a given term."
     ( \case
-        [thing] -> fmap Input.DebugTermI $ parseHashQualifiedName thing
+        [thing] -> fmap (Input.DebugTermI False) $ parseHashQualifiedName thing
         _ -> Left (I.help debugTerm)
+    )
+
+debugTermVerbose :: InputPattern
+debugTermVerbose =
+  InputPattern
+    "debug.term.verbose"
+    []
+    I.Hidden
+    [("term", Required, exactDefinitionTermQueryArg)]
+    "View verbose debugging information for a given term."
+    ( \case
+        [thing] -> fmap (Input.DebugTermI True) $ parseHashQualifiedName thing
+        _ -> Left (I.help debugTermVerbose)
     )
 
 debugType :: InputPattern
@@ -2297,8 +2310,21 @@ debugType =
     [("type", Required, exactDefinitionTypeQueryArg)]
     "View debugging information for a given type."
     ( \case
-        [thing] -> fmap Input.DebugTypeI $ parseHashQualifiedName thing
+        [thing] -> fmap (Input.DebugTypeI False) $ parseHashQualifiedName thing
         _ -> Left (I.help debugType)
+    )
+
+debugTypeVerbose :: InputPattern
+debugTypeVerbose =
+  InputPattern
+    "debug.type.verbose"
+    []
+    I.Hidden
+    [("type", Required, exactDefinitionTypeQueryArg)]
+    "View verbose debugging information for a given type."
+    ( \case
+        [thing] -> fmap (Input.DebugTypeI True) $ parseHashQualifiedName thing
+        _ -> Left (I.help debugTypeVerbose)
     )
 
 debugClearWatchCache :: InputPattern
@@ -3027,6 +3053,10 @@ validInputs =
       debugDoctor,
       debugDumpNamespace,
       debugDumpNamespaceSimple,
+      debugTerm,
+      debugTermVerbose,
+      debugType,
+      debugTypeVerbose,
       debugFileHashes,
       debugNameDiff,
       debugNumberedArgs,

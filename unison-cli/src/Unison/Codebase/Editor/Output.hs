@@ -325,8 +325,8 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | DebugDisplayFuzzyOptions Text [String {- arg description, options -}]
   | DebugFuzzyOptionsNoResolver
-  | DebugTerm (Either (Text {- A builtin hash -}) (Term Symbol Ann))
-  | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
+  | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
+  | DebugDecl (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
