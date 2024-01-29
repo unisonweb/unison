@@ -417,7 +417,12 @@ pushProjectBranchToProjectBranch'InferredProject force localProjectAndBranch loc
                 (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
             -- "push" with remote mapping for branch
             Just (remoteBranchId, remoteBranchName) -> do
-              let remoteProjectBranchDoesntExist =
+              let remoteProjectBranchDoesntExist = do
+                    Cli.runTransaction $
+                      Queries.deleteBranchRemoteMapping
+                        localProjectId
+                        localBranchId
+                        Share.hardCodedUri
                     Cli.returnEarly $
                       Output.RemoteProjectBranchDoesntExist
                         Share.hardCodedUri
