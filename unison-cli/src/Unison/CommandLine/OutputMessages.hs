@@ -21,6 +21,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
@@ -31,6 +32,7 @@ import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -1777,20 +1779,17 @@ notifyUser dir = \case
     Left builtin -> P.wrap $ "The term is a builtin: " <> P.text builtin
     Right trm ->
       if verbose
-        then P.string $ RTTI.anythingToString trm
+        then P.text . TL.toStrict . pStringNoColor $ RTTI.anythingToString trm
         else P.shown trm
-  DebugDecl verbose typ mayConId -> do
+  DebugDecl typ mayConId -> do
     let constructorMsg = case mayConId of
           Nothing -> ""
-          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:"
+          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:\n"
     pure $
-      P.lines $
-        [ constructorMsg,
-          "",
-          if verbose
-            then P.string $ RTTI.anythingToString typ
-            else P.shown typ
-        ]
+      constructorMsg
+        <> case typ of
+          Left builtinTxt -> "Builtin type: " <> P.text builtinTxt
+          Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no

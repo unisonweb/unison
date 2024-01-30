@@ -32,17 +32,17 @@ debugTermReference verbose ref = do
     Reference.Builtin builtinTxt -> do
       Cli.respond $ DebugTerm verbose (Left builtinTxt)
 
-debugTypeReference :: Bool -> TypeReference -> Maybe ConstructorId -> Cli ()
-debugTypeReference verbose ref mayConId = do
+debugTypeReference :: TypeReference -> Maybe ConstructorId -> Cli ()
+debugTypeReference ref mayConId = do
   Cli.Env {codebase} <- ask
   case ref of
     Reference.DerivedId refId -> do
       Cli.runTransaction (Codebase.getTypeDeclaration codebase refId) >>= \case
         Nothing -> Cli.respond $ TypeNotFound' (Reference.toShortHash ref)
         Just decl -> do
-          Cli.respond $ DebugDecl verbose (Right decl) mayConId
+          Cli.respond $ DebugDecl (Right decl) mayConId
     Reference.Builtin builtinTxt -> do
-      Cli.respond $ DebugDecl verbose (Left builtinTxt) mayConId
+      Cli.respond $ DebugDecl (Left builtinTxt) mayConId
 
 debugTerm :: Bool -> HQ.HashQualified Name -> Cli ()
 debugTerm verbose hqName = do
@@ -50,10 +50,10 @@ debugTerm verbose hqName = do
   let matches = Names.lookupHQTerm Names.IncludeSuffixes hqName names
   for_ matches \case
     Referent.Ref termReference -> debugTermReference verbose termReference
-    Referent.Con (ConstructorReference typeRef conId) _conTyp -> debugTypeReference verbose typeRef (Just conId)
+    Referent.Con (ConstructorReference typeRef conId) _conTyp -> debugTypeReference typeRef (Just conId)
 
-debugDecl :: Bool -> HQ.HashQualified Name -> Cli ()
-debugDecl verbose hqName = do
+debugDecl :: HQ.HashQualified Name -> Cli ()
+debugDecl hqName = do
   names <- Cli.currentNames
   let matches = Names.lookupHQType Names.IncludeSuffixes hqName names
-  for_ matches \typeRef -> debugTypeReference verbose typeRef Nothing
+  for_ matches \typeRef -> debugTypeReference typeRef Nothing

@@ -2310,21 +2310,8 @@ debugType =
     [("type", Required, exactDefinitionTypeQueryArg)]
     "View debugging information for a given type."
     ( \case
-        [thing] -> fmap (Input.DebugTypeI False) $ parseHashQualifiedName thing
+        [thing] -> fmap (Input.DebugTypeI) $ parseHashQualifiedName thing
         _ -> Left (I.help debugType)
-    )
-
-debugTypeVerbose :: InputPattern
-debugTypeVerbose =
-  InputPattern
-    "debug.type.verbose"
-    []
-    I.Hidden
-    [("type", Required, exactDefinitionTypeQueryArg)]
-    "View verbose debugging information for a given type."
-    ( \case
-        [thing] -> fmap (Input.DebugTypeI True) $ parseHashQualifiedName thing
-        _ -> Left (I.help debugTypeVerbose)
     )
 
 debugClearWatchCache :: InputPattern
@@ -3056,7 +3043,6 @@ validInputs =
       debugTerm,
       debugTermVerbose,
       debugType,
-      debugTypeVerbose,
       debugFileHashes,
       debugNameDiff,
       debugNumberedArgs,
