@@ -117,9 +117,7 @@ fulldoc =
   hard line break
   
   Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code
-  block '''
-  1 + 2
-  '''
+  block ''1 + 2''
   
   # Heading
   
@@ -143,9 +141,7 @@ fulldoc =
        
        `` 1 + 2 ``
        
-       '''
-        "doesn't typecheck" + 1 
-       '''
+       '' "doesn't typecheck" + 1 ''
        
        [Link](https://unison-lang.org)
        
@@ -181,7 +177,7 @@ fulldoc =
        Indented Code block
        
        '''
-           Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
+       Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
            <- Should be exactly 4 spaces to the left!
        
             _____     _
@@ -190,9 +186,8 @@ fulldoc =
            |_____|_|_|_|___|___|_|_|
        '''
        
-       Inline '''
-        text literal with 1 space of padding 
-       ''' in the middle of a sentence.
+       Inline '' text literal with 1 space of padding '' in the middle of a
+       sentence.
   }}
 ```
 
@@ -212,9 +207,7 @@ fulldoc =
   hard line break
   
   Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code
-  block '''
-  1 + 2
-  '''
+  block ''1 + 2''
   
   # Heading
   
@@ -238,9 +231,7 @@ fulldoc =
        
        `` 1 + 2 ``
        
-       '''
-        "doesn't typecheck" + 1 
-       '''
+       '' "doesn't typecheck" + 1 ''
        
        [Link](https://unison-lang.org)
        
@@ -276,7 +267,7 @@ fulldoc =
        Indented Code block
        
        '''
-           Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
+       Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
            <- Should be exactly 4 spaces to the left!
        
             _____     _
@@ -285,10 +276,8 @@ fulldoc =
            |_____|_|_|_|___|___|_|_|
        '''
        
-       Inline '''
-        text literal with 1 space of padding 
-       ''' in the middle of a sentence.
-  }}     ''' in the middle of a sentence.
+       Inline '' text literal with 1 space of padding '' in the middle of a
+       sentence.
   }}
 ```
 

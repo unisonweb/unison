@@ -531,20 +531,19 @@ lexemes' eof =
               -- also two or more ' followed by that number of closing '
               quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
-            let trimmedText =
-                  if all isSpace $ takeWhile (/= '\n') originalText
-                    then trim originalText
-                    else originalText
+            let isMultiLine = line start /= line stop
+            if isMultiLine
+              then -- If it's a multi-line verbatim block we trim any whitespace representing
+              -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
 
-            -- If it's a multi-line verbatim block we trim any whitespace representing
-            -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
-            let txt =
-                  if (line start /= line stop)
-                    then trimIndentFromVerbatimBlock (column start - 1) trimmedText
-                    else trimmedText
-            wrap "syntax.docVerbatim" $
-              wrap "syntax.docWord" $
-                pure [Token (Textual txt) start stop]
+                let txt = trimIndentFromVerbatimBlock (column start - 1) (trim originalText)
+                 in wrap "syntax.docVerbatim" $
+                      wrap "syntax.docWord" $
+                        pure [Token (Textual (trim txt)) start stop]
+              else
+                wrap "syntax.docCode" $
+                  wrap "syntax.docWord" $
+                    pure [Token (Textual originalText) start stop]
 
         trim = f . f
           where
