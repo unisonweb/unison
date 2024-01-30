@@ -20,7 +20,6 @@ ability Ask a where
 .> add
 .> debug.term Nat.+
 .> debug.term y
-.> debug.term.verbose y
 .> debug.term Some
 .> debug.term ask
 .> debug.type Nat
