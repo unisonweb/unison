@@ -18,12 +18,12 @@ ability Ask a where
 
 ```ucm
 .> add
+.> debug.term Nat.+
 .> debug.term y
 .> debug.term.verbose y
 .> debug.term Some
-.> debug.term.verbose Some
 .> debug.term ask
-.> debug.term.verbose ask
+.> debug.type Nat
 .> debug.type Optional
 .> debug.type Ask
 ```

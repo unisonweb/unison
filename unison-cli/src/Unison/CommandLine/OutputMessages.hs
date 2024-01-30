@@ -1776,7 +1776,7 @@ notifyUser dir = \case
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
   DebugTerm verbose builtinOrTerm -> pure $ case builtinOrTerm of
-    Left builtin -> P.wrap $ "The term is a builtin: " <> P.text builtin
+    Left builtin -> "Builtin term: ##" <> P.text builtin
     Right trm ->
       if verbose
         then P.text . TL.toStrict . pStringNoColor $ RTTI.anythingToString trm
@@ -1788,7 +1788,7 @@ notifyUser dir = \case
     pure $
       constructorMsg
         <> case typ of
-          Left builtinTxt -> "Builtin type: " <> P.text builtinTxt
+          Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
           Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
