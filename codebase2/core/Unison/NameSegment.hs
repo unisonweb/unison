@@ -1,4 +1,15 @@
-module Unison.NameSegment where
+module Unison.NameSegment
+  ( NameSegment (UnsafeNameSegment),
+    unsafeFromUnescapedText,
+    toUnescapedText,
+    segments',
+    reverseSegments',
+    isEmpty,
+    isPrefixOf,
+    toTextBuilder,
+    libSegment,
+  )
+where
 
 import Data.Text qualified as Text
 import Data.Text.Lazy.Builder qualified as Text (Builder)
@@ -74,4 +85,4 @@ toTextBuilder =
 
 libSegment :: NameSegment
 libSegment =
-   unsafeFromUnescapedText "lib"
+  unsafeFromUnescapedText "lib"
