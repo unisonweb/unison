@@ -560,9 +560,9 @@ loop e = do
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
-              rootBranch <- Cli.getRootBranch
-              absPath <- Path.unabsolute <$> Cli.resolvePath' namespacePath'
-              _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase rootBranch absPath sourceDirectory)
+              absPath <- Cli.resolvePath' namespacePath'
+              branch <- liftIO $ Codebase.getBranchAtPath codebase absPath
+              _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase branch sourceDirectory)
               pure ()
             AliasTermI src' dest' -> do
               Cli.Env {codebase} <- ask
