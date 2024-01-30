@@ -84,10 +84,8 @@ Table
     Indented Code block
 
 '''
-    Exact whitespace should be preserved, don't mess with the logo!
+    Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
     <- Should be exactly 4 spaces to the left!
-
-  <- Should be 2 spaces here
 
      _____     _
     |  |  |___|_|___ ___ ___
@@ -102,5 +100,6 @@ Inline '' text literal with 1 space of padding '' in the middle of a sentence.
 
 ```ucm
 .> debug.format
+-- Format it again to ensure multiple round-trips don't cause changes.
 .> debug.format
 ```

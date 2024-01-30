@@ -38,6 +38,7 @@ import Control.Lens.TH (makePrisms)
 import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
+import Data.List qualified as List
 import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -524,21 +525,26 @@ lexemes' eof =
 
         verbatim =
           P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
-            (start, txt, stop) <- positioned $ do
+            (start, originalText, stop) <- positioned $ do
               -- a single backtick followed by a non-backtick is treated as monospaced
               let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
               -- also two or more ' followed by that number of closing '
               quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
-            if all isSpace $ takeWhile (/= '\n') txt
-              then
-                wrap "syntax.docVerbatim" $
-                  wrap "syntax.docWord" $
-                    pure [Token (Textual (trim txt)) start stop]
-              else
-                wrap "syntax.docCode" $
-                  wrap "syntax.docWord" $
-                    pure [Token (Textual txt) start stop]
+            let trimmedText =
+                  if all isSpace $ takeWhile (/= '\n') originalText
+                    then trim originalText
+                    else originalText
+
+            -- If it's a multi-line verbatim block we trim any whitespace representing
+            -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
+            let txt =
+                  if (line start /= line stop)
+                    then trimIndentFromVerbatimBlock (column start - 1) trimmedText
+                    else trimmedText
+            wrap "syntax.docVerbatim" $
+              wrap "syntax.docWord" $
+                pure [Token (Textual txt) start stop]
 
         trim = f . f
           where
@@ -1126,6 +1132,51 @@ lexemes' eof =
           pure [Token (Reserved [op]) start end]
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
+
+-- | If it's a multi-line verbatim block we trim any whitespace representing
+-- indentation from the pretty-printer.
+--
+-- E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--     code
+--       indented
+--     '''
+-- }}
+-- @@
+--
+-- Should lex to the text literal "code\n  indented".
+--
+-- If there's text in the literal that has LESS trailing whitespace than the
+-- opening delimiters, we don't trim it at all. E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--   code
+--     '''
+-- }}
+-- @@
+--
+--  Is parsed as "  code".
+--
+--  Trim the expected amount of whitespace from a text literal:
+--  >>> trimIndentFromVerbatimBlock 2 "  code\n    indented"
+-- "code\n  indented"
+--
+-- If the text literal has less leading whitespace than the opening delimiters,
+-- leave it as-is
+-- >>> trimIndentFromVerbatimBlock 2 "code\n  indented"
+-- "code\n  indented"
+trimIndentFromVerbatimBlock :: Int -> String -> String
+trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
+  List.intercalate "\n" <$> for (lines txt) \line -> do
+    -- If any 'stripPrefix' fails, we fail and return the unaltered text
+    stripPrefix (replicate leadingSpaces ' ') line
 
 separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)

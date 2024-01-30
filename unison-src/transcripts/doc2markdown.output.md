@@ -88,7 +88,11 @@ Table
   
   hard line break
   
-  Here's a cool **BOLD** _italic_ ~~strikethrough~~ thing with an inline code block `1 + 2`
+  Here's a cool **BOLD** _italic_ ~~strikethrough~~ thing with an inline code block ```raw
+  1 + 2
+  ```
+  
+  
   
   # Heading
   
@@ -121,7 +125,11 @@ Table
   
   `1 Nat.+ 2`
   
-  ` "doesn't typecheck" + 1 `
+  ```raw
+   "doesn't typecheck" + 1 
+  ```
+  
+  
   
   [Link](https://unison-lang.org)
   
