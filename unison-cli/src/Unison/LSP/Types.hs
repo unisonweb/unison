@@ -69,7 +69,7 @@ data Env = Env
   { -- contains handlers for talking to the client.
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
-    parseNamesCache :: IO Names,
+    currentNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
@@ -83,7 +83,7 @@ data Env = Env
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map (Int32 |? Text) (IO ())),
     -- A lazily computed map of all valid completion suffixes from the current path.
-    completionsVar :: TVar CompletionTree,
+    completionsVar :: TMVar CompletionTree,
     scope :: Ki.Scope
   }
 
@@ -133,16 +133,16 @@ getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
 getCodebaseCompletions :: Lsp CompletionTree
-getCodebaseCompletions = asks completionsVar >>= readTVarIO
+getCodebaseCompletions = asks completionsVar >>= atomically . readTMVar
 
-globalPPED :: Lsp PrettyPrintEnvDecl
-globalPPED = asks ppedCache >>= liftIO
+currentPPED :: Lsp PrettyPrintEnvDecl
+currentPPED = asks ppedCache >>= liftIO
 
 getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO
 
-getParseNames :: Lsp Names
-getParseNames = asks parseNamesCache >>= liftIO
+getCurrentNames :: Lsp Names
+getCurrentNames = asks currentNamesCache >>= liftIO
 
 data Config = Config
   { formattingWidth :: Int,

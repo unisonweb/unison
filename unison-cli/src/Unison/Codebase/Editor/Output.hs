@@ -353,6 +353,7 @@ data Output
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectBranchDoesntExist'Push URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectPublishedReleaseCannotBeChanged URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- A remote project branch head wasn't in the expected state
@@ -595,6 +596,7 @@ isFailure o = case o of
   LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
+  RemoteProjectBranchDoesntExist'Push {} -> True
   RemoteProjectReleaseIsDeprecated {} -> True
   RemoteProjectPublishedReleaseCannotBeChanged {} -> True
   RemoteProjectBranchHeadMismatch {} -> True
