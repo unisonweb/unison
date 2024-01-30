@@ -1,6 +1,6 @@
+{-# HLINT ignore "Use tuple-section" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use tuple-section" #-}
 module Unison.Codebase.Editor.HandleInput
   ( loop,
   )
@@ -42,13 +42,11 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
-import Unison.Builtin.Decls qualified as DD
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.TypeCheck (typecheckTerm)
@@ -70,7 +68,9 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
+import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -88,6 +88,7 @@ import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBran
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
@@ -790,6 +791,7 @@ loop e = do
             DisplayI outputLoc namesToDisplay -> do
               traverse_ (displayI outputLoc) namesToDisplay
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
+            EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
             FindPatchI -> do
               branch <- Cli.getCurrentBranch0
               let patches =
@@ -1068,6 +1070,25 @@ loop e = do
                     _ -> pure ()
                 Nothing -> do
                   Cli.respond DebugFuzzyOptionsNoResolver
+            DebugFormatI -> do
+              Cli.Env {writeSource, loadSource} <- ask
+              void $ runMaybeT do
+                (filePath, _) <- MaybeT Cli.getLatestFile
+                pf <- lift Cli.getLatestParsedFile
+                tf <- lift Cli.getLatestTypecheckedFile
+                names <- lift Cli.currentNames
+                let buildPPED uf tf =
+                      Cli.prettyPrintEnvDeclFromNames $ (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                let formatWidth = 80
+                currentPath <- lift $ Cli.getCurrentPath
+                updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
+                source <-
+                  liftIO (loadSource (Text.pack filePath)) >>= \case
+                    Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
+                    Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
+                    Cli.LoadSuccess contents -> pure contents
+                let updatedSource = Format.applyTextReplacements updates source
+                liftIO $ writeSource (Text.pack filePath) updatedSource
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
@@ -1338,6 +1359,7 @@ inputDescription input =
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
     DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
+    DebugFormatI -> pure "debug.format"
     DebugTypecheckedUnisonFileI {} -> wat
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
@@ -1372,6 +1394,8 @@ inputDescription input =
     ReleaseDraftI {} -> wat
     ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
+    EditNamespaceI paths ->
+      pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     ShowReflogI {} -> wat
     SwitchBranchI {} -> wat
     TestI {} -> wat
@@ -1629,7 +1653,7 @@ handleDiffNamespaceToPatch description input = do
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope query = do
-  Cli.Env {codebase, writeSource} <- ask
+  Cli.Env {codebase} <- ask
   hqLength <- Cli.runTransaction Codebase.hashLength
   let hasAbsoluteQuery = any (any Name.isAbsolute) query
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
@@ -1655,54 +1679,14 @@ handleShowDefinition outputLoc showDefinitionScope query = do
   Backend.DefinitionResults terms types misses <- do
     let nameSearch = NameSearch.makeNameSearch hqLength names
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
-  outputPath <- getOutputPath
-  case outputPath of
-    _ | null terms && null types -> pure ()
-    Nothing -> do
-      -- If we're writing to console we don't add test-watch syntax
-      let isTest _ = False
-      let isSourceFile = False
-      -- No filepath, render code to console.
-      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
-      Cli.respond $ DisplayDefinitions renderedCodePretty
-    Just fp -> do
-      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
-      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
-      let isTest r = Set.member r testRefs
-      let isSourceFile = True
-      let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
-      let renderedCodeText = Text.pack $ P.toPlain 80 renderedCodePretty
-
-      -- We set latestFile to be programmatically generated, if we
-      -- are viewing these definitions to a file - this will skip the
-      -- next update for that file (which will happen immediately)
-      #latestFile ?= (fp, True)
-      liftIO $ writeSource (Text.pack fp) renderedCodeText
-      let numDefinitions = Map.size terms + Map.size types
-      Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
-  when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
+  showDefinitions outputLoc pped terms types misses
   where
-    renderCodePretty pped isSourceFile isTest terms types =
-      P.syntaxToColor . P.sep "\n\n" $
-        Pretty.prettyTypeDisplayObjects pped types <> Pretty.prettyTermDisplayObjects pped isSourceFile isTest terms
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
         ConsoleLocation -> Backend.DontIncludeCycles
         FileLocation _ -> Backend.IncludeCycles
         LatestFileLocation -> Backend.IncludeCycles
-
-    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
-    getOutputPath :: Cli (Maybe FilePath)
-    getOutputPath =
-      case outputLoc of
-        ConsoleLocation -> pure Nothing
-        FileLocation path -> pure (Just path)
-        LatestFileLocation -> do
-          loopState <- State.get
-          pure case loopState ^. #latestFile of
-            Nothing -> Just "scratch.u"
-            Just (path, _) -> Just path
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)

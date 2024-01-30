@@ -20,7 +20,7 @@ import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, pushType, lookupType, scopedType)
+import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, lookupType, pushType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -241,41 +241,42 @@ declComponentConstraintTree decls = do
     -- Add a kind variable for every datatype
     declKind <- pushType (Type.ref (DD.annotation $ asDataDecl decl) ref)
     pure (ref, decl, declKind)
-  (declConstraints, constructorConstraints) <- unzip <$> for decls \(ref, decl, declKind) -> do
-    let declAnn = DD.annotation $ asDataDecl decl
-    let declType = Type.ref declAnn ref
-    -- Unify the datatype with @k_1 -> ... -> k_n -> *@ where @n@ is
-    -- the number of type parameters
-    let tyVars = map (\tyVar -> Type.var declAnn tyVar) (DD.bound $ asDataDecl decl)
-    tyvarKinds <- for tyVars \tyVar -> do
-      -- it would be nice to annotate these type vars with their
-      -- precise location, but that information doesn't seem to be
-      -- available via "DataDeclaration", so we currently settle for
-      -- the whole decl annotation.
-      k <- freshVar tyVar
-      pure (k, tyVar)
+  (declConstraints, constructorConstraints) <-
+    unzip <$> for decls \(ref, decl, declKind) -> do
+      let declAnn = DD.annotation $ asDataDecl decl
+      let declType = Type.ref declAnn ref
+      -- Unify the datatype with @k_1 -> ... -> k_n -> *@ where @n@ is
+      -- the number of type parameters
+      let tyVars = map (\tyVar -> Type.var declAnn tyVar) (DD.bound $ asDataDecl decl)
+      tyvarKinds <- for tyVars \tyVar -> do
+        -- it would be nice to annotate these type vars with their
+        -- precise location, but that information doesn't seem to be
+        -- available via "DataDeclaration", so we currently settle for
+        -- the whole decl annotation.
+        k <- freshVar tyVar
+        pure (k, tyVar)
 
-    let tyvarKindsOnly = map fst tyvarKinds
-    constructorConstraints <-
-      Node <$> for (DD.constructors' $ asDataDecl decl) \(constructorAnn, _, constructorType) -> do
-        withInstantiatedConstructorType declType tyvarKindsOnly constructorType \constructorType -> do
-          constructorKind <- freshVar constructorType
-          ct <- typeConstraintTree constructorKind constructorType
-          pure $ ParentConstraint (IsType constructorKind (Provenance DeclDefinition constructorAnn)) ct
+      let tyvarKindsOnly = map fst tyvarKinds
+      constructorConstraints <-
+        Node <$> for (DD.constructors' $ asDataDecl decl) \(constructorAnn, _, constructorType) -> do
+          withInstantiatedConstructorType declType tyvarKindsOnly constructorType \constructorType -> do
+            constructorKind <- freshVar constructorType
+            ct <- typeConstraintTree constructorKind constructorType
+            pure $ ParentConstraint (IsType constructorKind (Provenance DeclDefinition constructorAnn)) ct
 
-    (fullyAppliedKind, _fullyAppliedType, declConstraints) <-
-      let phi (dk, dt, cts) (ak, at) = do
-            -- introduce a kind uvar for each app node
-            let t' = Type.app declAnn dt at
-            v <- freshVar t'
-            let cts' = Constraint (IsArr dk (Provenance DeclDefinition declAnn) ak v) cts
-            pure (v, t', cts')
-       in foldlM phi (declKind, declType, Node []) tyvarKinds
+      (fullyAppliedKind, _fullyAppliedType, declConstraints) <-
+        let phi (dk, dt, cts) (ak, at) = do
+              -- introduce a kind uvar for each app node
+              let t' = Type.app declAnn dt at
+              v <- freshVar t'
+              let cts' = Constraint (IsArr dk (Provenance DeclDefinition declAnn) ak v) cts
+              pure (v, t', cts')
+         in foldlM phi (declKind, declType, Node []) tyvarKinds
 
-    let finalDeclConstraints = case decl of
-          Left _effectDecl -> Constraint (IsAbility fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
-          Right _dataDecl -> Constraint (IsType fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
-    pure (finalDeclConstraints, constructorConstraints)
+      let finalDeclConstraints = case decl of
+            Left _effectDecl -> Constraint (IsAbility fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+            Right _dataDecl -> Constraint (IsType fullyAppliedKind (Provenance DeclDefinition declAnn)) declConstraints
+      pure (finalDeclConstraints, constructorConstraints)
   pure (Node declConstraints `StrictOrder` Node constructorConstraints)
 
 -- | This is a helper to unify the kind constraints on type variables

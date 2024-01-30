@@ -2,8 +2,8 @@
 
 module U.Codebase.Sqlite.LocalIds where
 
+import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
-import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Bits (Bits)
 import Data.Vector (Vector)
@@ -48,3 +48,9 @@ instance Bifoldable LocalIds' where
 
 instance Bifunctor LocalIds' where
   bimap f g (LocalIds t d) = LocalIds (f <$> t) (g <$> d)
+
+t_ :: Traversal (LocalIds' t h) (LocalIds' t' h) t t'
+t_ f (LocalIds t d) = LocalIds <$> traverse f t <*> pure d
+
+h_ :: Traversal (LocalIds' t h) (LocalIds' t h') h h'
+h_ f (LocalIds t d) = LocalIds <$> pure t <*> traverse f d

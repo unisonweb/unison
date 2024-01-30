@@ -1121,11 +1121,11 @@ notifyUser dir = \case
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors curPath src ppenv notes -> do
+  TypeErrors _curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    pure . showNote $ notes
+    pure $ showNote notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
@@ -1943,6 +1943,17 @@ notifyUser dir = \case
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+  RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
+    let push = P.group . P.backticked . IP.patternName $ IP.push
+    in pure . P.wrap $
+      "The previous push target named"
+        <> prettyProjectAndBranchName projectAndBranch
+        <> "has been deleted from"
+        <> P.group (prettyURI host <> ".")
+        <> "I've deleted the invalid push target."
+        <> "Run the"
+        <> push
+        <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
@@ -2296,12 +2307,49 @@ prettyUpdatePathError repoInfo = \case
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
+  Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyValidationFailure validationFailureErr
   Share.UploadEntitiesError'HashMismatchForEntity _hashMismatch -> error "TODO: hash mismatch error message"
   Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.UploadEntitiesError'NeedDependencies dependencies -> needDependencies dependencies
   Share.UploadEntitiesError'NoWritePermission repoInfo -> noWritePermissionForRepo repoInfo
   Share.UploadEntitiesError'ProjectNotFound project -> shareProjectNotFound project
   Share.UploadEntitiesError'UserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
+
+prettyValidationFailure :: Share.EntityValidationError -> Pretty
+prettyValidationFailure = \case
+  Share.EntityHashMismatch entityType (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash32 entityType ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash32 <> " of type " <> prettyEntityType entityType <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash32 entityType msg ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType entityType <> " entity with the hash " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text msg
+      ]
+  Share.HashResolutionFailure hash32 ->
+    P.lines
+      [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
+  where
+    prettyEntityType = \case
+      Share.TermComponentType -> "term component"
+      Share.DeclComponentType -> "type component"
+      Share.PatchType -> "patch"
+      Share.PatchDiffType -> "patch diff"
+      Share.NamespaceType -> "namespace"
+      Share.NamespaceDiffType -> "namespace diff"
+      Share.CausalType -> "causal"
 
 prettyTransportError :: CodeserverTransportError -> Pretty
 prettyTransportError = \case

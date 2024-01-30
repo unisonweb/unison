@@ -153,6 +153,7 @@ module U.Codebase.Sqlite.Queries
     setRemoteProjectBranchName,
     insertBranchRemoteMapping,
     ensureBranchRemoteMapping,
+    deleteBranchRemoteMapping,
 
     -- * indexes
 
@@ -2806,6 +2807,7 @@ data EntityLocation
     EntityInMainStorage
   | -- | `temp_entity`
     EntityInTempStorage
+  deriving (Eq, Show, Ord)
 
 -- | Where is an entity stored?
 entityLocation :: Hash32 -> Transaction (Maybe EntityLocation)
@@ -4045,6 +4047,20 @@ ensureBranchRemoteMapping pid bid rpid host rbid =
         local_branch_id,
         remote_host)
         DO NOTHING
+    |]
+
+deleteBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  URI ->
+  Transaction ()
+deleteBranchRemoteMapping pid bid host =
+  execute
+    [sql|
+      DELETE FROM project_branch_remote_mapping
+      WHERE local_project_id = :pid
+        AND local_branch_id = :bid
+        AND remote_host = :host
     |]
 
 -- | Convert reversed name segments into glob for searching based on suffix

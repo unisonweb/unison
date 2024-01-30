@@ -7,6 +7,7 @@ module U.Codebase.Sqlite.Patch.Format
     SyncPatchFormat' (..),
     applyPatchDiffs,
     localPatchToPatch,
+    localPatchToPatch',
     localPatchDiffToPatchDiff,
     localPatchToHashPatch,
   )
@@ -72,6 +73,15 @@ applyPatchDiffs =
 
 localToPatch' :: (Ord t, Ord h, Ord d) => PatchLocalIds' t h d -> (Patch' LocalTextId LocalHashId LocalDefnId) -> Patch' t h d
 localToPatch' li =
+  Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
+
+-- | Generic version of `localPatchToPatch` that works with any `PatchLocalIds'`.
+localPatchToPatch' ::
+  (Ord t, Ord h, Ord d) =>
+  PatchLocalIds' t h d ->
+  Patch' LocalTextId LocalHashId LocalDefnId ->
+  Patch' t h d
+localPatchToPatch' li =
   Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
 
 -- | Type specialized version of `localToPatch'`.

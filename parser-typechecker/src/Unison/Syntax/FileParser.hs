@@ -14,6 +14,7 @@ import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
@@ -48,7 +49,7 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-        [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+        [ DD.generateRecordAccessors Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors,
             Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
         ]
@@ -194,9 +195,10 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       (kind, guid, ann) <- watched
       _ <- guardEmptyWatch ann
       msum
-        [ WatchBinding kind ann <$> TermParser.binding,
-          WatchExpression kind guid ann <$> TermParser.blockTerm
+        [ TermParser.binding <&> (\trm@(((trmSpanAnn, _), _)) -> WatchBinding kind (ann <> trmSpanAnn) trm),
+          TermParser.blockTerm <&> (\trm -> WatchExpression kind guid (ann <> ABT.annotation trm) trm)
         ]
+
     guardEmptyWatch ann =
       P.try $ do
         op <- optional (L.payload <$> P.lookAhead closeBlock)
@@ -213,7 +215,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       binding@((_, v), _) <- TermParser.binding
       pure $ case doc of
         Nothing -> Binding binding
-        Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
+        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.joinDot v (Var.named "doc")), doc), binding]
 
 watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
 watched = P.try do

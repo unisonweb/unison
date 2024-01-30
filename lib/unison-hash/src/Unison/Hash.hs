@@ -37,6 +37,9 @@ instance Show Hash where
 newtype HashFor t = HashFor {genericHash :: Hash}
   deriving newtype (Show, Eq, Ord, Generic)
 
+instance From Hash Text where
+  from = toBase32HexText
+
 -- | Convert a hash to a byte string.
 toByteString :: Hash -> ByteString
 toByteString = B.Short.fromShort . toShort

@@ -11,6 +11,7 @@ module Unison.Syntax.Name
     toText,
     unsafeFromVar,
     toVar,
+    fromVar,
 
     -- * Name parsers
     nameP,
@@ -77,6 +78,11 @@ toText (Name pos (x0 :| xs)) =
 toVar :: (Var v) => Name -> v
 toVar =
   Var.named . toText
+
+-- | Parse a name from a var, by first rendering the var as a string.
+fromVar :: Var v => v -> Maybe Name
+fromVar =
+  fromText . Var.name
 
 -- | Parse a name from a string literal.
 --

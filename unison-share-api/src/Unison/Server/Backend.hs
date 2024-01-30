@@ -7,6 +7,7 @@ module Unison.Server.Backend
     BackendError (..),
     Backend (..),
     ShallowListEntry (..),
+    listEntryName,
     BackendEnv (..),
     TermEntry (..),
     TypeEntry (..),
@@ -71,6 +72,7 @@ module Unison.Server.Backend
     mkTermDefinition,
     mkTypeDefinition,
     displayTerm,
+    formatTypeName,
   )
 where
 

@@ -2,8 +2,8 @@
 
 module Unison.DataDeclaration.Names (bindNames, dataDeclToNames', effectDeclToNames') where
 
-import Data.Set qualified as Set
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT

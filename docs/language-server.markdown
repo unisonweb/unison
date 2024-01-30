@@ -2,12 +2,19 @@
 
 [![asciicast](https://asciinema.org/a/Kwa7NscffA3R8KCHxq1OavRm0.svg)](https://asciinema.org/a/Kwa7NscffA3R8KCHxq1OavRm0)
 
+* [Overview](#overview)
+* [Installation and setup](#installation-and-setup)
+  * [Settings](#settings)
+  * [NeoVim](#neovim)
+  * [VSCode](#vscode)
+
 ## Overview
 
 Supported features:
 
 * Autocompletion
 * Inline type and parser error messages
+* Format on save (you can disable this in your editor if you like)
 * Show type on hover
 
 Notes:
@@ -33,6 +40,17 @@ You can set this persistently in powershell using:
 ```
 
 See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
+
+### Settings
+
+Supported settings and their defaults. See information for your language server client about where to provide these.
+
+```json
+{
+  // A suggestion for the formatter about how wide (in columns) to print definitions.
+  "formattingWidth": 80
+}
+```
 
 ### NeoVim
 

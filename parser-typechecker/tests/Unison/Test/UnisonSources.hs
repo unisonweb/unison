@@ -10,7 +10,6 @@ import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -89,7 +88,7 @@ go rt files how = do
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)

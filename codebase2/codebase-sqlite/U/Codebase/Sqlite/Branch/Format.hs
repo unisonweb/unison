@@ -11,6 +11,7 @@ module U.Codebase.Sqlite.Branch.Format
     localToDbBranch,
     localToDbDiff,
     localToHashBranch,
+    localToBranch,
     -- dbToLocalDiff,
   )
 where
