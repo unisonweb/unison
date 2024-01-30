@@ -7,7 +7,7 @@ import EasyTest
 import Unison.Codebase.Path (Path (..), Path' (..), Relative (..))
 import Unison.Codebase.Path.Parse (parseHQSplit', parseShortHashOrHQSplit')
 import Unison.HashQualified' qualified as HQ'
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash qualified as SH
 
@@ -19,12 +19,12 @@ test =
            in scope s . expect $
                 parseShortHashOrHQSplit' s
                   == (Right . Right)
-                    (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (fromJust (SH.fromText "#34"))),
+                    (relative ["foo"], HQ'.HashQualified (NameSegment.unsafeFromUnescapedText "bar") (fromJust (SH.fromText "#34"))),
           let s = "foo.bar.+"
            in scope s . expect $
                 parseShortHashOrHQSplit' s
                   == (Right . Right)
-                    (relative ["foo", "bar"], HQ'.NameOnly (NameSegment "+")),
+                    (relative ["foo", "bar"], HQ'.NameOnly (NameSegment.unsafeFromUnescapedText "+")),
           let s = "#123"
            in scope s . expect $
                 parseShortHashOrHQSplit' s
@@ -33,13 +33,13 @@ test =
       scope "parseHQ'Split'" . tests $
         [ let s = "foo.bar#34"
            in scope s . expect $
-                parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment "bar") (fromJust (SH.fromText "#34"))),
+                parseHQSplit' s == Right (relative ["foo"], HQ'.HashQualified (NameSegment.unsafeFromUnescapedText "bar") (fromJust (SH.fromText "#34"))),
           let s = "foo.bar.+"
            in scope s . expect $
-                parseHQSplit' s == Right (relative ["foo", "bar"], HQ'.NameOnly (NameSegment "+")),
+                parseHQSplit' s == Right (relative ["foo", "bar"], HQ'.NameOnly (NameSegment.unsafeFromUnescapedText "+")),
           let s = "#123" in scope s . expect $ isLeft $ parseHQSplit' s
         ]
     ]
 
 relative :: Seq Text -> Path'
-relative = Path' . Right . Relative . Path . fmap NameSegment
+relative = Path' . Right . Relative . Path . fmap NameSegment.unsafeFromUnescapedText

@@ -5,8 +5,8 @@ import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Set qualified as Set
 import EasyTest
 import Unison.Name as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Syntax.Name qualified as Name (unsafeFromText)
-import Unison.Syntax.NameSegment qualified as NameSegment (unsafeFromText)
 import Unison.Util.Relation qualified as R
 
 test :: Test ()
@@ -35,30 +35,82 @@ testCompareSuffix =
 testEndsWithReverseSegments :: [Test ()]
 testEndsWithReverseSegments =
   [ scope "a.b.c ends with []" (expectEqual True (endsWithReverseSegments "a.b.c" [])),
-    scope "a.b.c ends with [c, b]" (expectEqual True (endsWithReverseSegments "a.b.c" ["c", "b"])),
-    scope "a.b.c doesn't end with [d]" (expectEqual False (endsWithReverseSegments "a.b.c" ["d"]))
+    scope
+      "a.b.c ends with [c, b]"
+      ( expectEqual
+          True
+          ( endsWithReverseSegments
+              "a.b.c"
+              [ NameSegment.unsafeFromUnescapedText "c",
+                NameSegment.unsafeFromUnescapedText "b"
+              ]
+          )
+      ),
+    scope
+      "a.b.c doesn't end with [d]"
+      ( expectEqual
+          False
+          ( endsWithReverseSegments
+              "a.b.c"
+              [NameSegment.unsafeFromUnescapedText "d"]
+          )
+      )
   ]
 
 testEndsWithSegments :: [Test ()]
 testEndsWithSegments =
   [ scope "a.b.c ends with []" (expectEqual True (endsWithSegments "a.b.c" [])),
-    scope "a.b.c ends with [b, c]" (expectEqual True (endsWithSegments "a.b.c" ["b", "c"])),
-    scope "a.b.c doesn't end with [d]" (expectEqual False (endsWithSegments "a.b.c" ["d"]))
+    scope
+      "a.b.c ends with [b, c]"
+      ( expectEqual
+          True
+          ( endsWithSegments
+              "a.b.c"
+              [ NameSegment.unsafeFromUnescapedText "b",
+                NameSegment.unsafeFromUnescapedText "c"
+              ]
+          )
+      ),
+    scope
+      "a.b.c doesn't end with [d]"
+      ( expectEqual
+          False
+          ( endsWithSegments
+              "a.b.c"
+              [NameSegment.unsafeFromUnescapedText "d"]
+          )
+      )
   ]
 
 testSegments :: [Test ()]
 testSegments =
   [ do
       n <- int' 1 10
-      segs <- List.NonEmpty.fromList <$> listOf n (pick [".", "foo"])
+      segs <-
+        List.NonEmpty.fromList
+          <$> listOf
+            n
+            ( pick
+                [ NameSegment.unsafeFromUnescapedText ".",
+                  NameSegment.unsafeFromUnescapedText "foo"
+                ]
+            )
       expectEqual (segments (fromSegments segs)) segs
   ]
 
 testSplitName :: [Test ()]
 testSplitName =
   [ scope "x" (expectEqual (splits "x") [([], "x")]),
-    scope "A.x" (expectEqual (splits "A.x") [([], "A.x"), (["A"], "x")]),
-    scope "A.B.x" (expectEqual (splits "A.B.x") [([], "A.B.x"), (["A"], "B.x"), (["A", "B"], "x")])
+    scope "A.x" (expectEqual (splits "A.x") [([], "A.x"), ([NameSegment.unsafeFromUnescapedText "A"], "x")]),
+    scope
+      "A.B.x"
+      ( expectEqual
+          (splits "A.B.x")
+          [ ([], "A.B.x"),
+            ([NameSegment.unsafeFromUnescapedText "A"], "B.x"),
+            ([NameSegment.unsafeFromUnescapedText "A", NameSegment.unsafeFromUnescapedText "B"], "x")
+          ]
+      )
   ]
 
 testSuffixes :: [Test ()]
@@ -85,8 +137,8 @@ testSuffixSearch =
                 (n ".`.`", 6)
               ]
           n = Name.unsafeFromText
-      expectEqual' (NameSegment.unsafeFromText "." :| []) (Name.reverseSegments (n ".`.`"))
-      expectEqual' (NameSegment.unsafeFromText "." :| []) (Name.reverseSegments (n ".`.`"))
+      expectEqual' (NameSegment.unsafeFromUnescapedText "." :| []) (Name.reverseSegments (n ".`.`"))
+      expectEqual' (NameSegment.unsafeFromUnescapedText "." :| []) (Name.reverseSegments (n ".`.`"))
 
       expectEqual'
         (Set.fromList [1, 2])
@@ -121,22 +173,34 @@ testUnsafeFromString :: [Test ()]
 testUnsafeFromString =
   [ scope "." do
       expectEqual' (isAbsolute "`.`") False
-      expectEqual' (segments "`.`") (NameSegment.unsafeFromText "." :| [])
+      expectEqual' (segments "`.`") (NameSegment.unsafeFromUnescapedText "." :| [])
       ok,
     scope ".`.`" do
       expectEqual' (isAbsolute ".`.`") True
-      expectEqual' (segments ".`.`") (NameSegment.unsafeFromText "." :| [])
+      expectEqual' (segments ".`.`") (NameSegment.unsafeFromUnescapedText "." :| [])
       ok,
     scope "foo.bar" do
       expectEqual' (isAbsolute "foo.bar") False
-      expectEqual' (segments "foo.bar") ("foo" :| ["bar"])
+      expectEqual'
+        (segments "foo.bar")
+        ( NameSegment.unsafeFromUnescapedText "foo"
+            :| [NameSegment.unsafeFromUnescapedText "bar"]
+        )
       ok,
     scope ".foo.bar" do
       expectEqual' (isAbsolute ".foo.bar") True
-      expectEqual' (segments ".foo.bar") ("foo" :| ["bar"])
+      expectEqual'
+        (segments ".foo.bar")
+        ( NameSegment.unsafeFromUnescapedText "foo"
+            :| [NameSegment.unsafeFromUnescapedText "bar"]
+        )
       ok,
     scope "foo.`.`" do
       expectEqual' (isAbsolute "foo.`.`") False
-      expectEqual' (segments "foo.`.`") ("foo" :| [NameSegment.unsafeFromText "."])
+      expectEqual'
+        (segments "foo.`.`")
+        ( NameSegment.unsafeFromUnescapedText "foo"
+            :| [NameSegment.unsafeFromUnescapedText "."]
+        )
       ok
   ]
