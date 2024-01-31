@@ -52,11 +52,13 @@ type Two = One Nat | Two Text
 ```
 ```unison:added-by-ucm scratch.u
 x.doc =
-  {{ # Doc This is a **doc**!
+  {{
+  # Doc This is a **doc**!
   
     term link {x}
     
-    type link {type Optional} }}
+    type link {type Optional}
+  }}
 x : Nat -> Nat
 x y =
   use Nat +
@@ -70,11 +72,13 @@ oneLiner = {{ one liner }}
 
 -- Before
 explicit.doc =
-  {{ # Here's a top-level doc
+  {{
+  # Here's a top-level doc
   
     With a paragraph
     
-    Or two }}
+    Or two
+  }}
 -- After
 
 Thing.doc = {{ A doc before an ability }}

@@ -38,7 +38,10 @@ import Control.Lens.TH (makePrisms)
 import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -524,28 +527,26 @@ lexemes' eof =
 
         verbatim =
           P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
-            (start, txt, stop) <- positioned $ do
+            (start, originalText, stop) <- positioned $ do
               -- a single backtick followed by a non-backtick is treated as monospaced
               let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
               -- also two or more ' followed by that number of closing '
               quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
-            if all isSpace $ takeWhile (/= '\n') txt
-              then
+            let isMultiLine = line start /= line stop
+            if isMultiLine
+              then do
+                let trimmed = (trimAroundDelimiters originalText)
+                let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
+                -- If it's a multi-line verbatim block we trim any whitespace representing
+                -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
                 wrap "syntax.docVerbatim" $
                   wrap "syntax.docWord" $
-                    pure [Token (Textual (trim txt)) start stop]
+                    pure [Token (Textual txt) start stop]
               else
                 wrap "syntax.docCode" $
                   wrap "syntax.docWord" $
-                    pure [Token (Textual txt) start stop]
-
-        trim = f . f
-          where
-            f = reverse . dropThru
-            dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
-            dropNl ('\n' : t) = t
-            dropNl as = as
+                    pure [Token (Textual originalText) start stop]
 
         exampleInline =
           P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
@@ -629,7 +630,7 @@ lexemes' eof =
               _ <- void CP.eol
               verbatim <-
                 tok $
-                  Textual . uncolumn column tabWidth . trim
+                  Textual . uncolumn column tabWidth . trimAroundDelimiters
                     <$> P.someTill P.anySingle ([] <$ lit fence)
               pure (name <> verbatim)
 
@@ -1126,6 +1127,108 @@ lexemes' eof =
           pure [Token (Reserved [op]) start end]
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
+
+-- | If it's a multi-line verbatim block we trim any whitespace representing
+-- indentation from the pretty-printer.
+--
+-- E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--     code
+--       indented
+--     '''
+-- }}
+-- @@
+--
+-- Should lex to the text literal "code\n  indented".
+--
+-- If there's text in the literal that has LESS trailing whitespace than the
+-- opening delimiters, we don't trim it at all. E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--   code
+--     '''
+-- }}
+-- @@
+--
+--  Is parsed as "  code".
+--
+--  Trim the expected amount of whitespace from a text literal:
+--  >>> trimIndentFromVerbatimBlock 2 "  code\n    indented"
+-- "code\n  indented"
+--
+-- If the text literal has less leading whitespace than the opening delimiters,
+-- leave it as-is
+-- >>> trimIndentFromVerbatimBlock 2 "code\n  indented"
+-- "code\n  indented"
+trimIndentFromVerbatimBlock :: Int -> String -> String
+trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
+  List.intercalate "\n" <$> for (lines txt) \line -> do
+    -- If any 'stripPrefix' fails, we fail and return the unaltered text
+    case stripPrefix (replicate leadingSpaces ' ') line of
+      Just stripped -> Just stripped
+      Nothing ->
+        -- If it was a line with all white-space, just use an empty line,
+        -- this can happen easily in editors which trim trailing whitespace.
+        if all isSpace line
+          then Just ""
+          else Nothing
+
+-- Trim leading/trailing whitespace from around delimiters, e.g.
+--
+-- {{
+--   '''___ <- whitespace here including newline
+--   text block
+-- 👇 or here
+-- __'''
+-- }}
+-- >>> trimAroundDelimiters "  \n  text block \n  "
+-- "  text block "
+--
+-- Should leave leading and trailing line untouched if it contains non-whitespace, e.g.:
+--
+-- '''  leading whitespace
+--   text block
+-- trailing whitespace:  '''
+-- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  "
+-- "  leading whitespace\n  text block \ntrailing whitespace:  "
+--
+-- Should keep trailing newline if it's the only thing on the line, e.g.:
+--
+-- '''
+-- newline below
+--
+-- '''
+-- >>> trimAroundDelimiters "\nnewline below\n\n"
+-- "newline below\n\n"
+trimAroundDelimiters :: String -> String
+trimAroundDelimiters txt =
+  txt
+    & ( \s ->
+          List.breakOn "\n" s
+            & \case
+              (prefix, suffix)
+                | all isSpace prefix -> drop 1 suffix
+                | otherwise -> prefix <> suffix
+      )
+    & ( \s ->
+          List.breakOnEnd "\n" s
+            & \case
+              (_prefix, "") -> s
+              (prefix, suffix)
+                | all isSpace suffix -> dropTrailingNewline prefix
+                | otherwise -> prefix <> suffix
+      )
+  where
+    dropTrailingNewline = \case
+      [] -> []
+      (x : xs) -> NonEmpty.init (x NonEmpty.:| xs)
 
 separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)

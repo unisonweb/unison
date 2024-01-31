@@ -63,6 +63,7 @@ library
     , bytes
     , containers
     , cryptonite
+    , extra
     , lens
     , megaparsec
     , mtl
@@ -118,6 +119,7 @@ test-suite syntax-tests
     , containers
     , cryptonite
     , easytest
+    , extra
     , lens
     , megaparsec
     , mtl
