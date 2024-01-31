@@ -541,7 +541,7 @@ lexemes' eof =
                 let txt = trimIndentFromVerbatimBlock (column start - 1) (trimAroundDelimiters originalText)
                  in wrap "syntax.docVerbatim" $
                       wrap "syntax.docWord" $
-                        pure [Token (Textual (trimAroundDelimiters txt)) start stop]
+                        pure [Token (Textual txt) start stop]
               else
                 wrap "syntax.docCode" $
                   wrap "syntax.docWord" $
