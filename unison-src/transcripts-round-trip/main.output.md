@@ -146,7 +146,7 @@ fix_1778 =
 fix_2048 : Doc2
 fix_2048 =
   {{
-  **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT**
+    **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT**
   }}
 
 fix_2224 : [()] -> ()
@@ -167,20 +167,20 @@ fix_2224b = cases
 fix_2271 : Doc2
 fix_2271 =
   {{
-   # Full doc body indented
-   
-     ``` raw
-     myVal1 = 42 
-     myVal2 = 43
-     myVal4 = 44
-     ```
-     
-     ``` raw
-     indented1= "hi"
-     indented2="this is two indents"
-     ```
-     
-     I am two spaces over
+    # Full doc body indented
+    
+      ``` raw
+      myVal1 = 42 
+      myVal2 = 43
+      myVal4 = 44
+      ```
+      
+      ``` raw
+      indented1= "hi"
+      indented2="this is two indents"
+      ```
+      
+      I am two spaces over
   }}
 
 Fix_2337.f : Fix_2337 -> Boolean
@@ -307,35 +307,35 @@ fix_4384c : Doc2
 fix_4384c =
   use Nat +
   {{
-   {{ docExampleBlock 0 do
-      x = 1
-      y = 2
-      x + y }}
+    {{ docExampleBlock 0 do
+        x = 1
+        y = 2
+        x + y }}
   }}
 
 fix_4384d : Doc2
 fix_4384d =
   {{
-  {{
-  docExampleBlock 0 '[ 1
-    , 2
-    , 3
-    , 4
-    , 5
-    , 6
-    , 7
-    , 8
-    , 9
-    , 10
-    , 11
-    , 12
-    , 13
-    , 14
-    , 15
-    , 16
-    , 17
-    , 18
-    ] }}
+    {{
+    docExampleBlock 0 '[ 1
+      , 2
+      , 3
+      , 4
+      , 5
+      , 6
+      , 7
+      , 8
+      , 9
+      , 10
+      , 11
+      , 12
+      , 13
+      , 14
+      , 15
+      , 16
+      , 17
+      , 18
+      ] }}
   }}
 
 fix_4384e : Doc2
@@ -343,10 +343,11 @@ fix_4384e =
   id : x -> x
   id x = x
   {{
-  {{
-  docExampleBlock
-    0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0))
-  }}
+    {{
+    docExampleBlock
+      0
+      (id id id id id id id id id id id id id id id id id id id id id (x -> 0))
+    }}
   }}
 
 Fix_525.bar.quaffle : Nat
@@ -437,11 +438,11 @@ multiline_list =
 nested_fences : Doc2
 nested_fences =
   {{
-   ```` raw
-   ```unison
-   r = "boopydoo"
-   ```
-   ````
+    ```` raw
+    ```unison
+    r = "boopydoo"
+    ```
+    ````
   }}
 
 raw_a : Text
@@ -736,13 +737,13 @@ sloppyDocEval : Doc2
 sloppyDocEval =
   use Nat +
   {{
-   Here's an example of an eval block that's technically a lambda but should
-   print as a backticked block (since old docs in the wild still use this
-   format).
-   
-   ```
-   1 + 1
-   ```
+    Here's an example of an eval block that's technically a lambda but should
+    print as a backticked block (since old docs in the wild still use this
+    format).
+    
+    ```
+    1 + 1
+    ```
   }}
 ```
 
