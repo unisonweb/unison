@@ -41,6 +41,7 @@ import Data.List
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -1179,22 +1180,8 @@ trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
 -- 👇 or here
 -- __'''
 -- }}
---
--- E.g.
--- '''
---  text block '''
--- >>> trimAroundDelimiters "  \n  text block "
+-- >>> trimAroundDelimiters "  \n  text block \n  "
 -- "  text block "
---
--- Should persist a trailing newline
---
--- E.g.
--- # Heading
---   '''
---   text block
---   '''
--- >>> trimAroundDelimiters "  \n  text block\n  "
--- "  text block\n  "
 --
 -- Should leave leading and trailing line untouched if it contains non-whitespace, e.g.:
 --
@@ -1204,17 +1191,36 @@ trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
 -- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  "
 -- "  leading whitespace\n  text block \ntrailing whitespace:  "
 --
--- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  \n  \n  "
--- "  leading whitespace\n  text block \ntrailing whitespace:  \n  \n  "
+-- Should keep trailing newline if it's the only thing on the line, e.g.:
+--
+-- '''
+-- newline below
+--
+-- '''
+-- >>> trimAroundDelimiters "\nnewline below\n\n"
+-- "newline below\n\n"
 trimAroundDelimiters :: String -> String
 trimAroundDelimiters txt =
   txt
-    & \s ->
-      List.breakOn "\n" s
-        & \case
-          (prefix, suffix)
-            | all isSpace prefix -> drop 1 suffix
-            | otherwise -> prefix <> suffix
+    & ( \s ->
+          List.breakOn "\n" s
+            & \case
+              (prefix, suffix)
+                | all isSpace prefix -> drop 1 suffix
+                | otherwise -> prefix <> suffix
+      )
+    & ( \s ->
+          List.breakOnEnd "\n" s
+            & \case
+              (_prefix, "") -> s
+              (prefix, suffix)
+                | all isSpace suffix -> dropTrailingNewline prefix
+                | otherwise -> prefix <> suffix
+      )
+  where
+    dropTrailingNewline = \case
+      [] -> []
+      (x : xs) -> NonEmpty.init (x NonEmpty.:| xs)
 
 separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)

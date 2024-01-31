@@ -146,7 +146,6 @@ We can display the guide before and after adding it to the codebase:
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       ```
     
       You can use three or more backticks plus a language name
@@ -357,7 +356,6 @@ We can display the guide before and after adding it to the codebase:
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       ```
     
       You can use three or more backticks plus a language name
@@ -576,7 +574,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       ```
     
       You can use three or more backticks plus a language name
@@ -780,7 +777,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       ```
     
       You can use three or more backticks plus a language name
@@ -3722,7 +3718,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           ()
                                           (Right
                                             (Plain
-                                              "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|\n  "))
+                                              "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|"))
                                       , Lit
                                           ()
                                           (Right (Plain "\n"))
