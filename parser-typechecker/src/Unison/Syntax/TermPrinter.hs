@@ -1738,8 +1738,12 @@ prettyDoc2 ac tm = do
   ppe <- getPPE
   let brace p =
         if PP.isMultiLine p
-          then fmt S.DocDelimiter "{{" <> PP.newline <> p <> PP.newline <> fmt S.DocDelimiter "}}"
-          else fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
+          then fmt S.DocDelimiter "{{" <> PP.newline <> PP.indentN 2 p <> PP.newline <> fmt S.DocDelimiter "}}"
+          else -- The pretty-printer _thinks_ it'll all fit on one line,
+          -- but it might be wrong, so try to fit the whole thing on one line, but if we discover
+          -- that we can't, break it up.
+            (fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}") `PP.orElse` (fmt S.DocDelimiter "{{" <> PP.newline <> PP.indentN 2 p <> PP.newline <> fmt S.DocDelimiter "}}")
+      -- Jump back out to the standard term pretty-printer
       bail tm = brace <$> pretty0 ac tm
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =

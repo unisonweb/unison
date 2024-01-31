@@ -53,11 +53,11 @@ type Two = One Nat | Two Text
 ```unison:added-by-ucm scratch.u
 x.doc =
   {{
-  # Doc This is a **doc**!
-  
-    term link {x}
+    # Doc This is a **doc**!
     
-    type link {type Optional}
+      term link {x}
+      
+      type link {type Optional}
   }}
 x : Nat -> Nat
 x y =
@@ -73,11 +73,11 @@ oneLiner = {{ one liner }}
 -- Before
 explicit.doc =
   {{
-  # Here's a top-level doc
-  
-    With a paragraph
+    # Here's a top-level doc
     
-    Or two
+      With a paragraph
+      
+      Or two
   }}
 -- After
 
