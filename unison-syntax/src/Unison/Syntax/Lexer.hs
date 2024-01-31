@@ -1180,15 +1180,36 @@ trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
 -- __'''
 -- }}
 --
--- >>> trimAroundDelimiters "  \n  text block \n  "
+-- E.g.
+-- '''
+--  text block '''
+-- >>> trimAroundDelimiters "  \n  text block "
 -- "  text block "
 --
--- >>> trimAroundDelimiters "something before  \n  text block \nsomething after"
--- "something before  \n  text block \nsomething after"
+-- Should persist a trailing newline
+--
+-- E.g.
+-- # Heading
+--   '''
+--   text block
+--   '''
+-- >>> trimAroundDelimiters "  \n  text block\n  "
+-- "  text block\n  "
+--
+-- Should leave leading and trailing line untouched if it contains non-whitespace, e.g.:
+--
+-- '''  leading whitespace
+--   text block
+-- trailing whitespace:  '''
+-- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  "
+-- "  leading whitespace\n  text block \ntrailing whitespace:  "
+--
+-- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  \n  \n  "
+-- "  leading whitespace\n  text block \ntrailing whitespace:  \n  \n  "
 trimAroundDelimiters :: String -> String
-trimAroundDelimiters txt = reverse . trim . reverse . trim $ txt
-  where
-    trim s =
+trimAroundDelimiters txt =
+  txt
+    & \s ->
       List.breakOn "\n" s
         & \case
           (prefix, suffix)

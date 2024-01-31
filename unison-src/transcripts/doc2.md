@@ -85,12 +85,13 @@ Table
 
 '''
     Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
-    <- Should be exactly 4 spaces to the left!
 
      _____     _
     |  |  |___|_|___ ___ ___
     |  |  |   | |_ -| . |   |
     |_____|_|_|_|___|___|_|_|
+    Should have one full trailing newline below here:
+
 '''
 
 Inline '' text literal with 1 space of padding '' in the middle of a sentence.
