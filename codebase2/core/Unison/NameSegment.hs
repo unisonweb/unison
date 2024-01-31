@@ -2,7 +2,6 @@ module Unison.NameSegment
   ( NameSegment (UnsafeNameSegment),
     unsafeFromUnescapedText,
     toUnescapedText,
-    reverseSegments',
     isEmpty,
     isPrefixOf,
     toTextBuilder,
@@ -39,25 +38,6 @@ unsafeFromUnescapedText =
 toUnescapedText :: NameSegment -> Text
 toUnescapedText =
   coerce
-
--- Same as reverse . segments', but produces the output as a
--- lazy list, suitable for suffix-based ordering purposes or
--- building suffix tries. Examples:
---
---   reverseSegments' "foo.bar.baz"  => ["baz","bar","foo"]
---   reverseSegments' ".foo.bar.baz" => ["baz","bar","foo"]
---   reverseSegments' ".."           => ["."]
---   reverseSegments' "Nat.++"       => ["++","Nat"]
---   reverseSegments' "Nat.++.zoo"   => ["zoo","++","Nat"]
-reverseSegments' :: Text -> [Text]
-reverseSegments' = go
-  where
-    go "" = []
-    go t =
-      let seg0 = Text.takeWhileEnd (/= '.') t
-          seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
-          rem = Text.dropEnd (Text.length seg + 1) t
-       in seg : go rem
 
 isEmpty :: NameSegment -> Bool
 isEmpty =
