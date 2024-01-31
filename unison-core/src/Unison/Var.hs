@@ -32,11 +32,10 @@ module Unison.Var
   )
 where
 
-import Data.Char (isLower, toLower)
+import Data.Char (isLower, toLower, isAlphaNum)
 import Data.Text (pack)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
-import Unison.NameSegment qualified as Name
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Util.Monoid (intercalateMap)
@@ -195,14 +194,6 @@ data InferenceType
 reset :: (Var v) => v -> v
 reset v = typed (typeOf v)
 
-unqualifiedName :: (Var v) => v -> Text
-unqualifiedName = fromMaybe "" . lastMay . Name.segments' . name
-
-unqualified :: (Var v) => v -> v
-unqualified v = case typeOf v of
-  User _ -> named . unqualifiedName $ v
-  _ -> v
-
 namespaced :: (Var v) => [v] -> v
 namespaced vs = named $ intercalateMap "." name vs
 
@@ -220,6 +211,6 @@ joinDot prefix v2 =
 
 universallyQuantifyIfFree :: forall v. (Var v) => v -> Bool
 universallyQuantifyIfFree v =
-  ok (name $ reset v) && unqualified v == v
+  Text.all isLower (Text.take 1 n) && Text.all isAlphaNum n
   where
-    ok n = (all isLower . take 1 . Text.unpack) n
+    n = name $ reset v

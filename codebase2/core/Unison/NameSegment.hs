@@ -2,7 +2,6 @@ module Unison.NameSegment
   ( NameSegment (UnsafeNameSegment),
     unsafeFromUnescapedText,
     toUnescapedText,
-    segments',
     reverseSegments',
     isEmpty,
     isPrefixOf,
@@ -40,17 +39,6 @@ unsafeFromUnescapedText =
 toUnescapedText :: NameSegment -> Text
 toUnescapedText =
   coerce
-
--- Split text into segments. A smarter version of `Text.splitOn` that handles
--- the name `.` properly.
-segments' :: Text -> [Text]
-segments' n = go split
-  where
-    split = Text.splitOn "." n
-    go [] = []
-    go ("" : "" : z) = "." : go z
-    go ("" : z) = go z
-    go (x : y) = x : go y
 
 -- Same as reverse . segments', but produces the output as a
 -- lazy list, suitable for suffix-based ordering purposes or
