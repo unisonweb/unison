@@ -39,6 +39,7 @@ import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
 import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -536,21 +537,14 @@ lexemes' eof =
               then -- If it's a multi-line verbatim block we trim any whitespace representing
               -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
 
-                let txt = trimIndentFromVerbatimBlock (column start - 1) (trim originalText)
+                let txt = trimIndentFromVerbatimBlock (column start - 1) (trimAroundDelimiters originalText)
                  in wrap "syntax.docVerbatim" $
                       wrap "syntax.docWord" $
-                        pure [Token (Textual (trim txt)) start stop]
+                        pure [Token (Textual (trimAroundDelimiters txt)) start stop]
               else
                 wrap "syntax.docCode" $
                   wrap "syntax.docWord" $
                     pure [Token (Textual originalText) start stop]
-
-        trim = f . f
-          where
-            f = reverse . dropThru
-            dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
-            dropNl ('\n' : t) = t
-            dropNl as = as
 
         exampleInline =
           P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
@@ -634,7 +628,7 @@ lexemes' eof =
               _ <- void CP.eol
               verbatim <-
                 tok $
-                  Textual . uncolumn column tabWidth . trim
+                  Textual . uncolumn column tabWidth . trimAroundDelimiters
                     <$> P.someTill P.anySingle ([] <$ lit fence)
               pure (name <> verbatim)
 
@@ -1176,6 +1170,30 @@ trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
   List.intercalate "\n" <$> for (lines txt) \line -> do
     -- If any 'stripPrefix' fails, we fail and return the unaltered text
     stripPrefix (replicate leadingSpaces ' ') line
+
+-- Trim leading/trailing whitespace from around delimiters, e.g.
+--
+-- {{
+--   '''___ <- whitespace here including newline
+--   text block
+-- 👇 or here
+-- __'''
+-- }}
+--
+-- >>> trimAroundDelimiters "  \n  text block \n  "
+-- "  text block "
+--
+-- >>> trimAroundDelimiters "something before  \n  text block \nsomething after"
+-- "something before  \n  text block \nsomething after"
+trimAroundDelimiters :: String -> String
+trimAroundDelimiters txt = reverse . trim . reverse . trim $ txt
+  where
+    trim s =
+      List.breakOn "\n" s
+        & \case
+          (prefix, suffix)
+            | all isSpace prefix -> drop 1 suffix
+            | otherwise -> prefix <> suffix
 
 separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)

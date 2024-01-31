@@ -177,7 +177,7 @@ fulldoc =
        Indented Code block
        
        '''
-       Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
+           Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
            <- Should be exactly 4 spaces to the left!
        
             _____     _
@@ -267,7 +267,7 @@ fulldoc =
        Indented Code block
        
        '''
-       Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
+           Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
            <- Should be exactly 4 spaces to the left!
        
             _____     _

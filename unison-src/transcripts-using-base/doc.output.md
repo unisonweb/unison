@@ -402,7 +402,6 @@ and the rendered output using `display`:
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       '''
       
       You can use three or more backticks plus a language name
@@ -432,7 +431,6 @@ and the rendered output using `display`:
       |  |  |___|_|___ ___ ___ 
       |  |  |   | |_ -| . |   |
       |_____|_|_|_|___|___|_|_|
-      
     ```
   
     You can use three or more backticks plus a language name for
@@ -711,7 +709,6 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
-        
       ```
     
       You can use three or more backticks plus a language name
