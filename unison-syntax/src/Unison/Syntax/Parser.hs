@@ -313,6 +313,7 @@ wordyDefinitionName = queryToken $ \case
 importWordyId :: Ord v => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
+  L.Blank s | not (null s) -> Just $ Name.unsafeFromString ("_" <> s)
   _ -> Nothing
 
 -- The `+` in: use Foo.bar + as a Name

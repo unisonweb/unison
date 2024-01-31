@@ -912,13 +912,11 @@ docsInBranchToHtmlFiles ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Branch IO ->
-  Path ->
   FilePath ->
   -- Returns any doc evaluation errors which may have occurred.
   -- Note that all docs will still be rendered even if there are errors.
   IO [Rt.Error]
-docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
-  let currentBranch = Branch.getAt' currentPath root
+docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
   let notLib (_, name) = NameSegment.libSegment `notElem` Name.segments name

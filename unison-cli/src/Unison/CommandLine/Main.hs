@@ -16,6 +16,7 @@ import Ki qualified
 import System.Console.Haskeline qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
@@ -27,7 +28,7 @@ import Unison.Cli.Pretty (prettyProjectAndBranchName)
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
@@ -126,7 +127,7 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  (Branch IO -> STM ()) ->
+  (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
@@ -154,7 +155,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
           currentRoot <- atomically do
             currentRoot <- readTMVar rootVar
             guard $ Just currentRoot /= lastRoot
-            notifyBranchChange currentRoot
+            notifyBranchChange (Branch.headHash currentRoot)
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
