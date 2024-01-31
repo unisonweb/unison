@@ -142,7 +142,7 @@ We can display the guide before and after adding it to the codebase:
       syntax highlighting:
     
       ``` raw
-      _____     _             
+         _____     _             
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
@@ -352,7 +352,7 @@ We can display the guide before and after adding it to the codebase:
       syntax highlighting:
     
       ``` raw
-      _____     _             
+         _____     _             
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
@@ -570,7 +570,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       syntax highlighting:
     
       ``` raw
-      _____     _             
+         _____     _             
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
@@ -773,7 +773,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       syntax highlighting:
     
       ``` raw
-      _____     _             
+         _____     _             
         |  |  |___|_|___ ___ ___ 
         |  |  |   | |_ -| . |   |
         |_____|_|_|_|___|___|_|_|
@@ -3718,7 +3718,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           ()
                                           (Right
                                             (Plain
-                                              "_____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|"))
+                                              "   _____     _             \n  |  |  |___|_|___ ___ ___ \n  |  |  |   | |_ -| . |   |\n  |_____|_|_|_|___|___|_|_|"))
                                       , Lit
                                           ()
                                           (Right (Plain "\n"))
