@@ -167,20 +167,20 @@ fix_2224b = cases
 fix_2271 : Doc2
 fix_2271 =
   {{
-  # Full doc body indented
-  
-    ``` raw
-    myVal1 = 42 
-    myVal2 = 43
-    myVal4 = 44
-    ```
-    
-    ``` raw
-    indented1= "hi"
-    indented2="this is two indents"
-    ```
-    
-    I am two spaces over
+   # Full doc body indented
+   
+     ``` raw
+     myVal1 = 42 
+     myVal2 = 43
+     myVal4 = 44
+     ```
+     
+     ``` raw
+     indented1= "hi"
+     indented2="this is two indents"
+     ```
+     
+     I am two spaces over
   }}
 
 Fix_2337.f : Fix_2337 -> Boolean
@@ -307,10 +307,10 @@ fix_4384c : Doc2
 fix_4384c =
   use Nat +
   {{
-  {{ docExampleBlock 0 do
-    x = 1
-    y = 2
-    x + y }}
+   {{ docExampleBlock 0 do
+      x = 1
+      y = 2
+      x + y }}
   }}
 
 fix_4384d : Doc2
@@ -437,11 +437,11 @@ multiline_list =
 nested_fences : Doc2
 nested_fences =
   {{
-  ```` raw
-  ```unison
-  r = "boopydoo"
-  ```
-  ````
+   ```` raw
+   ```unison
+   r = "boopydoo"
+   ```
+   ````
   }}
 
 raw_a : Text
@@ -736,13 +736,13 @@ sloppyDocEval : Doc2
 sloppyDocEval =
   use Nat +
   {{
-  Here's an example of an eval block that's technically a lambda but should
-  print as a backticked block (since old docs in the wild still use this
-  format).
-  
-  ```
-  1 + 1
-  ```
+   Here's an example of an eval block that's technically a lambda but should
+   print as a backticked block (since old docs in the wild still use this
+   format).
+   
+   ```
+   1 + 1
+   ```
   }}
 ```
 

@@ -105,29 +105,29 @@ and the rendered output using `display`:
   basicFormatting : Doc2
   basicFormatting =
     {{
-    # Basic formatting
-    
-      Paragraphs are separated by one or more blanklines.
-      Sections have a title and 0 or more paragraphs or other
-      section elements.
-      
-      Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced'' (or ''monospaced'').
-      
-      You can link to Unison terms, types, and external URLs:
-      
-      * [An external url](https://unisonweb.org)
-      * {Some} is a term link; {type Optional} is a type link
-      * [A named type link]({type Optional}) and
-        [a named term link]({Some}). Term links are handy for
-        linking to other documents!
-      
-      You can use ''{{ .. }}'' to escape out to regular Unison
-      syntax, for instance {{ docWord "__not bold__" }}. This is
-      useful for creating documents programmatically or just
-      including other documents.
-      
-      __Next up:__ {lists}
+     # Basic formatting
+     
+       Paragraphs are separated by one or more blanklines.
+       Sections have a title and 0 or more paragraphs or other
+       section elements.
+       
+       Text can be **bold**, __italicized__, ~~strikethrough~~,
+       or ''monospaced'' (or ''monospaced'').
+       
+       You can link to Unison terms, types, and external URLs:
+       
+       * [An external url](https://unisonweb.org)
+       * {Some} is a term link; {type Optional} is a type link
+       * [A named type link]({type Optional}) and
+         [a named term link]({Some}). Term links are handy for
+         linking to other documents!
+       
+       You can use ''{{ .. }}'' to escape out to regular Unison
+       syntax, for instance {{ docWord "__not bold__" }}. This
+       is useful for creating documents programmatically or just
+       including other documents.
+       
+       __Next up:__ {lists}
     }}
 
 .> display basicFormatting
@@ -160,42 +160,42 @@ and the rendered output using `display`:
   lists : Doc2
   lists =
     {{
-    # Lists
-    
-      ## Bulleted lists
-      
-         Bulleted lists can use ''+'', ''-'', or ''*'' for the
-         bullets (though the choice will be normalized away by
-         the pretty-printer). They can be nested, to any depth:
-         
-         * A
-         * B
-         * C
-           * C1
-           * C2
-      
-      ## Numbered lists
-      
-         1. A
-         2. B
-         3. C
-         
-         The first number of the list determines the starting
-         number in the rendered output. The other numbers are
-         ignored:
-         
-         10. A
-         11. B
-         12. C
-         
-         Numbered lists can be nested as well, and combined with
-         bulleted lists:
-         
-         1. Wake up.
-            * What am I doing here?
-            * In this nested list.
-         2. Take shower.
-         3. Get dressed.
+     # Lists
+     
+       ## Bulleted lists
+       
+          Bulleted lists can use ''+'', ''-'', or ''*'' for the
+          bullets (though the choice will be normalized away by
+          the pretty-printer). They can be nested, to any depth:
+          
+          * A
+          * B
+          * C
+            * C1
+            * C2
+       
+       ## Numbered lists
+       
+          1. A
+          2. B
+          3. C
+          
+          The first number of the list determines the starting
+          number in the rendered output. The other numbers are
+          ignored:
+          
+          10. A
+          11. B
+          12. C
+          
+          Numbered lists can be nested as well, and combined
+          with bulleted lists:
+          
+          1. Wake up.
+             * What am I doing here?
+             * In this nested list.
+          2. Take shower.
+          3. Get dressed.
     }}
 
 .> display lists
@@ -243,33 +243,33 @@ and the rendered output using `display`:
   evaluation =
     use Nat * +
     {{
-    # Evaluation
-    
-      Expressions can be evaluated inline, for instance
-      @eval{1 + 1}.
-      
-      Blocks of code can be evaluated as well, for instance:
-      
-      ```
-      id x = x
-      id (sqr 10)
-      ```
-      
-      also:
-      
-      ```
-      match 1 with
-        1 -> "hi"
-        _ -> "goodbye"
-      ```
-      
-      To include a typechecked snippet of code without
-      evaluating it, you can do:
-      
-      @typecheck ```
-      cube : Nat -> Nat
-      cube x = x * x * x
-      ```
+     # Evaluation
+     
+       Expressions can be evaluated inline, for instance
+       @eval{1 + 1}.
+       
+       Blocks of code can be evaluated as well, for instance:
+       
+       ```
+       id x = x
+       id (sqr 10)
+       ```
+       
+       also:
+       
+       ```
+       match 1 with
+         1 -> "hi"
+         _ -> "goodbye"
+       ```
+       
+       To include a typechecked snippet of code without
+       evaluating it, you can do:
+       
+       @typecheck ```
+       cube : Nat -> Nat
+       cube x = x * x * x
+       ```
     }}
 
 .> display evaluation
@@ -306,39 +306,39 @@ and the rendered output using `display`:
   includingSource =
     use Nat +
     {{
-    # Including Unison source code
-    
-      Unison definitions can be included in docs. For instance:
-      
-          @source{type Optional, sqr}
-      
-      Some rendering targets also support folded source:
-      
-          @foldedSource{type Optional, sqr}
-      
-      You can also include just a signature, inline, with
-      @inlineSignature{sqr}, or you can include one or more
-      signatures as a block:
-      
-          @signatures{sqr, +}
-      
-      Or alternately:
-      
-          @signature{List.map}
-      
-      ## Inline snippets
-      
-         You can include typechecked code snippets inline, for
-         instance:
-         
-         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2''
-           says to ignore the first two arguments when
-           rendering. In richer renderers, the ''sqr'' link will
-           be clickable.
-         * If your snippet expression is just a single function
-           application, you can put it in double backticks, like
-           so: ``sqr x``. This is equivalent to
-           {{ docExample 1 '(x -> sqr x) }}.
+     # Including Unison source code
+     
+       Unison definitions can be included in docs. For instance:
+       
+           @source{type Optional, sqr}
+       
+       Some rendering targets also support folded source:
+       
+           @foldedSource{type Optional, sqr}
+       
+       You can also include just a signature, inline, with
+       @inlineSignature{sqr}, or you can include one or more
+       signatures as a block:
+       
+           @signatures{sqr, +}
+       
+       Or alternately:
+       
+           @signature{List.map}
+       
+       ## Inline snippets
+       
+          You can include typechecked code snippets inline, for
+          instance:
+          
+          * {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2''
+            says to ignore the first two arguments when
+            rendering. In richer renderers, the ''sqr'' link
+            will be clickable.
+          * If your snippet expression is just a single function
+            application, you can put it in double backticks,
+            like so: ``sqr x``. This is equivalent to
+            {{ docExample 1 '(x -> sqr x) }}.
     }}
 
 .> display includingSource
@@ -392,32 +392,32 @@ and the rendered output using `display`:
   nonUnisonCodeBlocks : Doc2
   nonUnisonCodeBlocks =
     {{
-    # Non-Unison code blocks
-    
-      Use three or more single quotes to start a block with no
-      syntax highlighting:
-      
-      '''
-         _____     _             
-        |  |  |___|_|___ ___ ___ 
-        |  |  |   | |_ -| . |   |
-        |_____|_|_|_|___|___|_|_|
-        
-      '''
-      
-      You can use three or more backticks plus a language name
-      for blocks with syntax highlighting:
-      
-      ``` Haskell
-      -- A fenced code block which isn't parsed by Unison
-      reverse = foldl (flip (:)) []
-      ```
-      
-      ``` Scala
-      // A fenced code block which isn't parsed by Unison
-      def reverse[A](xs: List[A]) = 
-        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
-      ```
+     # Non-Unison code blocks
+     
+       Use three or more single quotes to start a block with no
+       syntax highlighting:
+       
+       '''
+          _____     _             
+         |  |  |___|_|___ ___ ___ 
+         |  |  |   | |_ -| . |   |
+         |_____|_|_|_|___|___|_|_|
+         
+       '''
+       
+       You can use three or more backticks plus a language name
+       for blocks with syntax highlighting:
+       
+       ``` Haskell
+       -- A fenced code block which isn't parsed by Unison
+       reverse = foldl (flip (:)) []
+       ```
+       
+       ``` Scala
+       // A fenced code block which isn't parsed by Unison
+       def reverse[A](xs: List[A]) = 
+         xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+       ```
     }}
 
 .> display nonUnisonCodeBlocks
@@ -454,56 +454,56 @@ and the rendered output using `display`:
   otherElements : Doc2
   otherElements =
     {{
-    There are also asides, callouts, tables, tooltips, and more.
-    These don't currently have special syntax; just use the
-    ''{{ }}'' syntax to call these functions directly.
-    
-        @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
-    
-    This is an aside. {{
-    docAside
-      {{ Some extra detail that doesn't belong in main text. }}
-    }}
-    
-    {{
-    docCallout
-      None {{ This is an important callout, with no icon. }} }}
-    
-    {{
-    docCallout
-      (Some {{ 🌻 }})
-      {{
-      This is an important callout, with an icon. The text wraps
-      onto multiple lines.
-      }} }}
-    
-    {{
-    docBlockquote
-      {{
-      "And what is the use of a book," thought Alice, "without
-      pictures or conversation?"
-      
-      __Lewis Carroll, Alice's Adventures in Wonderland__
-      }} }}
-    
-    {{ docTooltip {{ Hover over me }} {{ Extra detail }} }}
-    
-    {{
-    docTable
-      [ [ {{
-          a
-          }}
-        , {{
-          b
-          }}
-        , {{
-          A longer paragraph that will split onto multiple
-          lines, such that this row occupies multiple lines in
-          the rendered table.
-          }}
-        ]
-      , [{{ Some text }}, {{ More text }}, {{ Zounds! }}]
-      ] }}
+     There are also asides, callouts, tables, tooltips, and
+     more. These don't currently have special syntax; just use
+     the ''{{ }}'' syntax to call these functions directly.
+     
+         @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
+     
+     This is an aside. {{
+     docAside
+       {{ Some extra detail that doesn't belong in main text. }}
+     }}
+     
+     {{
+     docCallout
+       None {{ This is an important callout, with no icon. }} }}
+     
+     {{
+     docCallout
+       (Some {{ 🌻 }})
+       {{
+       This is an important callout, with an icon. The text
+       wraps onto multiple lines.
+       }} }}
+     
+     {{
+     docBlockquote
+        {{
+         "And what is the use of a book," thought Alice,
+         "without pictures or conversation?"
+         
+         __Lewis Carroll, Alice's Adventures in Wonderland__
+        }} }}
+     
+     {{ docTooltip {{ Hover over me }} {{ Extra detail }} }}
+     
+     {{
+     docTable
+       [ [ {{
+           a
+           }}
+         , {{
+           b
+           }}
+         , {{
+           A longer paragraph that will split onto multiple
+           lines, such that this row occupies multiple lines in
+           the rendered table.
+           }}
+         ]
+       , [{{ Some text }}, {{ More text }}, {{ Zounds! }}]
+       ] }}
     }}
 
 .> display otherElements
@@ -554,19 +554,19 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
   doc.guide : Doc2
   doc.guide =
     {{
-    # Unison computable documentation
-    
-      {{ basicFormatting }}
-      
-      {{ lists }}
-      
-      {{ evaluation }}
-      
-      {{ includingSource }}
-      
-      {{ nonUnisonCodeBlocks }}
-      
-      {{ otherElements }}
+     # Unison computable documentation
+     
+       {{ basicFormatting }}
+       
+       {{ lists }}
+       
+       {{ evaluation }}
+       
+       {{ includingSource }}
+       
+       {{ nonUnisonCodeBlocks }}
+       
+       {{ otherElements }}
     }}
 
 .> display doc.guide
