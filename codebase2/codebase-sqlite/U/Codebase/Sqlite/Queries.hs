@@ -393,7 +393,7 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
-import Unison.NameSegment (NameSegment (UnsafeNameSegment))
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
@@ -658,7 +658,7 @@ saveNameSegment =
 
 expectNameSegment :: TextId -> Transaction NameSegment
 expectNameSegment =
-  fmap UnsafeNameSegment . expectText
+  fmap NameSegment . expectText
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
 saveHashObject hId oId version =
@@ -4256,7 +4256,7 @@ expectMostRecentNamespace =
     check bytes =
       case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
         Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
-        Right namespace -> Right (map UnsafeNameSegment namespace)
+        Right namespace -> Right (map NameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
 setMostRecentNamespace :: [Text] -> Transaction ()

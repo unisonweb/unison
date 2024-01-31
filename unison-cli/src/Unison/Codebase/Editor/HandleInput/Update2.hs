@@ -58,7 +58,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
-import Unison.NameSegment (NameSegment (UnsafeNameSegment))
+import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
@@ -395,12 +395,12 @@ incrementLastSegmentChar (ForwardName segments) =
    in ForwardName $ maybe (NonEmpty.singleton incrementedLastSegment) (|> incrementedLastSegment) (NonEmpty.nonEmpty initSegments)
   where
     incrementLastCharInSegment :: NameSegment -> NameSegment
-    incrementLastCharInSegment (UnsafeNameSegment text) =
+    incrementLastCharInSegment (NameSegment text) =
       let incrementedText =
             if Text.null text
               then text
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
-       in UnsafeNameSegment incrementedText
+       in NameSegment incrementedText
 
 -- @getTermAndDeclNames file@ returns the names of the terms and decls defined in a typechecked Unison file.
 getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)

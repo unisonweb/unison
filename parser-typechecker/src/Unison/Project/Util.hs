@@ -62,7 +62,7 @@ pattern UUIDNameSegment uuid <-
     )
   where
     UUIDNameSegment uuid =
-      UnsafeNameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
+      NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
 
 -- | The prism between paths like
 --

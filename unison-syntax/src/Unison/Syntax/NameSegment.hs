@@ -106,7 +106,7 @@ symbolyP = do
     then do
       end <- posP
       P.customFailure (Token text start end)
-    else pure (UnsafeNameSegment text)
+    else pure (NameSegment text)
   where
     unescaped =
       P.takeWhile1P (Just (description symbolyIdChars)) symbolyIdChar
@@ -133,7 +133,7 @@ wordyP = do
     then do
       end <- posP
       P.customFailure (Token word start end)
-    else pure (UnsafeNameSegment word)
+    else pure (NameSegment word)
   where
     wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 

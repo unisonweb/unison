@@ -1,5 +1,5 @@
 module Unison.NameSegment
-  ( NameSegment (UnsafeNameSegment),
+  ( NameSegment (..),
     toUnescapedText,
     isEmpty,
     isPrefixOf,
@@ -20,13 +20,13 @@ import Unison.Util.Alphabetical (Alphabetical)
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment
-  = UnsafeNameSegment Text
+  = NameSegment Text
   deriving stock (Eq, Ord, Generic)
   deriving newtype (Alphabetical)
 
 instance IsString NameSegment where
   fromString =
-    UnsafeNameSegment . Text.pack
+    NameSegment . Text.pack
 
 instance Show NameSegment where
   show = show . toUnescapedText
