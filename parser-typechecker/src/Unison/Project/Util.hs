@@ -62,7 +62,7 @@ pattern UUIDNameSegment uuid <-
     )
   where
     UUIDNameSegment uuid =
-      NameSegment.unsafeFromUnescapedText (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
+      UnsafeNameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
 
 -- | The prism between paths like
 --
@@ -153,8 +153,8 @@ pattern BranchesNameSegment <-
 
 projectsNameSegment :: NameSegment
 projectsNameSegment =
-  NameSegment.unsafeFromUnescapedText "__projects"
+  "__projects"
 
 branchesNameSegment :: NameSegment
 branchesNameSegment =
-  NameSegment.unsafeFromUnescapedText "branches"
+  "branches"

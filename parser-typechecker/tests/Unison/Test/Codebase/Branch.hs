@@ -11,7 +11,6 @@ import EasyTest
 import Unison.Codebase.Branch (Branch (Branch), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Causal qualified as Causal
-import Unison.NameSegment qualified as NameSegment
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Util.Relation qualified as Relation
@@ -32,7 +31,7 @@ branch0Tests =
           b0 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, NameSegment.unsafeFromUnescapedText "b", dummy, (dummy, dummy))])
+              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
               Map.empty
               Map.empty
       let -- a.b
@@ -40,8 +39,8 @@ branch0Tests =
           b1 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, NameSegment.unsafeFromUnescapedText "b", dummy, (dummy, dummy))])
-              (Map.singleton (NameSegment.unsafeFromUnescapedText "a") (Branch (Causal.one b0)))
+              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
+              (Map.singleton "a" (Branch (Causal.one b0)))
               Map.empty
 
       let -- b.a.b
@@ -50,7 +49,7 @@ branch0Tests =
             Branch.branch0
               mempty
               mempty
-              (Map.singleton (NameSegment.unsafeFromUnescapedText "b") (Branch (Causal.one b1)))
+              (Map.singleton "b" (Branch (Causal.one b1)))
               Map.empty
 
       expect (Set.valid (Relation.ran (Branch.deepTypes b2)))

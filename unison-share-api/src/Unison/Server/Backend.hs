@@ -876,7 +876,7 @@ docsForDefinitionName ::
   Name ->
   IO [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
-  let potentialDocNames = [name, name Cons.:> NameSegment.unsafeFromUnescapedText "doc"]
+  let potentialDocNames = [name, name Cons.:> "doc"]
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->

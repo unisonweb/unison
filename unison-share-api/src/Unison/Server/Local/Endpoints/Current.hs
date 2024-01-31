@@ -17,7 +17,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project.Util (pattern BranchesNameSegment, pattern ProjectsNameSegment, pattern UUIDNameSegment)
 import Unison.Server.Backend
@@ -58,8 +57,7 @@ serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
-  namespace <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
-  let segments = NameSegment.unsafeFromUnescapedText <$> namespace
+  segments <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
   let absolutePath = toPath segments
   case toIds segments of
     ProjectAndBranch (Just projectId) branchId ->

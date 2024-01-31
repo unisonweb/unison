@@ -393,7 +393,7 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (UnsafeNameSegment))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
@@ -658,7 +658,7 @@ saveNameSegment =
 
 expectNameSegment :: TextId -> Transaction NameSegment
 expectNameSegment =
-  fmap NameSegment.unsafeFromUnescapedText . expectText
+  fmap UnsafeNameSegment . expectText
 
 saveHashObject :: HashId -> ObjectId -> HashVersion -> Transaction ()
 saveHashObject hId oId version =
@@ -4243,7 +4243,7 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectMostRecentNamespace :: Transaction [Text]
+expectMostRecentNamespace :: Transaction [NameSegment]
 expectMostRecentNamespace =
   queryOneColCheck
     [sql|
@@ -4252,11 +4252,11 @@ expectMostRecentNamespace =
     |]
     check
   where
-    check :: Text -> Either JsonParseFailure [Text]
+    check :: Text -> Either JsonParseFailure [NameSegment]
     check bytes =
       case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
         Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
-        Right namespace -> Right namespace
+        Right namespace -> Right (map UnsafeNameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
 setMostRecentNamespace :: [Text] -> Transaction ()

@@ -1,10 +1,13 @@
 module Unison.NameSegment
   ( NameSegment (UnsafeNameSegment),
-    unsafeFromUnescapedText,
     toUnescapedText,
     isEmpty,
     isPrefixOf,
     toTextBuilder,
+
+    -- * Sentinel name segments
+    defaultPatchSegment,
+    docSegment,
     libSegment,
   )
 where
@@ -21,16 +24,12 @@ newtype NameSegment
   deriving stock (Eq, Ord, Generic)
   deriving newtype (Alphabetical)
 
+instance IsString NameSegment where
+  fromString =
+    UnsafeNameSegment . Text.pack
+
 instance Show NameSegment where
   show = show . toUnescapedText
-
--- | Convert a text to a name segment, when the text is known to be a valid name segment.
---
--- For example, to make a name segment containing the text ".~", use @unsafeFromUnescapedText ".~"@, even if that
--- operator would need to be escaped (e.g. "`.~`") when written by a user.
-unsafeFromUnescapedText :: Text -> NameSegment
-unsafeFromUnescapedText =
-  UnsafeNameSegment
 
 -- | Convert a name segment to unescaped text.
 --
@@ -51,6 +50,14 @@ toTextBuilder :: NameSegment -> Text.Builder
 toTextBuilder =
   coerce Text.Builder.fromText
 
+defaultPatchSegment :: NameSegment
+defaultPatchSegment =
+  "patch"
+
+docSegment :: NameSegment
+docSegment =
+  "doc"
+
 libSegment :: NameSegment
 libSegment =
-  unsafeFromUnescapedText "lib"
+  "lib"

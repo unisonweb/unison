@@ -381,7 +381,7 @@ lexemes' eof =
         (Just (WordyId tname))
           | isTopLevel ->
               beforeStartToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment.unsafeFromUnescapedText "doc"))) <$ openTok, Open "=" <$ openTok]
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) "doc")) <$ openTok, Open "=" <$ openTok]
                 <> [openTok]
                 <> bodyToks0
                 <> [closeTok]

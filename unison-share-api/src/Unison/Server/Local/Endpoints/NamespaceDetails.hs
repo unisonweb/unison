@@ -16,7 +16,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Backend
@@ -74,9 +73,4 @@ namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
   pure $ namespaceDetails
   where
     readmeNames =
-      Set.fromList
-        [ NameSegment.unsafeFromUnescapedText "README",
-          NameSegment.unsafeFromUnescapedText "Readme",
-          NameSegment.unsafeFromUnescapedText "ReadMe",
-          NameSegment.unsafeFromUnescapedText "readme"
-        ]
+      Set.fromList ["README", "Readme", "ReadMe", "readme"]

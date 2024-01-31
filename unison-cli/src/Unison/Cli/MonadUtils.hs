@@ -63,7 +63,6 @@ module Unison.Cli.MonadUtils
     -- * Patches
 
     -- ** Default patch
-    defaultPatchNameSegment,
     defaultPatchPath,
 
     -- ** Getting patches
@@ -112,7 +111,6 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
@@ -499,14 +497,10 @@ getTypesAt path = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting patches
 
-defaultPatchNameSegment :: NameSegment
-defaultPatchNameSegment =
-  NameSegment.unsafeFromUnescapedText "patch"
-
 -- | The default patch path.
 defaultPatchPath :: Path.Split'
 defaultPatchPath =
-  (Path.RelativePath' (Path.Relative Path.empty), defaultPatchNameSegment)
+  (Path.RelativePath' (Path.Relative Path.empty), NameSegment.defaultPatchSegment)
 
 -- | Get the patch at a path, or the empty patch if there's no such patch.
 getPatchAt :: Path.Split' -> Cli Patch

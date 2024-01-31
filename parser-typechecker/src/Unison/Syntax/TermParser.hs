@@ -34,7 +34,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -995,9 +994,9 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText ":+"))))
-    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText "+:"))))
-    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment.unsafeFromUnescapedText "++"))))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment ":+")))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment "+:")))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment "++")))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf

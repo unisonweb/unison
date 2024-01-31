@@ -69,7 +69,6 @@ import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.LSP qualified as LSP
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -277,7 +276,7 @@ main = do
                       Just startingPath -> pure startingPath
                       Nothing -> do
                         segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                        pure (Path.Absolute (Path.fromList (map NameSegment.unsafeFromUnescapedText segments)))
+                        pure (Path.Absolute (Path.fromList segments))
                   Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
                 rootVar <- newEmptyTMVarIO
                 pathVar <- newTVarIO startingPath

@@ -708,8 +708,8 @@ loop e = do
               -- add the new definitions to the codebase and to the namespace
               Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder])
               authorPath <- Cli.resolveSplit' authorPath'
-              copyrightHolderPath <- Cli.resolveSplit' (base |> NameSegment.unsafeFromUnescapedText "copyrightHolders" |> authorNameSegment)
-              guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.unsafeFromUnescapedText "guid")
+              copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
+              guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
               Cli.stepManyAt
                 description
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
@@ -729,8 +729,8 @@ loop e = do
               where
                 d :: Reference.Id -> Referent
                 d = Referent.Ref . Reference.DerivedId
-                base :: Path.Split' = (Path.relativeEmpty', NameSegment.unsafeFromUnescapedText "metadata")
-                authorPath' = base |> NameSegment.unsafeFromUnescapedText "authors" |> authorNameSegment
+                base :: Path.Split' = (Path.relativeEmpty', "metadata")
+                authorPath' = base |> "authors" |> authorNameSegment
             MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
             MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
             MoveAllI src' dest' -> do
@@ -1000,7 +1000,7 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` NameSegment.unsafeFromUnescapedText "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI -> do
@@ -1024,7 +1024,7 @@ loop e = do
               let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` NameSegment.unsafeFromUnescapedText "builtin") \destb ->
+              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1906,7 +1906,7 @@ searchBranchScored names0 score queries =
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
   where
-    segs = NameSegment.unsafeFromUnescapedText <$> ["unison", "internal"]
+    segs = ["unison", "internal"]
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 

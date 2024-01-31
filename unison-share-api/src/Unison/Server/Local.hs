@@ -67,13 +67,7 @@ inferNamesRoot p b
           Cons.:< release
           Cons.:< _rest
         ) =
-        Just
-          ( Path.fromList
-              [ NameSegment.unsafeFromUnescapedText "public",
-                NameSegment.unsafeFromUnescapedText "base",
-                release
-              ]
-          )
+        Just (Path.fromList ["public", "base", release])
     findBaseProject _ = Nothing
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
     go p b = do

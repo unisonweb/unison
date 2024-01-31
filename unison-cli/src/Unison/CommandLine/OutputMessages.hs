@@ -742,7 +742,7 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.todo
-                [ prettyPath' (snoc mergedPath (NameSegment.unsafeFromUnescapedText "patch")),
+                [ prettyPath' (snoc mergedPath NameSegment.defaultPatchSegment),
                   prettyPath' mergedPath
                 ]
               <> "to see what work is remaining for the merge.",
@@ -1843,18 +1843,7 @@ notifyUser dir = \case
               ( "Use"
                   <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "or"
-                  <> IP.makeExample
-                    IP.mergeLocal
-                    [ prettyAbsolute
-                        ( Path.Absolute
-                            ( Path.fromList
-                                [ NameSegment.unsafeFromUnescapedText "path",
-                                  NameSegment.unsafeFromUnescapedText "to",
-                                  NameSegment.unsafeFromUnescapedText "code"
-                                ]
-                            )
-                        )
-                    ]
+                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
@@ -1945,15 +1934,15 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
     let push = P.group . P.backticked . IP.patternName $ IP.push
-    in pure . P.wrap $
-      "The previous push target named"
-        <> prettyProjectAndBranchName projectAndBranch
-        <> "has been deleted from"
-        <> P.group (prettyURI host <> ".")
-        <> "I've deleted the invalid push target."
-        <> "Run the"
-        <> push
-        <> "command again to push to a new target."
+     in pure . P.wrap $
+          "The previous push target named"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "has been deleted from"
+            <> P.group (prettyURI host <> ".")
+            <> "I've deleted the invalid push target."
+            <> "Run the"
+            <> push
+            <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch

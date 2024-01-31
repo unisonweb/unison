@@ -28,7 +28,6 @@ import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -1700,7 +1699,7 @@ renderParseErrors s = \case
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
     go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
-      | name == Name.fromSegment (NameSegment.unsafeFromUnescapedText "::") =
+      | name == Name.fromSegment "::" =
           let msg =
                 mconcat
                   [ "This looks like the start of an expression here but I was expecting a binding.",

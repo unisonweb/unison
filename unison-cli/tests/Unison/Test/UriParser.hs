@@ -12,7 +12,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
 import Unison.Project (ProjectBranchSpecifier (..))
 
 test :: Test ()
@@ -21,31 +20,31 @@ test =
     [ parserTests
         "repoPath"
         (UriParser.readRemoteNamespaceParser ProjectBranchSpecifier'Name <* P.eof)
-        [ ("unisonweb.base._releases.M4", looseR "unisonweb" [NameSegment.unsafeFromUnescapedText "base", NameSegment.unsafeFromUnescapedText "_releases", NameSegment.unsafeFromUnescapedText "M4"]),
+        [ ("unisonweb.base._releases.M4", looseR "unisonweb" ["base", "_releases", "M4"]),
           ("project", branchR (This "project")),
           ("/branch", branchR (That "branch")),
           ("project/branch", branchR (These "project" "branch")),
           ("git(/srv/git/project.git)", gitR "/srv/git/project.git" Nothing Nothing []),
-          ("git(/srv/git/project.git:abc)#def.hij.klm", gitR "/srv/git/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(/srv/git/project.git:abc)#def.hij.klm", gitR "/srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(srv/git/project.git)", gitR "srv/git/project.git" Nothing Nothing []),
-          ("git(srv/git/project.git:abc)#def.hij.klm", gitR "srv/git/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(srv/git/project.git:abc)#def.hij.klm", gitR "srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(file:///srv/git/project.git)", gitR "file:///srv/git/project.git" Nothing Nothing []),
-          ("git(file:///srv/git/project.git:abc)#def.hij.klm", gitR "file:///srv/git/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(file:///srv/git/project.git:abc)#def.hij.klm", gitR "file:///srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(file://srv/git/project.git)", gitR "file://srv/git/project.git" Nothing Nothing []),
-          ("git(file://srv/git/project.git:abc)#def.hij.klm", gitR "file://srv/git/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(file://srv/git/project.git:abc)#def.hij.klm", gitR "file://srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(https://example.com/git/project.git)", gitR "https://example.com/git/project.git" Nothing Nothing []),
-          ("git(https://user@example.com/git/project.git:abc)#def.hij.klm", gitR "https://user@example.com/git/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(https://user@example.com/git/project.git:abc)#def.hij.klm", gitR "https://user@example.com/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(ssh://git@8.8.8.8:222/user/project.git)", gitR "ssh://git@8.8.8.8:222/user/project.git" Nothing Nothing []),
-          ("git(ssh://git@github.com/user/project.git:abc)#def.hij.klm", gitR "ssh://git@github.com/user/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"]),
+          ("git(ssh://git@github.com/user/project.git:abc)#def.hij.klm", gitR "ssh://git@github.com/user/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
           ("git(git@github.com:user/project.git)", gitR "git@github.com:user/project.git" Nothing Nothing []),
           ("git(github.com:user/project.git)", gitR "github.com:user/project.git" Nothing Nothing []),
-          ("git(git@github.com:user/project.git:abc)#def.hij.klm", gitR "git@github.com:user/project.git" (Just "abc") (sch "def") [NameSegment.unsafeFromUnescapedText "hij", NameSegment.unsafeFromUnescapedText "klm"])
+          ("git(git@github.com:user/project.git:abc)#def.hij.klm", gitR "git@github.com:user/project.git" (Just "abc") (sch "def") ["hij", "klm"])
         ]
         [".unisonweb.base"],
       parserTests
         "writeRemoteNamespace"
         (UriParser.writeRemoteNamespace <* P.eof)
-        [ ("unisonweb.base._releases.M4", looseW "unisonweb" [NameSegment.unsafeFromUnescapedText "base", NameSegment.unsafeFromUnescapedText "_releases", NameSegment.unsafeFromUnescapedText "M4"]),
+        [ ("unisonweb.base._releases.M4", looseW "unisonweb" ["base", "_releases", "M4"]),
           ("project", branchW (This "project")),
           ("/branch", branchW (That "branch")),
           ("project/branch", branchW (These "project" "branch")),
