@@ -81,7 +81,6 @@ Table
 
 '''
     Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
-    <- Should be exactly 4 spaces to the left!
 
      _____     _
     |  |  |___|_|___ ___ ___
@@ -180,7 +179,6 @@ fulldoc =
        
        '''
            Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
-           <- Should be exactly 4 spaces to the left!
        
             _____     _
            |  |  |___|_|___ ___ ___
@@ -272,7 +270,6 @@ fulldoc =
        
        '''
            Exact whitespace should be preserved across multiple updates. Don't mess with the logo!
-           <- Should be exactly 4 spaces to the left!
        
             _____     _
            |  |  |___|_|___ ___ ___
