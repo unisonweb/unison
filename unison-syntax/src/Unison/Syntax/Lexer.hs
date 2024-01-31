@@ -535,13 +535,14 @@ lexemes' eof =
               P.someTill P.anySingle (lit quotes)
             let isMultiLine = line start /= line stop
             if isMultiLine
-              then -- If it's a multi-line verbatim block we trim any whitespace representing
-              -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
-
-                let txt = trimIndentFromVerbatimBlock (column start - 1) (trimAroundDelimiters originalText)
-                 in wrap "syntax.docVerbatim" $
-                      wrap "syntax.docWord" $
-                        pure [Token (Textual txt) start stop]
+              then do
+                let trimmed = (trimAroundDelimiters originalText)
+                let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
+                -- If it's a multi-line verbatim block we trim any whitespace representing
+                -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
+                wrap "syntax.docVerbatim" $
+                  wrap "syntax.docWord" $
+                    pure [Token (Textual txt) start stop]
               else
                 wrap "syntax.docCode" $
                   wrap "syntax.docWord" $
@@ -1170,7 +1171,14 @@ trimIndentFromVerbatimBlock :: Int -> String -> String
 trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
   List.intercalate "\n" <$> for (lines txt) \line -> do
     -- If any 'stripPrefix' fails, we fail and return the unaltered text
-    stripPrefix (replicate leadingSpaces ' ') line
+    case stripPrefix (replicate leadingSpaces ' ') line of
+      Just stripped -> Just stripped
+      Nothing ->
+        -- If it was a line with all white-space, just use an empty line,
+        -- this can happen easily in editors which trim trailing whitespace.
+        if all isSpace line
+          then Just ""
+          else Nothing
 
 -- Trim leading/trailing whitespace from around delimiters, e.g.
 --
