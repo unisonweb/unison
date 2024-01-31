@@ -1737,13 +1737,9 @@ prettyDoc2 ::
 prettyDoc2 ac tm = do
   ppe <- getPPE
   let brace p =
-        fmt S.DocDelimiter "{{"
-          <> PP.softbreak
-          <> p
-          <> PP.softbreak
-          <> fmt
-            S.DocDelimiter
-            "}}"
+        if PP.isMultiLine p
+          then fmt S.DocDelimiter "{{" <> PP.newline <> p <> PP.newline <> fmt S.DocDelimiter "}}"
+          else fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
       bail tm = brace <$> pretty0 ac tm
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =

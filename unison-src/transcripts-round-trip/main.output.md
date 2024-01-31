@@ -166,7 +166,8 @@ fix_2224b = cases
 
 fix_2271 : Doc2
 fix_2271 =
-  {{ # Full doc body indented
+  {{
+  # Full doc body indented
   
     ``` raw
     myVal1 = 42 
@@ -179,7 +180,8 @@ fix_2271 =
     indented2="this is two indents"
     ```
     
-    I am two spaces over }}
+    I am two spaces over
+  }}
 
 Fix_2337.f : Fix_2337 -> Boolean
 Fix_2337.f = cases Fix_2337 a b -> a
@@ -304,10 +306,12 @@ fix_4384b = {{ {{ docExampleBlock 0 '99 }} }}
 fix_4384c : Doc2
 fix_4384c =
   use Nat +
-  {{ {{ docExampleBlock 0 do
+  {{
+  {{ docExampleBlock 0 do
     x = 1
     y = 2
-    x + y }} }}
+    x + y }}
+  }}
 
 fix_4384d : Doc2
 fix_4384d =
@@ -432,11 +436,13 @@ multiline_list =
 
 nested_fences : Doc2
 nested_fences =
-  {{ ```` raw
+  {{
+  ```` raw
   ```unison
   r = "boopydoo"
   ```
-  ```` }}
+  ````
+  }}
 
 raw_a : Text
 raw_a =

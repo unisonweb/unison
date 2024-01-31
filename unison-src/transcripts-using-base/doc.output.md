@@ -553,7 +553,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
 
   doc.guide : Doc2
   doc.guide =
-    {{ # Unison computable documentation
+    {{
+    # Unison computable documentation
     
       {{ basicFormatting }}
       
@@ -565,7 +566,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       
       {{ nonUnisonCodeBlocks }}
       
-      {{ otherElements }} }}
+      {{ otherElements }}
+    }}
 
 .> display doc.guide
 
