@@ -43,8 +43,9 @@ import Unison.Syntax.ReservedWords (keywords, reservedOperators)
 --
 -- > toEscapedText (unsafeFromText ".~") = "`.~`"
 toEscapedText :: NameSegment -> Text
-toEscapedText =
-  wundefined
+toEscapedText segment@(NameSegment text)
+  | isSymboly segment && not (Text.all symbolyIdChar text) = "`" <> text <> "`"
+  | otherwise = text
 
 -- | Convert text to a name segment.
 --
