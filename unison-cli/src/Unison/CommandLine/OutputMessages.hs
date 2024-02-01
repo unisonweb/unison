@@ -1790,6 +1790,7 @@ notifyUser dir = \case
         <> case typ of
           Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
           Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -1953,15 +1954,15 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
     let push = P.group . P.backticked . IP.patternName $ IP.push
-    in pure . P.wrap $
-      "The previous push target named"
-        <> prettyProjectAndBranchName projectAndBranch
-        <> "has been deleted from"
-        <> P.group (prettyURI host <> ".")
-        <> "I've deleted the invalid push target."
-        <> "Run the"
-        <> push
-        <> "command again to push to a new target."
+     in pure . P.wrap $
+          "The previous push target named"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "has been deleted from"
+            <> P.group (prettyURI host <> ".")
+            <> "I've deleted the invalid push target."
+            <> "Run the"
+            <> push
+            <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
