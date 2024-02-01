@@ -9,7 +9,6 @@ import Language.LSP.Protocol.Lens hiding (id, to)
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
@@ -20,7 +19,6 @@ import Unison.Var qualified as Var
 foldingRangeRequest :: Msg.TRequestMessage 'Msg.Method_TextDocumentFoldingRange -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentFoldingRange) -> Lsp ()) -> Lsp ()
 foldingRangeRequest m respond = do
   foldRanges <- foldingRangesForFile (m ^. params . textDocument . uri)
-  Debug.debugM Debug.LSP "Folding Ranges" foldRanges
   respond . Right . InL $ foldRanges
 
 -- | Return a folding range for each top-level definition
