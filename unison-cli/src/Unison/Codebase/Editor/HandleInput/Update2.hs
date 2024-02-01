@@ -207,7 +207,7 @@ saveTuf getConstructors tuf = do
 typecheckedUnisonFileToBranchUpdates ::
   (forall void. Output -> Transaction void) ->
   -- | Returns 'Nothing' if the decl isn't in namesExcludingLibdeps,
-  -- in which case we know the decl in new and do not need to generate
+  -- in which case we know the decl is new and do not need to generate
   -- delete actions for it.
   (Name -> Either Output (Maybe [Name])) ->
   TypecheckedUnisonFile Symbol Ann ->
