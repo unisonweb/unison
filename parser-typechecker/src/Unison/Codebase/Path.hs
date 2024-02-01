@@ -45,8 +45,8 @@ module Unison.Codebase.Path
     fromName,
     fromName',
     fromPath',
-    fromText,
-    fromText',
+    unsafeParseText,
+    unsafeParseText',
     toAbsoluteSplit,
     toSplit',
     toList,
@@ -93,7 +93,7 @@ import Unison.Name (Convert (..), Name, Parse)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -311,11 +311,13 @@ fromName' n
     path = fromName n
 
 unsafeToName :: Path -> Name
-unsafeToName = Name.unsafeFromText . toText
+unsafeToName =
+  fromMaybe (error "empty path") . toName
 
 -- | Convert a Path' to a Name
 unsafeToName' :: Path' -> Name
-unsafeToName' = Name.unsafeFromText . toText'
+unsafeToName' =
+  fromMaybe (error "empty path") . toName'
 
 toName :: Path -> Maybe Name
 toName = \case
@@ -353,10 +355,10 @@ toText path =
     Nothing -> "."
     Just name -> Name.toText name
 
-fromText :: Text -> Path
-fromText = \case
+unsafeParseText :: Text -> Path
+unsafeParseText = \case
   "" -> empty
-  text -> fromName (Name.unsafeFromText text)
+  text -> fromName (Name.unsafeParseText text)
 
 -- | Construct a Path' from a text
 --
@@ -368,11 +370,11 @@ fromText = \case
 --
 -- >>> show $ fromText' ""
 -- ""
-fromText' :: Text -> Path'
-fromText' = \case
+unsafeParseText' :: Text -> Path'
+unsafeParseText' = \case
   "" -> RelativePath' (Relative mempty)
   "." -> AbsolutePath' (Absolute mempty)
-  text -> fromName' (Name.unsafeFromText text)
+  text -> fromName' (Name.unsafeParseText text)
 
 toText' :: Path' -> Text
 toText' path =

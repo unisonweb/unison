@@ -10,8 +10,9 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
+import Unison.Syntax.HashQualified' qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer
-import Unison.Syntax.Name qualified as Name (unsafeFromString)
+import Unison.Syntax.Name qualified as Name (unsafeParseText)
 
 main :: IO ()
 main =
@@ -92,8 +93,8 @@ test =
       t ".Foo.`++`.+" [simpleSymbolyId ".Foo.`++`.+"],
       t ".Foo.`+.+`.+" [simpleSymbolyId ".Foo.`+.+`.+"],
       -- idents with hashes
-      t "foo#bar" [WordyId (HQ'.HashQualified "foo" "#bar")],
-      t "+#bar" [SymbolyId (HQ'.HashQualified "+" "#bar")],
+      t "foo#bar" [simpleWordyId "foo#bar"],
+      t "+#bar" [simpleSymbolyId "+#bar"],
       -- note - these are all the same, just with different spacing
       let ex1 = "if x then y else z"
           ex2 = unlines ["if", "  x", "then", "  y", "else z"]
@@ -201,7 +202,7 @@ test =
         suffix <- ["0", "x", "!", "'"] -- examples of wordyIdChar
         let i = kw ++ suffix
         -- a keyword at the front of an identifier should still be an identifier
-        pure $ t i [simpleWordyId (Name.unsafeFromString i)],
+        pure $ t i [simpleWordyId (Text.pack i)],
       -- Test string literals
       t
         "\"simple string without escape characters\""
@@ -225,6 +226,14 @@ t s expected =
             note $ "expected: " ++ show expected
             note $ "actual  : " ++ show actual
             crash "actual != expected"
+
+simpleSymbolyId :: Text -> Lexeme
+simpleSymbolyId =
+  SymbolyId . HQ'.unsafeParseText
+
+simpleWordyId :: Text -> Lexeme
+simpleWordyId =
+  WordyId . HQ'.unsafeParseText
 
 instance IsString ShortHash where
   fromString = fromJust . ShortHash.fromText . Text.pack

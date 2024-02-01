@@ -4,7 +4,7 @@ import Data.Map qualified as Map
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Syntax.Name qualified as Name (unsafeParseText)
 
 -- Type aliases relating to Fully-Qualified Names, e.g. 'Acme.API.foo'
 -- Used primarily by the FQN elision code - see TermPrinter.PrintAnnotation.
@@ -25,7 +25,7 @@ elideFQN imports hq =
   let hash = HQ.toHash hq
       name' = do
         name <- HQ.toName hq
-        let hit = fmap Name.unsafeFromText (Map.lookup name imports)
+        let hit = fmap Name.unsafeParseText (Map.lookup name imports)
         -- Cut out the "const id $" to get tracing of FQN elision attempts.
         let t = const id $ trace ("hit: " ++ show hit ++ " finding: " ++ show hq ++ " in imports: " ++ show imports)
         t (pure $ fromMaybe name hit)

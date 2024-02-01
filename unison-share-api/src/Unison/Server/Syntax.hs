@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Duplicate of the Unison.Util.SyntaxText module, but we expect these to
@@ -27,7 +22,7 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HashQualified (toText)
-import Unison.Syntax.Name qualified as Name (unsafeFromText)
+import Unison.Syntax.Name qualified as Name (unsafeParseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
@@ -321,7 +316,7 @@ segmentToHtml (Segment segmentText element) =
 
       content
         | Text.isInfixOf "->" sText = span_ [class_ "arrow"] $ L.toHtml sText
-        | isFQN = nameToHtml (Name.unsafeFromText sText)
+        | isFQN = nameToHtml (Name.unsafeParseText sText)
         | otherwise = L.toHtml sText
    in case ref of
         Just (r, refType) ->

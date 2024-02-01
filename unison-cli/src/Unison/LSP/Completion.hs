@@ -43,7 +43,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name qualified as Name (fromText, nameP, toText)
+import Unison.Syntax.Name qualified as Name (parseText, nameP, toText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
@@ -340,8 +340,8 @@ instance Aeson.ToJSON CompletionItemDetails where
 instance Aeson.FromJSON CompletionItemDetails where
   parseJSON = Aeson.withObject "CompletionItemDetails" \obj -> do
     dep <- ((obj Aeson..: "dep") >>= ldParser)
-    relativeName <- (obj Aeson..: "relativeName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
-    fullyQualifiedName <- (obj Aeson..: "fullyQualifiedName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.fromText)
+    relativeName <- (obj Aeson..: "relativeName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.parseText)
+    fullyQualifiedName <- (obj Aeson..: "fullyQualifiedName" >>= maybe (fail "Invalid name in CompletionItemDetails") pure . Name.parseText)
     fileUri <- obj Aeson..: "fileUri"
     pure $ CompletionItemDetails {..}
     where

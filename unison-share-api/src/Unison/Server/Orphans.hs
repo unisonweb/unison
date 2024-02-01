@@ -36,9 +36,9 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Syntax.HashQualified qualified as HQ (fromText)
-import Unison.Syntax.HashQualified' qualified as HQ' (fromText)
-import Unison.Syntax.Name qualified as Name (fromTextEither, toText)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
+import Unison.Syntax.HashQualified' qualified as HQ' (parseText)
+import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.Pretty (Width (..))
 
@@ -217,7 +217,7 @@ instance ToParam (QueryParam "name" Name) where
       Normal
 
 instance FromHttpApiData Name where
-  parseQueryParam = Name.fromTextEither
+  parseQueryParam = Name.parseTextEither
 
 deriving via Int instance FromHttpApiData Width
 
@@ -316,22 +316,22 @@ instance ToJSON (HQ'.HashQualified NameSegment) where
 
 instance FromJSON (HQ'.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified'" \txt ->
-    maybe (fail "Invalid HashQualified' Name") pure $ HQ'.fromText txt
+    maybe (fail "Invalid HashQualified' Name") pure $ HQ'.parseText txt
 
 instance FromJSON (HQ.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified" \txt ->
-    maybe (fail "Invalid HashQualified Name") pure $ HQ.fromText txt
+    maybe (fail "Invalid HashQualified Name") pure $ HQ.parseText txt
 
 instance FromJSON (HQ'.HashQualified NameSegment) where
   parseJSON = Aeson.withText "HashQualified'" \txt -> do
-    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ'.fromText txt
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ'.parseText txt
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
 
 instance FromJSON (HQ.HashQualified NameSegment) where
   parseJSON = Aeson.withText "HashQualified" \txt -> do
-    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ.fromText txt
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ.parseText txt
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
@@ -339,13 +339,13 @@ instance FromJSON (HQ.HashQualified NameSegment) where
 instance FromHttpApiData (HQ.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
-      & HQ.fromText
+      & HQ.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
 
 instance FromHttpApiData (HQ'.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
-      & HQ'.fromText
+      & HQ'.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
 
 instance ToParamSchema (HQ.HashQualified n) where

@@ -1,7 +1,3 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-
 -- | Execute a computation of type '{IO} () that has been previously added to
 -- the codebase, without setting up an interactive environment.
 --
@@ -20,6 +16,7 @@ import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
@@ -27,7 +24,7 @@ import Unison.Util.Pretty qualified as P
 execute ::
   Codebase.Codebase IO Symbol Ann ->
   Runtime Symbol ->
-  String ->
+  Text ->
   IO (Either Runtime.Error ())
 execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) . runExceptT $ do
@@ -37,9 +34,9 @@ execute codebase runtime mainName =
     let mainType = Runtime.mainType runtime
     mt <- liftIO $ Codebase.runTransaction codebase $ getMainTerm loadTypeOfTerm parseNames mainName mainType
     case mt of
-      MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.string s)
-      MainTerm.NotFound s -> throwError ("Not found: " <> P.string s)
-      MainTerm.BadType s _ -> throwError (P.string s <> " is not of type '{IO} ()")
+      MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.text s)
+      MainTerm.NotFound s -> throwError ("Not found: " <> P.text s)
+      MainTerm.BadType s _ -> throwError (P.text s <> " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
             ppe = PPE.empty

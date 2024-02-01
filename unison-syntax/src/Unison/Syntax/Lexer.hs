@@ -8,8 +8,6 @@ module Unison.Syntax.Lexer
     Pos (..),
     Lexeme (..),
     lexer,
-    simpleWordyId,
-    simpleSymbolyId,
     line,
     column,
     escapeChars,
@@ -49,9 +47,9 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
-import Unison.Syntax.HashQualified' qualified as HQ' (toString)
+import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
-import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeFromString)
+import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
 import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
@@ -290,7 +288,7 @@ lexer0' scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
           t1
             : Token
-              (SymbolyId (HQ'.fromName (Name.unsafeFromString (take 1 num))))
+              (SymbolyId (HQ'.fromName (Name.unsafeParseText (Text.pack (take 1 num)))))
               (start t2)
               (inc $ start t2)
             : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
@@ -1129,14 +1127,6 @@ findClose :: [String] -> Layout -> Maybe (String, Int)
 findClose _ [] = Nothing
 findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
 
-simpleWordyId :: Name -> Lexeme
-simpleWordyId name =
-  WordyId (HQ'.fromName name)
-
-simpleSymbolyId :: Name -> Lexeme
-simpleSymbolyId name =
-  SymbolyId (HQ'.fromName name)
-
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
   Close -> False
@@ -1324,8 +1314,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n) = HQ'.toString n
-      pretty (SymbolyId n) = HQ'.toString n
+      pretty (WordyId n) = Text.unpack (HQ'.toText n)
+      pretty (SymbolyId n) = Text.unpack (HQ'.toText n)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

@@ -2,8 +2,9 @@
 module Unison.Syntax.NameSegment
   ( -- * String conversions
     toEscapedText,
-    fromText,
-    unsafeFromText,
+    toEscapedTextBuilder,
+    parseText,
+    unsafeParseText,
 
     -- * Name segment parsers
     isSymboly,
@@ -35,6 +36,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..), posP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators)
+import Data.Text.Lazy.Builder qualified as Text.Builder
+import Data.Text.Lazy.Builder qualified as Text (Builder)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
@@ -47,21 +50,25 @@ toEscapedText segment@(NameSegment text)
   | isSymboly segment && not (Text.all symbolyIdChar text) = "`" <> text <> "`"
   | otherwise = text
 
--- | Convert text to a name segment.
+toEscapedTextBuilder :: NameSegment -> Text.Builder
+toEscapedTextBuilder =
+  Text.Builder.fromText . toEscapedText
+
+-- | Parse text as a name segment.
 --
--- > fromText "foo" = Right (NameSegment "foo")
--- > fromText ".~" = Left ...
--- > fromText "`.~`" = Right (NameSegment ".~")
-fromText :: Text -> Either Text NameSegment
-fromText text =
+-- > parseText "foo" = Right (NameSegment "foo")
+-- > parseText ".~" = Left ...
+-- > parseText "`.~`" = Right (NameSegment ".~")
+parseText :: Text -> Either Text NameSegment
+parseText text =
   case P.runParser (P.withParsecT (fmap renderParseErr) (segmentP <* P.eof)) "" (Text.unpack text) of
     Left err -> Left (Text.pack (P.errorBundlePretty err))
     Right segment -> Right segment
 
--- | Convert text to a name segment.
-unsafeFromText :: Text -> NameSegment
-unsafeFromText =
-  either (error . Text.unpack) id . fromText
+-- | Parse text as a name segment.
+unsafeParseText :: Text -> NameSegment
+unsafeParseText =
+  either (error . Text.unpack) id . parseText
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Name segment parsers

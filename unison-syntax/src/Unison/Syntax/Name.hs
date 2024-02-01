@@ -3,15 +3,13 @@
 -- | Utilities related to the parsing and printing of names using the default syntax.
 module Unison.Syntax.Name
   ( -- * String conversions
-    unsafeFromString,
-    toString,
-    fromText,
-    fromTextEither,
-    unsafeFromText,
+    parseText,
+    parseTextEither,
+    unsafeParseText,
     toText,
-    unsafeFromVar,
+    unsafeParseVar,
+    parseVar,
     toVar,
-    fromVar,
 
     -- * Name parsers
     nameP,
@@ -35,35 +33,50 @@ import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Name qualified as Name (fromSegments, lastSegment, makeAbsolute)
 import Unison.Name.Internal (Name (Name))
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.NameSegment (segmentStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr, isSymboly, renderParseErr, segmentP)
+import Unison.Syntax.NameSegment qualified as NameSegment
+  ( ParseErr,
+    isSymboly,
+    renderParseErr,
+    segmentP,
+    toEscapedTextBuilder,
+  )
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
 
-instance IsString Name where
-  fromString =
-    unsafeFromString
+-- | Parse a name from a string literal.
+parseText :: Text -> Maybe Name
+parseText =
+  eitherToMaybe . parseTextEither
 
--- | Convert a name to a string representation.
-toString :: Name -> String
-toString =
-  Text.unpack . toText
+-- | Parse a name from a string literal.
+parseTextEither :: Text -> Either Text Name
+parseTextEither s =
+  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack s)
+    & mapLeft (Text.pack . P.errorBundlePretty)
+
+-- | Unsafely parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+unsafeParseText :: (HasCallStack) => Text -> Name
+unsafeParseText =
+  either (error . Text.unpack) id . parseTextEither
 
 -- | Convert a name to a string representation.
 toText :: Name -> Text
 toText (Name pos (x0 :| xs)) =
-  build (buildPos pos <> foldr step mempty xs <> NameSegment.toTextBuilder x0)
+  build (buildPos pos <> foldr step mempty xs <> NameSegment.toEscapedTextBuilder x0)
   where
     step :: NameSegment -> Text.Builder -> Text.Builder
     step x acc =
-      acc <> NameSegment.toTextBuilder x <> "."
+      acc <> NameSegment.toEscapedTextBuilder x <> "."
 
     build :: Text.Builder -> Text
     build =
@@ -74,56 +87,28 @@ toText (Name pos (x0 :| xs)) =
       Absolute -> "."
       Relative -> ""
 
+-- | Parse a name from a var, by first rendering the var as a string.
+parseVar :: Var v => v -> Maybe Name
+parseVar =
+  parseText . Var.name
+
+-- | Unsafely parse a name from a var, by first rendering the var as a string.
+--
+-- See 'unsafeFromText'.
+unsafeParseVar :: (Var v) => v -> Name
+unsafeParseVar =
+  unsafeParseText . Var.name
+
 -- | Convert a name to a string representation, then parse that as a var.
 toVar :: (Var v) => Name -> v
 toVar =
   Var.named . toText
 
--- | Parse a name from a var, by first rendering the var as a string.
-fromVar :: Var v => v -> Maybe Name
-fromVar =
-  fromText . Var.name
-
--- | Parse a name from a string literal.
---
--- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
--- no attempt at rejecting bogus names like "foo...bar...baz".
-fromText :: Text -> Maybe Name
-fromText =
-  eitherToMaybe . fromTextEither
-
--- | Parse a name from a string literal.
-fromTextEither :: Text -> Either Text Name
-fromTextEither s =
-  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack s)
-    & mapLeft (Text.pack . P.errorBundlePretty)
-
--- | Unsafely parse a name from a string literal.
--- See 'unsafeFromText'.
-unsafeFromString :: String -> Name
-unsafeFromString =
-  unsafeFromText . Text.pack
-
--- | Unsafely parse a name from a string literal.
---
--- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
--- no attempt at rejecting bogus names like "foo...bar...baz".
-unsafeFromText :: (HasCallStack) => Text -> Name
-unsafeFromText =
-  either (error . Text.unpack) id . fromTextEither
-
--- | Unsafely parse a name from a var, by first rendering the var as a string.
---
--- See 'unsafeFromText'.
-unsafeFromVar :: (Var v) => v -> Name
-unsafeFromVar =
-  unsafeFromText . Var.name
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Name parsers
 
 -- | A name parser.
-nameP :: forall m. Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
+nameP :: Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
 nameP =
   P.try do
     leadingDot <- isJust <$> P.optional (P.char '.')

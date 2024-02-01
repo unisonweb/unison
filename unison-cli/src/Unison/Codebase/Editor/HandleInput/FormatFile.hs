@@ -65,7 +65,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
         )
       & Map.filter (\(tldAnn, _, _) -> isInFormatRange tldAnn)
       & itraverse \sym (tldAnn, ref, decl) -> do
-        symName <- hoistMaybe (Name.fromVar sym)
+        symName <- hoistMaybe (Name.parseVar sym)
         let declNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let declName = Name.fromSegments declNameSegments
         let hqName = HQ.fromName symName
@@ -84,7 +84,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
     (FileSummary.termsBySymbol fileSummary)
       & Map.filter (\(tldAnn, _, trm, _) -> shouldFormatTerm tldAnn trm)
       & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
-        symName <- hoistMaybe (Name.fromVar sym)
+        symName <- hoistMaybe (Name.parseVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
         let hqName = HQ.NameOnly symName

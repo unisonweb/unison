@@ -49,7 +49,7 @@ import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
-import Unison.Syntax.HashQualified qualified as HQ (fromText)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.Pretty (Width (..))
 
@@ -146,7 +146,7 @@ instance FromHttpApiData (ExactName Name ShortHash) where
     -- # is special in URLs, so we use @ for hash qualification instead;
     -- e.g. ".base.List.map@abc"
     -- e.g. ".base.Nat@@Nat"
-    case HQ.fromText (Text.replace "@" "#" txt) of
+    case HQ.parseText (Text.replace "@" "#" txt) of
       Nothing -> Left "Invalid absolute name with Hash"
       Just hq' -> case hq' of
         HQ.NameOnly _ -> Left "A name and hash are required, but only a name was provided"

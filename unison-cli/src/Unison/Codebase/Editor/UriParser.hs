@@ -379,7 +379,7 @@ absolutePath = do
 
 nameSegment :: P NameSegment
 nameSegment =
-  NameSegment.unsafeFromText . Text.pack
+  NameSegment.unsafeParseText . Text.pack
     <$> ( (:)
             <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
             <*> P.many (P.satisfy Unison.Syntax.Lexer.wordyIdChar)

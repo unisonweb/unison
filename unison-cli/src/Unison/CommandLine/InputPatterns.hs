@@ -59,8 +59,8 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
-import Unison.Syntax.HashQualified qualified as HQ (fromString)
-import Unison.Syntax.Name qualified as Name (fromText, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
+import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segmentP)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
@@ -213,7 +213,7 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
+    \ws -> pure $ Input.AddI (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
 
 previewAdd :: InputPattern
 previewAdd =
@@ -227,7 +227,7 @@ previewAdd =
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
+    \ws -> pure $ Input.PreviewAddI (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
 
 update :: InputPattern
 update =
@@ -279,7 +279,7 @@ updateOldNoPatch =
           pure $
             Input.UpdateI
               Input.NoPatch
-              (Set.fromList $ map Name.unsafeFromString ws)
+              (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
     )
 
 updateOld :: InputPattern
@@ -320,7 +320,7 @@ updateOld =
         pure $
           Input.UpdateI
             (Input.UsePatch patch)
-            (Set.fromList $ map Name.unsafeFromString ws)
+            (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
       [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
 
 previewUpdate :: InputPattern
@@ -335,7 +335,7 @@ previewUpdate =
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
+    \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
 
 patch :: InputPattern
 patch =
@@ -1869,7 +1869,7 @@ editNamespace =
           [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = Right . Input.EditNamespaceI . fmap (Path.fromText . Text.pack)
+      parse = Right . Input.EditNamespaceI . fmap (Path.unsafeParseText . Text.pack)
     }
 
 topicNameArg :: ArgumentType
@@ -2158,7 +2158,7 @@ names isGlobal =
     [("name or hash", Required, definitionQueryArg)]
     (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     \case
-      [thing] -> case HQ.fromString thing of
+      [thing] -> case HQ.parseText (Text.pack thing) of
         Just hq -> Right $ Input.NamesI isGlobal hq
         Nothing ->
           Left $
@@ -2358,7 +2358,7 @@ docToMarkdown =
     )
     \case
       [docNameText] -> first fromString $ do
-        docName <- maybeToEither "Invalid name" . Name.fromText . Text.pack $ docNameText
+        docName <- maybeToEither "Invalid name" . Name.parseText . Text.pack $ docNameText
         pure $ Input.DocToMarkdownI docName
       _ -> Left $ showPatternHelp docToMarkdown
 
@@ -2379,8 +2379,8 @@ execute =
         ]
     )
     \case
-      [w] -> pure $ Input.ExecuteI w []
-      (w : ws) -> pure $ Input.ExecuteI w ws
+      [w] -> pure $ Input.ExecuteI (Text.pack w) []
+      w : ws -> pure $ Input.ExecuteI (Text.pack w) ws
       _ -> Left $ showPatternHelp execute
 
 saveExecuteResult :: InputPattern
@@ -2394,7 +2394,7 @@ saveExecuteResult =
         <> "as `name`."
     )
     \case
-      [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeFromString w)
+      [w] -> pure $ Input.SaveExecuteResultI (Name.unsafeParseText (Text.pack w))
       _ -> Left $ showPatternHelp saveExecuteResult
 
 ioTest :: InputPattern
@@ -2467,7 +2467,7 @@ runScheme =
         ]
     )
     \case
-      (main : args) -> Right $ Input.ExecuteSchemeI main args
+      main : args -> Right $ Input.ExecuteSchemeI (Text.pack main) args
       _ -> Left $ showPatternHelp runScheme
 
 compileScheme :: InputPattern
@@ -2487,7 +2487,7 @@ compileScheme =
     )
     \case
       [main, file] ->
-        Input.CompileSchemeI file <$> parseHashQualifiedName main
+        Input.CompileSchemeI (Text.pack file) <$> parseHashQualifiedName main
       _ -> Left $ showPatternHelp compileScheme
 
 schemeLibgen :: InputPattern
@@ -2934,7 +2934,7 @@ upgrade =
   where
     parseRelativeNameSegment :: String -> Maybe NameSegment
     parseRelativeNameSegment string = do
-      name <- Name.fromText (Text.pack string)
+      name <- Name.parseText (Text.pack string)
       guard (Name.isRelative name)
       segment NE.:| [] <- Just (Name.reverseSegments name)
       Just segment
@@ -3713,7 +3713,7 @@ parseHashQualifiedName s =
           <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
     )
     Right
-    $ HQ.fromString s
+    $ HQ.parseText (Text.pack s)
 
 parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
 parseWriteGitRepo label input = do

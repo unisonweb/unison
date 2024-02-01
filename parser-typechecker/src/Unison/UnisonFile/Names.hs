@@ -31,8 +31,8 @@ import Unison.WatchKind qualified as WK
 toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
-    datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
-    effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
+    datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf))
+    effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeParseVar) (Map.toList (UF.effectDeclarationsId uf))
 
 addNamesFromUnisonFile :: (Var v) => UnisonFile v a -> Names -> Names
 addNamesFromUnisonFile unisonFile names = Names.shadowing (toNames unisonFile) names
@@ -42,13 +42,13 @@ typecheckedToNames uf = Names (terms <> ctors) types
   where
     terms =
       Relation.fromList
-        [ (Name.unsafeFromVar v, Referent.Ref r)
+        [ (Name.unsafeParseVar v, Referent.Ref r)
           | (v, (_a, r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
             wk == Nothing || wk == Just WK.TestWatch
         ]
     types =
       Relation.fromList
-        [ (Name.unsafeFromVar v, r)
+        [ (Name.unsafeParseVar v, r)
           | (v, r) <-
               Map.toList $
                 fmap fst (UF.dataDeclarations' uf)
@@ -56,7 +56,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
         ]
     ctors =
       Relation.fromMap
-        . Map.mapKeys Name.unsafeFromVar
+        . Map.mapKeys Name.unsafeParseVar
         . fmap (fmap Reference.DerivedId)
         . UF.hashConstructors
         $ uf
@@ -87,8 +87,8 @@ bindNames names (UnisonFileId d e ts ws) = do
   let termVars = (view _1 <$> ts) ++ (Map.elems ws >>= map (view _1))
       termVarsSet = Set.fromList termVars
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t) ts
-  ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
+  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t) ts
+  ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
 -- | Given the set of fully-qualified variable names, this computes
@@ -111,7 +111,7 @@ variableCanonicalizer :: forall v. Var v => [v] -> Map v v
 variableCanonicalizer vs =
   done $ List.multimap do
     v <- vs
-    let n = Name.unsafeFromVar v
+    let n = Name.unsafeParseVar v
     suffix <- Name.suffixes n
     pure (Var.named (Name.toText suffix), v)
   where
@@ -134,9 +134,9 @@ environmentFor names dataDecls0 effectDecls0 = do
   let locallyBoundTypes = variableCanonicalizer (Map.keys dataDecls0 <> Map.keys effectDecls0)
   -- data decls and hash decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration v a) <-
-    traverse (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names) dataDecls0
+    traverse (DD.Names.bindNames Name.unsafeParseVar locallyBoundTypes names) dataDecls0
   effectDecls :: Map v (EffectDeclaration v a) <-
-    traverse (DD.withEffectDeclM (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names)) effectDecls0
+    traverse (DD.withEffectDeclM (DD.Names.bindNames Name.unsafeParseVar locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
   hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDataDecls allDecls0
@@ -145,8 +145,8 @@ environmentFor names dataDecls0 effectDecls0 = do
       dataDecls' = Map.difference allDecls effectDecls
       effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
       -- ctor and effect terms
-      ctors = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList dataDecls')
-      effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList effectDecls')
+      ctors = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList dataDecls')
+      effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeParseVar) (Map.toList effectDecls')
       names' = ctors <> effects
       overlaps =
         let w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)

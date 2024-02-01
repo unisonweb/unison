@@ -44,7 +44,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
@@ -1026,7 +1026,7 @@ typedecl =
 verifyRelativeVarName :: (Var v) => P v m (L.Token v) -> P v m (L.Token v)
 verifyRelativeVarName p = do
   v <- p
-  verifyRelativeName' (Name.unsafeFromVar <$> v)
+  verifyRelativeName' (Name.unsafeParseVar <$> v)
   pure v
 
 verifyRelativeName' :: (Ord v) => L.Token Name -> P v m ()
@@ -1097,7 +1097,7 @@ binding = label "binding" do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       (_bodySpanAnn, body) <- block "="
-      verifyRelativeName' (fmap Name.unsafeFromVar name)
+      verifyRelativeName' (fmap Name.unsafeParseVar name)
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
@@ -1105,7 +1105,7 @@ binding = label "binding" do
       pure $ ((spanAnn, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
-      verifyRelativeName' (fmap Name.unsafeFromVar name)
+      verifyRelativeName' (fmap Name.unsafeParseVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
@@ -1191,7 +1191,7 @@ substImports ns imports =
     -- not in Names, but in a later term binding
       [ (suffix, Type.var () full)
         | (suffix, full) <- imports,
-          Names.hasTypeNamed Names.IncludeSuffixes (Name.unsafeFromVar full) ns
+          Names.hasTypeNamed Names.IncludeSuffixes (Name.unsafeParseVar full) ns
       ]
 
 block' ::

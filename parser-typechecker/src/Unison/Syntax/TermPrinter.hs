@@ -52,7 +52,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Lexer (showEscapeChar)
-import Unison.Syntax.Name qualified as Name (fromText, fromTextEither, isSymboly, toText, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (isSymboly, parseText, parseTextEither, toText, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
@@ -1265,7 +1265,7 @@ printAnnotate n tm =
       Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
-    varToName v = toList (Name.fromText (Var.name v))
+    varToName v = toList (Name.parseText (Var.name v))
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
 
@@ -1312,7 +1312,7 @@ countName n =
     }
 
 joinName :: Prefix -> Suffix -> Name
-joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
+joinName p s = Name.unsafeParseText $ dotConcat $ p ++ [s]
 
 dotConcat :: [Text] -> Text
 dotConcat = Text.concat . intersperse "."
@@ -1389,7 +1389,7 @@ calcImports im tm = (im', render $ getUses result)
         |> filter
           ( \s ->
               let (p, i) = lookupOrDie s m
-               in (i > 1 || isRight (Name.fromTextEither s)) && not (null p)
+               in (i > 1 || isRight (Name.parseTextEither s)) && not (null p)
           )
         |> map (\s -> (s, lookupOrDie s m))
         |> Map.fromList
@@ -2155,7 +2155,8 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
                   & maybe fullName HQ'.NameOnly
            in (fullName, minimallySuffixed)
     tweak _ p = p
-    varToName v = toList (Name.fromText (Var.name v))
+    varToName :: Var v => v -> [Name]
+    varToName = toList . Name.parseText . Var.name
 
 isLeaf :: Term2 vt at ap v a -> Bool
 isLeaf (Var' {}) = True

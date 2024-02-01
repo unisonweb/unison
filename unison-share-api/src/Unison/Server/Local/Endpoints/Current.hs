@@ -40,7 +40,7 @@ instance ToSample Current where
         Current
           (Just $ UnsafeProjectName "@unison/base")
           (Just $ UnsafeProjectBranchName "main")
-          (Path.Absolute $ Path.fromText ".__projects._53393e4b_1f61_467c_a488_b6068c727daa.branches._f0aec0e3_249f_4004_b836_572fea3981c1")
+          (Path.Absolute $ Path.unsafeParseText ".__projects._53393e4b_1f61_467c_a488_b6068c727daa.branches._f0aec0e3_249f_4004_b836_572fea3981c1")
       )
     ]
 

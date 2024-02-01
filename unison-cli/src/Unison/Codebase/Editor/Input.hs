@@ -172,7 +172,7 @@ data Input
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
-    ExecuteI String [String]
+    ExecuteI Text [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]
@@ -182,9 +182,9 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI String [String]
+    ExecuteSchemeI Text [String]
   | -- compile to a scheme file
-    CompileSchemeI String (HQ.HashQualified Name)
+    CompileSchemeI Text (HQ.HashQualified Name)
   | -- generate scheme libraries, optional target directory
     GenSchemeLibsI (Maybe String)
   | -- fetch scheme compiler from a given username and branch

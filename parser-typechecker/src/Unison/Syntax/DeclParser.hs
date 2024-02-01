@@ -15,7 +15,7 @@ import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.TypeParser qualified as TypeParser
@@ -99,7 +99,7 @@ resolveUnresolvedModifier unresolvedModifier var =
 resolveUniqueModifier :: (Monad m, Var v) => v -> Text -> P v m DD.Modifier
 resolveUniqueModifier var guid0 = do
   ParsingEnv {uniqueTypeGuid} <- ask
-  guid <- fromMaybe guid0 <$> lift (lift (uniqueTypeGuid (Name.unsafeFromVar var)))
+  guid <- fromMaybe guid0 <$> lift (lift (uniqueTypeGuid (Name.unsafeParseVar var)))
   pure $ DD.Unique guid
 
 defaultUniqueModifier :: (Monad m, Var v) => v -> P v m DD.Modifier
@@ -182,7 +182,7 @@ dataDeclaration maybeUnresolvedModifier = do
                     )
         fields <- field
         closingToken <- closeBlock
-        let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeFromVar v)))
+        let lastSegment = name <&> (\v -> Var.named (Name.toText $ Name.unqualified (Name.unsafeParseVar v)))
         pure ([go lastSegment (snd <$> fields)], [(name, fields)], ann closingToken)
   (constructors, accessors, closingAnn) <-
     msum [Left <$> record, Right <$> sepBy (reserved "|") dataConstructor] <&> \case

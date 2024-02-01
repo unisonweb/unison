@@ -1,8 +1,8 @@
 module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, AccessorName) where
 
 import Control.Monad.Writer (Writer, runWriter, tell)
-import Data.List (isPrefixOf)
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration
@@ -21,7 +21,7 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference, Reference' (DerivedId))
 import Unison.Referent qualified as Referent
-import Unison.Syntax.HashQualified qualified as HQ (toString, toVar, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (toText, toVar, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
@@ -83,7 +83,7 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
+          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -115,9 +115,9 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
   (header <>)
     . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
     <$> constructor
-    `traverse` zip
-      [0 ..]
-      (DD.constructors' dd)
+      `traverse` zip
+        [0 ..]
+        (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
@@ -136,7 +136,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
                 Just accessor -> HQ.NameOnly $ declName `Name.joinDot` fieldName `Name.joinDot` accessor
               | HQ.NameOnly declName <- [name],
                 HQ.NameOnly fieldName <- fs,
-                accessor <- [Nothing, Just "set", Just "modify"]
+                accessor <- [Nothing, Just (Name.fromSegment "set"), Just (Name.fromSegment "modify")]
             ]
           pure . P.group $
             fmt S.DelimiterChar "{ "
@@ -148,7 +148,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
           <> fmt S.TypeAscriptionColon " :"
-          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -180,18 +180,24 @@ fieldNames env r name dd = do
       vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
   hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
-        [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
+        [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
         ]
   let fieldNames =
         Map.fromList
-          [ (r, f) | (r, n) <- names, typename <- pure (HQ.toString name), typename `isPrefixOf` n, rest <- pure $ drop (length typename + 1) n, (f, rest) <- pure $ span (/= '.') rest, rest `elem` ["", ".set", ".modify"]
+          [ (r, f)
+            | (r, n) <- names,
+              typename <- pure (HQ.toText name),
+              typename `Text.isPrefixOf` n,
+              rest <- pure $ Text.drop (Text.length typename + 1) n,
+              (f, rest) <- pure $ Text.span (/= '.') rest,
+              rest `elem` ["", ".set", ".modify"]
           ]
 
   if Map.size fieldNames == length names
     then
       Just
-        [ HQ.unsafeFromString name
+        [ HQ.unsafeParseText name
           | v <- vars,
             Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
             Just name <- [Map.lookup ref fieldNames]

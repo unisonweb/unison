@@ -41,7 +41,7 @@ import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
@@ -1232,15 +1232,15 @@ renderKind Kind.Star = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showTermRef :: (IsString s) => Env -> Referent -> s
-showTermRef env r = fromString . HQ.toString $ PPE.termName env r
+showTermRef env r = fromString . Text.unpack . HQ.toText $ PPE.termName env r
 
 showTypeRef :: (IsString s) => Env -> R.Reference -> s
-showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
+showTypeRef env r = fromString . Text.unpack . HQ.toText $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
 showConstructor :: (IsString s) => Env -> ConstructorReference -> s
 showConstructor env r =
-  fromString . HQ.toString $
+  fromString . Text.unpack . HQ.toText $
     PPE.patternName env r
 
 styleInOverallType ::
@@ -1803,10 +1803,10 @@ renderParseErrors s = \case
       let msg =
             Pr.lines
               [ if missing
-                  then "I couldn't resolve the reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-                  else "The reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                  then "I couldn't resolve the reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+                  else "The reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
                 "",
-                tokenAsErrorSite s $ HQ.toString <$> tok,
+                tokenAsErrorSite s $ HQ.toText <$> tok,
                 if missing
                   then "Make sure it's spelled correctly."
                   else "Try hash-qualifying the term you meant to reference."
@@ -1818,10 +1818,10 @@ renderParseErrors s = \case
       let msg =
             Pr.lines
               [ if Set.null referents
-                  then "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-                  else "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                  then "I couldn't find a term for " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+                  else "The term reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
                 "",
-                tokenAsErrorSite s $ HQ.toString <$> tok,
+                tokenAsErrorSite s $ HQ.toText <$> tok,
                 if missing
                   then "Make sure it's spelled correctly."
                   else "Try hash-qualifying the term you meant to reference."
@@ -1833,10 +1833,10 @@ renderParseErrors s = \case
       let msg =
             Pr.lines
               [ if Set.null referents
-                  then "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-                  else "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous.",
+                  then "I couldn't find a type for " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+                  else "The type reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
                 "",
-                tokenAsErrorSite s $ HQ.toString <$> tok,
+                tokenAsErrorSite s $ HQ.toText <$> tok,
                 if missing
                   then "Make sure it's spelled correctly."
                   else "Try hash-qualifying the type you meant to reference."

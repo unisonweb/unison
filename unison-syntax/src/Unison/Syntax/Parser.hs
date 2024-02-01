@@ -83,7 +83,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toVar, unsafeFromString)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText)
 import Unison.Term (MatchCase (..))
 import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
@@ -313,7 +313,7 @@ wordyDefinitionName = queryToken $ \case
 importWordyId :: Ord v => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
-  L.Blank s | not (null s) -> Just $ Name.unsafeFromString ("_" <> s)
+  L.Blank s | not (null s) -> Just $ Name.unsafeParseText (Text.pack ("_" <> s))
   _ -> Nothing
 
 -- The `+` in: use Foo.bar + as a Name
@@ -340,7 +340,7 @@ hqWordyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
   L.WordyId n -> Just $ HQ'.toHQ n
   L.Hash h -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromString ("_" <> s))
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeParseText (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&

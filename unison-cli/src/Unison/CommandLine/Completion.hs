@@ -149,7 +149,7 @@ completeWithinNamespace compTypes query currentPath = do
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
-      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.unsafeFromText match))
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.unsafeParseText match))
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
       & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
       & pure
@@ -169,7 +169,7 @@ completeWithinNamespace compTypes query currentPath = do
     getChildSuggestions shortHashLen b
       | Text.null querySuffix = pure []
       | otherwise =
-          case NameSegment.fromText querySuffix of
+          case NameSegment.parseText querySuffix of
             Left _ -> pure []
             Right suffix -> do
               nonEmptyChildren <- V2Branch.nonEmptyChildren b
@@ -180,7 +180,7 @@ completeWithinNamespace compTypes query currentPath = do
                   nib <- namesInBranch shortHashLen childBranch
                   nib
                     & fmap
-                      ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.unsafeFromText match)
+                      ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.unsafeParseText match)
                       )
                     & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                     & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
@@ -382,7 +382,7 @@ shareCompletion completionTypes authHTTPClient str =
             ( \(_, name) ->
                 let queryPath = userHandle : Path.toList path
                     result =
-                      (queryPath ++ [NameSegment.unsafeFromText name])
+                      (queryPath ++ [NameSegment.unsafeParseText name])
                         & List.NonEmpty.fromList
                         & Name.fromSegments
                         & Name.toText

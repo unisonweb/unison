@@ -2,67 +2,70 @@
 
 -- | Syntax-related combinators for HashQualified (to/from string types).
 module Unison.Syntax.HashQualified
-  ( fromString,
-    fromText,
-    unsafeFromString,
-    unsafeFromText,
-    unsafeFromVar,
-    toString,
+  ( parseText,
+    unsafeParseText,
     toText,
+    unsafeFromVar,
     toVar,
   )
 where
 
 import Data.Text qualified as Text
+import Text.Megaparsec (ParsecT)
+import Text.Megaparsec qualified as P
+import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.HashQualified (HashQualified (..))
 import Unison.HashQualified qualified as HashQualified
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name, Parse)
 import Unison.Name qualified as Name
 import Unison.Prelude hiding (fromString)
-import Unison.ShortHash qualified as SH
-import Unison.Syntax.Name qualified as Name (fromText, toText)
+import Unison.Syntax.HashQualified' qualified as HQ'
+import Unison.Syntax.Lexer.Token (Token)
+import Unison.Syntax.Name qualified as Name (nameP, toText)
+import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Syntax.ShortHash qualified as ShortHash
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Prelude hiding (take)
 
 instance Parse Text (HashQualified Name) where
-  parse = fromText
+  parse = parseText
 
-fromString :: String -> Maybe (HashQualified Name)
-fromString = fromText . Text.pack
-
--- Parses possibly-hash-qualified into structured type.
--- Doesn't validate against base58 or the codebase.
-fromText :: Text -> Maybe (HashQualified Name)
-fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
-  ("", "") -> Nothing
-  (name, "") -> NameOnly <$> Name.fromText name
-  ("", hash) -> HashOnly <$> SH.fromText hash
-  (name, hash) -> HashQualified <$> Name.fromText name <*> SH.fromText hash
-
-unsafeFromString :: String -> HashQualified Name
-unsafeFromString s = fromMaybe msg . fromString $ s
+parseText :: Text -> Maybe (HashQualified Name)
+parseText text =
+  eitherToMaybe (P.runParser parser "" (Text.unpack text))
   where
-    msg = error $ "HashQualified.unsafeFromString " <> show s
+    parser =
+      hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.nameP) <* P.eof
 
--- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
--- starts with '#', which is true as of the time of this writing, but not great.
-unsafeFromText :: Text -> HashQualified Name
-unsafeFromText txt = fromMaybe msg . fromText $ txt
+unsafeParseText :: Text -> HashQualified Name
+unsafeParseText txt = fromMaybe msg . parseText $ txt
   where
     msg = error $ "HashQualified.unsafeFromText " <> show txt
-
-unsafeFromVar :: (Var v) => v -> HashQualified Name
-unsafeFromVar = unsafeFromText . Var.name
-
-toString :: HashQualified Name -> String
-toString =
-  Text.unpack . toText
 
 toText :: HashQualified Name -> Text
 toText =
   HashQualified.toTextWith Name.toText
 
+unsafeFromVar :: (Var v) => v -> HashQualified Name
+unsafeFromVar =
+  unsafeParseText . Var.name
+
 toVar :: (Var v) => HashQualified Name -> v
 toVar =
   Var.named . toText
+
+------------------------------------------------------------------------------------------------------------------------
+-- Hash-qualified parsers
+
+-- | A hash-qualified parser.
+hashQualifiedP ::
+  Monad m =>
+  ParsecT (Token Text) [Char] m name ->
+  ParsecT (Token Text) [Char] m (HashQualified name)
+hashQualifiedP nameP =
+  P.try do
+    optional ShortHash.shortHashP >>= \case
+      Nothing -> HQ'.toHQ <$> HQ'.hashQualifiedP nameP
+      Just hash -> pure (HashOnly hash)

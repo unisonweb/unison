@@ -1,9 +1,7 @@
 module Unison.NameSegment
   ( NameSegment (..),
     toUnescapedText,
-    isEmpty,
     isPrefixOf,
-    toTextBuilder,
 
     -- * Sentinel name segments
     defaultPatchSegment,
@@ -13,8 +11,6 @@ module Unison.NameSegment
 where
 
 import Data.Text qualified as Text
-import Data.Text.Lazy.Builder qualified as Text (Builder)
-import Data.Text.Lazy.Builder qualified as Text.Builder
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical)
 
@@ -29,7 +25,8 @@ instance IsString NameSegment where
     NameSegment . Text.pack
 
 instance Show NameSegment where
-  show = show . toUnescapedText
+  show =
+    Text.unpack . toUnescapedText
 
 -- | Convert a name segment to unescaped text.
 --
@@ -38,17 +35,9 @@ toUnescapedText :: NameSegment -> Text
 toUnescapedText =
   coerce
 
-isEmpty :: NameSegment -> Bool
-isEmpty =
-  coerce Text.null
-
 isPrefixOf :: NameSegment -> NameSegment -> Bool
 isPrefixOf =
   coerce Text.isPrefixOf
-
-toTextBuilder :: NameSegment -> Text.Builder
-toTextBuilder =
-  coerce Text.Builder.fromText
 
 defaultPatchSegment :: NameSegment
 defaultPatchSegment =

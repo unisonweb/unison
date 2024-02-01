@@ -168,9 +168,9 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name as Name (toText, unsafeFromText)
+import Unison.Syntax.Name as Name (toText, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText, unsafeFromText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText, unsafeParseText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -349,7 +349,7 @@ fuzzyFind printNames query =
 
       -- Prefer shorter FQNs
       rank (alignment, name, _) =
-        ( Name.countSegments (Name.unsafeFromText name),
+        ( Name.countSegments (Name.unsafeParseText name),
           negate (FZF.score alignment)
         )
 
@@ -764,7 +764,7 @@ mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
     liftIO $ Codebase.runTransaction codebase do
       causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
       branchAtPath <- V2Causal.value causalAtPath
-      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeFromText bn) r)
+      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeParseText bn) r)
   pure $
     TypeDefinition
       (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -798,7 +798,7 @@ mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
   tag <-
     lift
       ( termEntryTag
-          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeFromText bn) (Cv.referent1to2 referent))
+          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment.unsafeParseText bn) (Cv.referent1to2 referent))
       )
   mk ts bn tag
   where

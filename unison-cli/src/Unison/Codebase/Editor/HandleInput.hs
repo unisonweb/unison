@@ -176,9 +176,9 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeParseText, parseText)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TP
@@ -800,7 +800,7 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              Cli.setNumberedArgs $ fmap Name.toString patches
+              Cli.setNumberedArgs $ fmap (Text.unpack . Name.toText) patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
@@ -903,8 +903,8 @@ loop e = do
                   ambiguous t rs =
                     Cli.returnEarly case t of
                       HQ.HashOnly h -> HashAmbiguous h rs'
-                      (Path.parseHQSplit' . HQ.toString -> Right n) -> DeleteNameAmbiguous hqLength n rs' Set.empty
-                      _ -> BadName (HQ.toString t)
+                      (Path.parseHQSplit' . Text.unpack . HQ.toText -> Right n) -> DeleteNameAmbiguous hqLength n rs' Set.empty
+                      _ -> BadName (HQ.toText t)
                     where
                       rs' = Set.map Referent.Ref $ Set.fromList rs
 
@@ -1044,9 +1044,9 @@ loop e = do
               hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile
               let datas, effects, terms :: [(Name, Reference.Id)]
-                  datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
-                  effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  datas = [(Name.unsafeParseVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
+                  effects = [(Name.unsafeParseVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
+                  terms = [(Name.unsafeParseVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -1314,7 +1314,7 @@ inputDescription input =
       scope <- p' scope0
       pure ("patch " <> p <> " " <> scope)
     UndoI {} -> pure "undo"
-    ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
+    ExecuteI s args -> pure ("execute " <> Text.unwords (s : fmap Text.pack args))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
@@ -1322,8 +1322,8 @@ inputDescription input =
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $ "run.native " <> Text.unwords (fmap Text.pack (nm : args))
-    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
+      pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
+    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
     GenSchemeLibsI mdir ->
       pure $
         "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
@@ -1483,8 +1483,8 @@ handleFindI isVerbose fscope ws input = do
                 searchResultsFor names (Set.toList matches) []
 
           -- name query
-          (map HQ.unsafeFromString -> qs) -> do
-            let srs = searchBranchScored names fuzzyNameDistance qs
+          qs -> do
+            let srs = searchBranchScored names fuzzyNameDistance (map (HQ.unsafeParseText . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         Cli.setNumberedArgs $ fmap searchResultToHQString results
@@ -1812,13 +1812,13 @@ confirmedCommand i = do
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
 searchResultToHQString = \case
-  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
-  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n r
+  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n (Referent.Ref r)
   _ -> error "impossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 fuzzyNameDistance :: Name -> Name -> Maybe Int
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+fuzzyNameDistance (Name.toText -> q) (Name.toText -> n) =
   Find.simpleFuzzyScore q n
 
 -- return `name` and `name.<everything>...`
@@ -1969,20 +1969,17 @@ doGenerateSchemeBoot force mppe mdir = do
   gen ppe saveWrap cwrapf dirTm compoundWrapName
   where
     a = External
-    hq nm
-      | Just hqn <- HQ.fromString nm = hqn
-      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-    sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
-    swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
-    sdName = hq ".unison.internal.compiler.scheme.saveDataInfoFile"
-    dinfoName = hq ".unison.internal.compiler.scheme.dataInfos"
-    bootName = hq ".unison.internal.compiler.scheme.bootSpec"
-    builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    sbName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveBaseFile"
+    swName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveWrapperFile"
+    sdName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveDataInfoFile"
+    dinfoName = HQ.unsafeParseText ".unison.internal.compiler.scheme.dataInfos"
+    bootName = HQ.unsafeParseText ".unison.internal.compiler.scheme.bootSpec"
+    builtinName = HQ.unsafeParseText ".unison.internal.compiler.scheme.builtinSpec"
     simpleWrapName =
-      hq ".unison.internal.compiler.scheme.simpleWrapperSpec"
+      HQ.unsafeParseText ".unison.internal.compiler.scheme.simpleWrapperSpec"
     compoundWrapName =
-      hq ".unison.internal.compiler.scheme.compoundWrapperSpec"
+      HQ.unsafeParseText ".unison.internal.compiler.scheme.compoundWrapperSpec"
 
     gen ppe save file dir nm =
       liftIO (doesFileExist file) >>= \b -> when (not b || force) do
@@ -2004,10 +2001,10 @@ typecheckAndEval ppe tm = do
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
-      Cli.returnEarly (TypeErrors currentPath (Text.pack rendered) ppe tes)
+      Cli.returnEarly (TypeErrors currentPath rendered ppe tes)
   where
     a = External
-    rendered = P.toPlainUnbroken $ TP.pretty ppe tm
+    rendered = Text.pack (P.toPlainUnbroken $ TP.pretty ppe tm)
 
 ensureSchemeExists :: Cli ()
 ensureSchemeExists =
@@ -2051,16 +2048,16 @@ runScheme file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: String -> String -> Cli ()
+buildScheme :: Text -> String -> Cli ()
 buildScheme main file = do
   ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
   buildRacket genDir statDir main file
 
-buildRacket :: String -> String -> String -> String -> Cli ()
+buildRacket :: String -> String -> Text -> String -> Cli ()
 buildRacket genDir statDir main file =
-  let args = ["-l", "raco", "--", "exe", "-o", main, file]
+  let args = ["-l", "raco", "--", "exe", "-o", Text.unpack main, file]
       opts = racketOpts genDir statDir args
    in void . liftIO $
         catch
@@ -2084,25 +2081,25 @@ doCompile native output main = do
     )
     (Cli.returnEarly . EvaluationFailure)
 
-doRunAsScheme :: String -> [String] -> Cli ()
-doRunAsScheme main0 args = case HQ.fromString main0 of
+doRunAsScheme :: Text -> [String] -> Cli ()
+doRunAsScheme main0 args = case HQ.parseText main0 of
   Just main -> do
     fullpath <- generateSchemeFile True main0 main
     runScheme fullpath args
   Nothing -> Cli.respond $ BadName main0
 
-doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
+doCompileScheme :: Text -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
   generateSchemeFile True out main >>= buildScheme out
 
-generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile :: Bool -> Text -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
   doGenerateSchemeBoot False (Just ppe) Nothing
   cacheDir <- getCacheDir
   liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
-  let scratch = out ++ ".scm"
+  let scratch = Text.unpack out ++ ".scm"
       fullpath = cacheDir </> "scheme-tmp" </> scratch
       output = Text.pack fullpath
   sscm <- Term.ref a <$> resolveTermRef saveNm
@@ -2117,12 +2114,9 @@ generateSchemeFile exec out main = do
   pure fullpath
   where
     a = External
-    hq nm
-      | Just hqn <- HQ.fromString nm = hqn
-      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-    saveNm = hq ".unison.internal.compiler.saveScheme"
-    filePathNm = hq "FilePath.FilePath"
+    saveNm = HQ.unsafeParseText ".unison.internal.compiler.saveScheme"
+    filePathNm = HQ.unsafeParseText "FilePath.FilePath"
 
 delete ::
   Input ->
@@ -2275,7 +2269,7 @@ displayI outputLoc hq = do
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
-  case addWatch (HQ.toString hq) latestTypecheckedFile of
+  case addWatch (Text.unpack (HQ.toText hq)) latestTypecheckedFile of
     Nothing -> do
       let results = Names.lookupHQTerm Names.IncludeSuffixes hq names
       ref <-
@@ -2293,7 +2287,7 @@ displayI outputLoc hq = do
       let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
       (_, watches) <- evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile []
       (_, _, _, _, tm, _) <-
-        Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> HQ.toString hq)
+        Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
       doDisplay outputLoc ns tm
 
@@ -2312,7 +2306,7 @@ docsI src = do
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
-    dotDoc = hq <&> \n -> Name.joinDot n "doc"
+    dotDoc = hq <&> \n -> Name.joinDot n (Name.fromSegment "doc")
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do
@@ -2371,7 +2365,7 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames Name.unsafeFromVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeParseVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 -- Adds a watch expression of the given name to the file, if
