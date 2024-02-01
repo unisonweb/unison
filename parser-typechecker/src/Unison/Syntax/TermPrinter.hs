@@ -1741,10 +1741,14 @@ prettyDoc2 ac tm = do
           then fmt S.DocDelimiter "{{" <> PP.newline <> p <> PP.newline <> fmt S.DocDelimiter "}}"
           else fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
       bail tm = brace <$> pretty0 ac tm
+      contains :: Char -> Pretty SyntaxText -> Bool
+      contains c p =
+        PP.toPlainUnbroken (PP.syntaxToColor p)
+          & elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
         case filter (\s -> take 2 s == [c, c]) $
-          group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
+          List.group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
           [] -> 2
           x -> 1 + maximum (map length x)
       oneMore c inner = replicate (longestRun c inner) c
@@ -1778,7 +1782,12 @@ prettyDoc2 ac tm = do
           pure $ PP.text t
         (toDocCode ppe -> Just d) -> do
           inner <- rec d
-          let quotes = PP.string $ oneMore '\'' inner
+          let quotes =
+                -- Prefer ` if there aren't any in the inner text,
+                -- otherwise use one more than the longest run of ' in the inner text
+                if contains '`' inner
+                  then PP.string $ oneMore '\'' inner
+                  else PP.string "`"
           pure $ PP.group $ quotes <> inner <> quotes
         (toDocJoin ppe -> Just ds) -> foldMapM rec ds
         (toDocItalic ppe -> Just d) -> do
