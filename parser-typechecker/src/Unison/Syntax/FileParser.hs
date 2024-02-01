@@ -2,6 +2,7 @@ module Unison.Syntax.FileParser where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -21,6 +22,7 @@ import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (UnisonFile (..))
@@ -49,7 +51,7 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-        [ DD.generateRecordAccessors Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
+        [ DD.generateRecordAccessors Var.namespaced Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors,
             Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
         ]
@@ -215,7 +217,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       binding@((_, v), _) <- TermParser.binding
       pure $ case doc of
         Nothing -> Binding binding
-        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.joinDot v (Var.named "doc")), doc), binding]
+        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.namespaced (v :| [Var.named "doc"])), doc), binding]
 
 watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
 watched = P.try do

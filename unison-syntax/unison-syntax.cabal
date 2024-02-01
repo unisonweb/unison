@@ -28,6 +28,7 @@ library
       Unison.Syntax.Parser
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash
+      Unison.Syntax.Var
       Unison.UnisonFile.Error
   hs-source-dirs:
       src

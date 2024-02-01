@@ -5,6 +5,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
+import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Text.Megaparsec qualified as P
@@ -19,10 +20,11 @@ import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.TypeParser qualified as TypeParser
+import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
-import Unison.Var qualified as Var
+import Unison.Var qualified as Var (name, named)
 import Prelude hiding (readFile)
 
 -- The parsed form of record accessors, as in:
@@ -162,7 +164,7 @@ dataDeclaration maybeUnresolvedModifier = do
             ctorAnn = ann ctorName <> maybe (ann ctorName) ann (lastMay ctorArgs)
          in ( ctorAnn,
               ( ann ctorName,
-                Var.namespaced [L.payload name, L.payload ctorName],
+                Var.namespaced (L.payload name :| [L.payload ctorName]),
                 Type.foralls ctorAnn typeArgVs ctorType
               )
             )
@@ -263,7 +265,7 @@ effectDeclaration maybeUnresolvedModifier = do
                 <$> TypeParser.computationType
             )
       where
-        explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
+        explodeToken v t = (ann v, Var.namespaced (L.payload name :| [L.payload v]), t)
         -- If the effect is not syntactically present in the constructor types,
         -- add them after parsing.
         ensureEffect t = case t of

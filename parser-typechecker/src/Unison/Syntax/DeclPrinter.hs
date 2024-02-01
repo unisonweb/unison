@@ -1,15 +1,12 @@
 module Unison.Syntax.DeclPrinter (prettyDecl, prettyDeclW, prettyDeclHeader, prettyDeclOrBuiltinHeader, AccessorName) where
 
 import Control.Monad.Writer (Writer, runWriter, tell)
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration
-  ( DataDeclaration,
-    EffectDeclaration,
-    toDataDecl,
-  )
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration, toDataDecl)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
@@ -25,12 +22,13 @@ import Unison.Syntax.HashQualified qualified as HQ (toText, toVar, unsafeParseTe
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
+import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Type qualified as Type
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
-import Unison.Var qualified as Var
+import Unison.Var qualified as Var (freshenId, name, named)
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -199,7 +197,7 @@ fieldNames env r name dd = do
       Just
         [ HQ.unsafeParseText name
           | v <- vars,
-            Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
+            Just (ref, _, _) <- [Map.lookup (Var.namespaced (HQ.toVar name :| [v])) hashes],
             Just name <- [Map.lookup ref fieldNames]
         ]
     else Nothing
