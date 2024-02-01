@@ -2278,7 +2278,7 @@ debugDumpNamespaceSimple =
 debugTerm :: InputPattern
 debugTerm =
   InputPattern
-    "debug.term"
+    "debug.term.abt"
     []
     I.Hidden
     [("term", Required, exactDefinitionTermQueryArg)]
@@ -2291,7 +2291,7 @@ debugTerm =
 debugTermVerbose :: InputPattern
 debugTermVerbose =
   InputPattern
-    "debug.term.verbose"
+    "debug.term.abt.verbose"
     []
     I.Hidden
     [("term", Required, exactDefinitionTermQueryArg)]
@@ -2304,7 +2304,7 @@ debugTermVerbose =
 debugType :: InputPattern
 debugType =
   InputPattern
-    "debug.type"
+    "debug.type.abt"
     []
     I.Hidden
     [("type", Required, exactDefinitionTypeQueryArg)]
