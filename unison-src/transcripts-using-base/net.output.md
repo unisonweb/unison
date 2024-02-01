@@ -93,6 +93,8 @@ testDefaultPort _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -165,8 +167,8 @@ testTcpConnect = 'let
     
     toSend = "12345"
 
-    forkComp (serverThread portVar toSend)
-    forkComp (clientThread portVar resultVar)
+    void (forkComp (serverThread portVar toSend))
+    void (forkComp (clientThread portVar resultVar))
     
     received = take resultVar
 
@@ -177,6 +179,8 @@ testTcpConnect = 'let
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

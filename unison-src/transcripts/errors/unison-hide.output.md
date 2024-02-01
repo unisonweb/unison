@@ -26,8 +26,7 @@ The transcript failed due to an error in the stanza above. The error is:
                       g : Nat
                       g = 42
     - A watch expression, like > g + 1
-    - An `ability` declaration, like ability Foo where ...
+    - An `ability` declaration, like unique ability Foo where ...
     - A `type` declaration, like structural type Optional a = None | Some a
-    - A `namespace` declaration, like namespace Seq where ...
   
 

@@ -7,14 +7,20 @@ module Unison.Util.Text where
 import Data.Foldable (toList)
 import Data.List (foldl', unfoldr)
 import Data.String (IsString (..))
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Unison.Util.Bytes as B
-import qualified Unison.Util.Rope as R
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Internal qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Text.Unsafe qualified as T (Iter (..), iter)
+import Data.Word (Word64)
+import Unison.Util.Bytes qualified as B
+import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, replicate, take)
 
 -- Text type represented as a `Rope` of chunks
-newtype Text = Text (R.Rope Chunk) deriving (Eq, Ord, Semigroup, Monoid)
+newtype Text = Text (R.Rope Chunk)
+  deriving stock (Eq, Ord)
+  deriving newtype (Semigroup, Monoid)
 
 data Chunk = Chunk {-# UNPACK #-} !Int {-# UNPACK #-} !T.Text
 
@@ -25,6 +31,9 @@ one, singleton :: Char -> Text
 one ch = Text (R.one (chunk (T.singleton ch)))
 singleton = one
 
+appendUnbalanced :: Text -> Text -> Text
+appendUnbalanced (Text t1) (Text t2) = Text (R.two t1 t2)
+
 threshold :: Int
 threshold = 512
 
@@ -34,6 +43,9 @@ replicate 0 _ = mempty
 replicate 1 t = t
 replicate n t =
   replicate (n `div` 2) t <> replicate (n - (n `div` 2)) t
+
+toLazyText :: Text -> TL.Text
+toLazyText (Text t) = TL.fromChunks (chunkToText <$> toList t)
 
 chunkToText :: Chunk -> T.Text
 chunkToText (Chunk _ t) = t
@@ -55,6 +67,12 @@ unsnoc :: Text -> Maybe (Text, Char)
 unsnoc t | size t == 0 = Nothing
 unsnoc t = (take (size t - 1) t,) <$> at (size t - 1) t
 
+unconsChunk :: Text -> Maybe (Chunk, Text)
+unconsChunk (Text r) = (\(a, b) -> (a, Text b)) <$> R.uncons r
+
+unsnocChunk :: Text -> Maybe (Text, Chunk)
+unsnocChunk (Text r) = (\(a, b) -> (Text a, b)) <$> R.unsnoc r
+
 at :: Int -> Text -> Maybe Char
 at n (Text t) = R.index n t
 
@@ -63,6 +81,16 @@ size (Text t) = R.size t
 
 reverse :: Text -> Text
 reverse (Text t) = Text (R.reverse t)
+
+toUppercase :: Text -> Text
+toUppercase (Text t) = Text (R.map up t)
+  where
+    up (Chunk n t) = Chunk n (T.toUpper t)
+
+toLowercase :: Text -> Text
+toLowercase (Text t) = Text (R.map down t)
+  where
+    down (Chunk n t) = Chunk n (T.toLower t)
 
 fromUtf8 :: B.Bytes -> Either String Text
 fromUtf8 bs =
@@ -93,15 +121,54 @@ toText :: Text -> T.Text
 toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 {-# INLINE toText #-}
 
+indexOf :: Text -> Text -> Maybe Word64
+indexOf "" _ = Just 0
+indexOf needle haystack =
+  case TL.breakOn needle' haystack' of
+    (_, "") -> Nothing
+    (prefix, _) -> Just (fromIntegral (TL.length prefix))
+  where
+    needle' = toLazyText needle
+    haystack' = toLazyText haystack
+
+-- Drop with both a maximum size and a predicate. Yields actual number of
+-- dropped characters.
+--
+-- Unavailable from text package.
+dropTextWhileMax :: (Char -> Bool) -> Int -> T.Text -> (Int, T.Text)
+dropTextWhileMax p n t@(T.Text arr off len) = loop 0 0
+  where
+    loop !i !j
+      | j >= len = (i, T.empty)
+      | i < n, p c = loop (i + 1) (j + d)
+      | otherwise = (i, T.Text arr (off + j) (len - j))
+      where
+        T.Iter c d = T.iter t j
+{-# INLINE [1] dropTextWhileMax #-}
+
+dropWhileMax :: (Char -> Bool) -> Int -> Text -> (Int, Text)
+dropWhileMax p = go 0
+  where
+    go !total !d t
+      | d <= 0 = (total, t)
+      | Just (chunk, t) <- unconsChunk t =
+          case dropTextWhileMax p d (chunkToText chunk) of
+            (i, rest)
+              | T.null rest, i < d -> go (total + i) (d - i) t
+              | T.null rest -> (total + i, t)
+              | otherwise -> (total + i, fromText rest <> t)
+      | otherwise = (total, empty)
+{-# INLINE dropWhileMax #-}
+
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 
 instance Ord Chunk where (Chunk _ a) `compare` (Chunk _ a2) = compare a a2
 
-instance Semigroup Chunk where (<>) = mappend
+instance Semigroup Chunk where
+  l <> r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r)
 
 instance Monoid Chunk where
   mempty = Chunk 0 mempty
-  mappend l r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r)
 
 instance R.Sized Chunk where size (Chunk n _) = n
 

@@ -17,63 +17,50 @@ module Unison.CommandLine
     warn,
     warnNote,
 
-    -- * Completers
-    completion,
-    completion',
-    exactComplete,
-    fuzzyComplete,
-    fuzzyCompleteHashQualified,
-    prefixIncomplete,
-    prettyCompletion,
-    fixupCompletion,
-    completeWithinQueryNamespace,
-
     -- * Other
     parseInput,
     prompt,
-    watchBranchUpdates,
     watchConfig,
     watchFileSystem,
   )
 where
 
 import Control.Concurrent (forkIO, killThread)
-import Control.Concurrent.STM (atomically)
-import Control.Lens (ifor)
+import Control.Monad.Except
+import Control.Monad.Trans.Except
 import Data.Configurator (autoConfig, autoReload)
-import qualified Data.Configurator as Config
+import Data.Configurator qualified as Config
 import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
-import qualified Data.List as List
-import Data.List.Extra (nubOrd)
 import Data.ListLike (ListLike)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified System.Console.Haskeline as Line
+import Data.Map qualified as Map
+import Data.Semialign qualified as Align
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Data.These (These (..))
+import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Watch as Watch
-import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Watch qualified as Watch
+import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (InputPattern (..))
-import qualified Unison.CommandLine.InputPattern as InputPattern
-import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
-import Unison.Names (Names)
+import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Server.SearchResult as SR
-import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.Find as Find
-import qualified Unison.Util.Pretty as P
-import Unison.Util.TQueue (TQueue)
-import qualified Unison.Util.TQueue as Q
+import Unison.Project.Util (ProjectContext, projectContextFromPath)
+import Unison.Symbol (Symbol)
+import Unison.Util.ColorText qualified as CT
+import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
+import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 disableWatchConfig :: Bool
@@ -93,7 +80,7 @@ watchConfig path =
       (config, t) <- autoReload autoConfig [Optional path]
       pure (config, killThread t)
 
-watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
+watchFileSystem :: Q.TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do
   (cancel, watcher) <- Watch.watchDirectory dir allow
   t <- forkIO . forever $ do
@@ -101,32 +88,10 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-watchBranchUpdates :: IO (Branch.Branch IO) -> TQueue Event -> Codebase IO v a -> IO (IO ())
-watchBranchUpdates currentRoot q codebase = do
-  (cancelExternalBranchUpdates, externalBranchUpdates) <-
-    Codebase.rootBranchUpdates codebase
-  thread <- forkIO . forever $ do
-    updatedBranches <- externalBranchUpdates
-    currentRoot <- currentRoot
-    -- Since there's some lag between when branch files are written and when
-    -- the OS generates a file watch event, we skip branch update events
-    -- that are causally before the current root.
-    --
-    -- NB: Sadly, since the file watching API doesn't have a way to silence
-    -- the events from a specific individual write, this is ultimately a
-    -- heuristic. If a fairly recent head gets deposited at just the right
-    -- time, it would get ignored by this logic. This seems unavoidable.
-    let maxDepth = 20 -- if it's further back than this, consider it new
-    let isNew b = not <$> Causal.beforeHash maxDepth b (Branch._history currentRoot)
-    notBefore <- filterM isNew (toList updatedBranches)
-    when (length notBefore > 0) $
-      atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
-  pure (cancelExternalBranchUpdates >> killThread thread)
-
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
 
-backtick :: IsString s => P.Pretty s -> P.Pretty s
+backtick :: (IsString s) => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
@@ -153,99 +118,9 @@ emojiNote lead s = P.group (fromString lead) <> "\n" <> P.wrap s
 nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo = emojiNote "😶"
 
-completion :: String -> Line.Completion
-completion s = Line.Completion s s True
-
-completion' :: String -> Line.Completion
-completion' s = Line.Completion s s False
-
--- discards formatting in favor of better alignment
--- prettyCompletion (s, p) = Line.Completion s (P.toPlainUnbroken p) True
--- preserves formatting, but Haskeline doesn't know how to align
-prettyCompletion :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion endWithSpace (s, p) = Line.Completion s (P.toAnsiUnbroken p) endWithSpace
-
--- | Renders a completion option with the prefix matching the query greyed out.
-prettyCompletionWithQueryPrefix ::
-  Bool ->
-  -- | query
-  String ->
-  -- | completion
-  String ->
-  Line.Completion
-prettyCompletionWithQueryPrefix endWithSpace query s =
-  let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
-   in Line.Completion s (P.toAnsiUnbroken coloredMatch) endWithSpace
-
-fuzzyCompleteHashQualified :: Names -> String -> [Line.Completion]
-fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
-  Nothing -> []
-  Just query ->
-    fixupCompletion q0 $
-      makeCompletion <$> Find.fuzzyFindInBranch b query
-  where
-    makeCompletion (sr, p) =
-      prettyCompletion False (HQ.toString . SR.name $ sr, p)
-
-fuzzyComplete :: String -> [String] -> [Line.Completion]
-fuzzyComplete absQuery@('.' : _) ss = completeWithinQueryNamespace absQuery ss
-fuzzyComplete fuzzyQuery ss =
-  fixupCompletion fuzzyQuery (prettyCompletion False <$> Find.simpleFuzzyFinder fuzzyQuery ss id)
-
--- | Constructs a list of 'Completion's from a query and completion options by
--- filtering them for prefix matches. A completion will be selected if it's an exact match for
--- a provided option.
-exactComplete :: String -> [String] -> [Line.Completion]
-exactComplete q ss = go <$> filter (isPrefixOf q) ss
-  where
-    go s = prettyCompletionWithQueryPrefix (s == q) q s
-
--- | Completes a list of options, limiting options to the same namespace as the query,
--- or the namespace's children if the query is itself a namespace.
---
--- E.g.
--- query: "base"
--- would match: ["base", "base.List", "base2"]
--- wouldn't match: ["base.List.map", "contrib", "base2.List"]
-completeWithinQueryNamespace :: String -> [String] -> [Line.Completion]
-completeWithinQueryNamespace q ss = (go <$> (limitToQueryNamespace q $ ss))
-  where
-    go s = prettyCompletionWithQueryPrefix (s == q) q s
-    limitToQueryNamespace :: String -> [String] -> [String]
-    limitToQueryNamespace query xs =
-      nubOrd $ catMaybes (fmap ((query <>) . thing) . List.stripPrefix query <$> xs)
-      where
-        thing ('.' : rest) = '.' : takeWhile (/= '.') rest
-        thing other = takeWhile (/= '.') other
-
-prefixIncomplete :: String -> [String] -> [Line.Completion]
-prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss
-  where
-    go s =
-      prettyCompletion
-        False
-        (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
-
--- workaround for https://github.com/judah/haskeline/issues/100
--- if the common prefix of all the completions is smaller than
--- the query, we make all the replacements equal to the query,
--- which will preserve what the user has typed
-fixupCompletion :: String -> [Line.Completion] -> [Line.Completion]
-fixupCompletion _q [] = []
-fixupCompletion _q [c] = [c]
-fixupCompletion q cs@(h : t) =
-  let commonPrefix (h1 : t1) (h2 : t2) | h1 == h2 = h1 : commonPrefix t1 t2
-      commonPrefix _ _ = ""
-      overallCommonPrefix =
-        foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-   in if not (q `isPrefixOf` overallCommonPrefix)
-        then [c {Line.replacement = q} | c <- cs]
-        else cs
-
 parseInput ::
-  -- | Root branch, used to expand globs
-  Branch0 m ->
-  -- | Current path from root, used to expand globs
+  Codebase IO Symbol Ann ->
+  -- | Current path from root
   Path.Absolute ->
   -- | Numbered arguments
   [String] ->
@@ -253,40 +128,53 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath numberedArgs patterns segments = do
+  -- Returns either an error message or the fully expanded arguments list and parsed input.
+  -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
+  IO (Either (P.Pretty CT.ColorText) (Maybe ([String], Input)))
+parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
+  let getCurrentBranch0 :: IO (Branch0 IO)
+      getCurrentBranch0 = Branch.head <$> Codebase.getBranchAtPath codebase currentPath
+  let projCtx = projectContextFromPath currentPath
+
   case segments of
-    [] -> Left ""
+    [] -> throwE ""
     command : args -> case Map.lookup command patterns of
-      Just pat@(InputPattern {parse}) -> do
+      Just pat@(InputPattern {parse, help}) -> do
         let expandedNumbers :: [String]
-            expandedNumbers = foldMap (expandNumber numberedArgs) args
-        expandedGlobs <- ifor expandedNumbers $ \i arg -> do
-          let targets = case InputPattern.argType pat i of
-                Just argT -> InputPattern.globTargets argT
-                Nothing -> mempty
-          case Globbing.expandGlobs targets rootBranch currentPath arg of
-            -- No globs encountered
-            Nothing -> pure [arg]
-            Just [] -> Left $ "No matches for: " <> fromString arg
-            Just matches -> pure matches
-        parse (concat expandedGlobs)
+            expandedNumbers =
+              foldMap (expandNumber numberedArgs) args
+        lift (fzfResolve codebase projCtx getCurrentBranch0 pat expandedNumbers) >>= \case
+          Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
+          Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
+          Left FZFCancelled -> pure Nothing
+          Right resolvedArgs -> do
+            parsedInput <- except . parse $ resolvedArgs
+            pure $ Just (command : resolvedArgs, parsedInput)
       Nothing ->
-        Left
+        throwE
           . warn
           . P.wrap
           $ "I don't know how to "
             <> P.group (fromString command <> ".")
             <> "Type `help` or `?` to get help."
+  where
+    noCompletionsMessage argDesc =
+      P.callout "⚠️" $
+        P.lines
+          [ ( "Sorry, I was expecting an argument for the "
+                <> P.text argDesc
+                <> ", and I couldn't find any to suggest to you. 😅"
+            )
+          ]
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
-expandNumber numberedArgs s =
-  maybe
-    [s]
-    (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
-    expandedNumber
+expandNumber numberedArgs s = case expandedNumber of
+  Nothing -> [s]
+  Just nums ->
+    [s | i <- nums, Just s <- [vargs Vector.!? (i - 1)]]
   where
+    vargs = Vector.fromList numberedArgs
     rangeRegex = "([0-9]+)-([0-9]+)" :: String
     (junk, _, moreJunk, ns) =
       s =~ rangeRegex :: (String, String, String, [String])
@@ -300,17 +188,62 @@ expandNumber numberedArgs s =
               (\x y -> [x .. y]) <$> readMay from <*> readMay to
             _ -> Nothing
 
+data FZFResolveFailure
+  = NoFZFResolverForArgumentType InputPattern.ArgumentDescription
+  | NoFZFOptions Text {- argument description -}
+  | FZFCancelled
+
+fzfResolve :: Codebase IO Symbol Ann -> ProjectContext -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Either FZFResolveFailure [String])
+fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
+  -- We resolve args in two steps, first we check that all arguments that will require a fzf
+  -- resolver have one, and only if so do we prompt the user to actually do a fuzzy search.
+  -- Otherwise, we might ask the user to perform a search only to realize we don't have a resolver
+  -- for a later arg.
+  argumentResolvers :: [ExceptT FZFResolveFailure IO [String]] <-
+    (Align.align (InputPattern.args pat) args)
+      & traverse \case
+        This (argName, opt, InputPattern.ArgumentType {fzfResolver})
+          | opt == InputPattern.Required || opt == InputPattern.OnePlus ->
+              case fzfResolver of
+                Nothing -> throwError $ NoFZFResolverForArgumentType argName
+                Just fzfResolver -> pure $ fuzzyFillArg opt argName fzfResolver
+          | otherwise -> pure $ pure []
+        That arg -> pure $ pure [arg]
+        These _ arg -> pure $ pure [arg]
+  argumentResolvers & foldMapM id
+  where
+    fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
+    fuzzyFillArg opt argDesc InputPattern.FZFResolver {getOptions} = do
+      currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
+      options <- liftIO $ getOptions codebase projCtx currentBranch
+      when (null options) $ throwError $ NoFZFOptions argDesc
+      liftIO $ Text.putStrLn (FZFResolvers.fuzzySelectHeader argDesc)
+      results <-
+        liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = multiSelectForOptional opt} id options)
+          `whenNothingM` throwError FZFCancelled
+      -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing execution
+      -- with no arguments.
+      when (null results) $ throwError FZFCancelled
+      pure (Text.unpack <$> results)
+
+    multiSelectForOptional :: InputPattern.IsOptional -> Bool
+    multiSelectForOptional = \case
+      InputPattern.Required -> False
+      InputPattern.Optional -> False
+      InputPattern.OnePlus -> True
+      InputPattern.ZeroPlus -> True
+
 prompt :: String
 prompt = "> "
 
 -- `plural [] "cat" "cats" = "cats"`
 -- `plural ["meow"] "cat" "cats" = "cat"`
 -- `plural ["meow", "meow"] "cat" "cats" = "cats"`
-plural :: Foldable f => f a -> b -> b -> b
+plural :: (Foldable f) => f a -> b -> b -> b
 plural items one other = case toList items of
   [_] -> one
   _ -> other
 
-plural' :: Integral a => a -> b -> b -> b
+plural' :: (Integral a) => a -> b -> b -> b
 plural' 1 one _other = one
 plural' _ _one other = other

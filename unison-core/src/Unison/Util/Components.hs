@@ -1,8 +1,8 @@
 module Unison.Util.Components where
 
-import qualified Data.Graph as Graph
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Graph qualified as Graph
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 
 -- | Order bindings by dependencies and group into components.
@@ -31,7 +31,7 @@ import Unison.Prelude
 --
 -- Uses Tarjan's algorithm:
 --   https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-components :: Ord v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
+components :: (Ord v) => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
 components freeVars bs =
   let varIds =
         Map.fromList (map fst bs `zip` reverse [(1 :: Int) .. length bs])

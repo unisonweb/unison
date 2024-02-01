@@ -1,38 +1,52 @@
 module U.Codebase.Sqlite.Patch.Format
   ( PatchFormat (..),
-    PatchLocalIds (..),
-    SyncPatchFormat (..),
+    PatchLocalIds,
+    PatchLocalIds' (..),
+    HashPatchLocalIds,
+    SyncPatchFormat,
+    SyncPatchFormat' (..),
     applyPatchDiffs,
     localPatchToPatch,
+    localPatchToPatch',
     localPatchDiffToPatchDiff,
+    localPatchToHashPatch,
   )
 where
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
+import Data.Vector qualified as Vector
+import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId (LocalDefnId), LocalHashId (LocalHashId), LocalTextId (LocalTextId))
 import U.Codebase.Sqlite.Patch.Diff (LocalPatchDiff, PatchDiff, PatchDiff' (..))
-import qualified U.Codebase.Sqlite.Patch.Diff as Patch.Diff
-import U.Codebase.Sqlite.Patch.Full (LocalPatch, Patch, Patch' (..))
-import qualified U.Codebase.Sqlite.Patch.Full as Patch.Full
+import U.Codebase.Sqlite.Patch.Diff qualified as Patch.Diff
+import U.Codebase.Sqlite.Patch.Full (HashPatch, LocalPatch, Patch, Patch' (..))
+import U.Codebase.Sqlite.Patch.Full qualified as Patch.Full
 import Unison.Prelude
 
 data PatchFormat
   = Full PatchLocalIds LocalPatch
   | Diff PatchObjectId PatchLocalIds LocalPatchDiff
 
-data PatchLocalIds = LocalIds
-  { patchTextLookup :: Vector TextId,
-    patchHashLookup :: Vector HashId,
-    patchDefnLookup :: Vector ObjectId
+type PatchLocalIds = PatchLocalIds' TextId HashId ObjectId
+
+-- | LocalIds type which can be used in hashing the Patch.
+type HashPatchLocalIds = PatchLocalIds' Text ComponentHash ComponentHash
+
+data PatchLocalIds' t h d = LocalIds
+  { patchTextLookup :: Vector t,
+    patchHashLookup :: Vector h,
+    patchDefnLookup :: Vector d
   }
 
-data SyncPatchFormat
-  = SyncFull PatchLocalIds ByteString
-  | SyncDiff PatchObjectId PatchLocalIds ByteString
+type SyncPatchFormat = SyncPatchFormat' PatchObjectId TextId HashId ObjectId
+
+data SyncPatchFormat' parent text hash defn
+  = SyncFull (PatchLocalIds' text hash defn) ByteString
+  | -- | p is the identity of the thing that the diff is relative to
+    SyncDiff parent (PatchLocalIds' text hash defn) ByteString
 
 -- | Apply a list of patch diffs to a patch, left to right.
 applyPatchDiffs :: Patch -> [PatchDiff] -> Patch
@@ -52,14 +66,30 @@ applyPatchDiffs =
     addRemove add del src =
       Map.unionWith (<>) add (Map.differenceWith remove src del)
 
-    remove :: Ord b => Set b -> Set b -> Maybe (Set b)
+    remove :: (Ord b) => Set b -> Set b -> Maybe (Set b)
     remove src del =
       let diff = Set.difference src del
        in if Set.null diff then Nothing else Just diff
 
-localPatchToPatch :: PatchLocalIds -> LocalPatch -> Patch
-localPatchToPatch li =
+localToPatch' :: (Ord t, Ord h, Ord d) => PatchLocalIds' t h d -> (Patch' LocalTextId LocalHashId LocalDefnId) -> Patch' t h d
+localToPatch' li =
   Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
+
+-- | Generic version of `localPatchToPatch` that works with any `PatchLocalIds'`.
+localPatchToPatch' ::
+  (Ord t, Ord h, Ord d) =>
+  PatchLocalIds' t h d ->
+  Patch' LocalTextId LocalHashId LocalDefnId ->
+  Patch' t h d
+localPatchToPatch' li =
+  Patch.Full.trimap (lookupPatchLocalText li) (lookupPatchLocalHash li) (lookupPatchLocalDefn li)
+
+-- | Type specialized version of `localToPatch'`.
+localPatchToPatch :: PatchLocalIds -> LocalPatch -> Patch
+localPatchToPatch = localToPatch'
+
+localPatchToHashPatch :: HashPatchLocalIds -> LocalPatch -> HashPatch
+localPatchToHashPatch = localToPatch'
 
 localPatchDiffToPatchDiff :: PatchLocalIds -> LocalPatchDiff -> PatchDiff
 localPatchDiffToPatchDiff li =
@@ -68,11 +98,11 @@ localPatchDiffToPatchDiff li =
     (lookupPatchLocalHash li)
     (lookupPatchLocalDefn li)
 
-lookupPatchLocalText :: PatchLocalIds -> LocalTextId -> TextId
+lookupPatchLocalText :: PatchLocalIds' t h d -> LocalTextId -> t
 lookupPatchLocalText li (LocalTextId w) = patchTextLookup li Vector.! fromIntegral w
 
-lookupPatchLocalHash :: PatchLocalIds -> LocalHashId -> HashId
+lookupPatchLocalHash :: PatchLocalIds' t h d -> LocalHashId -> h
 lookupPatchLocalHash li (LocalHashId w) = patchHashLookup li Vector.! fromIntegral w
 
-lookupPatchLocalDefn :: PatchLocalIds -> LocalDefnId -> ObjectId
+lookupPatchLocalDefn :: PatchLocalIds' t h d -> LocalDefnId -> d
 lookupPatchLocalDefn li (LocalDefnId w) = patchDefnLookup li Vector.! fromIntegral w

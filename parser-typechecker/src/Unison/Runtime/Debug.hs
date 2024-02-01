@@ -12,8 +12,8 @@ import Debug.Trace
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Runtime.ANF
 import Unison.Runtime.MCode
-import qualified Unison.Term as Tm
-import Unison.TermPrinter (pretty)
+import Unison.Syntax.TermPrinter (pretty)
+import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers
 import Unison.Util.Pretty (toANSI)
 import Unison.Var (Var)
@@ -33,7 +33,7 @@ traceCombs _ False c = c
 traceCombs w True c = trace (prettyCombs w c "") c
 
 tracePretty ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   Bool ->
   Term v ->
@@ -42,7 +42,7 @@ tracePretty _ False tm = tm
 tracePretty ppe True tm = trace (toANSI 50 $ pretty ppe tm) tm
 
 tracePrettyGroup ::
-  Var v =>
+  (Var v) =>
   Word64 ->
   Bool ->
   SuperGroup v ->

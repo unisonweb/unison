@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: f696d0f997ab3afba6494f5932ac232d27e77073a331ab64d3c8b7929d1deb3a
 
 name:           unison-core
 version:        0.0.0
@@ -18,15 +16,53 @@ source-repository head
 
 library
   exposed-modules:
+      U.Codebase.HashTags
+      U.Codebase.Reference
       U.Core.ABT
       U.Core.ABT.Var
-  other-modules:
-      Paths_unison_core
+      Unison.Core.Project
+      Unison.NameSegment
+      Unison.ShortHash
+      Unison.Util.Alphabetical
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      QuantifiedConstraints
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      ViewPatterns
   build-depends:
       base
     , containers
-    , unison-util
+    , lens
+    , mtl
+    , recover-rtti
+    , rfc5051
+    , text
+    , unison-hash
+    , unison-prelude
+    , unison-util-base32hex
     , vector
   default-language: Haskell2010

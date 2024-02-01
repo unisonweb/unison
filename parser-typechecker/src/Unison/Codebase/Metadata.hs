@@ -1,17 +1,16 @@
 module Unison.Codebase.Metadata where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Unison.Prelude
 import Unison.Reference (Reference)
-import qualified Unison.Util.List as List
+import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
-import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation qualified as R
 import Unison.Util.Relation4 (Relation4)
-import qualified Unison.Util.Relation4 as R4
+import Unison.Util.Relation4 qualified as R4
 import Unison.Util.Star3 (Star3)
-import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Star3 qualified as Star3
 
 type Type = Reference
 
@@ -29,25 +28,29 @@ type Star a n = Star3 a n Type (Type, Value)
 type R4 a n = R4.Relation4 a n Type Value
 
 starToR4 :: (Ord r, Ord n) => Star r n -> Relation4 r n Type Value
-starToR4 = R4.fromList . fmap (\(r, n, _, (t, v)) -> (r, n, t, v)) . Star3.toList
+starToR4 = R4.fromList . starToR4List
 
-hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
+-- | Flattens a Metadata.Star into a 4-tuple.
+starToR4List :: (Ord r) => Star r n -> [(r, n, Type, Value)]
+starToR4List s =
+  [ (f, x, y, z)
+    | f <- Set.toList (Star3.fact s),
+      x <- Set.toList (R.lookupDom f (Star3.d1 s)),
+      (y, z) <- Set.toList (R.lookupDom f (Star3.d3 s))
+  ]
+
+hasMetadata :: (Ord a) => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
 
-hasMetadataWithType' :: Ord a => a -> Type -> R4 a n -> Bool
-hasMetadataWithType' a t r =
-  fromMaybe False $ Set.member t . R3.d2s <$> (Map.lookup a $ R4.d1 r)
+hasMetadataWithType' :: (Ord a) => a -> Type -> R4 a n -> Bool
+hasMetadataWithType' =
+  R4.memberD13
 
-hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
+hasMetadataWithType :: (Ord a) => a -> Type -> Star a n -> Bool
 hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
-
-insertWithMetadata ::
-  (Ord a, Ord n) => (a, Metadata) -> Star a n -> Star a n
-insertWithMetadata (a, md) =
-  inserts [(a, ty, v) | (ty, vs) <- Map.toList md, v <- toList vs]
 
 insert :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
 insert (a, ty, v) = Star3.insertD23 (a, ty, (ty, v))

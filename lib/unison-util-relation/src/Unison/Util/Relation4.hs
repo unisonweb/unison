@@ -4,14 +4,14 @@ module Unison.Util.Relation4 where
 
 import Data.Function (on)
 import Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 import Unison.Util.Relation3 (Relation3 (Relation3))
-import qualified Unison.Util.Relation3 as R3
+import Unison.Util.Relation3 qualified as R3
 import Prelude
 
 data Relation4 a b c d = Relation4
@@ -55,6 +55,12 @@ fromList xs = insertAll xs empty
 filter :: (Ord a, Ord b, Ord c, Ord d) => ((a, b, c, d) -> Bool) -> Relation4 a b c d -> Relation4 a b c d
 filter f = fromList . Prelude.filter f . toList
 
+memberD13 :: (Ord a, Ord c) => a -> c -> Relation4 a b c d -> Bool
+memberD13 a c r4 =
+  case Map.lookup a (d1 r4) of
+    Nothing -> False
+    Just r3 -> R3.memberD2 c r3
+
 selectD3 ::
   (Ord a, Ord b, Ord c, Ord d) =>
   c ->
@@ -79,15 +85,34 @@ selectD34 c d r =
             (Map.lookup c (d3 r))
     ]
 
+restrict34d12 ::
+  (Ord a, Ord b, Ord c, Ord d) =>
+  (c, d) ->
+  Relation4 a b c d ->
+  Relation a b
+restrict34d12 (c, d) Relation4 {d3} =
+  fromMaybe R.empty do
+    abd <- Map.lookup c d3
+    Map.lookup d (R3.d3 abd)
+
 keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
 keys Relation4 {d1, d2, d3, d4} =
   (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
 
-d1set :: Ord a => Relation4 a b c d -> Set a
+lookupD1 :: (Ord a, Ord b, Ord c, Ord d) => a -> Relation4 a b c d -> Relation3 b c d
+lookupD1 a = fromMaybe mempty . Map.lookup a . d1
+
+lookupD2 :: (Ord a, Ord b, Ord c, Ord d) => b -> Relation4 a b c d -> Relation3 a c d
+lookupD2 b = fromMaybe mempty . Map.lookup b . d2
+
+d1set :: (Ord a) => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
 
 d12 :: (Ord a, Ord b) => Relation4 a b c d -> Relation a b
 d12 = R.fromMultimap . fmap (Map.keysSet . R3.d1) . d1
+
+d13 :: (Ord a, Ord c) => Relation4 a b c d -> Relation a c
+d13 = R.fromMultimap . fmap (Map.keysSet . R3.d2) . d1
 
 d34 :: (Ord c, Ord d) => Relation4 a b c d -> Relation c d
 d34 = R.fromMultimap . fmap (Map.keysSet . R3.d3) . d3
@@ -113,6 +138,12 @@ d234 Relation4 {d2, d3, d4} =
 -- todo: make me faster
 d12s :: (Ord a, Ord b) => Relation4 a b c d -> [(a, b)]
 d12s = nubOrd . fmap (\(a, (b, _)) -> (a, b)) . toNestedList
+
+d3s :: Relation4 a b c d -> Set c
+d3s = Map.keysSet . d3
+
+d4s :: Relation4 a b c d -> Set d
+d4s = Map.keysSet . d4
 
 -- e.g. Map.toList (d1 r) >>= \(a, r3) -> (a,) <$> Map.keys (R3.d1 r3)
 
@@ -165,24 +196,23 @@ mapD2Monotonic f Relation4 {d1, d2, d3, d4} =
     }
 
 insertAll ::
-  Foldable f =>
-  Ord a =>
-  Ord b =>
-  Ord c =>
-  Ord d =>
+  (Foldable f) =>
+  (Ord a) =>
+  (Ord b) =>
+  (Ord c) =>
+  (Ord d) =>
   f (a, b, c, d) ->
   Relation4 a b c d ->
   Relation4 a b c d
 insertAll f r = foldl' (\r x -> uncurry4 insert x r) r f
 
 instance (Ord a, Ord b, Ord c, Ord d) => Semigroup (Relation4 a b c d) where
-  (<>) = mappend
-
-instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
-  mempty = Relation4 mempty mempty mempty mempty
-  s1 `mappend` s2 = Relation4 d1' d2' d3' d4'
+  s1 <> s2 = Relation4 d1' d2' d3' d4'
     where
       d1' = Map.unionWith (<>) (d1 s1) (d1 s2)
       d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
       d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
       d4' = Map.unionWith (<>) (d4 s1) (d4 s2)
+
+instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
+  mempty = Relation4 mempty mempty mempty mempty

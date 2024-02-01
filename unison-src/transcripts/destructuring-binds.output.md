@@ -16,6 +16,8 @@ ex1 tup =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -43,10 +45,7 @@ ex1 tup =
     c + d
   
   ex1 : (a, b, (Nat, Nat)) -> Nat
-  ex1 = cases
-    (a, b, (c, d)) ->
-      use Nat +
-      c + d
+  ex1 = cases (a, b, (c, d)) -> c Nat.+ d
 
 ```
 Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pretty-printer currently prefers the `cases` syntax if definition can be printed using either destructuring bind or `cases`.
@@ -61,6 +60,8 @@ ex2 tup = match tup with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -71,14 +72,6 @@ ex2 tup = match tup with
         (also named ex1)
 
 ```
-Syntactically, the left-hand side of the bind can be any pattern and can even include guards, for instance, see below. Because a destructuring bind desugars to a regular pattern match, pattern match coverage will eventually cause this to not typecheck:
-
-```unison
-ex3 =
-  Some x | x > 10 = Some 19
-  x + 1
-```
-
 ## Corner cases
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:
@@ -91,12 +84,22 @@ ex4 =
 
 ```ucm
 
-  I'm not sure what a means at line 2, columns 12-13
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what a refers to here:
   
       2 |   (a,b) = (a Nat.+ b, 19)
   
-  Whatever it is, it has a type that conforms to Nat.
+  I think its type should be:
   
+      Nat
+  
+  Some common causes of this error include:
+    * Your current namespace is too deep to contain the
+      definition in its subtree
+    * The definition is part of a library which hasn't been
+      added to this project
+    * You have a typo in the name
 
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
@@ -105,13 +108,17 @@ Even though the parser accepts any pattern on the LHS of a bind, it looks pretty
 ex5 : 'Text
 ex5 _ = match 99 + 1 with
   12 -> "Hi"
+  _ -> "Bye"
 
 ex5a : 'Text
 ex5a _ = match (99 + 1, "hi") with
   (x, "hi") -> "Not printed as a destructuring bind."
+  _ -> "impossible"
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -134,15 +141,14 @@ ex5a _ = match (99 + 1, "hi") with
 .> view ex5 ex5a
 
   ex5 : 'Text
-  ex5 _ =
-    use Nat +
-    match 99 + 1 with 12 -> "Hi"
+  ex5 _ = match 99 Nat.+ 1 with
+    12 -> "Hi"
+    _  -> "Bye"
   
   ex5a : 'Text
-  ex5a _ =
-    use Nat +
-    match (99 + 1, "hi") with
-      (x, "hi") -> "Not printed as a destructuring bind."
+  ex5a _ = match (99 Nat.+ 1, "hi") with
+    (x, "hi") -> "Not printed as a destructuring bind."
+    _         -> "impossible"
 
 ```
 Notice how it prints both an ordinary match.
@@ -166,9 +172,6 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 .> view ex6
 
   ex6 : (Nat, Nat) -> Nat
-  ex6 = cases
-    (x, y) ->
-      use Nat +
-      x + y
+  ex6 = cases (x, y) -> x Nat.+ y
 
 ```

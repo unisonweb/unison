@@ -24,14 +24,16 @@ two.ambiguousTerm = "term two"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type one.AmbiguousType
-      unique type two.AmbiguousType
+      type one.AmbiguousType
+      type two.AmbiguousType
       one.ambiguousTerm : ##Text
       two.ambiguousTerm : ##Text
 
@@ -41,8 +43,8 @@ two.ambiguousTerm = "term two"
 
   ⍟ I've added these definitions:
   
-    unique type one.AmbiguousType
-    unique type two.AmbiguousType
+    type one.AmbiguousType
+    type two.AmbiguousType
     one.ambiguousTerm : ##Text
     two.ambiguousTerm : ##Text
 
@@ -72,6 +74,8 @@ separateAmbiguousTypeUsage _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   
     ❓
@@ -106,13 +110,19 @@ useAmbiguousTerm = ambiguousTerm
 
 ```ucm
 
-  I'm not sure what ambiguousTerm means at line 1, columns 20-33
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what ambiguousTerm refers to here:
   
       1 | useAmbiguousTerm = ambiguousTerm
   
-  There are no constraints on its type.I found some terms in scope that have matching names and types. Maybe you meant one of these:
+  The name ambiguousTerm is ambiguous. I couldn't narrow it down
+  by type, as any type would work here.
   
-    - one.ambiguousTerm : ##Text
-    - two.ambiguousTerm : ##Text
+  I found some terms in scope that have matching names and
+  types. Maybe you meant one of these:
+  
+  one.ambiguousTerm : ##Text
+  two.ambiguousTerm : ##Text
 
 ```

@@ -8,7 +8,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
-.builtin> ls Bytes
+.> ls builtin.Bytes
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
@@ -49,12 +49,13 @@ And here's the full API:
 
 ```ucm
 .builtin.crypto> find
+.> cd .
 ```
 
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
-```
-> crypto.hash Sha3_256 (fromHex "3849238492")
+```unison
+> hash Sha3_256 (fromHex "3849238492")
 ```
 
 ## Hashing tests
@@ -144,6 +145,26 @@ test> sha2_256.tests.ex4 =
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
     "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
 
+test> sha1.tests.ex1 =
+  ex Sha1
+    "abc"
+    "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+test> sha1.tests.ex2 =
+  ex Sha1
+    ""
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+test> sha1.tests.ex3 =
+  ex Sha1
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+
+test> sha1.tests.ex4 =
+  ex Sha1
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    "a49b2446a02c645bf419f995b67091253a04a259"
+
 test> blake2s_256.tests.ex1 =
   ex Blake2s_256
     ""
@@ -163,14 +184,22 @@ test> blake2b_512.tests.ex3 =
   ex Blake2b_512
     "The quick brown fox jumps over the lazy dof"
     "ab6b007747d8068c02e25a6008db8a77c218d94f3b40d2291a7dc8a62090a744c082ea27af01521a102e42f480a31e9844053f456b4b41e8aa78bbe5c12957bb"
+
+-- check that hashing positive numbers that fit in both Nat and
+-- Int yields the same answer
+test> crypto.hash.numTests =
+        t n =
+          i = Int.fromRepresentation n
+          hash Blake2b_256 n == hash Blake2b_256 i
+        checks (List.map t (range 0 20))
 ```
 
 ```ucm:hide
-.scratch> add
+.> add
 ```
 
 ```ucm
-.scratch> test
+.> test
 ```
 
 ## HMAC tests
@@ -181,9 +210,9 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256 
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
-    "Hi There" 
+  ex' Sha2_256
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
@@ -204,11 +233,34 @@ test> hmac_sha2_512.tests.ex2 =
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
 
+## MD5 tests
+
+Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
+
+```unison
+ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
+
+test> md5.tests.ex1 =
+  ex Md5
+    ""
+    "d41d8cd98f00b204e9800998ecf8427e"
+
+test> md5.tests.ex2 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog"
+    "9e107d9d372bb6826bd81d3542a419d6"
+
+test> md5.tests.ex3 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog."
+    "e4d909c290d0fb1ca068ffaddf22cbd0"
+```
+
 ```ucm:hide
-.scratch> add
+.> add
 ```
 
 ```ucm
-.scratch> test
+.> test
 ```
 

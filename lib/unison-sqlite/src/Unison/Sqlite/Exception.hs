@@ -1,7 +1,10 @@
+{-# LANGUAGE ImplicitParams #-}
+
 -- | Sqlite exception utils.
 module Unison.Sqlite.Exception
   ( -- * @SomeSqliteException@
     SomeSqliteException (..),
+    isCantOpenException,
 
     -- ** @SqliteConnectException@
     SqliteConnectException (..),
@@ -20,10 +23,11 @@ where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
-import qualified Database.SQLite.Simple as Sqlite
-import Debug.RecoverRTTI (anythingToString)
+import Database.SQLite.Simple qualified as Sqlite
+import GHC.Stack (currentCallStack)
 import Unison.Prelude
-import Unison.Sqlite.Sql
+import Unison.Sqlite.Connection.Internal (Connection)
+import Unison.Sqlite.Sql (Sql (..))
 import UnliftIO.Exception
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -46,11 +50,17 @@ import UnliftIO.Exception
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
 -- just one exception type, @SomeSqliteException@.
 data SomeSqliteException
-  = forall e. Exception e => SomeSqliteException e
+  = forall e. (Exception e) => SomeSqliteException e
   deriving anyclass (Exception)
 
 instance Show SomeSqliteException where
   show (SomeSqliteException e) = show e
+
+isCantOpenException :: SomeSqliteException -> Bool
+isCantOpenException (SomeSqliteException exception) =
+  case cast exception of
+    Just SqliteConnectException {exception = Sqlite.SQLError Sqlite.ErrorCan'tOpen _ _} -> True
+    _ -> False
 
 ------------------------------------------------------------------------------------------------------------------------
 -- SomeSqliteException
@@ -88,14 +98,23 @@ rethrowAsSqliteConnectException name file exception = do
 --   relation will have certain number of rows,
 -- * A postcondition violation of a function like 'Unison.Sqlite.queryListRowCheck', which takes a user-defined check as
 --   an argument.
+--
+-- A @SqliteQueryException@ should not be inspected or used for control flow when run in a trusted environment, where
+-- the database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code
+-- that is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible,
+-- it should be considered a bug in this library.
+--
+-- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
+-- just one exception type, @SqliteQueryException@.
 data SqliteQueryException = SqliteQueryException
-  { threadId :: ThreadId,
-    connection :: String,
-    sql :: Sql,
-    params :: String,
+  { sql :: Text,
+    params :: [Sqlite.SQLData],
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
-    exception :: SomeSqliteExceptionReason
+    exception :: SomeSqliteExceptionReason,
+    callStack :: [String],
+    connection :: Connection,
+    threadId :: ThreadId
   }
   deriving stock (Show)
 
@@ -112,27 +131,28 @@ isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReaso
     Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
     _ -> False
 
-data SqliteQueryExceptionInfo params connection = SqliteQueryExceptionInfo
-  { connection :: connection,
+data SqliteQueryExceptionInfo = SqliteQueryExceptionInfo
+  { connection :: Connection,
     sql :: Sql,
-    params :: Maybe params,
     exception :: SomeSqliteExceptionReason
   }
 
-throwSqliteQueryException :: Show connection => SqliteQueryExceptionInfo params connection -> IO a
-throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, params, sql} = do
+throwSqliteQueryException :: SqliteQueryExceptionInfo -> IO a
+throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql sql params} = do
   threadId <- myThreadId
+  callStack <- currentCallStack
   throwIO
     SqliteQueryException
       { sql,
-        params = maybe "" anythingToString params,
+        params,
         exception,
-        connection = show connection,
+        callStack,
+        connection,
         threadId
       }
 
 data SomeSqliteExceptionReason
-  = forall e. SqliteExceptionReason e => SomeSqliteExceptionReason e
+  = forall e. (SqliteExceptionReason e) => SomeSqliteExceptionReason e
   deriving anyclass (SqliteExceptionReason)
 
 instance Show SomeSqliteExceptionReason where
@@ -142,3 +162,5 @@ instance Show SomeSqliteExceptionReason where
 class (Show e, Typeable e) => SqliteExceptionReason e
 
 instance SqliteExceptionReason Sqlite.SQLError
+
+instance SqliteExceptionReason Void

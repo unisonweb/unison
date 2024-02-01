@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Git
     withIsolatedRepo,
     debugGit,
     gitDirToPath,
+    gitVerbosity,
     GitBranchBehavior (..),
     GitRepo (..),
 
@@ -19,30 +20,26 @@ module Unison.Codebase.Editor.Git
   )
 where
 
-import qualified Control.Exception
+import Control.Exception qualified
 import Control.Monad.Except (MonadError, throwError)
-import qualified Data.ByteString.Base16 as ByteString
-import qualified Data.Char as Char
-import qualified Data.Text as Text
+import Data.ByteString.Base16 qualified as ByteString
+import Data.Char qualified as Char
+import Data.Text qualified as Text
 import Shellmet (($?), ($^), ($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..))
 import Unison.Codebase.GitError (GitProtocolError)
-import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.GitError qualified as GitError
+import Unison.Debug qualified as Debug
 import Unison.Prelude
-import UnliftIO (MonadUnliftIO)
-import qualified UnliftIO
+import UnliftIO qualified
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory)
-import UnliftIO.Environment (lookupEnv)
 import UnliftIO.IO (hFlush, stdout)
-import qualified UnliftIO.Process as UnliftIO
+import UnliftIO.Process qualified as UnliftIO
 
 debugGit :: Bool
-debugGit =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_GIT"))
-{-# NOINLINE debugGit #-}
+debugGit = Debug.shouldDebug Debug.Git
 
 gitVerbosity :: [Text]
 gitVerbosity =
@@ -62,21 +59,23 @@ encodeFileName s =
       go [] = []
       encodeHex :: String -> String
       encodeHex =
-        Text.unpack . Text.toUpper . ByteString.encodeBase16
+        Text.unpack
+          . Text.toUpper
+          . ByteString.encodeBase16
           . encodeUtf8
           . Text.pack
    in -- 'bare' suffix is to avoid clashes with non-bare repos initialized by earlier versions
       -- of ucm.
       go s <> "-bare"
 
-gitCacheDir :: MonadIO m => Text -> m FilePath
+gitCacheDir :: (MonadIO m) => Text -> m FilePath
 gitCacheDir url =
   getXdgDirectory XdgCache $
     "unisonlanguage"
       </> "gitfiles"
       </> encodeFileName (Text.unpack url)
 
-withStatus :: MonadIO m => String -> m a -> m a
+withStatus :: (MonadIO m) => String -> m a -> m a
 withStatus str ma = do
   flushStr str
   a <- ma
@@ -137,7 +136,7 @@ data GitBranchBehavior
 withRepo ::
   forall m a.
   (MonadUnliftIO m) =>
-  ReadRepo ->
+  ReadGitRepo ->
   GitBranchBehavior ->
   (GitRepo -> m a) ->
   m (Either GitProtocolError a)
@@ -210,7 +209,7 @@ withRepo repo@(ReadGitRepo {url = uri, ref = mayGitRef}) branchBehavior action =
       pure succeeded
 
 -- | Do a `git clone` (for a not-previously-cached repo).
-cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> FilePath -> m GitRepo
+cloneIfMissing :: (MonadIO m, MonadError GitProtocolError m) => ReadGitRepo -> FilePath -> m GitRepo
 cloneIfMissing repo@(ReadGitRepo {url = uri}) localPath = do
   doesDirectoryExist localPath >>= \case
     True ->
@@ -236,19 +235,19 @@ cloneIfMissing repo@(ReadGitRepo {url = uri}) localPath = do
       unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir repo localPath
 
 -- | See if `git` is on the system path.
-checkForGit :: MonadIO m => MonadError GitProtocolError m => m ()
+checkForGit :: (MonadIO m) => (MonadError GitProtocolError m) => m ()
 checkForGit = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError GitError.NoGit
 
 -- | Returns the name of the default branch of a repository, if one exists.
-getDefaultBranch :: MonadIO m => GitRepo -> m (Maybe Text)
+getDefaultBranch :: (MonadIO m) => GitRepo -> m (Maybe Text)
 getDefaultBranch dir = liftIO $ do
   (Text.stripPrefix "refs/heads/" <$> gitTextIn dir ["symbolic-ref", "HEAD"])
     $? pure Nothing
 
 -- | Does `git` recognize this directory as being managed by git?
-isGitRepo :: MonadIO m => GitRepo -> m Bool
+isGitRepo :: (MonadIO m) => GitRepo -> m Bool
 isGitRepo dir =
   liftIO $
     (True <$ gitIn dir (["rev-parse"] ++ gitVerbosity)) $? pure False
@@ -260,7 +259,7 @@ isEmptyGitRepo dir = liftIO do
   (gitTextIn dir (["rev-parse", "HEAD"] ++ gitVerbosity) $> False) $? pure True
 
 -- | Perform an IO action, passing any IO exception to `handler`
-withIOError :: MonadIO m => IO a -> (IOException -> m a) -> m a
+withIOError :: (MonadIO m) => IO a -> (IOException -> m a) -> m a
 withIOError action handler =
   liftIO (fmap Right action `Control.Exception.catch` (pure . Left))
     >>= either handler pure
@@ -292,27 +291,27 @@ setupGitDir dir =
 -- | Run a git command in the current work directory.
 -- Note: this should only be used for commands like 'clone' which don't interact with an
 -- existing repository.
-gitGlobal :: MonadIO m => [Text] -> m ()
+gitGlobal :: (MonadIO m) => [Text] -> m ()
 gitGlobal args = do
   when debugGit $ traceM (Text.unpack . Text.unwords $ ["$ git"] <> args)
   liftIO $ "git" $^ (args ++ gitVerbosity)
 
 -- | Run a git command in the repository at localPath
-gitIn :: MonadIO m => GitRepo -> [Text] -> m ()
+gitIn :: (MonadIO m) => GitRepo -> [Text] -> m ()
 gitIn localPath args = do
   when debugGit $ traceM (Text.unpack . Text.unwords $ ["$ git"] <> setupGitDir localPath <> args)
   liftIO $ "git" $^ (setupGitDir localPath <> args)
 
 -- | like 'gitIn', but silences all output from the command and returns whether the command
 -- succeeded.
-gitInCaptured :: MonadIO m => GitRepo -> [Text] -> m (Bool, Text, Text)
+gitInCaptured :: (MonadIO m) => GitRepo -> [Text] -> m (Bool, Text, Text)
 gitInCaptured localPath args = do
   when debugGit $ traceM (Text.unpack . Text.unwords $ ["$ git"] <> setupGitDir localPath <> args)
   (exitCode, stdout, stderr) <- UnliftIO.readProcessWithExitCode "git" (Text.unpack <$> setupGitDir localPath <> args) ""
   pure (exitCode == ExitSuccess, Text.pack stdout, Text.pack stderr)
 
 -- | Run a git command in the repository at localPath and capture stdout
-gitTextIn :: MonadIO m => GitRepo -> [Text] -> m Text
+gitTextIn :: (MonadIO m) => GitRepo -> [Text] -> m Text
 gitTextIn localPath args = do
   when debugGit $ traceM (Text.unpack . Text.unwords $ ["$ git"] <> setupGitDir localPath <> args)
   liftIO $ "git" $| setupGitDir localPath <> args

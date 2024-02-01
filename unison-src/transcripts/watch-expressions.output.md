@@ -10,6 +10,8 @@ test> pass = [Ok "Passed"]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -40,6 +42,8 @@ test> pass = [Ok "Passed"]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
   
@@ -65,5 +69,36 @@ test> pass = [Ok "Passed"]
   ✅ 1 test(s) passing
   
   Tip: Use view pass to view the source of a test.
+
+```
+```unison
+> Scope.run do
+    freeze! (Scope.arrayOf 0 0)
+
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+  ⚠️
+  
+  I had trouble decompiling some results.
+  
+  The following errors were encountered:
+      A foreign value with no decompiled representation was
+      encountered:
+        ##ImmutableArray
+
+    1 | > Scope.run do
+          ⧩
+          bug "<Foreign>"
 
 ```

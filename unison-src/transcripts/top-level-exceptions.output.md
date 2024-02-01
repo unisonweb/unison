@@ -9,7 +9,7 @@ FYI, here are the `Exception` and `Failure` types:
   structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
   
-  unique type builtin.io2.Failure
+  type builtin.io2.Failure
     = Failure Type Text Any
 
 ```
@@ -27,6 +27,8 @@ mytest _ = [Ok "Great"]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -39,6 +41,8 @@ mytest _ = [Ok "Great"]
 ```
 ```ucm
 .> run main
+
+  ()
 
 .> add
 
@@ -72,13 +76,15 @@ unique type RuntimeError =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type RuntimeError
+      type RuntimeError
       error : Text -> a ->{Exception} x
       main2 : '{Exception} r
 
@@ -91,5 +97,9 @@ unique type RuntimeError =
   The program halted with an unhandled exception:
   
     Failure (typeLink RuntimeError) "oh noes!" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```

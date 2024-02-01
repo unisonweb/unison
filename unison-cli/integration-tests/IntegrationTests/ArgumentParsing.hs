@@ -5,7 +5,7 @@ module IntegrationTests.ArgumentParsing where
 import Data.List (intercalate)
 import Data.Time (diffUTCTime, getCurrentTime)
 import EasyTest
-import qualified System.Directory
+import System.Directory qualified
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)
@@ -56,11 +56,11 @@ test = do
         expectExitCode ExitSuccess ucm ["transcript.fork", transcriptFile, "--codebase-create", tempCodebase] "",
         -- , expectExitCode ExitSuccess ucm ["headless"] "" -- ?
         -- options
-        expectExitCode ExitSuccess ucm ["--port", "8000", "--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--host", "localhost", "--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--token", "MY_TOKEN", "--codebase-create", tempCodebase, "--no-base"] "", -- ?
-        expectExitCode ExitSuccess ucm ["--codebase-create", tempCodebase, "--no-base"] "",
-        expectExitCode ExitSuccess ucm ["--ui", tempCodebase, "--codebase-create", tempCodebase, "--no-base"] "",
+        expectExitCode ExitSuccess ucm ["--port", "8000", "--codebase-create", tempCodebase] "exit",
+        expectExitCode ExitSuccess ucm ["--host", "localhost", "--codebase-create", tempCodebase] "exit",
+        expectExitCode ExitSuccess ucm ["--token", "MY_TOKEN", "--codebase-create", tempCodebase] "exit", -- ?
+        expectExitCode ExitSuccess ucm ["--codebase-create", tempCodebase] "exit",
+        expectExitCode ExitSuccess ucm ["--ui", tempCodebase, "--codebase-create", tempCodebase] "exit",
         scope "can compile, then run compiled artifact" $
           tests
             [ expectExitCode ExitSuccess ucm ["transcript", transcriptFile] "",
@@ -78,7 +78,7 @@ expectExitCode expected cmd args stdin = scope (intercalate " " (cmd : args)) do
   expectEqual code expected
 
 defaultArgs :: [String]
-defaultArgs = ["--codebase-create", tempCodebase, "--no-base"]
+defaultArgs = ["--codebase-create", tempCodebase]
 
 clearTempCodebase :: () -> IO ()
 clearTempCodebase _ =

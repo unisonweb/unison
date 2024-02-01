@@ -15,16 +15,19 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
-import qualified Data.Char as Char
+import Data.Atomics (Ticket)
+import Data.Char qualified as Char
 import Data.Foldable (toList)
 import Data.IORef (IORef)
-import qualified Data.Sequence as Sq
+import Data.Primitive.Array as PA
+import Data.Primitive.ByteArray as PA
+import Data.Sequence qualified as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
-import Data.Word (Word64)
+import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (Socket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
-import qualified Unison.Builtin.Decls as Ty
+import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (Mem (..), SuperGroup, Value, internalBug)
 import Unison.Runtime.Exception
@@ -32,8 +35,20 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
-import Unison.Type (mvarRef, refRef, tvarRef, typeLinkRef)
+import Unison.Type
+  ( iarrayRef,
+    ibytearrayRef,
+    marrayRef,
+    mbytearrayRef,
+    mvarRef,
+    promiseRef,
+    refRef,
+    ticketRef,
+    tvarRef,
+    typeLinkRef,
+  )
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.RefPromise (Promise)
 import Unison.Util.Text (Text, pack, unpack)
 
 -- Foreign functions operating on stacks
@@ -86,6 +101,18 @@ instance ForeignConvention Word64 where
     ustk <- bump ustk
     (ustk, bstk) <$ pokeN ustk n
 
+instance ForeignConvention Word8 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word8)
+  writeForeign = writeForeignAs (fromIntegral :: Word8 -> Word64)
+
+instance ForeignConvention Word16 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word16)
+  writeForeign = writeForeignAs (fromIntegral :: Word16 -> Word64)
+
+instance ForeignConvention Word32 where
+  readForeign = readForeignAs (fromIntegral :: Word64 -> Word32)
+  writeForeign = writeForeignAs (fromIntegral :: Word32 -> Word64)
+
 instance ForeignConvention Char where
   readForeign (i : us) bs ustk _ = (us,bs,) . Char.chr <$> peekOff ustk i
   readForeign [] _ _ _ = foreignCCError "Char"
@@ -124,7 +151,7 @@ instance ForeignConvention POSIXTime where
   readForeign = readForeignAs (fromIntegral :: Int -> POSIXTime)
   writeForeign = writeForeignAs (round :: POSIXTime -> Int)
 
-instance ForeignConvention a => ForeignConvention (Maybe a) where
+instance (ForeignConvention a) => ForeignConvention (Maybe a) where
   readForeign (i : us) bs ustk bstk =
     peekOff ustk i >>= \case
       0 -> pure (us, bs, Nothing)
@@ -190,7 +217,7 @@ instance ForeignConvention IOException where
   writeForeign = writeForeignAs (ioeEncode . ioe_type)
 
 readForeignAs ::
-  ForeignConvention a =>
+  (ForeignConvention a) =>
   (a -> b) ->
   [Int] ->
   [Int] ->
@@ -200,7 +227,7 @@ readForeignAs ::
 readForeignAs f us bs ustk bstk = fmap f <$> readForeign us bs ustk bstk
 
 writeForeignAs ::
-  ForeignConvention b =>
+  (ForeignConvention b) =>
   (a -> b) ->
   Stack 'UN ->
   Stack 'BX ->
@@ -209,7 +236,7 @@ writeForeignAs ::
 writeForeignAs f ustk bstk x = writeForeign ustk bstk (f x)
 
 readForeignEnum ::
-  Enum a =>
+  (Enum a) =>
   [Int] ->
   [Int] ->
   Stack 'UN ->
@@ -218,7 +245,7 @@ readForeignEnum ::
 readForeignEnum = readForeignAs toEnum
 
 writeForeignEnum ::
-  Enum a =>
+  (Enum a) =>
   Stack 'UN ->
   Stack 'BX ->
   a ->
@@ -226,7 +253,7 @@ writeForeignEnum ::
 writeForeignEnum = writeForeignAs fromEnum
 
 readForeignBuiltin ::
-  BuiltinForeign b =>
+  (BuiltinForeign b) =>
   [Int] ->
   [Int] ->
   Stack 'UN ->
@@ -235,7 +262,7 @@ readForeignBuiltin ::
 readForeignBuiltin = readForeignAs (unwrapBuiltin . marshalToForeign)
 
 writeForeignBuiltin ::
-  BuiltinForeign b =>
+  (BuiltinForeign b) =>
   Stack 'UN ->
   Stack 'BX ->
   b ->
@@ -297,7 +324,7 @@ instance
     (ustk, bstk) <- writeForeign ustk bstk y
     writeForeign ustk bstk x
 
-instance ForeignConvention a => ForeignConvention (Failure a) where
+instance (ForeignConvention a) => ForeignConvention (Failure a) where
   readForeign us bs ustk bstk = do
     (us, bs, typeref) <- readTypelink us bs ustk bstk
     (us, bs, message) <- readForeign us bs ustk bstk
@@ -323,6 +350,51 @@ instance
     pure (us, bs, (a, b, c))
 
   writeForeign ustk bstk (a, b, c) = do
+    (ustk, bstk) <- writeForeign ustk bstk c
+    (ustk, bstk) <- writeForeign ustk bstk b
+    writeForeign ustk bstk a
+
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d
+  ) =>
+  ForeignConvention (a, b, c, d)
+  where
+  readForeign us bs ustk bstk = do
+    (us, bs, a) <- readForeign us bs ustk bstk
+    (us, bs, b) <- readForeign us bs ustk bstk
+    (us, bs, c) <- readForeign us bs ustk bstk
+    (us, bs, d) <- readForeign us bs ustk bstk
+    pure (us, bs, (a, b, c, d))
+
+  writeForeign ustk bstk (a, b, c, d) = do
+    (ustk, bstk) <- writeForeign ustk bstk d
+    (ustk, bstk) <- writeForeign ustk bstk c
+    (ustk, bstk) <- writeForeign ustk bstk b
+    writeForeign ustk bstk a
+
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d,
+    ForeignConvention e
+  ) =>
+  ForeignConvention (a, b, c, d, e)
+  where
+  readForeign us bs ustk bstk = do
+    (us, bs, a) <- readForeign us bs ustk bstk
+    (us, bs, b) <- readForeign us bs ustk bstk
+    (us, bs, c) <- readForeign us bs ustk bstk
+    (us, bs, d) <- readForeign us bs ustk bstk
+    (us, bs, e) <- readForeign us bs ustk bstk
+    pure (us, bs, (a, b, c, d, e))
+
+  writeForeign ustk bstk (a, b, c, d, e) = do
+    (ustk, bstk) <- writeForeign ustk bstk e
+    (ustk, bstk) <- writeForeign ustk bstk d
     (ustk, bstk) <- writeForeign ustk bstk c
     (ustk, bstk) <- writeForeign ustk bstk b
     writeForeign ustk bstk a
@@ -383,6 +455,14 @@ instance ForeignConvention (IORef Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap refRef)
 
+instance ForeignConvention (Ticket Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap ticketRef)
+
+instance ForeignConvention (Promise Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap promiseRef)
+
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
@@ -395,13 +475,62 @@ instance ForeignConvention Foreign where
   readForeign = readForeignAs marshalToForeign
   writeForeign = writeForeignAs Foreign
 
-instance {-# OVERLAPPABLE #-} BuiltinForeign b => ForeignConvention b where
+instance ForeignConvention (PA.MutableArray s Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap marrayRef)
+
+instance ForeignConvention (PA.MutableByteArray s) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap mbytearrayRef)
+
+instance ForeignConvention (PA.Array Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap iarrayRef)
+
+instance ForeignConvention PA.ByteArray where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap ibytearrayRef)
+
+instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
-instance {-# OVERLAPPABLE #-} BuiltinForeign b => ForeignConvention [b] where
+fromUnisonPair :: Closure -> (a, b)
+fromUnisonPair (DataC _ _ [] [x, DataC _ _ [] [y, _]]) =
+  (unwrapForeignClosure x, unwrapForeignClosure y)
+fromUnisonPair _ = error "fromUnisonPair: invalid closure"
+
+toUnisonPair ::
+  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> Closure
+toUnisonPair (x, y) =
+  DataC
+    Ty.pairRef
+    0
+    []
+    [wr x, DataC Ty.pairRef 0 [] [wr y, un]]
+  where
+    un = DataC Ty.unitRef 0 [] []
+    wr z = Foreign $ wrapBuiltin z
+
+unwrapForeignClosure :: Closure -> a
+unwrapForeignClosure = unwrapForeign . marshalToForeign
+
+instance {-# OVERLAPPABLE #-} (BuiltinForeign a, BuiltinForeign b) => ForeignConvention [(a, b)] where
   readForeign us (i : bs) _ bstk =
-    (us,bs,) . fmap (unwrapForeign . marshalToForeign)
+    (us,bs,)
+      . fmap fromUnisonPair
+      . toList
+      <$> peekOffS bstk i
+  readForeign _ _ _ _ = foreignCCError "[(a,b)]"
+
+  writeForeign ustk bstk l = do
+    bstk <- bump bstk
+    (ustk, bstk) <$ pokeS bstk (toUnisonPair <$> Sq.fromList l)
+
+instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention [b] where
+  readForeign us (i : bs) _ bstk =
+    (us,bs,)
+      . fmap unwrapForeignClosure
       . toList
       <$> peekOffS bstk i
   readForeign _ _ _ _ = foreignCCError "[b]"

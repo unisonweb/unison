@@ -1,46 +1,44 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine.DisplayValues where
 
 import Control.Lens ((^.))
-import qualified Data.Map as Map
-import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Codebase.Editor.DisplayObject as DO
-import qualified Unison.CommandLine.OutputMessages as OutputMessages
+import Data.Map qualified as Map
+import Unison.ABT qualified as ABT
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Decls qualified as DD
+import Unison.Codebase.Editor.DisplayObject qualified as DO
+import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.DeclPrinter as DP
-import qualified Unison.NamePrinter as NP
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.ConstructorType qualified as CT
+import Unison.DataDeclaration qualified as DD
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.PrettyPrintEnv.Util as PPE
-import qualified Unison.PrettyPrintEnvDecl as PPE
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Util qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as DD
-import qualified Unison.ShortHash as SH
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as DD
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DP
+import Unison.Syntax.NamePrinter qualified as NP
+import Unison.Syntax.TermPrinter qualified as TP
+import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
-import qualified Unison.Term as Term
-import qualified Unison.TermPrinter as TP
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.SyntaxText as S
+import Unison.Util.Pretty qualified as P
+import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 
 type Pretty = P.Pretty P.ColorText
 
 displayTerm ::
-  Monad m =>
+  (Monad m) =>
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
@@ -63,7 +61,7 @@ displayTerm = displayTerm' False
 type ElideUnit = Bool
 
 displayTerm' ::
-  Monad m =>
+  (Monad m) =>
   ElideUnit ->
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
@@ -87,6 +85,8 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
           Nothing -> pure $ errMsg tm'
           Just tm -> displayTerm pped terms typeOf eval types tm
     | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
+  tm@(Term.Constructor' (ConstructorReference typ _))
+    | typ == DD.prettyAnnotatedRef -> displayPretty pped terms typeOf eval types tm
   tm -> pure $ src tm
   where
     errMsg tm =
@@ -109,7 +109,7 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
 displayPretty ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   PPE.PrettyPrintEnvDecl ->
   (Reference -> m (Maybe (Term Symbol ()))) ->
   (Referent -> m (Maybe (Type Symbol ()))) ->
@@ -120,7 +120,7 @@ displayPretty ::
 displayPretty pped terms typeOf eval types tm = go tm
   where
     go = \case
-      DD.PrettyEmpty _ -> pure mempty
+      DD.PrettyEmpty -> pure mempty
       DD.PrettyGroup _ p -> P.group <$> go p
       DD.PrettyLit _ (DD.EitherLeft' special) -> goSpecial special
       DD.PrettyLit _ (DD.EitherRight' consoleTxt) -> goConsole consoleTxt
@@ -153,7 +153,7 @@ displayPretty pped terms typeOf eval types tm = go tm
             go ref =
               (ref,) <$> do
                 decl <- types ref
-                let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                let missing = DO.MissingObject (Reference.toShortHash ref)
                 pure $ maybe missing DO.UserObject decl
          in Map.fromList <$> traverse go tys
       termMap <-
@@ -162,7 +162,7 @@ displayPretty pped terms typeOf eval types tm = go tm
                 Reference.Builtin _ -> pure $ Builtin.typeOf missing DO.BuiltinObject ref
                 _ -> maybe missing DO.UserObject <$> terms ref
               where
-                missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                missing = DO.MissingObject (Reference.toShortHash ref)
          in Map.fromList <$> traverse go tms
       -- in docs, we use suffixed names everywhere
       let pped' = pped {PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped}
@@ -192,11 +192,14 @@ displayPretty pped terms typeOf eval types tm = go tm
             go = pure . P.underline . P.syntaxToColor . NP.prettyHashQualified
          in case e of
               DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
-              DD.EitherRight' (DD.Doc2Term (Term.Ref' ref)) -> go $ PPE.termName ppe (Referent.Ref ref)
-              DD.EitherRight' (DD.Doc2Term (Term.Request' ref)) ->
-                go $ PPE.termName ppe (Referent.Con ref CT.Effect)
-              DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref)) ->
-                go $ PPE.termName ppe (Referent.Con ref CT.Data)
+              -- Eta-reduce the term, as the compiler may have eta-expanded it.
+              DD.EitherRight' (DD.Doc2Term t) -> case Term.etaNormalForm t of
+                Term.Ref' ref -> go $ PPE.termName ppe (Referent.Ref ref)
+                Term.Request' ref ->
+                  go $ PPE.termName ppe (Referent.Con ref CT.Effect)
+                Term.Constructor' ref ->
+                  go $ PPE.termName ppe (Referent.Con ref CT.Data)
+                _ -> P.red <$> displayTerm pped terms typeOf eval types t
               _ -> P.red <$> displayTerm pped terms typeOf eval types e
       -- Signature [Doc2.Term]
       DD.Doc2SpecialFormSignature (Term.List' tms) ->
@@ -327,7 +330,7 @@ displayDoc pped terms typeOf evaluated types = go
         let ppe = PPE.declarationPPE pped ref
          in terms ref >>= \case
               Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
-              Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
+              Just tm -> pure . P.syntaxToColor . P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
       Referent.Con (ConstructorReference r _) _ -> prettyType r
     prettyType r =
       let ppe = PPE.declarationPPE pped r

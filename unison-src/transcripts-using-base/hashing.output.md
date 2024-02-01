@@ -3,7 +3,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
-.builtin> ls Bytes
+.> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
@@ -27,15 +27,16 @@ Unison has cryptographic builtins for hashing and computing [HMACs](https://en.w
   20. fromBase64            (Bytes -> Either Text Bytes)
   21. fromBase64UrlUnpadded (Bytes -> Either Text Bytes)
   22. fromList              ([Nat] -> Bytes)
-  23. gzip/                 (2 definitions)
-  24. size                  (Bytes -> Nat)
-  25. take                  (Nat -> Bytes -> Bytes)
-  26. toBase16              (Bytes -> Bytes)
-  27. toBase32              (Bytes -> Bytes)
-  28. toBase64              (Bytes -> Bytes)
-  29. toBase64UrlUnpadded   (Bytes -> Bytes)
-  30. toList                (Bytes -> [Nat])
-  31. zlib/                 (2 definitions)
+  23. gzip/                 (2 terms)
+  24. indexOf               (Bytes -> Bytes -> Optional Nat)
+  25. size                  (Bytes -> Nat)
+  26. take                  (Nat -> Bytes -> Bytes)
+  27. toBase16              (Bytes -> Bytes)
+  28. toBase32              (Bytes -> Bytes)
+  29. toBase64              (Bytes -> Bytes)
+  30. toBase64UrlUnpadded   (Bytes -> Bytes)
+  31. toList                (Bytes -> [Nat])
+  32. zlib/                 (2 terms)
 
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
@@ -75,6 +76,8 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -87,6 +90,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
       ex4      : Text
       ex5      : Text
       f        : x -> x
+        (also named id)
       mysecret : Bytes
   
   Now evaluating any watch expressions (lines starting with
@@ -106,11 +110,11 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   
     25 | > ex4
            ⧩
-           "1e014deb2a1ef1dc3c8765a6f7ebf7184ccaeaecbc2b5428030befd7085139db"
+           "764a6e91271bce6ce8d8f49d551ba0e586a1e20d8bc2df0dff3117fcd9a11d9a"
   
     26 | > ex5
            ⧩
-           "c729f5ed4b2a89dc33ae06cd0b925174c990328c736123bc220e6fe8b42d3d53"
+           "abd0e845a5544ced19b1c05df18a05c10b252a355957b18b99b33970d5217de6"
 
 ```
 And here's the full API:
@@ -118,28 +122,47 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  hash : HashAlgorithm -> a -> Bytes
+  1.  hash : HashAlgorithm -> a -> ##Bytes
   2.  builtin type HashAlgorithm
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
   5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  7.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  8.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  9.  HashAlgorithm.Sha3_512 : HashAlgorithm
-  10. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  6.  HashAlgorithm.Md5 : HashAlgorithm
+  7.  HashAlgorithm.Sha1 : HashAlgorithm
+  8.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  9.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  10. HashAlgorithm.Sha3_256 : HashAlgorithm
+  11. HashAlgorithm.Sha3_512 : HashAlgorithm
+  12. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
+  13. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
+  14. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
   
+
+.> cd .
 
 ```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
+```unison
+> hash Sha3_256 (fromHex "3849238492")
 ```
-> crypto.hash Sha3_256 (fromHex "3849238492")
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > hash Sha3_256 (fromHex "3849238492")
+          ⧩
+          0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
 
 ```
-
 ## Hashing tests
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
@@ -227,6 +250,26 @@ test> sha2_256.tests.ex4 =
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
     "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
 
+test> sha1.tests.ex1 =
+  ex Sha1
+    "abc"
+    "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+test> sha1.tests.ex2 =
+  ex Sha1
+    ""
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+
+test> sha1.tests.ex3 =
+  ex Sha1
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
+
+test> sha1.tests.ex4 =
+  ex Sha1
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"
+    "a49b2446a02c645bf419f995b67091253a04a259"
+
 test> blake2s_256.tests.ex1 =
   ex Blake2s_256
     ""
@@ -246,10 +289,18 @@ test> blake2b_512.tests.ex3 =
   ex Blake2b_512
     "The quick brown fox jumps over the lazy dof"
     "ab6b007747d8068c02e25a6008db8a77c218d94f3b40d2291a7dc8a62090a744c082ea27af01521a102e42f480a31e9844053f456b4b41e8aa78bbe5c12957bb"
+
+-- check that hashing positive numbers that fit in both Nat and
+-- Int yields the same answer
+test> crypto.hash.numTests =
+        t n =
+          i = Int.fromRepresentation n
+          hash Blake2b_256 n == hash Blake2b_256 i
+        checks (List.map t (range 0 20))
 ```
 
 ```ucm
-.scratch> test
+.> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -257,6 +308,11 @@ test> blake2b_512.tests.ex3 =
   ◉ blake2b_512.tests.ex2   Passed
   ◉ blake2b_512.tests.ex3   Passed
   ◉ blake2s_256.tests.ex1   Passed
+  ◉ crypto.hash.numTests    Passed
+  ◉ sha1.tests.ex1          Passed
+  ◉ sha1.tests.ex2          Passed
+  ◉ sha1.tests.ex3          Passed
+  ◉ sha1.tests.ex4          Passed
   ◉ sha2_256.tests.ex1      Passed
   ◉ sha2_256.tests.ex2      Passed
   ◉ sha2_256.tests.ex3      Passed
@@ -274,7 +330,7 @@ test> blake2b_512.tests.ex3 =
   ◉ sha3_512.tests.ex3      Passed
   ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 20 test(s) passing
+  ✅ 25 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
@@ -288,9 +344,9 @@ These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
-  ex' Sha2_256 
-    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b" 
-    "Hi There" 
+  ex' Sha2_256
+    "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+    "Hi There"
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 test> hmac_sha2_512.tests.ex1 =
   ex' Sha2_512
@@ -313,6 +369,8 @@ test> hmac_sha2_512.tests.ex2 =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -332,7 +390,7 @@ test> hmac_sha2_512.tests.ex2 =
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    4 |   ex' Sha2_256 
+    4 |   ex' Sha2_256
     
     ✅ Passed Passed
   
@@ -349,37 +407,96 @@ test> hmac_sha2_512.tests.ex2 =
     ✅ Passed Passed
 
 ```
+## MD5 tests
+
+Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
+
+```unison
+ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
+
+test> md5.tests.ex1 =
+  ex Md5
+    ""
+    "d41d8cd98f00b204e9800998ecf8427e"
+
+test> md5.tests.ex2 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog"
+    "9e107d9d372bb6826bd81d3542a419d6"
+
+test> md5.tests.ex3 =
+  ex Md5
+    "The quick brown fox jumps over the lazy dog."
+    "e4d909c290d0fb1ca068ffaddf22cbd0"
+```
+
 ```ucm
-.scratch> test
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⊡ Previously added definitions will be ignored: ex
+    
+    ⍟ These new definitions are ok to `add`:
+    
+      md5.tests.ex1 : [Result]
+      md5.tests.ex2 : [Result]
+      md5.tests.ex3 : [Result]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    4 |   ex Md5
+    
+    ✅ Passed Passed
+  
+    9 |   ex Md5
+    
+    ✅ Passed Passed
+  
+    14 |   ex Md5
+    
+    ✅ Passed Passed
+
+```
+```ucm
+.> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1     Passed
-  ◉ blake2b_512.tests.ex2     Passed
-  ◉ blake2b_512.tests.ex3     Passed
-  ◉ blake2s_256.tests.ex1     Passed
-  ◉ hmac_sha2_256.tests.ex1   Passed
-  ◉ hmac_sha2_256.tests.ex2   Passed
-  ◉ hmac_sha2_512.tests.ex1   Passed
-  ◉ hmac_sha2_512.tests.ex2   Passed
-  ◉ sha2_256.tests.ex1        Passed
-  ◉ sha2_256.tests.ex2        Passed
-  ◉ sha2_256.tests.ex3        Passed
-  ◉ sha2_256.tests.ex4        Passed
-  ◉ sha2_512.tests.ex1        Passed
-  ◉ sha2_512.tests.ex2        Passed
-  ◉ sha2_512.tests.ex3        Passed
-  ◉ sha2_512.tests.ex4        Passed
-  ◉ sha3_256.tests.ex1        Passed
-  ◉ sha3_256.tests.ex2        Passed
-  ◉ sha3_256.tests.ex3        Passed
-  ◉ sha3_256.tests.ex4        Passed
-  ◉ sha3_512.tests.ex1        Passed
-  ◉ sha3_512.tests.ex2        Passed
-  ◉ sha3_512.tests.ex3        Passed
-  ◉ sha3_512.tests.ex4        Passed
+  ◉ blake2b_512.tests.ex1   Passed
+  ◉ blake2b_512.tests.ex2   Passed
+  ◉ blake2b_512.tests.ex3   Passed
+  ◉ blake2s_256.tests.ex1   Passed
+  ◉ crypto.hash.numTests    Passed
+  ◉ md5.tests.ex1           Passed
+  ◉ md5.tests.ex2           Passed
+  ◉ md5.tests.ex3           Passed
+  ◉ sha1.tests.ex1          Passed
+  ◉ sha1.tests.ex2          Passed
+  ◉ sha1.tests.ex3          Passed
+  ◉ sha1.tests.ex4          Passed
+  ◉ sha2_256.tests.ex1      Passed
+  ◉ sha2_256.tests.ex2      Passed
+  ◉ sha2_256.tests.ex3      Passed
+  ◉ sha2_256.tests.ex4      Passed
+  ◉ sha2_512.tests.ex1      Passed
+  ◉ sha2_512.tests.ex2      Passed
+  ◉ sha2_512.tests.ex3      Passed
+  ◉ sha2_512.tests.ex4      Passed
+  ◉ sha3_256.tests.ex1      Passed
+  ◉ sha3_256.tests.ex2      Passed
+  ◉ sha3_256.tests.ex3      Passed
+  ◉ sha3_256.tests.ex4      Passed
+  ◉ sha3_512.tests.ex1      Passed
+  ◉ sha3_512.tests.ex2      Passed
+  ◉ sha3_512.tests.ex3      Passed
+  ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 24 test(s) passing
+  ✅ 28 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

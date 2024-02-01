@@ -137,8 +137,8 @@ testTcpConnect = 'let
     
     toSend = "12345"
 
-    forkComp (serverThread portVar toSend)
-    forkComp (clientThread portVar resultVar)
+    void (forkComp (serverThread portVar toSend))
+    void (forkComp (clientThread portVar resultVar))
     
     received = take resultVar
 

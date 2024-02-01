@@ -4,9 +4,15 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_relation
 
 tests:
-  tests:
+  util-relation-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_relation
     dependencies:
       - code-page
       - easytest
@@ -17,6 +23,9 @@ tests:
 
 benchmarks:
   relation:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_relation
     source-dirs: benchmarks/relation
     main: Main.hs
     dependencies:
@@ -30,21 +39,23 @@ benchmarks:
 dependencies:
   - base
   - containers
-  - extra
-  - unison-prelude
   - deepseq
+  - extra
+  - nonempty-containers
+  - unison-prelude
 
 ghc-options:
   -Wall
 
 default-extensions:
-  - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - DeriveFunctor
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns

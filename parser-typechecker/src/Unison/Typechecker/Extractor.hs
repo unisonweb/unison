@@ -1,19 +1,21 @@
 module Unison.Typechecker.Extractor where
 
 import Control.Monad.Reader
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Set as Set
-import qualified Unison.Blank as B
+import Data.Set qualified as Set
+import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.KindInference (KindError)
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Var qualified as Var
 
 type RedundantTypeAnnotation = Bool
 
@@ -36,13 +38,13 @@ extract = runReader . runMaybeT
 subseqExtractor :: (C.ErrorNote v loc -> [Ranged a]) -> SubseqExtractor v loc a
 subseqExtractor f = SubseqExtractor' f
 
-traceSubseq :: Show a => String -> SubseqExtractor' n a -> SubseqExtractor' n a
+traceSubseq :: (Show a) => String -> SubseqExtractor' n a -> SubseqExtractor' n a
 traceSubseq s ex = SubseqExtractor' $ \n ->
   let rs = runSubseq ex n
    in trace (if null s then show rs else s ++ ": " ++ show rs) rs
 
 traceNote ::
-  Show a => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
+  (Show a) => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
 traceNote s ex = extractor $ \n ->
   let result = extract ex n
    in trace (if null s then show result else s ++ ": " ++ show result) result
@@ -173,6 +175,11 @@ inSubtype = asPathExtractor $ \case
   C.InEquate found expected -> Just (found, expected)
   _ -> Nothing
 
+inEquate :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
+inEquate = asPathExtractor $ \case
+  C.InEquate lhs rhs -> Just (lhs, rhs)
+  _ -> Nothing
+
 inCheck :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
 inCheck = asPathExtractor $ \case
   C.InCheck e t -> Just (e, t)
@@ -237,6 +244,24 @@ duplicateDefinitions =
     C.DuplicateDefinitions vs -> pure vs
     _ -> mzero
 
+uncoveredPatterns :: ErrorExtractor v loc (loc, NonEmpty (Pattern ()))
+uncoveredPatterns =
+  cause >>= \case
+    C.UncoveredPatterns matchLoc xs -> pure (matchLoc, xs)
+    _ -> empty
+
+redundantPattern :: ErrorExtractor v loc loc
+redundantPattern =
+  cause >>= \case
+    C.RedundantPattern patternLoc -> pure patternLoc
+    _ -> empty
+
+kindInferenceFailure :: ErrorExtractor v loc (KindError v loc)
+kindInferenceFailure =
+  cause >>= \case
+    C.KindInferenceFailure ke -> pure ke
+    _ -> empty
+
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =
   cause >>= \case
@@ -255,12 +280,12 @@ unknownSymbol =
     C.UnknownSymbol loc v -> pure (loc, v)
     _ -> mzero
 
-unknownTerm :: Var v => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
+unknownTerm :: (Var v) => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
 unknownTerm =
   cause >>= \case
     C.UnknownTerm loc v suggestions expectedType -> do
       let k = Var.Inference Var.Ability
-          cleanup = Type.cleanup . Type.removePureEffects . Type.generalize' k
+          cleanup = Type.cleanup . Type.removePureEffects False . Type.generalize' k
       pure (loc, v, suggestions, cleanup expectedType)
     _ -> mzero
 
@@ -269,6 +294,13 @@ abilityCheckFailure ::
 abilityCheckFailure =
   cause >>= \case
     C.AbilityCheckFailure ambient requested ctx -> pure (ambient, requested, ctx)
+    _ -> mzero
+
+abilityEqFailure ::
+  ErrorExtractor v loc ([C.Type v loc], [C.Type v loc], C.Context v loc)
+abilityEqFailure =
+  cause >>= \case
+    C.AbilityEqFailure lhs rhs ctx -> pure (lhs, rhs, ctx)
     _ -> mzero
 
 effectConstructorWrongArgCount ::
@@ -324,14 +356,14 @@ instance Functor (SubseqExtractor' n) where
   fmap = liftM
 
 instance Applicative (SubseqExtractor' n) where
-  pure = return
+  pure a = SubseqExtractor' $ \_ -> [Pure a]
   (<*>) = ap
 
 instance MonadFail (SubseqExtractor' n) where
   fail _ = mzero
 
 instance Monad (SubseqExtractor' n) where
-  return a = SubseqExtractor' $ \_ -> [Pure a]
+  return = pure
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note
      in do
@@ -358,7 +390,6 @@ instance MonadPlus (SubseqExtractor' n) where
 
 instance Monoid (SubseqExtractor' n a) where
   mempty = mzero
-  mappend = mplus
 
 instance Semigroup (SubseqExtractor' n a) where
-  (<>) = mappend
+  (<>) = mplus

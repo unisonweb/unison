@@ -4,6 +4,8 @@ foo = "bar"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -26,10 +28,6 @@ foo = "bar"
 
 .> delete.namespace ()
 
-  Removed definitions:
-  
-    1. foo : ##Text
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 ```

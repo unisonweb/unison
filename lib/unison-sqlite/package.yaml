@@ -3,21 +3,45 @@ github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_sqlite
+
   source-dirs: src
-  other-modules:
-    - Unison.Sqlite.DataVersion
-    - Unison.Sqlite.Exception
-    - Unison.Sqlite.JournalMode
-    - Unison.Sqlite.Sql
+  exposed-modules:
+    - Unison.Sqlite
+    - Unison.Sqlite.Connection
+    - Unison.Sqlite.Internal
+    - Unison.Sqlite.Transaction
+
+tests:
+  tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_sqlite
+    dependencies:
+      - code-page
+      - easytest
+      - unison-sqlite
+    main: Main.hs
+    source-dirs: test
 
 dependencies:
   - base
   - direct-sqlite
   - exceptions
+  - generic-lens
+  - lens
+  - megaparsec
   - mtl
+  - neat-interpolation
+  - pretty-simple
+  - random
   - recover-rtti
   - sqlite-simple
+  - template-haskell
   - text
+  - text-builder
   - transformers
   - unison-prelude
   - unliftio
@@ -27,10 +51,14 @@ ghc-options:
   -Wall
 
 default-extensions:
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
+  - DeriveFoldable
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
@@ -39,13 +67,16 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
   - NumericUnderscores
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

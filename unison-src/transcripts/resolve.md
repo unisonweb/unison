@@ -6,10 +6,10 @@
 
 The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace` command helps resolve such conflicts.
 
-First, let's make a new namespace, `example.resolve`:
+First, let's make a new namespace, `example.resolve` and add the builtins:
 
-```ucm
-.> cd example.resolve
+```ucm:hide
+.example.resolve> builtins.merge
 ```
 
 Now let's add a term named `a.foo`:
@@ -45,7 +45,7 @@ foo = 43
 ```
 
 ```ucm
-.example.resolve.a> update
+.example.resolve.a> update.old
 ```
 
 And make a different change in the `b` namespace:
@@ -59,7 +59,7 @@ foo = 44
 ```
 
 ```ucm
-.example.resolve.b> update
+.example.resolve.b> update.old
 ```
 
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:
@@ -109,7 +109,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term 2
+.example.resolve.c> delete.term.verbose 2
 .example.resolve.c> todo
 ```
 

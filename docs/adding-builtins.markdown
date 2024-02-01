@@ -44,7 +44,6 @@ namespace. However, we will also add the value:
 ```haskell
 Rename' "MVar" "io2.MVar"
 ```
-
 because this is a type to be used with the new IO functions, which are
 currently nested under the `io2` namespace. With both of these added
 to the list, running `builtins.merge` should have a `builtin.io2.MVar`
@@ -76,25 +75,28 @@ add declarations similar to:
 ```haskell
 B "MVar.new" $ forall1 "a" (\a -> a --> io (mvar a))
 Rename "MVar.new" "io2.MVar.new"
-B "MVar.take" $ forall1 "a" (\a -> mvar a --> ioe a)
+B "MVar.take" $ forall1 "a" (\a -> mvar a --> iof a)
 Rename "MVar.take" "io2.MVar.take"
 ```
 
-The `forall1`, `io`, `ioe` and `-->` functions are local definitions
-in `Unison.Builtin` for assistance in writing the types. `ioe`
+The `forall1`, `io`, `iof` and `-->` functions are local definitions
+in `Unison.Builtin` for assistance in writing the types. `iof`
 indicates that an error result may be returned, while `io` should
-always succeed.  `mvar` can be defined locally using some other
+always succeed. Note that when the `{IO}` ability appears as a type
+parameter rather than the return type of a function, you will need to
+use `iot` instead.
+`mvar` can be defined locally using some other
 helpers in scope:
 
 ```haskell
-mvar :: Var v => Type v -> Type v
+mvar :: Type -> Type
 mvar a = Type.ref () Type.mvarRef `app` a
 ```
 
 For the actual `MVar` implementation, we'll be doing many definitions
 followed by renames, so it'll be factored into a list of the name and
-type, together with a function that generates the declaration and the
-rename.
+type, and we can then call the `moveUnder` helper to generate the `B`
+declaration and the `Rename`.
 
 ## Builtin function implementation -- new runtime
 
@@ -111,41 +113,45 @@ in `Unison.Runtime.Builtin`, in a definition `declareForeigns`. We
 can declare our builtins there by adding:
 
 ```haskell
-  declareForeign "MVar.new" mvar'new
+  declareForeign Tracked "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
-  declareForeign "MVar.take" mvar'take
-    . mkForeignIOE $ \(mv :: MVar Closure) -> takeMVar mv
+  declareForeign Tracked "MVar.take" boxToEFBox
+    . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
 ```
 
 These lines do multiple things at once. The first argument to
-`declareForeign` must match the name from `Unison.Builtin`, as this
-is how they are associated. The second argument is wrapper code
-that actually defines the unison function that will be called, and
-the definitions for these two cases will be shown later. The last
-argument is the actual Haskell implementation of the operation.
-However, the format for foreign functions is somewhat more limited
-than 'any Haskell function,' so the `mkForeign` and `mkForeignIOE`
-helpers assist in wrapping Haskell functions correctly. The latter
-will catch some exceptions and yield them as explicit results.
+`declareForeign` determines whether the function should be explicitly
+tracked by the Unison Cloud sandboxing functionality or not. As a
+general guideline, functions in `{IO}` are `Tracked`, and pure
+functions are `Untracked`. The second argument must match the name
+from `Unison.Builtin`, as this is how they are associated. The third
+argument is wrapper code that defines the conversion from the Haskell
+runtim calling convention into Unison, and the definitions for these
+two cases will be shown later. The last argument is the actual Haskell
+implementation of the operation. However, the format for foreign
+functions is somewhat more limited than 'any Haskell function,' so the
+`mkForeign` and `mkForeignIOF` helpers assist in wrapping Haskell
+functions correctly. The latter will catch some exceptions and yield
+them as explicit results.
 
 The wrapper code for these two operations looks like:
-
 ```haskell
-mvar'new :: ForeignOp
-mvar'new instr
-  = ([BX],)
-  . TAbs init
-  $ TFOp instr [init]
+-- a -> b
+boxDirect :: ForeignOp
+boxDirect instr =
+  ([BX],)
+    . TAbs arg
+    $ TFOp instr [arg]
   where
-  [init] = freshes 1
+    arg = fresh1
 
-mvar'take :: ForeignOp
-mvar'take instr
-  = ([BX],)
-  . TAbs mv
-  $ io'error'result'direct instr [mv] ior e r
+-- a -> Either Failure b
+boxToEFBox :: ForeignOp
+boxToEFBox =
+  inBx arg result $
+    outIoFailBox stack1 stack2 stack3 any fail result
   where
-  [mv,ior,e,r] = freshes 4
+    (arg, result, stack1, stack2, stack3, any, fail) = fresh
 ```
 
 The breakdown of what is happening here is as follows:
@@ -161,23 +167,25 @@ The breakdown of what is happening here is as follows:
   currently be taking all boxed arguments, because there is no way
   to talk about unboxed values in the surface syntax where they are
   called.
-- `TAbs init` abstracts the argument variable, which we got from
-  `freshes'` at the bottom. Multiple arguments may be abstracted with
-  e.g. `TAbss [x,y,z]`
-- `io'error'result'direct` is a helper function for calling the
-  instruction and wrapping up a possible error result. The first
-  argument is the identifier to call, the list is the arguments,
-  and the last three arguments are variables used in the common
-  result handling code.
+- `TAbs arg` abstracts the argument variable, which we got from
+  `fresh1'` at the bottom. Multiple arguments may be abstracted with
+  e.g. `TAbss [x,y,z]`. You can call `fresh` to instantiate a tuple of
+  fresh variables of a certain arity.
+- `inBx` and `outIoFailBox` are helper functions for calling the
+  instruction and wrapping up a possible error result.
 - `TFOp` simply calls the instruction with the assumption that the
   result value is acceptable for directly returning. `MVar` values
   will be represented directly by their Haskell values wrapped into
-  a closure, so the `mvar'new` code doesn't need to do any
+  a closure, so the `boxDirect` code doesn't need to do any
   processing of the results of its foreign function.
 
-Other builtins use slightly different implementations, so looking at
-other parts of the file may be instructive, depending on what is being
-added.
+The names of the helpers generally follow a form of form of Hungarian
+notation, e.g. `boxToEFBox` means "boxed value to either a failure or
+a boxed value", i.e. `a -> Either a b`.
+However, not all helpers are named consistently at the moment, and
+different builtins use slightly different implementations, so looking
+at other parts of the file may be instructive, depending on what is
+being added.
 
 At first, our declarations will cause an error, because some of the
 automatic machinery for creating builtin 'foreign' functions does not

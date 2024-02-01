@@ -10,6 +10,8 @@ structural type X = x
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -21,13 +23,14 @@ structural type X = x
 
 ```
 ```ucm
-  ☝️  The namespace .ns is empty.
-
 .ns> add
 
   ⍟ I've added these definitions:
   
     structural type X
+      (also named builtin.Unit)
+
+.> cd .
 
 ```
 Now we update the type, changing the name of the constructors, _but_, we simultaneously
@@ -44,26 +47,24 @@ dependsOnX = Text.size X.x
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
+      structural type X
       X.x        : Text
       dependsOnX : Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      structural type X
 
 ```
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ```ucm
-.ns> update
+.ns> update.old
 
   ⍟ I've added these definitions:
   
@@ -73,5 +74,6 @@ is removed in the same update that the new term is being added.
   ⍟ I've updated these names to your new definition:
   
     structural type X
+      (The old definition was also named builtin.Unit.)
 
 ```

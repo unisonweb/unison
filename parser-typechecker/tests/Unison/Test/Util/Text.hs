@@ -4,10 +4,12 @@ module Unison.Test.Util.Text where
 
 import Control.Monad
 import Data.List (foldl', unfoldr)
-import qualified Data.Text as T
+import Data.Maybe (isNothing)
+import Data.Text qualified as T
 import EasyTest
-import qualified Unison.Util.Rope as R
-import qualified Unison.Util.Text as Text
+import Unison.Util.Rope qualified as R
+import Unison.Util.Text qualified as Text
+import Unison.Util.Text.Pattern qualified as P
 
 test :: Test ()
 test =
@@ -37,15 +39,17 @@ test =
           t1 <- T.pack <$> replicateM n ch
           t2 <- T.pack <$> replicateM m ch
           t3 <- T.pack <$> replicateM o ch
-          let [t1s, t2s, t3s] = Text.fromText <$> [t1, t2, t3]
+          let (t1s, t2s, t3s) = (Text.fromText t1, Text.fromText t2, Text.fromText t3)
           scope "associativity" $ do
             -- note $ show (t1s, t2s, t3s)
             expect' $ t1s <> (t2s <> t3s) == (t1s <> t2s) <> t3s
           scope "<>" . expect' $
             Text.toText (t1s <> t2s <> t3s) == t1 <> t2 <> t3
           scope "Ord" . expect' $
-            (t1 <> t2 <> t3) `compare` t3
-              == (t1s <> t2s <> t3s) `compare` t3s
+            (t1 <> t2 <> t3)
+              `compare` t3
+              == (t1s <> t2s <> t3s)
+              `compare` t3s
           scope "take" . expect' $
             Text.toText (Text.take k (t1s <> t2s)) == T.take k (t1 <> t2)
           scope "drop" . expect' $
@@ -98,6 +102,82 @@ test =
               depths = map depth ts
           note ("maximum depth for tree with " <> show (i * n) <> " chunks was " <> show maxDepth)
           expect' (maxDepth < log2 (i * n) * 2)
+        ok,
+      scope "patterns" $ do
+        expect' (P.run P.Eof "" == Just ([], ""))
+        expect' (P.run (P.Char P.Any) "a" == Just ([], ""))
+        expect' (P.run (P.Char (P.CharRange 'a' 'z')) "a" == Just ([], ""))
+        expect' . isNothing $ P.run (P.Char (P.Not (P.CharRange 'a' 'z'))) "a"
+        expect' (P.run (P.Or (P.Char (P.Not (P.CharRange 'a' 'z'))) (P.Char P.Any)) "abc" == Just ([], "bc"))
+        -- this shows that we ignore subcaptures
+        expect' (P.run (P.Join [P.Capture (P.Join [P.Capture (P.Char P.Any), P.Capture (P.Char P.Any)]), P.Char P.Any]) "abcdef" == Just (["ab"], "def"))
+        expect' (P.run (P.Char (P.CharSet "0123")) "3ab" == Just ([], "ab"))
+        expect' (P.run (P.Char (P.Not (P.CharSet "0123"))) "a3b" == Just ([], "3b"))
+        expect' (P.run (P.Capture (P.Char (P.Not (P.CharSet "0123")))) "a3b" == Just (["a"], "3b"))
+        expect' (P.run (P.Many (P.Char (P.CharSet "abcd"))) "babbababac123" == Just ([], "123"))
+        expect' (P.run (P.Capture (P.Many (P.Char (P.CharSet "abcd")))) "babbababac123" == Just (["babbababac"], "123"))
+        expect' (P.run (P.Capture (P.Many (P.Char (P.CharClass P.Number)))) "012345abc" == Just (["012345"], "abc"))
+        expect' (P.run (P.Join [P.Capture (P.Many (P.Char (P.CharClass P.Number))), P.Literal ",", P.Capture (P.Many (P.Char P.Any))]) "012345,abc" == Just (["012345", "abc"], ""))
+        expect'
+          ( P.run (P.Many (P.Join [P.Capture (P.Many (P.Char (P.CharClass P.Number))), P.Many (P.Char (P.CharClass P.Whitespace))])) "01 10 20 1123 292 110 10"
+              == Just (["01", "10", "20", "1123", "292", "110", "10"], "")
+          )
+        expect' $
+          let part = P.Capture (P.Replicate 1 3 (P.Char (P.CharClass P.Number)))
+              dpart = P.Join [P.Literal ".", part]
+              ip = P.Join [part, P.Replicate 3 3 dpart, P.Eof]
+           in P.run ip "127.0.0.1" == Just (["127", "0", "0", "1"], "")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture (P.Char (P.CharClass P.Number)))
+           in P.run p "12345" == Just (["1", "2", "3", "4", "5"], "")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture (P.Char (P.CharClass P.Number))) `P.Or` P.Join []
+           in P.run p "1234" == Just ([], "1234")
+        expect' $
+          let p = P.Replicate 5 8 (P.Capture (P.Join [P.Char (P.CharClass P.Number), P.Literal "z"])) `P.Or` P.Join []
+           in P.run p "1z2z3z4z5z6a" == Just (["1z", "2z", "3z", "4z", "5z"], "6a")
+        -- https://github.com/unisonweb/unison/issues/3530
+        expectEqual Nothing $
+          let p =
+                P.Or
+                  (P.Join [P.Literal "a", P.Literal "b"])
+                  (P.Join [P.Literal "a", P.Literal "c"])
+           in P.run p "aac"
+        expectEqual (Just ([], "")) $
+          let p =
+                P.Or
+                  ( P.Capture $
+                      ( P.Or
+                          (P.Join [P.Literal "a", P.Literal "b"])
+                          (P.Join [P.Literal "a", P.Literal "c"])
+                      )
+                  )
+                  (P.Join [P.Literal "aa", P.Literal "cd"])
+           in P.run p "aacd"
+        -- this is just making sure we don't duplicate captures to our left
+        -- when entering an `Or` node
+        expectEqual (Just (["@"], "")) $
+          let p = P.Join [P.Capture (P.Char P.Any), P.Or (P.Literal "c") (P.Join []), P.Literal "d"]
+           in P.run p "@cd"
+        expectEqual (Just (["%", "c"], "")) $
+          let p = P.Join [P.Capture (P.Char P.Any), (P.Or (P.Capture (P.Literal "c")) (P.Join [])), P.Literal "d"]
+           in P.run p "%cd"
+        expectEqual (Just ([""], "ac")) $
+          let p = P.Capture (P.Or (P.Join [P.Literal "a", P.Literal "b"]) (P.Join []))
+           in P.run p "ac"
+        expectEqual (Just ([""], "ac")) $
+          let p = P.Capture (P.Replicate 0 1 (P.Join [P.Literal "a", P.Literal "b"]))
+           in P.run p "ac"
+        -- nested or tests
+        expectEqual (Just (["zzzaaa", "!"], "!!")) $
+          let p =
+                P.Or
+                  ( P.Or
+                      (P.Literal "a")
+                      (P.Join [P.Literal "z", P.Replicate 3 5 (P.Literal "z")])
+                  )
+                  (P.Join [P.Capture (P.Literal "zzzaaa"), P.Capture (P.Literal "!")])
+           in P.run p "zzzaaa!!!"
         ok
     ]
   where

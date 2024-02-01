@@ -6,6 +6,8 @@
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ✅
   
   scratch.u changed.

@@ -1,0 +1,10 @@
+
+-- inefficient (exponential) fibonacci number
+-- mostly measures function call overhead
+fib n = match n with
+  0 -> 0
+  1 -> 1
+  n -> fib (n - 1) + fib (n - 2) 
+
+main = do
+  timeit "fibonacci" '(fib 22)

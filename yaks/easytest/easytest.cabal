@@ -7,7 +7,7 @@ license-file:  LICENSE
 author:        Paul Chiusano
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
-homepage:      http://unisonweb.org
+homepage:      http://unison-lang.org
 bug-reports:   https://github.com/unisonweb/unison/issues
 copyright:     Copyright (C) 2016 Paul Chiusano and contributors
 synopsis:      Simple, expressive testing library

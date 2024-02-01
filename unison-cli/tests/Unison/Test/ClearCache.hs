@@ -7,16 +7,16 @@ import Data.Foldable (for_)
 import Data.List.Extra (enumerate)
 import Data.String.Here (i)
 import EasyTest
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Test.Ucm as Ucm
-import qualified Unison.WatchKind as WatchKind
+import Unison.Codebase qualified as Codebase
+import Unison.Test.Ucm qualified as Ucm
+import Unison.WatchKind qualified as WatchKind
 
 test :: Test ()
 test = scope "clearWatchCache" $
   for_ enumerate \codebaseFormat -> scope (show codebaseFormat) do
     c <- io $ Ucm.initCodebase codebaseFormat
     let listWatches = io $ Ucm.lowLevel c \c ->
-          Codebase.watches c WatchKind.RegularWatch
+          Codebase.runTransaction c (Codebase.watches WatchKind.RegularWatch)
 
     io $
       Ucm.runTranscript

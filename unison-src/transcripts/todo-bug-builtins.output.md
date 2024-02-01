@@ -7,6 +7,8 @@
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   ✅
   
   scratch.u changed.
@@ -21,9 +23,10 @@
   
     "implement me later"
   
-  I'm sorry this message doesn't have more detail about the
-  location of the failure. My makers plan to fix this in a
-  future release. 😢
+  
+  Stack trace:
+    todo
+    #qe5e1lcfn8
 
 ```
 ```unison
@@ -31,6 +34,8 @@
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   
@@ -46,9 +51,10 @@
   
     "there's a bug in my code"
   
-  I'm sorry this message doesn't have more detail about the
-  location of the failure. My makers plan to fix this in a
-  future release. 😢
+  
+  Stack trace:
+    bug
+    #m67hcdcoda
 
 ```
 ## Todo
@@ -58,6 +64,8 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -77,6 +85,8 @@ test = match true with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -26,7 +26,8 @@ testCreateRename _ =
     tempDir = newTempDir "fileio"
     fooDir = tempDir ++ "/foo"
     barDir = tempDir ++ "/bar"
-    createDirectory.impl fooDir
+    void x = ()
+    void (createDirectory.impl fooDir)
     check "create a foo directory" (isDirectory fooDir)
     check "directory should exist" (fileExists fooDir)
     renameDirectory fooDir barDir
@@ -35,8 +36,8 @@ testCreateRename _ =
     check "bar should now exist" (fileExists barDir)
 
     bazDir = barDir ++ "/baz"
-    createDirectory.impl bazDir
-    removeDirectory.impl barDir
+    void (createDirectory.impl bazDir)
+    void (removeDirectory.impl barDir)
 
     check "removeDirectory works recursively" (not (isDirectory barDir))
     check "removeDirectory works recursively" (not (isDirectory bazDir))
@@ -45,6 +46,8 @@ testCreateRename _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -126,6 +129,8 @@ testOpenClose _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -156,6 +161,98 @@ testOpenClose _ =
   ✅ 6 test(s) passing
   
   Tip: Use view testOpenClose to view the source of a test.
+
+```
+### Reading files with getSomeBytes
+
+Tests: getSomeBytes
+       putBytes
+       isFileOpen
+       seekHandle
+
+```unison
+testGetSomeBytes : '{io2.IO} [Result]
+testGetSomeBytes _ =
+  test = 'let
+    tempDir = (newTempDir "getSomeBytes")
+    fooFile = tempDir ++ "/foo"
+
+    testData = "0123456789"
+    testSize = size testData
+
+    chunkSize = 7
+    check "chunk size splits data into 2 uneven sides" ((chunkSize > (testSize / 2)) && (chunkSize < testSize))
+
+
+    -- write testData to a temporary file
+    fooWrite = openFile fooFile Write
+    putBytes fooWrite (toUtf8 testData)
+    closeFile fooWrite
+    check "file should be closed" (not (isFileOpen fooWrite))
+
+    -- reopen for reading back the data in chunks
+    fooRead = openFile fooFile Read
+
+    -- read first part of file
+    chunk1 = getSomeBytes fooRead chunkSize |> fromUtf8
+    check "first chunk matches first part of testData" (chunk1 == take chunkSize testData)
+
+    -- read rest of file
+    chunk2 = getSomeBytes fooRead chunkSize |> fromUtf8
+    check "second chunk matches rest of testData" (chunk2 == drop chunkSize testData)
+
+    check "should be at end of file" (isFileEOF fooRead)
+
+    readAtEOF = getSomeBytes fooRead chunkSize
+    check "reading at end of file results in Bytes.empty" (readAtEOF == Bytes.empty)
+
+    -- request many bytes from the start of the file
+    seekHandle fooRead AbsoluteSeek +0
+    bigRead = getSomeBytes fooRead (testSize * 999) |> fromUtf8
+    check "requesting many bytes results in what's available" (bigRead == testData)
+
+    closeFile fooRead
+    check "file should be closed" (not (isFileOpen fooRead))
+
+  runTest test
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testGetSomeBytes : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetSomeBytes : '{IO} [Result]
+
+.> io.test testGetSomeBytes
+
+    New test results:
+  
+  ◉ testGetSomeBytes   chunk size splits data into 2 uneven sides
+  ◉ testGetSomeBytes   file should be closed
+  ◉ testGetSomeBytes   first chunk matches first part of testData
+  ◉ testGetSomeBytes   second chunk matches rest of testData
+  ◉ testGetSomeBytes   should be at end of file
+  ◉ testGetSomeBytes   reading at end of file results in Bytes.empty
+  ◉ testGetSomeBytes   requesting many bytes results in what's available
+  ◉ testGetSomeBytes   file should be closed
+  
+  ✅ 8 test(s) passing
+  
+  Tip: Use view testGetSomeBytes to view the source of a test.
 
 ```
 ### Seeking in open files
@@ -229,6 +326,8 @@ testAppend _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -286,6 +385,8 @@ testSystemTime _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -493,9 +594,15 @@ Test that they can be run with the right number of args.
 
 .> run runMeWithNoArgs
 
+  ()
+
 .> run runMeWithOneArg foo
 
+  ()
+
 .> run runMeWithTwoArgs foo bar
+
+  ()
 
 ```
 Calling our examples with the wrong number of args will error.
@@ -508,6 +615,10 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -518,6 +629,10 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -529,6 +644,10 @@ Calling our examples with the wrong number of args will error.
   
     Failure
       (typeLink IOFailure) "called with too many args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
 
 ```
 ```ucm
@@ -539,5 +658,60 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" (Any ())
+  
+  
+  Stack trace:
+    ##raise
+
+```
+### Get the time zone
+
+```unison
+testTimeZone = do
+  (offset, summer, name) = Clock.internals.systemTimeZone +0
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testTimeZone : '{IO} ()
+
+.> run testTimeZone
+
+  ()
+
+```
+### Get some random bytes
+
+```unison
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testRandom : '{IO} [Result]
+
+.> io.test testGetEnv
+
+    New test results:
+  
+  ◉ testGetEnv   PATH environent variable should be set
+  ◉ testGetEnv   DOESNTEXIST didn't exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetEnv to view the source of a test.
 
 ```

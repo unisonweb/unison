@@ -2,24 +2,24 @@
 
 module Unison.Codebase.GitError where
 
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
 import Unison.Codebase.Path
-import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Prelude
 
 type CodebasePath = FilePath
 
 data GitProtocolError
   = NoGit
-  | UnrecognizableCacheDir ReadRepo CodebasePath
-  | UnrecognizableCheckoutDir ReadRepo CodebasePath
+  | UnrecognizableCacheDir ReadGitRepo CodebasePath
+  | UnrecognizableCheckoutDir ReadGitRepo CodebasePath
   | --            srcPath  destPath error-description
     CopyException FilePath FilePath String
-  | CloneException ReadRepo String
-  | PushException WriteRepo String
-  | PushNoOp WriteRepo
+  | CloneException ReadGitRepo String
+  | PushException WriteGitRepo String
+  | PushNoOp WriteGitRepo
   | -- url commit Diff of what would change on merge with remote
-    PushDestinationHasNewStuff WriteRepo
+    PushDestinationHasNewStuff WriteGitRepo
   | CleanupError SomeException
   | -- Thrown when a commit, tag, or branch isn't found in a repo.
     --                repo ref
@@ -28,10 +28,10 @@ data GitProtocolError
   deriving anyclass (Exception)
 
 data GitCodebaseError h
-  = NoRemoteNamespaceWithHash ReadRepo ShortBranchHash
-  | RemoteNamespaceHashAmbiguous ReadRepo ShortBranchHash (Set h)
-  | CouldntLoadRootBranch ReadRepo h
-  | CouldntParseRemoteBranch ReadRepo String
-  | CouldntLoadSyncedBranch ReadRemoteNamespace h
-  | CouldntFindRemoteBranch ReadRepo Path
+  = NoRemoteNamespaceWithHash ReadGitRepo ShortCausalHash
+  | RemoteNamespaceHashAmbiguous ReadGitRepo ShortCausalHash (Set h)
+  | CouldntLoadRootBranch ReadGitRepo h
+  | CouldntParseRemoteBranch ReadGitRepo String
+  | CouldntLoadSyncedBranch ReadGitRemoteNamespace h
+  | CouldntFindRemoteBranch ReadGitRepo Path
   deriving (Show)

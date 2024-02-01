@@ -66,5 +66,5 @@ fromSeq a =
 
 -- run two thunks in sequence
 forceBoth a b =
-  !a
+  _ = !a
   !b

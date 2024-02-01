@@ -29,7 +29,11 @@ quux.x = 4
 ```
 
 ```ucm
-  ☝️  The namespace .P0 is empty.
+  ☝️  The namespace .P0.lib is empty.
+
+.P0.lib> builtins.merge
+
+  Done.
 
 .P0> add
 
@@ -72,7 +76,7 @@ quux.y = 333
     foo.y  : Nat
     quux.y : Nat
 
-.P1> delete.term foo.w
+.> delete.term.verbose P1.foo.w
 
   Name changes:
   
@@ -99,19 +103,11 @@ foo.z = +28348
 
 .P2> delete.namespace baz
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> delete.namespace quux
 
-  Removed definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
 
 .P2> find
 
@@ -150,6 +146,8 @@ and `quux` namespaces.
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 .P0> merge .P2
 
   Here's what's changed in the current namespace after the
@@ -168,6 +166,8 @@ and `quux` namespaces.
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .P0> find
 
@@ -238,7 +238,11 @@ f = (x y -> y) a "woot!"
 ```
 
 ```ucm
-  ☝️  The namespace .c1 is empty.
+  ☝️  The namespace .c1.lib is empty.
+
+.c1.lib> builtins.merge
+
+  Done.
 
 .c1> add
 
@@ -279,7 +283,7 @@ a = "hello world!"
 ```
 
 ```ucm
-.c1b> update
+.c1b> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -298,17 +302,21 @@ Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`
     1. a : Nat
        ↓
     2. a : Text
-  
-    There were 1 auto-propagated updates.
+    
+    3. f : Text
+       ↓
+    4. f : Text
   
   Added definitions:
   
-    3. patch patch (added 1 updates)
+    5. patch patch (added 1 updates)
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .c1a> todo .c1b.patch
 

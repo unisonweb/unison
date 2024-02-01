@@ -2,6 +2,7 @@
 
 ```ucm:hide
 .> builtins.merge
+.merged> builtins.merge
 ```
 
 ```unison
@@ -16,15 +17,13 @@ Cause a conflict:
 .merged> merge .b
 ```
 
-Ideally we could just define the canonical `x` that we want, and update 
-to accept it, but we can't:
+Updating conflicted definitions works fine, and the associated patch contains two entries.
 
 ```unison
-x = 1 + 2
+x = 3
 ```
 
-Update fails on conflicted `x`:
-
-```ucm:error
+```ucm
 .merged> update
+.merged> view.patch
 ```

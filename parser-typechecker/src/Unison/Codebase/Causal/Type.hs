@@ -4,7 +4,6 @@
 
 module Unison.Codebase.Causal.Type
   ( Causal (..),
-    RawHash (..),
     pattern One,
     pattern Cons,
     pattern Merge,
@@ -14,85 +13,83 @@ module Unison.Codebase.Causal.Type
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
-import Unison.Hash (Hash)
+import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import U.Codebase.HashTags (CausalHash)
+import Unison.Hash (HashFor (..))
 import Unison.Prelude
 import Prelude hiding (head, read, tail)
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
 
-* `before : Causal m a -> Causal m a -> m Bool` defines a partial order on
+\* `before : Causal m a -> Causal m a -> m Bool` defines a partial order on
             `Causal`.
-* `head : Causal m a -> a`, which represents the "latest" `a` value in a causal
+\* `head : Causal m a -> a`, which represents the "latest" `a` value in a causal
           chain.
-* `one : a -> Causal m a`, satisfying `head (one hd) == hd`
-* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
+\* `one : a -> Causal m a`, satisfying `head (one hd) == hd`
+\* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
           also `before tl (cons hd tl)`.
-* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
+\* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
            commutative (but not associative) and satisfies:
   * `before c1 (merge c1 c2)`
   * `before c2 (merge c1 c2)`
-* `sequence : Causal a -> Causal a -> Causal a`, which is defined as
+\* `sequence : Causal a -> Causal a -> Causal a`, which is defined as
               `sequence c1 c2 = cons (head c2) (merge c1 c2)`.
   * `before c1 (sequence c1 c2)`
   * `head (sequence c1 c2) == head c2`
 -}
 
-newtype RawHash a = RawHash {unRawHash :: Hash}
-  deriving (Eq, Ord, Generic)
-
-instance Show (RawHash a) where
-  show = show . unRawHash
-
-instance Show e => Show (Causal m h e) where
+instance (Show e) => Show (Causal m e) where
   show = \case
-    UnsafeOne h e -> "One " ++ (take 3 . show) h ++ " " ++ show e
-    UnsafeCons h e t -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
-    UnsafeMerge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
+    UnsafeOne h eh e -> "One " ++ (take 3 . show) h ++ " " ++ (take 3 . show) eh ++ " " ++ show e
+    UnsafeCons h eh e t -> "Cons " ++ (take 3 . show) h ++ " " ++ (take 3 . show) eh ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
+    UnsafeMerge h eh e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ (take 3 . show) eh ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
-data Causal m h e
+data Causal m e
   = UnsafeOne
-      { currentHash :: RawHash h,
+      { currentHash :: CausalHash,
+        valueHash :: HashFor e,
         head :: e
       }
   | UnsafeCons
-      { currentHash :: RawHash h,
+      { currentHash :: CausalHash,
+        valueHash :: HashFor e,
         head :: e,
-        tail :: (RawHash h, m (Causal m h e))
+        tail :: (CausalHash, m (Causal m e))
       }
   | -- The merge operation `<>` flattens and normalizes for order
     UnsafeMerge
-      { currentHash :: RawHash h,
+      { currentHash :: CausalHash,
+        valueHash :: HashFor e,
         head :: e,
-        tails :: Map (RawHash h) (m (Causal m h e))
+        tails :: Map CausalHash (m (Causal m e))
       }
 
-pattern One :: RawHash h -> e -> Causal m h e
-pattern One h e <- UnsafeOne h e
+pattern One :: CausalHash -> HashFor e -> e -> Causal m e
+pattern One h eh e <- UnsafeOne h eh e
 
-pattern Cons :: RawHash h -> e -> (RawHash h, m (Causal m h e)) -> Causal m h e
-pattern Cons h e tail <- UnsafeCons h e tail
+pattern Cons :: CausalHash -> HashFor e -> e -> (CausalHash, m (Causal m e)) -> Causal m e
+pattern Cons h eh e tail <- UnsafeCons h eh e tail
 
-pattern Merge :: RawHash h -> e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
-pattern Merge h e tails <- UnsafeMerge h e tails
+pattern Merge :: CausalHash -> HashFor e -> e -> Map CausalHash (m (Causal m e)) -> Causal m e
+pattern Merge h eh e tails <- UnsafeMerge h eh e tails
 
 {-# COMPLETE One, Cons, Merge #-}
 
-predecessors :: Causal m h e -> Seq (m (Causal m h e))
-predecessors (UnsafeOne _ _) = Seq.empty
-predecessors (UnsafeCons _ _ (_, t)) = Seq.singleton t
-predecessors (UnsafeMerge _ _ ts) = Seq.fromList $ Map.elems ts
+predecessors :: Causal m e -> Seq (m (Causal m e))
+predecessors (UnsafeOne _ _ _) = Seq.empty
+predecessors (UnsafeCons _ _ _ (_, t)) = Seq.singleton t
+predecessors (UnsafeMerge _ _ _ ts) = Seq.fromList $ Map.elems ts
 
-before :: Monad m => Causal m h e -> Causal m h e -> m Bool
+before :: (Monad m) => Causal m e -> Causal m e -> m Bool
 before a b = (== Just a) <$> lca a b
 
 -- Find the lowest common ancestor of two causals.
-lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
+lca :: (Monad m) => Causal m e -> Causal m e -> m (Maybe (Causal m e))
 lca a b =
   lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
 
@@ -100,10 +97,10 @@ lca a b =
 -- element of `ys`.
 -- This is a breadth-first search used in the implementation of `lca a b`.
 lca' ::
-  Monad m =>
-  Seq (m (Causal m h e)) ->
-  Seq (m (Causal m h e)) ->
-  m (Maybe (Causal m h e))
+  (Monad m) =>
+  Seq (m (Causal m e)) ->
+  Seq (m (Causal m e)) ->
+  m (Maybe (Causal m e))
 lca' = go Set.empty Set.empty
   where
     go seenLeft seenRight remainingLeft remainingRight =
@@ -130,8 +127,8 @@ lca' = go Set.empty Set.empty
           then pure $ Just current
           else search seen (as <> predecessors current)
 
-instance Eq (Causal m h a) where
+instance Eq (Causal m a) where
   a == b = currentHash a == currentHash b
 
-instance Ord (Causal m h a) where
+instance Ord (Causal m a) where
   a <= b = currentHash a <= currentHash b

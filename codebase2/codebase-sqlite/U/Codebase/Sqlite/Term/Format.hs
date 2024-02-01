@@ -3,16 +3,18 @@
 module U.Codebase.Sqlite.Term.Format where
 
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId, WatchLocalIds)
-import qualified U.Codebase.Sqlite.Reference as Sqlite
+import U.Codebase.Sqlite.Reference qualified as Sqlite
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Term as Term
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Term qualified as Term
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
+import Unison.Hash32 (Hash32)
 
 -- |
 -- * Builtin terms are represented as local text ids.
@@ -38,9 +40,15 @@ type TypeLink = TypeRef
 --   * The term's type, also with internal references to local id.
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
 
-newtype LocallyIndexedComponent' t d
-  = LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
+-- | A locally indexed component which uses hash references instead of database ids.
+type HashLocallyIndexedComponent = LocallyIndexedComponent' Text Hash32
+
+newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
+  {unLocallyIndexedComponent :: Vector (LocalIds' t d, Term, Type)}
   deriving (Show)
+
+newtype SyncLocallyIndexedComponent' t d
+  = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
 
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
@@ -109,8 +117,16 @@ type FTT = Type.F' Sqlite.Reference
 
 type TypeOfTerm = ABT.Term FTT Symbol ()
 
-data TermFormat
-  = Term LocallyIndexedComponent
+type TermFormat = TermFormat' TextId ObjectId
+
+-- | A TermFormat which uses hash references instead of database ids.
+type HashTermFormat = TermFormat' Text Hash32
+
+data TermFormat' t d = Term (LocallyIndexedComponent' t d)
+
+type SyncTermFormat = SyncTermFormat' TextId ObjectId
+
+data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term

@@ -4,35 +4,61 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_prelude
 
 dependencies:
   - base
   - bytestring
   - containers
+  - generic-lens
   - either
   - extra
+  - filepath
+  - generic-lens
+  - lens
   - mtl
+  - pretty-simple
   - safe
   - text
+  - time
   - transformers
-  - lens
-  - vector
   - unliftio
-  - pretty-simple
+  - vector
+  - witch
+  - witherable
 
 ghc-options:
   -Wall
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
   - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

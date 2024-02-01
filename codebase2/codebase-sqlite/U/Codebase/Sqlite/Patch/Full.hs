@@ -1,21 +1,24 @@
 module U.Codebase.Sqlite.Patch.Full where
 
 import Control.Lens
+import Data.Bitraversable (Bitraversable, bitraverse)
 import Data.Map (Map)
 import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
+import Data.Text (Text)
+import U.Codebase.HashTags
 import U.Codebase.Reference (Reference')
-import qualified U.Codebase.Reference as Reference
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
-import qualified U.Codebase.Referent as Referent
-import qualified U.Codebase.Sqlite.DbId as Db
+import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
-import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
+import U.Codebase.Sqlite.Patch.TermEdit qualified as TermEdit
 import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
-import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
-import qualified Unison.Util.Map as Map
-import qualified Unison.Util.Set as Set
+import U.Codebase.Sqlite.Patch.TypeEdit qualified as TypeEdit
+import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 
 -- |
 -- @
@@ -25,6 +28,9 @@ import qualified Unison.Util.Set as Set
 --   }
 -- @
 type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
+
+-- | A version of Patch' which can be used for hashing.
+type HashPatch = Patch' Text ComponentHash ComponentHash
 
 -- |
 -- @
@@ -41,6 +47,16 @@ data Patch' t h o = Patch
   { termEdits :: Map (Referent'' t h) (Set (TermEdit' t o)),
     typeEdits :: Map (Reference' t h) (Set (TypeEdit' t o))
   }
+
+patchT_ :: (Ord t', Ord h, Ord o) => Traversal (Patch' t h o) (Patch' t' h o) t t'
+patchT_ f Patch {termEdits, typeEdits} = do
+  newTermEdits <-
+    traverseOf (Map.bitraversed (Referent.refs_ . Reference.t_) (Set.traverse . traverseFirst)) f termEdits
+  newTypeEdits <- traverseOf (Map.bitraversed (Reference.t_) (Set.traverse . traverseFirst)) f typeEdits
+  pure Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
+  where
+    traverseFirst :: Bitraversable b => Traversal (b a c) (b a' c) a a'
+    traverseFirst f = bitraverse f pure
 
 patchH_ :: (Ord t, Ord h') => Traversal (Patch' t h o) (Patch' t h' o) h h'
 patchH_ f Patch {termEdits, typeEdits} = do

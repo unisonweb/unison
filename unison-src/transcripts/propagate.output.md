@@ -3,8 +3,6 @@
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
 ```unison
-use .builtin
-
 unique type Foo = Foo
 
 fooToInt : Foo -> Int
@@ -13,37 +11,37 @@ fooToInt _ = +42
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Foo
+      type Foo
       fooToInt : Foo -> Int
 
 ```
 And then we add it.
 
 ```ucm
-  ☝️  The namespace .subpath is empty.
-
 .subpath> add
 
   ⍟ I've added these definitions:
   
-    unique type Foo
+    type Foo
     fooToInt : Foo -> Int
 
 .subpath> find.verbose
 
-  1. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo
-     unique type Foo
+  1. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo
+     type Foo
      
-  2. -- #khopi9b7o8afgva63q9riun664i1p24ricqjbnelo7eipmnsccu3s49v78u9sd3psdfkbllbk183n4e4apco3db99k3v8fehhaasbqo#0
+  2. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo#0
      Foo.Foo : Foo
      
-  3. -- #4lcpsef0pconupgdboml883pi87fimsmlrcihnm0f2nvnboj3c8qikuebsrrpuoildl8vigcplgm9crfge5mddijb531utsjcuob5oo
+  3. -- #j6hbm1gc2ak4f46b6705q90ld4bmhoi8etq2q45j081i9jgn95fvk3p6tjg67e7sm0021035i8qikmk4p6k845l5d00u26cos5731to
      fooToInt : Foo -> Int
      
   
@@ -62,6 +60,8 @@ unique type Foo = Foo | Bar
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -69,17 +69,17 @@ unique type Foo = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      unique type Foo
+      type Foo
 
 ```
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update
+.subpath> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    unique type Foo
+    type Foo
 
 ```
 ... it should automatically propagate the type to `fooToInt`.
@@ -90,6 +90,8 @@ and update the codebase to use the new type `Foo`...
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
+.> cd .
+
 ```
 ### Preserving user type variables
 
@@ -97,16 +99,16 @@ We make a term that has a dependency on another term and also a non-redundant
 user-provided type signature.
 
 ```unison
-use .builtin
+preserve.someTerm : Optional foo -> Optional foo
+preserve.someTerm x = x
 
-someTerm : Optional foo -> Optional foo
-someTerm x = x
-
-otherTerm : Optional baz -> Optional baz
-otherTerm y = someTerm y
+preserve.otherTerm : Optional baz -> Optional baz
+preserve.otherTerm y = someTerm y
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -114,67 +116,68 @@ otherTerm y = someTerm y
   
     ⍟ These new definitions are ok to `add`:
     
-      otherTerm : Optional baz -> Optional baz
-      someTerm  : Optional foo -> Optional foo
+      preserve.otherTerm : Optional baz -> Optional baz
+      preserve.someTerm  : Optional foo -> Optional foo
 
 ```
 Add that to the codebase:
 
 ```ucm
-  ☝️  The namespace .subpath.preserve is empty.
-
-.subpath.preserve> add
+.subpath> add
 
   ⍟ I've added these definitions:
   
-    otherTerm : Optional baz -> Optional baz
-    someTerm  : Optional foo -> Optional foo
+    preserve.otherTerm : Optional baz -> Optional baz
+    preserve.someTerm  : Optional foo -> Optional foo
+
+.> cd .
 
 ```
 Let's now edit the dependency:
 
 ```unison
-use .builtin
-
-someTerm : Optional x -> Optional x
-someTerm _ = None
+preserve.someTerm : Optional x -> Optional x
+preserve.someTerm _ = None
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
-      someTerm : Optional x -> Optional x
+      preserve.someTerm : Optional x -> Optional x
 
 ```
 Update...
 
 ```ucm
-.subpath.preserve> update
+.subpath> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : Optional x -> Optional x
+    preserve.someTerm : Optional x -> Optional x
+
+.> cd .
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
-.subpath.preserve> view someTerm
+.subpath> view preserve.someTerm
 
-  someTerm : Optional x -> Optional x
-  someTerm _ = None
+  preserve.someTerm : Optional x -> Optional x
+  preserve.someTerm _ = None
 
-.subpath.preserve> view otherTerm
+.subpath> view preserve.otherTerm
 
-  otherTerm : Optional baz -> Optional baz
-  otherTerm y = someTerm y
+  preserve.otherTerm : Optional baz -> Optional baz
+  preserve.otherTerm y = someTerm y
 
 ```
 ### Propagation only applies to the local branch
@@ -184,33 +187,28 @@ Cleaning up a bit...
 ```ucm
 .> delete.namespace subpath
 
-  Removed definitions:
-  
-    1. unique type Foo
-    2. Foo.Bar            : #isd1untaal
-    3. Foo.Foo            : #isd1untaal
-    4. fooToInt           : #isd1untaal -> Int
-    5. preserve.otherTerm : Optional baz -> Optional baz
-    6. preserve.someTerm  : Optional x -> Optional x
-    7. patch patch
-    8. patch preserve.patch
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Done.
+
+  ☝️  The namespace .subpath.lib is empty.
+
+.subpath.lib> builtins.merge
+
+  Done.
 
 ```
 Now, we make two terms, where one depends on the other.
 
 ```unison
-use .builtin
+one.someTerm : Optional foo -> Optional foo
+one.someTerm x = x
 
-someTerm : Optional foo -> Optional foo
-someTerm x = x
-
-otherTerm : Optional baz -> Optional baz
-otherTerm y = someTerm y
+one.otherTerm : Optional baz -> Optional baz
+one.otherTerm y = someTerm y
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -218,37 +216,37 @@ otherTerm y = someTerm y
   
     ⍟ These new definitions are ok to `add`:
     
-      otherTerm : Optional baz -> Optional baz
-      someTerm  : Optional foo -> Optional foo
+      one.otherTerm : Optional baz -> Optional baz
+      one.someTerm  : Optional foo -> Optional foo
 
 ```
 We'll make two copies of this namespace.
 
 ```ucm
-  ☝️  The namespace .subpath.one is empty.
-
-.subpath.one> add
+.subpath> add
 
   ⍟ I've added these definitions:
   
-    otherTerm : Optional baz -> Optional baz
-    someTerm  : Optional foo -> Optional foo
+    one.otherTerm : Optional baz -> Optional baz
+    one.someTerm  : Optional foo -> Optional foo
 
 .subpath> fork one two
 
   Done.
 
+.> cd .
+
 ```
 Now let's edit one of the terms...
 
 ```unison
-use .builtin
-
 someTerm : Optional x -> Optional x
 someTerm _ = None
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -262,19 +260,19 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update
+.subpath.one> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    someTerm : Optional x -> Optional x
+    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
 
 ```
 The other namespace should be left alone.
 
 ```ucm
-.subpath.two> view someTerm
+.subpath> view two.someTerm
 
-  someTerm : Optional foo -> Optional foo
-  someTerm x = x
+  two.someTerm : Optional foo -> Optional foo
+  two.someTerm x = x
 
 ```

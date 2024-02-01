@@ -1,14 +1,12 @@
 # Propagating type edits
 
 ```ucm:hide
-.> builtins.merge
+.subpath.lib> builtins.merge
 ```
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
 ```unison
-use .builtin
-
 unique type Foo = Foo
 
 fooToInt : Foo -> Int
@@ -32,13 +30,14 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update
+.subpath> update.old
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
 
 ```ucm
 .subpath> view fooToInt
+.> cd .
 ```
 
 ### Preserving user type variables
@@ -47,42 +46,40 @@ We make a term that has a dependency on another term and also a non-redundant
 user-provided type signature.
 
 ```unison
-use .builtin
+preserve.someTerm : Optional foo -> Optional foo
+preserve.someTerm x = x
 
-someTerm : Optional foo -> Optional foo
-someTerm x = x
-
-otherTerm : Optional baz -> Optional baz
-otherTerm y = someTerm y
+preserve.otherTerm : Optional baz -> Optional baz
+preserve.otherTerm y = someTerm y
 ```
 
 Add that to the codebase:
 
 ```ucm
-.subpath.preserve> add
+.subpath> add
+.> cd .
 ```
 
 Let's now edit the dependency:
 
 ```unison
-use .builtin
-
-someTerm : Optional x -> Optional x
-someTerm _ = None
+preserve.someTerm : Optional x -> Optional x
+preserve.someTerm _ = None
 ```
 
 Update...
 
 ```ucm
-.subpath.preserve> update
+.subpath> update.old
+.> cd .
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
-.subpath.preserve> view someTerm
-.subpath.preserve> view otherTerm
+.subpath> view preserve.someTerm
+.subpath> view preserve.otherTerm
 ```
 
 ### Propagation only applies to the local branch
@@ -91,32 +88,30 @@ Cleaning up a bit...
 
 ```ucm
 .> delete.namespace subpath
+.subpath.lib> builtins.merge
 ```
 
 Now, we make two terms, where one depends on the other.
 
 ```unison
-use .builtin
+one.someTerm : Optional foo -> Optional foo
+one.someTerm x = x
 
-someTerm : Optional foo -> Optional foo
-someTerm x = x
-
-otherTerm : Optional baz -> Optional baz
-otherTerm y = someTerm y
+one.otherTerm : Optional baz -> Optional baz
+one.otherTerm y = someTerm y
 ```
 
 We'll make two copies of this namespace.
 
 ```ucm
-.subpath.one> add
+.subpath> add
 .subpath> fork one two
+.> cd .
 ```
 
 Now let's edit one of the terms...
 
 ```unison
-use .builtin
-
 someTerm : Optional x -> Optional x
 someTerm _ = None
 ```
@@ -124,11 +119,11 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update
+.subpath.one> update.old
 ```
 
 The other namespace should be left alone.
 
 ```ucm
-.subpath.two> view someTerm
+.subpath> view two.someTerm
 ```

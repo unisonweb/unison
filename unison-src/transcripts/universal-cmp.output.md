@@ -8,12 +8,12 @@ unique type A = A
 threadEyeDeez _ =
   t1 = forkComp '()
   t2 = forkComp '()
-  t1 == t2 
-  t1 < t2
-  ()
+  (t1 == t2, t1 < t2)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -21,8 +21,8 @@ threadEyeDeez _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type A
-      threadEyeDeez : ∀ _. _ ->{IO} ()
+      type A
+      threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
 ```ucm
@@ -30,10 +30,12 @@ threadEyeDeez _ =
 
   ⍟ I've added these definitions:
   
-    unique type A
-    threadEyeDeez : ∀ _. _ ->{IO} ()
+    type A
+    threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 .> run threadEyeDeez
+
+  (false, true)
 
 ```
 ```unison
@@ -44,6 +46,8 @@ threadEyeDeez _ =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   

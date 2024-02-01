@@ -2,14 +2,15 @@
 
 module Unison.Typechecker.TypeError where
 
-import Data.Bifunctor (second)
 import Data.List.NonEmpty (NonEmpty)
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
+import Unison.KindInference (KindError)
+import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.Context as C
-import qualified Unison.Typechecker.Extractor as Ex
+import Unison.Type qualified as Type
+import Unison.Typechecker.Context qualified as C
+import Unison.Typechecker.Extractor qualified as Ex
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
 import Prelude hiding (all, and, or)
@@ -17,7 +18,7 @@ import Prelude hiding (all, and, or)
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
   deriving (Show)
 
-data ExistentialMismatch = IfBody | VectorBody | CaseBody
+data ExistentialMismatch = IfBody | ListBody | CaseBody
   deriving (Show)
 
 data TypeError v loc
@@ -65,6 +66,23 @@ data TypeError v loc
         abilityCheckFailureSite :: loc,
         note :: C.ErrorNote v loc
       }
+  | AbilityEqFailure
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        abilityCheckFailureSite :: loc,
+        note :: C.ErrorNote v loc
+      }
+  | AbilityEqFailureFromAp
+      { lhs :: [C.Type v loc],
+        rhs :: [C.Type v loc],
+        tlhs :: C.Type v loc,
+        trhs :: C.Type v loc,
+        expectedSite :: C.Term v loc,
+        mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc
+      }
   | UnguardedLetRecCycle
       { cycle :: [v],
         cycleLocs :: [loc],
@@ -86,6 +104,9 @@ data TypeError v loc
       { defns :: NonEmpty (v, [loc]),
         note :: C.ErrorNote v loc
       }
+  | UncoveredPatterns loc (NonEmpty (Pattern ()))
+  | RedundantPattern loc
+  | KindInferenceFailure (KindError v loc)
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -118,16 +139,20 @@ allErrors =
       cond,
       matchGuard,
       ifBody,
-      vectorBody,
+      listBody,
       matchBody,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
       abilityCheckFailure,
+      abilityEqFailure,
       unguardedCycle,
       unknownType,
       unknownTerm,
-      duplicateDefinitions
+      duplicateDefinitions,
+      redundantPattern,
+      uncoveredPatterns,
+      kindInferenceFailure
     ]
 
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
@@ -135,12 +160,44 @@ topLevelComponent = do
   defs <- Ex.topLevelComponent
   pure $ TopLevelComponent defs
 
+redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
+redundantPattern = do
+  ploc <- Ex.redundantPattern
+  pure (RedundantPattern ploc)
+
+kindInferenceFailure :: Ex.ErrorExtractor v a (TypeError v a)
+kindInferenceFailure = do
+  ke <- Ex.kindInferenceFailure
+  pure (KindInferenceFailure ke)
+
+uncoveredPatterns :: Ex.ErrorExtractor v a (TypeError v a)
+uncoveredPatterns = do
+  (mloc, uncoveredCases) <- Ex.uncoveredPatterns
+  pure (UncoveredPatterns mloc uncoveredCases)
+
 abilityCheckFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityCheckFailure = do
   (ambient, requested, _ctx) <- Ex.abilityCheckFailure
   e <- Ex.innermostTerm
   n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
+
+abilityEqFailure :: Ex.ErrorExtractor v a (TypeError v a)
+abilityEqFailure = do
+  (lhs, rhs, _ctx) <- Ex.abilityEqFailure
+  e <- Ex.innermostTerm
+  n <- Ex.errorNote
+  path <- Ex.path
+  (tlhs, trhs) : _ <- pure . mapMaybe p $ reverse path
+  let app = do
+        (_, f, _, _) <- Ex.unique Ex.inFunctionCall
+        pure $ AbilityEqFailureFromAp lhs rhs tlhs trhs f e n
+      plain = pure $ AbilityEqFailure lhs rhs tlhs trhs (ABT.annotation e) n
+  app <|> plain
+  where
+    p (C.InSubtype t1 t2) = Just (t1, t2)
+    p (C.InEquate t1 t2) = Just (t1, t2)
+    p _ = Nothing
 
 duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
 duplicateDefinitions = do
@@ -154,7 +211,7 @@ unknownType = do
   n <- Ex.errorNote
   pure $ UnknownType v loc n
 
-unknownTerm :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+unknownTerm :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
   n <- Ex.errorNote
@@ -184,14 +241,9 @@ generalMismatch = do
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
-  let [ft, et, fl, el] =
-        Type.cleanups
-          [ sub foundType,
-            sub expectedType,
-            sub foundLeaf,
-            sub expectedLeaf
-          ]
-  pure $ Mismatch ft et fl el mismatchSite n
+  case Type.cleanups [sub foundType, sub expectedType, sub foundLeaf, sub expectedLeaf] of
+    [ft, et, fl, el] -> pure $ Mismatch ft et fl el mismatchSite n
+    _ -> error "generalMismatch: Mismatched type binding"
 
 and,
   or,
@@ -258,14 +310,14 @@ existentialMismatch0 em getExpectedLoc = do
       n
 
 ifBody,
-  vectorBody,
+  listBody,
   matchBody ::
     (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
-vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
+listBody = existentialMismatch0 ListBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
-applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingNonFunction :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote

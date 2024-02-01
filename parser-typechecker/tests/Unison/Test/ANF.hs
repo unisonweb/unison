@@ -5,22 +5,22 @@ module Unison.Test.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Word (Word64)
 import EasyTest
-import qualified Unison.ABT as ABT
+import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized (Term (TAbs))
 import Unison.ConstructorReference (GConstructorReference (..))
-import qualified Unison.Pattern as P
-import Unison.Reference (Reference)
+import Unison.Pattern qualified as P
+import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Test.Common (tm)
 import Unison.Type as Ty
 import Unison.Util.EnumContainers as EC
-import qualified Unison.Util.Text as Util.Text
+import Unison.Util.Text qualified as Util.Text
 import Unison.Var as Var
 
 -- testSNF s = ok
@@ -38,7 +38,7 @@ simpleRefs r
   | r == Ty.charRef = 5
   | otherwise = 100
 
-runANF :: Var v => ANFM v a -> a
+runANF :: (Var v) => ANFM v a -> a
 runANF m = evalState (runReaderT m Set.empty) (0, 1, [])
 
 testANF :: String -> Test ()
@@ -53,22 +53,25 @@ testLift :: String -> Test ()
 testLift s = case cs of !_ -> ok
   where
     cs =
-      emitCombs (RN (const 0) (const 0)) 0
+      emitCombs (RN (const 0) (const 0)) (Builtin "Test") 0
         . superNormalize
-        . fst
-        . lamLift
+        . (\(ll, _, _, _) -> ll)
+        . lamLift mempty
         $ tm s
 
-denormalize :: Var v => ANormal v -> Term.Term0 v
+denormalizeLit :: (Var v) => Lit -> Term.Term0 v
+denormalizeLit (I i) = Term.int () i
+denormalizeLit (N n) = Term.nat () n
+denormalizeLit (F f) = Term.float () f
+denormalizeLit (T t) = Term.text () (Util.Text.toText t)
+denormalizeLit (C c) = Term.char () c
+denormalizeLit (LM r) = Term.termLink () r
+denormalizeLit (LY r) = Term.typeLink () r
+
+denormalize :: (Var v) => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
-denormalize (TLit l) = case l of
-  I i -> Term.int () i
-  N n -> Term.nat () n
-  F f -> Term.float () f
-  T t -> Term.text () (Util.Text.toText t)
-  C c -> Term.char () c
-  LM r -> Term.termLink () r
-  LY r -> Term.typeLink () r
+denormalize (TLit l) = denormalizeLit l
+denormalize (TBLit l) = denormalizeLit l
 denormalize (THnd _ _ _) =
   error "denormalize handler"
 -- = Term.match () (denormalize b) $ denormalizeHandler h
@@ -116,21 +119,23 @@ backReference :: Word64 -> Reference
 backReference _ = error "backReference"
 
 denormalizeMatch ::
-  Var v => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
+  (Var v) => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
-      (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
+      (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b =
-      (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
+      (dcase (const @_ @Integer $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b,
     [(0, ([UN], zb))] <- mapToList cs,
     TAbs i (TMatch j (MatchIntegral m df)) <- zb,
     i == j =
-      (dcase (ipat r) <$> mapToList m) ++ dfcase df
+      (dcase (ipat @Word64 @Integer r) <$> mapToList m) ++ dfcase df
   | MatchData r m df <- b =
       (dcase (dpat r) . fmap snd <$> mapToList m) ++ dfcase df
   | MatchRequest hs df <- b = denormalizeHandler hs df
+  | MatchNumeric _ cs df <- b =
+      (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList cs) ++ dfcase df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
   where
     dfcase (Just d) =
@@ -141,6 +146,7 @@ denormalizeMatch b
       where
         (n, dbr) = denormalizeBranch br
 
+    ipat :: (Integral a) => Reference -> p -> a -> P.Pattern ()
     ipat r _ i
       | r == Ty.natRef = P.Nat () $ fromIntegral i
       | otherwise = P.Int () $ fromIntegral i
@@ -156,7 +162,7 @@ denormalizeBranch (TAbs v br) = (n + 1, ABT.abs v dbr)
 denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler ::
-  Var v =>
+  (Var v) =>
   Map.Map Reference (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
   [Term.MatchCase () (Term.Term0 v)]
@@ -170,7 +176,7 @@ denormalizeHandler cs df = dcs
           db
       ]
       where
-        (_, db) = denormalizeBranch df
+        (_, db) = denormalizeBranch @Int df
     rf r rcs = foldMapWithKey (cf r) rcs
     cf r t b =
       [ Term.MatchCase

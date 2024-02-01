@@ -5,17 +5,17 @@
 module Unison.Codebase.Patch where
 
 import Control.Lens hiding (children, cons, transform)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Unison.Codebase.TermEdit (TermEdit, Typing (Same))
-import qualified Unison.Codebase.TermEdit as TermEdit
+import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency qualified as LD
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as R
+import Unison.Util.Relation qualified as R
 import Prelude hiding (head, read, subtract)
 
 data Patch = Patch
@@ -127,7 +127,6 @@ instance Semigroup Patch where
       (_typeEdits a <> _typeEdits b)
 
 instance Monoid Patch where
-  mappend = (<>)
   mempty = Patch mempty mempty
 
 instance Semigroup PatchDiff where
@@ -140,5 +139,4 @@ instance Semigroup PatchDiff where
       }
 
 instance Monoid PatchDiff where
-  mappend = (<>)
   mempty = PatchDiff mempty mempty mempty mempty

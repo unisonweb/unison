@@ -13,6 +13,8 @@ corge = "corge"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -28,8 +30,6 @@ corge = "corge"
 
 ```
 ```ucm
-  ☝️  The namespace .temp is empty.
-
 .temp> add
 
   ⍟ I've added these definitions:
@@ -54,6 +54,7 @@ list:
   4. foo : Text
   5. quux : Text
   6. qux : Text
+  7. builtin type Text
   
 
 ```
@@ -68,6 +69,7 @@ We can ask to `view` the second element of this list:
   4. foo : Text
   5. quux : Text
   6. qux : Text
+  7. builtin type Text
   
 
 .temp> view 2
@@ -87,6 +89,7 @@ And we can `view` multiple elements by separating with spaces:
   4. foo : Text
   5. quux : Text
   6. qux : Text
+  7. builtin type Text
   
 
 .temp> view 2 3 5
@@ -112,6 +115,7 @@ We can also ask for a range:
   4. foo : Text
   5. quux : Text
   6. qux : Text
+  7. builtin type Text
   
 
 .temp> view 2-4
@@ -137,6 +141,7 @@ And we can ask for multiple ranges and use mix of ranges and numbers:
   4. foo : Text
   5. quux : Text
   6. qux : Text
+  7. builtin type Text
   
 
 .temp> view 1-3 4 5-6

@@ -3,16 +3,15 @@
 module Unison.Test.Term where
 
 import Data.Map ((!))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Text.Encoding (encodeUtf8)
 import EasyTest
-import qualified U.Util.Hash as Hash
-import qualified Unison.Reference as R
+import Unison.Hash qualified as Hash
+import Unison.Reference qualified as R
 import Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Var as Var
-import qualified Unison.Var.RefNamed as Var
+import Unison.Term qualified as Term
+import Unison.Type qualified as Type
+import Unison.Var qualified as Var
 
 test :: Test ()
 test =
@@ -56,7 +55,7 @@ test =
         scope "Term.unhashComponent" $
           let h = Hash.fromByteString (encodeUtf8 "abcd")
               ref = R.Id h 0
-              v1 = Var.refIdNamed @Symbol ref
+              v1 = Var.unnamedRef @Symbol ref
               -- input component: `ref = \v1 -> ref`
               component = Map.singleton ref (Term.lam () v1 (Term.refId () ref))
               component' = Term.unhashComponent component

@@ -1,234 +1,283 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.CommandLine.Main
   ( main,
   )
 where
 
 import Compat (withInterruptHandler)
-import qualified Control.Concurrent.Async as Async
-import Control.Concurrent.STM (atomically)
-import Control.Error (rightMay)
-import Control.Exception (catch, finally)
-import Control.Lens (view)
-import Control.Monad.State (runStateT)
-import qualified Crypto.Random as Random
+import Control.Concurrent.Async qualified as Async
+import Control.Exception (catch, displayException, finally, mask)
+import Control.Lens (preview, (?~), (^.))
+import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified System.Console.Haskeline as Line
-import System.IO (hPutStrLn, stderr)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Ki qualified
+import System.Console.Haskeline qualified as Line
+import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
+import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.CredentialManager (newCredentialManager)
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.Pretty (prettyProjectAndBranchName)
+import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Command (LoadSourceResult (..))
-import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
-import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Runtime as Runtime
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
-import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
-import qualified Unison.CommandLine.InputPattern as IP
-import Unison.CommandLine.InputPatterns (validInputs)
+import Unison.CommandLine.Completion (haskelineTabComplete)
+import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
-import qualified Unison.CommandLine.Welcome as Welcome
+import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import qualified Unison.Server.CodebaseServer as Server
+import Unison.Project (ProjectAndBranch (..))
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.TQueue as Q
-import qualified UnliftIO
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
+import UnliftIO qualified
+import UnliftIO.Directory qualified as Directory
+import UnliftIO.STM
 
 getUserInput ::
-  forall m v a.
-  (MonadIO m, Line.MonadException m) =>
-  Map String InputPattern ->
-  Codebase m v a ->
-  Branch m ->
+  Codebase IO Symbol Ann ->
+  AuthenticatedHttpClient ->
   Path.Absolute ->
   [String] ->
-  m Input
-getUserInput patterns codebase rootBranch currentPath numberedArgs =
+  IO Input
+getUserInput codebase authHTTPClient currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
   where
     -- Catch ctrl-c and simply re-render the prompt.
-    haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+    haskelineCtrlCHandling :: Line.InputT IO b -> Line.InputT IO b
     haskelineCtrlCHandling act = do
       -- We return a Maybe result to ensure we don't nest an action within the masked exception
       -- handler.
       Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
         Nothing -> haskelineCtrlCHandling act
         Just a -> pure a
-    go :: Line.InputT m Input
+    go :: Line.InputT IO Input
     go = do
-      line <-
-        Line.getInputLine $
-          P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
+      promptString <-
+        case preview projectBranchPathPrism currentPath of
+          Nothing -> pure ((P.green . P.shown) currentPath)
+          Just (ProjectAndBranch projectId branchId, restPath) -> do
+            lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
+              -- If the project branch has been deleted from sqlite, just show a borked prompt
+              Nothing -> P.red "???"
+              Just (projectName, branchName) ->
+                P.sep
+                  " "
+                  ( catMaybes
+                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
+                        case restPath of
+                          Path.Empty -> Nothing
+                          _ -> (Just . P.green . P.shown) restPath
+                      ]
+                  )
+      let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
+      line <- Line.getInputLine fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
           [] -> go
-          ws ->
-            case parseInput (Branch.head rootBranch) currentPath numberedArgs patterns $ ws of
+          ws -> do
+            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
-              Right i -> pure i
-    settings :: Line.Settings m
+              Right Nothing -> do
+                -- Ctrl-c or some input cancel, re-run the prompt
+                go
+              Right (Just (expandedArgs, i)) -> do
+                when (expandedArgs /= ws) $ do
+                  liftIO . putStrLn $ fullPrompt <> unwords expandedArgs
+                pure i
+    settings :: Line.Settings IO
     settings = Line.Settings tabComplete (Just ".unisonHistory") True
-    tabComplete :: Line.CompletionFunc m
-    tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
-      -- User hasn't finished a command name, complete from command names
-      if null prev
-        then pure . exactComplete word $ Map.keys patterns
-        else -- User has finished a command name; use completions for that command
-        case words $ reverse prev of
-          h : t -> fromMaybe (pure []) $ do
-            p <- Map.lookup h patterns
-            argType <- IP.argType p (length t)
-            pure $ suggestions argType word codebase rootBranch currentPath
-          _ -> pure []
+    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
 main ::
   FilePath ->
   Welcome.Welcome ->
   Path.Absolute ->
-  (Config, IO ()) ->
+  Config ->
   [Either Event Input] ->
+  Runtime.Runtime Symbol ->
+  Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
+  UCMVersion ->
+  (CausalHash -> STM ()) ->
+  (Path.Absolute -> STM ()) ->
+  ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+  rootVar <- newEmptyTMVarIO
+  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
+  _ <- Ki.fork scope do
+    root <- Codebase.getRootBranch codebase
+    atomically do
+      -- Try putting the root, but if someone else as already written over the root, don't
+      -- overwrite it.
+      void $ tryPutTMVar rootVar root
+    -- Start forcing thunks in a background thread.
+    -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
+    -- recursive "deep*" things.
+    UnliftIO.concurrently_
+      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
+  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
+  Ki.fork_ scope do
+    let loop lastRoot = do
+          -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
+          -- most recent version at any given time, so it's fine to skip some intermediate
+          -- versions.
+          currentRoot <- atomically do
+            currentRoot <- readTMVar rootVar
+            guard $ Just currentRoot /= lastRoot
+            notifyBranchChange (Branch.headHash currentRoot)
+            pure (Just currentRoot)
+          loop currentRoot
+    loop Nothing
   eventQueue <- Q.newIO
-  welcomeEvents <- Welcome.run codebase welcome
-  do
-    -- we watch for root branch tip changes, but want to ignore ones we expect.
-    rootRef <- newIORef root
-    pathRef <- newIORef initialPath
-    initialInputsRef <- newIORef $ welcomeEvents ++ initialInputs
-    numberedArgsRef <- newIORef []
-    pageOutput <- newIORef True
-    cancelFileSystemWatch <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <-
-      watchBranchUpdates
-        (readIORef rootRef)
-        eventQueue
-        codebase
-    let patternMap :: Map String InputPattern
-        patternMap =
-          Map.fromList $
-            validInputs
-              >>= (\p -> (patternName p, p) : ((,p) <$> aliases p))
-    let getInput :: IO Input
-        getInput = do
-          root <- readIORef rootRef
-          path <- readIORef pathRef
-          numberedArgs <- readIORef numberedArgsRef
-          getUserInput patternMap codebase root path numberedArgs
-    let loadSourceFile :: Text -> IO LoadSourceResult
-        loadSourceFile fname =
-          if allow $ Text.unpack fname
-            then
-              let handle :: IOException -> IO LoadSourceResult
-                  handle e =
-                    case e of
-                      _ | isDoesNotExistError e -> return InvalidSourceNameError
-                      _ -> return LoadError
-                  go = do
-                    contents <- readUtf8 $ Text.unpack fname
-                    return $ LoadSuccess contents
-               in catch go handle
-            else return InvalidSourceNameError
-    let notify :: Output Symbol -> IO ()
-        notify =
-          notifyUser dir
-            >=> ( \o ->
-                    ifM
-                      (readIORef pageOutput)
-                      (putPrettyNonempty o)
-                      (putPrettyLnUnpaged o)
-                )
+  initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
+  pageOutput <- newIORef True
+  cancelFileSystemWatch <- case shouldWatchFiles of
+    ShouldNotWatchFiles -> pure (pure ())
+    ShouldWatchFiles -> watchFileSystem eventQueue dir
+  credentialManager <- newCredentialManager
+  let tokenProvider = AuthN.newTokenProvider credentialManager
+  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+  initialEcho <- hGetEcho stdin
+  let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
+  let getInput :: Cli.LoopState -> IO Input
+      getInput loopState = do
+        currentEcho <- hGetEcho stdin
+        liftIO $ restoreEcho currentEcho
+        getUserInput
+          codebase
+          authHTTPClient
+          (loopState ^. #currentPath)
+          (loopState ^. #numberedArgs)
+  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
+      loadSourceFile fname =
+        if allow $ Text.unpack fname
+          then
+            let handle :: IOException -> IO Cli.LoadSourceResult
+                handle e =
+                  case e of
+                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+                    _ -> return Cli.LoadError
+                go = do
+                  contents <- readUtf8 $ Text.unpack fname
+                  return $ Cli.LoadSuccess contents
+             in catch go handle
+          else return Cli.InvalidSourceNameError
+  let notify :: Output -> IO ()
+      notify =
+        notifyUser dir
+          >=> ( \o ->
+                  ifM
+                    (readIORef pageOutput)
+                    (putPrettyNonempty o)
+                    (putPrettyLnUnpaged o)
+              )
 
-    let cleanup = do
-          Runtime.terminate runtime
-          cancelConfig
-          cancelFileSystemWatch
-          cancelWatchBranchUpdates
-        awaitInput :: IO (Either Event Input)
-        awaitInput = do
-          -- use up buffered input before consulting external events
-          readIORef initialInputsRef >>= \case
-            h : t -> writeIORef initialInputsRef t >> pure h
-            [] ->
-              -- Race the user input and file watch.
-              Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-                Left _ -> do
-                  let e = Left <$> atomically (Q.dequeue eventQueue)
-                  writeIORef pageOutput False
-                  e
-                x -> do
-                  writeIORef pageOutput True
-                  pure x
-    (onInterrupt, waitForInterrupt) <- buildInterruptHandler
-    withInterruptHandler onInterrupt $ do
-      let loop :: LoopState.LoopState IO Symbol -> IO ()
-          loop state = do
-            writeIORef pathRef (view LoopState.currentPath state)
-            let free = runStateT (runMaybeT HandleInput.loop) state
-            let handleCommand =
-                  HandleCommand.commandLine
-                    config
-                    awaitInput
-                    (writeIORef rootRef)
-                    runtime
-                    notify
-                    ( \o ->
-                        let (p, args) = notifyNumbered o
-                         in putPrettyNonempty p $> args
-                    )
-                    loadSourceFile
-                    codebase
-                    serverBaseUrl
-                    (const Random.getSystemDRG)
-                    free
-            UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
-              -- SIGINT
-              Left () -> do
-                hPutStrLn stderr "\nAborted."
-                loop state
-              -- Exception during command execution
-              Right (Left e) -> do
-                printException e
-                loop state
-              -- Success
-              Right (Right (o, state')) -> do
-                case o of
-                  Nothing -> pure ()
-                  Just () -> do
-                    writeIORef numberedArgsRef (LoopState._numberedArgs state')
-                    loop state'
+  let cleanup :: IO ()
+      cleanup = cancelFileSystemWatch
+      awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      awaitInput loopState = do
+        -- use up buffered input before consulting external events
+        readIORef initialInputsRef >>= \case
+          h : t -> writeIORef initialInputsRef t >> pure h
+          [] ->
+            -- Race the user input and file watch.
+            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
+              Left _ -> do
+                let e = Left <$> atomically (Q.dequeue eventQueue)
+                writeIORef pageOutput False
+                e
+              x -> do
+                writeIORef pageOutput True
+                pure x
 
-      -- Run the main program loop, always run cleanup,
-      -- If an exception occurred, print it before exiting.
-      loop (LoopState.loopState0 root initialPath)
-        `finally` cleanup
-  where
-    printException :: SomeException -> IO ()
-    printException e = hPutStrLn stderr ("Encountered Exception: " <> show (e :: SomeException))
+  let foldLine :: Text
+      foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
+  let writeSourceFile :: Text -> Text -> IO ()
+      writeSourceFile fp contents = do
+        path <- Directory.canonicalizePath (Text.unpack fp)
+        prependUtf8 path (contents <> foldLine)
+
+  let env =
+        Cli.Env
+          { authHTTPClient,
+            codebase,
+            config,
+            credentialManager,
+            loadSource = loadSourceFile,
+            writeSource = writeSourceFile,
+            generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+            notify,
+            notifyNumbered = \o ->
+              let (p, args) = notifyNumbered o
+               in putPrettyNonempty p $> args,
+            runtime,
+            sandboxedRuntime = sbRuntime,
+            nativeRuntime = nRuntime,
+            serverBaseUrl,
+            ucmVersion
+          }
+
+  (onInterrupt, waitForInterrupt) <- buildInterruptHandler
+
+  mask \restore -> do
+    -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
+    let loop0 :: Cli.LoopState -> IO ()
+        loop0 s0 = do
+          let step = do
+                input <- awaitInput s0
+                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                let sNext = case input of
+                      Left _ -> resultState
+                      Right inp -> resultState & #lastInput ?~ inp
+                pure (result, sNext)
+          UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+            -- SIGINT
+            Left () -> do
+              hPutStrLn stderr "\nAborted."
+              loop0 s0
+            -- Exception during command execution
+            Right (Left e) -> do
+              Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
+              loop0 s0
+            Right (Right (result, s1)) -> do
+              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
+              case result of
+                Cli.Success () -> loop0 s1
+                Cli.Continue -> loop0 s1
+                Cli.HaltRepl -> pure ()
+
+    withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception

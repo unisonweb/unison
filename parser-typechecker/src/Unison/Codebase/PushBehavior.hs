@@ -6,7 +6,9 @@ where
 
 -- | How a `push` behaves.
 data PushBehavior
-  = -- | The namespace being pushed to is required to be empty.
+  = -- Force-push over what's there.
+    ForcePush
+  | -- | The namespace being pushed to is required to be empty.
     RequireEmpty
   | -- | The namespace being pushed to is required to be non-empty
     RequireNonEmpty

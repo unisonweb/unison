@@ -10,11 +10,10 @@ where
 
 import Control.Lens
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Prelude
 import Unison.Reference (TypeReference, TypeReferenceId)
-import qualified Unison.Reference as Reference
+import Unison.Reference qualified as Reference
 import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as ShortHash
+import Unison.ShortHash qualified as ShortHash
 
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
@@ -32,4 +31,6 @@ reference_ =
 
 toShortHash :: ConstructorReference -> ShortHash
 toShortHash (ConstructorReference r i) =
-  (Reference.toShortHash r) {ShortHash.cid = Just (tShow i)}
+  case Reference.toShortHash r of
+    ShortHash.Builtin b -> ShortHash.Builtin b
+    ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just i)

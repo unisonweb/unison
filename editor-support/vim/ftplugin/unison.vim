@@ -4,4 +4,9 @@ if exists("b:did_ftplugin")
 endif
 let b:did_ftplugin = 1
 
-call unison#SetBufferDefaults()
+setlocal commentstring=--\ %s
+setlocal iskeyword+=!,'
+" setlocal tabstop=2
+" setlocal softtabstop=2
+" setlocal shiftwidth=2
+" setlocal completefunc=syntaxcomplete#Complete

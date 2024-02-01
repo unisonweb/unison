@@ -18,6 +18,8 @@ testBasicFork = 'let
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -45,7 +47,7 @@ testBasicMultiThreadMVar : '{io2.IO} [Result]
 testBasicMultiThreadMVar = 'let
   test = 'let
     mv = !newEmpty
-    .builtin.io2.IO.forkComp (thread1 10 mv)
+    void (forkComp (thread1 10 mv))
     next = take mv
     expectU "other thread should have incremented" 11 next
 
@@ -55,6 +57,8 @@ testBasicMultiThreadMVar = 'let
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -113,8 +117,8 @@ testTwoThreads = 'let
     send = !MVar.newEmpty
     recv = !MVar.newEmpty
 
-    .builtin.io2.IO.forkComp (sendingThread 6 send)
-    .builtin.io2.IO.forkComp (receivingThread send recv)
+    void (forkComp (sendingThread 6 send))
+    void (forkComp (receivingThread send recv))
 
     recvd = take recv
 
@@ -125,6 +129,8 @@ testTwoThreads = 'let
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

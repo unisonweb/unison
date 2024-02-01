@@ -12,6 +12,8 @@ f id = (id 1, id "hi")
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -33,11 +35,13 @@ Another example, involving abilities. Here the ability-polymorphic function is i
 ```unison
 f : (forall a g . '{g} a -> '{g} a) -> () -> () 
 f id _ = 
-  (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
+  _ = (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
   ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -65,13 +69,15 @@ Functor.blah = cases Functor f ->
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Functor f
+      type Functor f
       Functor.blah : Functor f -> ()
       Functor.map  : Functor f
                      -> (∀ a b. (a -> b) -> f a -> f b)
@@ -80,7 +86,7 @@ Functor.blah = cases Functor f ->
 This example is similar, but involves abilities: 
 
 ```unison
-unique ability Remote t where doRemoteStuff : ()
+unique ability Remote t where doRemoteStuff : t ()
 unique type Loc = Loc (forall t a . '{Remote t} a ->{Remote t} t a) 
 
 Loc.blah : Loc -> ()
@@ -107,14 +113,16 @@ Loc.transform2 nt = cases Loc f ->
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type Loc
-      unique ability Remote t
+      type Loc
+      ability Remote t
       Loc.blah       : Loc -> ()
       Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
                        -> Loc

@@ -5,8 +5,10 @@ This transcript shows how the pretty-printer picks names for a hash when multipl
 3. Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
 
 ```ucm:hide
-.> alias.type ##Nat Nat
-.> alias.term ##Nat.+ Nat.+
+.a> builtins.merge
+.a2> builtins.merge
+.a3> builtins.merge
+.biasing> builtins.merge
 ```
 
 ```unison:hide
@@ -20,6 +22,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 .a> add
 .a> alias.term b aaa.but.more.segments
 .a> view a
+.> cd .
 ```
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
@@ -34,9 +37,12 @@ c = 1
 d = c + 10
 ```
 
+```ucm:hide
+.a2> builtins.merge
+```
 ```ucm
 .a2> add
-.a2> alias.term c aaaa.tooManySegments
+.a2> alias.term c long.name.but.shortest.suffixification
 ```
 
 ```unison:hide
@@ -49,8 +55,43 @@ d = c + 10
 .a3> merge .a2 .a3
 ```
 
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
+At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized. 
+The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope, 
+`a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ```ucm
 .> view a b c d
 ```
+
+## Name biasing
+
+```unison
+deeply.nested.term = 
+  a + 1
+
+deeply.nested.num = 10
+
+a = 10
+```
+
+```ucm
+.biasing> add
+-- Despite being saved with name `a`, 
+-- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
+-- It's closer to the term being printed.
+.biasing> view deeply.nested.term
+```
+
+Add another term with `num` suffix to force longer suffixification of `deeply.nested.num`
+
+```unison
+other.num = 20
+```
+
+```ucm
+.biasing> add
+-- nested.num should be preferred over the shorter name `a` due to biasing
+-- because `deeply.nested.num` is nearby to the term being viewed.
+.biasing> view deeply.nested.term
+```
+

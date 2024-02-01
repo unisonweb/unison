@@ -1,7 +1,8 @@
 # Forking and merging namespaces in `ucm`
 
 ```ucm:hide
-.> builtins.merge
+.master> builtins.merge
+.> cd .
 ```
 
 The Unison namespace is a versioned tree of names that map to Unison definitions. You can change this namespace and fork and merge subtrees of it. Let's start by introducing a few definitions into a new namespace, `foo`:
@@ -48,7 +49,8 @@ y = "hello"
 
 Notice that `master` now has the definition of `y` we wrote.
 
-We can also delete the fork if we're done with it. (Don't worry, it's still in the `history` and can be resurrected at any time.)
+We can also delete the fork if we're done with it. (Don't worry, even though the history at that path is now empty, 
+it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
 .> delete.namespace .feature1
@@ -78,7 +80,7 @@ z = 99
 
 ```ucm
 .feature2> add
-.feature2> delete.term x
+.feature2> delete.term.verbose x
 ```
 
 And here's the other fork, where we update `y` and add a new definition, `frobnicate`:

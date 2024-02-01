@@ -7,13 +7,13 @@ import Data.Maybe (isJust)
 import EasyTest
 import Unison.Parser.Ann (Ann)
 import Unison.Result (pattern Result)
-import qualified Unison.Result as Result
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import qualified Unison.Test.Common as Common
-import qualified Unison.Typechecker.Context as C
+import Unison.Test.Common qualified as Common
+import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.Extractor (ErrorExtractor)
-import qualified Unison.Typechecker.Extractor as Ex
-import qualified Unison.Typechecker.TypeError as Err
+import Unison.Typechecker.Extractor qualified as Ex
+import Unison.Typechecker.TypeError qualified as Err
 
 test :: Test ()
 test =
@@ -25,7 +25,7 @@ test =
       y "> match 3 with 3 | 3 -> 3" Err.matchGuard,
       y "> match 3 with\n 3 -> 3\n 4 -> \"surprise\"" Err.matchBody,
       -- , y "> match 3 with true -> true" Err.
-      y "> [1, +1]" Err.vectorBody,
+      y "> [1, +1]" Err.listBody,
       n "> true && ((x -> x + 1) true)" Err.and,
       n "> true || ((x -> x + 1) true)" Err.or,
       n "> if ((x -> x + 1) true) then 1 else 2" Err.cond,
@@ -54,7 +54,9 @@ noYieldsError s ex = not $ yieldsError s ex
 
 yieldsError :: forall a. String -> ErrorExtractor Symbol Ann a -> Bool
 yieldsError s ex =
-  let Result notes (Just _) = Common.parseAndSynthesizeAsFile [] "> test" s
-      notes' :: [C.ErrorNote Symbol Ann]
-      notes' = [n | Result.TypeError n <- toList notes]
-   in any (isJust . Ex.extract ex) notes'
+  case Common.parseAndSynthesizeAsFile [] "> test" s of
+    Result notes (Just _) ->
+      let notes' :: [C.ErrorNote Symbol Ann]
+          notes' = [n | Result.TypeError n <- toList notes]
+       in any (isJust . Ex.extract ex) notes'
+    _ -> error "yieldsError: Failed to parse file"

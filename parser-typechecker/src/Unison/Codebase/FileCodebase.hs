@@ -6,7 +6,7 @@ import Unison.Prelude (MonadIO)
 import UnliftIO.Directory (doesDirectoryExist)
 
 -- checks if a minimal codebase structure exists at `path`
-codebaseExists :: MonadIO m => CodebasePath -> m Bool
+codebaseExists :: (MonadIO m) => CodebasePath -> m Bool
 codebaseExists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
   where

@@ -7,6 +7,8 @@ b.x = 2
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -26,8 +28,6 @@ Cause a conflict:
     a.x : Nat
     b.x : Nat
 
-  ☝️  The namespace .merged is empty.
-
 .merged> merge .a
 
   Here's what's changed in the current namespace after the
@@ -41,6 +41,8 @@ Cause a conflict:
        do in this namespace and `test` to run the tests. Or you
        can use `undo` or `reflog` to undo the results of this
        merge.
+
+  Applying changes from patch...
 
 .merged> merge .b
 
@@ -59,38 +61,39 @@ Cause a conflict:
        can use `undo` or `reflog` to undo the results of this
        merge.
 
+  Applying changes from patch...
+
 ```
-Ideally we could just define the canonical `x` that we want, and update 
-to accept it, but we can't:
+Updating conflicted definitions works fine, and the associated patch contains two entries.
 
 ```unison
-x = 1 + 2
+x = 3
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
-    x These definitions would fail on `add` or `update`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
-      Reason
-      conflicted   x   : Nat
-    
-      Tip: Use `help filestatus` to learn more.
+      x : Nat
 
 ```
-Update fails on conflicted `x`:
-
 ```ucm
 .merged> update
 
-  x These definitions failed:
-  
-    Reason
-    conflicted   x   : Nat
-  
-    Tip: Use `help filestatus` to learn more.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+.merged> view.patch
+
+  This patch is empty.
 
 ```

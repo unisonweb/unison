@@ -38,7 +38,8 @@ testCreateRename _ =
     tempDir = newTempDir "fileio"
     fooDir = tempDir ++ "/foo"
     barDir = tempDir ++ "/bar"
-    createDirectory.impl fooDir
+    void x = ()
+    void (createDirectory.impl fooDir)
     check "create a foo directory" (isDirectory fooDir)
     check "directory should exist" (fileExists fooDir)
     renameDirectory fooDir barDir
@@ -47,8 +48,8 @@ testCreateRename _ =
     check "bar should now exist" (fileExists barDir)
 
     bazDir = barDir ++ "/baz"
-    createDirectory.impl bazDir
-    removeDirectory.impl barDir
+    void (createDirectory.impl bazDir)
+    void (removeDirectory.impl barDir)
 
     check "removeDirectory works recursively" (not (isDirectory barDir))
     check "removeDirectory works recursively" (not (isDirectory bazDir))
@@ -109,6 +110,65 @@ testOpenClose _ =
 ```ucm
 .> add
 .> io.test testOpenClose
+```
+
+### Reading files with getSomeBytes
+
+Tests: getSomeBytes
+       putBytes
+       isFileOpen
+       seekHandle
+
+```unison
+testGetSomeBytes : '{io2.IO} [Result]
+testGetSomeBytes _ =
+  test = 'let
+    tempDir = (newTempDir "getSomeBytes")
+    fooFile = tempDir ++ "/foo"
+
+    testData = "0123456789"
+    testSize = size testData
+
+    chunkSize = 7
+    check "chunk size splits data into 2 uneven sides" ((chunkSize > (testSize / 2)) && (chunkSize < testSize))
+
+
+    -- write testData to a temporary file
+    fooWrite = openFile fooFile Write
+    putBytes fooWrite (toUtf8 testData)
+    closeFile fooWrite
+    check "file should be closed" (not (isFileOpen fooWrite))
+
+    -- reopen for reading back the data in chunks
+    fooRead = openFile fooFile Read
+
+    -- read first part of file
+    chunk1 = getSomeBytes fooRead chunkSize |> fromUtf8
+    check "first chunk matches first part of testData" (chunk1 == take chunkSize testData)
+
+    -- read rest of file
+    chunk2 = getSomeBytes fooRead chunkSize |> fromUtf8
+    check "second chunk matches rest of testData" (chunk2 == drop chunkSize testData)
+
+    check "should be at end of file" (isFileEOF fooRead)
+
+    readAtEOF = getSomeBytes fooRead chunkSize
+    check "reading at end of file results in Bytes.empty" (readAtEOF == Bytes.empty)
+
+    -- request many bytes from the start of the file
+    seekHandle fooRead AbsoluteSeek +0
+    bigRead = getSomeBytes fooRead (testSize * 999) |> fromUtf8
+    check "requesting many bytes results in what's available" (bigRead == testData)
+
+    closeFile fooRead
+    check "file should be closed" (not (isFileOpen fooRead))
+
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetSomeBytes
 ```
 
 ### Seeking in open files
@@ -332,3 +392,34 @@ Calling our examples with the wrong number of args will error.
 ```ucm:error
 .> run runMeWithTwoArgs
 ```
+
+### Get the time zone
+
+```unison:hide
+testTimeZone = do
+  (offset, summer, name) = Clock.internals.systemTimeZone +0
+  _ = (offset : Int, summer : Nat, name : Text)
+  ()
+```
+
+```ucm
+.> add
+.> run testTimeZone
+```
+
+### Get some random bytes
+
+```unison:hide
+testRandom : '{io2.IO} [Result]
+testRandom = do
+  test = do
+    bytes = IO.randomBytes 10
+    check "randomBytes returns the right number of bytes" (size bytes == 10)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetEnv
+```
+

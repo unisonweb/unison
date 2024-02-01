@@ -21,7 +21,7 @@ Another example, involving abilities. Here the ability-polymorphic function is i
 ```unison
 f : (forall a g . '{g} a -> '{g} a) -> () -> () 
 f id _ = 
-  (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
+  _ = (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
   ()
 ```
 
@@ -43,7 +43,7 @@ Functor.blah = cases Functor f ->
 This example is similar, but involves abilities: 
 
 ```unison
-unique ability Remote t where doRemoteStuff : ()
+unique ability Remote t where doRemoteStuff : t ()
 unique type Loc = Loc (forall t a . '{Remote t} a ->{Remote t} t a) 
 
 Loc.blah : Loc -> ()

@@ -1,56 +1,85 @@
 name: unison-codebase-sqlite
 github: unisonweb/unison
 
-default-extensions:
-  - ApplicativeDo
-  - BangPatterns
-  - BlockArguments
-  - ConstraintKinds
-  - DeriveFunctor
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - FunctionalDependencies
-  - GeneralizedNewtypeDeriving
-  - InstanceSigs
-  - LambdaCase
-  - MultiParamTypeClasses
-  - NamedFieldPuns
-  - PatternSynonyms
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
-  - TypeFamilies
-  - TypeFamilyDependencies
-
 library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_codebase_sqlite
   source-dirs: .
 
 extra-source-files:
   - sql/*
 
 dependencies:
+  - Only
+  - aeson
   - base
   - bytes
   - bytestring
   - containers
   - extra
-  - here
-  - lens
   - generic-lens
+  - lens
   - monad-validate
   - mtl
+  - network-uri
+  - network-uri-orphans-sqlite
+  - nonempty-containers
   - safe
-  - sqlite-simple
   - text
   - transformers
-  - unliftio
-  - vector
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-core-orphans-sqlite
+  - unison-hash
+  - unison-hash-orphans-sqlite
   - unison-prelude
-  - unison-util
+  - unison-sqlite
+  - unison-util-base32hex
+  - unison-util-cache
+  - unison-util-file-embed
   - unison-util-serialization
   - unison-util-term
+  - unliftio
+  - uuid
+  - uuid-orphans-sqlite
+  - vector
+  - witch
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - InstanceSigs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedLabels
+  - OverloadedStrings
+  - PatternSynonyms
+  - QuasiQuotes
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - TypeOperators
+  - ViewPatterns

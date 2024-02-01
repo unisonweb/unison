@@ -1,12 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN) where
 
-import qualified Data.Map as Map
-import qualified Unison.HashQualified as HQ
+import Data.Map qualified as Map
+import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Name as Name
 import Unison.Prelude
+import Unison.Syntax.Name qualified as Name (unsafeFromText)
 
 -- Type aliases relating to Fully-Qualified Names, e.g. 'Acme.API.foo'
 -- Used primarily by the FQN elision code - see TermPrinter.PrintAnnotation.

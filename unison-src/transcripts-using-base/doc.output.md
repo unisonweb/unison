@@ -30,13 +30,15 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type time.DayOfWeek
+      type time.DayOfWeek
       ImportantConstant     : Nat
       ImportantConstant.doc : Doc2
       d1                    : Doc2
@@ -61,14 +63,7 @@ You can preview what docs will look like when rendered to the console using the 
 
   The 7 days of the week, defined as:
   
-      unique type DayOfWeek
-        = Sun
-        | Mon
-        | Tue
-        | Wed
-        | Thu
-        | Fri
-        | Sat
+      type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
@@ -79,6 +74,9 @@ First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
 .> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+
+  Loading changes detected in
+  ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
   I found and typechecked these definitions in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
@@ -114,7 +112,7 @@ and the rendered output using `display`:
       section elements.
       
       Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced''.
+      or ''monospaced'' (or ''monospaced'').
       
       You can link to Unison terms, types, and external URLs:
       
@@ -141,7 +139,7 @@ and the rendered output using `display`:
     elements.
   
     Text can be bold, *italicized*, ~~strikethrough~~, or
-    `monospaced`.
+    `monospaced` (or `monospaced`).
   
     You can link to Unison terms, types, and external URLs:
   
@@ -243,7 +241,7 @@ and the rendered output using `display`:
 
   evaluation : Doc2
   evaluation =
-    use Nat +
+    use Nat * +
     {{
     # Evaluation
     
@@ -270,9 +268,7 @@ and the rendered output using `display`:
       
       @typecheck ```
       cube : Nat -> Nat
-      cube x =
-        use Nat *
-        x * x * x
+      cube x = x * x * x
       ```
     }}
 
@@ -300,10 +296,9 @@ and the rendered output using `display`:
     To include a typechecked snippet of code without evaluating
     it, you can do:
   
+        use Nat *
         cube : Nat -> Nat
-        cube x =
-          use Nat *
-          x * x * x
+        cube x = x * x * x
 
 .> view includingSource
 
@@ -497,16 +492,18 @@ and the rendered output using `display`:
     docTable
       [ [ {{
           a
-          }},
-          {{
+          }}
+        , {{
           b
-          }},
-          {{
+          }}
+        , {{
           A longer paragraph that will split onto multiple
           lines, such that this row occupies multiple lines in
           the rendered table.
-          }} ],
-        [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
+          }}
+        ]
+      , [{{ Some text }}, {{ More text }}, {{ Zounds! }}]
+      ] }}
     }}
 
 .> display otherElements
@@ -556,7 +553,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
 
   doc.guide : Doc2
   doc.guide =
-    {{ # Unison computable documentation
+    {{
+    # Unison computable documentation
     
       {{ basicFormatting }}
       
@@ -568,7 +566,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       
       {{ nonUnisonCodeBlocks }}
       
-      {{ otherElements }} }}
+      {{ otherElements }}
+    }}
 
 .> display doc.guide
 
@@ -581,7 +580,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       section elements.
     
       Text can be bold, *italicized*, ~~strikethrough~~, or
-      `monospaced`.
+      `monospaced` (or `monospaced`).
     
       You can link to Unison terms, types, and external URLs:
     
@@ -656,10 +655,9 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          use Nat *
           cube : Nat -> Nat
-          cube x =
-            use Nat *
-            x * x * x
+          cube x = x * x * x
   
     # Including Unison source code
     

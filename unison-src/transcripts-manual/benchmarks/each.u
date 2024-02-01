@@ -1,0 +1,6 @@
+
+main = do
+  timeit "Each" '(List.size <| Each.toList do 
+    x = Each.range 0 100
+    y = Each.range 0 100 
+    x + y)

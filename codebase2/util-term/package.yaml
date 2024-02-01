@@ -3,6 +3,9 @@ github: unisonweb/unison
 
 library:
   source-dirs: .
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_term
 
 dependencies:
   - base

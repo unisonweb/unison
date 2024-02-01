@@ -1,8 +1,4 @@
 
-```ucm:hide
-.> builtins.merge
-```
-
 # How merging works
 
 Suppose we have two branches, `P1` and `P2`, and a subnamespace, `foo`, which we'll refer to with `P1.foo` , `P2.foo`. This doc explains how `merge(P1,P2)` is computed, including the `merge(P1,P2).foo` subnamespace.
@@ -33,6 +29,7 @@ quux.x = 4
 ```
 
 ```ucm
+.P0.lib> builtins.merge
 .P0> add
 ```
 
@@ -55,7 +52,7 @@ quux.y = 333
 
 ```ucm
 .P1> add
-.P1> delete.term foo.w
+.> delete.term.verbose P1.foo.w
 ```
 
 We added to `foo`, `bar` and `baz`, and deleted `foo.w`, which should stay deleted in the merge.
@@ -113,6 +110,7 @@ f = (x y -> y) a "woot!"
 ```
 
 ```ucm
+.c1.lib> builtins.merge
 .c1> add
 .> fork c1 c1a
 .> fork c1 c1b
@@ -136,7 +134,7 @@ a = "hello world!"
 ```
 
 ```ucm
-.c1b> update
+.c1b> update.old
 ```
 
 Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`, and the new definitions `b` and `c`:

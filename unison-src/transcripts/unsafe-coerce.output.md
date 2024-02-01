@@ -14,6 +14,8 @@ main _ =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -28,7 +30,7 @@ main _ =
 ```ucm
 .> find unsafe.coerceAbilities
 
-  1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   
 
 .> add

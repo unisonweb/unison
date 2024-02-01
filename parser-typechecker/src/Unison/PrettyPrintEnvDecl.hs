@@ -1,8 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..)) where
+module Unison.PrettyPrintEnvDecl
+  ( PrettyPrintEnvDecl (..),
+    biasTo,
+    empty,
+    addFallback,
+  )
+where
 
+import Unison.Name (Name)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import Unison.PrettyPrintEnv qualified as PPE
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
@@ -17,3 +25,20 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
     suffixifiedPPE :: PrettyPrintEnv
   }
   deriving (Show)
+
+-- | Lifts 'biasTo' over a PrettyPrintEnvDecl
+biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
+biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
+  PrettyPrintEnvDecl
+    { unsuffixifiedPPE = PPE.biasTo targets unsuffixifiedPPE,
+      suffixifiedPPE = PPE.biasTo targets suffixifiedPPE
+    }
+
+empty :: PrettyPrintEnvDecl
+empty = PrettyPrintEnvDecl PPE.empty PPE.empty
+
+-- | Will use names from the fallback pped if no names were found in the primary.
+-- @addFallback primary fallback@
+addFallback :: PrettyPrintEnvDecl -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
+addFallback (PrettyPrintEnvDecl unsuff1 suff1) (PrettyPrintEnvDecl unsuff2 suff2) =
+  PrettyPrintEnvDecl (unsuff1 `PPE.addFallback` unsuff2) (suff1 `PPE.addFallback` suff2)

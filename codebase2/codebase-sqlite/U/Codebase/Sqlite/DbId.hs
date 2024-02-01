@@ -1,16 +1,15 @@
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
-
 module U.Codebase.Sqlite.DbId where
 
 import Data.Bits (Bits)
+import Data.Text (Text)
+import Data.UUID (UUID)
+import Data.UUID.Orphans.Sqlite ()
 import Data.Word (Word64)
-import Database.SQLite.Simple.FromField
-import Database.SQLite.Simple.ToField
+import Unison.Sqlite (FromField, ToField)
+
+newtype HashVersion = HashVersion Word64
+  deriving stock (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
 newtype ObjectId = ObjectId Word64
   deriving (Eq, Ord, Show)
@@ -39,6 +38,18 @@ newtype BranchHashId = BranchHashId {unBranchHashId :: HashId}
 newtype CausalHashId = CausalHashId {unCausalHashId :: HashId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
+
+newtype ProjectBranchId = ProjectBranchId {unProjectBranchId :: UUID}
+  deriving newtype (Eq, FromField, Ord, Show, ToField)
+
+newtype ProjectId = ProjectId {unProjectId :: UUID}
+  deriving newtype (Eq, FromField, Ord, Show, ToField)
+
+newtype RemoteProjectBranchId = RemoteProjectBranchId {unRemoteProjectBranchId :: Text}
+  deriving newtype (Eq, FromField, Ord, Show, ToField)
+
+newtype RemoteProjectId = RemoteProjectId {unRemoteProjectId :: Text}
+  deriving newtype (Eq, FromField, Ord, Show, ToField)
 
 newtype SchemaVersion = SchemaVersion Word64
   deriving (Eq, Ord, Show)

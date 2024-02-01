@@ -17,6 +17,8 @@ structural type Y = Y Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -29,8 +31,7 @@ structural type Y = Y Nat
       new definition:
     
       structural type Y
-        (The old definition is also named builtin.Unit. I'll
-        update this name too.)
+        (The old definition is also named builtin.Unit.)
 
 ```
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.

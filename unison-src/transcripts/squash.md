@@ -134,8 +134,8 @@ This checks to see that squashing correctly preserves deletions:
 ```ucm
 .delete> builtins.merge
 .delete> fork builtin builtin2
-.delete> delete.term builtin2.Nat.+
-.delete> delete.term builtin2.Nat.*
+.delete> delete.term.verbose builtin2.Nat.+
+.delete> delete.term.verbose builtin2.Nat.*
 .delete> squash builtin2 builtin
 .delete> history builtin
 ```

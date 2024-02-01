@@ -17,6 +17,8 @@ ex thing =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -47,6 +49,8 @@ ex thing =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -81,6 +85,8 @@ ex thing =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -110,6 +116,8 @@ ex thing =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -148,6 +156,8 @@ ex n =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -173,6 +183,8 @@ ex n =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -195,7 +207,9 @@ ex n =
 
 ```ucm
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: pong9
+  Loading changes detected in scratch.u.
+
+  These definitions depend on each other cyclically but aren't guarded by a lambda: pong8
       2 |   pong = ping + 1
       3 |   ping = 42
   
@@ -211,7 +225,9 @@ ex n =
 
 ```ucm
 
-  These definitions depend on each other cyclically but aren't guarded by a lambda: loop9
+  Loading changes detected in scratch.u.
+
+  These definitions depend on each other cyclically but aren't guarded by a lambda: loop8
       2 |   loop = loop
   
 
@@ -225,6 +241,8 @@ ex n =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -253,6 +271,8 @@ ex n =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
   
       5 |   zap1 = launchMissiles "neptune" + zap2
@@ -274,6 +294,8 @@ ex n =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -302,6 +324,8 @@ ex n =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -326,6 +350,8 @@ ex n =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

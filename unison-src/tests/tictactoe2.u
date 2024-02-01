@@ -7,6 +7,18 @@ use Board Board
 use P O X E
 use Optional Some None
 
+foldLeft : (b -> a -> b) -> b -> [a] -> b
+foldLeft f =
+  go z xs = match xs with
+    [] -> z
+    a +: as -> go (f z a) as
+  go
+
+orElse a b =
+  match a with
+    None -> b
+    a -> a
+
 isWin : Board -> Optional P
 isWin board =
   same : P -> P -> P -> Optional P
@@ -18,36 +30,19 @@ isWin board =
     -- horizontal left/center/right
     -- diagonal rising/falling
     Board a b c
-          _ _ _
-          _ _ _ -> same a b c
-
-    Board _ _ _
-          a b c
-          _ _ _ -> same a b c
-
-    Board _ _ _
-          _ _ _
-          a b c -> same a b c
-
-    Board a _ _
-          b _ _
-          c _ _ -> same a b c
-
-    Board _ a _
-          _ b _
-          _ c _ -> same a b c
-
-    Board _ _ a
-          _ _ b
-          _ _ c -> same a b c
-
-    Board a _ _
-          _ b _
-          _ _ c -> same a b c
-
-    Board _ _ a
-          _ b _
-          c _ _ -> same a b c
+          d e f
+          g h i
+          ->
+          foldLeft orElse None
+            [ same a b c
+            , same d e f
+            , same g h i
+            , same a d g
+            , same b e h
+            , same c f i
+            , same a e i
+            , same g e c
+            ]
 
 x = isWin (Board X O X
                  O X X

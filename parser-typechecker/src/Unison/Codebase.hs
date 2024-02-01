@@ -6,62 +6,75 @@ module Unison.Codebase
     unsafeGetTerm,
     unsafeGetTermWithType,
     getTermComponentWithTypes,
+    unsafeGetTermComponent,
     getTypeOfTerm,
+    getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
     putTerm,
+    putTermComponent,
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
 
     -- ** Search
     termsOfType,
+    filterTermsByReferenceIdHavingType,
+    filterTermsByReferentHavingType,
     termsMentioningType,
-    termReferencesByPrefix,
+    SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
 
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    getDeclComponent,
+    SqliteCodebase.Operations.getDeclComponent,
     putTypeDeclaration,
-    typeReferencesByPrefix,
+    putTypeDeclarationComponent,
+    SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
 
     -- * Branches
-    branchExists,
+    SqliteCodebase.Operations.branchExists,
     getBranchForHash,
+    expectBranchForHash,
     putBranch,
-    branchHashesByPrefix,
+    SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
-    beforeImpl,
+    SqliteCodebase.Operations.before,
+    getShallowBranchAtPath,
+    getShallowCausalAtPath,
+    getBranchAtPath,
+    Operations.expectCausalBranchByCausalHash,
+    getShallowCausalFromRoot,
+    getShallowRootBranch,
+    getShallowRootCausal,
 
     -- * Root branch
     getRootBranch,
-    getRootBranchExists,
-    GetRootBranchError (..),
+    SqliteCodebase.Operations.getRootBranchExists,
+    Operations.expectRootCausalHash,
     putRootBranch,
-    rootBranchUpdates,
+    SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
-    patchExists,
-    getPatch,
-    putPatch,
+    SqliteCodebase.Operations.patchExists,
+    SqliteCodebase.Operations.getPatch,
+    SqliteCodebase.Operations.putPatch,
 
     -- * Watches
     getWatch,
     lookupWatchCache,
-    watches,
-    putWatch,
-    clearWatches,
+    SqliteCodebase.Operations.watches,
+    SqliteCodebase.Operations.putWatch,
+    Queries.clearWatches,
 
     -- * Reflog
-    getReflog,
-    appendReflog,
+    Operations.getReflog,
 
     -- * Unambiguous hash length
-    hashLength,
-    branchHashLength,
+    SqliteCodebase.Operations.hashLength,
+    SqliteCodebase.Operations.branchHashLength,
 
     -- * Dependents
     dependents,
@@ -85,6 +98,12 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
+    -- * Direct codebase access
+    runTransaction,
+    runTransactionWithRollback,
+    withConnection,
+    withConnectionIO,
+
     -- * Misc (organize these better)
     addDefsToCodebase,
     componentReferencesForReference,
@@ -95,27 +114,33 @@ module Unison.Codebase
   )
 where
 
-import Control.Error.Util (hush)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.Trans.Except (throwE)
-import Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import U.Util.Timing (time)
-import qualified Unison.Builtin as Builtin
-import qualified Unison.Builtin.Terms as Builtin
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Branch qualified as V2Branch
+import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Builtin qualified as Builtin
+import Unison.Builtin.Terms qualified as Builtin
 import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
-import qualified Unison.Codebase.CodeLookup as CL
+import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.Editor.Git (withStatus)
-import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
-import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.Editor.Git qualified as Git
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
+import Unison.Codebase.GitError qualified as GitError
+import Unison.Codebase.Path
+import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
     SyncToDir,
@@ -123,65 +148,137 @@ import Unison.Codebase.Type
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
-import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.Convert as Hashing
-import qualified Unison.Parser.Ann as Parser
+import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
-import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Referent as Referent
-import qualified Unison.Runtime.IOSource as IOSource
+import Unison.Reference (Reference, TermReferenceId, TypeReference)
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.Runtime.IOSource qualified as IOSource
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import qualified Unison.Term as Term
+import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
-import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Relation as Rel
+import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.UnisonFile qualified as UF
+import Unison.Util.Relation qualified as Rel
+import Unison.Util.Timing (time)
 import Unison.Var (Var)
-import qualified Unison.WatchKind as WK
-import UnliftIO (MonadUnliftIO)
+import Unison.WatchKind qualified as WK
 
--- | Get a branch from the codebase.
-getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
-getBranchForHash codebase h =
-  -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
-  -- If not found, attempt to find it in the Codebase (sqlite)
-  let nestedChildrenForDepth depth b =
-        if depth == 0
-          then []
-          else b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
+-- | Run a transaction on a codebase.
+runTransaction :: (MonadIO m) => Codebase m v a -> Sqlite.Transaction b -> m b
+runTransaction Codebase {withConnection} action =
+  withConnection \conn -> Sqlite.runTransaction conn action
 
-      headHashEq = (h ==) . Branch.headHash
+runTransactionWithRollback ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  ((forall void. b -> Sqlite.Transaction void) -> Sqlite.Transaction b) ->
+  m b
+runTransactionWithRollback Codebase {withConnection} action =
+  withConnection \conn -> Sqlite.runTransactionWithRollback conn action
 
-      find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
-   in do
-        rootBranch <- hush <$> getRootBranch codebase
-        case rootBranch of
-          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-          Nothing -> getBranchForHashImpl codebase h
+getShallowCausalFromRoot ::
+  -- Optional root branch, if Nothing use the codebase's root branch.
+  Maybe CausalHash ->
+  Path.Path ->
+  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+getShallowCausalFromRoot mayRootHash p = do
+  rootCausal <- case mayRootHash of
+    Nothing -> getShallowRootCausal
+    Just ch -> Operations.expectCausalBranchByCausalHash ch
+  getShallowCausalAtPath p (Just rootCausal)
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootBranch :: Sqlite.Transaction (V2.Branch Sqlite.Transaction)
+getShallowRootBranch = do
+  getShallowRootCausal >>= V2Causal.value
+
+-- | Get the shallow representation of the root branches without loading the children or
+-- history.
+getShallowRootCausal :: Sqlite.Transaction (V2.CausalBranch Sqlite.Transaction)
+getShallowRootCausal = do
+  hash <- Operations.expectRootCausalHash
+  Operations.expectCausalBranchByCausalHash hash
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowCausalAtPath ::
+  Path ->
+  Maybe (V2Branch.CausalBranch Sqlite.Transaction) ->
+  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+getShallowCausalAtPath path mayCausal = do
+  causal <- whenNothing mayCausal getShallowRootCausal
+  case path of
+    Path.Empty -> pure causal
+    ns Path.:< p -> do
+      b <- V2Causal.value causal
+      case V2Branch.childAt ns b of
+        Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
+        Just childCausal -> getShallowCausalAtPath p (Just childCausal)
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowBranchAtPath ::
+  Path ->
+  Maybe (V2Branch.Branch Sqlite.Transaction) ->
+  Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
+getShallowBranchAtPath path mayBranch = do
+  branch <- whenNothing mayBranch (getShallowRootCausal >>= V2Causal.value)
+  case path of
+    Path.Empty -> pure branch
+    ns Path.:< p -> do
+      case V2Branch.childAt ns branch of
+        Nothing -> pure V2Branch.empty
+        Just childCausal -> do
+          childBranch <- V2Causal.value childCausal
+          getShallowBranchAtPath p (Just childBranch)
+
+-- | Get a v1 branch from the root following the given path.
+getBranchAtPath ::
+  (MonadIO m) =>
+  Codebase m v a ->
+  Path.Absolute ->
+  m (Branch m)
+getBranchAtPath codebase path = do
+  V2Causal.Causal {causalHash} <- runTransaction codebase $ getShallowCausalAtPath (Path.unabsolute path) Nothing
+  expectBranchForHash codebase causalHash
+
+-- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
+expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
+expectBranchForHash codebase hash =
+  getBranchForHash codebase hash >>= \case
+    Just branch -> pure branch
+    Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
-lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
-lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
-  Nothing -> Branch.lca b1 b2
-  Just lca -> do
-    eb1 <- branchExists code h1
-    eb2 <- branchExists code h2
-    if eb1 && eb2
-      then do
-        lca h1 h2 >>= \case
-          Just h -> getBranchForHash code h
-          Nothing -> pure Nothing -- no common ancestor
-      else Branch.lca b1 b2
+lca :: (MonadIO m) => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
+lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = do
+  action <-
+    runTransaction code do
+      eb1 <- SqliteCodebase.Operations.branchExists h1
+      eb2 <- SqliteCodebase.Operations.branchExists h2
+      if eb1 && eb2
+        then do
+          Operations.lca h1 h2 >>= \case
+            Just h -> pure (getBranchForHash code h)
+            Nothing -> pure (pure Nothing) -- no common ancestor
+        else pure (Branch.lca b1 b2)
+  action
 
 debug :: Bool
 debug = False
 
 -- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
-installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
+installUcmDependencies :: Codebase m Symbol Parser.Ann -> Sqlite.Transaction ()
 installUcmDependencies c = do
   let uf =
         ( UF.typecheckedUnisonFile
@@ -196,10 +293,10 @@ installUcmDependencies c = do
 -- if it makes sense to later.
 addDefsToCodebase ::
   forall m v a.
-  (Monad m, Var v, Show a) =>
+  (Var v, Show a) =>
   Codebase m v a ->
   UF.TypecheckedUnisonFile v a ->
-  m ()
+  Sqlite.Transaction ()
 addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
   traverse_ (goType Left) (UF.effectDeclarationsId' uf)
@@ -207,22 +304,20 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
-    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
-    goTerm _ = pure ()
-    goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> m ()
+    goTerm (_, r, wk, tm, tp) = when (WK.watchKindShouldBeStoredInDatabase wk) (putTerm c r tm tp)
+    goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
-getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
-  maybeDecl <- getTypeDeclaration codebase r
-  pure $ case maybeDecl of
-    Nothing -> Nothing
-    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r
+getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference r0 cid) =
+  case r0 of
+    Reference.DerivedId r -> do
+      maybeDecl <- getTypeDeclaration codebase r
+      pure $ case maybeDecl of
+        Nothing -> Nothing
+        Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+    Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -232,36 +327,55 @@ getTypeOfConstructor _ r =
 --     MaybeT (getWatch codebase RegularWatch ref)
 --       <|> MaybeT (getWatch codebase TestWatch ref))
 -- @
-lookupWatchCache :: (Monad m) => Codebase m v a -> Reference.Id -> m (Maybe (Term v a))
+lookupWatchCache :: Codebase m v a -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a))
 lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
+-- | Make a @TypeLookup@ that is suitable for looking up information about all of the given type-or-term references,
+-- and all of their type dependencies, including builtins.
 typeLookupForDependencies ::
-  (Monad m, BuiltinAnnotation a) =>
-  Codebase m Symbol a ->
+  Codebase IO Symbol Ann ->
   Set Reference ->
-  m (TL.TypeLookup Symbol a)
+  Sqlite.Transaction (TL.TypeLookup Symbol Ann)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  foldM go mempty s
+  (<> Builtin.typeLookup) <$> depthFirstAccum mempty s
   where
-    go tl ref@(Reference.DerivedId id) =
-      fmap (tl <>) $
-        getTypeOfTerm codebase ref >>= \case
-          Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
-          Nothing ->
-            getTypeDeclaration codebase id >>= \case
-              Just (Left ed) ->
-                pure $ TypeLookup mempty mempty (Map.singleton ref ed)
-              Just (Right dd) ->
-                pure $ TypeLookup mempty (Map.singleton ref dd) mempty
-              Nothing -> pure mempty
-    go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
+    depthFirstAccum :: TL.TypeLookup Symbol Ann -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol Ann)
+    depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
 
-toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
+    -- We need the transitive dependencies of data decls
+    -- that are scrutinized in a match expression for
+    -- pattern match coverage checking (specifically for
+    -- the inhabitation check). We ensure these are found
+    -- by collecting all transitive type dependencies.
+    go tl ref@(Reference.DerivedId id) =
+      getTypeOfTerm codebase ref >>= \case
+        Just typ ->
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+           in depthFirstAccum z (Type.dependencies typ)
+        Nothing ->
+          getTypeDeclaration codebase id >>= \case
+            Just (Left ed) ->
+              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
+               in depthFirstAccum z (DD.typeDependencies $ DD.toDataDecl ed)
+            Just (Right dd) ->
+              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
+               in depthFirstAccum z (DD.typeDependencies dd)
+            Nothing -> pure tl
+    go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
+    unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
+    unseen tl r =
+      isNothing
+        ( Map.lookup r (TL.dataDecls tl) $> ()
+            <|> Map.lookup r (TL.typeOfTerms tl) $> ()
+            <|> Map.lookup r (TL.effectDecls tl) $> ()
+        )
+
+toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c =
-  CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+  CL.CodeLookup (runTransaction c . getTerm c) (runTransaction c . getTypeDeclaration c)
     <> Builtin.codeLookup
     <> IOSource.codeLookupM
 
@@ -270,10 +384,10 @@ toCodeLookup c =
 -- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
 -- 'putTerm'.
 getTypeOfTerm ::
-  (Applicative m, BuiltinAnnotation a) =>
+  (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
   Reference ->
-  m (Maybe (Type Symbol a))
+  Sqlite.Transaction (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
@@ -284,47 +398,69 @@ getTypeOfTerm c r = case r of
 
 -- | Get the type of a referent.
 getTypeOfReferent ::
-  (BuiltinAnnotation a, Monad m) =>
+  (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
   Referent.Referent ->
-  m (Maybe (Type Symbol a))
+  Sqlite.Transaction (Maybe (Type Symbol a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
 
-componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
-componentReferencesForReference c = \case
+componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
+componentReferencesForReference = \case
   r@Reference.Builtin {} -> pure (Set.singleton r)
   Reference.Derived h _i ->
-    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength c h
+    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength h
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
-dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r =
+dependents :: Queries.DependentsSelector -> Reference -> Sqlite.Transaction (Set Reference)
+dependents selector r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-    <$> dependentsImpl c r
+    <$> SqliteCodebase.Operations.dependentsImpl selector r
 
-dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
-dependentsOfComponent c h =
+dependentsOfComponent :: Hash -> Sqlite.Transaction (Set Reference)
+dependentsOfComponent h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId
-    <$> dependentsOfComponentImpl c h
+    <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
 -- | Get the set of terms-or-constructors that have the given type.
-termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsOfType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
 
 -- | Get all terms which match the exact type the provided reference points to.
-termsOfTypeByReference :: (Var v, Functor m) => Codebase m v a -> Reference -> m (Set Referent.Referent)
+termsOfTypeByReference :: (Var v) => Codebase m v a -> Reference -> Sqlite.Transaction (Set Referent.Referent)
 termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
 
+filterTermsByReferentHavingType :: (Var v) => Codebase m v a -> Type v a -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingType c ty = filterTermsByReferentHavingTypeByReference c $ Hashing.typeToReference ty
+
+filterTermsByReferenceIdHavingType :: (Var v) => Codebase m v a -> Type v a -> Set TermReferenceId -> Sqlite.Transaction (Set TermReferenceId)
+filterTermsByReferenceIdHavingType c ty = filterTermsByReferenceIdHavingTypeImpl c (Hashing.typeToReference ty)
+
+-- | Find the subset of `tms` which match the exact type `r` points to.
+filterTermsByReferentHavingTypeByReference :: Codebase m v a -> TypeReference -> Set Referent.Referent -> Sqlite.Transaction (Set Referent.Referent)
+filterTermsByReferentHavingTypeByReference c r tms = do
+  let (builtins, derived) = partitionEithers . map p $ Set.toList tms
+  let builtins' =
+        Set.intersection
+          (Set.fromList builtins)
+          (Rel.lookupDom r Builtin.builtinTermsByType)
+  derived' <- filterTermsByReferentIdHavingTypeImpl c r (Set.fromList derived)
+  pure $ builtins' <> Set.mapMonotonic Referent.fromId derived'
+  where
+    p :: Referent.Referent -> Either Referent.Referent Referent.Id
+    p r = case Referent.toId r of
+      Just rId -> Right rId
+      Nothing -> Left r
+
 -- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
-termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsMentioningType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)
@@ -334,13 +470,13 @@ termsMentioningType c ty =
 
 -- | Check whether a reference is a term.
 isTerm ::
-  (Applicative m, BuiltinAnnotation a) =>
+  (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
   Reference ->
-  m Bool
+  Sqlite.Transaction Bool
 isTerm code = fmap isJust . getTypeOfTerm code
 
-isType :: Applicative m => Codebase m v a -> Reference -> m Bool
+isType :: Codebase m v a -> Reference -> Sqlite.Transaction Bool
 isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
@@ -353,14 +489,14 @@ data Preprocessing m
   = Unmodified
   | Preprocessed (Branch m -> m (Branch m))
 
--- | Sync elements as needed from a remote codebase into the local one.
--- If `sbh` is supplied, we try to load the specified branch hash;
+-- | Sync elements as needed from a remote git codebase into the local one.
+-- If `sch` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
-  MonadUnliftIO m =>
+  (MonadUnliftIO m) =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   SyncMode ->
   Preprocessing m ->
   m (Either GitError (Branch m))
@@ -384,44 +520,44 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
 viewRemoteBranch ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase m v a ->
-  ReadRemoteNamespace ->
+  ReadGitRemoteNamespace ->
   Git.GitBranchBehavior ->
   (Branch m -> m r) ->
   m (Either GitError r)
 viewRemoteBranch codebase ns gitBranchBehavior action =
   viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
-unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
-unsafeGetComponentLength codebase h =
-  getComponentLength codebase h >>= \case
+unsafeGetComponentLength :: (HasCallStack) => Hash -> Sqlite.Transaction Reference.CycleSize
+unsafeGetComponentLength h =
+  Operations.getCycleLen h >>= \case
     Nothing -> error (reportBug "E713350" ("component with hash " ++ show h ++ " not found"))
     Just size -> pure size
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
-unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm :: (HasCallStack) => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a)
 unsafeGetTerm codebase rid =
   getTerm codebase rid >>= \case
     Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
     Just term -> pure term
 
 -- | Like 'getTypeDeclaration', for when the type declaration is known to exist in the codebase.
-unsafeGetTypeDeclaration :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Decl v a)
+unsafeGetTypeDeclaration :: (HasCallStack) => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Decl v a)
 unsafeGetTypeDeclaration codebase rid =
   getTypeDeclaration codebase rid >>= \case
     Nothing -> error (reportBug "E129043" ("type decl " ++ show rid ++ " not found"))
     Just decl -> pure decl
 
 -- | Like 'getTypeOfTerm', but for when the term is known to exist in the codebase.
-unsafeGetTypeOfTermById :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Type v a)
+unsafeGetTypeOfTermById :: (HasCallStack) => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Type v a)
 unsafeGetTypeOfTermById codebase rid =
   getTypeOfTermImpl codebase rid >>= \case
     Nothing -> error (reportBug "E377910" ("type of term " ++ show rid ++ " not found"))
     Just ty -> pure ty
 
 -- | Like 'unsafeGetTerm', but returns the type of the term, too.
-unsafeGetTermWithType :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType :: (HasCallStack) => Codebase m v a -> Reference.Id -> Sqlite.Transaction (Term v a, Type v a)
 unsafeGetTermWithType codebase rid = do
   term <- unsafeGetTerm codebase rid
   ty <-
@@ -431,3 +567,14 @@ unsafeGetTermWithType codebase rid = do
       Term.Ann' _ ty -> pure ty
       _ -> unsafeGetTypeOfTermById codebase rid
   pure (term, ty)
+
+-- | Like 'getTermComponentWithTypes', for when the term component is known to exist in the codebase.
+unsafeGetTermComponent ::
+  (HasCallStack) =>
+  Codebase m v a ->
+  Hash ->
+  Sqlite.Transaction [(Term v a, Type v a)]
+unsafeGetTermComponent codebase hash =
+  getTermComponentWithTypes codebase hash <&> \case
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+    Just terms -> terms

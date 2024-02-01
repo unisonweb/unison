@@ -5,20 +5,40 @@ module U.Codebase.Sqlite.Decl.Format where
 import Data.Vector (Vector)
 import U.Codebase.Decl (DeclR)
 import U.Codebase.Reference (Reference')
-import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds, LocalTextId)
+import U.Codebase.Sqlite.DbId (ObjectId, TextId)
+import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId)
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Type as Type
-import qualified U.Core.ABT as ABT
+import U.Codebase.Type qualified as Type
+import U.Core.ABT qualified as ABT
+import Unison.Hash32 (Hash32)
+import Unison.Prelude
 
 -- | Add new formats here
-data DeclFormat = Decl LocallyIndexedComponent
+data DeclFormat' text defn = Decl (LocallyIndexedComponent' text defn)
   deriving (Show)
+
+type DeclFormat = DeclFormat' TextId ObjectId
+
+-- | A DeclFormat which uses hash references instead of database ids.
+type HashDeclFormat = DeclFormat' Text Hash32
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
-newtype LocallyIndexedComponent
-  = LocallyIndexedComponent (Vector (LocalIds, Decl Symbol))
+type LocallyIndexedComponent =
+  LocallyIndexedComponent' TextId ObjectId
+
+newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
+  {unLocallyIndexedComponent :: Vector (LocalIds' t d, Decl Symbol)}
   deriving (Show)
+
+type SyncDeclFormat =
+  SyncDeclFormat' TextId ObjectId
+
+data SyncDeclFormat' t d
+  = SyncDecl (SyncLocallyIndexedComponent' t d)
+
+newtype SyncLocallyIndexedComponent' t d
+  = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
 
 -- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
 

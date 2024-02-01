@@ -10,46 +10,107 @@ flags:
 ghc-options: -Wall
 
 dependencies:
-  - semialign
-  - these
+  - IntervalMap
   - ListLike
+  - aeson >= 2.0.0.0
+  - aeson-pretty
+  - ansi-terminal
   - async
   - base
+  - bytes
   - bytestring
+  - concurrent-output
   - configurator
   - containers >= 0.6.3
-  - nonempty-containers
   - cryptonite
   - directory
+  - either
   - errors
+  - exceptions
   - extra
   - filepath
+  - free
+  - fsnotify
+  - fuzzyfind
+  - friendly-time
+  - generic-lens
   - haskeline
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - jwt
+  - ki
   - lens
-  - megaparsec >= 5.0.0 && < 7.0.0
+  - lock-file
+  - lsp >= 2.2.0.0
+  - lsp-types >= 2.0.2.0
+  - megaparsec
+  - memory
   - mtl
-  - transformers
+  - network-uri
+  - network-simple
+  - network
+  - co-log-core
+  - uri-encode
+  - nonempty-containers
   - open-browser
+  - pretty-simple
+  - process
   - random >= 1.2.0
+  - random-shuffle
+  - recover-rtti
   - regex-tdfa
+  - semialign
+  - semigroups
+  - servant
+  - servant-client
   - stm
   - text
+  - text-builder
+  - text-rope
+  - these
+  - these-lens
+  - time
+  - transformers
+  - unison-codebase
   - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
+  - unison-core
   - unison-core1
+  - unison-hash
   - unison-parser-typechecker
   - unison-prelude
-  - unison-util
+  - unison-pretty-printer
+  - unison-share-api
+  - unison-share-projects-api
+  - unison-sqlite
+  - unison-syntax
+  - unison-util-base32hex
+  - unison-util-nametree
   - unison-util-relation
   - unliftio
+  - unordered-containers
+  - uuid
+  - vector
+  - witherable
+  - wai
+  - warp
+  - witch
+  - witherable
 
 library:
   source-dirs: src
   when:
     - condition: '!os(windows)'
       dependencies: unix
+    - condition: false
+      other-modules: Paths_unison_cli
 
 tests:
-  tests:
+  cli-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     dependencies:
       - code-page
       - easytest
@@ -62,9 +123,12 @@ tests:
 
 executables:
   unison:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: unison
     main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
     dependencies:
       - code-page
       - optparse-applicative >= 0.16.1.0
@@ -74,17 +138,24 @@ executables:
       - unison-cli
 
   transcripts:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: transcripts
     main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
     dependencies:
       - code-page
       - easytest
       - process
       - shellmet
       - unison-cli
+      - silently
 
-  integration-tests:
+  cli-integration-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_cli
     source-dirs: integration-tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
@@ -105,18 +176,28 @@ default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
   - DeriveFunctor
   - DeriveFoldable
   - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - GADTs
   - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - InstanceSigs
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

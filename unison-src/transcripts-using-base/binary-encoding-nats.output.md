@@ -1,4 +1,4 @@
->
+
 ```unison
 unique type EncDec = EncDec Text (Nat -> Bytes) (Bytes -> Optional (Nat, Bytes))
 
@@ -14,19 +14,19 @@ testRoundTrip n = cases
   EncDec label enc dec ->
     encoded = enc n
     match dec encoded with
-      Some (n', remain) -> 
-        if n == n' then 
+      Some (n', remain) ->
+        if n == n' then
           emit (Ok ("successfully decoded " ++ (toText n) ++ " using " ++ label))
         else
           emit (Fail ("decoded " ++ (toText n') ++ " instead of " ++ (toText n) ++ " using " ++ label))
-        if (size remain) > 0 then 
+        if (size remain) > 0 then
           emit (Fail ("unconsumed input using " ++ label))
         else
           emit (Ok ("consumed all input"))
       None -> emit (Fail ("failed to decode " ++ (toText n) ++ " using " ++ label))
-    
+
 testNat : Nat -> '{IO, Stream Result} ()
-testNat n _ = 
+testNat n _ =
   if n >= (shiftLeft 1 32) then
     testRoundTrip n BE64
     testRoundTrip n LE64
@@ -44,17 +44,19 @@ testNat n _ =
     testRoundTrip n LE16
 
 
-testABunchOfNats _ = 
-  (runTest (testNat 0xFFFFFFFF)) ++ 
-  (runTest (testNat 0x41000000)) ++ 
-  (runTest (testNat 0x00410000)) ++ 
-  (runTest (testNat 0x00004100)) ++ 
-  (runTest (testNat 0x86753099)) ++ 
-  (runTest (testNat 0x00000041)) ++ 
+testABunchOfNats _ =
+  (runTest (testNat 0xFFFFFFFF)) ++
+  (runTest (testNat 0x41000000)) ++
+  (runTest (testNat 0x00410000)) ++
+  (runTest (testNat 0x00004100)) ++
+  (runTest (testNat 0x86753099)) ++
+  (runTest (testNat 0x00000041)) ++
   (runTest (testNat 0))
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -62,7 +64,7 @@ testABunchOfNats _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type EncDec
+      type EncDec
       BE16             : EncDec
       BE32             : EncDec
       BE64             : EncDec
@@ -79,7 +81,7 @@ testABunchOfNats _ =
 
   ⍟ I've added these definitions:
   
-    unique type EncDec
+    type EncDec
     BE16             : EncDec
     BE32             : EncDec
     BE64             : EncDec

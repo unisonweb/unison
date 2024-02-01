@@ -1,0 +1,142 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-share-api
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      Unison.Server.Backend
+      Unison.Server.CodebaseServer
+      Unison.Server.Doc
+      Unison.Server.Doc.AsHtml
+      Unison.Server.Doc.Markdown.Render
+      Unison.Server.Doc.Markdown.Types
+      Unison.Server.Errors
+      Unison.Server.Local
+      Unison.Server.Local.Definitions
+      Unison.Server.Local.Endpoints.Current
+      Unison.Server.Local.Endpoints.DefinitionSummary
+      Unison.Server.Local.Endpoints.FuzzyFind
+      Unison.Server.Local.Endpoints.GetDefinitions
+      Unison.Server.Local.Endpoints.NamespaceDetails
+      Unison.Server.Local.Endpoints.NamespaceListing
+      Unison.Server.Local.Endpoints.Projects
+      Unison.Server.Local.Endpoints.UCM
+      Unison.Server.NameSearch
+      Unison.Server.NameSearch.FromNames
+      Unison.Server.NameSearch.Sqlite
+      Unison.Server.Orphans
+      Unison.Server.QueryResult
+      Unison.Server.SearchResult
+      Unison.Server.SearchResult'
+      Unison.Server.Syntax
+      Unison.Server.Types
+      Unison.Sync.API
+      Unison.Sync.Common
+      Unison.Sync.EntityValidation
+      Unison.Sync.Types
+      Unison.Util.Find
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      ConstraintKinds
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeOperators
+      ViewPatterns
+      ImportQualifiedPost
+  ghc-options: -Wall
+  build-depends:
+      NanoID
+    , aeson >=2.0.0.0
+    , async
+    , base
+    , binary
+    , bytes
+    , bytestring
+    , containers
+    , directory
+    , errors
+    , extra
+    , filepath
+    , fuzzyfind
+    , http-media
+    , http-types
+    , jose
+    , jwt
+    , lens
+    , lucid
+    , memory
+    , mtl
+    , mwc-random
+    , nonempty-containers
+    , openapi3
+    , regex-tdfa
+    , servant
+    , servant-auth
+    , servant-docs
+    , servant-openapi3
+    , servant-server
+    , text
+    , transformers
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
+    , unison-core
+    , unison-core1
+    , unison-hash
+    , unison-hash-orphans-aeson
+    , unison-hashing-v2
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-pretty-printer
+    , unison-share-projects-api
+    , unison-sqlite
+    , unison-syntax
+    , unison-util-base32hex
+    , unison-util-relation
+    , unliftio
+    , unordered-containers
+    , uri-encode
+    , utf8-string
+    , vector
+    , wai
+    , wai-cors
+    , warp
+    , yaml
+  default-language: Haskell2010
