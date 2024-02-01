@@ -2245,6 +2245,45 @@ debugDumpNamespaceSimple =
     "Dump the namespace to a text file"
     (const $ Right Input.DebugDumpNamespaceSimpleI)
 
+debugTerm :: InputPattern
+debugTerm =
+  InputPattern
+    "debug.term.abt"
+    []
+    I.Hidden
+    [("term", Required, exactDefinitionTermQueryArg)]
+    "View debugging information for a given term."
+    ( \case
+        [thing] -> fmap (Input.DebugTermI False) $ parseHashQualifiedName thing
+        _ -> Left (I.help debugTerm)
+    )
+
+debugTermVerbose :: InputPattern
+debugTermVerbose =
+  InputPattern
+    "debug.term.abt.verbose"
+    []
+    I.Hidden
+    [("term", Required, exactDefinitionTermQueryArg)]
+    "View verbose debugging information for a given term."
+    ( \case
+        [thing] -> fmap (Input.DebugTermI True) $ parseHashQualifiedName thing
+        _ -> Left (I.help debugTermVerbose)
+    )
+
+debugType :: InputPattern
+debugType =
+  InputPattern
+    "debug.type.abt"
+    []
+    I.Hidden
+    [("type", Required, exactDefinitionTypeQueryArg)]
+    "View debugging information for a given type."
+    ( \case
+        [thing] -> fmap (Input.DebugTypeI) $ parseHashQualifiedName thing
+        _ -> Left (I.help debugType)
+    )
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache =
   InputPattern
@@ -2964,6 +3003,9 @@ validInputs =
       debugDoctor,
       debugDumpNamespace,
       debugDumpNamespaceSimple,
+      debugTerm,
+      debugTermVerbose,
+      debugType,
       debugFileHashes,
       debugNameDiff,
       debugNumberedArgs,

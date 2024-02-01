@@ -21,15 +21,18 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
+import Debug.RecoverRTTI qualified as RTTI
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -1773,6 +1776,21 @@ notifyUser dir = \case
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DebugTerm verbose builtinOrTerm -> pure $ case builtinOrTerm of
+    Left builtin -> "Builtin term: ##" <> P.text builtin
+    Right trm ->
+      if verbose
+        then P.text . TL.toStrict . pStringNoColor $ RTTI.anythingToString trm
+        else P.shown trm
+  DebugDecl typ mayConId -> do
+    let constructorMsg = case mayConId of
+          Nothing -> ""
+          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:\n"
+    pure $
+      constructorMsg
+        <> case typ of
+          Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
+          Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -2747,7 +2765,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatTermEdits ::
       (Reference.TermReference, Set TermEdit.TermEdit) ->
       Numbered Pretty
@@ -2762,7 +2780,7 @@ renderEditConflicts ppe Patch {..} = do
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-            `P.hang` P.lines replacements
+          `P.hang` P.lines replacements
     formatConflict ::
       Either
         (Reference, Set TypeEdit.TypeEdit)

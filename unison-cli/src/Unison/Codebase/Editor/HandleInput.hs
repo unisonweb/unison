@@ -66,6 +66,7 @@ import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
@@ -1142,6 +1143,8 @@ loop e = do
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
+            DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
+            DebugTypeI hqName -> DebugDefinition.debugDecl hqName
             DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
             DebugDoctorI {} -> do
@@ -1355,6 +1358,11 @@ inputDescription input =
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
+    DebugTermI verbose hqName ->
+      if verbose
+        then pure ("debug.term.verbose " <> HQ.toText hqName)
+        else pure ("debug.term " <> HQ.toText hqName)
+    DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat

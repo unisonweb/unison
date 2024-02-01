@@ -9,6 +9,7 @@ dependencies:
   - bytes
   - containers
   - cryptonite
+  - extra
   - lens
   - megaparsec
   - mtl
