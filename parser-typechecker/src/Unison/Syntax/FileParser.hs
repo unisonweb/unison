@@ -1,4 +1,6 @@
-module Unison.Syntax.FileParser where
+module Unison.Syntax.FileParser
+  ( file
+  ) where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)

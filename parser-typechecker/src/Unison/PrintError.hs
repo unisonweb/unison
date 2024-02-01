@@ -1,6 +1,18 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.PrintError where
+module Unison.PrintError
+  ( Env,
+    defaultWidth,
+    prettyParseError,
+    prettyResolutionFailures,
+    prettyVar,
+    printNoteWithSource,
+    renderCompilerBug,
+    renderNoteAsANSI,
+    renderParseErrorAsANSI,
+    renderParseErrors,
+  )
+where
 
 import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
@@ -19,7 +31,6 @@ import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
-import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified' qualified as HQ'
@@ -81,12 +92,6 @@ pattern Type2 = Color.Green
 pattern ErrorSite :: Color
 pattern ErrorSite = Color.HiRed
 
-pattern TypeKeyword :: Color
-pattern TypeKeyword = Color.Yellow
-
-pattern AbilityKeyword :: Color
-pattern AbilityKeyword = Color.Green
-
 pattern Identifier :: Color
 pattern Identifier = Color.Bold
 
@@ -114,18 +119,6 @@ fromOverHere src spots0 removing =
         0 -> mempty
         1 -> "\n  from right here:\n\n" <> showSource src spots
         _ -> "\n  from these spots, respectively:\n\n" <> showSource src spots
-
-showTypeWithProvenance ::
-  (Var v, Annotated a, Ord style) =>
-  Env ->
-  String ->
-  style ->
-  Type v a ->
-  Pretty (AnnotatedText style)
-showTypeWithProvenance env src color typ =
-  style color (renderType' env typ)
-    <> ".\n"
-    <> fromOverHere' src [styleAnnotated color typ] []
 
 styleAnnotated :: (Annotated a) => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
@@ -1211,9 +1204,6 @@ renderSuggestion env sug =
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "
 
-arrows :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
-arrows = intercalateMap " ->"
-
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
@@ -1243,17 +1233,6 @@ showConstructor :: (IsString s) => Env -> ConstructorReference -> s
 showConstructor env r =
   fromString . HQ.toString $
     PPE.patternName env r
-
-styleInOverallType ::
-  (Var v, Annotated a, Eq a) =>
-  Env ->
-  C.Type v a ->
-  C.Type v a ->
-  Color ->
-  Pretty ColorText
-styleInOverallType e overallType leafType c = renderType e f overallType
-  where
-    f loc s = if loc == ABT.annotation leafType then Color.style c <$> s else s
 
 _posToEnglish :: (IsString s) => L.Pos -> s
 _posToEnglish (L.Pos l c) =
@@ -1929,15 +1908,6 @@ showSource src annotations =
 showSource1 :: (Ord a) => String -> (Range, a) -> Pretty (AnnotatedText a)
 showSource1 src annotation = showSource src [annotation]
 
-findTerm :: Seq (C.PathElement v loc) -> Maybe loc
-findTerm = go
-  where
-    go (C.InSynthesize t :<| _) = Just $ ABT.annotation t
-    go (C.InCheck t _ :<| _) = Just $ ABT.annotation t
-    go (C.InSynthesizeApp _ t _ :<| _) = Just $ ABT.annotation t
-    go (_ :<| t) = go t
-    go Empty = Nothing
-
 prettyTypecheckError ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
   C.ErrorNote v loc ->
@@ -2027,6 +1997,3 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
-
-prettyPath' :: Path.Path' -> Pretty ColorText
-prettyPath' p' = Pr.blue (Pr.shown p')
