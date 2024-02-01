@@ -112,7 +112,7 @@ and the rendered output using `display`:
       section elements.
       
       Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced'' (or ''monospaced'').
+      or `monospaced` (or `monospaced`).
       
       You can link to Unison terms, types, and external URLs:
       
@@ -122,7 +122,7 @@ and the rendered output using `display`:
         [a named term link]({Some}). Term links are handy for
         linking to other documents!
       
-      You can use ''{{ .. }}'' to escape out to regular Unison
+      You can use `{{ .. }}` to escape out to regular Unison
       syntax, for instance {{ docWord "__not bold__" }}. This is
       useful for creating documents programmatically or just
       including other documents.
@@ -164,9 +164,9 @@ and the rendered output using `display`:
     
       ## Bulleted lists
       
-         Bulleted lists can use ''+'', ''-'', or ''*'' for the
-         bullets (though the choice will be normalized away by
-         the pretty-printer). They can be nested, to any depth:
+         Bulleted lists can use `+`, `-`, or `*` for the bullets
+         (though the choice will be normalized away by the
+         pretty-printer). They can be nested, to any depth:
          
          * A
          * B
@@ -331,9 +331,9 @@ and the rendered output using `display`:
          You can include typechecked code snippets inline, for
          instance:
          
-         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2''
+         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the `2`
            says to ignore the first two arguments when
-           rendering. In richer renderers, the ''sqr'' link will
+           rendering. In richer renderers, the `sqr` link will
            be clickable.
          * If your snippet expression is just a single function
            application, you can put it in double backticks, like
@@ -456,7 +456,7 @@ and the rendered output using `display`:
     {{
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
-    ''{{ }}'' syntax to call these functions directly.
+    `{{ }}` syntax to call these functions directly.
     
         @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
     

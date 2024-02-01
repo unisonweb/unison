@@ -20,7 +20,15 @@ soft line break
 
 hard line break
 
-Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code block ''1 + 2''
+Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code block `1 + 2`
+
+Should print with appropriate fences for the contents:
+
+`No fancy quotes`
+
+'' There are `backticks` in here ''
+
+''' There are `backticks` and ''quotes'' in here '''
 
 # Heading
 

@@ -16,7 +16,15 @@ soft line break
 
 hard line break
 
-Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code block ''1 + 2''
+Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code block `1 + 2`
+
+Should print with appropriate fences for the contents:
+
+`No fancy quotes`
+
+'' There are `backticks` in here ''
+
+''' There are `backticks` and ''quotes'' in here '''
 
 # Heading
 
@@ -121,7 +129,15 @@ fulldoc =
   hard line break
   
   Here's a cool **BOLD** __italic__ ~~strikethrough~~ thing with an inline code
-  block ''1 + 2''
+  block `1 + 2`
+  
+  Should print with appropriate fences for the contents:
+  
+  `No fancy quotes`
+  
+  '' There are `backticks` in here ''
+  
+  ''' There are `backticks` and ''quotes'' in here '''
   
   # Heading
   
@@ -145,7 +161,7 @@ fulldoc =
        
        `` 1 + 2 ``
        
-       '' "doesn't typecheck" + 1 ''
+       ` "doesn't typecheck" + 1 `
        
        [Link](https://unison-lang.org)
        
@@ -194,7 +210,7 @@ fulldoc =
        
        '''
        
-       Inline '' text literal with 1 space of padding '' in the middle of a
+       Inline ` text literal with 1 space of padding ` in the middle of a
        sentence.
   }}
 ```
