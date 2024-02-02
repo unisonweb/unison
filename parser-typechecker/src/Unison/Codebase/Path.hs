@@ -350,10 +350,8 @@ instance Show Path where
 
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
-toText path =
-  case toName path of
-    Nothing -> "."
-    Just name -> Name.toText name
+toText =
+  maybe Text.empty Name.toText . toName
 
 unsafeParseText :: Text -> Path
 unsafeParseText = \case
