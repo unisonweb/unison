@@ -3,6 +3,7 @@
 
 module IdentifyHashMismatches (identifyHashMismatches) where
 
+import Control.Lens
 import Data.Foldable
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -32,7 +33,10 @@ identifyHashMismatches codebase = do
       WHERE EXISTS(SELECT 1 FROM object WHERE primary_hash_id = hash.id
                     UNION SELECT 1 FROM causal WHERE causal.self_hash_id = hash.id)
     |]
-  for_ allHashes \hash32 -> do
+  let hashCount = length allHashes
+  ifor_ allHashes \i hash32 -> do
+    putStrLn $ "Checking hash " <> show i <> " of " <> show hashCount
+    print hash32
     entity <- Codebase.runTransaction codebase $ Sync.expectEntity hash32
     case validateEntity hash32 entity of
       Nothing -> pure ()
