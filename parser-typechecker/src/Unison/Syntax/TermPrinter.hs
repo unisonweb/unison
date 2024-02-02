@@ -1389,7 +1389,7 @@ calcImports im tm = (im', render $ getUses result)
         |> filter
           ( \s ->
               let (p, i) = lookupOrDie s m
-               in (i > 1 || isRight (Name.parseTextEither s)) && not (null p)
+               in (i > 1 || either (const False) Name.isSymboly (Name.parseTextEither s)) && not (null p)
           )
         |> map (\s -> (s, lookupOrDie s m))
         |> Map.fromList
