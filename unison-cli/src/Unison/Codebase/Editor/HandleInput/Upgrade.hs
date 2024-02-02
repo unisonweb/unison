@@ -25,6 +25,7 @@ import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
     findCtorNames,
+    findCtorNamesMaybe,
     forwardCtorNames,
     getNamespaceDependentsOf,
     makeComplicatedPPE,
@@ -202,7 +203,7 @@ handleUpgrade oldDepName newDepName = do
       Codebase.addDefsToCodebase codebase typecheckedUnisonFile
       typecheckedUnisonFileToBranchUpdates
         abort
-        (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+        (findCtorNamesMaybe Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
         typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade

@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
     -- * Misc helpers to be organized later
     addDefinitionsToUnisonFile,
     findCtorNames,
+    findCtorNamesMaybe,
     forwardCtorNames,
     makeParsingEnv,
     prettyParseTypecheck,
@@ -143,7 +144,7 @@ handleUpdate2 = do
         Cli.respond Output.UpdateTypecheckingSuccess
         pure secondTuf
 
-  saveTuf (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf
+  saveTuf (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf
   Cli.respond Output.Success
 
 -- TODO: find a better module for this function, as it's used in a couple places
@@ -183,7 +184,7 @@ makeParsingEnv path names = do
       }
 
 -- save definitions and namespace
-saveTuf :: (Name -> Either Output [Name]) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
+saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
@@ -206,7 +207,10 @@ saveTuf getConstructors tuf = do
 --     [ ("foo.bar", insert-term("baz",<#foo>)) ]
 typecheckedUnisonFileToBranchUpdates ::
   (forall void. Output -> Transaction void) ->
-  (Name -> Either Output [Name]) ->
+  -- | Returns 'Nothing' if the decl isn't in namesExcludingLibdeps,
+  -- in which case we know the decl is new and do not need to generate
+  -- delete actions for it.
+  (Name -> Either Output (Maybe [Name])) ->
   TypecheckedUnisonFile Symbol Ann ->
   Transaction [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
@@ -225,7 +229,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
         makeDeclUpdates (symbol, (typeRefId, decl)) = do
           -- some decls will be deleted, we want to delete their
           -- constructors as well
-          deleteConstructorActions <- case map (BranchUtil.makeAnnihilateTermName . Path.splitFromName) <$> getConstructors (Name.unsafeParseVar symbol) of
+          deleteConstructorActions <- case maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeParseVar symbol) of
             Left err -> abort err
             Right actions -> pure actions
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
@@ -363,9 +367,13 @@ forwardCtorNames names =
     ]
 
 -- | given a decl name, find names for all of its constructors, in order.
+--
+-- Precondition: 'n' is an element of 'names'
 findCtorNames :: Output.UpdateOrUpgrade -> Names -> Map ForwardName (Referent, Name) -> Maybe Int -> Name -> Either Output.Output [Name]
 findCtorNames operation names forwardCtorNames ctorCount n =
-  let declRef = Set.findMin $ Relation.lookupDom n names.types
+  let declRef = case Set.lookupMin (Relation.lookupDom n names.types) of
+        Nothing -> error "[findCtorNames] precondition violation: n is not an element of names"
+        Just x -> x
       f = ForwardName.fromName n
       (_, centerRight) = Map.split f forwardCtorNames
       (center, _) = Map.split (incrementLastSegmentChar f) centerRight
@@ -384,6 +392,18 @@ findCtorNames operation names forwardCtorNames ctorCount n =
    in if Map.size m == ctorCountGuess && all (isJust . flip Map.lookup m . fromIntegral) [0 .. ctorCountGuess - 1]
         then Right $ Map.elems m
         else Left $ Output.UpdateIncompleteConstructorSet operation n m ctorCount
+
+findCtorNamesMaybe ::
+  Output.UpdateOrUpgrade ->
+  Names ->
+  Map ForwardName (Referent, Name) ->
+  Maybe Int ->
+  Name ->
+  Either Output.Output (Maybe [Name])
+findCtorNamesMaybe operation names forwardCtorNames ctorCount name =
+  case Relation.memberDom name (Names.types names) of
+    True -> Just <$> findCtorNames operation names forwardCtorNames ctorCount name
+    False -> Right Nothing
 
 -- Used by `findCtorNames` to filter `forwardCtorNames` to a narrow range which will be searched linearly.
 -- >>> incrementLastSegmentChar $ ForwardName.fromName $ Name.unsafeFromText "foo.bar.quux"
