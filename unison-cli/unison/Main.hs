@@ -37,6 +37,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
 import GHC.Conc (setUncaughtExceptionHandler)
 import GHC.Conc qualified
+import IdentifyHashMismatches
 import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
@@ -506,6 +507,7 @@ launch ::
   CommandLine.ShouldWatchFiles ->
   IO ()
 launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+  identifyHashMismatches codebase
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase

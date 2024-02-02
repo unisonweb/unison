@@ -24,6 +24,7 @@ flag optimized
 library
   exposed-modules:
       Compat
+      IdentifyHashMismatches
       Unison.Auth.CredentialFile
       Unison.Auth.CredentialManager
       Unison.Auth.Discovery
