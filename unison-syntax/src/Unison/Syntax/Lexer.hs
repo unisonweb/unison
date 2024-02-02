@@ -881,7 +881,10 @@ lexemes' eof =
           <|> layoutKeywords
       where
         keywords =
-          symbolyKw "."
+          -- yes "wordy" - just like a wordy keyword like "true", the literal "." (as in the dot in
+          -- "forall a. a -> a") is considered the keyword "." so long as it is either followed by EOF, a space, or some
+          -- non-wordy character (because ".foo" is a single identifier lexeme)
+          wordyKw "."
             <|> symbolyKw ":"
             <|> openKw "@rewrite"
             <|> symbolyKw "@"
