@@ -105,7 +105,7 @@ rewriteBlock = do
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
     rewriteType = do
       kw <- quasikeyword "signature"
-      vs <- P.try (some prefixDefinitionName <* symbolyQuasikeyword ".") <|> pure []
+      vs <- P.try (some prefixDefinitionName <* reserved ".") <|> pure []
       lhs <- TypeParser.computationType
       rhs <- openBlockWith "==>" *> TypeParser.computationType <* closeBlock
       pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
@@ -410,11 +410,6 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 quasikeyword :: Ord v => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
   L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
-  _ -> Nothing
-
-symbolyQuasikeyword :: (Ord v) => Text -> P v m (L.Token ())
-symbolyQuasikeyword kw = queryToken \case
-  L.SymbolyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
 
 nameIsKeyword :: Name -> Text -> Bool
