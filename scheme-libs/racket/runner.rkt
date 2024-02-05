@@ -51,37 +51,15 @@
       (parameterize ([print-as-expression #t])
         (display "#lang racket/base\n\n" port)
 
-        (for ([expr (build-intermediate-expressions main-ref icode)])
+        (for ([expr (build-intermediate-module main-ref icode)])
           (pretty-print expr port 1)
           (newline port))
         (newline port)))
     #:exists 'replace))
 
-(define (do-compile output)
+(define (do-generate srcf)
   (define-values (icode main-ref) (decode-input))
-
-  (define srcf (path->string (path-replace-extension output ".rkt")))
-  (define dstf (embedding-executable-add-suffix output #f))
-  (define chop (path->string (path-replace-extension output "")))
-  (define mod-sym (string->symbol (string-append "#%unison:" chop)))
-
-  (define primary
-    (parameterize ([current-namespace (make-base-namespace)])
-      (compile
-        `(begin
-           (namespace-require '',mod-sym)
-           (when (module-declared? '',mod-sym)
-             ((dynamic-require '',mod-sym 'main)))))))
-
-  (write-module srcf main-ref icode)
-
-  (create-embedding-executable
-    dstf
-    #:modules `((#%unison: (file ,srcf)))
-    #:variant 'cs
-    ; #:cmdline '("-U" "--")
-    #:configure-via-first-module? #t
-    #:literal-expressions (list primary)))
+  (write-module srcf main-ref icode))
 
 (define runtime-namespace
   (let ([ns (variable-reference->namespace (#%variable-reference))])
@@ -99,20 +77,20 @@
     [(null? ls) '()]
     [else (append (car ls) (join (cdr ls)))]))
 
-(define compile (make-parameter #f))
+(define generate-to (make-parameter #f))
 
 (define (handle-command-line)
   (command-line
     #:program "runner"
     #:once-any
-    [("-o" "--output")
+    [("-G" "--generate-file")
        file
-       "compile to <file>"
-       (compile file)]
+       "generate code to <file>"
+       (generate-to file)]
     #:args ()
-    (compile)))
+    (generate-to)))
 
 (let ([out (handle-command-line)])
   (if out
-    (do-compile out)
+    (do-generate out)
     (do-evaluate)))

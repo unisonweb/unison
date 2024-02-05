@@ -49,7 +49,7 @@
   termlink->name
 
   add-runtime-code
-  build-intermediate-expressions
+  build-intermediate-module
   build-runtime-module
   termlink->proc)
 
@@ -563,7 +563,7 @@
 ; This expects to receive a list of termlink, code pairs, and
 ; generates a scheme module that contains the corresponding
 ; definitions.
-(define (build-intermediate-expressions primary dfns0)
+(define (build-intermediate-module primary dfns0)
   (let* ([udefs (chunked-list->list dfns0)]
          [pname (termlink->name primary)]
          [tmlinks (map ufst udefs)]
@@ -578,15 +578,12 @@
                unison/simple-wrappers
                unison/compound-wrappers)
 
-      (provide main)
-
       ,@tylinks
 
       ,@sdefs
 
-      (define (main)
-        (handle ['ref-4n0fgs00] top-exn-handler
-                (,pname #f))))))
+      (handle ['ref-4n0fgs00] top-exn-handler
+              (,pname #f)))))
 
 (define (build-runtime-module mname tylinks tmlinks defs)
   (let ([names (map termlink->name tmlinks)])

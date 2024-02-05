@@ -44,9 +44,16 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
+import System.Directory
+  ( XdgDirectory(XdgCache),
+    createDirectoryIfMissing,
+    getXdgDirectory
+  )
+import System.FilePath ((<.>), (</>))
 import System.Process
   ( CreateProcess (..),
     StdStream (..),
+    callProcess,
     proc,
     waitForProcess,
     withCreateProcess,
@@ -648,17 +655,9 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
-schemeProc :: [String] -> CreateProcess
-schemeProc args =
+ucrProc :: [String] -> CreateProcess
+ucrProc args =
   (proc "native-compiler/bin/runner" args)
-    { std_in = CreatePipe,
-      std_out = Inherit,
-      std_err = Inherit
-    }
-
-racketProc :: [String] -> CreateProcess
-racketProc args =
-  (proc "racket" ("scheme-libs/racket/runner.rkt":args))
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
@@ -705,7 +704,7 @@ nativeEvalInContext _ ctx codes base = do
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
-  withCreateProcess (schemeProc []) callout
+  withCreateProcess (ucrProc []) callout
 
 nativeCompileCodes ::
   [(Reference, SuperGroup Symbol)] ->
@@ -713,7 +712,10 @@ nativeCompileCodes ::
   FilePath ->
   IO ()
 nativeCompileCodes codes base path = do
+  genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
+  createDirectoryIfMissing True genDir
   let bytes = serializeValue . compileValue base $ codes
+      srcPath = genDir </> path <.> "rkt"
       callout (Just pin) _ _ ph = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
         BS.hPut pin bytes
@@ -721,7 +723,8 @@ nativeCompileCodes codes base path = do
         waitForProcess ph
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
-  withCreateProcess (racketProc ["-o", path]) callout
+  withCreateProcess (ucrProc ["-G", srcPath]) callout
+  callProcess "raco" ["exe", "-o", path, srcPath]
 
 evalInContext ::
   PrettyPrintEnv ->
