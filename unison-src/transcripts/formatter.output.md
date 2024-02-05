@@ -44,6 +44,21 @@ structural type Optional   a = More Text
 
 {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
+
+-- Regression for https://github.com/unisonweb/unison/issues/4669
+
+multilineBold = {{
+
+**This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block**
+
+_This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block_
+
+~This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block~
+
+}}
 ```
 
 ```ucm
@@ -91,6 +106,20 @@ structural type Optional a = More Text | Some | Other a | None Nat
 
 Two.doc = {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
+
+-- Regression for https://github.com/unisonweb/unison/issues/4669
+
+multilineBold =
+  {{
+  **This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block**
+  
+  __This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block__
+  
+  ~~This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block~~
+  }}
 ```
 
 Formatter should leave things alone if the file doesn't typecheck.
