@@ -169,6 +169,9 @@ instance ToJSON Name where
   toEncoding = toEncoding . Name.toText
   toJSON = toJSON . Name.toText
 
+instance ToJSONKey Name where
+  toJSONKey = contramap Name.toText (toJSONKey @Text)
+
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
