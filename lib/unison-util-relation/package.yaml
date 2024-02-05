@@ -43,6 +43,7 @@ dependencies:
   - extra
   - nonempty-containers
   - unison-prelude
+  - witherable
 
 ghc-options:
   -Wall
