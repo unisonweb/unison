@@ -723,8 +723,19 @@ nativeCompileCodes codes base path = do
         waitForProcess ph
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
+      ucrError (_ :: IOException) =
+        die
+          "I had trouble calling the unison runtime exectuable.\n\n\
+          \Please check that the `ucr` executable is properly\
+          \ installed."
+      racoError (_ :: IOException) =
+        die
+          "I had trouble calling the `raco` executable.\n\n\
+          \Please verify that you have racket installed."
   withCreateProcess (ucrProc ["-G", srcPath]) callout
+    `UnliftIO.catch` ucrError
   callProcess "raco" ["exe", "-o", path, srcPath]
+    `UnliftIO.catch` racoError
 
 evalInContext ::
   PrettyPrintEnv ->
