@@ -2071,22 +2071,6 @@ runScheme file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
--- buildScheme :: String -> String -> Cli ()
--- buildScheme main file = do
---   ensureSchemeExists
---   statDir <- getSchemeStaticLibDir
---   genDir <- getSchemeGenLibDir
---   buildRacket genDir statDir main file
-
--- buildRacket :: String -> String -> String -> String -> Cli ()
--- buildRacket genDir statDir main file =
---   let args = ["-l", "raco", "--", "exe", "-o", main, file]
---       opts = racketOpts genDir statDir args
---    in void . liftIO $
---         catch
---           (True <$ callProcess "racket" opts)
---           (\(_ :: IOException) -> pure False)
-
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do
   Cli.Env {codebase, runtime, nativeRuntime} <- ask
@@ -2110,10 +2094,6 @@ doRunAsScheme main0 args = case HQ.fromString main0 of
     fullpath <- generateSchemeFile True main0 main
     runScheme fullpath args
   Nothing -> Cli.respond $ BadName main0
-
--- doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
--- doCompileScheme out main =
---   generateSchemeFile True out main >>= buildScheme out
 
 generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
