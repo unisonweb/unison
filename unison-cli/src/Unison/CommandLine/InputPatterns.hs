@@ -2314,6 +2314,16 @@ debugType =
         _ -> Left (I.help debugType)
     )
 
+debugLSPFoldRanges :: InputPattern
+debugLSPFoldRanges =
+  InputPattern
+    "debug.lsp.fold-ranges"
+    []
+    I.Hidden
+    []
+    "Output the source from the most recently parsed file, but annotated with the computed fold ranges."
+    (const $ Right Input.DebugLSPFoldRangesI)
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache =
   InputPattern
@@ -3043,6 +3053,7 @@ validInputs =
       debugTerm,
       debugTermVerbose,
       debugType,
+      debugLSPFoldRanges,
       debugFileHashes,
       debugNameDiff,
       debugNumberedArgs,

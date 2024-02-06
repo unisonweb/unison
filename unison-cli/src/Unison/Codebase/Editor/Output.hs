@@ -327,6 +327,7 @@ data Output
   | DebugFuzzyOptionsNoResolver
   | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
   | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
+  | AnnotatedFoldRanges Text
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -574,6 +575,7 @@ isFailure o = case o of
   DebugFuzzyOptionsNoResolver {} -> True
   DebugTerm {} -> False
   DebugDecl {} -> False
+  AnnotatedFoldRanges {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False

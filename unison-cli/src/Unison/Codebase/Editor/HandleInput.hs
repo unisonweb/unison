@@ -67,6 +67,7 @@ import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
+import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
@@ -1143,6 +1144,8 @@ loop e = do
               for_ (Relation.toList . Branch.deepTerms $ rootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
+            DebugLSPFoldRangesI -> do
+              DebugFoldRanges.debugFoldRanges
             DebugTypeI hqName -> DebugDefinition.debugDecl hqName
             DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
@@ -1363,6 +1366,7 @@ inputDescription input =
         then pure ("debug.term.verbose " <> HQ.toText hqName)
         else pure ("debug.term " <> HQ.toText hqName)
     DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
+    DebugLSPFoldRangesI -> pure "debug.lsp.fold-ranges"
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat

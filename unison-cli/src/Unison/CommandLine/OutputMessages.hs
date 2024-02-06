@@ -1793,6 +1793,7 @@ notifyUser dir = \case
         <> case typ of
           Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
           Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
