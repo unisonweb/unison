@@ -44,8 +44,8 @@ debugFoldRanges = do
 --
 -- Useful for checking that computed ranges make sense against the source text.
 --
--- >>> annotateRange "one\ntwo\nthree\nfour" [ LSP.Range (LSP.Position 1 0) (LSP.Position 2 3) ]
--- "one\n<two\nthr>ee\nfour"
+-- >>> annotateRanges "one\ntwo\nthree\nfour" [ LSP.Range (LSP.Position 1 0) (LSP.Position 2 3) ]
+-- "one\n\12298two\nthr\12299ee\nfour"
 annotateRanges :: Text -> [LSP.Range] -> Text
 annotateRanges txt ranges =
   let replacements =
