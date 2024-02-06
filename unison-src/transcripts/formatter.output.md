@@ -34,6 +34,19 @@ ability Thing where
   more  : Nat -> Text -> Nat
   doThing  : Nat -> Int
 
+
+{{ Ability with single constructor }}
+structural ability Ask a where 
+  ask : {Ask a} a
+
+-- Regression test for: https://github.com/unisonweb/unison/issues/4666
+provide : a -> '{Ask a} r -> r
+provide a action = 
+  h = cases
+        {ask -> resume} -> handle resume a with h
+        {r} -> r
+  handle !action with h
+
 {{ 
 A Doc before a type 
 }}
@@ -100,6 +113,18 @@ Thing.doc = {{ A doc before an ability }}
 ability Thing where
   more : Nat -> Text ->{Thing} Nat
   doThing : Nat ->{Thing} Int
+
+
+Ask.doc = {{ Ability with single constructor }}
+structural ability Ask a where ask : {Ask a} a
+
+-- Regression test for: https://github.com/unisonweb/unison/issues/4666
+provide : a -> '{Ask a} r -> r
+provide a action =
+  h = cases
+    { ask -> resume } -> handle resume a with h
+    { r }             -> r
+  handle !action with h
 
 Optional.doc = {{ A Doc before a type }}
 structural type Optional a = More Text | Some | Other a | None Nat 

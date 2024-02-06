@@ -352,9 +352,12 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
 letBlock = label "let" $ (snd <$> block "let")
 handle = label "handle" do
-  (_spanAnn, b) <- block "handle"
-  (_spanAnn, handler) <- block "with"
-  pure $ Term.handle (ann b) handler b
+  (handleSpan, b) <- block "handle"
+  (_withSpan, handler) <- block "with"
+  -- We don't use the annotation span from 'with' here because it will
+  -- include a dedent if it's at the end of block.
+  -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
+  pure $ Term.handle (handleSpan <> ann handler) handler b
 
 checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v m (Int, NonEmpty a)
 checkCasesArities cases@((i, _) NonEmpty.:| rest) =
