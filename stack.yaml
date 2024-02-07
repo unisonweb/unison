@@ -36,6 +36,7 @@ packages:
 - unison-cli
 - unison-core
 - unison-hashing-v2
+- unison-merge
 - unison-share-api
 - unison-share-projects-api
 - unison-syntax

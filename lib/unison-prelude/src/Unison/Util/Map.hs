@@ -5,6 +5,7 @@ module Unison.Util.Map
     bitraversed,
     deleteLookup,
     foldMapM,
+    mergeMap,
     unionWithM,
     remap,
     traverseKeys,
@@ -22,6 +23,7 @@ import Data.Bifunctor qualified as B
 import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
 import Data.Map.Strict qualified as Map
+import Data.Map.Merge.Strict qualified as Map
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap)
@@ -101,3 +103,23 @@ traverseKeys f = bitraverse f pure
 traverseKeysWith :: (Applicative f, Ord k') => (v -> v -> v) -> (k -> f k') -> Map k v -> f (Map k' v)
 traverseKeysWith combine f m =
   Map.fromListWith combine <$> (Map.toList m & traversed . _1 %%~ f)
+
+-- | @mergeMap@ is like a @foldMap@ version of @merge@: summarize the merging of two maps together as a monoidal value.
+mergeMap ::
+  forall a b k m.
+  (Monoid m, Ord k) =>
+  -- | Function to apply when a key exists in the first map, but not the second.
+  (k -> a -> m) ->
+  -- | Function to apply when a key exists in the second map, but not the first.
+  (k -> b -> m) ->
+  -- | Function to apply when a key exists in both maps.
+  (k -> a -> b -> m) ->
+  Map k a ->
+  Map k b ->
+  m
+mergeMap f g h =
+  coerce @(Map k a -> Map k b -> Const m (Map k ())) do
+    Map.mergeA
+      (Map.traverseMissing (coerce f))
+      (Map.traverseMissing (coerce g))
+      (Map.zipWithAMatched (coerce h))

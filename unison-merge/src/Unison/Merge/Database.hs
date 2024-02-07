@@ -53,7 +53,7 @@ makeMergeDatabase codebase = liftIO do
   loadDeclNumConstructors <- do
     cache <- Cache.semispaceCache 1024
     pure (cacheTransaction cache Operations.expectDeclNumConstructors)
-  let loadV1Branch = Codebase.expectBranchForHash codebase
+  let loadV1Branch = undefined -- Codebase.expectBranchForHash codebase
   loadV1Decl <- do
     cache <- Cache.semispaceCache 1024
     pure (cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))

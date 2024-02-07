@@ -17,16 +17,12 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Merge
-      Unison.Merge2
-  other-modules:
       Unison.Merge.Database
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.Libdeps
       Unison.Merge.PreconditionViolation
       Unison.Merge.Synhash
-      Unison.Merge3
   hs-source-dirs:
       src
   default-extensions:
@@ -90,7 +86,6 @@ library
     , unison-prelude
     , unison-sqlite
     , unison-syntax
-    , unison-util-bimultimap
     , unison-util-cache
     , unison-util-nametree
     , unison-util-relation

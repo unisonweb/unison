@@ -127,8 +127,8 @@ hashDeclTokens ppe r = \case
     -- separating constructor types with tag of 99, which isn't used elsewhere
     goCtor ct ((_, _, ty), i) = H.Tag 99 : ctorName ct i : hashTypeTokens ppe ty
     ctorName ct i = hashReferentToken ppe (V1.Referent.Con (ConstructorReference (ReferenceDerived r) i) ct)
-    go ct (DD.DataDeclaration mod _ vs ctors) =
-      goMod mod <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
+    go ct (DD.DataDeclaration m _ vs ctors) =
+      goMod m <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
 
 hashKindTokens :: K.Kind -> [Token]
 hashKindTokens k = case k of
@@ -232,7 +232,7 @@ hashTermTokens ppe = go
 
 hashLengthToken :: Foldable t => t a -> Token
 hashLengthToken =
-  H.Nat . unsafeInto @Word64 . length
+  H.Nat . fromIntegral @Int @Word64 . length
 
 hashReferentToken :: PrettyPrintEnv -> V1.Referent -> Token
 hashReferentToken ppe =

@@ -32,17 +32,16 @@ dependencies:
   - unison-prelude
   - unison-sqlite
   - unison-syntax
-  - unison-util-bimultimap
   - unison-util-cache
   - unison-util-nametree
   - unison-util-relation
   - vector
 
 library:
-  exposed-modules:
-    # TODO probably whittle this down to one
-    - Unison.Merge
-    - Unison.Merge2
+  # exposed-modules:
+  #   # TODO probably whittle this down to one
+  #   - Unison.Merge
+  #   - Unison.Merge2
   source-dirs: src
   when:
     - condition: '!os(windows)'
