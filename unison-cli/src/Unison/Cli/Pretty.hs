@@ -1,12 +1,10 @@
-{-# LANGUAGE MagicHash #-}
-
 -- | Small combinators that pretty-print small types in a canonical way for human consumption, such as hashes, file
 -- paths, and project names.
 module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
     prettyAbsoluteStripProject,
-    prettyBase32Hex#,
+    prettyBase32HexWithHash,
     prettyBase32Hex,
     prettyBranchId,
     prettyCausalHash,
@@ -46,16 +44,13 @@ module Unison.Cli.Pretty
     prettyWriteRemoteNamespace,
     shareOrigin,
     unsafePrettyTermResultSigFull',
-    prettyTermDisplayObjects,
-    prettyTypeDisplayObjects,
-    prettyTerm,
-    prettyType,
+    DisplayObjectPrinter.prettyTermDisplayObjects,
+    DisplayObjectPrinter.prettyTypeDisplayObjects,
   )
 where
 
 import Control.Lens hiding (at)
 import Control.Monad.Writer (Writer, mapWriter, runWriter)
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -72,7 +67,6 @@ import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
-import Unison.Syntax.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
@@ -99,32 +93,27 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectName, Semver (..))
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import Unison.Referent qualified as Referent
 import Unison.Server.SearchResult' qualified as SR'
-import Unison.ShortHash (ShortHash)
-import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
+import Unison.Syntax.DisplayObjectPrinter qualified as DisplayObjectPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
-import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
+import Unison.Syntax.NamePrinter (prettyHashQualified, styleHashQualified')
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
-import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Pretty qualified as P
@@ -210,14 +199,14 @@ prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausal
 prettyBase32Hex :: (IsString s) => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
 
-prettyBase32Hex# :: (IsString s) => Base32Hex -> P.Pretty s
-prettyBase32Hex# b = P.group $ "#" <> prettyBase32Hex b
+prettyBase32HexWithHash :: (IsString s) => Base32Hex -> P.Pretty s
+prettyBase32HexWithHash b = P.group $ "#" <> prettyBase32Hex b
 
 prettyHash :: (IsString s) => Hash.Hash -> P.Pretty s
-prettyHash = prettyBase32Hex# . Hash.toBase32Hex
+prettyHash = prettyBase32HexWithHash . Hash.toBase32Hex
 
 prettyHash32 :: (IsString s) => Hash32 -> P.Pretty s
-prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
+prettyHash32 = prettyBase32HexWithHash . Hash32.toBase32Hex
 
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =
@@ -442,81 +431,3 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     dppe = PPE.makePPE (PPE.hqNamer 8 (UF.toNames uf)) PPE.dontSuffixify
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
-
-prettyTypeDisplayObjects ::
-  PPED.PrettyPrintEnvDecl ->
-  (Map Reference (DisplayObject () (DD.Decl Symbol Ann))) ->
-  [P.Pretty SyntaxText]
-prettyTypeDisplayObjects pped types =
-  types
-    & Map.toList
-    & map (\(ref, dt) -> (PPE.typeName unsuffixifiedPPE ref, ref, dt))
-    & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (prettyType pped)
-  where
-    unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-
-prettyTermDisplayObjects ::
-  PPED.PrettyPrintEnvDecl ->
-  Bool ->
-  (TermReferenceId -> Bool) ->
-  (Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann))) ->
-  [P.Pretty SyntaxText]
-prettyTermDisplayObjects pped isSourceFile isTest terms =
-  terms
-    & Map.toList
-    & map (\(ref, dt) -> (PPE.termName unsuffixifiedPPE (Referent.Ref ref), ref, dt))
-    & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-    & map (\t -> prettyTerm pped isSourceFile (fromMaybe False . fmap isTest . Reference.toId $ (t ^. _2)) t)
-  where
-    unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-
-prettyTerm ::
-  PPED.PrettyPrintEnvDecl ->
-  Bool {- whether we're printing to a source-file or not. -} ->
-  Bool {- Whether the term is a test -} ->
-  (HQ.HashQualified Name, Reference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-  P.Pretty SyntaxText
-prettyTerm pped isSourceFile isTest (n, r, dt) =
-  case dt of
-    MissingObject r -> missingDefinitionMsg n r
-    BuiltinObject typ ->
-      commentBuiltin $
-        P.hang
-          ("builtin " <> prettyHashQualified n <> " :")
-          (TypePrinter.prettySyntax (ppeBody n r) typ)
-    UserObject tm ->
-      if isTest
-        then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-        else TermPrinter.prettyBinding (ppeBody n r) n tm
-  where
-    commentBuiltin txt =
-      if isSourceFile
-        then P.indent "-- " txt
-        else txt
-    ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE pped r
-
-prettyType :: PPED.PrettyPrintEnvDecl -> (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-prettyType pped (n, r, dt) =
-  case dt of
-    MissingObject r -> missingDefinitionMsg n r
-    BuiltinObject _ -> builtin n
-    UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl pped r) r n decl
-  where
-    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
-
-missingDefinitionMsg :: HQ.HashQualified Name -> ShortHash -> P.Pretty SyntaxText
-missingDefinitionMsg n r =
-  P.wrap
-    ( "-- The name "
-        <> prettyHashQualified n
-        <> " is assigned to the "
-        <> "reference "
-        <> fromString (show r ++ ",")
-        <> "which is missing from the codebase."
-    )
-    <> P.newline
-    <> tip "You might need to repair the codebase manually."
-  where
-    tip :: P.Pretty SyntaxText -> P.Pretty SyntaxText
-    tip s = P.column2 [("Tip:", P.wrap s)]

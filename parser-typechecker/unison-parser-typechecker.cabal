@@ -162,6 +162,7 @@ library
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.DisplayObject
+      Unison.Syntax.DisplayObjectPrinter
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
       Unison.Syntax.TermParser
@@ -228,7 +229,8 @@ library
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
-      IntervalMap
+      Diff >=0.5
+    , IntervalMap
     , ListLike
     , NanoID
     , aeson
@@ -279,7 +281,6 @@ library
     , murmur-hash
     , mutable-containers
     , mwc-random
-    , myers-diff
     , natural-transformation
     , network
     , network-simple
@@ -420,7 +421,8 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      IntervalMap
+      Diff >=0.5
+    , IntervalMap
     , ListLike
     , NanoID
     , aeson
@@ -474,7 +476,6 @@ test-suite parser-typechecker-tests
     , murmur-hash
     , mutable-containers
     , mwc-random
-    , myers-diff
     , natural-transformation
     , network
     , network-simple

@@ -82,6 +82,13 @@ packages:
       size: 1060
   original:
     hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+- completed:
+    hackage: Diff-0.5@sha256:9c8a972eead9e079b90c6581fa8ef5755662c10dd075951b32b801145704afbb,1814
+    pantry-tree:
+      sha256: 6403568c4b7f80c0e76fc26a0b8a76f0d75a63c2d61d237ba5756873331d5ac1
+      size: 416
+  original:
+    hackage: Diff-0.5@sha256:9c8a972eead9e079b90c6581fa8ef5755662c10dd075951b32b801145704afbb,1814
 snapshots:
 - completed:
     sha256: 5a59b2a405b3aba3c00188453be172b85893cab8ebc352b1ef58b0eae5d248a2
