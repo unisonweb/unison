@@ -11,10 +11,9 @@ import Data.Text qualified as Text
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (displayNames)
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (Output (NoLastRunResult, SaveTermNameConflict, SlurpOutput))
@@ -31,6 +30,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 
 handleAddRun :: Input -> Name -> Cli ()
 handleAddRun input resultName = do
@@ -38,14 +38,16 @@ handleAddRun input resultName = do
   uf <- addSavedTermToUnisonFile resultName
   Cli.Env {codebase} <- ask
   currentPath <- Cli.getCurrentPath
-  currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
+  currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
   let adds = SlurpResult.adds sr
   Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-  ppe <- prettyPrintEnvDecl =<< displayNames uf
+  let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
+  pped <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
+  let suffixifiedPPE = PPE.suffixifiedPPE pped
   Cli.syncRoot (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
-  Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+  Cli.respond $ SlurpOutput input suffixifiedPPE sr
 
 addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
 addSavedTermToUnisonFile resultName = do

@@ -13,8 +13,8 @@ foo.bar = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      foo     : Nat
-      foo.bar : Nat
+      foo     : ##Nat
+      foo.bar : ##Nat
 
 ```
 ```ucm
@@ -22,8 +22,8 @@ p0/main> add
 
   ⍟ I've added these definitions:
   
-    foo     : Nat
-    foo.bar : Nat
+    foo     : ##Nat
+    foo.bar : ##Nat
 
 ```
 ```unison
@@ -41,9 +41,9 @@ donk.bonk = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      bonk      : Nat
+      bonk      : ##Nat
         (also named foo)
-      donk.bonk : Nat
+      donk.bonk : ##Nat
         (also named foo.bar)
 
 ```
@@ -52,8 +52,8 @@ p1/main> add
 
   ⍟ I've added these definitions:
   
-    bonk      : Nat
-    donk.bonk : Nat
+    bonk      : ##Nat
+    donk.bonk : ##Nat
 
 p1/main> fork p0/main: zzz
 
@@ -61,8 +61,8 @@ p1/main> fork p0/main: zzz
 
 p1/main> find zzz
 
-  1. zzz.foo : Nat
-  2. zzz.foo.bar : Nat
+  1. zzz.foo : ##Nat
+  2. zzz.foo.bar : ##Nat
   
 
 p1/main> fork p0/main:foo yyy
@@ -71,7 +71,7 @@ p1/main> fork p0/main:foo yyy
 
 p1/main> find yyy
 
-  1. yyy.bar : Nat
+  1. yyy.bar : ##Nat
   
 
 p0/main> fork p1/main: p0/main:p1

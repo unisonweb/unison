@@ -7,7 +7,11 @@ someterm = 18
 ```
 
 ```ucm
-  ☝️  The namespace .some.loose.code is empty.
+  ☝️  The namespace .some.loose.code.lib is empty.
+
+.some.loose.code.lib> builtins.merge
+
+  Done.
 
 .some.loose.code> add
 

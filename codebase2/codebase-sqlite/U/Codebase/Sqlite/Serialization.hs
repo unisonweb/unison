@@ -19,6 +19,7 @@ module U.Codebase.Sqlite.Serialization
     getTempPatchFormat,
     getTempTermFormat,
     getTermAndType,
+    getTypeFromTermAndType,
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
@@ -43,6 +44,10 @@ module U.Codebase.Sqlite.Serialization
     putSingleTerm,
     putDeclElement,
     getSingleTerm,
+    putLocalIdsWith,
+    getLocalIdsWith,
+    putLocalBranch,
+    putLocalPatch,
   )
 where
 
@@ -160,7 +165,7 @@ putLocalIdsWith putText putDefn LocalIds {textLookup, defnLookup} = do
   putFoldable putText textLookup
   putFoldable putDefn defnLookup
 
-getLocalIds :: (MonadGet m) => m LocalIds
+getLocalIds :: (MonadGet m, Num t, Bits t, Num h, Bits h) => m (LocalIds' t h)
 getLocalIds = getLocalIdsWith getVarInt getVarInt
 
 skipLocalIds :: (MonadGet m) => m ()
@@ -315,10 +320,16 @@ putSingleTerm t = putABT putSymbol putUnit putF t
 getTermComponent :: (MonadGet m) => m TermFormat.LocallyIndexedComponent
 getTermComponent =
   TermFormat.LocallyIndexedComponent
-    <$> getFramedArray (getTuple3 getLocalIds (getFramed getSingleTerm) getTType)
+    <$> getFramedArray (getTuple3 getLocalIds (getFramed getSingleTerm) getTermElementType)
 
 getTermAndType :: (MonadGet m) => m (TermFormat.Term, TermFormat.Type)
-getTermAndType = (,) <$> getFramed getSingleTerm <*> getTType
+getTermAndType = (,) <$> getFramed getSingleTerm <*> getTermElementType
+
+-- | Decode ONLY the type of a term-component element.
+-- This is useful during sync and when we need the type of a term component element but don't
+-- want to decode the whole term (which can be expensive).
+getTypeFromTermAndType :: (MonadGet m) => m (TermFormat.Type)
+getTypeFromTermAndType = skipFramed *> getTermElementType
 
 getSingleTerm :: (MonadGet m) => m TermFormat.Term
 getSingleTerm = getABT getSymbol getUnit getF
@@ -399,7 +410,7 @@ getSingleTerm = getABT getSymbol getUnit getF
 lookupTermElement :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
 lookupTermElement i =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getSingleTerm) getTType) $ fromIntegral i
+    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getSingleTerm) getTermElementType) $ fromIntegral i
     tag -> unknownTag "lookupTermElement" tag
 
 lookupTermElementDiscardingType :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term)
@@ -411,11 +422,12 @@ lookupTermElementDiscardingType i =
 lookupTermElementDiscardingTerm :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Type)
 lookupTermElementDiscardingTerm i =
   getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getTType) $ fromIntegral i
+    0 -> unsafeFramedArrayLookup ((,) <$> getLocalIds <* skipFramed <*> getTermElementType) $ fromIntegral i
     tag -> unknownTag "lookupTermElementDiscardingTerm" tag
 
-getTType :: (MonadGet m) => m TermFormat.Type
-getTType = getType getReference
+-- | Decode a type which is stored alongisde a term-component element.
+getTermElementType :: (MonadGet m) => m TermFormat.Type
+getTermElementType = getType getReference
 
 getType :: forall m r. (MonadGet m) => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
@@ -526,21 +538,13 @@ putBranchFormat b = case b of
   BranchFormat.Full li b -> do
     putWord8 0
     putBranchLocalIds li
-    putBranchFull b
+    putLocalBranch b
   BranchFormat.Diff r li d -> do
     putWord8 1
     putVarInt r
     putBranchLocalIds li
     putBranchDiff d
   where
-    putBranchFull (BranchFull.Branch terms types patches children) = do
-      putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
-      putMap putVarInt (putMap putReference putMetadataSetFormat) types
-      putMap putVarInt putVarInt patches
-      putMap putVarInt putVarInt children
-      where
-        putMetadataSetFormat (BranchFull.Inline s) =
-          putWord8 0 *> putFoldable putReference s
     putBranchDiff (BranchDiff.Diff terms types patches children) = do
       putMap putVarInt (putMap putReferent putDiffOp) terms
       putMap putVarInt (putMap putReference putDiffOp) types
@@ -562,6 +566,16 @@ putBranchFormat b = case b of
           BranchDiff.ChildRemove -> putWord8 0
           BranchDiff.ChildAddReplace b -> putWord8 1 *> putVarInt b
 
+putLocalBranch :: (MonadPut m) => BranchFull.LocalBranch -> m ()
+putLocalBranch (BranchFull.Branch terms types patches children) = do
+  putMap putVarInt (putMap putReferent putMetadataSetFormat) terms
+  putMap putVarInt (putMap putReference putMetadataSetFormat) types
+  putMap putVarInt putVarInt patches
+  putMap putVarInt putVarInt children
+  where
+    putMetadataSetFormat (BranchFull.Inline s) =
+      putWord8 0 *> putFoldable putReference s
+
 putBranchLocalIds :: (MonadPut m) => BranchFormat.BranchLocalIds -> m ()
 putBranchLocalIds (BranchFormat.LocalIds ts os ps cs) = do
   putFoldable putVarInt ts
@@ -574,7 +588,7 @@ putPatchFormat = \case
   PatchFormat.Full ids p -> do
     putWord8 0
     putPatchLocalIds ids
-    putPatchFull p
+    putLocalPatch p
   PatchFormat.Diff r ids p -> do
     putWord8 1
     putVarInt r
@@ -608,14 +622,14 @@ getTermEdit =
     0 -> pure TermEdit.Deprecate
     1 -> TermEdit.Replace <$> getReferent <*> getTyping
     x -> unknownTag "getTermEdit" x
-  where
-    getTyping :: (MonadGet m) => m TermEdit.Typing
-    getTyping =
-      getWord8 >>= \case
-        0 -> pure TermEdit.Same
-        1 -> pure TermEdit.Subtype
-        2 -> pure TermEdit.Different
-        x -> unknownTag "getTyping" x
+
+getTyping :: (MonadGet m) => m TermEdit.Typing
+getTyping =
+  getWord8 >>= \case
+    0 -> pure TermEdit.Same
+    1 -> pure TermEdit.Subtype
+    2 -> pure TermEdit.Different
+    x -> unknownTag "getTyping" x
 
 getTypeEdit :: (MonadGet m) => m TypeEdit.LocalTypeEdit
 getTypeEdit =
@@ -631,8 +645,8 @@ getPatchLocalIds =
     <*> getVector getVarInt
     <*> getVector getVarInt
 
-putPatchFull :: (MonadPut m) => PatchFull.LocalPatch -> m ()
-putPatchFull (PatchFull.Patch termEdits typeEdits) = do
+putLocalPatch :: (MonadPut m) => PatchFull.LocalPatch -> m ()
+putLocalPatch (PatchFull.Patch termEdits typeEdits) = do
   putMap putReferent (putFoldable putTermEdit) termEdits
   putMap putReference (putFoldable putTypeEdit) typeEdits
 

@@ -1,13 +1,27 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.PrintError where
+module Unison.PrintError
+  ( Env,
+    defaultWidth,
+    prettyParseError,
+    prettyResolutionFailures,
+    prettyVar,
+    printNoteWithSource,
+    renderCompilerBug,
+    renderNoteAsANSI,
+    renderParseErrorAsANSI,
+    renderParseErrors,
+  )
+where
 
 import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
-import Data.List (find, intersperse)
+import Data.Function (on)
+import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
+import Data.Ord (comparing)
 import Data.Proxy
 import Data.Sequence (Seq (..))
 import Data.Set qualified as Set
@@ -17,14 +31,15 @@ import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
-import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -33,7 +48,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
-import Unison.Referent (Referent, pattern Ref)
+import Unison.Referent (Referent, toReference, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -77,12 +92,6 @@ pattern Type2 = Color.Green
 pattern ErrorSite :: Color
 pattern ErrorSite = Color.HiRed
 
-pattern TypeKeyword :: Color
-pattern TypeKeyword = Color.Yellow
-
-pattern AbilityKeyword :: Color
-pattern AbilityKeyword = Color.Green
-
 pattern Identifier :: Color
 pattern Identifier = Color.Bold
 
@@ -110,18 +119,6 @@ fromOverHere src spots0 removing =
         0 -> mempty
         1 -> "\n  from right here:\n\n" <> showSource src spots
         _ -> "\n  from these spots, respectively:\n\n" <> showSource src spots
-
-showTypeWithProvenance ::
-  (Var v, Annotated a, Ord style) =>
-  Env ->
-  String ->
-  style ->
-  Type v a ->
-  Pretty (AnnotatedText style)
-showTypeWithProvenance env src color typ =
-  style color (renderType' env typ)
-    <> ".\n"
-    <> fromOverHere' src [styleAnnotated color typ] []
 
 styleAnnotated :: (Annotated a) => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
@@ -169,9 +166,8 @@ renderTypeError ::
   TypeError v loc ->
   Env ->
   String ->
-  Path.Absolute ->
   Pretty ColorText
-renderTypeError e env src curPath = case e of
+renderTypeError e env src = case e of
   BooleanMismatch {..} ->
     mconcat
       [ Pr.wrap $
@@ -627,51 +623,112 @@ renderTypeError e env src curPath = case e of
         _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
-          foldr sep id suggestions ([], [], [])
-        sep (C.Suggestion name typ _ match) r =
+          foldr
+            sep
+            id
+            ( sortBy
+                ( comparing length <> compare
+                    `on` (Text.splitOn "." . C.suggestionName)
+                )
+                suggestions
+            )
+            ([], [], [])
+        sep s@(C.Suggestion _ _ _ match) r =
           case match of
-            C.Exact -> (_1 %~ ((name, typ) :)) . r
-            C.WrongType -> (_2 %~ ((name, typ) :)) . r
-            C.WrongName -> (_3 %~ ((name, typ) :)) . r
-        libPath = Path.absoluteToPath' curPath Path.:> "lib"
+            C.Exact -> (_1 %~ (s :)) . r
+            C.WrongType -> (_2 %~ (s :)) . r
+            C.WrongName -> (_3 %~ (s :)) . r
+        undefinedSymbolHelp =
+          mconcat
+            [ ( case expectedType of
+                  Type.Var' (TypeVar.Existential {}) ->
+                    Pr.wrap "I also don't know what type it should be."
+                  _ ->
+                    mconcat
+                      [ Pr.wrap "I think its type should be:",
+                        "\n\n",
+                        Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                      ]
+              ),
+              "\n\n",
+              Pr.hang
+                "Some common causes of this error include:"
+                ( Pr.bulleted
+                    [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
+                      Pr.wrap "The definition is part of a library which hasn't been added to this project",
+                      Pr.wrap "You have a typo in the name"
+                    ]
+                )
+            ]
      in mconcat
-          [ "I couldn't find any definitions matching the name ",
+          [ "I couldn't figure out what ",
             style ErrorSite (Var.nameStr unknownTermV),
-            " inside the namespace ",
-            prettyPath' (Path.absoluteToPath' curPath),
-            "\n\n",
+            " refers to here:\n\n",
             annotatedAsErrorSite src termSite,
             "\n",
-            Pr.hang
-              "Some common causes of this error include:"
-              ( Pr.bulleted
-                  [ Pr.wrap "Your current namespace is too deep to contain the definition in its subtree",
-                    Pr.wrap "The definition is part of a library which hasn't been added to this project"
-                  ]
-              )
-              <> "\n\n"
-              <> "To add a library to this project use the command: "
-              <> Pr.backticked ("fork <.path.to.lib> " <> Pr.shown (libPath Path.:> "<libname>")),
-            "\n\n",
-            case expectedType of
-              Type.Var' (TypeVar.Existential {}) -> "There are no constraints on its type."
-              _ ->
-                "Whatever it is, its type should conform to "
-                  <> style Type1 (renderType' env expectedType)
-                  <> ".",
-            "\n\n",
-            -- ++ showTypeWithProvenance env src Type1 expectedType
             case correct of
               [] -> case wrongTypes of
                 [] -> case wrongNames of
-                  [] -> mempty
+                  [] -> undefinedSymbolHelp
                   wrongs -> formatWrongs wrongNameText wrongs
-                wrongs -> formatWrongs wrongTypeText wrongs
+                wrongs ->
+                  let helpMeOut =
+                        Pr.wrap
+                          ( mconcat
+                              [ "Help me out by",
+                                Pr.bold "using a more specific name here",
+                                "or",
+                                Pr.bold "adding a type annotation."
+                              ]
+                          )
+                   in Pr.wrap
+                        ( "The name "
+                            <> style Identifier (Var.nameStr unknownTermV)
+                            <> " is ambiguous. I tried to resolve it by type but"
+                        )
+                        <> " "
+                        <> case expectedType of
+                          Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything." <> helpMeOut) <> "\n"
+                          _ ->
+                            mconcat
+                              [ ( Pr.wrap $
+                                    mconcat
+                                      [ "no term with that name would pass typechecking.",
+                                        "I think its type should be:"
+                                      ]
+                                ),
+                                "\n\n",
+                                Pr.indentN 4 (style Type1 (renderType' env expectedType)),
+                                "\n\n",
+                                Pr.wrap
+                                  ( mconcat
+                                      [ "If that's not what you expected, you may have a type error somewhere else in your code.",
+                                        helpMeOut
+                                      ]
+                                  )
+                              ]
+                        <> "\n\n"
+                        <> formatWrongs wrongTypeText wrongs
               suggs ->
                 mconcat
-                  [ "I found some terms in scope that have matching names and types. ",
-                    "Maybe you meant one of these:\n\n",
-                    intercalateMap "\n" formatSuggestion suggs
+                  [ Pr.wrap
+                      ( mconcat
+                          [ mconcat
+                              [ "The name ",
+                                style Identifier (Var.nameStr unknownTermV),
+                                " is ambiguous. "
+                              ],
+                            case expectedType of
+                              Type.Var' (TypeVar.Existential {}) -> "I couldn't narrow it down by type, as any type would work here."
+                              _ ->
+                                "Its type should be:\n\n"
+                                  <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                          ]
+                      ),
+                    "\n\n",
+                    Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
+                    "\n\n",
+                    intercalateMap "\n" (renderSuggestion env) suggs
                   ]
           ]
   DuplicateDefinitions {..} ->
@@ -733,47 +790,48 @@ renderTypeError e env src curPath = case e of
       ]
   where
     wrongTypeText pl =
-      mconcat
-        [ "I found ",
-          pl "a term" "some terms",
-          " in scope with ",
-          pl "a " "",
-          "matching name",
-          pl "" "s",
-          " but ",
-          pl "a " "",
-          "different type",
-          pl "" "s",
-          ". ",
-          "If ",
-          pl "this" "one of these",
-          " is what you meant, try using the fully qualified name and I might ",
-          "be able to give you a more illuminating error message: \n\n"
-        ]
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching name",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different type",
+              pl "" "s",
+              ". ",
+              "If ",
+              pl "this" "one of these",
+              " is what you meant, try using its full name:"
+            ]
+        )
+        <> "\n\n"
     wrongNameText pl =
-      mconcat
-        [ "I found ",
-          pl "a term" "some terms",
-          " in scope with ",
-          pl "a " "",
-          "matching type",
-          pl "" "s",
-          " but ",
-          pl "a " "",
-          "different name",
-          pl "" "s",
-          ". ",
-          "Maybe you meant ",
-          pl "this" "one of these",
-          ":\n\n"
-        ]
-    formatSuggestion :: (Text, C.Type v loc) -> Pretty ColorText
-    formatSuggestion (name, typ) =
-      "  - " <> fromString (Text.unpack name) <> " : " <> renderType' env typ
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching type",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different name",
+              pl "" "s",
+              ". ",
+              "Maybe you meant ",
+              pl "this" "one of these",
+              ":\n\n"
+            ]
+        )
     formatWrongs txt wrongs =
       let sz = length wrongs
           pl a b = if sz == 1 then a else b
-       in mconcat [txt pl, intercalateMap "\n" formatSuggestion wrongs]
+       in mconcat [txt pl, intercalateMap "\n" (renderSuggestion env) wrongs]
     ordinal :: (IsString s) => Int -> s
     ordinal n =
       fromString $
@@ -1132,7 +1190,12 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
 renderSuggestion ::
   (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  fromString (Text.unpack $ C.suggestionName sug)
+  renderTerm
+    env
+    ( case C.suggestionReplacement sug of
+        Right ref -> Term.ref () (toReference ref)
+        Left v -> Term.var () v
+    )
     <> " : "
     <> renderType'
       env
@@ -1140,9 +1203,6 @@ renderSuggestion env sug =
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "
-
-arrows :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
-arrows = intercalateMap " ->"
 
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
@@ -1173,17 +1233,6 @@ showConstructor :: (IsString s) => Env -> ConstructorReference -> s
 showConstructor env r =
   fromString . HQ.toString $
     PPE.patternName env r
-
-styleInOverallType ::
-  (Var v, Annotated a, Eq a) =>
-  Env ->
-  C.Type v a ->
-  C.Type v a ->
-  Color ->
-  Pretty ColorText
-styleInOverallType e overallType leafType c = renderType e f overallType
-  where
-    f loc s = if loc == ABT.annotation leafType then Color.style c <$> s else s
 
 _posToEnglish :: (IsString s) => L.Pos -> s
 _posToEnglish (L.Pos l c) =
@@ -1218,16 +1267,18 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
               then "line " ++ show l
               else "lines " ++ show l ++ "—" ++ show l'
 
-annotatedToEnglish :: (Annotated a, IsString s) => a -> s
+annotatedToEnglish :: (Annotated a, IsString s, Semigroup s) => a -> s
 annotatedToEnglish a = case ann a of
-  Intrinsic -> "an intrinsic"
-  External -> "an external"
+  Intrinsic -> "<intrinsic>"
+  External -> "<external>"
+  GeneratedFrom a -> "generated from: " <> annotatedToEnglish a
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForAnnotated :: (Annotated a) => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic -> Nothing
   External -> Nothing
+  GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
 showLexerOutput :: Bool
@@ -1238,10 +1289,9 @@ renderNoteAsANSI ::
   Pr.Width ->
   Env ->
   String ->
-  Path.Absolute ->
   Note v a ->
   String
-renderNoteAsANSI w e s curPath n = Pr.toANSI w $ printNoteWithSource e s curPath n
+renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
 
 renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
@@ -1250,19 +1300,18 @@ printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>
   Env ->
   String ->
-  Path.Absolute ->
   Note v a ->
   Pretty ColorText
-printNoteWithSource env _s _curPath (TypeInfo n) = prettyTypeInfo n env
-printNoteWithSource _env s _curPath (Parsing e) = prettyParseError s e
-printNoteWithSource env s curPath (TypeError e) = prettyTypecheckError e env s curPath
-printNoteWithSource _env _s _curPath (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s _curPath (UnknownSymbol v a) =
+printNoteWithSource env _s (TypeInfo n) = prettyTypeInfo n env
+printNoteWithSource _env s (Parsing e) = prettyParseError s e
+printNoteWithSource env s (TypeError e) = prettyTypecheckError e env s
+printNoteWithSource _env _s (NameResolutionFailures _es) = undefined
+printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
-printNoteWithSource env s _curPath (CompilerBug (Result.TypecheckerBug c)) =
+printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
-printNoteWithSource _env _s _curPath (CompilerBug c) =
+printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
@@ -1629,16 +1678,17 @@ renderParseErrors s = \case
                   then unknownTypesMsg
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
-    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing))) =
-      let msg =
-            mconcat
-              [ "This looks like the start of an expression here but I was expecting a binding.",
-                "\nDid you mean to use a single " <> style Code ":",
-                " here for a type signature?",
-                "\n\n",
-                tokenAsErrorSite s t
-              ]
-       in (msg, [rangeForToken t])
+    go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
+      | name == Name.fromSegment (NameSegment "::") =
+          let msg =
+                mconcat
+                  [ "This looks like the start of an expression here but I was expecting a binding.",
+                    "\nDid you mean to use a single " <> style Code ":",
+                    " here for a type signature?",
+                    "\n\n",
+                    tokenAsErrorSite s t
+                  ]
+           in (msg, [rangeForToken t])
     go (Parser.DidntExpectExpression tok _nextTok) =
       let msg =
             mconcat
@@ -1858,24 +1908,14 @@ showSource src annotations =
 showSource1 :: (Ord a) => String -> (Range, a) -> Pretty (AnnotatedText a)
 showSource1 src annotation = showSource src [annotation]
 
-findTerm :: Seq (C.PathElement v loc) -> Maybe loc
-findTerm = go
-  where
-    go (C.InSynthesize t :<| _) = Just $ ABT.annotation t
-    go (C.InCheck t _ :<| _) = Just $ ABT.annotation t
-    go (C.InSynthesizeApp _ t _ :<| _) = Just $ ABT.annotation t
-    go (_ :<| t) = go t
-    go Empty = Nothing
-
 prettyTypecheckError ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
   C.ErrorNote v loc ->
   Env ->
   String ->
-  Path.Absolute ->
   Pretty ColorText
-prettyTypecheckError note env src curPath =
-  renderTypeError (typeErrorFromNote note) env src curPath
+prettyTypecheckError note env src =
+  renderTypeError (typeErrorFromNote note) env src
 
 prettyTypeInfo ::
   (Var v, Ord loc, Show loc, Parser.Annotated loc) =>
@@ -1957,6 +1997,3 @@ useExamples =
           (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`")
         ]
     ]
-
-prettyPath' :: Path.Path' -> Pretty ColorText
-prettyPath' p' = Pr.blue (Pr.shown p')

@@ -16,6 +16,7 @@ import Ki qualified
 import System.Console.Haskeline qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
@@ -27,7 +28,6 @@ import Unison.Cli.Pretty (prettyProjectAndBranchName)
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
@@ -58,11 +58,10 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  IO (Branch IO) ->
   Path.Absolute ->
   [String] ->
   IO Input
-getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
+getUserInput codebase authHTTPClient currentPath numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -101,7 +100,7 @@ getUserInput codebase authHTTPClient getRoot currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase (Branch.head <$> getRoot) currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 liftIO $ putPrettyLn msg
                 go
@@ -128,7 +127,7 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  (Branch IO -> STM ()) ->
+  (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
@@ -156,7 +155,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
           currentRoot <- atomically do
             currentRoot <- readTMVar rootVar
             guard $ Just currentRoot /= lastRoot
-            notifyBranchChange currentRoot
+            notifyBranchChange (Branch.headHash currentRoot)
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
@@ -178,7 +177,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
         getUserInput
           codebase
           authHTTPClient
-          (atomically . readTMVar $ loopState ^. #root)
           (loopState ^. #currentPath)
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult

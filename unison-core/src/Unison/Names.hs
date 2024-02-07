@@ -159,8 +159,9 @@ referenceIds Names {terms, types} =
     fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran terms)
     fromTypes = Set.mapMaybe Reference.toId (Relation.ran types)
 
+-- | Returns all constructor term references. Constructors are omitted.
 termReferences :: Names -> Set TermReference
-termReferences Names {..} = Set.map Referent.toReference $ R.ran terms
+termReferences Names {..} = Set.mapMaybe Referent.toTermReference $ R.ran terms
 
 typeReferences :: Names -> Set TypeReference
 typeReferences Names {..} = R.ran types

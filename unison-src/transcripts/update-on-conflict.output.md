@@ -28,8 +28,6 @@ Cause a conflict:
     a.x : Nat
     b.x : Nat
 
-  ☝️  The namespace .merged is empty.
-
 .merged> merge .a
 
   Here's what's changed in the current namespace after the

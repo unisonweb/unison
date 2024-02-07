@@ -718,7 +718,7 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
           IsEffectful -> [C.Effectful chosenCanon]
      in addConstraints constraints nc {constraintMap = m}
   where
-    noMerge m = pure nc { constraintMap = m }
+    noMerge m = pure nc {constraintMap = m}
 
 modifyListC ::
   forall vt v loc m.

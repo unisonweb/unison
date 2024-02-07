@@ -243,4 +243,3 @@ deriveRangeFromDomain :: Ord b => a -> NESet b -> Map b a -> Map b a
 deriveRangeFromDomain x ys acc =
   foldr (flip Map.insert x) acc ys
 {-# INLINE deriveRangeFromDomain #-}
-

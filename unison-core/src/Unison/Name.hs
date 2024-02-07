@@ -5,6 +5,7 @@ module Unison.Name
 
     -- * Basic construction
     cons,
+    snoc,
     joinDot,
     fromSegment,
     fromSegments,
@@ -56,13 +57,13 @@ module Unison.Name
   )
 where
 
-import Data.Monoid (Sum(..))
 import Control.Lens (mapped, over, _1, _2)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
+import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
@@ -119,6 +120,13 @@ cons x name =
           "E495986"
           ("cannot cons " ++ show x ++ " onto absolute name" ++ show name)
     Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
+
+-- | Snoc a name segment onto the end of a name.
+--
+-- /O(1)/.
+snoc :: Name -> NameSegment -> Name
+snoc (Name pos (s1 :| ss)) s0 =
+  Name pos (s0 :| s1 : ss)
 
 -- | Return the number of name segments in a name.
 --

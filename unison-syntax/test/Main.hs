@@ -6,10 +6,12 @@ import Data.Maybe (fromJust)
 import Data.Text qualified as Text
 import EasyTest
 import System.IO.CodePage (withCP65001)
+import Unison.HashQualified' qualified as HQ'
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.Lexer
+import Unison.Syntax.Name qualified as Name (unsafeFromString)
 
 main :: IO ()
 main =
@@ -87,8 +89,8 @@ test =
         ],
       t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"],
       -- idents with hashes
-      t "foo#bar" [WordyId "foo" (Just "#bar")],
-      t "+#bar" [SymbolyId "+" (Just "#bar")],
+      t "foo#bar" [WordyId (HQ'.HashQualified "foo" "#bar")],
+      t "+#bar" [SymbolyId (HQ'.HashQualified "+" "#bar")],
       -- note - these are all the same, just with different spacing
       let ex1 = "if x then y else z"
           ex2 = unlines ["if", "  x", "then", "  y", "else z"]
@@ -196,7 +198,7 @@ test =
         suffix <- ["0", "x", "!", "'"] -- examples of wordyIdChar
         let i = kw ++ suffix
         -- a keyword at the front of an identifier should still be an identifier
-        pure $ t i [simpleWordyId i],
+        pure $ t i [simpleWordyId (Name.unsafeFromString i)],
       -- Test string literals
       t
         "\"simple string without escape characters\""

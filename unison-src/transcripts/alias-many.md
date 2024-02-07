@@ -95,7 +95,7 @@ List.takeWhile p xs =
   go xs []
 ```
 ```ucm:hide
-.runar> add
+.stuff> add
 ```
 
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
@@ -113,17 +113,8 @@ The names that will be used in the target namespace are the names you specify, r
 Let's try it!
 
 ```ucm
-.> cd .builtin
-.builtin> find
-.builtin> alias.many 94-104 .mylib
-```
-
-I want to incorporate a few more from another namespace:
-```ucm
-.builtin> cd .runar
-.runar> find
-.runar> alias.many 1-15 .mylib
-.runar> cd .mylib
+.> alias.many stuff.List.adjacentPairs stuff.List.all stuff.List.any stuff.List.chunk stuff.List.chunksOf stuff.List.dropWhile stuff.List.first stuff.List.init stuff.List.intersperse stuff.List.isEmpty stuff.List.last stuff.List.replicate stuff.List.splitAt stuff.List.tail stuff.List.takeWhile .mylib
+.> cd .mylib
 .mylib> find
 ```
 

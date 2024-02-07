@@ -157,3 +157,41 @@ Table
   
 
 ```
+You can add docs to a term or type with a top-level doc literal above the binding:
+
+```unison
+{{ This is a term doc }}
+myTerm = 10
+
+-- Regression tests for https://github.com/unisonweb/unison/issues/4634
+{{ This is a type doc }}
+type MyType = MyType
+
+{{ This is a unique type doc }}
+unique type MyUniqueType = MyUniqueType
+
+{{ This is a structural type doc }}
+structural type MyStructuralType = MyStructuralType
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type MyStructuralType
+        (also named builtin.Unit)
+      type MyType
+      type MyUniqueType
+      MyStructuralType.doc : Doc2
+      MyType.doc           : Doc2
+      MyUniqueType.doc     : Doc2
+      myTerm               : Nat
+      myTerm.doc           : Doc2
+
+```

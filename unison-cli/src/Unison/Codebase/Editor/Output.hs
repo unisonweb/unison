@@ -47,6 +47,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
+import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -324,6 +325,9 @@ data Output
   | DisplayDebugCompletions [Completion.Completion]
   | DebugDisplayFuzzyOptions Text [String {- arg description, options -}]
   | DebugFuzzyOptionsNoResolver
+  | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
+  | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
+  | AnnotatedFoldRanges Text
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -350,6 +354,7 @@ data Output
   | LocalProjectNorProjectBranchExist ProjectName ProjectBranchName
   | RemoteProjectDoesntExist URI ProjectName
   | RemoteProjectBranchDoesntExist URI (ProjectAndBranch ProjectName ProjectBranchName)
+  | RemoteProjectBranchDoesntExist'Push URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectReleaseIsDeprecated URI (ProjectAndBranch ProjectName ProjectBranchName)
   | RemoteProjectPublishedReleaseCannotBeChanged URI (ProjectAndBranch ProjectName ProjectBranchName)
   | -- A remote project branch head wasn't in the expected state
@@ -568,6 +573,9 @@ isFailure o = case o of
   DisplayDebugCompletions {} -> False
   DebugDisplayFuzzyOptions {} -> False
   DebugFuzzyOptionsNoResolver {} -> True
+  DebugTerm {} -> False
+  DebugDecl {} -> False
+  AnnotatedFoldRanges {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False
@@ -590,6 +598,7 @@ isFailure o = case o of
   LocalProjectNorProjectBranchExist {} -> True
   RemoteProjectDoesntExist {} -> True
   RemoteProjectBranchDoesntExist {} -> True
+  RemoteProjectBranchDoesntExist'Push {} -> True
   RemoteProjectReleaseIsDeprecated {} -> True
   RemoteProjectPublishedReleaseCannotBeChanged {} -> True
   RemoteProjectBranchHeadMismatch {} -> True

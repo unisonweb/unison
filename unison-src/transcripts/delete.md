@@ -50,7 +50,7 @@ foo = 2
 A delete should remove both versions of the term.
 
 ```ucm
-.a> delete.verbose foo
+.> delete.verbose a.foo
 ```
 
 ```ucm:error
@@ -77,11 +77,11 @@ structural type Foo = Foo
 ```
 
 ```ucm
-.a> delete.verbose Foo
+.> delete.verbose a.Foo
 ```
 
 ```ucm
-.a> delete.verbose Foo.Foo
+.> delete.verbose a.Foo.Foo
 ```
 
 Finally, let's try to delete a term and a type with the same name.

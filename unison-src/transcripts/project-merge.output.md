@@ -30,7 +30,7 @@ zonk = 0
 
   ⍟ I've added these definitions:
   
-    zonk : Nat
+    zonk : ##Nat
 
 .> project.create-empty foo
 
@@ -86,7 +86,7 @@ foo/main> add
 
   ⍟ I've added these definitions:
   
-    bonk : Nat
+    bonk : ##Nat
 
 ```
 ```ucm
@@ -113,8 +113,8 @@ bar/main> merge foo/main
   
   Added definitions:
   
-    1. bonk : Nat
-    2. zonk : Nat
+    1. bonk : ##Nat
+    2. zonk : ##Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -145,7 +145,7 @@ xonk = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      xonk : Nat
+      xonk : ##Nat
 
 ```
 ```ucm
@@ -153,7 +153,7 @@ bar/main> add
 
   ⍟ I've added these definitions:
   
-    xonk : Nat
+    xonk : ##Nat
 
 bar/topic> merge /main
 
@@ -162,7 +162,7 @@ bar/topic> merge /main
   
   Added definitions:
   
-    1. xonk : Nat
+    1. xonk : ##Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -180,8 +180,8 @@ bar/topic> merge /main
   
   Added definitions:
   
-    1. bonk : Nat
-    2. zonk : Nat
+    1. bonk : ##Nat
+    2. zonk : ##Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you

@@ -1,8 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Syntax.Lexer
   ( Token (..),
@@ -11,6 +7,7 @@ module Unison.Syntax.Lexer
     Err (..),
     Pos (..),
     Lexeme (..),
+    lexemeToHQName,
     lexer,
     simpleWordyId,
     simpleSymbolyId,
@@ -41,7 +38,10 @@ import Control.Lens.TH (makePrisms)
 import Control.Monad.State qualified as S
 import Data.Char
 import Data.List
+import Data.List qualified as List
+import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -52,10 +52,18 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
+import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Syntax.HashQualified' qualified as HQ' (toString)
+import Unison.Syntax.Name qualified as Name (unsafeFromString)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
 
@@ -129,8 +137,8 @@ data Lexeme
   | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String -- text literals, `"foo bar"`
   | Character Char -- character literals, `?X`
-  | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
-  | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | WordyId (HQ'.HashQualified Name) -- a (non-infix) identifier
+  | SymbolyId (HQ'.HashQualified Name) -- an infix identifier
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
@@ -141,6 +149,13 @@ data Lexeme
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
+
+lexemeToHQName :: Lexeme -> Maybe (HQ.HashQualified Name)
+lexemeToHQName = \case
+  WordyId n -> Just (HQ'.toHQ n)
+  SymbolyId n -> Just (HQ'.toHQ n)
+  Hash sh -> Just (HQ.HashOnly sh)
+  _ -> Nothing
 
 space :: P ()
 space =
@@ -225,9 +240,10 @@ token'' tok p = do
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
     Nothing -> if inLayout env then pops start else pure []
+  beforeTokenPos <- pos
   a <- p <|> (S.put env >> fail "resetting state")
-  end <- pos
-  pure $ layoutToks ++ tok a start end
+  endPos <- pos
+  pure $ layoutToks ++ tok a beforeTokenPos endPos
   where
     pops :: Pos -> P [Token Lexeme]
     pops p = do
@@ -246,7 +262,7 @@ token'' tok p = do
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
     topHasClosePair ((name, _) : _) =
-      name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
+      name `elem` ["syntax.docTransclude", "{", "(", "[", "handle", "match", "if", "then"]
 
 showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy (P.ErrorFail msg) = msg
@@ -303,7 +319,7 @@ lexer0' scope rem =
       | notLayout t1 && touches t1 t2 && isSigned num =
           t1
             : Token
-              (SymbolyId (take 1 num) Nothing)
+              (SymbolyId (HQ'.fromName (Name.unsafeFromString (take 1 num))))
               (start t2)
               (inc $ start t2)
             : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
@@ -362,25 +378,44 @@ lexemes' eof =
 
     doc2 :: P [Token Lexeme]
     doc2 = do
-      let start = token'' ignore (lit "{{")
-      startToks <- start <* CP.space
+      -- Ensure we're at a doc before we start consuming tokens
+      P.lookAhead (lit "{{")
+      openStart <- pos
+      -- Produce any layout tokens, such as closing the last open block or virtual semicolons
+      -- We don't use 'token' on "{{" directly because we don't want to duplicate layout
+      -- tokens if we do the rewrite hack for type-docs below.
+      beforeStartToks <- token' ignore (pure ())
+      void $ lit "{{"
+      openEnd <- pos
+      CP.space
+      -- Construct the token for opening the doc block.
+      let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
       env0 <- S.get
-      docToks0 <-
-        wrap "syntax.docUntitledSection" $
-          local (\env -> env {inLayout = False}) (body <* lit "}}")
-      let docToks = startToks <> docToks0
+      -- Disable layout while parsing the doc block
+      (bodyToks0, closeTok) <- local (\env -> env {inLayout = False}) do
+        bodyToks <- body
+        closeStart <- pos
+        lit "}}"
+        closeEnd <- pos
+        pure (bodyToks, Token Close closeStart closeEnd)
+      let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
+      -- Parse any layout tokens after the doc block, e.g. virtual semicolon
       endToks <- token' ignore (pure ())
       -- Hack to allow anonymous doc blocks before type decls
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
-      pure $ case (tn, docToks) of
-        (Just (WordyId tname _), ht : _)
+      pure $ case (tn) of
+        -- If we're followed by a type, we rewrite the doc block to be a named doc block.
+        (Just (WordyId tname))
           | isTopLevel ->
-              startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
-                <> docToks0
-                <> [Close <$ last docToks]
+              beforeStartToks
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) (NameSegment "doc"))) <$ openTok, Open "=" <$ openTok]
+                <> [openTok]
+                <> bodyToks0
+                <> [closeTok]
+                -- We need an extra 'Close' here because we added an extra Open above.
+                <> [closeTok]
                 <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
@@ -391,7 +426,7 @@ lexemes' eof =
           let lit' s = lit s <* sp
           let modifier = typeModifiersAlt lit'
           let typeOrAbility' = typeOrAbilityAlt wordyKw
-          _ <- modifier <* typeOrAbility' *> sp
+          _ <- optional modifier *> typeOrAbility' *> sp
           wordyId
         ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
@@ -492,28 +527,26 @@ lexemes' eof =
 
         verbatim =
           P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
-            (start, txt, stop) <- positioned $ do
+            (start, originalText, stop) <- positioned $ do
               -- a single backtick followed by a non-backtick is treated as monospaced
               let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
               -- also two or more ' followed by that number of closing '
               quotes <- tick <|> (lit "''" <+> many (P.satisfy (== '\'')))
               P.someTill P.anySingle (lit quotes)
-            if all isSpace $ takeWhile (/= '\n') txt
-              then
+            let isMultiLine = line start /= line stop
+            if isMultiLine
+              then do
+                let trimmed = (trimAroundDelimiters originalText)
+                let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
+                -- If it's a multi-line verbatim block we trim any whitespace representing
+                -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
                 wrap "syntax.docVerbatim" $
                   wrap "syntax.docWord" $
-                    pure [Token (Textual (trim txt)) start stop]
+                    pure [Token (Textual txt) start stop]
               else
                 wrap "syntax.docCode" $
                   wrap "syntax.docWord" $
-                    pure [Token (Textual txt) start stop]
-
-        trim = f . f
-          where
-            f = reverse . dropThru
-            dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
-            dropNl ('\n' : t) = t
-            dropNl as = as
+                    pure [Token (Textual originalText) start stop]
 
         exampleInline =
           P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
@@ -553,6 +586,14 @@ lexemes' eof =
 
         nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
         nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
+
+        -- Allows whitespace or a newline, but not more than two newlines in a row.
+        whitespaceWithoutParagraphBreak :: P ()
+        whitespaceWithoutParagraphBreak = void do
+          void nonNewlineSpaces
+          optional newline >>= \case
+            Just _ -> void nonNewlineSpaces
+            Nothing -> pure ()
 
         fencedBlock =
           P.label "block eval (syntax: a fenced code block)" $
@@ -597,7 +638,7 @@ lexemes' eof =
               _ <- void CP.eol
               verbatim <-
                 tok $
-                  Textual . uncolumn column tabWidth . trim
+                  Textual . uncolumn column tabWidth . trimAroundDelimiters
                     <$> P.someTill P.anySingle ([] <$ lit fence)
               pure (name <> verbatim)
 
@@ -618,7 +659,7 @@ lexemes' eof =
           wrap (name end) . wrap "syntax.docParagraph" $
             join
               <$> P.someTill
-                (leafy (closing <|> (void $ lit end)) <* nonNewlineSpaces)
+                (leafy (closing <|> (void $ lit end)) <* whitespaceWithoutParagraphBreak)
                 (lit end)
 
         externalLink =
@@ -785,8 +826,10 @@ lexemes' eof =
               pure $ (fmap Reserved <$> typ) <> t
 
     blank =
-      separated wordySep $
-        char '_' *> P.optional wordyIdSeg <&> (Blank . fromMaybe "")
+      separated wordySep do
+        _ <- char '_'
+        seg <- P.optional wordyIdSeg
+        pure (Blank (maybe "" (Text.unpack . NameSegment.toText) seg))
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -820,39 +863,58 @@ lexemes' eof =
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
       dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
-      shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+      segs <- Nel.fromList <$> P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (P.satisfy wordyIdChar)))
+      hash <- P.optional shorthash
+      let name = (if isJust dot then Name.makeAbsolute else id) (Name.fromSegments segs)
+      pure (WordyId (HQ'.fromNameHash name hash))
       where
         wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
 
     symbolyId :: P Lexeme
     symbolyId = P.label symbolMsg . P.try $ do
       dot <- P.optional (lit ".")
-      segs <- P.optional segs
-      shorthash <- P.optional shorthash
+      segs <- P.optional segments
+      hash <- P.optional shorthash
       case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
+        (_, Just segs) -> do
+          let name = (if isJust dot then Name.makeAbsolute else id) (Name.fromSegments segs)
+          pure (SymbolyId (HQ'.fromNameHash name hash))
         -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
+        (Just dot, Nothing) -> do
+          let name = Name.fromSegment (NameSegment (Text.pack dot))
+          pure (SymbolyId (HQ'.fromNameHash name hash))
         (Nothing, Nothing) -> fail symbolMsg
       where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
+        segments :: P (Nel.NonEmpty NameSegment)
+        segments =
+          symbolySegments <|> wordySegments
+
+        symbolySegments :: P (Nel.NonEmpty NameSegment)
+        symbolySegments = do
+          seg <- symbolyIdSeg
+          pure (seg Nel.:| [])
+
+        wordySegments :: P (Nel.NonEmpty NameSegment)
+        wordySegments = do
+          seg0 <- wordyIdSeg
+          _ <- lit "."
+          seg1 Nel.:| segs <- segments
+          pure (seg0 Nel.:| seg1 : segs)
 
     symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
-    symbolyIdSeg :: P String
+    symbolyIdSeg :: P NameSegment
     symbolyIdSeg = do
       start <- pos
       id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
       when (Set.member id reservedOperators) $ do
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
-      pure id
+      pure (NameSegment (Text.pack id))
 
-    wordyIdSeg :: P String
+    wordyIdSeg :: P NameSegment
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
-    wordyIdSeg = P.try $ do
+    wordyIdSeg = P.try do
       start <- pos
       ch <- P.satisfy wordyIdStartChar
       rest <- P.many (P.satisfy wordyIdChar)
@@ -860,7 +922,7 @@ lexemes' eof =
       when (Set.member word keywords) $ do
         stop <- pos
         P.customFailure (Token (ReservedWordyId word) start stop)
-      pure (ch : rest)
+      pure (NameSegment (Text.pack (ch : rest)))
 
     {-
     -- ``an-identifier-with-dashes``
@@ -1074,6 +1136,108 @@ lexemes' eof =
           where
             ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
+-- | If it's a multi-line verbatim block we trim any whitespace representing
+-- indentation from the pretty-printer.
+--
+-- E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--     code
+--       indented
+--     '''
+-- }}
+-- @@
+--
+-- Should lex to the text literal "code\n  indented".
+--
+-- If there's text in the literal that has LESS trailing whitespace than the
+-- opening delimiters, we don't trim it at all. E.g.
+--
+-- @@
+-- {{
+--   # Heading
+--     '''
+--   code
+--     '''
+-- }}
+-- @@
+--
+--  Is parsed as "  code".
+--
+--  Trim the expected amount of whitespace from a text literal:
+--  >>> trimIndentFromVerbatimBlock 2 "  code\n    indented"
+-- "code\n  indented"
+--
+-- If the text literal has less leading whitespace than the opening delimiters,
+-- leave it as-is
+-- >>> trimIndentFromVerbatimBlock 2 "code\n  indented"
+-- "code\n  indented"
+trimIndentFromVerbatimBlock :: Int -> String -> String
+trimIndentFromVerbatimBlock leadingSpaces txt = fromMaybe txt $ do
+  List.intercalate "\n" <$> for (lines txt) \line -> do
+    -- If any 'stripPrefix' fails, we fail and return the unaltered text
+    case stripPrefix (replicate leadingSpaces ' ') line of
+      Just stripped -> Just stripped
+      Nothing ->
+        -- If it was a line with all white-space, just use an empty line,
+        -- this can happen easily in editors which trim trailing whitespace.
+        if all isSpace line
+          then Just ""
+          else Nothing
+
+-- Trim leading/trailing whitespace from around delimiters, e.g.
+--
+-- {{
+--   '''___ <- whitespace here including newline
+--   text block
+-- 👇 or here
+-- __'''
+-- }}
+-- >>> trimAroundDelimiters "  \n  text block \n  "
+-- "  text block "
+--
+-- Should leave leading and trailing line untouched if it contains non-whitespace, e.g.:
+--
+-- '''  leading whitespace
+--   text block
+-- trailing whitespace:  '''
+-- >>> trimAroundDelimiters "  leading whitespace\n  text block \ntrailing whitespace:  "
+-- "  leading whitespace\n  text block \ntrailing whitespace:  "
+--
+-- Should keep trailing newline if it's the only thing on the line, e.g.:
+--
+-- '''
+-- newline below
+--
+-- '''
+-- >>> trimAroundDelimiters "\nnewline below\n\n"
+-- "newline below\n\n"
+trimAroundDelimiters :: String -> String
+trimAroundDelimiters txt =
+  txt
+    & ( \s ->
+          List.breakOn "\n" s
+            & \case
+              (prefix, suffix)
+                | all isSpace prefix -> drop 1 suffix
+                | otherwise -> prefix <> suffix
+      )
+    & ( \s ->
+          List.breakOnEnd "\n" s
+            & \case
+              (_prefix, "") -> s
+              (prefix, suffix)
+                | all isSpace suffix -> dropTrailingNewline prefix
+                | otherwise -> prefix <> suffix
+      )
+  where
+    dropTrailingNewline = \case
+      [] -> []
+      (x : xs) -> NonEmpty.init (x NonEmpty.:| xs)
+
 separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
@@ -1142,11 +1306,13 @@ findClose :: [String] -> Layout -> Maybe (String, Int)
 findClose _ [] = Nothing
 findClose s ((h, _) : tl) = if h `elem` s then Just (h, 1) else fmap (1 +) <$> findClose s tl
 
-simpleWordyId :: String -> Lexeme
-simpleWordyId = flip WordyId Nothing
+simpleWordyId :: Name -> Lexeme
+simpleWordyId name =
+  WordyId (HQ'.fromName name)
 
-simpleSymbolyId :: String -> Lexeme
-simpleSymbolyId = flip SymbolyId Nothing
+simpleSymbolyId :: Name -> Lexeme
+simpleSymbolyId name =
+  SymbolyId (HQ'.fromName name)
 
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
@@ -1445,8 +1611,8 @@ instance P.VisualStream [Token Lexeme] where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (WordyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
-      pretty (SymbolyId n h) = n ++ (toList h >>= Text.unpack . SH.toText)
+      pretty (WordyId n) = HQ'.toString n
+      pretty (SymbolyId n) = HQ'.toString n
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh

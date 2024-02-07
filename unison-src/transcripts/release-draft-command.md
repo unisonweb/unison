@@ -1,7 +1,8 @@
 The `release.draft` command drafts a release from the current branch.
 
 ```ucm:hide
-.> builtins.merge
+.> project.create-empty foo
+foo/main> builtins.merge
 ```
 
 Some setup:
@@ -11,7 +12,6 @@ someterm = 18
 ```
 
 ```ucm
-.> project.create-empty foo
 foo/main> add
 ```
 

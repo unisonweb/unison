@@ -42,6 +42,7 @@ import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Regex.TDFA ((=~))
 import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
@@ -119,7 +120,6 @@ nothingTodo = emojiNote "😶"
 
 parseInput ::
   Codebase IO Symbol Ann ->
-  IO (Branch0 IO) ->
   -- | Current path from root
   Path.Absolute ->
   -- | Numbered arguments
@@ -131,11 +131,9 @@ parseInput ::
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
   IO (Either (P.Pretty CT.ColorText) (Maybe ([String], Input)))
-parseInput codebase getRoot currentPath numberedArgs patterns segments = runExceptT do
+parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
-      getCurrentBranch0 = do
-        rootBranch <- getRoot
-        pure $ Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+      getCurrentBranch0 = Branch.head <$> Codebase.getBranchAtPath codebase currentPath
   let projCtx = projectContextFromPath currentPath
 
   case segments of

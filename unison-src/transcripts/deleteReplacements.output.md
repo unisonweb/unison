@@ -257,7 +257,7 @@ baz = 0
   ⚠️
   
   I was expecting the following names to be types, though I found terms instead.
-    .baz
+    baz
 
 .> view.patch
 
@@ -293,7 +293,7 @@ unique type qux = Qux
   ⚠️
   
   I was expecting the following names to be terms, though I found types instead.
-    .qux
+    qux
 
 .> view.patch
 

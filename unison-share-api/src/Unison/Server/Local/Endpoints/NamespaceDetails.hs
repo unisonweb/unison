@@ -68,7 +68,7 @@ namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
       shallowBranch <- lift $ V2Causal.value namespaceCausal
       pure (rootCausalHash, namespaceCausal, shallowBranch)
   namespaceDetails <- do
-    (_localNamesOnly, ppe) <- Backend.scopedNamesForBranchHash codebase (Just rootCausal) namespacePath
+    (_localNamesOnly, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just rootCausal) namespacePath
     let mayReadmeRef = Backend.findDocInBranch readmeNames shallowBranch
     renderedReadme <- for mayReadmeRef \readmeRef -> do
       -- Local server currently ignores eval errors.

@@ -215,10 +215,14 @@ data Input
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments
+  | DebugFormatI
   | DebugNumberedArgsI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
   | DebugDumpNamespaceSimpleI
+  | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
+  | DebugTypeI (HQ.HashQualified Name)
+  | DebugLSPFoldRangesI
   | DebugClearWatchI
   | DebugDoctorI
   | DebugNameDiffI ShortCausalHash ShortCausalHash
@@ -241,6 +245,7 @@ data Input
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
+  | EditNamespaceI [Path.Path]
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

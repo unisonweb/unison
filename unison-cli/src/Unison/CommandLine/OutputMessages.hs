@@ -21,15 +21,18 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
+import Debug.RecoverRTTI qualified as RTTI
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
@@ -155,6 +158,9 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+
+reportBugURL :: Pretty
+reportBugURL = "https://github.com/unisonweb/unison/issues/new"
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1120,11 +1126,11 @@ notifyUser dir = \case
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors curPath src ppenv notes -> do
+  TypeErrors _curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    pure . showNote $ notes
+    pure $ showNote notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
@@ -1772,6 +1778,22 @@ notifyUser dir = \case
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DebugTerm verbose builtinOrTerm -> pure $ case builtinOrTerm of
+    Left builtin -> "Builtin term: ##" <> P.text builtin
+    Right trm ->
+      if verbose
+        then P.text . TL.toStrict . pStringNoColor $ RTTI.anythingToString trm
+        else P.shown trm
+  DebugDecl typ mayConId -> do
+    let constructorMsg = case mayConId of
+          Nothing -> ""
+          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:\n"
+    pure $
+      constructorMsg
+        <> case typ of
+          Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
+          Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -1933,6 +1955,17 @@ notifyUser dir = \case
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+  RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
+    let push = P.group . P.backticked . IP.patternName $ IP.push
+     in pure . P.wrap $
+          "The previous push target named"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "has been deleted from"
+            <> P.group (prettyURI host <> ".")
+            <> "I've deleted the invalid push target."
+            <> "Run the"
+            <> push
+            <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
@@ -2286,12 +2319,50 @@ prettyUpdatePathError repoInfo = \case
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
-  Share.UploadEntitiesError'HashMismatchForEntity _hashMismatch -> error "TODO: hash mismatch error message"
+  Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyValidationFailure validationFailureErr
+  Share.UploadEntitiesError'HashMismatchForEntity (Share.HashMismatchForEntity {supplied, computed}) ->
+    hashMismatchFromShare supplied computed
   Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.UploadEntitiesError'NeedDependencies dependencies -> needDependencies dependencies
   Share.UploadEntitiesError'NoWritePermission repoInfo -> noWritePermissionForRepo repoInfo
   Share.UploadEntitiesError'ProjectNotFound project -> shareProjectNotFound project
   Share.UploadEntitiesError'UserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
+
+prettyValidationFailure :: Share.EntityValidationError -> Pretty
+prettyValidationFailure = \case
+  Share.EntityHashMismatch entityType (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash32 entityType ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash32 <> " of type " <> prettyEntityType entityType <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash32 entityType msg ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType entityType <> " entity with the hash " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text msg
+      ]
+  Share.HashResolutionFailure hash32 ->
+    P.lines
+      [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
+  where
+    prettyEntityType = \case
+      Share.TermComponentType -> "term component"
+      Share.DeclComponentType -> "type component"
+      Share.PatchType -> "patch"
+      Share.PatchDiffType -> "patch diff"
+      Share.NamespaceType -> "namespace"
+      Share.NamespaceDiffType -> "namespace diff"
+      Share.CausalType -> "causal"
 
 prettyTransportError :: CodeserverTransportError -> Pretty
 prettyTransportError = \case
@@ -2378,6 +2449,18 @@ invalidRepoInfo err repoInfo =
       P.text "The invalid path is:\n"
         <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
       P.text err
+    ]
+
+hashMismatchFromShare :: Hash32 -> Hash32 -> Pretty
+hashMismatchFromShare supplied computed =
+  P.lines
+    [ P.wrap "Uh oh, Share double-checked the hash of something you're uploading and it didn't match.",
+      P.wrap "Don't worry, you didn't do anything wrong, this is a bug in UCM, please report it and we'll do our best to sort it out 🤞",
+      reportBugURL,
+      "",
+      "Please include the following information in your report:",
+      P.wrap $ "The hash provided by your UCM is: " <> prettyHash32 supplied,
+      P.wrap $ "The hash computed by Share is: " <> prettyHash32 computed
     ]
 
 pushPublicNote :: InputPattern -> Text -> [Text] -> Pretty

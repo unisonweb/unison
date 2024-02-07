@@ -6,7 +6,7 @@ module Unison.KindInference.Constraint.Unsolved
   )
 where
 
-import Control.Lens (Traversal, Lens, Lens')
+import Control.Lens (Lens, Lens', Traversal)
 import Unison.KindInference.Constraint.Provenance (Provenance)
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 

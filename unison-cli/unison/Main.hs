@@ -50,10 +50,10 @@ import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -280,14 +280,12 @@ main = do
                         segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
                         pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
                   Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
-                rootVar <- newEmptyTMVarIO
+                rootCausalHash <- Codebase.runTransaction theCodebase (Queries.expectNamespaceRoot >>= Queries.expectCausalHash)
+                rootCausalHashVar <- newTVarIO rootCausalHash
                 pathVar <- newTVarIO startingPath
-                let notifyOnRootChanges :: Branch IO -> STM ()
+                let notifyOnRootChanges :: CausalHash -> STM ()
                     notifyOnRootChanges b = do
-                      isEmpty <- isEmptyTMVar rootVar
-                      if isEmpty
-                        then putTMVar rootVar b
-                        else void $ swapTMVar rootVar b
+                      writeTVar rootCausalHashVar b
                 let notifyOnPathChanges :: Path.Absolute -> STM ()
                     notifyOnPathChanges = writeTVar pathVar
                 -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
@@ -295,7 +293,7 @@ main = do
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTMVar rootVar) (readTVar pathVar)
+                void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
@@ -503,7 +501,7 @@ launch ::
   Maybe Server.BaseUrl ->
   Maybe Path.Absolute ->
   InitResult ->
-  (Branch IO -> STM ()) ->
+  (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()

@@ -1,7 +1,10 @@
 The `switch` command switches to an existing project or branch.
 
 ```ucm:hide
-.> builtins.merge
+.> project.create-empty foo
+.> project.create-empty bar
+foo/main> builtins.merge
+bar/main> builtins.merge
 ```
 
 Setup stuff.
@@ -11,8 +14,6 @@ someterm = 18
 ```
 
 ```ucm
-.> project.create-empty foo
-.> project.create-empty bar
 foo/main> add
 foo/main> branch bar
 foo/main> branch topic

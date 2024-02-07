@@ -25,13 +25,17 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Tuple.Extra qualified as TupleE
 import Text.Megaparsec qualified as P
+import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -96,7 +100,7 @@ rewriteBlock = do
     rewriteTermlike kw mk = do
       kw <- quasikeyword kw
       lhs <- term
-      rhs <- block "==>"
+      (_spanAnn, rhs) <- block "==>"
       pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
@@ -203,10 +207,10 @@ matchCase = do
             [ Nothing <$ P.try (quasikeyword "otherwise"),
               Just <$> infixAppOrBooleanOp
             ]
-        t <- block "->"
+        (_spanAnn, t) <- block "->"
         pure (guard, t)
   let unguardedBlock = label "case match" do
-        t <- block "->"
+        (_spanAnn, t) <- block "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
@@ -256,7 +260,9 @@ parsePattern = label "pattern" root
     text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
     char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
     parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+    parenthesizedOrTuplePattern = do
+      (_spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
+      pure (pat, pats)
     unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
     pair (p1, v1) (p2, v2) =
       ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
@@ -344,11 +350,14 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
-letBlock = label "let" $ block "let"
+letBlock = label "let" $ (snd <$> block "let")
 handle = label "handle" do
-  b <- block "handle"
-  handler <- block "with"
-  pure $ Term.handle (ann b) handler b
+  (handleSpan, b) <- block "handle"
+  (_withSpan, handler) <- block "with"
+  -- We don't use the annotation span from 'with' here because it will
+  -- include a dedent if it's at the end of block.
+  -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
+  pure $ Term.handle (handleSpan <> ann handler) handler b
 
 checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v m (Int, NonEmpty a)
 checkCasesArities cases@((i, _) NonEmpty.:| rest) =
@@ -377,9 +386,9 @@ lamCase = do
 
 ifthen = label "if" do
   start <- peekAny
-  c <- block "if"
-  t <- block "then"
-  f <- block "else"
+  (_spanAnn, c) <- block "if"
+  (_spanAnn, t) <- block "then"
+  (_spanAnn, f) <- block "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: (Var v) => TermP v m
@@ -402,15 +411,21 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: (Ord v) => String -> P v m (L.Token ())
+quasikeyword :: Ord v => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
-  L.WordyId s Nothing | s == kw -> Just ()
+  L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
 
-symbolyQuasikeyword :: (Ord v) => String -> P v m (L.Token ())
+symbolyQuasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 symbolyQuasikeyword kw = queryToken \case
-  L.SymbolyId s Nothing | s == kw -> Just ()
+  L.SymbolyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
+
+nameIsKeyword :: Name -> Text -> Bool
+nameIsKeyword name keyword =
+  case (Name.isRelative name, Name.reverseSegments name) of
+    (True, segment NonEmpty.:| []) -> NameSegment.toText segment == keyword
+    _ -> False
 
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
@@ -440,10 +455,10 @@ termLeaf =
       keywordBlock,
       list term,
       delayQuote,
-      delayBlock,
+      (snd <$> delayBlock),
       bang,
       docBlock,
-      doc2Block
+      doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
 
 -- Syntax for documentation v2 blocks, which are surrounded by {{ }}.
@@ -479,41 +494,53 @@ termLeaf =
 -- variables that will be looked up in the environment like anything else. This
 -- means that the documentation syntax can have its meaning changed by
 -- overriding what functions the names `syntax.doc*` correspond to.
-doc2Block :: forall m v. (Monad m, Var v) => TermP v m
-doc2Block =
+doc2Block :: forall m v. (Monad m, Var v) => P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
+doc2Block = do
   P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
   where
-    elem :: TermP v m
+    -- For terms which aren't blocks the spanning annotation is the same as the
+    -- term annotation.
+    selfAnnotated :: Term v Ann -> (Ann, Term v Ann)
+    selfAnnotated t = (ann t, t)
+    elem :: P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
     elem =
-      text <|> do
-        t <- openBlock
+      (selfAnnotated <$> text) <|> do
+        startTok <- openBlock
         let -- here, `t` will be something like `Open "syntax.docWord"`
             -- so `f` will be a term var with the name "syntax.docWord".
-            f = f' t
+            f = f' startTok
             f' t = Term.var (ann t) (Var.nameds (L.payload t))
 
             -- follows are some common syntactic forms used for parsing child elements
 
             -- regular is parsed into `f child1 child2 child3` for however many children
             regular = do
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f cs
+              cs <- P.many (snd <$> elem)
+              endTok <- closeBlock
+              let trm = Term.apps' f cs
+              pure (ann startTok <> ann endTok, trm)
 
             -- variadic is parsed into: `f [child1, child2, ...]`
             variadic = variadic' f
             variadic' f = do
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f [Term.list (ann cs) cs]
+              cs <- P.many (snd <$> elem)
+              endTok <- closeBlock
+              let trm = Term.apps' f [Term.list (ann cs) cs]
+              pure (ann startTok <> ann endTok, trm)
 
             -- sectionLike is parsed into: `f tm [child1, child2, ...]`
             sectionLike = do
-              arg1 <- elem
-              cs <- P.many elem <* closeBlock
-              pure $ Term.apps' f [arg1, Term.list (ann cs) cs]
+              arg1 <- (snd <$> elem)
+              cs <- P.many (snd <$> elem)
+              endTok <- closeBlock
+              let trm = Term.apps' f [arg1, Term.list (ann cs) cs]
+              pure (ann startTok <> ann endTok, trm)
 
             evalLike wrap = do
-              tm <- term <* closeBlock
-              pure $ Term.apps' f [wrap tm]
+              tm <- term
+              endTok <- closeBlock
+              let trm = Term.apps' f [wrap tm]
+              pure (ann startTok <> ann endTok, trm)
 
             -- converts `tm` to `'tm`
             --
@@ -522,8 +549,7 @@ doc2Block =
             -- code which renders documents. (We want the doc display to get
             -- the unevaluated expression `1 + 1` and not `2`)
             addDelay tm = Term.delay (ann tm) tm
-
-        case L.payload t of
+        case L.payload startTok of
           "syntax.docJoin" -> variadic
           "syntax.docUntitledSection" -> variadic
           "syntax.docColumn" -> variadic
@@ -534,33 +560,45 @@ doc2Block =
           "syntax.docBulletedList" -> variadic
           "syntax.docSourceAnnotations" -> variadic
           "syntax.docSourceElement" -> do
-            link <- elem
-            anns <- P.optional $ reserved "@" *> elem
-            closeBlock $> Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
+            link <- (snd <$> elem)
+            anns <- P.optional $ reserved "@" *> (snd <$> elem)
+            endTok <- closeBlock
+            let trm = Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
+            pure (ann startTok <> ann endTok, trm)
           "syntax.docNumberedList" -> do
-            nitems@((n, _) : _) <- P.some nitem <* closeBlock
+            nitems@((n, _) : _) <- P.some nitem
+            endTok <- closeBlock
             let items = snd <$> nitems
-            pure $ Term.apps' f [n, Term.list (ann items) items]
+            let trm = Term.apps' f [n, Term.list (ann items) items]
+            pure (ann startTok <> ann endTok, trm)
             where
               nitem = do
                 n <- number
                 t <- openBlockWith "syntax.docColumn"
                 let f = f' ("syntax.docColumn" <$ t)
-                child <- variadic' f
+                (_spanAnn, child) <- variadic' f
                 pure (n, child)
           "syntax.docSection" -> sectionLike
           -- @source{ type Blah, foo, type Bar }
           "syntax.docEmbedTermLink" -> do
             tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            closeBlock $> Term.apps' f [tm]
+            endTok <- closeBlock
+            let trm = Term.apps' f [tm]
+            pure (ann startTok <> ann endTok, trm)
           "syntax.docEmbedSignatureLink" -> do
             tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            closeBlock $> Term.apps' f [tm]
+            endTok <- closeBlock
+            let trm = Term.apps' f [tm]
+            pure (ann startTok <> ann endTok, trm)
           "syntax.docEmbedTypeLink" -> do
             r <- typeLink'
-            closeBlock $> Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-          "syntax.docExample" ->
-            (term <* closeBlock) <&> \case
+            endTok <- closeBlock
+            let trm = Term.apps' f [Term.typeLink (ann r) (L.payload r)]
+            pure (ann startTok <> ann endTok, trm)
+          "syntax.docExample" -> do
+            trm <- term
+            endTok <- closeBlock
+            pure . (ann startTok <> ann endTok,) $ case trm of
               tm@(Term.Apps' _ xs) ->
                 let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
                     n = Term.nat (ann tm) (fromIntegral (length fvs))
@@ -570,11 +608,11 @@ doc2Block =
           "syntax.docTransclude" -> evalLike id
           "syntax.docEvalInline" -> evalLike addDelay
           "syntax.docExampleBlock" -> do
-            tm <- block'' False True "syntax.docExampleBlock" (pure (void t)) closeBlock
-            pure $ Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
+            (spanAnn, tm) <- block'' False True "syntax.docExampleBlock" (pure (void startTok)) closeBlock
+            pure $ (spanAnn, Term.apps' f [Term.nat (ann tm) 0, addDelay tm])
           "syntax.docEval" -> do
-            tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
-            pure $ Term.apps' f [addDelay tm]
+            (spanAnn, tm) <- block' False "syntax.docEval" (pure (void startTok)) closeBlock
+            pure $ (spanAnn, Term.apps' f [addDelay tm])
           _ -> regular
 
 docBlock :: (Monad m, Var v) => TermP v m
@@ -947,10 +985,10 @@ delayQuote = P.label "quote" do
   e <- termLeaf
   pure $ DD.delayTerm (ann start <> ann e) e
 
-delayBlock :: (Monad m, Var v) => TermP v m
+delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
-  b <- block "do"
-  pure $ DD.delayTerm (ann b) b
+  (spanAnn, b) <- block "do"
+  pure $ (spanAnn, DD.delayTerm (ann b) b)
 
 bang :: (Monad m, Var v) => TermP v m
 bang = P.label "bang" do
@@ -960,9 +998,9 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
-    <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
-    <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
+  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ":+"))))
+    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "+:"))))
+    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment "++"))))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
@@ -1024,7 +1062,7 @@ destructuringBind = do
     let boundVars' = snd <$> boundVars
     P.lookAhead (openBlockWith "=")
     pure (p, boundVars')
-  scrute <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  (_spanAnn, scrute) <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
@@ -1062,29 +1100,35 @@ binding = label "binding" do
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      body <- block "="
+      (_bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
-      pure $ mkBinding (lhsLoc <> ann body) (L.payload name) args body
+      let binding = mkBinding lhsLoc args body
+      -- We don't actually use the span annotation from the block (yet) because it
+      -- may contain a bunch of white-space and comments following a top-level-definition.
+      let spanAnn = ann lhsLoc <> ann binding
+      pure $ ((spanAnn, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
-      body <- block "="
-      pure $
-        fmap
-          (\e -> Term.ann (ann nameT <> ann e) e typ)
-          (mkBinding (ann lhsLoc <> ann body) (L.payload name) args body)
+      (_bodySpanAnn, body) <- block "="
+      let binding = mkBinding lhsLoc args body
+      -- We don't actually use the span annotation from the block (yet) because it
+      -- may contain a bunch of white-space and comments following a top-level-definition.
+      let spanAnn = ann nameT <> ann binding
+      pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
   where
-    mkBinding loc f [] body = ((loc, f), body)
-    mkBinding loc f args body =
-      ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+    mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
+    mkBinding _lhsLoc [] body = body
+    mkBinding lhsLoc args body =
+      (Term.lam' (lhsLoc <> ann body) (L.payload <$> args) body)
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
 
-block :: forall m v. (Monad m, Var v) => String -> TermP v m
+block :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
 block s = block' False s (openBlockWith s) closeBlock
 
 -- example: use Foo.bar.Baz + ++ x
@@ -1154,25 +1198,32 @@ substImports ns imports =
           Names.hasTypeNamed Names.IncludeSuffixes (Name.unsafeFromVar full) ns
       ]
 
-block' :: (Monad m, Var v) => IsTop -> String -> P v m (L.Token ()) -> P v m (L.Token ()) -> TermP v m
+block' ::
+  (Monad m, Var v) =>
+  IsTop ->
+  String ->
+  P v m (L.Token ()) ->
+  P v m (L.Token ()) ->
+  P v m (Ann {- ann which spans the whole block -}, Term v Ann)
 block' isTop = block'' isTop False
 
 block'' ::
-  forall m v b.
-  (Monad m, Var v) =>
+  forall m v end.
+  (Monad m, Var v, Annotated end) =>
   IsTop ->
   Bool -> -- `True` means insert `()` at end of block if it ends with a statement
   String ->
   P v m (L.Token ()) ->
-  P v m b ->
-  TermP v m
+  P v m end ->
+  P v m (Ann {- ann which spans the whole block -}, Term v Ann)
 block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
   statements <- local (\e -> e {names = names}) $ sepBy semi statement
-  _ <- closeBlock
-  substImports names imports <$> go open statements
+  end <- closeBlock
+  body <- substImports names imports <$> go open statements
+  pure (ann open <> ann end, body)
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
@@ -1247,7 +1298,9 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
+tupleOrParenthesizedTerm = label "tuple" $ do
+  (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair
+  pure $ tm {ABT.annotation = spanAnn}
   where
     pair t1 t2 =
       Term.app
