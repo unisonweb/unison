@@ -69,6 +69,7 @@ dependencies:
   - mtl
   - mutable-containers
   - murmur-hash
+  - myers-diff
   - mwc-random
   - natural-transformation
   - network

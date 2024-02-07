@@ -47,7 +47,6 @@ library
       Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
-      Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.Git
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.Execute
@@ -86,6 +85,7 @@ library
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
+      Unison.Codebase.Term.Diff
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
@@ -161,6 +161,7 @@ library
       Unison.Share.Types
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
+      Unison.Syntax.DisplayObject
       Unison.Syntax.FileParser
       Unison.Syntax.NamePrinter
       Unison.Syntax.TermParser
@@ -278,6 +279,7 @@ library
     , murmur-hash
     , mutable-containers
     , mwc-random
+    , myers-diff
     , natural-transformation
     , network
     , network-simple
@@ -472,6 +474,7 @@ test-suite parser-typechecker-tests
     , murmur-hash
     , mutable-containers
     , mwc-random
+    , myers-diff
     , natural-transformation
     , network
     , network-simple

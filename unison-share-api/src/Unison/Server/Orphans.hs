@@ -15,7 +15,7 @@ import Data.Text qualified as Text
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
-import Unison.Codebase.Editor.DisplayObject
+import Unison.Syntax.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ShortCausalHash

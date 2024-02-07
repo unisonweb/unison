@@ -112,8 +112,8 @@ import Unison.Codebase qualified as UCodebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.DisplayObject
-import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
+import Unison.Syntax.DisplayObject
+import Unison.Syntax.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt

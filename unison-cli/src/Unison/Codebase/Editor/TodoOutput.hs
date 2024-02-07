@@ -3,7 +3,7 @@
 module Unison.Codebase.Editor.TodoOutput where
 
 import Data.Set qualified as Set
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (UserObject))
+import Unison.Syntax.DisplayObject (DisplayObject (UserObject))
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Patch qualified as Patch
 import Unison.DataDeclaration (Decl)

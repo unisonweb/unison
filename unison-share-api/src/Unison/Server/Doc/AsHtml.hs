@@ -18,7 +18,7 @@ import Data.Text qualified as Text
 import Lucid
 import Lucid qualified as L
 import Lucid.Base qualified as LB
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Syntax.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent

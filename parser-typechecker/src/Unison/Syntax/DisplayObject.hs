@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.Codebase.Editor.DisplayObject where
+module Unison.Syntax.DisplayObject where
 
 import Data.Bifoldable
 import Data.Bitraversable

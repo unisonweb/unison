@@ -3,8 +3,8 @@
 module Unison.Server.SearchResult' where
 
 import Data.Set qualified as Set
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
-import Unison.Codebase.Editor.DisplayObject qualified as DT
+import Unison.Syntax.DisplayObject (DisplayObject)
+import Unison.Syntax.DisplayObject qualified as DT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ

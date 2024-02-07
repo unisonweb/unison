@@ -4,7 +4,7 @@ module Unison.Server.Doc.Markdown.Render (toMarkdown) where
 import Control.Monad.Reader
 import Data.Foldable
 import Data.Text qualified as Text
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Syntax.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Doc
 import Unison.Server.Doc qualified as Doc

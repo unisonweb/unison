@@ -11,7 +11,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
+import Unison.Syntax.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.DataDeclaration (Decl)

@@ -20,8 +20,8 @@ import Data.Word
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Builtin.Decls qualified as Decls
-import Unison.Codebase.Editor.DisplayObject (DisplayObject)
-import Unison.Codebase.Editor.DisplayObject qualified as DO
+import Unison.Syntax.DisplayObject (DisplayObject)
+import Unison.Syntax.DisplayObject qualified as DO
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency qualified as LD

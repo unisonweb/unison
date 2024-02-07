@@ -29,7 +29,7 @@ import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Syntax.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv

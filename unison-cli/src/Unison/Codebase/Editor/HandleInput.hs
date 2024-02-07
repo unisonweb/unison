@@ -60,7 +60,7 @@ import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
-import Unison.Codebase.Editor.DisplayObject
+import Unison.Syntax.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)

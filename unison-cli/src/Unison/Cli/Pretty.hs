@@ -48,6 +48,8 @@ module Unison.Cli.Pretty
     unsafePrettyTermResultSigFull',
     prettyTermDisplayObjects,
     prettyTypeDisplayObjects,
+    prettyTerm,
+    prettyType,
   )
 where
 
@@ -70,7 +72,7 @@ import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
+import Unison.Syntax.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo

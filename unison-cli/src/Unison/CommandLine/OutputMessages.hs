@@ -44,7 +44,7 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Syntax.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),

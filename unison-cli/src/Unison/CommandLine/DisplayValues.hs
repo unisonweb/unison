@@ -8,7 +8,7 @@ import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Decls qualified as DD
-import Unison.Codebase.Editor.DisplayObject qualified as DO
+import Unison.Syntax.DisplayObject qualified as DO
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
