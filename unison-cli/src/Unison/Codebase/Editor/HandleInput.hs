@@ -9,7 +9,6 @@ where
 -- TODO: Don't import backend
 
 import Control.Error.Util qualified as ErrorUtil
-import Control.Exception (catch)
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
@@ -29,9 +28,7 @@ import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
-import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
-import System.Process (callProcess, readCreateProcessWithExitCode, shell)
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
@@ -88,7 +85,7 @@ import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBran
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
-import Unison.Codebase.Editor.HandleInput.TermResolution (resolveCon, resolveMainRef, resolveTermRef)
+import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef, resolveTermRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
@@ -133,7 +130,6 @@ import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
-import Unison.JitInfo qualified as JitInfo
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency
@@ -972,7 +968,7 @@ loop e = do
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
             CompileSchemeI output main -> doCompile True output main
-            ExecuteSchemeI main args -> doRunAsScheme main args
+            ExecuteSchemeI main args -> handleRun True main args
             GenSchemeLibsI mdir ->
               doGenerateSchemeBoot True Nothing mdir
             FetchSchemeCompilerI name branch ->
@@ -1945,11 +1941,6 @@ doFetchCompiler username branch =
         (ReadShare'ProjectBranch prj)
         (This compilerPath)
 
-ensureCompilerExists :: Cli ()
-ensureCompilerExists =
-  Cli.branchExistsAtPath' compilerPath
-    >>= flip unless (doFetchCompiler "unison" JitInfo.currentRelease)
-
 getCacheDir :: Cli String
 getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
 
@@ -1958,14 +1949,6 @@ getSchemeGenLibDir =
   Cli.getConfig "SchemeLibs.Generated" >>= \case
     Just dir -> pure dir
     Nothing -> (</> "scheme-libs") <$> getCacheDir
-
-getSchemeStaticLibDir :: Cli String
-getSchemeStaticLibDir =
-  Cli.getConfig "SchemeLibs.Static" >>= \case
-    Just dir -> pure dir
-    Nothing ->
-      liftIO $
-        getXdgDirectory XdgData ("unisonlanguage" </> "scheme-libs")
 
 doGenerateSchemeBoot ::
   Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
@@ -2029,48 +2012,6 @@ typecheckAndEval ppe tm = do
     a = External
     rendered = P.toPlainUnbroken $ TP.pretty ppe tm
 
-ensureSchemeExists :: Cli ()
-ensureSchemeExists =
-  liftIO callScheme >>= \case
-    True -> pure ()
-    False -> Cli.returnEarly (PrintMessage msg)
-  where
-    msg =
-      P.lines
-        [ "I can't seem to call racket. See",
-          "",
-          P.indentN
-            2
-            "https://download.racket-lang.org/",
-          "",
-          "for how to install Racket."
-        ]
-    cmd = "racket -l- raco help"
-    callScheme =
-      readCreateProcessWithExitCode (shell cmd) "" >>= \case
-        (ExitSuccess, _, _) -> pure True
-        (ExitFailure _, _, _) -> pure False
-
-racketOpts :: FilePath -> FilePath -> [String] -> [String]
-racketOpts gendir statdir args = "-y" : libs ++ args
-  where
-    includes = [gendir, statdir </> "racket"]
-    libs = concatMap (\dir -> ["-S", dir]) includes
-
-runScheme :: String -> [String] -> Cli ()
-runScheme file args = do
-  ensureSchemeExists
-  gendir <- getSchemeGenLibDir
-  statdir <- getSchemeStaticLibDir
-  let cmd = "racket"
-      opts = racketOpts gendir statdir (file : args)
-  success <-
-    liftIO $
-      (True <$ callProcess cmd opts)
-        `catch` \(_ :: IOException) -> pure False
-  unless success $
-    Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
-
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do
   Cli.Env {codebase, runtime, nativeRuntime} <- ask
@@ -2087,42 +2028,6 @@ doCompile native output main = do
         Runtime.compileTo theRuntime codeLookup ppe ref outf
     )
     (Cli.returnEarly . EvaluationFailure)
-
-doRunAsScheme :: String -> [String] -> Cli ()
-doRunAsScheme main0 args = case HQ.fromString main0 of
-  Just main -> do
-    fullpath <- generateSchemeFile True main0 main
-    runScheme fullpath args
-  Nothing -> Cli.respond $ BadName main0
-
-generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
-generateSchemeFile exec out main = do
-  (comp, ppe) <- resolveMainRef main
-  ensureCompilerExists
-  doGenerateSchemeBoot False (Just ppe) Nothing
-  cacheDir <- getCacheDir
-  liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
-  let scratch = out ++ ".scm"
-      fullpath = cacheDir </> "scheme-tmp" </> scratch
-      output = Text.pack fullpath
-  sscm <- Term.ref a <$> resolveTermRef saveNm
-  fprf <- resolveCon filePathNm
-  let toCmp = Term.termLink a (Referent.Ref comp)
-      outTm = Term.text a output
-      fpc = Term.constructor a fprf
-      fp = Term.app a fpc outTm
-      tm :: Term Symbol Ann
-      tm = Term.apps' sscm [Term.boolean a exec, toCmp, fp]
-  typecheckAndEval ppe tm
-  pure fullpath
-  where
-    a = External
-    hq nm
-      | Just hqn <- HQ.fromString nm = hqn
-      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
-
-    saveNm = hq ".unison.internal.compiler.saveScheme"
-    filePathNm = hq "FilePath.FilePath"
 
 delete ::
   Input ->

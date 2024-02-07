@@ -8,8 +8,12 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm
 .> run.native tests
 
+  ()
+
 ```
 ```ucm
 .> run.native tests.jit.only
+
+  ()
 
 ```

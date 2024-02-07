@@ -657,7 +657,7 @@ backReferenceTm ws frs irs dcm c i = do
 
 ucrProc :: [String] -> CreateProcess
 ucrProc args =
-  (proc "native-compiler/bin/runner" args)
+  (proc "native-compiler/bin/ucr" args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
