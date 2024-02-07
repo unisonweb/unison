@@ -704,7 +704,12 @@ nativeEvalInContext _ ctx codes base = do
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
-  withCreateProcess (ucrProc []) callout
+      ucrError (_ :: IOException) =
+        die
+          "I had trouble calling the unison runtime exectuable.\n\n\
+          \Please check that the `ucr` executable is properly\
+          \ installed."
+  withCreateProcess (ucrProc []) callout `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
   [(Reference, SuperGroup Symbol)] ->
