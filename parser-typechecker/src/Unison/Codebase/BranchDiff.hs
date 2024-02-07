@@ -2,6 +2,8 @@ module Unison.Codebase.BranchDiff where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0 (..))
 import Unison.Codebase.Branch qualified as Branch
@@ -18,10 +20,10 @@ data DiffType a = Create a | Delete a | Modify a deriving (Show)
 
 data DiffSlice r = DiffSlice
   { --  tpatchUpdates :: Relation r r, -- old new
-    tallnamespaceUpdates :: Map Name (Set r, Set r),
+    tallnamespaceUpdates :: Map Name (NESet r, NESet r),
     talladds :: Relation r Name,
     tallremoves :: Relation r Name,
-    trenames :: Map r (Set Name, Set Name)
+    trenames :: Map r (NESet Name, NESet Name)
   }
   deriving stock (Generic, Show)
 
@@ -97,7 +99,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
         forall r.
         (Ord r) =>
         Map r (Set Name, Set Name) ->
-        Map Name (Set r, Set r) ->
+        Map Name (NESet r, NESet r) ->
         Relation r Name
     allAdds nc nu = R.fromMultimap . fmap snd . Map.filterWithKey f $ nc
       where
@@ -105,7 +107,7 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
         -- if an add matches RHS of an update, we exclude it from "Adds"
         notInUpdates r name = case Map.lookup name nu of
           Nothing -> True
-          Just (_, rs_new) -> Set.notMember r rs_new
+          Just (_, rs_new) -> NESet.notMember r rs_new
 
     allRemoves nc nu = R.fromMultimap . fmap fst . Map.filterWithKey f $ nc
       where
@@ -113,24 +115,29 @@ computeSlices oldTerms newTerms oldTypes newTypes = (termsOut, typesOut)
         -- if a remove matches LHS of an update, we exclude it from "Removes"
         notInUpdates r name = case Map.lookup name nu of
           Nothing -> True
-          Just (rs_old, _) -> Set.notMember r rs_old
+          Just (rs_old, _) -> NESet.notMember r rs_old
 
     -- renames and stuff, name changes without a reference change
     remainingNameChanges ::
       forall r.
       (Ord r) =>
       Map r (Set Name, Set Name) ->
-      Map r (Set Name, Set Name)
+      Map r (NESet Name, NESet Name)
     remainingNameChanges =
-      Map.filter (\(old, new) -> not (null old) && not (null new) && old /= new)
+      mapMaybe
+        ( \(old, new) ->
+            case (NESet.nonEmptySet old, NESet.nonEmptySet new) of
+              (Just old, Just new) | old /= new -> Just (old, new)
+              _ -> Nothing
+        )
 
-    allNamespaceUpdates :: (Ord r) => Relation r Name -> Relation r Name -> Map Name (Set r, Set r)
+    allNamespaceUpdates :: (Ord r) => Relation r Name -> Relation r Name -> Map Name (NESet r, NESet r)
     allNamespaceUpdates old new =
       Map.filter f $ R.innerJoinRanMultimaps old new
       where
         f (old, new) = old /= new
 
-namespaceUpdates :: (Ord r) => DiffSlice r -> Map Name (Set r, Set r)
+namespaceUpdates :: (Ord r) => DiffSlice r -> Map Name (NESet r, NESet r)
 namespaceUpdates s = Map.mapMaybe f (tallnamespaceUpdates s)
   where
     f (olds, news) =

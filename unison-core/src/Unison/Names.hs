@@ -54,6 +54,8 @@ where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -115,15 +117,15 @@ fuzzyFind ::
   (Name -> Text) ->
   [String] ->
   Names ->
-  [(FZF.Alignment, Name, Set (Either Referent TypeReference))]
+  [(FZF.Alignment, Name, NESet (Either Referent TypeReference))]
 fuzzyFind nameToText query names =
   fmap flatten
     . fuzzyFinds (Text.unpack . nameToText . fst) query
     . Prelude.filter prefilter
     . Map.toList
     -- `mapMonotonic` is safe here and saves a log n factor
-    $ (Set.mapMonotonic Left <$> R.toMultimap (terms names))
-      <> (Set.mapMonotonic Right <$> R.toMultimap (types names))
+    $ (NESet.mapMonotonic Left <$> R.toMultimap (terms names))
+      <> (NESet.mapMonotonic Right <$> R.toMultimap (types names))
   where
     lowerqueryt = Text.toLower . Text.pack <$> query
     -- For performance, case-insensitive substring matching as a pre-filter

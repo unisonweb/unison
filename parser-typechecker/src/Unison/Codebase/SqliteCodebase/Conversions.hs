@@ -2,6 +2,7 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text (pack)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2
@@ -493,8 +494,8 @@ patch2to1 (V2.Branch.Patch v2termedits v2typeedits) =
 patch1to2 :: V1.Patch -> V2.Branch.Patch
 patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typeedits
   where
-    v2termedits = Map.bimap (V2.Referent.Ref . reference1to2) (Set.map termedit1to2) $ Relation.domain v1termedits
-    v2typeedits = Map.bimap reference1to2 (Set.map typeedit1to2) $ Relation.domain v1typeedits
+    v2termedits = Map.bimap (V2.Referent.Ref . reference1to2) (NESet.toSet . NESet.map termedit1to2) $ Relation.domain v1termedits
+    v2typeedits = Map.bimap reference1to2 (NESet.toSet . NESet.map typeedit1to2) $ Relation.domain v1typeedits
     termedit1to2 :: V1.TermEdit.TermEdit -> V2.TermEdit.TermEdit
     termedit1to2 = \case
       V1.TermEdit.Replace r t -> V2.TermEdit.Replace (V2.Referent.Ref (reference1to2 r)) (typing1to2 t)

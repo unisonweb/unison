@@ -27,6 +27,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as NESet
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import Unison.ABT qualified as ABT
 import Unison.Codebase.Branch.Type qualified as Memory.Branch
@@ -332,11 +333,13 @@ m2hPatch (Memory.Patch.Patch termEdits typeEdits) =
       Map.fromList
         . map (bimap m2hReference (Set.map m2hTypeEdit))
         . Map.toList
+        . fmap NESet.toSet
         $ Relation.toMultimap typeEdits
     termEdits' =
       Map.fromList
         . map (bimap (Hashing.ReferentRef . m2hReference) (Set.map m2hTermEdit))
         . Map.toList
+        . fmap NESet.toSet
         $ Relation.toMultimap termEdits
     m2hTermEdit = \case
       Memory.TermEdit.Replace r _ -> Hashing.TermEditReplace (Hashing.ReferentRef $ m2hReference r)

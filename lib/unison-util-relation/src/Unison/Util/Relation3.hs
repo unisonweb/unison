@@ -6,6 +6,7 @@ import Data.Function (on)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Semigroup (Sum (Sum, getSum))
+import Data.Set.NonEmpty qualified as NESet
 import Data.Tuple.Extra (uncurry3)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
@@ -38,17 +39,17 @@ d3s = Map.keysSet . d3
 -- | Project out a relation that only includes the 1st and 2nd dimensions.
 d12 :: Relation3 a b c -> Relation a b
 d12 Relation3 {d1, d2} =
-  R.unsafeFromMultimaps (Map.map R.dom d1) (Map.map R.dom d2)
+  R.unsafeFromMultimaps (mapMaybe (NESet.nonEmptySet . R.dom) d1) (mapMaybe (NESet.nonEmptySet . R.dom) d2)
 
 -- | Project out a relation that only includes the 1st and 3rd dimensions.
 d13 :: Relation3 a b c -> Relation a c
 d13 Relation3 {d1, d3} =
-  R.unsafeFromMultimaps (Map.map R.ran d1) (Map.map R.dom d3)
+  R.unsafeFromMultimaps (mapMaybe (NESet.nonEmptySet . R.ran) d1) (mapMaybe (NESet.nonEmptySet . R.dom) d3)
 
 -- | Project out a relation that only includes the 2nd and 3rd dimensions.
 d23 :: Relation3 a b c -> Relation b c
 d23 Relation3 {d2, d3} =
-  R.unsafeFromMultimaps (Map.map R.ran d2) (Map.map R.ran d3)
+  R.unsafeFromMultimaps (mapMaybe (NESet.nonEmptySet . R.ran) d2) (mapMaybe (NESet.nonEmptySet . R.ran) d3)
 
 filter ::
   (Ord a, Ord b, Ord c) =>
