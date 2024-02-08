@@ -238,7 +238,18 @@ data TypeTag = Ability | Data
 
 -- | A diff of the syntax of a term or type
 newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff (AnnotatedText.Segment Element)))
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show)
+
+instance ToJSON DiffedSyntaxText where
+  toJSON (DiffedSyntaxText diffs) =
+    ( diffs <&> \case
+        Diff.First a -> object ["diffTag" .= ("from" :: Text), "contents" .= a]
+        Diff.Second b -> object ["diffTag" .= ("to" :: Text), "contents" .= b]
+        -- Both values will be equal unless we're diffing on something other than pure
+        -- equality.
+        Diff.Both a _ -> object ["diffTag" .= ("both" :: Text), "contents" .= a]
+    )
+      & toJSON
 
 -- | A diff of the syntax of a term or type
 --
@@ -247,14 +258,51 @@ newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff (AnnotatedText.Segme
 data DisplayObjectDiff
   = DisplayObjectDiff (DisplayObject DiffedSyntaxText DiffedSyntaxText)
   | MismatchedDisplayObjects (DisplayObject SyntaxText SyntaxText) (DisplayObject SyntaxText SyntaxText)
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Eq)
+
+instance ToJSON DisplayObjectDiff where
+  toJSON = \case
+    DisplayObjectDiff objDiff ->
+      object
+        [ "diffKind" .= ("diffed" :: Text),
+          "diff" .= objDiff
+        ]
+    MismatchedDisplayObjects from to ->
+      object
+        [ "diffKind" .= ("mismatched" :: Text),
+          "from" .= from,
+          "to" .= to
+        ]
 
 data TermDiff = TermDiff
   { fromTermDefinition :: TermDefinition,
     toTermDefinition :: TermDefinition,
     diff :: DisplayObjectDiff
   }
-  deriving (Eq, Generic, Show)
+  deriving (Eq, Show)
+
+instance ToJSON TermDiff where
+  toJSON TermDiff {..} =
+    object
+      [ "from" .= fromTermDefinition,
+        "to" .= toTermDefinition,
+        "diff" .= diff
+      ]
+
+data TypeDiff = TypeDiff
+  { fromTypeDefinition :: TermDefinition,
+    toTypeDefinition :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show)
+
+instance ToJSON TypeDiff where
+  toJSON TypeDiff {..} =
+    object
+      [ "from" .= fromTypeDefinition,
+        "to" .= toTypeDefinition,
+        "diff" .= diff
+      ]
 
 data UnisonRef
   = TypeRef UnisonHash
