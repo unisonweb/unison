@@ -31,9 +31,9 @@ module Unison.Merge.Synhash
 where
 
 import Data.Char (ord)
-import U.Codebase.Reference (TermReference, TypeReference)
+import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
@@ -77,12 +77,18 @@ hashType ppe t = H.accumulate $ hashTypeTokens ppe t
 -- | Syntactically hash a term, using reference names rather than hashes.
 -- Two terms will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
-hashTerm :: (Monad m, Var v) => (TypeReferenceId -> m (Term v a)) -> PrettyPrintEnv -> TermReference -> m Hash
+hashTerm :: forall m v a. (Monad m, Var v) => (TypeReferenceId -> m (Term v a)) -> PrettyPrintEnv -> V1.Referent -> m Hash
 hashTerm loadTerm ppe = \case
-  ReferenceBuiltin name -> pure (hashBuiltinTerm name)
-  ReferenceDerived ref -> do
-    term <- loadTerm ref
-    pure (hashDerivedTerm ppe term)
+  V1.Referent.Con r t -> pure $ hashDerivedTerm ppe case t of
+    CT.Data -> Term.constructor @v () r
+    CT.Effect -> Term.request @v () r
+  V1.Referent.Ref ref -> case ref of
+    ReferenceBuiltin name -> pure (hashBuiltinTerm name)
+    ReferenceDerived ref -> do
+      term <- loadTerm ref
+      pure (hashDerivedTerm ppe term)
+
+-- hashCons :: (Monad m, var v) => (ConstructorReferenceId -> m
 
 hashDerivedTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
 hashDerivedTerm ppe t = H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
@@ -127,8 +133,8 @@ hashDeclTokens ppe r = \case
     -- separating constructor types with tag of 99, which isn't used elsewhere
     goCtor ct ((_, _, ty), i) = H.Tag 99 : ctorName ct i : hashTypeTokens ppe ty
     ctorName ct i = hashReferentToken ppe (V1.Referent.Con (ConstructorReference (ReferenceDerived r) i) ct)
-    go ct (DD.DataDeclaration m _ vs ctors) =
-      goMod m <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
+    go ct (DD.DataDeclaration mod _ vs ctors) =
+      goMod mod <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
 
 hashKindTokens :: K.Kind -> [Token]
 hashKindTokens k = case k of

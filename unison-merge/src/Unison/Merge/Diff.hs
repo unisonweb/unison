@@ -6,19 +6,17 @@ module Unison.Merge.Diff
 where
 
 import Control.Lens ((^.))
-import Data.ByteString.Short (ShortByteString)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
-import U.Codebase.Reference (TermReferenceId, TypeReference)
+import U.Codebase.Reference (TypeReference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
-import Unison.Hash qualified as Hash
 import Unison.HashQualified' qualified as HQ'
-import Unison.Merge.Database (MergeDatabase (..))
+import Unison.Merge.Database (MergeDatabase (..), referent2to1)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Name (Name)
@@ -28,11 +26,9 @@ import Unison.PrettyPrintEnv qualified as Ppe
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
 import Unison.Sqlite (Transaction)
-import Unison.Term qualified as V1 (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Nametree (Defns (..))
-import Unison.Var (Var)
 
 -- A couple of internal types and type aliases of questionable utility.
 
@@ -84,7 +80,7 @@ nameBasedNamespaceDiff ::
   MergeDatabase ->
   TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction (TwoWay Diff)
-nameBasedNamespaceDiff MergeDatabase {loadV1Term, loadV1Decl} (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
+nameBasedNamespaceDiff db@MergeDatabase {loadV1Term, loadV1Decl} (TwoOrThreeWay maybeLcaDefns aliceDefns bobDefns) = do
   aliceSynhashes <- synhashDefns aliceDefns
   bobSynhashes <- synhashDefns bobDefns
   case maybeLcaDefns of
@@ -96,7 +92,7 @@ nameBasedNamespaceDiff MergeDatabase {loadV1Term, loadV1Decl} (TwoOrThreeWay may
     synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Synhashes
     synhashDefns =
       -- FIXME: use cache so we only synhash each thing once
-      synhashDefnsWith (synhashReferent loadV1Term ppe) (Synhash.hashDecl loadV1Decl ppe)
+      synhashDefnsWith (Synhash.hashTerm loadV1Term ppe <=< referent2to1 db) (Synhash.hashDecl loadV1Decl ppe)
       where
         ppe :: PrettyPrintEnv
         ppe =
@@ -181,21 +177,3 @@ synhashDefnsWith hashReferent hashDecl defns = do
   terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashReferent (defns ^. #terms)
   types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashDecl (defns ^. #types)
   pure Defns {terms, types}
-
-synhashReferent ::
-  (Monad m, Var v) =>
-  (TermReferenceId -> m (V1.Term v a)) ->
-  PrettyPrintEnv ->
-  Referent ->
-  m Hash
-synhashReferent loadTerm ppe = \case
-  Referent.Con _ _ -> pure hashThatIsDistinctFromAllTermHashes
-  Referent.Ref ref -> Synhash.hashTerm loadTerm ppe ref
-  where
-    -- TODO explain better why it's fine to give all data constructors the same syntactic hash, so long as it's
-    -- different than any term hash. the skinny:
-    --   * want datacon->term or vice versa to look like a conflict
-    --   * datacon->datacon is fine to consider not-conflicted because a conflict, if any, would appear on the decl
-    hashThatIsDistinctFromAllTermHashes :: Hash
-    hashThatIsDistinctFromAllTermHashes =
-      Hash.Hash (mempty :: ShortByteString)
