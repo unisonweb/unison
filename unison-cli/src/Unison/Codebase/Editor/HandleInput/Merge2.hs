@@ -505,14 +505,63 @@ loadLcaDefinitions abort causalHash branch = do
         types = flattenNametree (view #types) defns2
       }
 
--- abortIfAnyConflictedAliases ::
---   (forall void. Merge.PreconditionViolation -> Transaction void) ->
---   Merge.TwoWay Sqlite.ProjectBranch ->
---   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
---   Merge.TwoWay (Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
---   Transaction ()
--- abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
---   findConflictedAlias lcaDefns (diffs ^. #alice) & onJust \(name1, name2) ->
---     abort (Merge.ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
---   findConflictedAlias lcaDefns (diffs ^. #bob) & onJust \(name1, name2) ->
---     abort (Merge.ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
+abortIfAnyConflictedAliases ::
+  (forall void. Merge.PreconditionViolation -> Transaction void) ->
+  Merge.TwoWay Sqlite.ProjectBranch ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Merge.TwoWay (Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
+  Transaction ()
+abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
+  findConflictedAlias lcaDefns (diffs ^. #alice) `whenJust` \(name1, name2) ->
+    abort (Merge.ConflictedAliases (projectBranchNames ^. #alice . #name) name1 name2)
+  findConflictedAlias lcaDefns (diffs ^. #bob) `whenJust` \(name1, name2) ->
+    abort (Merge.ConflictedAliases (projectBranchNames ^. #bob . #name) name1 name2)
+
+-- @findConflictedAlias namespace diff@, given an old namespace and a diff to a new namespace, will return the first
+-- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
+-- thing in the old namespace, but different things in the new one.
+--
+-- For example, if the old namespace was
+--
+--   foo = #foo
+--   bar = #foo
+--
+-- and the new namespace is
+--
+--   foo = #baz
+--   bar = #qux
+--
+-- then (foo, bar) is a conflicted alias.
+--
+-- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
+findConflictedAlias ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
+  Maybe (Name, Name)
+findConflictedAlias defns diff =
+  asum
+    [ go (defns ^. #terms) (diff ^. #terms),
+      go (defns ^. #types) (diff ^. #types)
+    ]
+  where
+    go :: forall ref. Ord ref => BiMultimap ref Name -> Map Name (Merge.DiffOp Hash) -> Maybe (Name, Name)
+    go namespace diff =
+      asum (map f (Map.toList diff))
+      where
+        f :: (Name, Merge.DiffOp Hash) -> Maybe (Name, Name)
+        f (name, op) =
+          case op of
+            Merge.Added _ -> Nothing
+            Merge.Deleted _ -> Nothing
+            Merge.Updated _ hash ->
+              BiMultimap.lookupPreimage name namespace
+                & Set.delete name
+                & Set.toList
+                & map (g hash)
+                & asum
+          where
+            g :: Hash -> Name -> Maybe (Name, Name)
+            g hash alias =
+              case Map.lookup alias diff of
+                Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
+                _ -> Just (name, alias)
