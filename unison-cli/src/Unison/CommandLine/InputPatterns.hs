@@ -1701,6 +1701,22 @@ mergeLocal =
           branchInclusion = AllBranches
         }
 
+mergeInputPattern :: InputPattern
+mergeInputPattern =
+  InputPattern
+    { patternName = "merge2",
+      aliases = [],
+      visibility = I.Visible,
+      args = [],
+      help = "`merge branch` merges `branch` into the current branch",
+      parse =
+        \args ->
+          maybeToEither (I.help mergeInputPattern) do
+            [branchString] <- Just args
+            branch <- eitherToMaybe (tryInto @ProjectBranchName (Text.pack branchString))
+            pure (Input.MergeI branch)
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of

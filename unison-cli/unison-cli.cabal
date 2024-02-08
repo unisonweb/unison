@@ -58,6 +58,7 @@ library
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Load
+      Unison.Codebase.Editor.HandleInput.Merge2
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm

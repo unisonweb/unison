@@ -75,6 +75,7 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
@@ -442,6 +443,7 @@ loop e = do
                 if ok
                   then Success
                   else BranchEmpty branchEmpty
+            MergeI branch -> handleMerge branch
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
@@ -1210,6 +1212,8 @@ inputDescription input =
       src <- either (pure . Text.pack . show) brp src0
       dest <- brp dest0
       pure ("fork " <> src <> " " <> dest)
+    MergeI _tgt -> do
+      pure "todo"
     MergeLocalBranchI src0 dest0 mode -> do
       src <- looseCodeOrProjectToText src0
       dest <- looseCodeOrProjectToText dest0

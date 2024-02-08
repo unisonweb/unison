@@ -246,6 +246,8 @@ data Input
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
   | EditNamespaceI [Path.Path]
+  | -- New merge algorithm: merge the given project branch (from the current project) into the current one.
+    MergeI ProjectBranchName
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
