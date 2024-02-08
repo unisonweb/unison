@@ -394,6 +394,17 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
+  | -- These are all merge precondition violations. See PreconditionViolation for more docs.
+    MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeConflictedTermName !Name !(Set Referent)
+  | MergeConflictedTypeName !Name !(Set Reference.TypeReference)
+  | MergeConflictInvolvingBuiltin !Name
+  | MergeConstructorAlias !ProjectBranchName !Name !Name
+  | MergeDefnsInLib
+  | MergeMissingConstructorName !Name
+  | MergeNestedDeclAlias !Name
+  | MergeNoConstructorNames !Name
+  | MergeStrayConstructor !Name
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -622,6 +633,16 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
+  MergeConflictedAliases {} -> True
+  MergeConflictedTermName {} -> True
+  MergeConflictedTypeName {} -> True
+  MergeConflictInvolvingBuiltin {} -> True
+  MergeConstructorAlias {} -> True
+  MergeDefnsInLib -> True
+  MergeMissingConstructorName {} -> True
+  MergeNestedDeclAlias {} -> True
+  MergeNoConstructorNames {} -> True
+  MergeStrayConstructor {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

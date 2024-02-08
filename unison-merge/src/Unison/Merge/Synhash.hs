@@ -84,8 +84,8 @@ hashTerm loadTerm ppe = \case
     CT.Effect -> Term.request @v () r
   V1.Referent.Ref ref -> case ref of
     ReferenceBuiltin name -> pure (hashBuiltinTerm name)
-    ReferenceDerived ref -> do
-      term <- loadTerm ref
+    ReferenceDerived x -> do
+      term <- loadTerm x
       pure (hashDerivedTerm ppe term)
 
 -- hashCons :: (Monad m, var v) => (ConstructorReferenceId -> m
@@ -133,8 +133,8 @@ hashDeclTokens ppe r = \case
     -- separating constructor types with tag of 99, which isn't used elsewhere
     goCtor ct ((_, _, ty), i) = H.Tag 99 : ctorName ct i : hashTypeTokens ppe ty
     ctorName ct i = hashReferentToken ppe (V1.Referent.Con (ConstructorReference (ReferenceDerived r) i) ct)
-    go ct (DD.DataDeclaration mod _ vs ctors) =
-      goMod mod <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
+    go ct (DD.DataDeclaration x _ vs ctors) =
+      goMod x <> goVs vs <> ((zip ctors [0 ..]) >>= goCtor ct)
 
 hashKindTokens :: K.Kind -> [Token]
 hashKindTokens k = case k of

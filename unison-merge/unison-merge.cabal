@@ -17,6 +17,7 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Merge
       Unison.Merge.Database
       Unison.Merge.Diff
       Unison.Merge.DiffOp
