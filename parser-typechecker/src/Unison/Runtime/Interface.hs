@@ -657,7 +657,7 @@ backReferenceTm ws frs irs dcm c i = do
 
 ucrProc :: [String] -> CreateProcess
 ucrProc args =
-  (proc "native-compiler/bin/ucr" args)
+  (proc "native-compiler/bin/unison-runtime" args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
@@ -707,8 +707,8 @@ nativeEvalInContext _ ctx codes base = do
       ucrError (_ :: IOException) =
         die
           "I had trouble calling the unison runtime exectuable.\n\n\
-          \Please check that the `ucr` executable is properly\
-          \ installed."
+          \Please check that the `unison-runtime` executable is\
+          \properly installed."
   withCreateProcess (ucrProc []) callout `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
@@ -731,8 +731,8 @@ nativeCompileCodes codes base path = do
       ucrError (_ :: IOException) =
         die
           "I had trouble calling the unison runtime exectuable.\n\n\
-          \Please check that the `ucr` executable is properly\
-          \ installed."
+          \Please check that the `unison-runtime` executable is\
+          \properly installed."
       racoError (_ :: IOException) =
         die
           "I had trouble calling the `raco` executable.\n\n\

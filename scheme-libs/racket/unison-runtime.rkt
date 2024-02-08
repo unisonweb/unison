@@ -96,7 +96,7 @@
 
 (define (handle-command-line)
   (command-line
-    #:program "ucr"
+    #:program "unison-runtime"
     #:once-any
     [("-G" "--generate-file")
        file
