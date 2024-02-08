@@ -3,31 +3,30 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Unison.Hash (Hash)
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
-import Prelude hiding (unzip, zip)
-import Data.Semialign (alignWith, unzip, zip)
-import Data.Functor.Compose (Compose (..))
+import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
-import Data.Maybe (catMaybes, fromJust)
+import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
+import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
+import Control.Monad.Trans.Except qualified as Except
+import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
-import Control.Monad.Trans.Except qualified as Except
-import Control.Monad.State.Strict qualified as State
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
-import U.Codebase.Branch (Branch (..), CausalBranch)
-import Unison.NameSegment (NameSegment (..))
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
-import U.Codebase.Referent (Referent)
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Unison.Name qualified as Name
-import Unison.Util.Set qualified as Set
+import Data.Maybe (catMaybes, fromJust)
+import Data.Semialign (alignWith, unzip, zip)
 import Data.Set qualified as Set
-import Unison.Util.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import GHC.Clock (getMonotonicTime)
+import Text.Printf (printf)
+import U.Codebase.Branch (Branch (..), CausalBranch)
+import U.Codebase.Branch qualified as Branch
+import U.Codebase.Causal qualified as Causal
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
   ( Reference,
     Reference' (..),
@@ -36,23 +35,10 @@ import U.Codebase.Reference
     TypeReference,
     TypeReferenceId,
   )
+import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
-import Unison.Util.Nametree
-  ( Defns (..),
-    Nametree (..),
-    bimapDefns,
-    flattenNametree,
-    traverseNametreeWithName,
-    unflattenNametree,
-  )
-import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
-import Control.Monad.Reader (ask)
-import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
-import GHC.Clock (getMonotonicTime)
-import Text.Printf (printf)
-import U.Codebase.Causal qualified as Causal
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -62,18 +48,33 @@ import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Hash (Hash)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
+import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Referent qualified as V1 (Referent)
+import Unison.Referent qualified as V1.Referent
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Name (Name)
-import Data.List.NonEmpty (pattern (:|))
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Map qualified as Map
+import Unison.Util.Nametree
+  ( Defns (..),
+    Nametree (..),
+    bimapDefns,
+    flattenNametree,
+    traverseNametreeWithName,
+    unflattenNametree,
+  )
+import Unison.Util.Set qualified as Set
+import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -136,32 +137,24 @@ handleMerge bobBranchName = do
       let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
       let declNames = Merge.TwoWay {alice = aliceDeclNames, bob = bobDeclNames}
 
-      -- (lcaDefns, lcaLibdeps, diffs) <- do
-      --   case maybeLcaCausal of
-      --     Nothing -> do
-      --       diffs <-
-      --         Merge.nameBasedNamespaceDiff
-      --           db
-      --           Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
-      --       pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
-      --     Just lcaCausal -> do
-      --       lcaBranch <- Causal.value lcaCausal
-      --       lcaDefns <- loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
-      --       diffs <-
-      --         Merge.nameBasedNamespaceDiff
-      --           db
-      --           Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
-      --       abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
-      --       lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
-      --       pure (lcaDefns, lcaLibdeps, diffs)
-      -- diff <-
-      --   Merge.nameBasedNamespaceDiff
-      --     db
-      --     Merge.TwoOrThreeWay
-      --       { lca = undefined,
-      --         alice = undefined,
-      --         bob = undefined
-      --       }
+      (lcaDefns, lcaLibdeps, diffs) <- do
+        case maybeLcaCausal of
+          Nothing -> do
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                db
+                Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
+            pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
+          Just lcaCausal -> do
+            lcaBranch <- Causal.value lcaCausal
+            lcaDefns <- loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                db
+                Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
+            abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
+            lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
+            pure (lcaDefns, lcaLibdeps, diffs)
       undefined
   undefined
 
@@ -565,3 +558,12 @@ findConflictedAlias defns diff =
               case Map.lookup alias diff of
                 Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
                 _ -> Just (name, alias)
+
+-- | Load the library dependencies (lib.*) of a namespace.
+loadLibdeps :: Branch Transaction -> Transaction (Maybe (CausalHash, Map NameSegment (CausalBranch Transaction)))
+loadLibdeps branch =
+  case Map.lookup Name.libSegment (Branch.children branch) of
+    Nothing -> pure Nothing
+    Just dependenciesCausal -> do
+      dependenciesBranch <- Causal.value dependenciesCausal
+      pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
