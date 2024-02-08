@@ -7,6 +7,7 @@ module Unison.Server.Types where
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.Aeson qualified as Aeson
+import Data.Algorithm.Diff qualified as Diff
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
@@ -48,9 +49,10 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
-import Unison.Server.Syntax (SyntaxText)
+import Unison.Server.Syntax (Element, SyntaxText)
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (fromText)
+import Unison.Util.AnnotatedText qualified as AnnotatedText
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -233,6 +235,26 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
+
+-- | A diff of the syntax of a term or type
+newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff (AnnotatedText.Segment Element)))
+  deriving stock (Eq, Show, Generic)
+
+-- | A diff of the syntax of a term or type
+--
+-- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
+-- undiffed syntax.
+data DisplayObjectDiff
+  = DisplayObjectDiff (DisplayObject DiffedSyntaxText DiffedSyntaxText)
+  | MismatchedDisplayObjects (DisplayObject SyntaxText SyntaxText) (DisplayObject SyntaxText SyntaxText)
+  deriving stock (Show, Eq, Generic)
+
+data TermDiff = TermDiff
+  { fromTermDefinition :: TermDefinition,
+    toTermDefinition :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Generic, Show)
 
 data UnisonRef
   = TypeRef UnisonHash
