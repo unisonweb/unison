@@ -8,6 +8,7 @@ module Unison.Cli.ProjectUtils
     getCurrentProjectBranch,
     getProjectBranchForPath,
     expectCurrentProjectBranch,
+    expectProjectBranchByName,
     projectPath,
     projectBranchesPath,
     projectBranchPath,
@@ -124,6 +125,11 @@ getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.Pr
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   getProjectBranchForPath path
+
+expectProjectBranchByName :: Sqlite.Project -> ProjectBranchName -> Cli Sqlite.ProjectBranch
+expectProjectBranchByName project branchName =
+  Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
+    Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
 
 getProjectBranchForPath :: Path.Absolute -> Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getProjectBranchForPath path = do
