@@ -3,7 +3,7 @@
 Let's set up some definitions to start:
 
 ```ucm:hide
-.> builtins.merge
+.lib> builtins.merge
 ```
 
 ```unison
@@ -15,44 +15,44 @@ structural type Y = Two Nat Nat
 ```
 
 ```ucm
-.scratch> add
+.> add
 ```
 
 Test that replace works with terms
 ```ucm
-.scratch> replace x y
-.scratch> view x
+.> replace x y
+.> view x
 ```
 
 Test that replace works with types
 ```ucm
-.scratch> replace X Y
-.scratch> find
-.scratch> view.patch patch
-.scratch> view X
+.> replace X Y
+.> find
+.> view.patch patch
+.> view X
 ```
 
 Try with a type/term mismatch
 ```ucm:error
-.scratch> replace X x
+.> replace X x
 ```
 ```ucm:error
-.scratch> replace y Y
+.> replace y Y
 ```
 
 Try with missing references
 ```ucm:error
-.scratch> replace X NOPE
+.> replace X NOPE
 ```
 ```ucm:error
-.scratch> replace y nope
+.> replace y nope
 ```
 ```ucm:error
-.scratch> replace nope X
+.> replace nope X
 ```
 ```ucm:error
-.scratch> replace nope y
+.> replace nope y
 ```
 ```ucm:error
-.scratch> replace nope nope
+.> replace nope nope
 ```

@@ -40,10 +40,12 @@ finish = cases (x, y, z) ->
 
 mkTestCase = do
   trip = (suspSum l1, suspSum l2, suspSum l3)
-  saveTestCase "case-03" finish trip
+  saveTestCase "case-03" "v4" finish trip
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

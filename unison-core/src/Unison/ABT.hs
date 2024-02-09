@@ -102,7 +102,7 @@ module Unison.ABT
   )
 where
 
-import Control.Lens (Lens', lens, use, (%%~), (.=))
+import Control.Lens (Lens', lens, (%%~))
 import Control.Monad.State (MonadState, evalState, get, put, runState)
 import Data.Foldable qualified as Foldable
 import Data.List hiding (cycle, find)
@@ -111,9 +111,11 @@ import Data.Set qualified as Set
 import U.Core.ABT
   ( ABT (..),
     Term (..),
+    allVars,
     cata,
     foreachSubterm,
     freshInBoth,
+    freshenS,
     para,
     rename,
     subst',
@@ -128,6 +130,7 @@ import U.Core.ABT
     visitPure,
     visit_,
     vmap,
+    vmapM,
     pattern AbsN',
     pattern Tm',
     pattern Var',
@@ -199,13 +202,6 @@ isFreeIn v t = Set.member v (freeVars t)
 -- | Replace the annotation with the given argument.
 annotate :: a -> Term f v a -> Term f v a
 annotate a (Term fvs _ out) = Term fvs a out
-
-vmapM :: (Applicative m, Traversable f, Foldable f, Ord v2) => (v -> m v2) -> Term f v a -> m (Term f v2 a)
-vmapM f (Term _ a out) = case out of
-  Var v -> annotatedVar a <$> f v
-  Tm fa -> tm' a <$> traverse (vmapM f) fa
-  Cycle r -> cycle' a <$> vmapM f r
-  Abs v body -> abs' a <$> f v <*> vmapM f body
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
 amap = amap' . const
@@ -350,13 +346,6 @@ changeVars m t = case out t of
 fresh :: (Var v) => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
 
-allVars :: (Foldable f) => Term f v a -> [v]
-allVars t = case out t of
-  Var v -> [v]
-  Cycle body -> allVars body
-  Abs v body -> v : allVars body
-  Tm v -> Foldable.toList v >>= allVars
-
 -- Numbers the free vars by the position where they're first
 -- used within the term. See usage in `Type.normalizeForallOrder`
 numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
@@ -368,20 +357,6 @@ numberedFreeVars t =
       Cycle body -> go bound body
       Abs v body -> go (v : bound) body
       Tm v -> Foldable.toList v >>= go bound
-
--- | Freshens the given variable wrt. the set of used variables
--- tracked by state. Adds the result to the set of used variables.
-freshenS :: (Var v, MonadState (Set v) m) => v -> m v
-freshenS = freshenS' id
-
--- | A more general version of `freshenS` that uses a lens
--- to focus on used variables inside state.
-freshenS' :: (Var v, MonadState s m) => Lens' s (Set v) -> v -> m v
-freshenS' uvLens v = do
-  usedVars <- use uvLens
-  let v' = freshIn usedVars v
-  uvLens .= Set.insert v' usedVars
-  pure v'
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`

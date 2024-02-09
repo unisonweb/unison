@@ -23,8 +23,8 @@ import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn)
+import U.Codebase.HashTags
 import Unison.Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
@@ -36,6 +36,7 @@ import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import Unison.LSP.Configuration qualified as Config
 import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
+import Unison.LSP.Formatting (formatDocRequest, formatRangeRequest)
 import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
@@ -46,8 +47,6 @@ import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
@@ -56,8 +55,8 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM (Branch IO) -> STM (Path.Absolute) -> IO ()
-spawnLsp codebase runtime latestBranch latestPath =
+spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
+spawnLsp codebase runtime latestRootHash latestPath =
   ifEnabled . TCP.withSocketsDo $ do
     lspPort <- getLspPort
     UnliftIO.handleIO (handleFailure lspPort) $ do
@@ -77,7 +76,7 @@ spawnLsp codebase runtime latestBranch latestPath =
           -- different un-saved state for the same file.
           initVFS $ \vfs -> do
             vfsVar <- newMVar vfs
-            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition vfsVar codebase runtime scope latestBranch latestPath)
+            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition vfsVar codebase runtime scope latestRootHash latestPath)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
@@ -107,14 +106,16 @@ serverDefinition ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO) ->
+  STM CausalHash ->
   STM (Path.Absolute) ->
   ServerDefinition Config
-serverDefinition vfsVar codebase runtime scope latestBranch latestPath =
+serverDefinition vfsVar codebase runtime scope latestRootHash latestPath =
   ServerDefinition
     { defaultConfig = defaultLSPConfig,
-      onConfigurationChange = Config.updateConfig,
-      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath,
+      configSection = "unison",
+      parseConfig = Config.parseConfig,
+      onConfigChange = Config.updateConfig,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath,
       staticHandlers = lspStaticHandlers,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -126,31 +127,36 @@ lspDoInitialize ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM (Branch IO) ->
+  STM CausalHash ->
   STM (Path.Absolute) ->
   LanguageContextEnv Config ->
   Msg.TMessage 'Msg.Method_Initialize ->
   IO (Either Msg.ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope latestBranch latestPath lspContext _initMsg = do
-  -- TODO: some of these should probably be MVars so that we correctly wait for names and
-  -- things to be generated before serving requests.
+lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath lspContext _initMsg = do
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
-  ppedCacheVar <- newTVarIO PPED.empty
-  parseNamesCacheVar <- newTVarIO mempty
-  currentPathCacheVar <- newTVarIO Path.absoluteEmpty
+  ppedCacheVar <- newEmptyTMVarIO
+  currentNamesCacheVar <- newEmptyTMVarIO
+  currentPathCacheVar <- newEmptyTMVarIO
   cancellationMapVar <- newTVarIO mempty
-  completionsVar <- newTVarIO mempty
-  nameSearchCacheVar <- newTVarIO $ NameSearch.makeNameSearch 0 mempty
-  let env = Env {ppedCache = readTVarIO ppedCacheVar, parseNamesCache = readTVarIO parseNamesCacheVar, currentPathCache = readTVarIO currentPathCacheVar, nameSearchCache = readTVarIO nameSearchCacheVar, ..}
+  completionsVar <- newEmptyTMVarIO
+  nameSearchCacheVar <- newEmptyTMVarIO
+  let env =
+        Env
+          { ppedCache = atomically $ readTMVar ppedCacheVar,
+            currentNamesCache = atomically $ readTMVar currentNamesCacheVar,
+            currentPathCache = atomically $ readTMVar currentPathCacheVar,
+            nameSearchCache = atomically $ readTMVar nameSearchCacheVar,
+            ..
+          }
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
   Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar parseNamesCacheVar nameSearchCacheVar latestBranch latestPath)
+  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar latestRootHash latestPath)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
-lspStaticHandlers :: Handlers Lsp
-lspStaticHandlers =
+lspStaticHandlers :: ClientCapabilities -> Handlers Lsp
+lspStaticHandlers _capabilities =
   Handlers
     { reqHandlers = lspRequestHandlers,
       notHandlers = lspNotificationHandlers
@@ -168,6 +174,8 @@ lspRequestHandlers =
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
     & SMM.insert Msg.SMethod_TextDocumentSelectionRange (mkHandler selectionRangeHandler)
+    & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
+    & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
@@ -195,6 +203,7 @@ lspNotificationHandlers =
     & SMM.insert Msg.SMethod_Initialized (ClientMessageHandler Notifications.initializedHandler)
     & SMM.insert Msg.SMethod_CancelRequest (ClientMessageHandler $ Notifications.withDebugging cancelRequestHandler)
     & SMM.insert Msg.SMethod_WorkspaceDidChangeConfiguration (ClientMessageHandler Config.workspaceConfigurationChanged)
+    & SMM.insert Msg.SMethod_SetTrace (ClientMessageHandler Notifications.setTraceHandler)
 
 -- | A natural transformation into IO, required by the LSP lib.
 lspInterpretHandler :: Env -> Lsp <~> IO

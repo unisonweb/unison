@@ -9,6 +9,7 @@ module Unison.DataDeclaration
     allVars,
     asDataDecl,
     bindReferences,
+    constructorCount,
     constructorNames,
     constructors,
     constructorType,
@@ -32,6 +33,7 @@ module Unison.DataDeclaration
     updateDependencies,
     constructors_,
     asDataDecl_,
+    declAsDataDecl_,
   )
 where
 
@@ -78,6 +80,10 @@ labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
 
 -- | Compute the dependencies of a data declaration,
 -- including the type itself and references for each of its constructors.
+--
+-- NOTE: You may prefer labeledDeclDependenciesIncludingSelfAndFieldAccessors in
+-- Unison.DataDeclaration.Dependencies, it also includes Referents for accessors of record
+-- fields.
 labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
 labeledDeclDependenciesIncludingSelf selfRef decl =
   labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
@@ -107,6 +113,9 @@ data DataDeclaration v a = DataDeclaration
   }
   deriving (Eq, Ord, Show, Functor, Foldable)
 
+constructorCount :: DataDeclaration v a -> Int
+constructorCount DataDeclaration {constructors'} = length constructors'
+
 constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
 constructors_ = lens getter setter
   where
@@ -117,6 +126,13 @@ newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
   deriving (Eq, Ord, Show, Functor, Foldable)
+
+declAsDataDecl_ :: Lens' (Decl v a) (DataDeclaration v a)
+declAsDataDecl_ = lens get set
+  where
+    get (Left ed) = toDataDecl ed
+    get (Right dd) = dd
+    set decl dd = bimap (EffectDeclaration . const dd) (const dd) decl
 
 asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
 asDataDecl_ = iso toDataDecl EffectDeclaration
@@ -131,23 +147,25 @@ withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 -- propose to move this code to some very feature-specific module —AI
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
+  (a -> a) ->
   [(v, a)] ->
   v ->
   Reference ->
   [(v, a, Term v a)]
-generateRecordAccessors fields typename typ =
+generateRecordAccessors generatedAnn fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
-    tm (fname, ann) i =
+    tm (fname, fieldAnn) i =
       [ (Var.namespaced [typename, fname], ann, get),
         (Var.namespaced [typename, fname, Var.named "set"], ann, set),
         (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
       ]
       where
+        ann = generatedAnn fieldAnn
         -- example: `point -> case point of Point x _ -> x`
         get =
-          Term.lam ann argname $
+          Term.lam (generatedAnn fieldAnn) argname $
             Term.match
               ann
               (Term.var ann argname)
@@ -161,7 +179,7 @@ generateRecordAccessors fields typename typ =
             rhs = ABT.abs' ann fname (Term.var ann fname)
         -- example: `x point -> case point of Point _ y -> Point x y`
         set =
-          Term.lam' ann [fname', argname] $
+          Term.lam' (generatedAnn ann) [fname', argname] $
             Term.match
               ann
               (Term.var ann argname)
@@ -186,7 +204,7 @@ generateRecordAccessors fields typename typ =
               ]
         -- example: `f point -> case point of Point x y -> Point (f x) y`
         modify =
-          Term.lam' ann [fname', argname] $
+          Term.lam' (generatedAnn ann) [fname', argname] $
             Term.match
               ann
               (Term.var ann argname)
@@ -238,7 +256,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- This function is unsound, since the `rid` and the `decl` have to match.
 -- It should probably be hashed directly from the Decl, once we have a
 -- reliable way of doing that. —AI
-declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
+declConstructorReferents :: Reference.TypeReferenceId -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
   [Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl)]
   where
@@ -274,8 +292,10 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
   pure $ DataDeclaration m a bound constructors
 
 -- | All references to types mentioned in the given data declaration's fields/constructors
--- Note: does not include references to the constructors or the decl itself
+-- Note: Does not include references to the constructors or the decl itself
 -- (unless the decl is self-referential)
+-- Note: Does NOT include the referents for fields and field accessors.
+-- Those must be computed separately because we need access to the typechecker to do so.
 typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)

@@ -6,6 +6,7 @@ module Unison.Cli.MonadUtils
 
     -- * Paths
     getCurrentPath,
+    resolvePath,
     resolvePath',
     resolveSplit',
 
@@ -30,7 +31,11 @@ module Unison.Cli.MonadUtils
     getLastSavedRootHash,
     setLastSavedRootHash,
     getMaybeBranchAt,
+    getMaybeBranch0At,
+    expectBranchAtPath,
     expectBranchAtPath',
+    expectBranch0AtPath,
+    expectBranch0AtPath',
     assertNoBranchAtPath',
     branchExistsAtPath',
 
@@ -47,6 +52,7 @@ module Unison.Cli.MonadUtils
     updateRoot,
     updateAtM,
     updateAt,
+    updateAndStepAt,
 
     -- * Terms
     getTermsAt,
@@ -69,7 +75,7 @@ module Unison.Cli.MonadUtils
     -- * Latest touched Unison file
     getLatestFile,
     getLatestParsedFile,
-    getNamesFromLatestParsedFile,
+    getNamesFromLatestFile,
     getTermFromLatestParsedFile,
     expectLatestFile,
     expectLatestParsedFile,
@@ -83,6 +89,7 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Data.Configurator qualified as Configurator
 import Data.Configurator.Types qualified as Configurator
+import Data.Foldable
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
@@ -139,6 +146,12 @@ getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   use #currentPath
 
+-- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
+resolvePath :: Path -> Cli Path.Absolute
+resolvePath path = do
+  currentPath <- getCurrentPath
+  pure (Path.resolve currentPath (Path.Relative path))
+
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
 resolvePath' :: Path' -> Cli Path.Absolute
 resolvePath' path = do
@@ -161,18 +174,19 @@ resolveAbsBranchId = \case
   Right path -> getBranchAt path
 
 -- | V2 version of 'resolveAbsBranchId2'.
-resolveAbsBranchIdV2 :: Input.AbsBranchId -> Sqlite.Transaction (Either Output.Output (V2.Branch Sqlite.Transaction))
-resolveAbsBranchIdV2 = \case
+resolveAbsBranchIdV2 ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  Input.AbsBranchId ->
+  Sqlite.Transaction (V2.Branch Sqlite.Transaction)
+resolveAbsBranchIdV2 rollback = \case
   Left shortHash -> do
-    resolveShortCausalHashToCausalHash shortHash >>= \case
-      Left output -> pure (Left output)
-      Right hash -> succeed (Codebase.expectCausalBranchByCausalHash hash)
+    hash <- resolveShortCausalHashToCausalHash rollback shortHash
+    succeed (Codebase.expectCausalBranchByCausalHash hash)
   Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
   where
     succeed getCausal = do
       causal <- getCausal
-      branch <- V2Causal.value causal
-      pure (Right branch)
+      V2Causal.value causal
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
@@ -191,22 +205,22 @@ resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
 resolveShortCausalHash shortHash = do
   Cli.time "resolveShortCausalHash" do
     Cli.Env {codebase} <- ask
-    hash <- Cli.runEitherTransaction (resolveShortCausalHashToCausalHash shortHash)
+    hash <- Cli.runTransactionWithRollback \rollback -> resolveShortCausalHashToCausalHash rollback shortHash
     branch <- liftIO (Codebase.getBranchForHash codebase hash)
     pure (fromMaybe Branch.empty branch)
 
-resolveShortCausalHashToCausalHash :: ShortCausalHash -> Sqlite.Transaction (Either Output.Output CausalHash)
-resolveShortCausalHashToCausalHash shortHash = do
+resolveShortCausalHashToCausalHash ::
+  (forall void. Output.Output -> Sqlite.Transaction void) ->
+  ShortCausalHash ->
+  Sqlite.Transaction CausalHash
+resolveShortCausalHashToCausalHash rollback shortHash = do
   hashes <- Codebase.causalHashesByPrefix shortHash
-  case Set.asSingleton hashes of
-    Nothing ->
-      fmap Left do
-        if Set.null hashes
-          then pure (Output.NoBranchWithHash shortHash)
-          else do
-            len <- Codebase.branchHashLength
-            pure (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
-    Just hash -> pure (Right hash)
+  Set.asSingleton hashes & onNothing do
+    if Set.null hashes
+      then rollback (Output.NoBranchWithHash shortHash)
+      else do
+        len <- Codebase.branchHashLength
+        rollback (Output.BranchHashAmbiguous shortHash (Set.map (SCH.fromHash len) hashes))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting/Setting branches
@@ -236,7 +250,7 @@ modifyRootBranch f = do
   rootVar <- use #root
   atomically do
     root <- takeTMVar rootVar
-    let newRoot = f root
+    let !newRoot = f root
     putTMVar rootVar newRoot
     pure newRoot
 
@@ -244,7 +258,8 @@ modifyRootBranch f = do
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
   path <- getCurrentPath
-  getBranchAt path
+  Cli.Env {codebase} <- ask
+  liftIO $ Codebase.getBranchAtPath codebase path
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)
@@ -278,11 +293,31 @@ getMaybeBranchAt path = do
   rootBranch <- getRootBranch
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
+-- | Get the maybe-branch0 at an absolute path.
+getMaybeBranch0At :: Path.Absolute -> Cli (Maybe (Branch0 IO))
+getMaybeBranch0At path =
+  fmap Branch.head <$> getMaybeBranchAt path
+
+-- | Get the branch at a relative path, or return early if there's no such branch.
+expectBranchAtPath :: Path -> Cli (Branch IO)
+expectBranchAtPath =
+  expectBranchAtPath' . Path' . Right . Path.Relative
+
 -- | Get the branch at an absolute or relative path, or return early if there's no such branch.
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
   getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+
+-- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
+expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
+expectBranch0AtPath' =
+  fmap Branch.head . expectBranchAtPath'
+
+-- | Get the branch0 at a relative path, or return early if there's no such branch.
+expectBranch0AtPath :: Path -> Cli (Branch0 IO)
+expectBranch0AtPath =
+  expectBranch0AtPath' . Path' . Right . Path.Relative
 
 -- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
 -- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
@@ -420,6 +455,19 @@ updateAt ::
 updateAt reason p f = do
   updateAtM reason p (pure . f)
 
+updateAndStepAt ::
+  (Foldable f, Foldable g) =>
+  Text ->
+  f (Path.Absolute, Branch IO -> Branch IO) ->
+  g (Path, Branch0 IO -> Branch0 IO) ->
+  Cli ()
+updateAndStepAt reason updates steps = do
+  root <-
+    (Branch.stepManyAt steps)
+      . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
+      <$> getRootBranch
+  updateRoot root reason
+
 updateRoot :: Branch IO -> Text -> Cli ()
 updateRoot new reason =
   Cli.time "updateRoot" do
@@ -526,12 +574,14 @@ getTermFromLatestParsedFile (HQ.NameOnly n) = do
         _ -> Nothing
 getTermFromLatestParsedFile _ = pure Nothing
 
-getNamesFromLatestParsedFile :: Cli Names
-getNamesFromLatestParsedFile = do
-  uf <- getLatestParsedFile
-  pure $ case uf of
+-- | Gets the names from the latest typechecked unison file, or latest parsed file if it
+-- didn't typecheck.
+getNamesFromLatestFile :: Cli Names
+getNamesFromLatestFile = do
+  use #latestTypecheckedFile <&> \case
+    Just (Right tf) -> UFN.typecheckedToNames tf
+    Just (Left uf) -> UFN.toNames uf
     Nothing -> mempty
-    Just uf -> UFN.toNames uf
 
 -- | Get the latest typechecked unison file, or return early if there isn't one.
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)

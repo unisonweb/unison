@@ -1,10 +1,20 @@
-module Unison.Syntax.TypeParser where
+{-# LANGUAGE OverloadedStrings #-}
+
+module Unison.Syntax.TypeParser
+  ( computationType
+  , valueType
+  , valueTypeLeaf
+  ) where
 
 import Control.Monad.Reader (asks)
 import Data.Set qualified as Set
 import Text.Megaparsec qualified as P
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -41,7 +51,7 @@ typeAtom =
     HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
     hq -> do
       names <- asks names
-      let matches = Names.lookupHQType hq names
+      let matches = Names.lookupHQType Names.IncludeSuffixes hq names
       if Set.size matches /= 1
         then P.customFailure (UnknownType tok matches)
         else pure $ Type.ref (ann tok) (Set.findMin matches)
@@ -93,8 +103,10 @@ sequenceTyp = do
   let a = ann open <> ann close
   pure $ Type.app a (Type.list a) t
 
-tupleOrParenthesizedType :: (Var v) => TypeP v m -> TypeP v m
-tupleOrParenthesizedType rec = tupleOrParenthesized rec DD.unitType pair
+tupleOrParenthesizedType :: Var v => TypeP v m -> TypeP v m
+tupleOrParenthesizedType rec = do
+  (spanAnn, ty) <- tupleOrParenthesized rec DD.unitType pair
+  pure (ty {ABT.annotation = ABT.annotation ty <> spanAnn})
   where
     pair t1 t2 =
       let a = ann t1 <> ann t2
@@ -113,6 +125,6 @@ forall :: (Var v) => TypeP v m -> TypeP v m
 forall rec = do
   kw <- reserved "forall" <|> reserved "∀"
   vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
-  _ <- matchToken $ L.SymbolyId "." Nothing
+  _ <- matchToken $ L.SymbolyId (HQ'.fromName (Name.fromSegment (NameSegment ".")))
   t <- rec
   pure $ Type.foralls (ann kw <> ann t) vars t

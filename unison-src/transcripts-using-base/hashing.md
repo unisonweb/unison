@@ -55,7 +55,7 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```unison
-> crypto.hash Sha3_256 (fromHex "3849238492")
+> hash Sha3_256 (fromHex "3849238492")
 ```
 
 ## Hashing tests
@@ -184,6 +184,14 @@ test> blake2b_512.tests.ex3 =
   ex Blake2b_512
     "The quick brown fox jumps over the lazy dof"
     "ab6b007747d8068c02e25a6008db8a77c218d94f3b40d2291a7dc8a62090a744c082ea27af01521a102e42f480a31e9844053f456b4b41e8aa78bbe5c12957bb"
+
+-- check that hashing positive numbers that fit in both Nat and
+-- Int yields the same answer
+test> crypto.hash.numTests =
+        t n =
+          i = Int.fromRepresentation n
+          hash Blake2b_256 n == hash Blake2b_256 i
+        checks (List.map t (range 0 20))
 ```
 
 ```ucm:hide

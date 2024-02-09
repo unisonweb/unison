@@ -68,7 +68,7 @@ foo = 1
 
   ⍟ I've added these definitions:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 ```unison
@@ -82,7 +82,7 @@ foo = 2
 
   ⍟ I've added these definitions:
   
-    foo : Nat
+    foo : ##Nat
 
 .a> merge .b
 
@@ -91,10 +91,10 @@ foo = 2
   
   New name conflicts:
   
-    1. foo#gjmq673r1v : Nat
+    1. foo#gjmq673r1v : ##Nat
        ↓
-    2. ┌ foo#dcgdua2lj6 : Nat
-    3. └ foo#gjmq673r1v : Nat
+    2. ┌ foo#dcgdua2lj6 : ##Nat
+    3. └ foo#gjmq673r1v : ##Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -107,7 +107,7 @@ foo = 2
 A delete should remove both versions of the term.
 
 ```ucm
-.a> delete.verbose foo
+.> delete.verbose a.foo
 
   Removed definitions:
   
@@ -123,6 +123,8 @@ A delete should remove both versions of the term.
 
 ```
 ```ucm
+  ☝️  The namespace .a is empty.
+
 .a> ls
 
   nothing to show
@@ -161,12 +163,9 @@ structural type Foo = Foo
   New name conflicts:
   
     1. structural type Foo#089vmor9c5
-         
        ↓
     2. ┌ structural type Foo#00nv2kob8f
-           
     3. └ structural type Foo#089vmor9c5
-           
     
     4. Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
        ↓
@@ -182,7 +181,7 @@ structural type Foo = Foo
 
 ```
 ```ucm
-.a> delete.verbose Foo
+.> delete.verbose a.Foo
 
   Removed definitions:
   
@@ -199,7 +198,7 @@ structural type Foo = Foo
 
 ```
 ```ucm
-.a> delete.verbose Foo.Foo
+.> delete.verbose a.Foo.Foo
 
   Removed definitions:
   

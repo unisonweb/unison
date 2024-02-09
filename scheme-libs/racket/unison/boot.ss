@@ -20,6 +20,11 @@
   data
   data-case
 
+  expand-sandbox
+  check-sandbox
+  set-sandbox
+
+  (struct-out unison-data)
   (struct-out unison-termlink)
   (struct-out unison-termlink-con)
   (struct-out unison-termlink-builtin)
@@ -28,6 +33,7 @@
   (struct-out unison-typelink-builtin)
   (struct-out unison-typelink-derived)
   declare-function-link
+  declare-code
 
   request
   request-case
@@ -35,11 +41,14 @@
   sum-case
   unison-force
   string->chunked-string
+  empty-chunked-list
 
   identity
 
   describe-value
   decode-value
+
+  top-exn-handler
 
   reference->termlink
   reference->typelink
@@ -47,7 +56,10 @@
   typelink->reference
   termlink->referent
 
-  unison-tuple->list)
+  unison-tuple->list
+  list->unison-tuple
+  unison-tuple
+  unison-seq)
 
 (require
   (for-syntax
@@ -62,11 +74,14 @@
   (only-in racket/control prompt0-at control0-at)
   unison/core
   unison/data
+  unison/sandbox
   unison/data-info
   unison/crypto
   (only-in unison/chunked-seq
            string->chunked-string
-           chunked-string->string))
+           chunked-string->string
+           vector->chunked-list
+           empty-chunked-list))
 
 ; Computes a symbol for automatically generated partial application
 ; cases, based on number of arguments applied. The partial
@@ -89,62 +104,59 @@
 ; The intent is for the scheme compiler to be able to recognize and
 ; optimize static, fast path calls itself, while still supporting
 ; unison-like automatic partial application and such.
-(define-syntax define-unison
-  (lambda (x)
-    (define (fast-path-symbol name)
-      (string->symbol
-        (string-append
-          "fast-path-"
-          (symbol->string name))))
+(define-syntax (define-unison x)
+  (define (fast-path-symbol name)
+    (string->symbol
+      (string-append
+        (symbol->string name)
+        ":fast-path")))
 
-    (define (fast-path-name name)
-      (datum->syntax name (fast-path-symbol (syntax->datum name))))
+  (define (fast-path-name name)
+    (datum->syntax name (fast-path-symbol (syntax->datum name))))
 
-    ; Helper function. Turns a list of syntax objects into a
-    ; list-syntax object.
-    (define (list->syntax l) #`(#,@l))
-    ; Builds partial application cases for unison functions.
-    ; It seems most efficient to have a case for each posible
-    ; under-application.
-    (define (build-partials name formals)
-      (let rec ([us formals] [acc '()])
-        (syntax-case us ()
-          [() (list->syntax (cons #`[() #,name] acc))]
-          [(a ... z)
-           (rec #'(a ...)
-                (cons
-                  #`[(a ... z)
-                     (with-name
-                       #,(datum->syntax name (syntax->datum name))
-                       (partial-app #,name a ... z))]
-                  acc))])))
-
-    ; Given an overall function name, a fast path name, and a list of
-    ; arguments, builds the case-lambda body of a unison function that
-    ; enables applying to arbitrary numbers of arguments.
-    (define (func-cases name fast args)
-      (syntax-case args ()
-        [() (quasisyntax/loc x
-              (case-lambda
-                [() (#,fast)]
-                [r (apply (#,fast) r)]))]
+  ; Helper function. Turns a list of syntax objects into a
+  ; list-syntax object.
+  (define (list->syntax l) #`(#,@l))
+  ; Builds partial application cases for unison functions.
+  ; It seems most efficient to have a case for each posible
+  ; under-application.
+  (define (build-partials name formals)
+    (let rec ([us formals] [acc '()])
+      (syntax-case us ()
+        [() (list->syntax (cons #`[() #,name] acc))]
         [(a ... z)
-         (quasisyntax/loc x
-           (case-lambda
-             #,@(build-partials name #'(a ...))
-             [(a ... z) (#,fast a ... z)]
-             [(a ... z . r) (apply (#,fast a ... z) r)]))]))
+         (rec #'(a ...)
+              (cons
+                #`[(a ... z)
+                   (with-name
+                     #,(datum->syntax name (syntax->datum name))
+                     (partial-app #,name a ... z))]
+                acc))])))
 
-    (define (func-wrap name args body)
-      (with-syntax ([fp (fast-path-name name)])
-        #`(let ([fp #,(quasisyntax/loc x
-                        (lambda (#,@args) #,@body))])
-            #,(func-cases name #'fp args))))
+  ; Given an overall function name, a fast path name, and a list of
+  ; arguments, builds the case-lambda body of a unison function that
+  ; enables applying to arbitrary numbers of arguments.
+  (define (func-cases name name:fast args)
+    (syntax-case args ()
+      [() (quasisyntax/loc x
+            (case-lambda
+              [() (#,name:fast)]
+              [r (apply (#,name:fast) r)]))]
+      [(a ... z)
+       (quasisyntax/loc x
+         (case-lambda
+           #,@(build-partials name #'(a ...))
+           [(a ... z) (#,name:fast a ... z)]
+           [(a ... z . r) (apply (#,name:fast a ... z) r)]))]))
 
-    (syntax-case x ()
-      [(define-unison (name a ...) e ...)
-       #`(define name
-           #,(func-wrap #'name #'(a ...) #'(e ...)))])))
+  (syntax-case x ()
+    [(define-unison (name a ...) e ...)
+     (let ([fname (fast-path-name #'name)])
+       (with-syntax ([name:fast fname]
+                     [fast (syntax/loc x (lambda (a ...) e ...))]
+                     [slow (func-cases #'name fname #'(a ...))])
+         (syntax/loc x
+           (define-values (name:fast name) (values fast slow)))))]))
 
 ; call-by-name bindings
 (define-syntax name
@@ -380,7 +392,8 @@
                         #'unison-data-tag
                         #'unison-data-fields
                         #'(c ...))])
-         #'(case (unison-data-tag scrut) tc ...))])))
+         (syntax/loc stx
+           (case (unison-data-tag scrut) tc ...)))])))
 
 (define-syntax request-case
   (lambda (stx)
@@ -498,7 +511,7 @@
   (match rf
     [(unison-data _ t (list nm))
      #:when (= t unison-reference-builtin:tag)
-     (unison-termlink-builtin nm)]
+     (unison-termlink-builtin (chunked-string->string nm))]
     [(unison-data _ t (list id))
      #:when (= t unison-reference-derived:tag)
      (match id
@@ -548,3 +561,33 @@
      (unison-referent-con
        (typelink->reference tyl)
        i)]))
+
+(define (list->unison-tuple l)
+  (foldr unison-tuple-pair unison-unit-unit l))
+
+(define (unison-tuple . l) (list->unison-tuple l))
+
+(define (unison-seq . l)
+  (vector->chunked-list (list->vector l)))
+
+; Top level exception handler, moved from being generated in unison.
+; The in-unison definition was effectively just literal scheme code
+; represented as a unison data type, with some names generated from
+; codebase data.
+;
+; Note: the ref-4n0fgs00 stuff is probably not ultimately correct, but
+; is how things work for now.
+(define (top-exn-handler rq)
+  (request-case rq
+    [pure (x)
+      (match x
+        [(unison-data r 0 (list))
+         (eq? r unison-unit:link)
+         (display "")]
+        [else
+          (display (describe-value x))])]
+    [ref-4n0fgs00
+      [0 (f)
+       (control 'ref-4n0fgs00 k
+         (let ([disp (describe-value f)])
+           (raise (make-exn:bug "builtin.bug" disp))))]]))

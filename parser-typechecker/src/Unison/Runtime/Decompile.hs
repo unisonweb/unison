@@ -4,17 +4,24 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.Decompile (decompile) where
+module Unison.Runtime.Decompile
+  ( decompile,
+    DecompResult,
+    DecompError (..),
+    renderDecompError,
+  )
+where
 
+import Data.Set (singleton)
 import Unison.ABT (substs)
 import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Foreign
-  ( Foreign,
+  ( Foreign (..),
     HashAlgorithm (..),
     maybeUnwrapBuiltin,
     maybeUnwrapForeign,
@@ -25,6 +32,7 @@ import Unison.Runtime.Stack
     pattern DataC,
     pattern PApV,
   )
+import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
   ( Term,
     app,
@@ -57,26 +65,87 @@ import Unison.Type
     typeLinkRef,
   )
 import Unison.Util.Bytes qualified as By
-import Unison.Util.Pretty (lit)
+import Unison.Util.Pretty (indentN, lines, lit, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
 import Unsafe.Coerce -- for Int -> Double
+import Prelude hiding (lines)
 
 con :: (Var v) => Reference -> Word64 -> Term v ()
 con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)
 
-err :: String -> Either Error a
-err = Left . lit . fromString
+bug :: (Var v) => Text -> Term v ()
+bug msg = app () (builtin () "bug") (text () msg)
+
+err :: DecompError -> a -> (Set DecompError, a)
+err err x = (singleton err, x)
+
+data DecompError
+  = BadBool !Word64
+  | BadUnboxed !Reference
+  | BadForeign !Reference
+  | BadData !Reference
+  | BadPAp !Reference
+  | UnkComb !Reference
+  | UnkLocal !Reference !Word64
+  | Cont
+  | Exn
+  deriving (Eq, Ord)
+
+type DecompResult v = (Set DecompError, Term v ())
+
+prf :: Reference -> Error
+prf = syntaxToColor . prettyReference 10
+
+renderDecompError :: DecompError -> Error
+renderDecompError (BadBool n) =
+  lines
+    [ wrap "A boolean value had an unexpected constructor tag:",
+      indentN 2 . lit . fromString $ show n
+    ]
+renderDecompError (BadUnboxed rf) =
+  lines
+    [ wrap "An apparent numeric type had an unrecognized reference:",
+      indentN 2 $ prf rf
+    ]
+renderDecompError (BadForeign rf) =
+  lines
+    [ wrap "A foreign value with no decompiled representation was encountered:",
+      indentN 2 $ prf rf
+    ]
+renderDecompError (BadData rf) =
+  lines
+    [ wrap
+        "A data type with no decompiled representation was encountered:",
+      indentN 2 $ prf rf
+    ]
+renderDecompError (BadPAp rf) =
+  lines
+    [ wrap "A partial function application could not be decompiled: ",
+      indentN 2 $ prf rf
+    ]
+renderDecompError (UnkComb rf) =
+  lines
+    [ wrap "A reference to an unknown function was encountered: ",
+      indentN 2 $ prf rf
+    ]
+renderDecompError (UnkLocal rf n) =
+  lines
+    [ "A reference to an unknown portion to a function was encountered: ",
+      indentN 2 $ "function: " <> prf rf,
+      indentN 2 $ "section: " <> lit (fromString $ show n)
+    ]
+renderDecompError Cont = "A continuation value was encountered"
+renderDecompError Exn = "An exception value was encountered"
 
 decompile ::
   (Var v) =>
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Closure ->
-  Either Error (Term v ())
+  DecompResult v
 decompile _ _ (DataC rf (maskTags -> ct) [] [])
-  | rf == booleanRef =
-      boolean () <$> tag2bool ct
+  | rf == booleanRef = tag2bool ct
 decompile _ _ (DataC rf (maskTags -> ct) [i] []) =
   decompileUnboxed rf ct i
 decompile backref topTerms (DataC rf _ [] [b])
@@ -85,29 +154,26 @@ decompile backref topTerms (DataC rf _ [] [b])
 decompile backref topTerms (DataC rf (maskTags -> ct) [] bs) =
   apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
 decompile backref topTerms (PApV (CIx rf rt k) [] bs)
+  | rf == Builtin "jumpCont" = err Cont $ bug "<Continuation>"
   | Just t <- topTerms rt k =
       Term.etaReduceEtaVars . substitute t
         <$> traverse (decompile backref topTerms) bs
   | k > 0,
     Just _ <- topTerms rt 0 =
-      err "cannot decompile an application to a local recursive binding"
-  | otherwise =
-      err $ "reference to unknown combinator: " ++ show rf
-decompile _ _ cl@(PAp _ _ _) =
-  err $
-    "cannot decompile a partial application to unboxed values: "
-      ++ show cl
-decompile _ _ (DataC {}) =
-  err "cannot decompile data type with multiple unboxed fields"
-decompile _ _ BlackHole = err "exception"
-decompile _ _ (Captured {}) = err "decompiling a captured continuation"
+      err (UnkLocal rf k) $ bug "<Unknown>"
+  | otherwise = err (UnkComb rf) $ ref () rf
+decompile _ _ (PAp (CIx rf _ _) _ _) =
+  err (BadPAp rf) $ bug "<Unknown>"
+decompile _ _ (DataC rf _ _ _) = err (BadData rf) $ bug "<Data>"
+decompile _ _ BlackHole = err Exn $ bug "<Exception>"
+decompile _ _ (Captured {}) = err Cont $ bug "<Continuation>"
 decompile backref topTerms (Foreign f) =
   decompileForeign backref topTerms f
 
-tag2bool :: Word64 -> Either Error Bool
-tag2bool 0 = Right False
-tag2bool 1 = Right True
-tag2bool _ = err "bad boolean tag"
+tag2bool :: (Var v) => Word64 -> DecompResult v
+tag2bool 0 = pure (boolean () False)
+tag2bool 1 = pure (boolean () True)
+tag2bool n = err (BadBool n) $ con booleanRef n
 
 substitute :: (Var v) => Term v () -> [Term v ()] -> Term v ()
 substitute = align []
@@ -118,35 +184,34 @@ substitute = align []
     align vts tm ts = apps' (substs vts tm) ts
 
 decompileUnboxed ::
-  (Var v) => Reference -> Word64 -> Int -> Either Error (Term v ())
+  (Var v) => Reference -> Word64 -> Int -> DecompResult v
 decompileUnboxed r _ i
   | r == natRef = pure . nat () $ fromIntegral i
   | r == intRef = pure . int () $ fromIntegral i
   | r == floatRef = pure . float () $ unsafeCoerce i
   | r == charRef = pure . char () $ toEnum i
-decompileUnboxed r _ _ =
-  err $ "cannot decompile unboxed data type with reference: " ++ show r
+  | otherwise = err (BadUnboxed r) . nat () $ fromIntegral i
 
 decompileForeign ::
   (Var v) =>
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
-  Either Error (Term v ())
+  DecompResult v
 decompileForeign backref topTerms f
-  | Just t <- maybeUnwrapBuiltin f = Right $ text () (Text.toText t)
-  | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
-  | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
+  | Just t <- maybeUnwrapBuiltin f = pure $ text () (Text.toText t)
+  | Just b <- maybeUnwrapBuiltin f = pure $ decompileBytes b
+  | Just h <- maybeUnwrapBuiltin f = pure $ decompileHashAlgorithm h
   | Just l <- maybeUnwrapForeign termLinkRef f =
-      Right . termLink () $ case l of
+      pure . termLink () $ case l of
         Ref r -> maybe l Ref $ backref r
         _ -> l
   | Just l <- maybeUnwrapForeign typeLinkRef f =
-      Right $ typeLink () l
+      pure $ typeLink () l
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
-decompileForeign _ _ f =
-  err $ "cannot decompile Foreign: " ++ show f
+decompileForeign _ _ (Wrap r _) =
+  err (BadForeign r) $ bug "<Foreign>"
 
 decompileBytes :: (Var v) => By.Bytes -> Term v ()
 decompileBytes =

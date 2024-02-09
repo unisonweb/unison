@@ -8,7 +8,7 @@ module Unison.CommandLine.OutputMessages where
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Trans.Writer.CPS
+import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -21,18 +21,22 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
+import Debug.RecoverRTTI qualified as RTTI
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
-import System.Directory (canonicalizePath, doesFileExist, getHomeDirectory)
+import System.Directory (canonicalizePath, getHomeDirectory)
+import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
@@ -40,11 +44,10 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
+import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
-    DisplayDefinitionsOutput (..),
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
@@ -76,6 +79,7 @@ import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
+import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import Unison.CommandLine.InputPatterns qualified as IP
@@ -91,13 +95,13 @@ import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyTerminal
@@ -112,7 +116,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -124,14 +128,12 @@ import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
-import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toString, toText)
 import Unison.Syntax.NamePrinter
-  ( SyntaxText,
-    prettyHashQualified,
+  ( prettyHashQualified,
     prettyHashQualified',
     prettyName,
     prettyNamedReference,
@@ -147,7 +149,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -157,6 +158,9 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+
+reportBugURL :: Pretty
+reportBugURL = "https://github.com/unisonweb/unison/issues/new"
 
 type Pretty = P.Pretty P.ColorText
 
@@ -758,8 +762,19 @@ notifyUser dir = \case
                 [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath' squashedPath]
               <> "to push the changes."
         ]
-  DisplayDefinitions output -> displayDefinitions output
-  OutputRewrittenFile ppe dest msg uf -> displayOutputRewrittenFile ppe dest msg uf
+  LoadedDefinitionsToSourceFile fp numDefinitions ->
+    pure $
+      P.callout "☝️" $
+        P.lines
+          [ P.wrap $ "I added " <> P.shown @Int numDefinitions <> " definitions to the top of " <> fromString fp,
+            "",
+            P.wrap $
+              "You can edit them there, then run"
+                <> makeExample' IP.update
+                <> "to replace the definitions currently in this namespace."
+          ]
+  DisplayDefinitions code -> pure code
+  OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
@@ -785,15 +800,15 @@ notifyUser dir = \case
           ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
-  TestIncrementalOutputStart ppe (n, total) r _src -> do
+  TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
         <> " tests left to run, current test: "
-        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
+        <> P.syntaxToColor (prettyHashQualified (PPE.termName ppe $ Referent.fromTermReferenceId r))
     pure mempty
-  TestIncrementalOutputEnd _ppe (_n, _total) _r result -> do
+  TestIncrementalOutputEnd _ppe (_n, _total) _r isOk -> do
     clearCurrentLine
-    if isTestOk result
+    if isOk
       then putPretty' "  ✅  "
       else putPretty' "  🚫  "
     pure mempty
@@ -805,34 +820,6 @@ notifyUser dir = \case
             <> " is missing from the codebase! This means something might be wrong "
             <> " with the codebase, or the term was deleted just now "
             <> " by someone else. Trying your command again might fix it."
-      ]
-  MetadataMissingType ppe ref ->
-    pure . P.fatalCallout . P.lines $
-      [ P.wrap $
-          "The metadata value "
-            <> P.red (prettyTermName ppe ref)
-            <> "is missing a type signature in the codebase.",
-        "",
-        P.wrap $
-          "This might be due to pulling an incomplete"
-            <> "or invalid codebase, or because files inside the codebase"
-            <> "are being deleted external to UCM."
-      ]
-  MetadataAmbiguous hq _ppe [] ->
-    pure
-      . P.warnCallout
-      . P.wrap
-      $ "I couldn't find any metadata matching "
-        <> P.syntaxToColor (prettyHashQualified hq)
-  MetadataAmbiguous _ ppe refs ->
-    pure . P.warnCallout . P.lines $
-      [ P.wrap $
-          "I'm not sure which metadata value you're referring to"
-            <> "since there are multiple matches:",
-        "",
-        P.indentN 2 $ P.spaced (P.blue . prettyTermName ppe <$> refs),
-        "",
-        tip "Try again and supply one of the above definitions explicitly."
       ]
   EvaluationFailure err -> pure err
   TypeTermMismatch typeName termName ->
@@ -880,6 +867,8 @@ notifyUser dir = \case
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
+  MoveNothingFound p ->
+    pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath' p <> "."
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
@@ -909,7 +898,7 @@ notifyUser dir = \case
           "",
           P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs to be a subtype of:",
           "",
           P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
@@ -1010,8 +999,6 @@ notifyUser dir = \case
       ]
   ListOfDefinitions fscope ppe detailed results ->
     listOfDefinitions fscope ppe detailed results
-  ListOfLinks ppe results ->
-    listOfLinks ppe [(name, tm) | (name, _ref, tm) <- results]
   ListNames global len types terms ->
     if null types && null terms
       then
@@ -1139,11 +1126,11 @@ notifyUser dir = \case
         ]
   ParseErrors src es ->
     pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
-  TypeErrors curPath src ppenv notes -> do
+  TypeErrors _curPath src ppenv notes -> do
     let showNote =
-          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src) curPath)
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    pure . showNote $ notes
+    pure $ showNote notes
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
@@ -1195,6 +1182,9 @@ notifyUser dir = \case
                 "",
                 P.lines [("  " <> prettyName x) | x <- toList things]
               ]
+  LoadingFile sourceName -> do
+    fileName <- renderFileName $ Text.unpack sourceName
+    pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
   -- TODO: Present conflicting TermEdits and TypeEdits
   -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
@@ -1436,19 +1426,6 @@ notifyUser dir = \case
         (P.column2 . fmap format) ([(1 :: Integer) ..] `zip` (toList patches))
         where
           format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
-  ConfiguredMetadataParseError p md err ->
-    pure . P.fatalCallout . P.lines $
-      [ P.wrap $
-          "I couldn't understand the default metadata that's set for "
-            <> prettyPath' p
-            <> " in .unisonConfig.",
-        P.wrap $
-          "The value I found was"
-            <> (P.backticked . P.blue . P.string) md
-            <> "but I encountered the following error when trying to parse it:",
-        "",
-        err
-      ]
   NoConfiguredRemoteMapping pp p -> do
     let (localPathExample, sharePathExample) =
           if Path.isRoot p
@@ -1678,7 +1655,6 @@ notifyUser dir = \case
     pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat
   NoOp -> pure $ P.string "I didn't make any changes."
-  DefaultMetadataNotification -> pure $ P.wrap "I added some default metadata."
   DumpBitBooster head map ->
     let go output [] = output
         go output (head : queue) = case Map.lookup head map of
@@ -1802,6 +1778,22 @@ notifyUser dir = \case
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
+  DebugTerm verbose builtinOrTerm -> pure $ case builtinOrTerm of
+    Left builtin -> "Builtin term: ##" <> P.text builtin
+    Right trm ->
+      if verbose
+        then P.text . TL.toStrict . pStringNoColor $ RTTI.anythingToString trm
+        else P.shown trm
+  DebugDecl typ mayConId -> do
+    let constructorMsg = case mayConId of
+          Nothing -> ""
+          Just conId -> "Constructor #" <> P.shown conId <> " of the following type:\n"
+    pure $
+      constructorMsg
+        <> case typ of
+          Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
+          Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -1826,6 +1818,11 @@ notifyUser dir = \case
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
+    pure $
+      P.lines
+        [P.text (FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+  DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
   ClearScreen -> do
     ANSI.clearScreen
     ANSI.setCursorPosition 0 0
@@ -1929,7 +1926,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch
         <> "already exists."
         <> "You can switch to it with "
-        <> IP.makeExampleEOS IP.projectSwitch [prettyBranchName projectAndBranch]
+        <> IP.makeExampleEOS IP.projectSwitch [prettyProjectAndBranchName projectAndBranch]
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
@@ -1958,6 +1955,17 @@ notifyUser dir = \case
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+  RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
+    let push = P.group . P.backticked . IP.patternName $ IP.push
+     in pure . P.wrap $
+          "The previous push target named"
+            <> prettyProjectAndBranchName projectAndBranch
+            <> "has been deleted from"
+            <> P.group (prettyURI host <> ".")
+            <> "I've deleted the invalid push target."
+            <> "Run the"
+            <> push
+            <> "command again to push to a new target."
   RemoteProjectBranchHeadMismatch host projectAndBranch ->
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
@@ -2168,6 +2176,54 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  UpdateLookingForDependents -> pure . P.wrap $ "Okay, I'm searching the branch for code that needs to be updated..."
+  UpdateStartTypechecking -> pure . P.wrap $ "That's done. Now I'm making sure everything typechecks..."
+  UpdateTypecheckingSuccess -> pure . P.wrap $ "Everything typechecks, so I'm saving the results..."
+  UpdateTypecheckingFailure ->
+    pure . P.wrap $
+      "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
+        <> P.newline
+        <> P.newline
+        <> "Once the file is compiling, try"
+        <> makeExample' IP.update
+        <> "again."
+  UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
+    let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
+     in pure $
+          P.lines
+            [ P.wrap $
+                "I couldn't complete the"
+                  <> operationName
+                  <> "because the type"
+                  <> prettyName typeName
+                  <> "has unnamed constructors."
+                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
+              "",
+              P.wrap $
+                "You can use"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName typeName])
+                  <> "and"
+                  <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName typeName <> ".<ConstructorName>"])
+                  <> "to give names to each constructor, and then try the"
+                  <> operationName
+                  <> "again."
+            ]
+  UpgradeFailure path old new ->
+    pure . P.wrap $
+      "I couldn't automatically upgrade"
+        <> P.text (NameSegment.toText old)
+        <> "to"
+        <> P.group (P.text (NameSegment.toText new) <> ".")
+        <> "However, I've added the definitions that need attention to the top of"
+        <> P.group (prettyFilePath path <> ".")
+  UpgradeSuccess old new ->
+    pure . P.wrap $
+      "I upgraded"
+        <> P.text (NameSegment.toText old)
+        <> "to"
+        <> P.group (P.text (NameSegment.toText new) <> ",")
+        <> "and removed"
+        <> P.group (P.text (NameSegment.toText old) <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2210,6 +2266,7 @@ prettyDownloadEntitiesError = \case
   Share.DownloadEntitiesInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
   Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
+  Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationError err
 
 prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
 prettyFastForwardPathError path = \case
@@ -2262,12 +2319,50 @@ prettyUpdatePathError repoInfo = \case
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
-  Share.UploadEntitiesError'HashMismatchForEntity _hashMismatch -> error "TODO: hash mismatch error message"
+  Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyValidationFailure validationFailureErr
+  Share.UploadEntitiesError'HashMismatchForEntity (Share.HashMismatchForEntity {supplied, computed}) ->
+    hashMismatchFromShare supplied computed
   Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.UploadEntitiesError'NeedDependencies dependencies -> needDependencies dependencies
   Share.UploadEntitiesError'NoWritePermission repoInfo -> noWritePermissionForRepo repoInfo
   Share.UploadEntitiesError'ProjectNotFound project -> shareProjectNotFound project
   Share.UploadEntitiesError'UserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
+
+prettyValidationFailure :: Share.EntityValidationError -> Pretty
+prettyValidationFailure = \case
+  Share.EntityHashMismatch entityType (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash32 entityType ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash32 <> " of type " <> prettyEntityType entityType <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash32 entityType msg ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType entityType <> " entity with the hash " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text msg
+      ]
+  Share.HashResolutionFailure hash32 ->
+    P.lines
+      [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
+  where
+    prettyEntityType = \case
+      Share.TermComponentType -> "term component"
+      Share.DeclComponentType -> "type component"
+      Share.PatchType -> "patch"
+      Share.PatchDiffType -> "patch diff"
+      Share.NamespaceType -> "namespace"
+      Share.NamespaceDiffType -> "namespace diff"
+      Share.CausalType -> "causal"
 
 prettyTransportError :: CodeserverTransportError -> Pretty
 prettyTransportError = \case
@@ -2307,6 +2402,44 @@ prettyTransportError = \case
     responseRequestId =
       fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
 
+prettyEntityValidationError :: Share.EntityValidationError -> Pretty
+prettyEntityValidationError = \case
+  Share.EntityHashMismatch typ (Share.HashMismatchForEntity {supplied, computed}) ->
+    P.lines
+      [ P.wrap $ "The hash associated with the given " <> prettyEntityType typ <> " entity is incorrect.",
+        "",
+        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+      ]
+  Share.UnsupportedEntityType hash typ ->
+    P.lines
+      [ P.wrap $ "The entity with hash " <> prettyHash32 hash <> " of type " <> prettyEntityType typ <> " is not supported by your version of ucm.",
+        P.wrap $ "Try upgrading to the latest version of ucm."
+      ]
+  Share.InvalidByteEncoding hash typ err ->
+    P.lines
+      [ P.wrap $ "Failed to decode a " <> prettyEntityType typ <> " entity with the hash " <> prettyHash32 hash <> ".",
+        "Please create an issue and report this to the Unison team",
+        "",
+        P.wrap $ "The error was: " <> P.text err
+      ]
+  Share.HashResolutionFailure hash ->
+    -- See https://github.com/unisonweb/unison/pull/4381#discussion_r1452652087 for discussion.
+    P.lines
+      [ P.wrap $ "Failed to resolve data when hashing " <> prettyHash32 hash <> ".",
+        "Please create an issue and report this to the Unison team"
+      ]
+
+prettyEntityType :: Share.EntityType -> Pretty
+prettyEntityType = \case
+  Share.TermComponentType -> "term component"
+  Share.DeclComponentType -> "type component"
+  Share.PatchType -> "patch"
+  Share.PatchDiffType -> "patch diff"
+  Share.NamespaceType -> "namespace"
+  Share.NamespaceDiffType -> "namespace diff"
+  Share.CausalType -> "causal"
+
 invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
 invalidRepoInfo err repoInfo =
   P.lines
@@ -2316,6 +2449,18 @@ invalidRepoInfo err repoInfo =
       P.text "The invalid path is:\n"
         <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
       P.text err
+    ]
+
+hashMismatchFromShare :: Hash32 -> Hash32 -> Pretty
+hashMismatchFromShare supplied computed =
+  P.lines
+    [ P.wrap "Uh oh, Share double-checked the hash of something you're uploading and it didn't match.",
+      P.wrap "Don't worry, you didn't do anything wrong, this is a bug in UCM, please report it and we'll do our best to sort it out 🤞",
+      reportBugURL,
+      "",
+      "Please include the following information in your report:",
+      P.wrap $ "The hash provided by your UCM is: " <> prettyHash32 supplied,
+      P.wrap $ "The hash computed by Share is: " <> prettyHash32 computed
     ]
 
 pushPublicNote :: InputPattern -> Text -> [Text] -> Pretty
@@ -2422,53 +2567,17 @@ formatMissingStuff terms types =
              <> P.column2 [(P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types]
        )
 
-displayOutputRewrittenFile :: (Ord a, Var v) => PPED.PrettyPrintEnvDecl -> FilePath -> String -> ([v], UF.UnisonFile v a) -> IO Pretty
-displayOutputRewrittenFile _ppe _fp _ ([], _uf) =
+displayOutputRewrittenFile :: (Var v) => FilePath -> [v] -> IO Pretty
+displayOutputRewrittenFile _fp [] =
   pure "😶️ I couldn't find any matches in the file."
-displayOutputRewrittenFile ppe fp msg (vs, uf) = do
+displayOutputRewrittenFile fp vs = do
   let modifiedDefs = P.sep " " (P.blue . prettyVar <$> vs)
-  let header = "-- " <> P.string msg <> "\n" <> "-- | Modified definition(s): " <> modifiedDefs
-  fp <- prependToFile (header <> "\n\n" <> prettyUnisonFile ppe uf <> foldLine) fp
   pure $
     P.callout "☝️" . P.lines $
       [ P.wrap $ "I found and replaced matches in these definitions: " <> modifiedDefs,
         "",
         "The rewritten file has been added to the top of " <> fromString fp
       ]
-
-foldLine :: IsString s => P.Pretty s
-foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-
-prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> Pretty
-prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
-  P.sep "\n\n" (map snd . sortOn fst $ pretty <$> things)
-  where
-    things =
-      map Left (map Left (Map.toList effects) <> map Right (Map.toList datas))
-        <> map (Right . (Nothing,)) terms
-        <> (Map.toList watches >>= \(wk, tms) -> map (\a -> Right (Just wk, a)) tms)
-    pretty (Left (Left (n, (r, et)))) =
-      (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
-    pretty (Left (Right (n, (r, dt)))) =
-      (DD.annotation dt, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Right dt))
-    pretty (Right (Nothing, (n, a, tm))) =
-      (a, pb (hqv n) tm)
-    pretty (Right (Just wk, (n, a, tm))) =
-      (a, go wk n tm)
-      where
-        go wk v tm = case wk of
-          WK.RegularWatch
-            | Var.UnnamedWatch _ _ <- Var.typeOf v ->
-                "> " <> P.indentNAfterNewline 2 (TermPrinter.pretty sppe tm)
-          WK.RegularWatch -> "> " <> pb (hqv v) tm
-          w -> P.string w <> "> " <> pb (hqv v) tm
-    st = P.syntaxToColor
-    sppe = PPED.suffixifiedPPE ppe
-    pb v tm = st $ TermPrinter.prettyBinding sppe v tm
-    ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.fromNames 8 (Names.NamesWithHistory (UF.toNames uf) mempty)
-    rd = Reference.DerivedId
-    hqv v = HQ.unsafeFromVar v
 
 displayDefinitions' ::
   (Var v) =>
@@ -2517,139 +2626,26 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
 
 displayRendered :: Maybe FilePath -> Pretty -> IO Pretty
 displayRendered outputLoc pp =
-  maybe (pure pp) scratchAndDisplay outputLoc
+  pure $ maybe pp scratchMessage outputLoc
   where
-    scratchAndDisplay path = do
-      path' <- prependToFile pp path
-      pure (message pp path')
-      where
-        message pp path =
-          P.callout "☝️" $
-            P.lines
-              [ P.wrap $ "I added this to the top of " <> fromString path,
-                "",
-                P.indentN 2 pp
-              ]
-
--- Prepends the rendered Pretty to the file, returning the canonicalized FilePath
-prependToFile :: Pretty -> FilePath -> IO FilePath
-prependToFile pp path0 = do
-  path <- canonicalizePath path0
-  existingContents <- do
-    exists <- doesFileExist path
-    if exists
-      then readUtf8 path
-      else pure ""
-  writeUtf8 path . Text.pack . P.toPlain 80 $ pp <> P.text existingContents
-  pure path
-
-displayDefinitions :: DisplayDefinitionsOutput -> IO Pretty
-displayDefinitions DisplayDefinitionsOutput {isTest, outputFile, prettyPrintEnv = ppe, terms, types} =
-  if Map.null types && Map.null terms
-    then pure $ P.callout "😶" "No results to display."
-    else maybe displayOnly scratchAndDisplay outputFile
-  where
-    ppeDecl = PPED.unsuffixifiedPPE ppe
-    displayOnly = pure (code (const False))
-    scratchAndDisplay path = do
-      path' <- canonicalizePath path
-      prependToFile (code isTest) path'
-      pure (message (code (const False)) path')
-      where
-        prependToFile code path = do
-          existingContents <- do
-            exists <- doesFileExist path
-            if exists
-              then readUtf8 path
-              else pure ""
-          writeUtf8 path . Text.pack . P.toPlain 80 $
-            P.lines
-              [ code,
-                foldLine,
-                P.text existingContents
-              ]
-        message code path =
-          P.callout "☝️" $
-            P.lines
-              [ P.wrap $ "I added these definitions to the top of " <> fromString path,
-                "",
-                P.indentN 2 code,
-                "",
-                P.wrap $
-                  "You can edit them there, then do"
-                    <> makeExample' IP.update
-                    <> "to replace the definitions currently in this namespace."
-              ]
-
-    code :: (TermReference -> Bool) -> Pretty
-    code isTest =
-      P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms isTest)
-
-    prettyTypes :: [P.Pretty SyntaxText]
-    prettyTypes =
-      types
-        & Map.toList
-        & map (\(ref, dt) -> (PPE.typeName ppeDecl ref, ref, dt))
-        & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map prettyType
-
-    prettyTerms :: (TermReference -> Bool) -> [P.Pretty SyntaxText]
-    prettyTerms isTest =
-      terms
-        & Map.toList
-        & map (\(ref, dt) -> (PPE.termName ppeDecl (Referent.Ref ref), ref, dt))
-        & List.sortBy (\(n0, _, _) (n1, _, _) -> Name.compareAlphabetical n0 n1)
-        & map (\t -> prettyTerm (isTest (t ^. _2)) t)
-
-    prettyTerm ::
-      Bool ->
-      (HQ.HashQualified Name, Reference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
-      P.Pretty SyntaxText
-    prettyTerm isTest (n, r, dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject typ ->
-          (if isJust outputFile then P.indent "-- " else id) $
-            P.hang
-              ("builtin " <> prettyHashQualified n <> " :")
-              (TypePrinter.prettySyntax (ppeBody n r) typ)
-        UserObject tm ->
-          if isTest
-            then WK.TestWatch <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature (ppeBody n r) n tm
-            else TermPrinter.prettyBinding (ppeBody n r) n tm
-      where
-        ppeBody n r = PPE.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPE ppe r
-
-    prettyType :: (HQ.HashQualified Name, Reference, DisplayObject () (DD.Decl Symbol Ann)) -> P.Pretty SyntaxText
-    prettyType (n, r, dt) =
-      case dt of
-        MissingObject r -> missing n r
-        BuiltinObject _ -> builtin n
-        UserObject decl -> DeclPrinter.prettyDecl (PPED.biasTo (maybeToList $ HQ.toName n) $ PPE.declarationPPEDecl ppe r) r n decl
-
-    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
-    missing n r =
-      P.wrap
-        ( "-- The name "
-            <> prettyHashQualified n
-            <> " is assigned to the "
-            <> "reference "
-            <> fromString (show r ++ ",")
-            <> "which is missing from the codebase."
-        )
-        <> P.newline
-        <> tip "You might need to repair the codebase manually."
+    scratchMessage path =
+      P.callout "☝️" $
+        P.lines
+          [ P.wrap $ "I added this to the top of " <> fromString path,
+            "",
+            P.indentN 2 pp
+          ]
 
 displayTestResults ::
   Bool -> -- whether to show the tip
   PPE.PrettyPrintEnv ->
-  [(Reference, Text)] ->
-  [(Reference, Text)] ->
+  [(TermReferenceId, Text)] ->
+  [(TermReferenceId, Text)] ->
   Pretty
 displayTestResults showTip ppe oksUnsorted failsUnsorted =
   let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
       fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.Ref r)
+      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
       okMsg =
         if null oks
           then mempty
@@ -2916,33 +2912,6 @@ listOfDefinitions ::
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
 
-listOfLinks ::
-  (Var v) => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
-listOfLinks _ [] =
-  pure . P.callout "😶" . P.wrap $
-    "No results. Try using the "
-      <> IP.makeExample IP.link []
-      <> "command to add metadata to a definition."
-listOfLinks ppe results =
-  pure $
-    P.lines
-      [ P.numberedColumn2
-          num
-          [ (P.syntaxToColor $ prettyHashQualified hq, ": " <> prettyType typ) | (hq, typ) <- results
-          ],
-        "",
-        tip $
-          "Try using"
-            <> IP.makeExample IP.display ["1"]
-            <> "to display the first result or"
-            <> IP.makeExample IP.view ["1"]
-            <> "to view its source."
-      ]
-  where
-    num i = P.hiBlack $ P.shown i <> "."
-    prettyType Nothing = "❓ (missing a type for this definition)"
-    prettyType (Just t) = TypePrinter.pretty ppe t
-
 data ShowNumbers = ShowNumbers | HideNumbers
 
 -- | `ppe` is just for rendering type signatures
@@ -2992,7 +2961,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               else pure mempty,
             if (not . null) updatedTypes
               || (not . null) updatedTerms
-              || propagatedUpdates > 0
               || (not . null) updatedPatches
               then do
                 prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
@@ -3003,16 +2971,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
                     "\n\n"
                     [ P.bold "Updates:",
                       P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms,
-                      if propagatedUpdates > 0
-                        then
-                          P.indentN 2 $
-                            P.wrap
-                              ( P.hiBlack $
-                                  "There were "
-                                    <> P.shown propagatedUpdates
-                                    <> "auto-propagated updates."
-                              )
-                        else mempty,
                       P.indentNonEmptyN 2 . P.linesNonEmpty $ prettyUpdatedPatches
                     ]
               else pure mempty,
@@ -3158,7 +3116,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -}
     prettyUpdateType (OBD.UpdateTypeDisplay (Just olds) news) =
       do
-        olds <- traverse (mdTypeLine oldPath) [OBD.TypeDisplay name r decl mempty | (name, r, decl) <- olds]
+        olds <- traverse (mdTypeLine oldPath) [OBD.TypeDisplay name r decl | (name, r, decl) <- olds]
         news <- traverse (mdTypeLine newPath) news
         let (oldnums, olddatas) = unzip olds
         let (newnums, newdatas) = unzip news
@@ -3168,47 +3126,46 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
 
     {-
-    13. ┌ability Yyz         (+1 metadata)
-    14. └ability copies.Yyz  (+2 metadata)
+    13. ┌ability Yyz
+    14. └ability copies.Yyz
     -}
     prettyAddTypes :: forall a. [OBD.AddedTypeDisplay v a] -> Numbered Pretty
     prettyAddTypes = fmap P.lines . traverse prettyGroup
       where
         prettyGroup :: OBD.AddedTypeDisplay v a -> Numbered Pretty
-        prettyGroup (hqmds, r, odecl) = do
-          pairs <- traverse (prettyLine r odecl) hqmds
+        prettyGroup (hqs, r, odecl) = do
+          pairs <- traverse (prettyLine r odecl) hqs
           let (nums, decls) = unzip pairs
-          let boxLeft = case hqmds of _ : _ : _ -> P.boxLeft; _ -> id
+          let boxLeft = case hqs of
+                _ : _ : _ -> P.boxLeft
+                _ -> id
           pure . P.column2 $ zip nums (boxLeft decls)
-        prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
-        prettyLine r odecl (hq, mds) = do
+        prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> HQ'.HashQualified Name -> Numbered (Pretty, Pretty)
+        prettyLine r odecl hq = do
           n <- numHQ' newPath hq (Referent.Ref r)
-          pure . (n,) $
-            prettyDecl hq odecl <> case length mds of
-              0 -> mempty
-              c -> " (+" <> P.shown c <> " metadata)"
+          pure . (n,) $ prettyDecl hq odecl
 
     prettyAddTerms :: forall a. [OBD.AddedTermDisplay v a] -> Numbered Pretty
     prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms
       where
         reorderTerms = sortOn (not . Referent.isConstructor . view _2)
         prettyGroup :: OBD.AddedTermDisplay v a -> Numbered [(Pretty, Pretty, Pretty)]
-        prettyGroup (hqmds, r, otype) = do
-          pairs <- traverse (prettyLine r otype) hqmds
+        prettyGroup (hqs, r, otype) = do
+          pairs <- traverse (prettyLine r otype) hqs
           let (nums, names, decls) = unzip3 pairs
-              boxLeft = case hqmds of _ : _ : _ -> P.boxLeft; _ -> id
+              boxLeft =
+                case hqs of
+                  _ : _ : _ -> P.boxLeft
+                  _ -> id
           pure $ zip3 nums (boxLeft names) decls
         prettyLine ::
           Referent ->
           Maybe (Type v a) ->
-          (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) ->
+          HQ'.HashQualified Name ->
           Numbered (Pretty, Pretty, Pretty)
-        prettyLine r otype (hq, mds) = do
+        prettyLine r otype hq = do
           n <- numHQ' newPath hq r
-          pure . (n,phq' hq,) $
-            ": " <> prettyType otype <> case length mds of
-              0 -> mempty
-              c -> " (+" <> P.shown c <> " metadata)"
+          pure . (n,phq' hq,) $ ": " <> prettyType otype
 
     prettySummarizePatch, prettyNamePatch :: Input.AbsBranchId -> OBD.PatchDisplay -> Numbered Pretty
     --  12. patch p (added 3 updates, deleted 1)
@@ -3276,11 +3233,10 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
 
     downArrow = P.bold "↓"
     mdTypeLine :: Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
-    mdTypeLine p (OBD.TypeDisplay hq r odecl mddiff) = do
+    mdTypeLine p (OBD.TypeDisplay hq r odecl) = do
       n <- numHQ' p hq (Referent.Ref r)
       fmap ((n,) . P.linesNonEmpty) . sequence $
-        [ pure $ prettyDecl hq odecl,
-          P.indentN leftNumsWidth <$> prettyMetadataDiff mddiff
+        [ pure $ prettyDecl hq odecl
         ]
 
     -- + 2. MIT               : License
@@ -3290,12 +3246,11 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       P.Width ->
       OBD.TermDisplay v a ->
       Numbered (Pretty, Pretty)
-    mdTermLine p namesWidth (OBD.TermDisplay hq r otype mddiff) = do
+    mdTermLine p namesWidth (OBD.TermDisplay hq r otype) = do
       n <- numHQ' p hq r
       fmap ((n,) . P.linesNonEmpty)
         . sequence
-        $ [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype,
-            prettyMetadataDiff mddiff
+        $ [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
           ]
 
     prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
@@ -3309,7 +3264,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       olds <-
         traverse
           (mdTermLine oldPath namesWidth)
-          [OBD.TermDisplay name r typ mempty | (name, r, typ) <- olds]
+          [OBD.TermDisplay name r typ | (name, r, typ) <- olds]
       news <- traverse (mdTermLine newPath namesWidth) news
       let (oldnums, olddatas) = unzip olds
       let (newnums, newdatas) = unzip news
@@ -3323,16 +3278,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             fmap (P.Width . HQ'.nameLength Name.toText . view #name) news
               <> fmap (P.Width . HQ'.nameLength Name.toText . view _1) olds
 
-    prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
-    prettyMetadataDiff OBD.MetadataDiff {..} =
-      P.column2M $
-        map (elem oldPath "- ") removedMetadata
-          <> map (elem newPath "+ ") addedMetadata
-      where
-        elem p x (hq, r, otype) = do
-          num <- numHQ p hq r
-          pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
-
     prettyType :: Maybe (Type v a) -> Pretty
     prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
     prettyDecl hq =
@@ -3340,16 +3285,11 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
     phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
-    phq :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
 
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
       addNumberedArg' $ prefixBranchId prefix name
-
-    numHQ :: Input.AbsBranchId -> HQ.HashQualified Name -> Referent -> Numbered Pretty
-    numHQ prefix hq r =
-      addNumberedArg' . HQ.toStringWith (prefixBranchId prefix) . HQ.requalify hq $ r
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
@@ -3607,16 +3547,6 @@ prettyDiff diff =
                 ]
             else mempty
         ]
-
-isTestOk :: Term v Ann -> Bool
-isTestOk tm = case tm of
-  Term.List' ts -> all isSuccess ts
-    where
-      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
-        cid == DD.okConstructorId
-          && ref == DD.testResultRef
-      isSuccess _ = False
-  _ -> False
 
 -- | Get the list of numbered args corresponding to an endangerment map, which is used by a
 -- few outputs. See 'endangeredDependentsTable'.

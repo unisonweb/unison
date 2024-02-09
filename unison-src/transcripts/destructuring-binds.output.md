@@ -16,6 +16,8 @@ ex1 tup =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -58,6 +60,8 @@ ex2 tup = match tup with
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -80,21 +84,22 @@ ex4 =
 
 ```ucm
 
-  I couldn't find any definitions matching the name a inside the namespace .
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what a refers to here:
   
       2 |   (a,b) = (a Nat.+ b, 19)
+  
+  I think its type should be:
+  
+      Nat
   
   Some common causes of this error include:
     * Your current namespace is too deep to contain the
       definition in its subtree
     * The definition is part of a library which hasn't been
       added to this project
-  
-  To add a library to this project use the command: `fork <.path.to.lib> .lib.<libname>`
-  
-  Whatever it is, its type should conform to Nat.
-  
-  
+    * You have a typo in the name
 
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
@@ -112,6 +117,8 @@ ex5a _ = match (99 + 1, "hi") with
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

@@ -5,6 +5,7 @@ module Unison.Name
 
     -- * Basic construction
     cons,
+    snoc,
     joinDot,
     fromSegment,
     fromSegments,
@@ -13,6 +14,7 @@ module Unison.Name
     -- * Basic queries
     countSegments,
     isAbsolute,
+    isRelative,
     isPrefixOf,
     beginsWithSegment,
     endsWith,
@@ -34,16 +36,18 @@ module Unison.Name
     unqualified,
 
     -- * To organize later
-    libSegment,
-    sortNames,
-    sortNamed,
-    sortByText,
-    searchBySuffix,
-    searchByRankedSuffix,
-    suffixFrom,
-    shortestUniqueSuffix,
     commonPrefix,
+    libSegment,
+    preferShallowLibDepth,
+    searchByRankedSuffix,
+    searchBySuffix,
+    suffixifyByName,
+    suffixifyByHash,
+    sortByText,
+    sortNamed,
+    sortNames,
     splits,
+    suffixFrom,
 
     -- * Re-exports
     module Unison.Util.Alphabetical,
@@ -59,6 +63,7 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
+import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
@@ -116,12 +121,27 @@ cons x name =
           ("cannot cons " ++ show x ++ " onto absolute name" ++ show name)
     Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
 
+-- | Snoc a name segment onto the end of a name.
+--
+-- /O(1)/.
+snoc :: Name -> NameSegment -> Name
+snoc (Name pos (s1 :| ss)) s0 =
+  Name pos (s0 :| s1 : ss)
+
 -- | Return the number of name segments in a name.
 --
 -- /O(n)/, where /n/ is the number of name segments.
 countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
+
+-- | Is this name relative?
+--
+-- /O(1)/.
+isRelative :: Name -> Bool
+isRelative = \case
+  Name Absolute _ -> False
+  Name Relative _ -> True
 
 -- | @beginsWithSegment name segment@ returns whether @name@'s first name segment is @segment@.
 --
@@ -324,23 +344,29 @@ searchBySuffix suffix rel =
 -- Example: foo.bar shadows lib.foo.bar
 -- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
 searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
-searchByRankedSuffix suffix rel = case searchBySuffix suffix rel of
-  rs | Set.size rs <= 1 -> rs
-  rs -> case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
-    -- anything with more than one lib in it is treated the same
-    Nothing -> rs
-    Just rs -> Set.fromList rs
-    where
-      byDepth =
-        List.multimap
-          [ (minLibs ns, r)
-            | r <- toList rs,
-              ns <- [filter ok (toList (R.lookupRan r rel))]
-          ]
-      libCount = length . filter (== libSegment) . toList . reverseSegments
-      minLibs [] = 0
-      minLibs ns = minimum (map libCount ns)
-      ok name = compareSuffix suffix name == EQ
+searchByRankedSuffix suffix rel =
+  let rs = searchBySuffix suffix rel
+   in case Set.size rs <= 1 of
+        True -> rs
+        False ->
+          let ok name = compareSuffix suffix name == EQ
+              withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
+           in preferShallowLibDepth withNames
+
+-- | precondition: input list is deduped, and so is the Name list in
+-- the tuple
+preferShallowLibDepth :: Ord r => [([Name], r)] -> Set r
+preferShallowLibDepth = \case
+  [] -> Set.empty
+  [x] -> Set.singleton (snd x)
+  rs ->
+    let byDepth = List.multimap (map (first minLibs) rs)
+        libCount = length . filter (== libSegment) . toList . reverseSegments
+        minLibs [] = 0
+        minLibs ns = minimum (map libCount ns)
+     in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
+          Nothing -> Set.fromList (map snd rs)
+          Just rs -> Set.fromList rs
 
 libSegment :: NameSegment
 libSegment = NameSegment "lib"
@@ -472,26 +498,44 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
--- Tries to shorten `fqn` to the smallest suffix that still refers
--- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
+-- Tries to shorten `fqn` to the smallest suffix that still
+-- unambiguously refers to the same name. Uses an efficient
+-- logarithmic lookup in the provided relation.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByName fqn rel =
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  where
+    isOk :: Name -> Bool
+    isOk suffix = matchingNameCount == 1
+      where
+        matchingNameCount :: Int
+        matchingNameCount =
+          getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
+
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
+-- Uses an efficient logarithmic lookup in the provided relation.
 -- The returned `Name` may refer to multiple hashes if the original FQN
 -- did as well.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: forall r. (Ord r) => Name -> r -> R.Relation Name r -> Name
-shortestUniqueSuffix fqn r rel =
+suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByHash fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
-    allowed :: Set r
-    allowed =
+    allRefs :: Set r
+    allRefs =
       R.lookupDom fqn rel
+
     isOk :: Name -> Bool
     isOk suffix =
-      (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      Set.size refs == 1 || refs == allRefs
       where
-        rs :: Set r
-        rs =
+        refs :: Set r
+        refs =
           R.searchDom (compareSuffix suffix) rel
 
 -- | Returns the common prefix of two names as segments

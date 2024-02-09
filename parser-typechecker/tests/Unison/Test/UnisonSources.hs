@@ -1,6 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes #-}
-
 module Unison.Test.UnisonSources where
 
 import Control.Exception (throwIO)
@@ -13,9 +10,8 @@ import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import Unison.NamesWithHistory qualified as NamesWithHistory
+import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -46,7 +42,7 @@ type SynthResult =
 type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames Common.hqLength Builtin.names
+ppEnv = PPE.makePPE (PPE.hqNamer Common.hqLength Builtin.names) PPE.dontSuffixify
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left e) = crash e
@@ -92,7 +88,7 @@ go rt files how = do
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)
@@ -103,9 +99,9 @@ decodeResult source (Result notes (Just (Left uf))) =
    in Left $
         showNotes
           source
-          ( PPE.fromNames
-              Common.hqLength
-              (NamesWithHistory.shadowing errNames Builtin.names)
+          ( PPE.makePPE
+              (PPE.hqNamer Common.hqLength (Names.shadowing errNames Builtin.names))
+              PPE.dontSuffixify
           )
           notes
 decodeResult _source (Result _notes (Just (Right uf))) =
@@ -135,7 +131,7 @@ resultTest rt uf filepath = do
       values <- io $ unpack <$> readUtf8 valueFile
       let term = runIdentity (Parsers.parseTerm values parsingEnv)
       let report e = throwIO (userError $ toPlain 10000 e)
-      (bindings, watches) <-
+      (bindings, _, watches) <-
         io $
           either report pure
             =<< evaluateWatches

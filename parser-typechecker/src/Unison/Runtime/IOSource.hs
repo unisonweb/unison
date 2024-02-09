@@ -12,12 +12,10 @@ import Text.RawString.QQ (r)
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.CodeLookup.Util qualified as CL
-import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId qualified as DD
 import Unison.FileParsers (ShouldUseTndr (..), computeTypecheckingEnvironment, synthesizeFile)
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -43,7 +41,7 @@ parsingEnv =
   Parser.ParsingEnv
     { uniqueNames = mempty,
       uniqueTypeGuid = \_ -> pure Nothing,
-      names = Names.NamesWithHistory Builtin.names0 mempty
+      names = Builtin.names
     }
 
 typecheckingEnv :: Typechecker.Env Symbol Ann
@@ -1003,7 +1001,7 @@ type EitherResult = Either String TFile
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source Path.absoluteEmpty
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames 10 Builtin.names
+ppEnv = PPE.makePPE (PPE.hqNamer 10 Builtin.names) PPE.dontSuffixify

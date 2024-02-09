@@ -21,6 +21,7 @@ module Unison.Share.Sync
 where
 
 import Control.Concurrent.STM
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
@@ -40,12 +41,14 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
+import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
 import Servant.API qualified as Servant ((:<|>) (..), (:>))
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
+import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -62,6 +65,7 @@ import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.API qualified as Share (API)
 import Unison.Sync.Common (causalHashToHash32, entityToTempEntity, expectEntity, hash32ToCausalHash)
+import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
 import Unison.Util.Monoid (foldMapM)
 
@@ -73,6 +77,8 @@ maxSimultaneousPullDownloaders :: Int
 maxSimultaneousPullDownloaders = 5
 
 -- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
+-- Share currently parallelizes on it's own in the backend, and any more than one push worker
+-- just results in serialization conflicts which slow things down.
 maxSimultaneousPushWorkers :: Int
 maxSimultaneousPushWorkers = 5
 
@@ -428,6 +434,9 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
               Left err -> failed (TransportError err)
               Right (Share.DownloadEntitiesFailure err) -> failed (SyncError err)
               Right (Share.DownloadEntitiesSuccess entities) -> pure entities
+          case validateEntities entities of
+            Left err -> failed . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
+            Right () -> pure ()
           tempEntities <- Cli.runTransaction (insertEntities entities)
           liftIO (downloadedCallback 1)
           pure (NESet.nonEmptySet tempEntities)
@@ -446,12 +455,33 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
               tempEntities
       liftIO doCompleteTempEntities & onLeftM \err ->
         failed err
-
     -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
     -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
+  where
+    validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
+    validateEntities entities =
+      when shouldValidateEntities $ do
+        ifor_ (NEMap.toMap entities) \hash entity -> do
+          let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
+          case EV.validateEntity hash entityWithHashes of
+            Nothing -> pure ()
+            Just err -> Left err
+
+-- | Only validate entities if this flag is set.
+-- It defaults to disabled because there are terms in the wild that currently fail hash
+-- validation.
+validationEnvKey :: String
+validationEnvKey = "UNISON_ENTITY_VALIDATION"
+
+shouldValidateEntities :: Bool
+shouldValidateEntities = unsafePerformIO $ do
+  lookupEnv validationEnvKey <&> \case
+    Just "true" -> True
+    _ -> False
+{-# NOINLINE shouldValidateEntities #-}
 
 type WorkerCount =
   TVar Int

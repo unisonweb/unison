@@ -24,5 +24,16 @@ data Recorded loc
       loc
   deriving (Show, Eq, Ord, Functor, Generic)
 
-data Blank loc = Blank | Recorded (Recorded loc)
+-- - Blank is just a dummy annotation.
+-- - Recorded indicates that we want to remember the variable's solution
+--   for some kind of
+data Blank loc
+  = -- | just a dummy annotation
+    Blank
+  | -- | indicates that we want to remember the variable's solution for
+    -- some reason
+    Recorded (Recorded loc)
+  | -- | indicates that we want to prefer keeping the variable in the
+    -- context to better refine the above recorded solutions
+    Retain
   deriving (Show, Eq, Ord, Functor, Generic)

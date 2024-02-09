@@ -27,7 +27,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -79,7 +79,7 @@ data Codebase m v a = Codebase
       Text -> -- Reason for the change, will be recorded in the reflog
       Branch m ->
       m (),
-    getBranchForHashImpl :: CausalHash -> m (Maybe (Branch m)),
+    getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
@@ -98,6 +98,10 @@ data Codebase m v a = Codebase
     termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.
     termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
+    -- | Return the subset of the given set that has the given type.
+    filterTermsByReferenceIdHavingTypeImpl :: TypeReference -> Set Reference.Id -> Sqlite.Transaction (Set Reference.Id),
+    -- | Return the subset of the given set that has the given type.
+    filterTermsByReferentIdHavingTypeImpl :: TypeReference -> Set Referent.Id -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors whose hash matches the given prefix.
     termReferentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id),
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.

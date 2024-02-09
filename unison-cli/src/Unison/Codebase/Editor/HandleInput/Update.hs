@@ -16,15 +16,13 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils (displayNames)
-import Unison.Cli.PrettyPrintUtils (prettyPrintEnvDecl)
+import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0 (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.HandleInput.MetadataUtils (addDefaultMetadata)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Propagate qualified as Propagate
@@ -33,7 +31,6 @@ import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import Unison.Codebase.Editor.SlurpComponent qualified as SC
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as Slurp
-import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
@@ -49,12 +46,11 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
-import Unison.Reference (Reference (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
-import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toVar, unsafeFromVar)
@@ -73,7 +69,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
-import Unison.WatchKind qualified as WK
 
 -- | Handle an @update@ command.
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
@@ -85,8 +80,8 @@ handleUpdate input optionalPatch requestedNames = do
           NoPatch -> Nothing
           DefaultPatch -> Just Cli.defaultPatchPath
           UsePatch p -> Just p
-  slurpCheckNames <- Branch.toNames <$> Cli.getCurrentBranch0
-  sr <- getSlurpResultForUpdate requestedNames slurpCheckNames
+  currentCodebaseNames <- Cli.currentNames
+  sr <- getSlurpResultForUpdate requestedNames currentCodebaseNames
   let addsAndUpdates :: SlurpComponent
       addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
       fileNames :: Names
@@ -96,7 +91,7 @@ handleUpdate input optionalPatch requestedNames = do
       typeEdits = do
         v <- Set.toList (SC.types (updates sr))
         let n = Name.unsafeFromVar v
-        let oldRefs0 = Names.typesNamed slurpCheckNames n
+        let oldRefs0 = Names.typesNamed currentCodebaseNames n
         let newRefs = Names.typesNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
           Nothing -> error (reportBug "E722145" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
@@ -111,7 +106,7 @@ handleUpdate input optionalPatch requestedNames = do
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
         let n = Name.unsafeFromVar v
-        let oldRefs0 = Names.refTermsNamed slurpCheckNames n
+        let oldRefs0 = Names.refTermsNamed currentCodebaseNames n
         let newRefs = Names.refTermsNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
           Nothing -> error (reportBug "E936103" ("bad (old,new) names: " ++ show (oldRefs0, newRefs)))
@@ -122,7 +117,7 @@ handleUpdate input optionalPatch requestedNames = do
       termDeprecations =
         [ (n, r)
           | (_, oldTypeRef, _) <- typeEdits,
-            (n, r) <- Names.constructorsForType oldTypeRef slurpCheckNames
+            (n, r) <- Names.constructorsForType oldTypeRef currentCodebaseNames
         ]
   patchOps <- for patchPath \patchPath -> do
     ye'ol'Patch <- Cli.getPatchAt patchPath
@@ -195,11 +190,12 @@ handleUpdate input optionalPatch requestedNames = do
       . Codebase.addDefsToCodebase codebase
       . Slurp.filterUnisonFile sr
       $ Slurp.originalFile sr
-  ppe <- prettyPrintEnvDecl =<< displayNames (Slurp.originalFile sr)
-  Cli.respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) currentCodebaseNames
+  pped <- Cli.prettyPrintEnvDeclFromNames codebaseAndFileNames
+  let suffixifiedPPE = PPE.suffixifiedPPE pped
+  Cli.respond $ SlurpOutput input suffixifiedPPE sr
   whenJust patchOps \(updatedPatch, _, _) ->
     void $ propagatePatchNoSync updatedPatch currentPath'
-  addDefaultMetadata addsAndUpdates
   Cli.syncRoot case patchPath of
     Nothing -> "update.nopatch"
     Just p ->
@@ -596,18 +592,12 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       map doTerm . toList $
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
-    tests = Set.fromList $ view _1 <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
-    (isTestType, isTestValue) = IOSource.isTest
-    md v =
-      if Set.member v tests
-        then Metadata.singleton isTestType isTestValue
-        else Metadata.empty
     doTerm :: Symbol -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
       [r] ->
         let split = Path.splitFromName (Name.unsafeFromVar v)
-         in BranchUtil.makeAddTermName split r (md v)
+         in BranchUtil.makeAddTermName split r
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple terms named "
@@ -619,7 +609,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
       [] -> errorMissingVar v
       [r] ->
         let split = Path.splitFromName (Name.unsafeFromVar v)
-         in BranchUtil.makeAddTypeName split r Metadata.empty
+         in BranchUtil.makeAddTypeName split r
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple types named "
@@ -643,26 +633,19 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
       where
         doDeprecate (n, r) = [BranchUtil.makeDeleteTermName (Path.splitFromName n) r]
 
-    -- we copy over the metadata on the old thing
-    -- todo: if the thing being updated, m, is metadata for something x in b0
-    -- update x's md to reference `m`
     doType :: (Name, TypeReference, TypeReference) -> [(Path, Branch0 m -> Branch0 m)]
     doType (n, old, new) =
       let split = Path.splitFromName n
-          oldMd = BranchUtil.getTypeMetadataAt split old b0
        in [ BranchUtil.makeDeleteTypeName split old,
-            BranchUtil.makeAddTypeName split new oldMd
+            BranchUtil.makeAddTypeName split new
           ]
     doTerm :: (Name, TermReference, TermReference) -> [(Path, Branch0 m -> Branch0 m)]
     doTerm (n, old, new) =
       [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
-        BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
+        BranchUtil.makeAddTermName split (Referent.Ref new)
       ]
       where
         split = Path.splitFromName n
-        -- oldMd is the metadata linked to the old definition
-        -- we relink it to the new definition
-        oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool

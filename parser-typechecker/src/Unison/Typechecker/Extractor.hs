@@ -6,6 +6,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
+import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term
@@ -253,6 +254,12 @@ redundantPattern :: ErrorExtractor v loc loc
 redundantPattern =
   cause >>= \case
     C.RedundantPattern patternLoc -> pure patternLoc
+    _ -> empty
+
+kindInferenceFailure :: ErrorExtractor v loc (KindError v loc)
+kindInferenceFailure =
+  cause >>= \case
+    C.KindInferenceFailure ke -> pure ke
     _ -> empty
 
 typeMismatch :: ErrorExtractor v loc (C.Context v loc)

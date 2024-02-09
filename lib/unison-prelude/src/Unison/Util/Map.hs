@@ -11,6 +11,7 @@ module Unison.Util.Map
     traverseKeysWith,
     swap,
     upsert,
+    upsertF,
     valuesVector,
   )
 where
@@ -44,6 +45,11 @@ swap =
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
 upsert f =
   Map.alter (Just . f)
+
+-- | Upsert an element into a map.
+upsertF :: (Functor f, Ord k) => (Maybe v -> f v) -> k -> Map k v -> f (Map k v)
+upsertF f =
+  Map.alterF (fmap Just . f)
 
 valuesVector :: Map k v -> Vector v
 valuesVector =

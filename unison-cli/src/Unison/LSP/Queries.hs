@@ -37,6 +37,7 @@ import Unison.LabeledDependency
 import Unison.LabeledDependency qualified as LD
 import Unison.Lexer.Pos (Pos (..))
 import Unison.Name (Name)
+import Unison.NamesWithHistory (SearchType (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern qualified as Pattern
@@ -54,6 +55,7 @@ import Unison.Term (MatchCase (MatchCase), Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
@@ -359,6 +361,7 @@ annIsFilePosition = \case
   Ann.Intrinsic -> False
   Ann.External -> False
   Ann.Ann {} -> True
+  Ann.GeneratedFrom ann -> annIsFilePosition ann
 
 -- | Okay, so currently during synthesis in typechecking the typechecker adds `Ann` nodes
 -- to the term specifying types of subterms. This is a problem because we the types in these
@@ -386,7 +389,7 @@ markdownDocsForFQN fileUri fqn =
     nameSearch <- lift $ getNameSearch
     Env {codebase, runtime} <- ask
     liftIO $ do
-      docRefs <- Backend.docsForDefinitionName codebase nameSearch name
+      docRefs <- Backend.docsForDefinitionName codebase nameSearch ExactName name
       for docRefs $ \docRef -> do
-        Identity (_, _, doc) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+        Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
         pure . Md.toText $ Md.toMarkdown doc

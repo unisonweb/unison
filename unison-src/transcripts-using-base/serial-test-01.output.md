@@ -12,10 +12,12 @@ combines = cases
     "(" ++ toText rx ++ ", " ++ toText ry ++ ", \"" ++ rz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-01" combines (l1, l2, l3)
+  saveTestCase "case-01" "v4" combines (l1, l2, l3)
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

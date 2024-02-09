@@ -24,14 +24,16 @@ two.ambiguousTerm = "term two"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type one.AmbiguousType
-      unique type two.AmbiguousType
+      type one.AmbiguousType
+      type two.AmbiguousType
       one.ambiguousTerm : ##Text
       two.ambiguousTerm : ##Text
 
@@ -41,8 +43,8 @@ two.ambiguousTerm = "term two"
 
   ⍟ I've added these definitions:
   
-    unique type one.AmbiguousType
-    unique type two.AmbiguousType
+    type one.AmbiguousType
+    type two.AmbiguousType
     one.ambiguousTerm : ##Text
     two.ambiguousTerm : ##Text
 
@@ -72,6 +74,8 @@ separateAmbiguousTypeUsage _ = ()
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   
     ❓
@@ -106,23 +110,19 @@ useAmbiguousTerm = ambiguousTerm
 
 ```ucm
 
-  I couldn't find any definitions matching the name ambiguousTerm inside the namespace .example.resolution_failures
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what ambiguousTerm refers to here:
   
       1 | useAmbiguousTerm = ambiguousTerm
   
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
+  The name ambiguousTerm is ambiguous. I couldn't narrow it down
+  by type, as any type would work here.
   
-  To add a library to this project use the command: `fork <.path.to.lib> .example.resolution_failures.lib.<libname>`
+  I found some terms in scope that have matching names and
+  types. Maybe you meant one of these:
   
-  There are no constraints on its type.
-  
-  I found some terms in scope that have matching names and types. Maybe you meant one of these:
-  
-    - one.ambiguousTerm : ##Text
-    - two.ambiguousTerm : ##Text
+  one.ambiguousTerm : ##Text
+  two.ambiguousTerm : ##Text
 
 ```

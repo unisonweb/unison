@@ -676,7 +676,7 @@ union ::
   NormalizedConstraints vt v loc ->
   m (Maybe (NormalizedConstraints vt v loc))
 union v0 v1 nc@NormalizedConstraints {constraintMap} =
-  UFMap.union v0 v1 constraintMap \chosenCanon nonCanonValue m ->
+  UFMap.union v0 v1 constraintMap noMerge \chosenCanon nonCanonValue m ->
     -- In this block we want to collect the constraints from the
     -- non-canonical value and add them to the canonical value.
 
@@ -717,6 +717,8 @@ union v0 v1 nc@NormalizedConstraints {constraintMap} =
           IsNotEffectful -> []
           IsEffectful -> [C.Effectful chosenCanon]
      in addConstraints constraints nc {constraintMap = m}
+  where
+    noMerge m = pure nc {constraintMap = m}
 
 modifyListC ::
   forall vt v loc m.

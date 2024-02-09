@@ -46,39 +46,36 @@ Smoke test of the new release. Try `brew upgrade unison-language`, launch it, la
 
 ## 4
 
-Announce on #general Slack channel. Template below.
+Announce on #general Discord channel. Template below.
 
 ---
 
-Release announcement template (be sure to update the release urls) -
+We've just released a new version of Unison, $RELEASE_NAME.
 
-We've just released a new version of Unison, $RELEASE_NAME, release notes here (link to the issue). Install/upgrade instructions in the thread.
+---
 
-Mac upgrade is just `brew upgrade unison-language`.
+**macOS or Linux w/ Homebrew:**
+Install or upgrade is just `brew install unisonweb/unison/unison-language`.
 
-A fresh install via:
+If you have previously done `brew install unison-language --head` to install a dev build, uninstall that first via `brew uninstall unison-language`.
 
+**macOS or Linux manual install:**
+macOS
 ```
-brew tap unisonweb/unison
-brew install unison-language
+mkdir -p unisonlanguage && cd unisonlanguage
+curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-macos.tar.gz \
+  | tar -xz
+./ucm
+```
+Linux
+```
+mkdir -p unisonlanguage && cd unisonlanguage
+curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-linux.tar.gz \
+    | tar -xz
+./ucm
 ```
 
-If you have previously done brew install unison-language --head to install a dev build, uninstall that first via brew uninstall unison-language.
-
-_Linux manual install:_
-
-```
-mkdir unisonlanguage
-curl -L https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-linux.tar.gz --output unisonlanguage/ucm.tar.gz
-tar -xzf unisonlanguage/ucm.tar.gz -C unisonlanguage
-./unisonlanguage/ucm
-```
-
-_Mac manual install:_
-
-```
-mkdir unisonlanguage
-curl -L https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-macos.tar.gz --output unisonlanguage/ucm.tar.gz
-tar -xzf unisonlanguage/ucm.tar.gz -C unisonlanguage
-./unisonlanguage/ucm
-```
+**Windows manual install:**
+* Recommended: [Set your default Terminal application](https://devblogs.microsoft.com/commandline/windows-terminal-as-your-default-command-line-experience/) to “Windows Terminal”.
+* Download [the release](https://github.com/unisonweb/unison/releases/download/release%2FM5h/ucm-windows.zip) and extract it to a location of your choosing.
+* Run `ucm.exe`

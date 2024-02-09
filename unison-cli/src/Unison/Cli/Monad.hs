@@ -5,6 +5,7 @@ module Unison.Cli.Monad
   ( -- * Cli monad
     Cli,
     ReturnType (..),
+    SourceName,
     runCli,
 
     -- * Envronment
@@ -35,13 +36,14 @@ module Unison.Cli.Monad
     -- * Communicating output to the user
     respond,
     respondNumbered,
+    setNumberedArgs,
 
     -- * Debug-timing actions
     time,
 
     -- * Running transactions
     runTransaction,
-    runEitherTransaction,
+    runTransactionWithRollback,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -54,7 +56,6 @@ import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
 import Control.Monad.State.Strict qualified as State
 import Data.Configurator.Types qualified as Configurator
-import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
@@ -144,6 +145,9 @@ data ReturnType a
   | HaltRepl
   deriving stock (Eq, Show)
 
+-- | Name used for a source-file/source buffer
+type SourceName = Text
+
 -- | The command-line app monad environment.
 --
 -- Get the environment with 'ask'.
@@ -155,13 +159,16 @@ data Env = Env
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
-    loadSource :: Text -> IO LoadSourceResult,
+    loadSource :: SourceName -> IO LoadSourceResult,
+    -- | How to write source code.
+    writeSource :: SourceName -> Text -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
     notifyNumbered :: NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
+    nativeRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion
   }
@@ -406,6 +413,11 @@ respondNumbered :: NumberedOutput -> Cli ()
 respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
+  setNumberedArgs args
+
+-- | Updates the numbered args, but only if the new args are non-empty.
+setNumberedArgs :: NumberedArgs -> Cli ()
+setNumberedArgs args = do
   unless (null args) do
     #numberedArgs .= args
 
@@ -414,7 +426,10 @@ runTransaction action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransaction codebase action)
 
--- | Return early if a transaction returns Left.
-runEitherTransaction :: Sqlite.Transaction (Either Output a) -> Cli a
-runEitherTransaction action =
-  runTransaction action & onLeftM returnEarly
+-- | Run a transaction that can abort early with an output message.
+-- todo: rename to runTransactionWithReturnEarly
+runTransactionWithRollback :: ((forall void. Output -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
+runTransactionWithRollback action = do
+  Env {codebase} <- ask
+  liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
+    & onLeftM returnEarly

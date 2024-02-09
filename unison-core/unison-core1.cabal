@@ -37,10 +37,10 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
+      Unison.Name.Forward
       Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult
-      Unison.Names.Scoped
       Unison.NamesWithHistory
       Unison.Pattern
       Unison.Position

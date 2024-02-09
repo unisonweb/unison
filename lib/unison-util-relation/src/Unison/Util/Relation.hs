@@ -28,6 +28,7 @@ module Unison.Util.Relation
 
     -- ** Searches
     searchDom,
+    searchDomG,
     searchRan,
 
     -- ** Filters
@@ -367,13 +368,13 @@ lookupDom' x r = M.lookup x (domain r)
 lookupRan' :: (Ord b) => b -> Relation a b -> Maybe (Set a)
 lookupRan' y r = M.lookup y (range r)
 
--- | True if the element @ x @ exists in the domain of @ r @.
+-- | True if the element exists in the domain.
 memberDom :: (Ord a) => a -> Relation a b -> Bool
-memberDom x r = isJust $ lookupDom' x r
+memberDom x r = M.member x (domain r)
 
 -- | True if the element exists in the range.
 memberRan :: (Ord b) => b -> Relation a b -> Bool
-memberRan y r = isJust $ lookupRan' y r
+memberRan y r = M.member y (range r)
 
 filterDom :: (Ord a, Ord b) => (a -> Bool) -> Relation a b -> Relation a b
 filterDom f r = S.filter f (dom r) <| r
@@ -588,21 +589,24 @@ lookupDom a r = fromMaybe S.empty $ lookupDom' a r
 -- or empty, this function takes time logarithmic in the number of unique keys
 -- of the domain, `a`.
 searchDom :: (Ord a, Ord b) => (a -> Ordering) -> Relation a b -> Set b
-searchDom f r = go (domain r)
+searchDom = searchDomG (\_ set -> set)
+
+searchDomG :: (Ord a, Monoid c) => (a -> Set b -> c) -> (a -> Ordering) -> Relation a b -> c
+searchDomG g f r = go (domain r)
   where
     go Map.Tip = mempty
     go (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> bs <> goL l <> goR r
+      EQ -> goL l <> g amid bs <> goR r
       LT -> go r
       GT -> go l
     goL Map.Tip = mempty
     goL (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> bs <> goL l <> S.unions (Map.elems r)
+      EQ -> goL l <> g amid bs <> Map.foldrWithKey (\k v acc -> g k v <> acc) mempty r
       LT -> goL r
       GT -> error "predicate not monotone with respect to ordering"
     goR Map.Tip = mempty
     goR (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> bs <> goR r <> S.unions (Map.elems l)
+      EQ -> Map.foldrWithKey (\k v acc -> g k v <> acc) mempty l <> g amid bs <> goR r
       GT -> goR l
       LT -> error "predicate not monotone with respect to ordering"
 

@@ -26,7 +26,8 @@ module Unison.Sync.Types
 
     -- *** Entity Traversals
     entityHashes_,
-    patchHashes_,
+    patchOldHashes_,
+    patchNewHashes_,
     patchDiffHashes_,
     namespaceDiffHashes_,
     causalHashes_,
@@ -62,6 +63,7 @@ module Unison.Sync.Types
     HashMismatchForEntity (..),
     InvalidParentage (..),
     NeedDependencies (..),
+    EntityValidationError (..),
   )
 where
 
@@ -170,7 +172,7 @@ entityHashes_ :: (Applicative m, Ord hash') => (hash -> m hash') -> Entity text 
 entityHashes_ f = \case
   TC tc -> TC <$> bitraverse pure f tc
   DC dc -> DC <$> bitraverse pure f dc
-  P patch -> P <$> patchHashes_ f patch
+  P patch -> P <$> patchNewHashes_ f patch
   PD patch -> PD <$> patchDiffHashes_ f patch
   N ns -> N <$> bitraverse pure f ns
   ND ns -> ND <$> namespaceDiffHashes_ f ns
@@ -328,8 +330,13 @@ instance (FromJSON text, FromJSON oldHash, FromJSON newHash) => FromJSON (Patch 
     Base64Bytes bytes <- obj .: "bytes"
     pure Patch {..}
 
-patchHashes_ :: (Applicative m) => (hash -> m hash') -> Patch text noSyncHash hash -> m (Patch text noSyncHash hash')
-patchHashes_ f (Patch {..}) = do
+patchOldHashes_ :: (Applicative m) => (oldHash -> m oldHash') -> Patch text oldHash newHash -> m (Patch text oldHash' newHash)
+patchOldHashes_ f (Patch {..}) = do
+  oldHashLookup <- traverse f oldHashLookup
+  pure (Patch {..})
+
+patchNewHashes_ :: (Applicative m) => (newHash -> m newHash') -> Patch text oldHash newHash -> m (Patch text oldHash newHash')
+patchNewHashes_ f (Patch {..}) = do
   newHashLookup <- traverse f newHashLookup
   pure (Patch {..})
 
@@ -591,6 +598,7 @@ data DownloadEntitiesError
     DownloadEntitiesUserNotFound Text
   | -- | project shorthand
     DownloadEntitiesProjectNotFound Text
+  | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
 
 instance ToJSON DownloadEntitiesResponse where
@@ -600,6 +608,7 @@ instance ToJSON DownloadEntitiesResponse where
     DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo msg repoInfo) -> jsonUnion "invalid_repo_info" (msg, repoInfo)
     DownloadEntitiesFailure (DownloadEntitiesUserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
     DownloadEntitiesFailure (DownloadEntitiesProjectNotFound projectShorthand) -> jsonUnion "project_not_found" projectShorthand
+    DownloadEntitiesFailure (DownloadEntitiesEntityValidationFailure err) -> jsonUnion "entity_validation_failure" err
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
@@ -610,6 +619,40 @@ instance FromJSON DownloadEntitiesResponse where
       "user_not_found" -> DownloadEntitiesFailure . DownloadEntitiesUserNotFound <$> obj .: "payload"
       "project_not_found" -> DownloadEntitiesFailure . DownloadEntitiesProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected DownloadEntitiesResponse type: " <> t
+
+-- | The ways in which validating an entity may fail.
+data EntityValidationError
+  = EntityHashMismatch EntityType HashMismatchForEntity
+  | UnsupportedEntityType Hash32 EntityType
+  | InvalidByteEncoding Hash32 EntityType Text {- decoding err msg -}
+  | HashResolutionFailure Hash32
+  deriving stock (Show, Eq, Ord)
+  deriving anyclass (Exception)
+
+instance ToJSON EntityValidationError where
+  toJSON = \case
+    EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
+    UnsupportedEntityType hash typ -> jsonUnion "unsupported_entity_type" (object ["hash" .= hash, "type" .= typ])
+    InvalidByteEncoding hash typ errMsg -> jsonUnion "invalid_byte_encoding" (object ["hash" .= hash, "type" .= typ, "error" .= errMsg])
+    HashResolutionFailure hash -> jsonUnion "hash_resolution_failure" hash
+
+instance FromJSON EntityValidationError where
+  parseJSON = Aeson.withObject "EntityValidationError" \obj ->
+    obj .: "type" >>= Aeson.withText "type" \case
+      "mismatched_hash" -> do
+        typ <- obj .: "payload" >>= (.: "type")
+        mismatch <- obj .: "payload" >>= (.: "mismatch")
+        pure (EntityHashMismatch typ mismatch)
+      "unsupported_entity_type" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        pure (UnsupportedEntityType hash typ)
+      "invalid_byte_encoding" -> do
+        hash <- obj .: "payload" >>= (.: "hash")
+        typ <- obj .: "payload" >>= (.: "type")
+        errMsg <- obj .: "payload" >>= (.: "error")
+        pure (InvalidByteEncoding hash typ errMsg)
+      t -> failText $ "Unexpected EntityValidationError type: " <> t
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
@@ -643,7 +686,8 @@ data UploadEntitiesResponse
   deriving stock (Show, Eq, Ord)
 
 data UploadEntitiesError
-  = UploadEntitiesError'HashMismatchForEntity HashMismatchForEntity
+  = UploadEntitiesError'EntityValidationFailure EntityValidationError
+  | UploadEntitiesError'HashMismatchForEntity HashMismatchForEntity
   | -- | msg, repoInfo
     UploadEntitiesError'InvalidRepoInfo Text RepoInfo
   | UploadEntitiesError'NeedDependencies (NeedDependencies Hash32)
@@ -663,6 +707,8 @@ data HashMismatchForEntity = HashMismatchForEntity
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
+    UploadEntitiesFailure (UploadEntitiesError'EntityValidationFailure err) ->
+      jsonUnion "entity_validation_failure" err
     UploadEntitiesFailure (UploadEntitiesError'HashMismatchForEntity mismatch) ->
       jsonUnion "hash_mismatch_for_entity" mismatch
     UploadEntitiesFailure (UploadEntitiesError'InvalidRepoInfo msg repoInfo) ->
@@ -677,6 +723,7 @@ instance FromJSON UploadEntitiesResponse where
   parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
       "success" -> pure UploadEntitiesSuccess
+      "entity_validation_failure" -> UploadEntitiesFailure . UploadEntitiesError'EntityValidationFailure <$> obj .: "payload"
       "need_dependencies" -> UploadEntitiesFailure . UploadEntitiesError'NeedDependencies <$> obj .: "payload"
       "no_write_permission" -> UploadEntitiesFailure . UploadEntitiesError'NoWritePermission <$> obj .: "payload"
       "hash_mismatch_for_entity" ->
@@ -700,9 +747,9 @@ instance FromJSON HashMismatchForEntity where
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
         <$> obj
-          .: "supplied"
+        .: "supplied"
         <*> obj
-          .: "computed"
+        .: "computed"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Fast-forward path

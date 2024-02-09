@@ -273,20 +273,16 @@ branchHash2to1 :: forall m. BranchHash -> V1.Branch.NamespaceHash m
 branchHash2to1 = V1.HashFor . unBranchHash
 
 reference2to1 :: V2.Reference -> V1.Reference
-reference2to1 = \case
-  V2.ReferenceBuiltin t -> V1.Reference.Builtin t
-  V2.ReferenceDerived i -> V1.Reference.DerivedId $ referenceid2to1 i
+reference2to1 = id
 
 reference1to2 :: V1.Reference -> V2.Reference
-reference1to2 = \case
-  V1.Reference.Builtin t -> V2.ReferenceBuiltin t
-  V1.Reference.DerivedId i -> V2.ReferenceDerived (referenceid1to2 i)
+reference1to2 = id
 
 referenceid1to2 :: V1.Reference.Id -> V2.Reference.Id
-referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id h i
+referenceid1to2 = id
 
 referenceid2to1 :: V2.Reference.Id -> V1.Reference.Id
-referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id h i
+referenceid2to1 = id
 
 rreferent2to1 :: (Applicative m) => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
 rreferent2to1 h lookupCT = \case
@@ -313,6 +309,11 @@ referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r
   V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+
+referentid1to2 :: V1.Referent.Id -> V2.Referent.Id
+referentid1to2 = \case
+  V1.RefId r -> V2.RefId (referenceid1to2 r)
+  V1.ConId (V1.ConstructorReference r i) _ct -> V2.ConId (referenceid1to2 r) i
 
 referentid2to1 :: (Applicative m) => (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupCT = \case
@@ -413,7 +414,7 @@ causalbranch1to2 :: forall m. (Monad m) => V1.Branch.Branch m -> V2.Branch.Causa
 causalbranch1to2 (V1.Branch.Branch c) =
   causal1to2 branchHash1to2 branch1to2 c
   where
-    causal1to2 :: forall m h2e e e2. (Monad m) => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2
+    causal1to2 :: forall m h2e e e2. (Monad m) => (V1.HashFor e -> h2e) -> (e -> m e2) -> V1.Causal.Causal m e -> V2.Causal m CausalHash h2e e2 e2
     causal1to2 eh1to2 e1to2 = \case
       V1.Causal.One hc eh e -> V2.Causal hc (eh1to2 eh) Map.empty (e1to2 e)
       V1.Causal.Cons hc eh e (ht, mt) -> V2.Causal hc (eh1to2 eh) (Map.singleton ht (causal1to2 eh1to2 e1to2 <$> mt)) (e1to2 e)

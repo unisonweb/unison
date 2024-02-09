@@ -1,4 +1,7 @@
-module Unison.PrettyPrintEnvDecl.Sqlite where
+module Unison.PrettyPrintEnvDecl.Sqlite
+  ( ppedForReferences,
+  )
+where
 
 import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
@@ -12,8 +15,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
@@ -48,7 +51,8 @@ ppedForReferences namesPerspective refs = do
     pure result
   let allTermNamesToConsider = termNames <> longestTermSuffixMatches
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
-  pure . PPED.fromNamesDecl hashLen . NamesWithHistory.fromCurrentNames $ Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  let names = Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
+  pure (PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names))
   where
     namesForReference :: Ops.NamesPerspective -> LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference namesPerspective = \case

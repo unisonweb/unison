@@ -30,13 +30,15 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type time.DayOfWeek
+      type time.DayOfWeek
       ImportantConstant     : Nat
       ImportantConstant.doc : Doc2
       d1                    : Doc2
@@ -61,14 +63,7 @@ You can preview what docs will look like when rendered to the console using the 
 
   The 7 days of the week, defined as:
   
-      unique type DayOfWeek
-        = Sun
-        | Mon
-        | Tue
-        | Wed
-        | Thu
-        | Fri
-        | Sat
+      type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
@@ -79,6 +74,9 @@ First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
 .> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+
+  Loading changes detected in
+  ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
   I found and typechecked these definitions in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
@@ -114,7 +112,7 @@ and the rendered output using `display`:
       section elements.
       
       Text can be **bold**, __italicized__, ~~strikethrough~~,
-      or ''monospaced'' (or ''monospaced'').
+      or `monospaced` (or `monospaced`).
       
       You can link to Unison terms, types, and external URLs:
       
@@ -124,7 +122,7 @@ and the rendered output using `display`:
         [a named term link]({Some}). Term links are handy for
         linking to other documents!
       
-      You can use ''{{ .. }}'' to escape out to regular Unison
+      You can use `{{ .. }}` to escape out to regular Unison
       syntax, for instance {{ docWord "__not bold__" }}. This is
       useful for creating documents programmatically or just
       including other documents.
@@ -166,9 +164,9 @@ and the rendered output using `display`:
     
       ## Bulleted lists
       
-         Bulleted lists can use ''+'', ''-'', or ''*'' for the
-         bullets (though the choice will be normalized away by
-         the pretty-printer). They can be nested, to any depth:
+         Bulleted lists can use `+`, `-`, or `*` for the bullets
+         (though the choice will be normalized away by the
+         pretty-printer). They can be nested, to any depth:
          
          * A
          * B
@@ -333,9 +331,9 @@ and the rendered output using `display`:
          You can include typechecked code snippets inline, for
          instance:
          
-         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2''
+         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the `2`
            says to ignore the first two arguments when
-           rendering. In richer renderers, the ''sqr'' link will
+           rendering. In richer renderers, the `sqr` link will
            be clickable.
          * If your snippet expression is just a single function
            application, you can put it in double backticks, like
@@ -458,7 +456,7 @@ and the rendered output using `display`:
     {{
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
-    ''{{ }}'' syntax to call these functions directly.
+    `{{ }}` syntax to call these functions directly.
     
         @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
     
@@ -555,7 +553,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
 
   doc.guide : Doc2
   doc.guide =
-    {{ # Unison computable documentation
+    {{
+    # Unison computable documentation
     
       {{ basicFormatting }}
       
@@ -567,7 +566,8 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       
       {{ nonUnisonCodeBlocks }}
       
-      {{ otherElements }} }}
+      {{ otherElements }}
+    }}
 
 .> display doc.guide
 

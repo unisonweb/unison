@@ -4,6 +4,7 @@
 module Unison.Codebase.Runtime where
 
 import Data.Map qualified as Map
+import Data.Set.NonEmpty (NESet)
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
@@ -34,7 +35,7 @@ data Runtime v = Runtime
       CL.CodeLookup v IO () ->
       PPE.PrettyPrintEnv ->
       Term v ->
-      IO (Either Error (Term v)),
+      IO (Either Error ([Error], Term v)),
     compileTo ::
       CL.CodeLookup v IO () ->
       PPE.PrettyPrintEnv ->
@@ -42,7 +43,7 @@ data Runtime v = Runtime
       FilePath ->
       IO (Maybe Error),
     mainType :: Type v Ann,
-    ioTestType :: Type v Ann
+    ioTestTypes :: NESet (Type v Ann)
   }
 
 type IsCacheHit = Bool
@@ -56,6 +57,7 @@ type WatchResults v a =
       -- Bindings:
       ( [(v, Term v)],
         -- Map watchName (loc, hash, expression, value, isHit)
+        [Error],
         Map v (a, WatchKind, Reference.Id, Term v, Term v, IsCacheHit)
       )
   )
@@ -105,7 +107,7 @@ evaluateWatches code ppe evaluationCache rt tuf = do
   -- create the result Map
   out <- evaluate rt cl ppe bigOl'LetRec
   case out of
-    Right out -> do
+    Right (errs, out) -> do
       let (bindings, results) = case out of
             TupleTerm' results -> (mempty, results)
             Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
@@ -124,7 +126,7 @@ evaluateWatches code ppe evaluationCache rt tuf = do
               (Map.fromList (toList watches `zip` results))
               m'
           die v = error $ "not sure what kind of watch this is: " <> show v
-      pure $ Right (bindings, watchMap)
+      pure $ Right (bindings, errs, watchMap)
     Left e -> pure (Left e)
   where
     -- unref :: Map Reference.Id v -> Term.Term v a -> Term.Term v a
@@ -142,11 +144,11 @@ evaluateTerm' ::
   PPE.PrettyPrintEnv ->
   Runtime v ->
   Term.Term v a ->
-  IO (Either Error (Term v))
+  IO (Either Error ([Error], Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
   case result of
-    Just r -> pure (Right r)
+    Just r -> pure (Right ([], r))
     Nothing -> do
       let tuf =
             UF.typecheckedUnisonFile
@@ -156,9 +158,9 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
       pure $
-        r <&> \(_, map) ->
+        r <&> \(_, errs, map) ->
           case Map.elems map of
-            [(_loc, _kind, _hash, _src, value, _isHit)] -> value
+            [(_loc, _kind, _hash, _src, value, _isHit)] -> (errs, value)
             _ -> error "evaluateTerm': Pattern mismatch on watch results"
 
 evaluateTerm ::
@@ -167,5 +169,5 @@ evaluateTerm ::
   PPE.PrettyPrintEnv ->
   Runtime v ->
   Term.Term v a ->
-  IO (Either Error (Term v))
+  IO (Either Error ([Error], Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache

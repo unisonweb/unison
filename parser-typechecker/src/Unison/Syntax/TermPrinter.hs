@@ -18,6 +18,8 @@ import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
+import Data.List qualified as List
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
@@ -36,6 +38,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -228,7 +231,7 @@ pretty0
         tm' <- pretty0 (ac 10 Normal im doc) tm
         tp' <- TypePrinter.pretty0 im 0 t
         pure . paren (p >= 0) $ tm' <> PP.hang (fmt S.TypeAscriptionColon " :") tp'
-      Int' i -> pure . fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
+      Int' i -> pure . fmt S.NumericLiteral . l $ (if i >= 0 then ("+" ++ show i) else (show i))
       Nat' u -> pure . fmt S.NumericLiteral . l $ show u
       Float' f -> pure . fmt S.NumericLiteral . l $ show f
       -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
@@ -297,14 +300,10 @@ pretty0
                     <> fmt S.ControlKeyword "with"
                     `hangHandler` ph
                 ]
-      App' x (Constructor' (ConstructorReference DD.UnitRef 0)) -> do
-        px <- pretty0 (ac (if isBlock x then 0 else 10) Normal im doc) x
-        pure . paren (p >= 11 || isBlock x && p >= 3) $
-          fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
       Delay' x
         | isLet x || p < 0 -> do
             let (im', uses) = calcImports im x
-            let hang = if isSoftHangable x then PP.softHang else PP.hang
+            let hang = if isSoftHangable x && null uses then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])
@@ -399,6 +398,7 @@ pretty0
                     fmt S.ControlKeyword " with" `PP.hang` pbs
                   ]
               else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
+      Apps' f args -> paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
       t -> pure $ l "error: " <> l (show t)
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
@@ -460,8 +460,6 @@ pretty0
                             <> [lhs, arr]
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
-              (Apps' f@(Constructor' _) args, _) ->
-                paren (p >= 10) <$> (PP.hang <$> goNormal 9 f <*> PP.spacedTraverse (goNormal 10) args)
               (Bytes' bs, _) ->
                 pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
@@ -491,28 +489,23 @@ pretty0
                     y = thing2
                     ...)
               -}
-              (Apps' f (unsnoc -> Just (args, lastArg)), _) | isSoftHangable lastArg -> do
-                fun <- goNormal 9 f
-                args' <- traverse (goNormal 10) args
-                lastArg' <- goNormal 0 lastArg
-                let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
-                pure . paren (p >= 3) $
-                  PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
+              (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
+                px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
+                pure . paren (p >= 11 || isBlock x && p >= 3) $
+                  fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
+              (Apps' f (unsnoc -> Just (args, lastArg)), _)
+                | isSoftHangable lastArg -> do
+                    fun <- goNormal 9 f
+                    args' <- traverse (goNormal 10) args
+                    lastArg' <- goNormal 0 lastArg
+                    let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
+                    pure . paren (p >= 3) $
+                      PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               (Ands' xs lastArg, _) ->
-                -- Old code, without monadic booleanOps:
-                -- paren (p >= 10)
-                --   . booleanOps (fmt S.ControlKeyword "&&") xs
-                --   <$> pretty0 (ac 10 Normal im doc) lastArg
-                -- New code, where booleanOps is monadic like pretty0:
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
               (Ors' xs lastArg, _) ->
-                -- Old code:
-                -- paren (p >= 10)
-                --   . booleanOps (fmt S.ControlKeyword "||") xs
-                --   <$> pretty0 (ac 10 Normal im doc) lastArg
-                -- New code:
                 paren (p >= 10) <$> do
                   lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
                   booleanOps (fmt S.ControlKeyword "||") xs lastArg'
@@ -576,7 +569,6 @@ pretty0
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
-        Constructor' (ConstructorReference DD.UnitRef 0) -> False
         Constructor' (ConstructorReference DD.DocRef _) -> False
         _ -> True
 
@@ -1745,18 +1737,18 @@ prettyDoc2 ::
 prettyDoc2 ac tm = do
   ppe <- getPPE
   let brace p =
-        fmt S.DocDelimiter "{{"
-          <> PP.softbreak
-          <> p
-          <> PP.softbreak
-          <> fmt
-            S.DocDelimiter
-            "}}"
+        if PP.isMultiLine p
+          then fmt S.DocDelimiter "{{" <> PP.newline <> p <> PP.newline <> fmt S.DocDelimiter "}}"
+          else fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
       bail tm = brace <$> pretty0 ac tm
+      contains :: Char -> Pretty SyntaxText -> Bool
+      contains c p =
+        PP.toPlainUnbroken (PP.syntaxToColor p)
+          & elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
         case filter (\s -> take 2 s == [c, c]) $
-          group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
+          List.group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
           [] -> 2
           x -> 1 + maximum (map length x)
       oneMore c inner = replicate (longestRun c inner) c
@@ -1790,7 +1782,12 @@ prettyDoc2 ac tm = do
           pure $ PP.text t
         (toDocCode ppe -> Just d) -> do
           inner <- rec d
-          let quotes = PP.string $ oneMore '\'' inner
+          let quotes =
+                -- Prefer ` if there aren't any in the inner text,
+                -- otherwise use one more than the longest run of ' in the inner text
+                if contains '`' inner
+                  then PP.string $ oneMore '\'' inner
+                  else PP.string "`"
           pure $ PP.group $ quotes <> inner <> quotes
         (toDocJoin ppe -> Just ds) -> foldMapM rec ds
         (toDocItalic ppe -> Just d) -> do
@@ -2127,8 +2124,9 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
 -- Algorithm is the following:
 --   1. Form the set of all local variables used anywhere in the term
 --   2. When picking a name for a term, see if it is contained in this set.
---      If yes, use the qualified name for the term (which PPE conveniently provides)
---      If no, use the suffixed name for the term
+--      If yes: use a minimally qualified name which is longer than the suffixed name,
+--              but doesn't conflict with any local vars.
+--      If no: use the suffixed name for the term
 --
 -- The algorithm does the same for type references in signatures.
 --
@@ -2150,7 +2148,32 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
       Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
+    tweak :: Set Name -> (HQ'.HashQualified Name, HQ'.HashQualified Name) -> (HQ'.HashQualified Name, HQ'.HashQualified Name)
     tweak used (fullName, HQ'.NameOnly suffixedName)
-      | Set.member suffixedName used = (fullName, fullName)
+      | Set.member suffixedName used =
+          let revFQNSegments :: NEL.NonEmpty NameSegment
+              revFQNSegments = Name.reverseSegments (HQ'.toName fullName)
+              minimallySuffixed :: HQ'.HashQualified Name
+              minimallySuffixed =
+                revFQNSegments
+                  -- Get all suffixes (it's inits instead of tails because name segments are in reverse order)
+                  & NEL.inits
+                  -- Drop the empty 'init'
+                  & NEL.tail
+                  & mapMaybe (fmap Name.fromReverseSegments . NEL.nonEmpty) -- Convert back into names
+                  -- Drop the suffixes that we know are shorter than the suffixified name
+                  & List.drop (Name.countSegments suffixedName)
+                  -- Drop the suffixes that are equal to local variables
+                  & filter ((\n -> n `Set.notMember` used))
+                  & listToMaybe
+                  & maybe fullName HQ'.NameOnly
+           in (fullName, minimallySuffixed)
     tweak _ p = p
     varToName v = toList (Name.fromText (Var.name v))
+
+isLeaf :: Term2 vt at ap v a -> Bool
+isLeaf (Var' {}) = True
+isLeaf (Constructor' {}) = True
+isLeaf (Request' {}) = True
+isLeaf (Ref' {}) = True
+isLeaf _ = False

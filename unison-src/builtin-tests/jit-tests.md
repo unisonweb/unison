@@ -56,6 +56,7 @@ to `Tests.check` and `Tests.checkEqual`).
 ```
 
 ```ucm:hide
+.> alias.term ##Pattern.captureAs Pattern.captureAs
 .> load unison-src/builtin-tests/text-tests.u
 .> add
 ```
@@ -68,6 +69,17 @@ to `Tests.check` and `Tests.checkEqual`).
 ```ucm:hide
 .> alias.term ##IO.randomBytes IO.randomBytes
 .> load unison-src/builtin-tests/io-tests.u
+.> add
+```
+
+```ucm:hide
+.> load unison-src/builtin-tests/code-lookup.u
+.> add
+```
+
+```ucm:hide
+.> alias.term ##Value.validateSandboxed Value.validateSandboxed
+.> load unison-src/builtin-tests/sandbox-tests.u
 .> add
 ```
 

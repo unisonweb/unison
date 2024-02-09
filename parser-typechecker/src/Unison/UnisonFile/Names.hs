@@ -1,6 +1,7 @@
 module Unison.UnisonFile.Names where
 
 import Control.Lens
+import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
@@ -8,19 +9,23 @@ import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Names qualified as DD.Names
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.Name qualified as Name
 import Unison.Names (Names (..))
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name
 import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
+import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
+import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
 toNames :: (Var v) => UnisonFile v a -> Names
@@ -28,6 +33,9 @@ toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeFromVar) (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeFromVar) (Map.toList (UF.effectDeclarationsId uf))
+
+addNamesFromUnisonFile :: (Var v) => UnisonFile v a -> Names -> Names
+addNamesFromUnisonFile unisonFile names = Names.shadowing (toNames unisonFile) names
 
 typecheckedToNames :: (Var v) => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types
@@ -52,6 +60,9 @@ typecheckedToNames uf = Names (terms <> ctors) types
         . fmap (fmap Reference.DerivedId)
         . UF.hashConstructors
         $ uf
+
+addNamesFromTypeCheckedUnisonFile :: (Var v) => TypecheckedUnisonFile v a -> Names -> Names
+addNamesFromTypeCheckedUnisonFile unisonFile names = Names.shadowing (typecheckedToNames unisonFile) names
 
 typecheckedUnisonFile0 :: (Ord v) => TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty mempty mempty
@@ -80,6 +91,32 @@ bindNames names (UnisonFileId d e ts ws) = do
   ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeFromVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
+-- | Given the set of fully-qualified variable names, this computes
+-- a Map from unique suffixes to the fully qualified name.
+--
+-- Example, given [foo.bar, qux.bar, baz.quaffle], this returns:
+--
+-- Map [ foo.bar -> foo.bar
+--     , qux.bar -> qux.bar
+--     , baz.quaffle -> baz.quaffle
+--     , quaffle -> baz.quaffle
+--     ]
+--
+-- This is used to replace variable references with their canonical
+-- fully qualified variables.
+--
+-- It's used below in `environmentFor` and also during the term resolution
+-- process.
+variableCanonicalizer :: forall v. Var v => [v] -> Map v v
+variableCanonicalizer vs =
+  done $ List.multimap do
+    v <- vs
+    let n = Name.unsafeFromVar v
+    suffix <- Name.suffixes n
+    pure (Var.named (Name.toText suffix), v)
+  where
+    done xs = Map.fromList [(k, v) | (k, nubOrd -> [v]) <- Map.toList xs] <> Map.fromList [(v, v) | v <- vs]
+
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
@@ -94,7 +131,7 @@ environmentFor ::
   Map v (EffectDeclaration v a) ->
   Names.ResolutionResult v a (Either [Error v a] (Env v a))
 environmentFor names dataDecls0 effectDecls0 = do
-  let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
+  let locallyBoundTypes = variableCanonicalizer (Map.keys dataDecls0 <> Map.keys effectDecls0)
   -- data decls and hash decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration v a) <-
     traverse (DD.Names.bindNames Name.unsafeFromVar locallyBoundTypes names) dataDecls0

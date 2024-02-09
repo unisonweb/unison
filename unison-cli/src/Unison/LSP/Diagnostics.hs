@@ -1,8 +1,5 @@
 module Unison.LSP.Diagnostics
-  ( annToRange,
-    uToLspPos,
-    uToLspRange,
-    reportDiagnostics,
+  ( reportDiagnostics,
     mkDiagnostic,
     DiagnosticSeverity (..),
   )
@@ -11,27 +8,7 @@ where
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.LSP.Types
-import Unison.Parser.Ann (Ann)
-import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
-import Unison.Syntax.Lexer qualified as Lex
-import Unison.Util.Range qualified as Range
-
-annToRange :: Ann -> Maybe Range
-annToRange = \case
-  Ann.Intrinsic -> Nothing
-  Ann.External -> Nothing
-  Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
-
-uToLspPos :: Lex.Pos -> Position
-uToLspPos uPos =
-  Position
-    { _line = fromIntegral $ Lex.line uPos - 1, -- 1 indexed vs 0 indexed
-      _character = fromIntegral $ Lex.column uPos - 1 -- 1 indexed vs 0 indexed
-    }
-
-uToLspRange :: Range.Range -> Range
-uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 
 reportDiagnostics ::
   (Foldable f) =>

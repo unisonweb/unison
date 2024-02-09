@@ -2,14 +2,8 @@
 
 The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace` command helps resolve such conflicts.
 
-First, let's make a new namespace, `example.resolve`:
+First, let's make a new namespace, `example.resolve` and add the builtins:
 
-```ucm
-.> cd example.resolve
-
-  ☝️  The namespace .example.resolve is empty.
-
-```
 Now let's add a term named `a.foo`:
 
 ```unison
@@ -17,6 +11,8 @@ a.foo = 42
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -63,6 +59,8 @@ foo = 43
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -70,15 +68,15 @@ foo = 43
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
-.example.resolve.a> update
+.example.resolve.a> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 And make a different change in the `b` namespace:
@@ -93,6 +91,8 @@ foo = 44
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -100,15 +100,15 @@ foo = 44
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      foo : Nat
+      foo : ##Nat
 
 ```
 ```ucm
-.example.resolve.b> update
+.example.resolve.b> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    foo : Nat
+    foo : ##Nat
 
 ```
 The `a` and `b` namespaces now each contain a patch named `patch`. We can view these:
@@ -248,16 +248,10 @@ We can resolve the name conflict by deleting one of the names.
 
   Resolved name conflicts:
   
-    1. ┌ example.resolve.c.foo#a84tg4er4k : Nat
-    2. └ example.resolve.c.foo#emomp74i93 : Nat
+    1. ┌ foo#a84tg4er4k : ##Nat
+    2. └ foo#emomp74i93 : ##Nat
        ↓
-    3. example.resolve.c.foo#a84tg4er4k : Nat
-  
-  Name changes:
-  
-    Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#emomp74i93 (removed)
-    6. example.resolve.c.foo#emomp74i93 ┘  
+    3. foo#a84tg4er4k : ##Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

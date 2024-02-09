@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -14,14 +12,9 @@ import Control.Lens hiding (List, (:<))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Key qualified as Aeson.Key
-import Data.Aeson.KeyMap qualified as Aeson.KeyMap
-import Data.ByteString.Lazy.Char8 qualified as BSC
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
-import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens
@@ -33,17 +26,15 @@ import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
-import Unison.DataDeclaration qualified as DD
+import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.Parser.Ann
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Result (Note)
 import Unison.Server.Backend qualified as Backend
@@ -51,9 +42,9 @@ import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
 import Unison.Syntax.Lexer qualified as Lexer
-import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Summary (FileSummary (..))
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -78,7 +69,7 @@ data Env = Env
   { -- contains handlers for talking to the client.
     lspContext :: LanguageContextEnv Config,
     codebase :: Codebase IO Symbol Ann,
-    parseNamesCache :: IO NamesWithHistory,
+    currentNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
     currentPathCache :: IO Path.Absolute,
@@ -92,7 +83,7 @@ data Env = Env
     -- A map  of request IDs to an action which kills that request.
     cancellationMapVar :: TVar (Map (Int32 |? Text) (IO ())),
     -- A lazily computed map of all valid completion suffixes from the current path.
-    completionsVar :: TVar CompletionTree,
+    completionsVar :: TMVar CompletionTree,
     scope :: Ki.Scope
   }
 
@@ -138,42 +129,24 @@ data FileAnalysis = FileAnalysis
   }
   deriving stock (Show)
 
--- | A file that parses might not always type-check, but often we just want to get as much
--- information as we have available. This provides a type where we can summarize the
--- information available in a Unison file.
---
--- If the file typechecked then all the Ref Ids and types will be filled in, otherwise
--- they will be Nothing.
-data FileSummary = FileSummary
-  { dataDeclsBySymbol :: Map Symbol (Reference.Id, DD.DataDeclaration Symbol Ann),
-    dataDeclsByReference :: Map Reference.Id (Map Symbol (DD.DataDeclaration Symbol Ann)),
-    effectDeclsBySymbol :: Map Symbol (Reference.Id, DD.EffectDeclaration Symbol Ann),
-    effectDeclsByReference :: Map Reference.Id (Map Symbol (DD.EffectDeclaration Symbol Ann)),
-    termsBySymbol :: Map Symbol (Ann, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann)),
-    termsByReference :: Map (Maybe Reference.Id) (Map Symbol (Ann, Term Symbol Ann, Maybe (Type Symbol Ann))),
-    testWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    exprWatchSummary :: [(Ann, Maybe Symbol, Maybe Reference.Id, Term Symbol Ann, Maybe (Type Symbol Ann))],
-    fileNames :: Names
-  }
-  deriving stock (Show)
-
 getCurrentPath :: Lsp Path.Absolute
 getCurrentPath = asks currentPathCache >>= liftIO
 
 getCodebaseCompletions :: Lsp CompletionTree
-getCodebaseCompletions = asks completionsVar >>= readTVarIO
+getCodebaseCompletions = asks completionsVar >>= atomically . readTMVar
 
-globalPPED :: Lsp PrettyPrintEnvDecl
-globalPPED = asks ppedCache >>= liftIO
+currentPPED :: Lsp PrettyPrintEnvDecl
+currentPPED = asks ppedCache >>= liftIO
 
 getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO
 
-getParseNames :: Lsp NamesWithHistory
-getParseNames = asks parseNamesCache >>= liftIO
+getCurrentNames :: Lsp Names
+getCurrentNames = asks currentNamesCache >>= liftIO
 
 data Config = Config
-  { -- 'Nothing' will load ALL available completions, which is slower, but may provide a better
+  { formattingWidth :: Int,
+    -- 'Nothing' will load ALL available completions, which is slower, but may provide a better
     -- solution for some users.
     --
     -- 'Just n' will only fetch the first 'n' completions and will prompt the client to ask for
@@ -185,28 +158,21 @@ data Config = Config
 instance Aeson.FromJSON Config where
   parseJSON = Aeson.withObject "Config" \obj -> do
     maxCompletions <- obj Aeson..:! "maxCompletions" Aeson..!= maxCompletions defaultLSPConfig
-    let invalidKeys = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys obj)) `Set.difference` validKeys
-    when (not . null $ invalidKeys) do
-      fail . Text.unpack $
-        "Unrecognized configuration key(s): "
-          <> Text.intercalate ", " (Set.toList invalidKeys)
-          <> ".\nThe default configuration is:\n"
-          <> Text.pack defaultConfigExample
+    Debug.debugM Debug.LSP "Config" $ "maxCompletions: " <> show maxCompletions
+    formattingWidth <- obj Aeson..:? "formattingWidth" Aeson..!= formattingWidth defaultLSPConfig
     pure Config {..}
-    where
-      validKeys = Set.fromList ["maxCompletions"]
-      defaultConfigExample =
-        BSC.unpack $ Aeson.encode defaultLSPConfig
 
 instance Aeson.ToJSON Config where
-  toJSON (Config maxCompletions) =
+  toJSON (Config formattingWidth maxCompletions) =
     Aeson.object
-      [ "maxCompletions" Aeson..= maxCompletions
+      [ "formattingWidth" Aeson..= formattingWidth,
+        "maxCompletions" Aeson..= maxCompletions
       ]
 
 defaultLSPConfig :: Config
 defaultLSPConfig = Config {..}
   where
+    formattingWidth = 80
     maxCompletions = Just 100
 
 -- | Lift a backend computation into the Lsp monad.

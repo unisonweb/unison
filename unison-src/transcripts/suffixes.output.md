@@ -71,6 +71,8 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -100,6 +102,8 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   
@@ -162,7 +166,7 @@ bar = 100
 
   ⍟ I've added these definitions:
   
-    unique type A
+    type A
     bar   : Nat
     foo.a : Nat
 
@@ -186,13 +190,15 @@ fn = cases
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type B
+      type B
       fn              : B -> Text
       foo.baz.qux.bar : Text
       zoink.a         : Text

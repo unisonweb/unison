@@ -1,4 +1,7 @@
-module Unison.Type.Names where
+module Unison.Type.Names
+  ( bindNames,
+  )
+where
 
 import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NES
@@ -19,14 +22,13 @@ bindNames ::
   Names.Names ->
   Type v a ->
   Names.ResolutionResult v a (Type v a)
-bindNames unsafeVarToName keepFree ns0 t =
-  let ns = Names.NamesWithHistory ns0 mempty
-      fvs = ABT.freeVarOccurrences keepFree t
-      rs = [(v, a, Names.lookupHQType (Name.convert $ unsafeVarToName v) ns) | (v, a) <- fvs]
+bindNames unsafeVarToName keepFree ns t =
+  let fvs = ABT.freeVarOccurrences keepFree t
+      rs = [(v, a, Names.lookupHQType Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns) | (v, a) <- fvs]
       ok (v, a, rs) =
         if Set.size rs == 1
           then pure (v, Set.findMin rs)
           else case NES.nonEmptySet rs of
             Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-            Just rs' -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 rs')))
+            Just rs' -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns rs')))
    in List.validate ok rs <&> \es -> bindExternal es t

@@ -17,19 +17,34 @@ if ! ("$awk_exe" --version | grep GNU) >/dev/null 2>&1; then
    exit 1
 fi
 
-if ! [[ "$1" =~ ^M[0-9]+[a-z]?$ ]] ; then
- echo "Version tag must be of the form 'M4' or 'M4a'. E.g."
- echo "$0 M4a"
+input_version="$1"
+
+if ! [[ "$input_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
+ echo "Version tag must be of the form 'x.y.z' where x, y, and z are nonnegative integers. e.g."
+ echo "$0 0.5.11"
  exit 1
 fi
 
-echo "$1" | $awk_exe '
-        # This script figures out a previous tag for a given release to make release notes from.
+if [[ "$input_version" == "0.5.11" ]]; then
+   echo "M5j"
+else
+   IFS='.' read -r -a version_parts <<< "$input_version"
+   major=${version_parts[0]}
+   minor=${version_parts[1]}
+   patch=${version_parts[2]}
 
-        # The previous release of something like M4a is just M4
-        match($0, /^(\w[0-9]+)a$/, a) {print a[1]}
-        # The previous release of something like M4 is M3, since we want to show off everything since the last major release
-        match($0, /^\w([0-9]+)$/, a) {print "M" a[1] - 1}
-        # The previous release of something like M4b is M4a
-        match($0, /^(\w[0-9]+)([b-z])$/, a) {printf a[1]; system("echo " a[2] " | tr b-z a-y")}
-'
+   if [[ "$patch" -gt 0 ]]; then
+      patch=$((patch - 1))
+      echo "$major.$minor.$patch"
+   elif [[ "$minor" -gt 0 ]]; then
+      minor=$((minor - 1))
+      tag=$(git tag --list "release/$major.$minor.*" | sort -r | head -n 1)
+      echo "${tag#release/}"
+   elif [[ "$major" -gt 0 ]]; then
+      major=$((major - 1))
+      tag=$(git tag --list "release/$major.*" | sort -r | head -n 1)
+      echo "${tag#release/}"
+   else
+      echo "Idk what to do with $input_version".
+   fi
+fi

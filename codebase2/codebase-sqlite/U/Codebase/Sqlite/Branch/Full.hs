@@ -1,17 +1,12 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module U.Codebase.Sqlite.Branch.Full where
 
 import Control.Lens
-import Data.Map qualified as Map
-import Data.Set qualified as Set
+import Data.Bitraversable
+import Data.Map.Strict qualified as Map
 import U.Codebase.HashTags
-import U.Codebase.Reference (Reference')
+import U.Codebase.Reference (Reference', TermReference', TypeReference')
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
@@ -42,17 +37,27 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 -- @
 type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
+type DbBranchV3 = GBranchV3 TextId ObjectId (BranchObjectId, CausalHashId)
+
 type HashBranch = Branch' Text ComponentHash PatchHash (BranchHash, CausalHash)
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type Referent'' t h = Referent' (TermReference' t h) (TypeReference' t h)
 
 data Branch' t h p c = Branch
-  { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
-    types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
-    patches :: Map t p,
-    children :: Map t c
+  { terms :: !(Map t (Map (Referent'' t h) (MetadataSetFormat' t h))),
+    types :: !(Map t (Map (TypeReference' t h) (MetadataSetFormat' t h))),
+    patches :: !(Map t p),
+    children :: !(Map t c)
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
+
+-- | A V3 branch; see U.Codebase.BranchV3
+data GBranchV3 t h c = BranchV3
+  { children :: !(Map t c),
+    terms :: !(Map t (Referent'' t h)),
+    types :: !(Map t (TypeReference' t h))
+  }
+  deriving stock (Generic, Show)
 
 emptyBranch :: Branch' t h p c
 emptyBranch = Branch Map.empty Map.empty Map.empty Map.empty
@@ -86,13 +91,33 @@ metadataSetFormatReferences_ ::
 metadataSetFormatReferences_ f (Inline refs) = Inline <$> Set.traverse f refs
 
 quadmap :: forall t h p c t' h' p' c'. (Ord t', Ord h') => (t -> t') -> (h -> h') -> (p -> p') -> (c -> c') -> Branch' t h p c -> Branch' t' h' p' c'
-quadmap ft fh fp fc (Branch terms types patches children) =
+quadmap ft fh fp fc branch =
+  runIdentity $ quadmapM (Identity . ft) (Identity . fh) (Identity . fp) (Identity . fc) branch
+
+quadmapM :: forall t h p c t' h' p' c' m. (Ord t', Ord h', Applicative m) => (t -> m t') -> (h -> m h') -> (p -> m p') -> (c -> m c') -> Branch' t h p c -> m (Branch' t' h' p' c')
+quadmapM ft fh fp fc (Branch terms types patches children) =
   Branch
-    (Map.bimap ft doTerms terms)
-    (Map.bimap ft doTypes types)
-    (Map.bimap ft fp patches)
-    (Map.bimap ft fc children)
+    <$> (Map.bitraverse ft doTerms terms)
+    <*> (Map.bitraverse ft doTypes types)
+    <*> (Map.bitraverse ft fp patches)
+    <*> (Map.bitraverse ft fc children)
   where
-    doTerms = Map.bimap (bimap (bimap ft fh) (bimap ft fh)) doMetadata
-    doTypes = Map.bimap (bimap ft fh) doMetadata
-    doMetadata (Inline s) = Inline . Set.map (bimap ft fh) $ s
+    doTerms = Map.bitraverse (bitraverse (bitraverse ft fh) (bitraverse ft fh)) doMetadata
+    doTypes = Map.bitraverse (bitraverse ft fh) doMetadata
+    doMetadata (Inline s) = Inline <$> Set.traverse (bitraverse ft fh) s
+
+-- | Traversal over text references in a branch
+t_ :: (Ord t', Ord h) => Traversal (Branch' t h p c) (Branch' t' h p c) t t'
+t_ f = quadmapM f pure pure pure
+
+-- | Traversal over hash references in a branch
+h_ :: (Ord t, Ord h') => Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+h_ f = quadmapM pure f pure pure
+
+-- | Traversal over patch references in a branch
+p_ :: (Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h p' c) p p'
+p_ f = quadmapM pure pure f pure
+
+-- | Traversal over child references in a branch
+c_ :: (Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h p c') c c'
+c_ f = quadmapM pure pure pure f

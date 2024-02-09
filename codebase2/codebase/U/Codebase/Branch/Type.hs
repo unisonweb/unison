@@ -1,6 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module U.Codebase.Branch.Type
   ( Branch (..),
     CausalBranch,
@@ -13,13 +10,11 @@ module U.Codebase.Branch.Type
     childAt,
     hoist,
     hoistCausalBranch,
-    termMetadata,
-    typeMetadata,
     U.Codebase.Branch.Type.empty,
   )
 where
 
-import Data.Map qualified as Map
+import Data.Map.Strict qualified as Map
 import U.Codebase.Causal (Causal)
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
@@ -36,23 +31,24 @@ type MetadataValue = Reference
 
 newtype MdValues = MdValues {unMdValues :: Map MetadataValue MetadataType} deriving (Eq, Ord, Show)
 
-type CausalBranch m = Causal m CausalHash BranchHash (Branch m)
+type CausalBranch m = Causal m CausalHash BranchHash (Branch m) (Branch m)
 
 -- | A re-imagining of Unison.Codebase.Branch which is less eager in what it loads,
 -- which can often speed up load times and keep fewer things in memory.
 data Branch m = Branch
-  { terms :: Map NameSegment (Map Referent (m MdValues)),
-    types :: Map NameSegment (Map Reference (m MdValues)),
-    patches :: Map NameSegment (PatchHash, m Patch),
-    children :: Map NameSegment (CausalBranch m)
+  { terms :: !(Map NameSegment (Map Referent (m MdValues))),
+    types :: !(Map NameSegment (Map Reference (m MdValues))),
+    patches :: !(Map NameSegment (PatchHash, m Patch)),
+    children :: !(Map NameSegment (CausalBranch m))
   }
+  deriving stock (Generic)
 
 empty :: Branch m
 empty = Branch mempty mempty mempty mempty
 
 data Patch = Patch
-  { termEdits :: Map Referent (Set TermEdit),
-    typeEdits :: Map Reference (Set TypeEdit)
+  { termEdits :: !(Map Referent (Set TermEdit)),
+    typeEdits :: !(Map Reference (Set TypeEdit))
   }
 
 instance Show (Branch m) where
@@ -70,9 +66,9 @@ instance Show (Branch m) where
 -- All contained statistics should be 'static', i.e. they can be computed when a branch is
 -- first saved, and won't change unless the branch hash also changes.
 data NamespaceStats = NamespaceStats
-  { numContainedTerms :: Int,
-    numContainedTypes :: Int,
-    numContainedPatches :: Int
+  { numContainedTerms :: !Int,
+    numContainedTypes :: !Int,
+    numContainedPatches :: !Int
   }
   deriving (Show, Eq, Ord)
 
@@ -92,40 +88,16 @@ childAt :: NameSegment -> Branch m -> Maybe (CausalBranch m)
 childAt ns (Branch {children}) = Map.lookup ns children
 
 hoist :: (Functor n) => (forall x. m x -> n x) -> Branch m -> Branch n
-hoist f Branch {..} =
+hoist f Branch {children, patches, terms, types} =
   Branch
     { terms = (fmap . fmap) f terms,
       types = (fmap . fmap) f types,
       patches = (fmap . fmap) f patches,
-      children =
-        fmap (fmap (hoist f) . Causal.hoist f) children
+      children = fmap (hoistCausalBranch f) children
     }
 
 hoistCausalBranch :: (Functor n) => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n
 hoistCausalBranch f cb =
   cb
     & Causal.hoist f
-    & fmap (hoist f)
-
--- | Returns all the metadata value references that are attached to a term with the provided name in the
--- provided branch.
---
--- If only name is specified, metadata will be returned for all terms at that name.
-termMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Referent -> m [Map MetadataValue MetadataType]
-termMetadata Branch {terms} = metadataHelper terms
-
--- | Returns all the metadata value references that are attached to a type with the provided name in the
--- provided branch.
---
--- If only name is specified, metadata will be returned for all types at that name.
-typeMetadata :: (Monad m) => Branch m -> NameSegment -> Maybe Reference -> m [Map MetadataValue MetadataType]
-typeMetadata Branch {types} = metadataHelper types
-
-metadataHelper :: (Monad m, Ord ref) => Map NameSegment (Map ref (m MdValues)) -> NameSegment -> Maybe ref -> m [Map MetadataValue MetadataType]
-metadataHelper t ns mayQualifier = do
-  case Map.lookup ns t of
-    Nothing -> pure []
-    Just allRefsAtName -> do
-      case mayQualifier of
-        Nothing -> (fmap . fmap) unMdValues . sequenceA $ Map.elems allRefsAtName
-        Just qualifier -> (fmap . fmap) unMdValues . sequenceA . maybeToList $ Map.lookup qualifier allRefsAtName
+    & Causal.emap (hoist f) (hoist f)

@@ -21,6 +21,8 @@ library
   other-modules:
       U.Codebase.Branch.Hashing
       U.Codebase.Causal.Hashing
+      U.Codebase.Decl.Hashing
+      U.Codebase.Term.Hashing
       Unison.Hashing.V2.Convert2
   hs-source-dirs:
       src
@@ -42,6 +44,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       PatternSynonyms
       RecordWildCards
@@ -56,6 +59,7 @@ library
     , bytes
     , bytestring
     , containers
+    , generic-lens
     , lens
     , text
     , unison-codebase
@@ -66,6 +70,7 @@ library
     , unison-hashing-v2
     , unison-prelude
     , unison-sqlite
+    , unison-syntax
     , unison-util-base32hex
     , unison-util-term
     , vector

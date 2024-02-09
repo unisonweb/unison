@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.builtins> builtins.mergeio
+.ns> builtins.merge
 ```
 
 First we add an ability to the codebase.
@@ -36,8 +36,8 @@ thing _ = send 1
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
 ```ucm:error
-.ns> update patch Channels.send
-.ns> update patch thing
+.ns> update.old patch Channels.send
+.ns> update.old patch thing
 ```
 
 If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
@@ -56,17 +56,22 @@ thing _ = send 1
 These updates should succeed since `Channels` is a dependency.
 
 ```ucm
-.ns> update.preview patch Channels.send
-.ns> update.preview patch thing
+.ns> update.old.preview patch Channels.send
+.ns> update.old.preview patch thing
 ```
 
 We should also be able to successfully update the whole thing.
 
 ```ucm
-.ns> update
+.ns> update.old
 ```
 
 # Constructor-term conflict
+
+```ucm:hide
+.ns2> builtins.merge
+```
+
 
 ```unison
 X.x = 1

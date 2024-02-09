@@ -1,7 +1,7 @@
 # Using numbered arguments in UCM
 
 ```ucm:hide
-.> builtins.merge
+.temp> alias.type ##Text Text
 ```
 
 First lets add some contents to our codebase.

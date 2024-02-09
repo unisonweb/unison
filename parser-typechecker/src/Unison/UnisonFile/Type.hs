@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.UnisonFile.Type where
@@ -20,14 +21,7 @@ data UnisonFile v a = UnisonFileId
     terms :: [(v, a {- ann for whole binding -}, Term v a)],
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
-  deriving (Show)
-
-instance Foldable (UnisonFile v) where
-  foldMap f (UnisonFile dataDeclarationsId effectDeclarationsId terms watches) =
-    (foldMap . foldMap . foldMap) f dataDeclarationsId
-      <> (effectDeclarationsId & (foldMap . foldMap . foldMap) f)
-      <> (terms & foldMap \(_v, spanAnn, trm) -> f spanAnn <> foldMap f trm)
-      <> (watches & (foldMap . foldMap) \(_v, spanAnn, watch) -> f spanAnn <> foldMap f watch)
+  deriving (Generic, Show)
 
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->

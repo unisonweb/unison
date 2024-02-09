@@ -126,6 +126,7 @@ module U.Codebase.Sqlite.Queries
     loadAllProjectBranchesBeginningWith,
     loadAllProjectBranchInfo,
     loadProjectAndBranchNames,
+    loadAllProjectBranchNamePairs,
     loadProjectBranch,
     insertProjectBranch,
     renameProjectBranch,
@@ -148,6 +149,7 @@ module U.Codebase.Sqlite.Queries
     setRemoteProjectBranchName,
     insertBranchRemoteMapping,
     ensureBranchRemoteMapping,
+    deleteBranchRemoteMapping,
 
     -- * indexes
 
@@ -159,12 +161,15 @@ module U.Codebase.Sqlite.Queries
     getDependenciesForDependent,
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
+    getDependentsWithinScope,
 
     -- ** type index
     addToTypeIndex,
     getReferentsByType,
     getTypeReferenceForReferent,
     getTypeReferencesForComponent,
+    filterTermsByReferenceHavingType,
+    filterTermsByReferentHavingType,
 
     -- ** type mentions index
     addToTypeMentionsIndex,
@@ -269,6 +274,7 @@ module U.Codebase.Sqlite.Queries
     schemaVersion,
     x2cTType,
     x2cTerm,
+    x2cDecl,
     checkBranchExistsForCausalHash,
 
     -- * Types
@@ -376,7 +382,7 @@ import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
 import U.Util.Term qualified as TermUtil
-import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
@@ -389,6 +395,7 @@ import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
+import UnliftIO qualified
 
 debug :: Bool
 debug = False
@@ -1457,6 +1464,76 @@ getTypeReferencesForComponent oId =
         WHERE term_referent_object_id = :oId
       |]
 
+filterTermsByReferentHavingType :: S.ReferenceH -> [S.Referent.Id] -> Transaction [S.Referent.Id]
+filterTermsByReferentHavingType typ terms = create *> for_ terms insert *> select <* drop
+  where
+    select = queryListRow [sql|
+      SELECT
+        q.term_referent_object_id,
+        q.term_referent_component_index,
+        q.term_referent_constructor_index
+      FROM filter_query q, find_type_index t
+      WHERE t.type_reference_builtin IS :typeBuiltin
+        AND t.type_reference_hash_id IS :typeHashId
+        AND t.type_reference_component_index IS :typeComponentIndex
+        AND t.term_referent_object_id = q.term_referent_object_id
+        AND t.term_referent_component_index = q.term_referent_component_index
+        AND t.term_referent_constructor_index IS q.term_referent_constructor_index
+    |]
+    insert r = execute [sql|
+      INSERT INTO filter_query (
+        term_referent_object_id,
+        term_referent_component_index,
+        term_referent_constructor_index
+      ) VALUES (@r, @, @)
+    |]
+    typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
+    typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
+    typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
+    create =  execute
+      [sql|
+        CREATE TEMPORARY TABLE filter_query (
+          term_referent_object_id INTEGER NOT NULL,
+          term_referent_component_index INTEGER NOT NULL,
+          term_referent_constructor_index INTEGER NULL
+        )
+      |]
+    drop =  execute [sql|DROP TABLE filter_query|]
+
+filterTermsByReferenceHavingType :: S.ReferenceH -> [S.Reference.Id] -> Transaction [S.Reference.Id]
+filterTermsByReferenceHavingType typ terms = create *> for_ terms insert *> select <* drop
+  where
+    select = queryListRow [sql|
+      SELECT
+        q.term_reference_object_id,
+        q.term_reference_component_index
+      FROM filter_query q, find_type_index t
+      WHERE t.type_reference_builtin IS :typeBuiltin
+        AND t.type_reference_hash_id IS :typeHashId
+        AND t.type_reference_component_index IS :typeComponentIndex
+        AND t.term_referent_object_id = q.term_reference_object_id
+        AND t.term_referent_component_index = q.term_reference_component_index
+        AND t.term_referent_constructor_index IS NULL
+    |]
+    insert r = execute [sql|
+      INSERT INTO filter_query (
+        term_reference_object_id,
+        term_reference_component_index
+      ) VALUES (@r, @)
+    |]
+    typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
+    typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
+    typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
+    create =  execute
+      [sql|
+        CREATE TEMPORARY TABLE filter_query (
+          term_reference_object_id INTEGER NOT NULL,
+          term_reference_component_index INTEGER NOT NULL
+        )
+      |]
+    drop =  execute [sql|DROP TABLE filter_query|]
+
+
 addToTypeMentionsIndex :: Reference' TextId HashId -> Referent.Id -> Transaction ()
 addToTypeMentionsIndex tp tm =
   execute
@@ -1772,6 +1849,83 @@ getDependenciesBetweenTerms oid1 oid2 =
       FROM elems
       WHERE path_elem IS NOT null
     |]
+
+-- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
+-- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+getDependentsWithinScope :: Set Reference.Id -> Set S.Reference -> Transaction (Map Reference.Id ObjectType)
+getDependentsWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependents_search_scope (
+        dependent_object_id INTEGER NOT NULL,
+        dependent_component_index INTEGER NOT NULL,
+        PRIMARY KEY (dependent_object_id, dependent_component_index)
+      )
+    |]
+  for_ scope \r ->
+    execute [sql|INSERT INTO dependents_search_scope VALUES (@r, @)|]
+
+  -- Populate a temporary table with all of the references in `query`
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE dependencies_query (
+        dependency_builtin INTEGER NULL,
+        dependency_object_id INTEGER NULL,
+        dependency_component_index INTEGER NULL,
+        CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
+        CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
+      )
+    |]
+  for_ query \r ->
+    execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+
+  -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
+  --
+  -- Furthermore, say the dependencies are as follows, where `x -> y` means "x depends on y".
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --
+  -- The recursive query below is seeded with direct dependents of the `query` set that are in `scope`, namely:
+  --
+  --   #honk -> #baz -> #foo
+  --            #qux -> #bar
+  --            ^^^^
+  --            direct deps of { #foo, #bar } are: { #baz, #qux }
+  --
+  -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
+  -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
+  -- reference more than once.
+
+  result :: [Reference.Id :. Only ObjectType] <- queryListRow [sql|
+    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
+      SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      FROM dependents_index d
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN dependencies_query q
+        ON q.dependency_builtin IS d.dependency_builtin
+        AND q.dependency_object_id IS d.dependency_object_id
+        AND q.dependency_component_index IS d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
+
+      UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+      FROM dependents_index d
+      JOIN object ON d.dependent_object_id = object.id
+      JOIN transitive_dependents t
+        ON t.dependent_object_id = d.dependency_object_id
+        AND t.dependent_component_index = d.dependency_component_index
+      JOIN dependents_search_scope s
+        ON s.dependent_object_id = d.dependent_object_id
+        AND s.dependent_component_index = d.dependent_component_index
+    )
+    SELECT * FROM transitive_dependents
+  |]
+  execute [sql|DROP TABLE dependents_search_scope|]
+  execute [sql|DROP TABLE dependencies_query|]
+  pure . Map.fromList $ [(r, t) | r :. Only t <- result]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
@@ -2639,6 +2793,7 @@ data EntityLocation
     EntityInMainStorage
   | -- | `temp_entity`
     EntityInTempStorage
+  deriving (Eq, Show, Ord)
 
 -- | Where is an entity stored?
 entityLocation :: Hash32 -> Transaction (Maybe EntityLocation)
@@ -2792,7 +2947,7 @@ saveSyncEntity hh hash entity = do
     Entity.TC stf -> do
       lic :: TermFormat.LocallyIndexedComponent <- do
         let TermFormat.SyncTerm x = stf
-        unsafeIO (unsyncTermComponent x)
+        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncTermComponent x
 
       tc :: [(C.Term Symbol, C.Term.Type Symbol)] <-
         traverse
@@ -2804,7 +2959,7 @@ saveSyncEntity hh hash entity = do
     Entity.DC sdf -> do
       lic :: S.Decl.LocallyIndexedComponent <- do
         let S.Decl.SyncDecl xs = sdf
-        unsafeIO (unsyncDeclComponent xs)
+        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncDeclComponent xs
 
       dc :: [C.Decl.Decl Symbol] <-
         traverse
@@ -2893,9 +3048,12 @@ saveTermComponent hh@HashHandle {toReference, toReferenceMentions} maybeEncodedT
 
 -- | Unlocalize a decl.
 s2cDecl :: LocalIds -> S.Decl.Decl Symbol -> Transaction (C.Decl Symbol)
-s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
+s2cDecl ids decl = do
   substTypeRef <- localIdsToTypeRefLookup ids
-  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+  pure $ x2cDecl substTypeRef decl
+
+x2cDecl :: (r -> r1) -> (C.Decl.DeclR r Symbol -> C.Decl.DeclR r1 Symbol)
+x2cDecl substTypeRef (C.Decl.DataDeclaration dt m b ct) = C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)
 
 saveDeclComponent ::
   HashHandle ->
@@ -3408,6 +3566,27 @@ loadAllProjectBranchesBeginningWith projectId mayPrefix =
         ORDER BY project_branch.name ASC
       |]
 
+-- | Load ALL project/branch name pairs
+-- Useful for autocomplete/fuzzy-finding
+loadAllProjectBranchNamePairs :: Transaction [(ProjectAndBranch ProjectName ProjectBranchName, ProjectAndBranch ProjectId ProjectBranchId)]
+loadAllProjectBranchNamePairs =
+  queryListRow
+    [sql|
+      SELECT
+        project.name,
+        project_branch.name,
+        project.id,
+        project_branch.branch_id
+      FROM
+        project
+        JOIN project_branch ON project.id = project_branch.project_id
+      ORDER BY project.name ASC, project_branch.name ASC
+    |]
+    <&> fmap \(projectName, branchName, projectId, branchId) ->
+      ( ProjectAndBranch projectName branchName,
+        ProjectAndBranch projectId branchId
+      )
+
 -- | Load info about all branches in a project, for display by the @branches@ command.
 --
 -- Each branch name maps to a possibly-empty collection of associated remote branches.
@@ -3854,6 +4033,20 @@ ensureBranchRemoteMapping pid bid rpid host rbid =
         local_branch_id,
         remote_host)
         DO NOTHING
+    |]
+
+deleteBranchRemoteMapping ::
+  ProjectId ->
+  ProjectBranchId ->
+  URI ->
+  Transaction ()
+deleteBranchRemoteMapping pid bid host =
+  execute
+    [sql|
+      DELETE FROM project_branch_remote_mapping
+      WHERE local_project_id = :pid
+        AND local_branch_id = :bid
+        AND remote_host = :host
     |]
 
 -- | Convert reversed name segments into glob for searching based on suffix

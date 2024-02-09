@@ -76,6 +76,8 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -108,11 +110,11 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   
     25 | > ex4
            ⧩
-           "73625f9ba7204540fdeda8c2de201f394e582a83b79218beede62f2245bb4dd8"
+           "764a6e91271bce6ce8d8f49d551ba0e586a1e20d8bc2df0dff3117fcd9a11d9a"
   
     26 | > ex5
            ⧩
-           "42c3b22ab8410b48691a325bcdef6c61e771557bfe55a144e5a25e4737106ace"
+           "abd0e845a5544ced19b1c05df18a05c10b252a355957b18b99b33970d5217de6"
 
 ```
 And here's the full API:
@@ -120,7 +122,7 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  hash : HashAlgorithm -> a -> Bytes
+  1.  hash : HashAlgorithm -> a -> ##Bytes
   2.  builtin type HashAlgorithm
   3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
   4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
@@ -131,9 +133,9 @@ And here's the full API:
   9.  HashAlgorithm.Sha2_512 : HashAlgorithm
   10. HashAlgorithm.Sha3_256 : HashAlgorithm
   11. HashAlgorithm.Sha3_512 : HashAlgorithm
-  12. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  13. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  14. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  12. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
+  13. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
+  14. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
   
 
 .> cd .
@@ -142,10 +144,12 @@ And here's the full API:
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ```unison
-> crypto.hash Sha3_256 (fromHex "3849238492")
+> hash Sha3_256 (fromHex "3849238492")
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   ✅
   
@@ -154,9 +158,9 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | > crypto.hash Sha3_256 (fromHex "3849238492")
+    1 | > hash Sha3_256 (fromHex "3849238492")
           ⧩
-          0xse8a4c3e486840b57c45f437b6675572dcdabdf8a0c2d73c7efc4371fe1464448
+          0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
 
 ```
 ## Hashing tests
@@ -285,6 +289,14 @@ test> blake2b_512.tests.ex3 =
   ex Blake2b_512
     "The quick brown fox jumps over the lazy dof"
     "ab6b007747d8068c02e25a6008db8a77c218d94f3b40d2291a7dc8a62090a744c082ea27af01521a102e42f480a31e9844053f456b4b41e8aa78bbe5c12957bb"
+
+-- check that hashing positive numbers that fit in both Nat and
+-- Int yields the same answer
+test> crypto.hash.numTests =
+        t n =
+          i = Int.fromRepresentation n
+          hash Blake2b_256 n == hash Blake2b_256 i
+        checks (List.map t (range 0 20))
 ```
 
 ```ucm
@@ -296,6 +308,7 @@ test> blake2b_512.tests.ex3 =
   ◉ blake2b_512.tests.ex2   Passed
   ◉ blake2b_512.tests.ex3   Passed
   ◉ blake2s_256.tests.ex1   Passed
+  ◉ crypto.hash.numTests    Passed
   ◉ sha1.tests.ex1          Passed
   ◉ sha1.tests.ex2          Passed
   ◉ sha1.tests.ex3          Passed
@@ -317,7 +330,7 @@ test> blake2b_512.tests.ex3 =
   ◉ sha3_512.tests.ex3      Passed
   ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 24 test(s) passing
+  ✅ 25 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.
@@ -355,6 +368,8 @@ test> hmac_sha2_512.tests.ex2 =
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -417,6 +432,8 @@ test> md5.tests.ex3 =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -454,6 +471,7 @@ test> md5.tests.ex3 =
   ◉ blake2b_512.tests.ex2   Passed
   ◉ blake2b_512.tests.ex3   Passed
   ◉ blake2s_256.tests.ex1   Passed
+  ◉ crypto.hash.numTests    Passed
   ◉ md5.tests.ex1           Passed
   ◉ md5.tests.ex2           Passed
   ◉ md5.tests.ex3           Passed
@@ -478,7 +496,7 @@ test> md5.tests.ex3 =
   ◉ sha3_512.tests.ex3      Passed
   ◉ sha3_512.tests.ex4      Passed
   
-  ✅ 27 test(s) passing
+  ✅ 28 test(s) passing
   
   Tip: Use view blake2b_512.tests.ex1 to view the source of a
        test.

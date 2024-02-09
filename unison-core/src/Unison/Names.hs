@@ -30,6 +30,7 @@ module Unison.Names
     restrictReferences,
     refTermsNamed,
     refTermsHQNamed,
+    referenceIds,
     termReferences,
     termReferents,
     typeReferences,
@@ -150,8 +151,17 @@ fuzzyFind nameToText query names =
                       query
             )
 
+-- | Get all (untagged) term/type references ids in a @Names@.
+referenceIds :: Names -> Set Reference.Id
+referenceIds Names {terms, types} =
+  fromTerms <> fromTypes
+  where
+    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran terms)
+    fromTypes = Set.mapMaybe Reference.toId (Relation.ran types)
+
+-- | Returns all constructor term references. Constructors are omitted.
 termReferences :: Names -> Set TermReference
-termReferences Names {..} = Set.map Referent.toReference $ R.ran terms
+termReferences Names {..} = Set.mapMaybe Referent.toTermReference $ R.ran terms
 
 typeReferences :: Names -> Set TypeReference
 typeReferences Names {..} = R.ran types

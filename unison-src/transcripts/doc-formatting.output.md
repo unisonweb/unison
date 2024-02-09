@@ -11,6 +11,8 @@ foo n =
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -37,6 +39,8 @@ escaping = [: Docs look [: like \@this \:] :]
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -67,6 +71,8 @@ commented = [:
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -101,6 +107,8 @@ doc1 = [:   hi   :]
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -130,6 +138,8 @@ doc2 = [: hello
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -168,6 +178,8 @@ Note that because of the special treatment of the first line mentioned above, wh
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -182,9 +194,10 @@ Note that because of the special treatment of the first line mentioned above, wh
 
   doc3 : Doc
   doc3 =
-    [: When Unison identifies a paragraph, it removes any newlines
-    from it before storing it, and then reflows the paragraph text
-    to fit the display window on display/view/edit.
+    [: When Unison identifies a paragraph, it removes any 
+    newlines from it before storing it, and then reflows the 
+    paragraph text to fit the display window on 
+    display/view/edit.
     
     For these purposes, a paragraph is any sequence of non-empty
     lines that have zero indent (after the unindenting mentioned
@@ -197,8 +210,8 @@ Note that because of the special treatment of the first line mentioned above, wh
        is not treated | either.
     
     Note that because of the special treatment of the first line
-    mentioned above, where its leading space is removed, it is always
-    treated as a paragraph.
+    mentioned above, where its leading space is removed, it is 
+    always treated as a paragraph.
     :]
 
 ```
@@ -211,6 +224,8 @@ doc4 = [: Here's another example of some paragraphs.
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -245,6 +260,8 @@ doc5 = [:   - foo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -274,6 +291,8 @@ doc6 = [:
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -305,6 +324,8 @@ expr = foo 1
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -365,6 +386,8 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -379,24 +402,25 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
   test1 : Doc
   test1 =
-    [: The internal logic starts to get hairy when you use the \@
-    features, for example referencing a name like @List.take.  Internally,
-    the text between each such usage is its own blob (blob ends here
-    --> @List.take), so paragraph reflow has to be aware of multiple
-    blobs to do paragraph reflow (or, more accurately, to do the
-    normalization step where newlines with a paragraph are removed.)
+    [: The internal logic starts to get hairy when you use the 
+    \@ features, for example referencing a name like @List.take.
+    Internally, the text between each such usage is its own blob
+    (blob ends here --> @List.take), so paragraph reflow has to 
+    be aware of multiple blobs to do paragraph reflow (or, more 
+    accurately, to do the normalization step where newlines with
+    a paragraph are removed.)
     
-    Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem
-    ipsum dolor ending in ref @List.take
+    Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem 
+    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor ending in ref @List.take
     
     @List.take starting para lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor.
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem 
+    ipsum dolor lorem ipsum dolor.
     
-    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor.
+    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem 
+    ipsum dolor @List.take lorem ipsum dolor lorem ipsum dolor 
+    lorem ipsum dolor lorem ipsum dolor.
     
       - non-para line (@List.take) with ref @List.take
       Another non-para line
@@ -404,22 +428,22 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
     
       - non-para line with ref @List.take
     before a para-line lorem ipsum dolor lorem ipsum dolor lorem
-    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor.
+    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor lorem ipsum dolor.
     
       - non-para line followed by a para line starting with ref
-    @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor.
+    @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
+    lorem ipsum dolor lorem ipsum dolor.
     
-    a para-line ending with ref lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor lorem ipsum dolor @List.take
+    a para-line ending with ref lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take
       - non-para line
     
-    para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
-    dolor lorem ipsum dolor
+    para line lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
+    lorem ipsum dolor lorem ipsum dolor
       @List.take followed by non-para line starting with ref.
     
     @[signature] List.take
@@ -443,6 +467,8 @@ reg1363 = [: `@List.take foo` bar
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -471,6 +497,8 @@ test2 = [:
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would

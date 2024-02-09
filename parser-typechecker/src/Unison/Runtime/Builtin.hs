@@ -680,6 +680,26 @@ viewrs = unop0 3 $ \[s, u, i, l] ->
         (1, ([BX, BX], TAbss [i, l] $ seqViewElem i l))
       ]
 
+splitls, splitrs :: (Var v) => SuperNormal v
+splitls = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLL [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+splitrs = binop0 4 $ \[n0, s, n, t, l, r] ->
+  unbox n0 Ty.natRef n
+    . TLetD t UN (TPrm SPLR [n, s])
+    . TMatch t
+    . MatchSum
+    $ mapFromList
+      [ (0, ([], seqViewEmpty)),
+        (1, ([BX, BX], TAbss [l, r] $ seqViewElem l r))
+      ]
+
 eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
 eqt = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm EQLT [x, y]) $
@@ -906,21 +926,18 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 4 $ \[r, f, n, j, k] ->
-    TMatch r . flip (MatchData Ty.exceptionRef) Nothing $
-      mapFromList
-        [ (0, ([BX], TAbs f $ TVar f)),
-          ( i,
-            ( [UN, BX],
-              TAbss [j, f]
-                . TShift Ty.exceptionRef k
-                . TLetD n BX (TLit $ T "builtin.raise")
-                $ TPrm EROR [n, f]
-            )
-          )
-        ]
-  where
-    i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+  unop0 3 $ \[r, f, n, k] ->
+    TMatch r
+      . flip MatchRequest (TAbs f $ TVar f)
+      . Map.singleton Ty.exceptionRef
+      $ mapSingleton
+        0
+        ( [BX],
+          TAbs f
+            . TShift Ty.exceptionRef k
+            . TLetD n BX (TLit $ T "builtin.raise")
+            $ TPrm EROR [n, f]
+        )
 
 gen'trace :: SuperNormal Symbol
 gen'trace =
@@ -1006,6 +1023,19 @@ check'sandbox =
     $ boolift b
   where
     (refs, val, b) = fresh
+
+sandbox'links :: SuperNormal Symbol
+sandbox'links = Lambda [BX] . TAbs ln $ TPrm SDBL [ln]
+  where
+    ln = fresh1
+
+value'sandbox :: SuperNormal Symbol
+value'sandbox =
+  Lambda [BX, BX]
+    . TAbss [refs, val]
+    $ TPrm SDBV [refs, val]
+  where
+    (refs, val) = fresh
 
 stm'atomic :: SuperNormal Symbol
 stm'atomic =
@@ -2126,6 +2156,8 @@ builtinLookup =
         ("List.empty", (Untracked, emptys)),
         ("List.viewl", (Untracked, viewls)),
         ("List.viewr", (Untracked, viewrs)),
+        ("List.splitLeft", (Untracked, splitls)),
+        ("List.splitRight", (Untracked, splitrs)),
         --
         --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
         ("Universal.==", (Untracked, equ)),
@@ -2150,6 +2182,8 @@ builtinLookup =
         ("Link.Term.toText", (Untracked, term'link'to'text)),
         ("STM.atomically", (Tracked, stm'atomic)),
         ("validateSandboxed", (Untracked, check'sandbox)),
+        ("Value.validateSandboxed", (Tracked, value'sandbox)),
+        ("sandboxLinks", (Tracked, sandbox'links)),
         ("IO.tryEval", (Tracked, try'eval))
       ]
       ++ foreignWrappers
@@ -2444,10 +2478,10 @@ declareForeigns = do
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
     $ \(n :: Int) -> case n of
-      0 -> pure (Just SYS.stdin)
-      1 -> pure (Just SYS.stdout)
-      2 -> pure (Just SYS.stderr)
-      _ -> pure Nothing
+      0 -> pure SYS.stdin
+      1 -> pure SYS.stdout
+      2 -> pure SYS.stderr
+      _ -> die "IO.stdHandle: invalid input."
 
   let exitDecode ExitSuccess = 0
       exitDecode (ExitFailure n) = n
@@ -3044,6 +3078,8 @@ declareForeigns = do
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many p
   declareForeign Untracked "Pattern.capture" boxDirect . mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Capture p
+  declareForeign Untracked "Pattern.captureAs" boxBoxDirect . mkForeign $
+    \(t, (TPat.CP p _)) -> evaluate . TPat.cpattern $ TPat.CaptureAs t p
   declareForeign Untracked "Pattern.join" boxDirect . mkForeign $ \ps ->
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   declareForeign Untracked "Pattern.or" boxBoxDirect . mkForeign $

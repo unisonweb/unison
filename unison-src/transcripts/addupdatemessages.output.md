@@ -12,6 +12,8 @@ structural type Y = Two Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -46,6 +48,8 @@ structural type Z = One Nat
 ```
 
 ```ucm
+
+  Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -82,6 +86,8 @@ structural type X = Three Nat Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -90,11 +96,9 @@ structural type X = Three Nat Nat Nat
       new definition:
     
       structural type X
-        (The old definition is also named Z. I'll update this
-        name too.)
+        (The old definition is also named Z.)
       x : Nat
-        (The old definition is also named z. I'll update this
-        name too.)
+        (The old definition is also named z.)
 
 ```
 Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old definitions were also called `z` and `Z` and these names have also been updated.
@@ -102,14 +106,14 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    structural type X
-      (The old definition was also named Z. I updated this name
-      too.)
-    x : Nat
-      (The old definition was also named z. I updated this name
-      too.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
 Update it to something that already exists with a different name:
@@ -121,6 +125,8 @@ structural type X = Two Nat Nat
 
 ```ucm
 
+  Loading changes detected in scratch.u.
+
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -129,13 +135,9 @@ structural type X = Two Nat Nat
       new definition:
     
       structural type X
-        (The old definition is also named Z. I'll update this
-        name too.)
-        (The new definition is already named Y as well.)
+        (also named Y)
       x : Nat
-        (The old definition is also named z. I'll update this
-        name too.)
-        (The new definition is already named y as well.)
+        (also named y)
 
 ```
 Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also named `z/Z`, and was also updated. And it says the new definition is also named `y/Y`.
@@ -143,15 +145,9 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
 ```ucm
 .> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    structural type X
-      (The old definition was also named Z. I updated this name
-      too.)
-      (The new definition is already named Y as well.)
-    x : Nat
-      (The old definition was also named z. I updated this name
-      too.)
-      (The new definition is already named y as well.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```

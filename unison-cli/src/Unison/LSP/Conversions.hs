@@ -16,26 +16,38 @@ rangeToInterval (Range start end) =
 annToInterval :: Ann -> Maybe (Interval.Interval Position)
 annToInterval ann = annToLspRange ann <&> rangeToInterval
 
+-- | Convert a Unison file-position where the first char is 1 and line is 1, to an LSP `Position`
+-- where the first char is 0 and line is 0.
 uToLspPos :: Lex.Pos -> Position
 uToLspPos uPos =
   Position
-    { _line = fromIntegral $ Lex.line uPos - 1, -- 1 indexed vs 0 indexed
-      _character = fromIntegral $ Lex.column uPos - 1
+    { _line = fromIntegral $ max 0 (Lex.line uPos - 1),
+      _character = fromIntegral $ max 0 (Lex.column uPos - 1)
     }
 
+-- | Convert an LSP `Position` where the first char is 0 and line is 0, to a Unison file-position
+-- where the first char is 1 and line is 1.
 lspToUPos :: Position -> Lex.Pos
 lspToUPos Position {_line = line, _character = char} =
   Lex.Pos
-    (fromIntegral $ line + 1) -- 1 indexed vs 0 indexed
+    (fromIntegral $ line + 1)
     (fromIntegral $ char + 1)
 
+-- | Convert a Unison `Range` where the first char is 1 and line is 1, to an LSP `Range`
+-- where the first char is 0 and line is 0.
 uToLspRange :: Range.Range -> Range
 uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
+
+-- | Convert an LSP `Range` where the first char is 0 and line is 0, to a Unison `Range`
+-- where the first char is 1 and line is 1.
+lspToURange :: Range -> Range.Range
+lspToURange (Range start end) = Range.Range (lspToUPos start) (lspToUPos end)
 
 annToLspRange :: Ann -> Maybe Range
 annToLspRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
+  Ann.GeneratedFrom a -> annToLspRange a
   Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
 
 annToURange :: Ann -> Maybe Range.Range
@@ -43,3 +55,4 @@ annToURange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
   Ann.Ann start end -> Just $ Range.Range start end
+  Ann.GeneratedFrom a -> annToURange a
