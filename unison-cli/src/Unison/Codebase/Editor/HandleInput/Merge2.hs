@@ -376,6 +376,7 @@ checkDeclCoherency ::
   ( Nametree
       (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
   ) ->
+  -- | Returns @BiMultimap TypeName ConstructorName@
   Transaction (Either Merge.PreconditionViolation (BiMultimap Name Name))
 checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   runExceptT
