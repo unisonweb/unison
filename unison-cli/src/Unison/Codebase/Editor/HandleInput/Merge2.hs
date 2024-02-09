@@ -10,6 +10,7 @@ import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Except qualified as Except
+import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
@@ -52,10 +53,12 @@ import Unison.Hash (Hash)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
+import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Referent qualified as V1 (Referent)
@@ -155,6 +158,37 @@ handleMerge bobBranchName = do
             abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
             lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
             pure (lcaDefns, lcaLibdeps, diffs)
+
+      -- Load and merge libdeps
+      (libdepsCausalParents, libdeps) <- do
+        maybeAliceLibdeps <- loadLibdeps aliceBranch
+        maybeBobLibdeps <- loadLibdeps bobBranch
+        pure $
+          ( Set.fromList (catMaybes [fst <$> maybeAliceLibdeps, fst <$> maybeBobLibdeps]),
+            Merge.mergeLibdeps
+              ((==) `on` Causal.causalHash)
+              getTwoFreshNames
+              lcaLibdeps
+              (maybe Map.empty snd maybeAliceLibdeps)
+              (maybe Map.empty snd maybeBobLibdeps)
+          )
+
+      -- let conflictedNames =
+      --       Defns
+      --         { terms = getConflicts (view #terms <$> diffs),
+      --           types = getConflicts (view #types <$> diffs)
+      --         }
+      -- -- TODO is swapping constructors' names handled correctly here?
+      -- -- TODO is exchanging constructor for function handled correctly here?
+      -- -- TODO is exchanging function for constructor handled correctly here?
+      -- conflicted <- filterConflicts conflictedNames defns & onLeft abort
+      -- let updates0 = filterUpdates diffs defns
+      -- let updates = bimapDefns BiMultimap.range BiMultimap.range <$> updates0
+      -- let updatedNames = bimapDefns BiMultimap.ran BiMultimap.ran <$> updates0
+      -- dependents <- collectDependentsOfInterest defns updatedNames
+      -- let unconflicted = filterUnconflicted (BiMultimap.range <$> declNames) conflicted updates dependents defns
+      -- let unconflicted' = filterUnconflicted' updatedNames (conflicted <> dependents) defns
+      -- let unconflictedUpdates = filterUnconflictedUpdates lcaDefns updates0 unconflicted'
       undefined
   undefined
 
@@ -568,3 +602,37 @@ loadLibdeps branch =
     Just dependenciesCausal -> do
       dependenciesBranch <- Causal.value dependenciesCausal
       pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
+
+-- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
+-- clash with any existing dependencies.
+getTwoFreshNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
+getTwoFreshNames names name0 =
+  go2 0
+  where
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go2 4 = ("base__4", "base__7")
+    go2 :: Integer -> (NameSegment, NameSegment)
+    go2 !i
+      | Set.member name names = go2 (i + 1)
+      | otherwise = (name, go1 (i + 1))
+      where
+        name = mangled i
+
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go1 5 = "base__7"
+    go1 :: Integer -> NameSegment
+    go1 !i
+      | Set.member name names = go1 (i + 1)
+      | otherwise = name
+      where
+        name = mangled i
+
+    mangled :: Integer -> NameSegment
+    mangled i =
+      NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
