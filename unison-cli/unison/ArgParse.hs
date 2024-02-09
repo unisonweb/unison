@@ -117,7 +117,8 @@ data Command
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
-    exitOption :: ShouldExit
+    exitOption :: ShouldExit,
+    nativeRuntimePath :: Maybe FilePath
   }
   deriving (Show, Eq)
 
@@ -259,11 +260,13 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
+  nativeRuntimePath <- nativeRuntimePathFlag
 
   pure
     GlobalOptions
       { codebasePathOption = codebasePathOption,
-        exitOption = exitOption
+        exitOption = exitOption,
+        nativeRuntimePath = nativeRuntimePath
       }
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
@@ -445,6 +448,14 @@ readAbsolutePath = do
         "Expected an absolute path, but the path "
           <> show rel
           <> " was relative. Try adding a `.` prefix, e.g. `.path.to.project`"
+
+nativeRuntimePathFlag :: Parser (Maybe FilePath)
+nativeRuntimePathFlag =
+  optional . strOption $
+    long "runtime-path"
+      <> metavar "DIR"
+      <> help "Path to native runtime files"
+      <> noGlobal
 
 readPath' :: ReadM Path.Path'
 readPath' = do

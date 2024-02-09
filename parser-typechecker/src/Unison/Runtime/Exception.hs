@@ -18,5 +18,8 @@ instance Exception RuntimeExn
 die :: (HasCallStack) => String -> IO a
 die = throwIO . PE callStack . P.lit . fromString
 
+dieP :: HasCallStack => P.Pretty P.ColorText -> IO a
+dieP = throwIO . PE callStack
+
 exn :: (HasCallStack) => String -> a
 exn = throw . PE callStack . P.lit . fromString
