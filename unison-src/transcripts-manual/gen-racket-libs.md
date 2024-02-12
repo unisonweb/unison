@@ -1,11 +1,26 @@
 
-Fetch base, then fetch the compiler, then build the generated
-libraries in the racket directory.
+When we start out, `./scheme-libs/racket` contains a bunch of library files that we'll need. They define the Unison builtins for Racket.
+
+Next, we'll download the jit project and generate a few Racket files from it.
 
 ```ucm
-.> pull @unison/base/releases/2.5.0 .base
-.> compile.native.fetch
-.> compile.native.genlibs scheme-libs/racket
+.> project.create-empty jit-setup
+jit-setup/main> pull @unison/internal/releases/0.0.10 lib.jit
+```
+
+```unison
+generateSchemeBoot dir = do
+  saveDataInfoFile dir dataInfos
+  saveBaseFile dir bootSpec
+  saveWrapperFile dir simpleWrapperSpec
+  saveBaseFile dir builtinSpec
+  saveWrapperFile dir compoundWrapperSpec
+
+go = generateSchemeBoot "scheme-libs/racket"
+```
+
+```ucm
+jit-setup/main> run go
 ```
 
 After executing this, `scheme-libs/racket` will contain the full
@@ -20,11 +35,11 @@ them. This is accomplished by running.
 in the directory where the `unison` directory is located. Then the
 runtime executable can be built with
 
-    raco exe scheme-libs/racket/ucr.rkt
+    raco exe scheme-libs/racket/unison-runtime.rkt
 
 and a distributable directory can be produced with:
 
-    raco distribute <output-dir> scheme-libs/racket/ucr
+    raco distribute <output-dir> scheme-libs/racket/unison-runtime
 
 At that point, <output-dir> should contain the executable and all
 dependencies necessary to run it.
