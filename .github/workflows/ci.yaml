@@ -21,8 +21,8 @@ env:
   ormolu_version: "0.5.0.1"
   racket_version: "8.7"
   jit_version: "@unison/internal/releases/0.0.10"
-  jit_src_scheme: "${{ runner.temp }}/unison-jit-src/scheme-libs/racket"
-  jit_bin: "${{ runner.temp }}/unison-jit-bin"
+  jit_src_scheme: "unison-jit-src/scheme-libs/racket"
+  jit_bin: "unison-jit-bin"
   jit_generator_os: ubuntu-20.04
 
 
@@ -254,6 +254,7 @@ jobs:
     needs: build-ucm
     runs-on: ${{ env.jit_generator_os }}
     env:
+      jit_src_scheme: ${{ runner.temp}}/${{ env.jit_src_scheme }}
       ucm: ${{ runner.temp }}/unison-${{ env.jit_generator_os }}
     steps:
       - uses: actions/cache@v3
@@ -321,6 +322,8 @@ jobs:
     needs: [build-ucm, generate-jit-source]
     runs-on: ${{ matrix.os }}
     env:
+      jit_src_scheme: ${{ runner.temp}}/${{ env.jit_src_scheme }}
+      jit_bin: ${{ runner.temp}}/${{ env.jit_bin }}
       ucm: ${{ runner.temp }}/unison-${{ matrix.os }}
     steps:
       - name: cache jit binaries
@@ -376,7 +379,6 @@ jobs:
       - run: |
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript setup-jit.md
-
 
       - name: build jit binary
         # if: steps.jit_bin_exists.outputs.exists == 'false'
