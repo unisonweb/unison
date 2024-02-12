@@ -19,8 +19,8 @@ x y =
 (<|>) : Nat -> Nat -> (Nat, Nat)
 (<|>) a b = (a, b)
 
-f x y =
-  use List +:
+symbolyEndOfBlock =
+  x = 1
   (+:)
 
 
@@ -107,7 +107,9 @@ x y =
 (<|>) : Nat -> Nat -> (Nat, Nat)
 a <|> b = (a, b)
 
-f x y = (+:)
+symbolyEndOfBlock =
+  x = 1
+  (+:)
 
 
 -- Test for a previous regression that added extra brackets.

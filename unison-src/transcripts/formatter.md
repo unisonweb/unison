@@ -24,7 +24,7 @@ x y =
 (<|>) a b = (a, b)
 
 symbolyEndOfBlock =
-  use List +:
+  x = 1
   (+:)
 
 
