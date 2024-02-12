@@ -246,10 +246,15 @@ jobs:
           name: unison-${{ matrix.os }}
           path: $(stack exec -- which unison)
 
+  jit_generator_os-hack:
+    name: Generate JIT source hacky prereq
+    outputs:
+      runner: ${{ env.jit_generator_os }}
+
   generate-jit-source:
     name: Generate JIT source
-    needs: build-ucm
-    runs-on: "${{ env.jit_generator_os }}"
+    needs: [build-ucm, jit_generator_os-hack]
+    runs-on: ${{needs.jit_generator_os-hack.outputs.runner}}
     steps:
       - name: set up environment
         run: |
