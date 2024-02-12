@@ -41,6 +41,7 @@ import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.Orphans ()
+import Unison.LSP.SelectionRange (selectionRangeHandler)
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.VFS qualified as VFS
@@ -172,6 +173,7 @@ lspRequestHandlers =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert Msg.SMethod_TextDocumentSelectionRange (mkHandler selectionRangeHandler)
     & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
     & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
   where

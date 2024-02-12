@@ -13,7 +13,7 @@ import Language.LSP.Protocol.Lens hiding (id, to)
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.DataDeclaration qualified as DD
-import Unison.LSP.Conversions (annToRange)
+import Unison.LSP.Conversions (annToLspRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
 import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
@@ -59,7 +59,7 @@ foldingRangesForFile UnisonFileId {dataDeclarationsId, effectDeclarationsId, ter
       ranges =
         folds
           & mapMaybe \(sym, range) ->
-            (Text.pack . Var.nameStr <$> sym,) <$> annToRange range
+            (Text.pack . Var.nameStr <$> sym,) <$> annToLspRange range
    in ranges <&> \(maySym, r) ->
         FoldingRange
           { _startLine = r ^. start . line,
