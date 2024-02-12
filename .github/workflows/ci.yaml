@@ -33,7 +33,7 @@ jobs:
     # contributor forks on contributor PRs.
     if: github.ref_name == 'trunk'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v41
@@ -69,7 +69,7 @@ jobs:
           - windows-2019
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
@@ -84,7 +84,7 @@ jobs:
           grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_OUTPUT"
           grep resolver stack.yaml | awk '{print "resolver_long="$2}' >> "$GITHUB_OUTPUT"
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cache ~/.stack (unix)
         if: runner.os != 'Windows'
         with:
@@ -99,10 +99,11 @@ jobs:
             stack-1_${{matrix.os}}-
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cache ~/.stack (Windows)
         if: runner.os == 'Windows'
         with:
+          save-always: true
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
@@ -116,9 +117,10 @@ jobs:
             stack-1_${{matrix.os}}-
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cache .stack-work
         with:
+          save-always: true
           path: |
             **/.stack-work
           # Main cache key: commit hash. This should always result in a cache miss...
@@ -255,7 +257,7 @@ jobs:
         run: |
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
           echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cache jit source
         if: runner.os == 'Linux'
         with:
@@ -335,7 +337,7 @@ jobs:
           echo "jit_bin=${{ runner.temp }}/${{ env.jit_bin }}" >> $GITHUB_ENV
           echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
       - name: cache jit binaries
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.jit_bin }}
           key: jit_bin.racket_${{ env.racket_version }}.jit_${{ env.jit_src_scheme }}.${{ github.sha }}
@@ -349,7 +351,7 @@ jobs:
 
       - name: Cache Racket dependencies
         if: steps.jit_bin_exists.outputs.exists == 'false'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/racket
@@ -375,7 +377,7 @@ jobs:
           name: jit-source
           path: ${{ env.jit_src_scheme }}
 
-      - uses: actions/checkout@v2 # checkout scheme-libs from unison repo
+      - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
         # if: steps.jit_src_exists.outputs.exists == 'false'
 
       - name: download ucm
