@@ -21,10 +21,10 @@ env:
   ormolu_version: "0.5.0.1"
   racket_version: "8.7"
   jit_version: "@unison/internal/releases/0.0.10"
-  jit_src_scheme: "${{$HOME}}/unison-jit-src/scheme-libs/racket"
-  jit_bin: "${{$HOME}}/unison-jit-bin"
+  jit_src_scheme: "${{ env.home }}/unison-jit-src/scheme-libs/racket"
+  jit_bin: "${{ env.home }}/unison-jit-bin"
   jit_generator_os: ubuntu-20.04
-  jit_codebase: "${{$HOME}}/unison-jit-codebase"
+  jit_codebase: "${{ env.home }}/unison-jit-codebase"
 
 
 
