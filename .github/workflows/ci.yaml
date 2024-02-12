@@ -246,6 +246,9 @@ jobs:
       #   if: runner.os == 'macOS'
       #   run: echo | stack ghci
 
+      - name: debug check ucm artifact
+        run: ls -l ${{ steps.ucm-path.outputs.ucm-path }}
+
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
         with:
