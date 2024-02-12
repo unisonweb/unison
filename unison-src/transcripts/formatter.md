@@ -19,6 +19,15 @@ x y =
     x + y
 -- Should keep comments after
 
+-- symbolyDefinition
+(<|>) : Nat -> Nat -> (Nat, Nat)
+(<|>) a b = (a, b)
+
+symbolyEndOfBlock =
+  x = 1
+  (+:)
+
+
 -- Test for a previous regression that added extra brackets.
 oneLiner = {{ one liner }}
 -- After
