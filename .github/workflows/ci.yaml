@@ -320,7 +320,7 @@ jobs:
     needs: [build-ucm, generate-jit-source]
     runs-on: ${{ matrix.os }}
     env:
-      ucm: "${{ runner.temp }}/unison-${{ matrix.os }}"
+      ucm: ${{ runner.temp }}/unison-${{ matrix.os }}
     steps:
       - name: cache jit binaries
         uses: actions/cache@v3
@@ -385,7 +385,7 @@ jobs:
           raco exe ${{ env.jit_src_scheme }}/unison-runtime.rkt
           raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}
 
-      -name: save jit binary
+      - name: save jit binary
         # if: steps.jit_bin_exists.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
         with:
