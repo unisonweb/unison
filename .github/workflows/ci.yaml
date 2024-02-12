@@ -264,7 +264,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{ matrix.os }}
-          path: ${{ steps.ucm-path.outputs.ucm-path }}
+          path: ${{ steps.ucm-path.outputs.ucm-path }}{,.exe}
           if-no-files-found: error
 
       - name: Setup tmate session
