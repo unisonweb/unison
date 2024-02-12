@@ -17,9 +17,25 @@ on:
       - release/*
   workflow_dispatch:
 
+env:
+  ormolu_version: "0.5.0.1"
+  racket_version: "8.7"
+  jit_version: "@unison/internal/releases/0.0.10"
+  jit_src_scheme: "${{$HOME}}/unison-jit-src/scheme-libs/racket"
+  jit_bin: "${{$HOME}}/unison-jit-bin"
+  jit_generator_os: ubuntu-20.04
+  jit_codebase: "${{$HOME}}/unison-jit-codebase"
+
+
+
+matrix:
+  os:
+    # While iterating on this file, you can disable one or more of these to speed things up
+    - ubuntu-20.04
+    - macOS-12
+    - windows-2019
 
 jobs:
-
   ormolu:
     runs-on: ubuntu-20.04
     # Only run formatting on trunk commits
@@ -39,7 +55,7 @@ jobs:
           separator: "\n"
       - uses: haskell-actions/run-ormolu@v14
         with:
-          version: "0.5.0.1"
+          version: ${{ env.ormolu_version }}
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
@@ -47,33 +63,20 @@ jobs:
         if: ${{ always() }}
         with:
           commit_message: automatically run ormolu
-
-  build:
-    name: ${{ matrix.os }}
+  build-ucm:
+    name: Build UCM ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # The 'always()' causes this to build even if the ormolu job is skipped.
     if: ${{ always() }}
     needs: ormolu
-    defaults:
-      run:
-        shell: bash
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
-      matrix:
-        os:
-          # While iterating on this file, you can disable one or more of these to speed things up
-          - ubuntu-20.04
-          - macOS-12
-          - windows-2019
+
     steps:
       - uses: actions/checkout@v2
-
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
-
-
       - id: stackage-resolver
         name: record stackage resolver
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
@@ -172,19 +175,6 @@ jobs:
         if: runner.os == 'macOS'
         run: rm -rf ~/.stack/setup-exe-cache
 
-      - name: install stack-clean-old (to scan or clean up old stackage caches)
-        run: |
-          if ! stack exec -- which stack-clean-old; then
-            stack install stack-clean-old
-          fi
-
-      - name: check initial stackage cache size
-        run: |
-          echo global .stack
-          stack exec -- stack-clean-old list -G || true
-          echo project .stack-work
-          stack exec -- stack-clean-old list -P || true
-
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
@@ -249,51 +239,164 @@ jobs:
           git diff --cached --ignore-cr-at-eol --exit-code
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
-      - name: Cache Racket dependencies
-        uses: actions/cache@v2
+
+      - name: verify stack ghci startup
+        if: runner.os == 'macOS'
+        run: echo | stack ghci
+
+      - name: save ucm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: $(stack exec -- which unison)
+
+  generate-jit-source:
+    name: Generate JIT source
+    needs: build-ucm
+    runs-on: ${{ env.jit_generator_os }}
+    steps:
+      - uses: actions/cache@v3
+        name: cache jit source
         if: runner.os == 'Linux'
+        with:
+          path: ${{ env.jit_src_scheme }}
+          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src}}.${{github.sha}}
+          restore-keys: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src}}.
+
+      - name: check source exists
+        id: jit_src_exists
+        uses: thebinaryfelix/check-file-existence-action@v1
+        with:
+          files: "${{ env.jit_src_scheme }}/unison/{data-info,boot-generated,simple-wrappers,builtin-generated,compound-wrappers}.ss"
+
+      - name: create transcript
+        if: steps.jit_src_exists.outputs.exists == 'false'
+        uses: 1arp/create-a-file-action@0.3
+        with:
+          file: 'setup-jit.md'
+          content: |
+            ```ucm
+            .> project.create-empty jit-setup
+            jit-setup/main> pull ${{ env.jit_version }} lib.jit
+            ```
+            ```unison
+            generateSchemeBoot dir = do
+              saveDataInfoFile dir dataInfos
+              saveBaseFile dir bootSpec
+              saveWrapperFile dir simpleWrapperSpec
+              saveBaseFile dir builtinSpec
+              saveWrapperFile dir compoundWrapperSpec
+
+            go = generateSchemeBoot "${{ env.jit_src_scheme }}"
+            ```
+            ```ucm
+            jit-setup/main> run go
+            ```
+
+      - name: download ucm artifact
+        if: steps.jit_src_exists.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ env.jit_generator_os }}
+          path: ./
+
+      - name: generate source
+        if: steps.jit_src_exists.outputs.exists == 'false'
+        run: |
+          cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
+          chmod +x unison-${{ env.jit_generator_os }}
+          unison-${{ env.jit_generator_os }} transcript setup-jit.md
+
+      - name: save jit source
+        if: steps.jit_src_exists.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}/**
+
+
+  build-jit-binary:
+    name: Build JIT binary ${{ matrix.os }}
+    needs: [build-ucm, generate-jit-source]
+    runs-on: ${{ matrix.os }}
+    env:
+      ucm: ${{ runner.temp }}/unison-${{ matrix.os }}
+    steps:
+      - name: cache jit binaries
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.jit_bin }}
+          key: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src}}.${{github.sha}}
+          restore-keys: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src}}.
+
+      - name: check binary exists
+        id: jit_bin_exists
+        uses: thebinaryfelix/check-file-existence-action@v1
+        with:
+          files: "${{ env.jit_bin }}/unison-runtime"
+
+      - name: Cache Racket dependencies
+        if: steps.jit_bin_exists.outputs.exists == 'false'
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-8.7
-
-      - uses: Bogdanp/setup-racket@v1.10
-        if: runner.os == 'Linux'
+          key: ${{ runner.os }}-racket-${{env.racket_version}}
+      - uses: Bogdanp/setup-racket@v1.11
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
-          version: '8.7' # match with cache key above
-      - run: raco pkg install --auto --skip-installed --batch x509-lib
-        if: runner.os == 'Linux'
+          version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
-        if: runner.os == 'Linux'
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
-
-      - uses: actions/cache@v3
-        name: cache base.md codebase (unix)
-        if: runner.os == 'Linux'
+      - name: download jit source
+        # if: steps.jit_src_exists.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.cache/unisonlanguage/base.unison
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md','**/unison-cli/src/Unison/JitInfo.hs')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md','**/unison-cli/src/Unison/JitInfo.hs')}}-
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}
 
-      - name: set up `base` codebase
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/setup-base-codebase.sh
+      - uses: actions/checkout@v2 # checkout scheme-libs from unison repo
+        # if: steps.jit_src_exists.outputs.exists == 'false'
 
-      - name: jit tests
-        # if: false # temporarily disabled
-        if: runner.os == 'Linux'
+      - name: download ucm
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ runner.temp }}
+      - run: |
+          chmod +x ${{ env.ucm }}
+          ${{ env.ucm }} transcript setup-jit.md
+
+
+      - name: build jit binary
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
         run: |
-          ./unison-src/builtin-tests/jit-tests.sh
-          cat ./unison-src/builtin-tests/jit-tests.output.md
+          cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
+          raco pkg install --auto ${{ env.jit_src_scheme }}/unison
+          raco exe ${{ env.jit_src_scheme }}/unison-runtime.rkt
+          raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}
+
+      -name: save jit binary
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-binary-${{ matrix.os }}
+          path: ${{ env.jit_bin }}/**
+
+      - name: jit tests ${{ matrix.os }}
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
+        run: |
+          time ${{ env.ucm }} transcript unison-src/builtin-tests/jit-tests.md
+          cat unison-src/builtin-tests/jit-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
           if [ -n "$CHANGE" ]; then
             echo "The jit-tests output has changed"
@@ -301,23 +404,12 @@ jobs:
           fi
 
       - name: interpreter tests
-        # if: false # temporarily disabled
-        if: runner.os == 'Linux'
+        # if: steps.jit_bin_exists.outputs.exists == 'false'
         run: |
-          ./unison-src/builtin-tests/interpreter-tests.sh
-          cat ./unison-src/builtin-tests/interpreter-tests.output.md
+          time ${{ env.ucm }} transcript unison-src/builtin-tests/interpreter-tests.md
+          cat unison-src/builtin-tests/interpreter-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
           if [ -n "$CHANGE" ]; then
             echo "The interpreter-tests output has changed"
             exit 1
           fi
-
-      - name: verify stack ghci startup
-        if: runner.os == 'macOS'
-        run: echo | stack ghci
-      - name: check final stackage cache size
-        run: |
-          echo global .stack
-          stack exec -- stack-clean-old list -G || true
-          echo project .stack-work
-          stack exec -- stack-clean-old list -P || true
