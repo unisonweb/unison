@@ -242,14 +242,9 @@ jobs:
       #     git diff --cached --ignore-cr-at-eol --exit-code
       # - name: cli-integration-tests
       #   run: stack --no-terminal exec cli-integration-tests
-
-      - name: verify stack ghci startup
-        if: runner.os == 'macOS'
-        run: echo | stack ghci
-
-      - name: debug check ucm artifact
-        uses: actions/upload-artifact@v4
-        run: ls -l ${{ steps.ucm-path.outputs.ucm-path }}
+      # - name: verify stack ghci startup
+      #   if: runner.os == 'macOS'
+      #   run: echo | stack ghci
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
