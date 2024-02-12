@@ -250,7 +250,8 @@ jobs:
   # but we can use a step output, which can use an env variable
   jit_generator_os-hack:
     name: Generate JIT source hacky prereq
-    run: echo "fingers crossed!" # every step requires an action
+    steps:
+      - run: echo "fingers crossed!" # every step requires an action
     outputs:
       runner: ${{ env.jit_generator_os }}
 
