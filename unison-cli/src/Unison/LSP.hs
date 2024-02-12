@@ -41,6 +41,7 @@ import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.Orphans ()
+import Unison.LSP.SemanticTokens (semanticTokensFullHandler)
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.VFS qualified as VFS
@@ -174,6 +175,7 @@ lspRequestHandlers =
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
     & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
     & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
+    & SMM.insert Msg.SMethod_TextDocumentSemanticTokensFull (mkHandler semanticTokensFullHandler)
   where
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
