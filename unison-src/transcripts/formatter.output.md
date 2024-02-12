@@ -15,6 +15,15 @@ x y =
     x + y
 -- Should keep comments after
 
+-- symbolyDefinition
+(<|>) : Nat -> Nat -> (Nat, Nat)
+(<|>) a b = (a, b)
+
+f x y =
+  use List +:
+  (+:)
+
+
 -- Test for a previous regression that added extra brackets.
 oneLiner = {{ one liner }}
 -- After
@@ -93,6 +102,13 @@ x y =
   x = 1 + 1
   x + y
 -- Should keep comments after
+
+-- symbolyDefinition
+(<|>) : Nat -> Nat -> (Nat, Nat)
+a <|> b = (a, b)
+
+f x y = (+:)
+
 
 -- Test for a previous regression that added extra brackets.
 oneLiner = {{ one liner }}
