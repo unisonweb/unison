@@ -196,7 +196,9 @@ jobs:
         run: stack --no-terminal build --fast --no-run-tests --test
       - name: output ucm path
         id: ucm-path
-        run: echo "ucm-path=$(stack exec -- which unison)" >> $GITHUB_OUTPUT
+        run: |
+          echo "ucm-path=$(stack exec -- which unison)" >> $GITHUB_OUTPUT
+          cp "$(stack exec -- which unison)" .
 
       # Run each test suite (tests and transcripts)
       # - name: check disk space before
@@ -245,14 +247,20 @@ jobs:
         if: runner.os == 'macOS'
         run: echo | stack ghci
 
+      - name: debug check ucm artifact
+        uses: actions/upload-artifact@v4
+        run: ls -l ${{ steps.ucm-path.outputs.ucm-path }}
+
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{ matrix.os }}
           path: ${{ steps.ucm-path.outputs.ucm-path }}
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
+          if-no-files-found: error
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
 
 
   generate-jit-source:
