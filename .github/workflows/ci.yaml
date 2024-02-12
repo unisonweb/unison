@@ -249,7 +249,7 @@ jobs:
   generate-jit-source:
     name: Generate JIT source
     needs: build-ucm
-    runs-on: ${{ env.jit_generator_os }}
+    runs-on: "${{ env.jit_generator_os }}"
     steps:
       - name: set up environment
         run: |
