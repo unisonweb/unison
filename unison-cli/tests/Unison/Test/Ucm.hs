@@ -66,7 +66,7 @@ runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
   let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
-  TR.withTranscriptRunner Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
+  TR.withTranscriptRunner Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" rtp configFile $ \runner -> do
     result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
       Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
       let transcriptSrc = stripMargin . Text.pack $ unTranscript transcript
@@ -78,6 +78,9 @@ runTranscript (Codebase codebasePath fmt) transcript = do
       Right x -> pure x
   where
     configFile = Nothing
+    -- Note: this needs to be properly configured if these tests ever
+    -- need to do native compiles. But I suspect they won't.
+    rtp = "native-compiler/bin"
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) action = do
