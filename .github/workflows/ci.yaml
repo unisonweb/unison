@@ -21,10 +21,9 @@ env:
   ormolu_version: "0.5.0.1"
   racket_version: "8.7"
   jit_version: "@unison/internal/releases/0.0.10"
-  jit_src_scheme: "${{ env.home }}/unison-jit-src/scheme-libs/racket"
-  jit_bin: "${{ env.home }}/unison-jit-bin"
+  jit_src_scheme: "${{ runner.temp }}/unison-jit-src/scheme-libs/racket"
+  jit_bin: "${{ runner.temp }}/unison-jit-bin"
   jit_generator_os: ubuntu-20.04
-  jit_codebase: "${{ env.home }}/unison-jit-codebase"
 
 
 
@@ -254,6 +253,8 @@ jobs:
     name: Generate JIT source
     needs: build-ucm
     runs-on: ${{ env.jit_generator_os }}
+    env:
+      ucm: ${{ runner.temp }}/unison-${{ env.jit_generator_os }}
     steps:
       - uses: actions/cache@v3
         name: cache jit source
@@ -298,14 +299,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: unison-${{ env.jit_generator_os }}
-          path: ./
+          path: ${{ runner.temp }}
 
       - name: generate source
         if: steps.jit_src_exists.outputs.exists == 'false'
         run: |
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
-          chmod +x unison-${{ env.jit_generator_os }}
-          unison-${{ env.jit_generator_os }} transcript setup-jit.md
+          chmod +x ${{ env.ucm }}
+          ${{ env.ucm }} transcript setup-jit.md
 
       - name: save jit source
         if: steps.jit_src_exists.outputs.exists == 'false'
