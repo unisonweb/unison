@@ -252,7 +252,7 @@ jobs:
           path: ${{ steps.ucm-path.outputs.ucm-path }}
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
+        if: ${{ always() }}
 
 
   generate-jit-source:
