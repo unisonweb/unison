@@ -260,8 +260,8 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src}}.${{github.sha}}
-          restore-keys: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src}}.
+          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src_scheme}}.${{github.sha}}
+          restore-keys: jit_src_scheme.racket_${{env.racket_version}}.jit_${{jit_src_scheme}}.
 
       - name: check source exists
         id: jit_src_exists
@@ -338,8 +338,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.jit_bin }}
-          key: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src}}.${{github.sha}}
-          restore-keys: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src}}.
+          key: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src_scheme}}.${{github.sha}}
+          restore-keys: jit_bin.racket_${{env.racket_version}}.jit_${{jit_src_scheme}}.
 
       - name: check binary exists
         id: jit_bin_exists
