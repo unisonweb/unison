@@ -250,10 +250,11 @@ jobs:
     name: Generate JIT source
     needs: build-ucm
     runs-on: ${{ env.jit_generator_os }}
-    env:
-      jit_src_scheme: ${{ runner.temp}}/${{ env.jit_src_scheme }}
-      ucm: ${{ runner.temp }}/unison-${{ env.jit_generator_os }}
     steps:
+      - name: set up environment
+        run: |
+          echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
       - uses: actions/cache@v3
         name: cache jit source
         if: runner.os == 'Linux'
@@ -327,11 +328,12 @@ jobs:
           - ubuntu-20.04
           - macOS-12
           - windows-2019
-    env:
-      jit_src_scheme: ${{ runner.temp}}/${{ env.jit_src_scheme }}
-      jit_bin: ${{ runner.temp}}/${{ env.jit_bin }}
-      ucm: ${{ runner.temp }}/unison-${{ matrix.os }}
     steps:
+      - name: set up environment
+        run: |
+          echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
+          echo "jit_bin=${{ runner.temp }}/${{ env.jit_bin }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
       - name: cache jit binaries
         uses: actions/cache@v3
         with:
