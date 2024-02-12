@@ -256,7 +256,9 @@ jobs:
       #   run: echo | stack ghci
 
       - name: debug check ucm artifact
-        run: ls -l ${{ steps.ucm-path.outputs.ucm-path }}
+        run: |
+          ls -l ${{ env.ucm_local_bin }}
+          ls -l ${{ steps.ucm-path.outputs.ucm-path }}
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
@@ -265,9 +267,9 @@ jobs:
           path: ${{ steps.ucm-path.outputs.ucm-path }}
           if-no-files-found: error
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ always() }}
 
 
   generate-jit-source:
