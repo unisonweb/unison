@@ -20,6 +20,7 @@ on:
 env:
   ormolu_version: "0.5.0.1"
   racket_version: "8.7"
+  ucm_local_bin: "ucm-local-bin"
   jit_version: "@unison/internal/releases/0.0.10"
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
   jit_bin: "unison-jit-bin"
@@ -193,7 +194,15 @@ jobs:
               stack --no-terminal build --fast --only-dependencies && break;
           done
       - name: build
-        run: stack --no-terminal build --fast --no-run-tests --test
+        run: |
+          stack build \
+            --fast \
+            --test \
+            --no-run-tests \
+            --no-terminal \
+            --local-bin-path ${{env.ucm_local_bin}} \
+            --copy-bins
+
       - name: output ucm path
         id: ucm-path
         run: |
