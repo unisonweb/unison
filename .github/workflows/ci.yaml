@@ -246,19 +246,10 @@ jobs:
           name: unison-${{ matrix.os }}
           path: $(stack exec -- which unison)
 
-  # we can't use an env variable for generate-jit-source's runs-on
-  # but we can use a step output, which can use an env variable
-  jit_generator_os_hack:
-    name: Generate JIT source hacky prereq
-    steps:
-      - run: echo "fingers crossed!" # every step requires an action
-    outputs:
-      runner: ${{ env.jit_generator_os }}
-
   generate-jit-source:
     name: Generate JIT source
-    needs: [build-ucm, jit_generator_os_hack]
-    runs-on: ${{needs.jit_generator_os_hack.outputs.runner}}
+    needs: build-ucm
+    runs-on: ubuntu-20.04
     steps:
       - name: set up environment
         run: |
