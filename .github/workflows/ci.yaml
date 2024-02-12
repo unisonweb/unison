@@ -25,15 +25,6 @@ env:
   jit_bin: "unison-jit-bin"
   jit_generator_os: ubuntu-20.04
 
-
-
-matrix:
-  os:
-    # While iterating on this file, you can disable one or more of these to speed things up
-    - ubuntu-20.04
-    - macOS-12
-    - windows-2019
-
 jobs:
   ormolu:
     runs-on: ubuntu-20.04
@@ -70,6 +61,12 @@ jobs:
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
+      matrix:
+        os:
+          # While iterating on this file, you can disable one or more of these to speed things up
+          - ubuntu-20.04
+          - macOS-12
+          - windows-2019
 
     steps:
       - uses: actions/checkout@v2
@@ -321,6 +318,15 @@ jobs:
     name: Build JIT binary ${{ matrix.os }}
     needs: [build-ucm, generate-jit-source]
     runs-on: ${{ matrix.os }}
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+      matrix:
+        os:
+          # While iterating on this file, you can disable one or more of these to speed things up
+          - ubuntu-20.04
+          - macOS-12
+          - windows-2019
     env:
       jit_src_scheme: ${{ runner.temp}}/${{ env.jit_src_scheme }}
       jit_bin: ${{ runner.temp}}/${{ env.jit_bin }}
