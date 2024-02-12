@@ -320,7 +320,7 @@ jobs:
     needs: [build-ucm, generate-jit-source]
     runs-on: ${{ matrix.os }}
     env:
-      ucm: ${{ runner.temp }}/unison-${{ matrix.os }}
+      ucm: "${{ runner.temp }}/unison-${{ matrix.os }}"
     steps:
       - name: cache jit binaries
         uses: actions/cache@v3
