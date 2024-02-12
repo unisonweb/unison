@@ -195,6 +195,7 @@ jobs:
       - name: build
         run: stack --no-terminal build --fast --no-run-tests --test
       - name: output ucm path
+        id: ucm-path
         run: echo "::set-output name=ucm-path::$(stack exec -- which unison)"
 
       # Run each test suite (tests and transcripts)
@@ -248,7 +249,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{ matrix.os }}
-          path: ${{ steps.build.outputs.ucm-path }}
+          path: ${{ steps.ucm-path.outputs.ucm-path }}
 
   generate-jit-source:
     name: Generate JIT source
