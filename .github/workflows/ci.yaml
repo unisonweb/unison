@@ -250,6 +250,10 @@ jobs:
         with:
           name: unison-${{ matrix.os }}
           path: ${{ steps.ucm-path.outputs.ucm-path }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+
 
   generate-jit-source:
     name: Generate JIT source
