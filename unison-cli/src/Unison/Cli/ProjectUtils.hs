@@ -34,6 +34,9 @@ module Unison.Cli.ProjectUtils
     loadRemoteProjectBranchByNames,
     expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
+
+    -- * Other helpers
+    findTemporaryBranchName
   )
 where
 
@@ -60,6 +63,10 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Project.Util
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
+import Unison.Sqlite (Transaction)
+import qualified Data.Set as Set
+import qualified Data.List as List
+import Data.Maybe (fromJust)
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
 branchRelativePathToAbsolute brp = resolveBranchRelativePath brp <&> \case
@@ -92,6 +99,27 @@ resolveBranchRelativePath = \case
     toThese = \case
       Left branchName -> That branchName
       Right (projectName, branchName) -> These projectName branchName
+
+-- @findTemporaryBranchName projectId preferred@ finds some unused branch name in @projectId@ with a name
+-- like @preferred@.
+findTemporaryBranchName :: ProjectId -> ProjectBranchName -> Transaction ProjectBranchName
+findTemporaryBranchName projectId preferred = do
+  allBranchNames <-
+    fmap (Set.fromList . map snd) do
+      Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+
+  let -- all branch name candidates in order of preference:
+      --   prefix
+      --   prefix-2
+      --   prefix-3
+      --   ...
+      allCandidates :: [ProjectBranchName]
+      allCandidates =
+        preferred : do
+          n <- [(2 :: Int) ..]
+          pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
+
+  pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
     
 
 -- | Get the current project that a user is on.

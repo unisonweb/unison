@@ -6,14 +6,11 @@ where
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Char qualified as Char
-import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Sqlite.DbId (ProjectId)
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -270,28 +267,20 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
 -- like "upgrade-<oldDepName>-to-<newDepName>".
 findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
 findTemporaryBranchName projectId oldDepName newDepName = do
-  allBranchNames <-
-    fmap (Set.fromList . map snd) do
-      Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+  Cli.findTemporaryBranchName projectId preferred
+  where
+    preferred :: ProjectBranchName
+    preferred =
+      unsafeFrom @Text $
+        "upgrade-"
+          <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
+          <> "-to-"
+          <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
 
-  let -- all branch name candidates in order of preference:
-      --   upgrade-<old>-to-<new>
-      --   upgrade-<old>-to-<new>-2
-      --   upgrade-<old>-to-<new>-3
-      --   ...
-      allCandidates :: [ProjectBranchName]
-      allCandidates =
-        preferred : do
-          n <- [(2 :: Int) ..]
-          pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
-        where
-          preferred :: ProjectBranchName
-          preferred =
-            -- filter isAlpha just to make it more likely this is a valid project name :sweat-smile:
-            unsafeFrom @Text $
-              "upgrade-"
-                <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
-                <> "-to-"
-                <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
+deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
+deleteLibdep dep =
+  over (Branch.children . ix Name.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
 
-  pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
+deleteLibdeps :: Branch0 m -> Branch0 m
+deleteLibdeps =
+  over Branch.children (Map.delete Name.libSegment)

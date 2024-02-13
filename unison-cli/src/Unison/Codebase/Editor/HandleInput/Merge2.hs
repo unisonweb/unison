@@ -195,7 +195,13 @@ handleMerge bobBranchName = do
       let unconflicted = filterUnconflicted (BiMultimap.range <$> declNames) conflicted updates dependents defns
       let unconflicted' = filterUnconflicted' updatedNames (conflicted <> dependents) defns
       let unconflictedUpdates = filterUnconflictedUpdates lcaDefns updates0 unconflicted'
-      undefined
+      case null (conflictedNames ^. #terms) && null (conflictedNames ^. #types) of
+        True -> do
+          -- no conflicts
+          undefined
+        False -> do
+          -- conflicts
+          undefined
   undefined
 
 -- Load namespace info into memory.
