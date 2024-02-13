@@ -59,6 +59,7 @@ import Text.Read (readMaybe)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.LSP (LspFormattingConfig (..))
 import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import Unison.Server.CodebaseServer qualified as Server
@@ -96,9 +97,6 @@ data ShouldExit = Exit | DoNotExit
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
 
-data LspFormatting = LspFormatEnabled | LspFormatDisabled
-  deriving (Show, Eq)
-
 -- | Represents commands the cli can run.
 --
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
@@ -121,7 +119,7 @@ data Command
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
-    lspFormatting :: LspFormatting
+    lspFormatting :: LspFormattingConfig
   }
   deriving (Show, Eq)
 
@@ -293,7 +291,7 @@ exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
   where
     exitHelp = "Exit repl after the command."
 
-lspFormattingParser :: Parser LspFormatting
+lspFormattingParser :: Parser LspFormattingConfig
 lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)
   where
     lspFormatHelp = "[Experimental] Enable formatting of source files via LSP."
