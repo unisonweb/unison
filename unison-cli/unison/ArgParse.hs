@@ -96,6 +96,9 @@ data ShouldExit = Exit | DoNotExit
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
 
+data LspFormatting = LspFormatEnabled | LspFormatDisabled
+  deriving (Show, Eq)
+
 -- | Represents commands the cli can run.
 --
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
@@ -117,7 +120,8 @@ data Command
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
-    exitOption :: ShouldExit
+    exitOption :: ShouldExit,
+    lspFormatting :: LspFormatting
   }
   deriving (Show, Eq)
 
@@ -259,12 +263,10 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
+  lspFormatting <- lspFormattingParser
 
   pure
-    GlobalOptions
-      { codebasePathOption = codebasePathOption,
-        exitOption = exitOption
-      }
+    GlobalOptions {codebasePathOption, exitOption, lspFormatting}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -290,6 +292,11 @@ exitParser :: Parser ShouldExit
 exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
   where
     exitHelp = "Exit repl after the command."
+
+lspFormattingParser :: Parser LspFormatting
+lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)
+  where
+    lspFormatHelp = "[Experimental] Enable formatting of source files via LSP."
 
 versionOptionParser :: String -> String -> Parser (a -> a)
 versionOptionParser progName version =
