@@ -59,6 +59,7 @@ import Text.Read (readMaybe)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.LSP (LspFormattingConfig (..))
 import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import Unison.Server.CodebaseServer qualified as Server
@@ -117,7 +118,8 @@ data Command
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
-    exitOption :: ShouldExit
+    exitOption :: ShouldExit,
+    lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
 
@@ -259,12 +261,10 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
+  lspFormattingConfig <- lspFormattingParser
 
   pure
-    GlobalOptions
-      { codebasePathOption = codebasePathOption,
-        exitOption = exitOption
-      }
+    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -290,6 +290,11 @@ exitParser :: Parser ShouldExit
 exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
   where
     exitHelp = "Exit repl after the command."
+
+lspFormattingParser :: Parser LspFormattingConfig
+lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)
+  where
+    lspFormatHelp = "[Experimental] Enable formatting of source files via LSP."
 
 versionOptionParser :: String -> String -> Parser (a -> a)
 versionOptionParser progName version =
