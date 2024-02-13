@@ -119,7 +119,7 @@ data Command
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
-    nativeRuntimePath :: Maybe FilePath
+    nativeRuntimePath :: Maybe FilePath,
     lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
