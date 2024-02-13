@@ -46,6 +46,8 @@ import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Project (Project)
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -54,6 +56,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -84,10 +87,11 @@ import Unison.Util.Nametree
     traverseNametreeWithName,
     unflattenNametree,
   )
+import Unison.Util.Pretty (ColorText, Pretty)
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
-import qualified Unison.Util.Pretty as Pretty
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -208,26 +212,34 @@ handleMerge bobBranchName = do
           undefined
   undefined
 
--- promptUser :: ProjectId -> NameSegment -> NameSegment -> Cli a
--- promptUser currentProjectId targetBranchName selfBranchName = do
---   -- Small race condition: since picking a branch name and creating the branch happen in different
---   -- transactions, creating could fail.
---   temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
---   temporaryBranchId <-
---     HandleInput.Branch.doCreateBranch
---       (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
---       (projectAndBranch ^. #project)
---       temporaryBranchName
---       textualDescriptionOfUpgrade
---   let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch currentProjectId temporaryBranchId))
---   Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
---   scratchFilePath <-
---     Cli.getLatestFile <&> \case
---       Nothing -> "scratch.u"
---       Just (file, _) -> file
---   liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
---   Cli.respond (Output.UpgradeFailure scratchFilePath oldDepName newDepName)
---   Cli.returnEarlyWithoutOutput
+promptUser ::
+  ProjectAndBranch Project ProjectBranch ->
+  NameSegment ->
+  NameSegment ->
+  V1.Branch.Branch IO ->
+  Pretty ColorText ->
+  Cli a
+promptUser currentProjectAndBranch targetBranchName selfBranchName lcaBranch prettyUnisonFile = do
+  let currentProjectId = currentProjectAndBranch ^. #project . #projectId
+  Cli.Env {writeSource} <- ask
+  let textualDescriptionOfUpgrade = "merge"
+  -- Small race condition: since picking a branch name and creating the branch happen in different
+  -- transactions, creating could fail.
+  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
+  _temporaryBranchId <-
+    HandleInput.Branch.doCreateBranch'
+      lcaBranch
+      Nothing
+      (currentProjectAndBranch ^. #project)
+      temporaryBranchName
+      textualDescriptionOfUpgrade
+  scratchFilePath <-
+    Cli.getLatestFile <&> \case
+      Nothing -> "scratch.u"
+      Just (file, _) -> file
+  liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+  -- todo: respond with some message
+  Cli.returnEarlyWithoutOutput
 
 findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
 findTemporaryBranchName projectId other self = do
