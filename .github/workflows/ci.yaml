@@ -276,7 +276,7 @@ jobs:
 
 
   generate-jit-source:
-    if: always() && needs.build-ucm.result == success
+    if: always() && needs.build-ucm.result == 'success'
     name: Generate JIT source
     needs: build-ucm
     runs-on: ubuntu-20.04
@@ -346,7 +346,7 @@ jobs:
 
 
   build-jit-binary:
-    if: always() && needs.generate-jit-source.result == success
+    if: always() && needs.generate-jit-source.result == 'success'
     name: Build JIT binary ${{ matrix.os }}
     needs: generate-jit-source
     runs-on: ${{ matrix.os }}
