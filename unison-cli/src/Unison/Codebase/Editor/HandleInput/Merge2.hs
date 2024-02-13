@@ -3,10 +3,6 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import U.Codebase.Reference qualified as Reference
-import Data.Foldable (foldlM)
-import Data.Set.NonEmpty (NESet)
-import Data.Set.NonEmpty qualified as NESet
 import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
@@ -14,6 +10,7 @@ import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Except qualified as Except
+import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
@@ -24,6 +21,8 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromJust)
 import Data.Semialign (alignWith, unzip, zip)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -42,8 +41,10 @@ import U.Codebase.Reference
     TypeReference,
     TypeReferenceId,
   )
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
+import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import Unison.Cli.Monad (Cli)
@@ -53,6 +54,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Hash (Hash)
@@ -83,7 +85,9 @@ import Unison.Util.Nametree
     unflattenNametree,
   )
 import Unison.Util.Set qualified as Set
+import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
+import qualified Unison.Util.Pretty as Pretty
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -203,6 +207,39 @@ handleMerge bobBranchName = do
           -- conflicts
           undefined
   undefined
+
+-- promptUser :: ProjectId -> NameSegment -> NameSegment -> Cli a
+-- promptUser currentProjectId targetBranchName selfBranchName = do
+--   -- Small race condition: since picking a branch name and creating the branch happen in different
+--   -- transactions, creating could fail.
+--   temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
+--   temporaryBranchId <-
+--     HandleInput.Branch.doCreateBranch
+--       (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
+--       (projectAndBranch ^. #project)
+--       temporaryBranchName
+--       textualDescriptionOfUpgrade
+--   let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch currentProjectId temporaryBranchId))
+--   Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
+--   scratchFilePath <-
+--     Cli.getLatestFile <&> \case
+--       Nothing -> "scratch.u"
+--       Just (file, _) -> file
+--   liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+--   Cli.respond (Output.UpgradeFailure scratchFilePath oldDepName newDepName)
+--   Cli.returnEarlyWithoutOutput
+
+findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
+findTemporaryBranchName projectId other self = do
+  Cli.findTemporaryBranchName projectId preferred
+  where
+    preferred :: ProjectBranchName
+    preferred =
+      unsafeFrom @Text $
+        "merge-"
+          <> NameSegment.toText other
+          <> "-into-"
+          <> NameSegment.toText self
 
 -- Load namespace info into memory.
 --
@@ -715,7 +752,6 @@ filterUpdates1 diff defns =
       Merge.Added {} -> False
       Merge.Deleted {} -> False
       Merge.Updated {} -> True
-
 
 -- `filterConflicts conflicts defns` filters `defns` down to just the conflicted type and term references.
 --
