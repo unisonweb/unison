@@ -300,7 +300,7 @@ jobs:
           files: "${{ env.jit_src_scheme }}/unison/{data-info,boot-generated,simple-wrappers,builtin-generated,compound-wrappers}.ss"
 
       - name: create transcript
-        if: steps.jit_src_exists.outputs.exists == 'false'
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: 1arp/create-a-file-action@0.3
         with:
           file: 'setup-jit.md'
