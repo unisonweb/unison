@@ -284,7 +284,7 @@ jobs:
       - name: set up environment
         run: |
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
-          echo "ucm=${{ runner.temp }}/unison-${{ env.jit_generator_os }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - uses: actions/cache@v4
         name: cache jit source
         if: runner.os == 'Linux'
@@ -372,7 +372,7 @@ jobs:
         run: |
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
           echo "jit_bin=${{ runner.temp }}/${{ env.jit_bin }}" >> $GITHUB_ENV
-          echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - name: cache jit binaries
         uses: actions/cache@v4
         with:
