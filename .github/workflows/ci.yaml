@@ -295,7 +295,7 @@ jobs:
 
       - name: check source exists
         id: jit_src_exists
-        uses: thebinaryfelix/check-file-existence-action@v1
+        uses: andstor/file-existence-action@v3
         with:
           files: "${{ env.jit_src_scheme }}/unison/{data-info,boot-generated,simple-wrappers,builtin-generated,compound-wrappers}.ss"
 
@@ -324,21 +324,21 @@ jobs:
             ```
 
       - name: download ucm artifact
-        if: steps.jit_src_exists.outputs.exists == 'false'
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/download-artifact@v4
         with:
           name: unison-${{ env.jit_generator_os }}
           path: ${{ runner.temp }}
 
       - name: generate source
-        if: steps.jit_src_exists.outputs.exists == 'false'
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         run: |
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript setup-jit.md
 
       - name: save jit source
-        if: steps.jit_src_exists.outputs.exists == 'false'
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: jit-source
