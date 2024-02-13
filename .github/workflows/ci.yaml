@@ -207,9 +207,9 @@ jobs:
         id: ucm-path
         run: |
           if [[ ${{runner.os}} = "Windows" ]]; then
-            echo "ucm-path=${env.ucm_local_bin}/unison.exe" >> $GITHUB_OUTPUT
+            echo "ucm-path=${{env.ucm_local_bin}}/unison.exe" >> $GITHUB_OUTPUT
           else
-            echo "ucm-path=${env.ucm_local_bin}/unison" >> $GITHUB_OUTPUT
+            echo "ucm-path=${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
           fi
 
       # Run each test suite (tests and transcripts)
