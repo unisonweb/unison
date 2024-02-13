@@ -284,7 +284,7 @@ jobs:
       - name: set up environment
         run: |
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
-          echo "ucm=${{ runner.temp }}/unison-${{ matrix.os }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison-${{ env.jit_generator_os }}" >> $GITHUB_ENV
       - uses: actions/cache@v4
         name: cache jit source
         if: runner.os == 'Linux'
@@ -332,13 +332,15 @@ jobs:
 
       - name: download scheme-libs
         uses: actions/checkout@v4
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
 
       - name: generate source
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         run: |
+          mkdir -p ${{ env.jit_src_scheme }}
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript setup-jit.md
