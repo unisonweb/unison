@@ -28,6 +28,29 @@ proj/main> add
     lib.old.foo : Nat
     thingy      : Nat
 
+```
+Test tab completion and fzf options of upgrade command.
+```ucm
+proj/main> debug.tab-complete upgrade ol
+
+   old
+
+proj/main> debug.fuzzy-options upgrade _
+
+  Select a dependency to upgrade:
+    * builtin
+    * new
+    * old
+
+proj/main> debug.fuzzy-options upgrade old _
+
+  Select a dependency to upgrade to:
+    * builtin
+    * new
+    * old
+
+```
+```ucm
 proj/main> upgrade old new
 
   I upgraded old to new, and removed old.

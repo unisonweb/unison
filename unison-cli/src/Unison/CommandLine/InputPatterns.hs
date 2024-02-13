@@ -3006,7 +3006,7 @@ upgrade =
     { patternName = "upgrade",
       aliases = [],
       visibility = I.Visible,
-      args = [],
+      args = [("dependency to upgrade", Required, dependencyArg), ("dependency to upgrade to", Required, dependencyArg)],
       help =
         P.wrap $
           "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
@@ -3265,6 +3265,17 @@ namespaceOrDefinitionArg =
         pure (List.nubOrd $ namespaces <> termsTypes),
       fzfResolver =
         Just Resolvers.namespaceOrDefinitionResolver
+    }
+
+-- | A dependency name. E.g. if your project has `lib.base`, `base` would be a dependency
+-- name.
+dependencyArg :: ArgumentType
+dependencyArg =
+  ArgumentType
+    { typeName = "project dependency",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb do
+        prefixCompleteNamespace q (p Path.:> Name.libSegment),
+      fzfResolver = Just Resolvers.projectDependencyResolver
     }
 
 -- | Names of child branches of the branch, only gives options for one 'layer' deeper at a time.

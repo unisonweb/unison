@@ -4,6 +4,7 @@ module Unison.CommandLine.FZFResolvers
     termDefinitionOptions,
     typeDefinitionOptions,
     namespaceOptions,
+    projectDependencyResolver,
     projectNameOptions,
     projectBranchOptions,
     projectBranchOptionsWithinCurrentProject,
@@ -24,6 +25,7 @@ where
 
 import Control.Lens
 import Data.List.Extra qualified as List
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Sqlite.Project as SqliteProject
@@ -35,6 +37,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Position qualified as Position
@@ -94,6 +97,19 @@ namespaceOptions _codebase _projCtx searchBranch0 = do
     & map (Path.toText' . intoPath')
     & pure
 
+-- | Lists all dependencies of the current project.
+--
+-- E.g. if the current project has `lib.base` and `lib.distributed`, it will list:
+-- ["base", "distributed"]
+projectDependencyOptions :: OptionFetcher
+projectDependencyOptions _codebase _projCtx searchBranch0 = do
+  searchBranch0
+    & Branch.getAt0 (Path.singleton Name.libSegment)
+    & Branch.nonEmptyChildren
+    & Map.keys
+    & fmap NameSegment.toText
+    & pure
+
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
 fuzzySelectFromList :: [Text] -> FZFResolver
@@ -122,6 +138,9 @@ namespaceResolver = FZFResolver {getOptions = namespaceOptions}
 
 namespaceOrDefinitionResolver :: FZFResolver
 namespaceOrDefinitionResolver = multiResolver [definitionOptions, namespaceOptions]
+
+projectDependencyResolver :: FZFResolver
+projectDependencyResolver = FZFResolver {getOptions = projectDependencyOptions}
 
 -- | A project name, branch name, or both.
 projectAndOrBranchArg :: FZFResolver

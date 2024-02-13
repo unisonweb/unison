@@ -15,12 +15,7 @@ where
 import ArgParse
   ( CodebasePathOption (..),
     Command (Init, Launch, PrintVersion, Run, Transcript),
-    GlobalOptions
-      ( GlobalOptions,
-        codebasePathOption,
-        exitOption,
-        nativeRuntimePath
-      ),
+    GlobalOptions (..),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
     ShouldExit (DoNotExit, Exit),
@@ -131,7 +126,7 @@ main = do
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
       nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
-      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption = exitOption} = globalOptions
+      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       withConfig mCodePathOption \config -> do
         currentDir <- getCurrentDirectory
         case command of
@@ -304,7 +299,7 @@ main = do
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
+                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
