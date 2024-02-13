@@ -61,8 +61,8 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> LspFormattingConfig -> IO ()
-spawnLsp codebase runtime latestRootHash latestPath lspFormattingConfig =
+spawnLsp :: LspFormattingConfig -> Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
+spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
   ifEnabled . TCP.withSocketsDo $ do
     lspPort <- getLspPort
     UnliftIO.handleIO (handleFailure lspPort) $ do
@@ -180,11 +180,15 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
-    & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
-    & case lspFormattingConfig of
-      LspFormatEnabled -> SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
-      LspFormatDisabled -> id
+    & addFormattingHandlers
   where
+    addFormattingHandlers handlers =
+      case lspFormattingConfig of
+        LspFormatEnabled ->
+          handlers
+            & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
+            & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
+        LspFormatDisabled -> handlers
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
       forall m.

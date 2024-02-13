@@ -119,7 +119,7 @@ data Command
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
-    lspFormatting :: LspFormattingConfig
+    lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
 
@@ -261,10 +261,10 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
-  lspFormatting <- lspFormattingParser
+  lspFormattingConfig <- lspFormattingParser
 
   pure
-    GlobalOptions {codebasePathOption, exitOption, lspFormatting}
+    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
