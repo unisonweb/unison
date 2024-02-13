@@ -206,8 +206,11 @@ jobs:
       - name: output ucm path
         id: ucm-path
         run: |
-          echo "ucm-path=$(stack exec -- which unison)" >> $GITHUB_OUTPUT
-          cp "$(stack exec -- which unison)" .
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm-path=${env.ucm_local_bin}/unison.exe" >> $GITHUB_OUTPUT
+          else
+            echo "ucm-path=${env.ucm_local_bin}/unison" >> $GITHUB_OUTPUT
+          fi
 
       # Run each test suite (tests and transcripts)
       # - name: check disk space before
@@ -264,7 +267,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{ matrix.os }}
-          path: ${{ steps.ucm-path.outputs.ucm-path }}{,.exe}
+          path: ${{ steps.ucm-path.outputs.ucm-path }}
           if-no-files-found: error
 
       - name: Setup tmate session
