@@ -270,9 +270,9 @@ jobs:
           path: ${{ steps.ucm-path.outputs.ucm-path }}
           if-no-files-found: error
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
 
 
   generate-jit-source:
