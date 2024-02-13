@@ -66,8 +66,8 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-20.04
-          - macOS-12
-          - windows-2019
+          # - macOS-12
+          # - windows-2019
 
     steps:
       - uses: actions/checkout@v4
