@@ -66,8 +66,8 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-20.04
-          # - macOS-12
-          # - windows-2019
+          - macOS-12
+          - windows-2019
 
     steps:
       - uses: actions/checkout@v4
@@ -442,9 +442,9 @@ jobs:
           name: unison-${{ matrix.os }}
           path: ${{ runner.temp }}
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
 
       - name: build jit binary
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
