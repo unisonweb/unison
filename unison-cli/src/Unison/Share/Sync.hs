@@ -460,15 +460,19 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
-  where
-    validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
-    validateEntities entities =
-      when shouldValidateEntities $ do
-        ifor_ (NEMap.toMap entities) \hash entity -> do
-          let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
-          case EV.validateEntity hash entityWithHashes of
-            Nothing -> pure ()
-            Just err -> Left err
+
+-- | Validates the provided entities if and only if the environment variable `UNISON_ENTITY_VALIDATION` is set to "true".
+validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
+validateEntities entities =
+  when shouldValidateEntities $ do
+    ifor_ (NEMap.toMap entities) \hash entity -> do
+      Debug.debugM Debug.Temp "Validating entity" hash
+      let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
+      case EV.validateEntity hash entityWithHashes of
+        Nothing -> pure ()
+        Just err -> do
+          Debug.debugM Debug.Temp "Entity validation failed" (hash, entity, err)
+          Left err
 
 -- | Only validate entities if this flag is set.
 -- It defaults to disabled because there are terms in the wild that currently fail hash
@@ -624,10 +628,13 @@ completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallba
           pure (Left (SyncError err))
         Right (Share.DownloadEntitiesSuccess entities) -> do
           downloadedCallback (NESet.size hashes)
-          atomically do
-            writeTQueue entitiesQueue (hashes, entities)
-            recordNotWorking workerCount
-          pure (Right ())
+          case validateEntities entities of
+            Left err -> pure . Left . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
+            Right () -> do
+              atomically do
+                writeTQueue entitiesQueue (hashes, entities)
+                recordNotWorking workerCount
+              pure (Right ())
 
     -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
     inserter ::
