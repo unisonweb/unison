@@ -303,7 +303,8 @@ jobs:
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: 1arp/create-a-file-action@0.3
         with:
-          file: ${{ runner.temp }}/setup-jit.md
+          path: ${{ runner.temp }}
+          file: setup-jit.md
           content: |
             ```ucm
             .> project.create-empty jit-setup
