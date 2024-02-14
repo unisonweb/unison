@@ -347,6 +347,7 @@ jobs:
           path: ${{ runner.temp }}
 
       - name: download scheme-libs
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/checkout@v4
 
       # - name: Setup tmate session
