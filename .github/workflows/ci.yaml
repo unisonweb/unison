@@ -301,10 +301,11 @@ jobs:
 
       - name: create transcript
         if: steps.jit_src_exists.outputs.files_exists == 'false'
-        uses: finnp/create-file-action@v2
-        env:
-          - FILE_NAME: ${{ runner.temp }}/setup-jit.md
-          - FILE_DATA: |
+        uses: DamianReeves/write-file-action@v1.3
+        with:
+          path: ${{ runner.temp }}/setup-jit.md
+          write-mode: overwrite
+          contents: |
             ```ucm
             .> project.create-empty jit-setup
             jit-setup/main> pull ${{ env.jit_version }} lib.jit
