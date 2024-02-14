@@ -334,9 +334,9 @@ jobs:
       - name: download scheme-libs
         uses: actions/checkout@v4
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ always() }}
 
       - name: generate source
         if: steps.jit_src_exists.outputs.files_exists == 'false'
