@@ -363,7 +363,7 @@ jobs:
           ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
 
       - name: save jit source
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: jit-source
