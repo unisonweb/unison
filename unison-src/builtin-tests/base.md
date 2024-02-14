@@ -6,5 +6,4 @@ Thus, make sure the contents of this file define the contents of the cache
 
 ```ucm
 .> pull @unison/base/releases/2.5.0 .base
-.> compile.native.fetch
 ```
