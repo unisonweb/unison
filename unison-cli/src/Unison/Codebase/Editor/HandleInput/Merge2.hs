@@ -354,7 +354,7 @@ unconflictedRel ConflictInfo {unconflictedDefns = Defns {terms, types}} =
    in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
 
 hasConflicts :: ConflictInfo -> Bool
-hasConflicts ConflictInfo {conflictedDefns} = null (conflictedDefns ^. #terms) && null (conflictedDefns ^. #types)
+hasConflicts ConflictInfo {conflictedDefns} = not (null (conflictedDefns ^. #terms) && null (conflictedDefns ^. #types))
 
 promptUser ::
   MergeInfo ->

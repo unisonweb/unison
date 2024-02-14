@@ -3087,6 +3087,7 @@ validInputs =
       mergeBuiltins,
       mergeIOBuiltins,
       mergeLocal,
+      mergeInputPattern,
       names False, -- names
       names True, -- names.global
       namespaceDependencies,
