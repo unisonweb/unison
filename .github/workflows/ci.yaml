@@ -295,9 +295,24 @@ jobs:
 
       - name: check source exists
         id: jit_src_exists
-        uses: andstor/file-existence-action@v3
-        with:
-          files: "${{ env.jit_src_scheme }}/unison/{data-info,boot-generated,simple-wrappers,builtin-generated,compound-wrappers}.ss"
+        run: |
+          files=(data-info boot-generated simple-wrappers builtin-generated compound-wrappers)
+          all_exist=true
+
+          for file in "${files[@]}"; do
+              if [[ ! -f "${{ env.jit_src_scheme }}/unison/$file.ss" ]]; then
+                  echo "$file does not exist."
+                  all_exist=false
+                  # Uncomment the next line if you want to stop checking after the first missing file
+                  # break
+              fi
+          done
+
+          if $all_exist; then
+              echo "files_exists=true" >> $GITHUB_OUTPUT
+          else
+              echo "files_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: create transcript
         if: steps.jit_src_exists.outputs.files_exists == 'false'
