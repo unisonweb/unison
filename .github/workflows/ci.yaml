@@ -403,9 +403,12 @@ jobs:
 
       - name: check binary exists
         id: jit_bin_exists
-        uses: andstor/file-existence-action@v3
-        with:
-          files: "${{ env.jit_bin }}/unison-runtime"
+        run: |
+          if [[ -f "${{ env.jit_bin }}/bin/unison-runtime" ]]; then
+              echo "files_exists=true" >> $GITHUB_OUTPUT
+          else
+              echo "files_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Cache Racket dependencies
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
