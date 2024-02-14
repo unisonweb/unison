@@ -99,34 +99,12 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
-
--- mkTypecheckFnCli :: Cli (UnisonFile Symbol Ann -> Transaction (Maybe (TypecheckedUnisonFile Symbol Ann)))
--- mkTypecheckFnCli = do
---   Cli.Env {codebase, generateUniqueName} <- ask
---   rootBranch <- Cli.getRootBranch
---   currentPath <- Cli.getCurrentPath
---   let parseNames = Backend.getCurrentParseNames (Backend.Within (Path.unabsolute currentPath)) rootBranch
---   pure (mkTypecheckFn codebase generateUniqueName currentPath parseNames)
-
--- mkTypecheckFn ::
---   Codebase.Codebase IO Symbol Ann ->
---   IO Parser.UniqueName ->
---   Path.Absolute ->
---   NamesWithHistory.NamesWithHistory ->
---   UnisonFile Symbol Ann ->
---   Transaction (Maybe (TypecheckedUnisonFile Symbol Ann))
--- mkTypecheckFn codebase generateUniqueName currentPath parseNames unisonFile = do
---   uniqueName <- Sqlite.unsafeIO generateUniqueName
---   let parsingEnv =
---         Parser.ParsingEnv
---           { uniqueNames = uniqueName,
---             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
---             names = parseNames
---           }
---   typecheckingEnv <-
---     computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
---   let Result.Result _notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
---   pure maybeTypecheckedUnisonFile
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.UnisonFile as UnisonFile
+import Unison.Codebase.Editor.HandleInput.Update2 (findCtorNames, addDefinitionsToUnisonFile, forwardCtorNames, getNamespaceDependentsOf, getExistingReferencesNamed)
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -140,6 +118,7 @@ step name action = do
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
+  Cli.Env{codebase} <- ask
   -- Create a bunch of cached database lookup functions
   db <- do
     Cli.Env {codebase} <- ask
@@ -147,23 +126,37 @@ handleMerge bobBranchName = do
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
-  conflictInfo <- Cli.runTransactionWithRollback (getConflictInfo db mergeInfo)
-  case hasConflicts conflictInfo of
-    False -> do
-      -- no conflicts
+  Cli.runTransactionWithRollback \abort -> do
+    conflictInfo <- getConflictInfo db mergeInfo abort
+    case hasConflicts conflictInfo of
+      False -> do
+        -- no conflicts
 
-      -- unisonFile <- do
-      --   addDefinitionsToUnisonFile
-      --     abort
-      --     codebase
-      --     (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps)
-      --     dependents
-      --     UnisonFile.emptyUnisonFile
-      undefined
-    True -> do
-      -- conflicts
-      error "conflicts path not implemented yet"
-  undefined
+        lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
+        
+        let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
+        unisonFile0 <- do
+          addDefinitionsToUnisonFile
+            abort
+            codebase
+            (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
+            (unconflictedRel conflictInfo)
+            UnisonFile.emptyUnisonFile
+        dependents <-
+          getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
+        unisonFile <- do
+          addDefinitionsToUnisonFile
+            abort
+            codebase
+            (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
+            dependents
+            unisonFile0
+        -- promptUser mergeInfo conflictInfo
+        undefined
+      True -> do
+        -- conflicts
+        error "conflicts path not implemented yet"
+    undefined
 
 data MergeInfo = MergeInfo
   { alicePath :: Path.Absolute,
@@ -284,11 +277,10 @@ getConflictInfo
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
     let (conflictedDefns, unconflictedDefns) = partitionConflicts conflictedNames defns
-    pure ConflictInfo {conflictedNames, lcaDefns, conflictedDefns, unconflictedDefns}
+    pure ConflictInfo {lcaDefns, conflictedDefns, unconflictedDefns}
 
 data ConflictInfo = ConflictInfo
-  { conflictedNames :: Defns (Set Name) (Set Name),
-    conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
+  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
     unconflictedDefns :: Defns (Map Name Referent) (Map Name TypeReference),
     lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
   }
@@ -327,10 +319,33 @@ partitionConflicts (Defns conflictedTermNames conflictedTypeNames) Merge.TwoWay 
             in (conflicted, unconflicted')
   in (Defns conflictedTerms conflictedTypes, Defns unconflictedTerms unconflictedTypes)
 
--- unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+loadNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
+loadNamesExcludingLibdeps db ci = (<>) <$> loadLcaNamesExcludingLibdeps db ci <*> loadUnconflictedNamesExcludingLibdeps db ci
+
+loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
+loadLcaNamesExcludingLibdeps db ConflictInfo{lcaDefns = Defns {terms, types}} = do
+  terms <- traverse (referent2to1 db) (BiMultimap.range terms)
+  pure Names.Names { terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types) }
+
+loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
+loadUnconflictedNamesExcludingLibdeps db ConflictInfo{unconflictedDefns = Defns {terms, types}} = do
+  terms <- traverse (referent2to1 db) terms
+  pure Names.Names { terms = Relation.fromMap terms, types = Relation.fromMap types }
+
+unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+unconflictedRel ConflictInfo{unconflictedDefns = Defns {terms, types}} =
+  let termRefIds = flip mapMaybe terms \case
+        Referent.Ref r -> case r of
+          ReferenceBuiltin _ -> error "todo"
+          ReferenceDerived r -> Just r
+        Referent.Con _ _ -> Nothing
+      typeRefIds = types <&> \case
+        ReferenceBuiltin _ -> error "todo"
+        ReferenceDerived r -> r
+  in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
 
 hasConflicts :: ConflictInfo -> Bool
-hasConflicts ConflictInfo {conflictedNames} = null (conflictedNames ^. #terms) && null (conflictedNames ^. #types)
+hasConflicts ConflictInfo {conflictedDefns} = null (conflictedDefns ^. #terms) && null (conflictedDefns ^. #types)
 
 promptUser ::
   ProjectAndBranch Project ProjectBranch ->

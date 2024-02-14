@@ -13,6 +13,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchUpdates,
     getNamespaceDependentsOf,
     makeComplicatedPPE,
+    getExistingReferencesNamed,
   )
 where
 
