@@ -452,7 +452,7 @@ jobs:
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
           raco pkg install --auto ${{ env.jit_src_scheme }}/unison
           raco exe ${{ env.jit_src_scheme }}/unison-runtime.rkt
-          raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}
+          raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}/unison-runtime
 
       - name: save jit binary
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
