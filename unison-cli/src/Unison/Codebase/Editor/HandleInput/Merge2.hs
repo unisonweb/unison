@@ -3,6 +3,9 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
@@ -19,7 +22,7 @@ import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromJust)
-import Data.Semialign (alignWith, unzip, zip, Semialign (..))
+import Data.Semialign (Semialign (..), alignWith, unzip, zip)
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
@@ -52,12 +55,14 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, findCtorNames, forwardCtorNames, getExistingReferencesNamed, getNamespaceDependentsOf)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -71,6 +76,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -83,6 +90,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Map qualified as Map
@@ -96,15 +104,11 @@ import Unison.Util.Nametree
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
-import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as Relation
-import qualified Unison.UnisonFile as UnisonFile
-import Unison.Codebase.Editor.HandleInput.Update2 (findCtorNames, addDefinitionsToUnisonFile, forwardCtorNames, getNamespaceDependentsOf, getExistingReferencesNamed)
-import Unison.Names (Names)
-import Unison.Names qualified as Names
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -118,7 +122,7 @@ step name action = do
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
-  Cli.Env{codebase} <- ask
+  Cli.Env {codebase} <- ask
   -- Create a bunch of cached database lookup functions
   db <- do
     Cli.Env {codebase} <- ask
@@ -126,14 +130,14 @@ handleMerge bobBranchName = do
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
-  Cli.runTransactionWithRollback \abort -> do
+  (conflictInfo, unisonFile, pped) <- Cli.runTransactionWithRollback \abort -> do
     conflictInfo <- getConflictInfo db mergeInfo abort
     case hasConflicts conflictInfo of
       False -> do
         -- no conflicts
 
         lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
-        
+
         let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
         unisonFile0 <- do
           addDefinitionsToUnisonFile
@@ -151,12 +155,16 @@ handleMerge bobBranchName = do
             (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
             dependents
             unisonFile0
-        -- promptUser mergeInfo conflictInfo
-        undefined
+        unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
+        let namesExcludingLibdeps = lcaNamesExcludingLibdeps <> unconflictedNamesExcludingLibdeps
+        let pped = PPED.makePPED (PPE.namer namesExcludingLibdeps) (PPE.suffixifyByName namesExcludingLibdeps)
+        pure (conflictInfo, unisonFile, pped)
       True -> do
         -- conflicts
         error "conflicts path not implemented yet"
-    undefined
+  let prettyUf = Pretty.prettyUnisonFile pped unisonFile
+  promptUser mergeInfo conflictInfo prettyUf
+  undefined
 
 data MergeInfo = MergeInfo
   { alicePath :: Path.Absolute,
@@ -294,7 +302,7 @@ partitionConflicts ::
   ( Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
     Defns (Map Name Referent) (Map Name TypeReference)
   )
-partitionConflicts (Defns conflictedTermNames conflictedTypeNames) Merge.TwoWay { alice = Defns aliceTerms aliceTypes, bob = Defns bobTerms bobTypes } = 
+partitionConflicts (Defns conflictedTermNames conflictedTypeNames) Merge.TwoWay {alice = Defns aliceTerms aliceTypes, bob = Defns bobTerms bobTypes} =
   let aliceTermMap = BiMultimap.range aliceTerms
       aliceTypeMap = BiMultimap.range aliceTypes
       bobTermMap = BiMultimap.range bobTerms
@@ -302,72 +310,71 @@ partitionConflicts (Defns conflictedTermNames conflictedTypeNames) Merge.TwoWay 
       (conflictedTerms, unconflictedTerms) = Map.foldlWithKey (phi conflictedTermNames) (Map.empty, Map.empty) (align aliceTermMap bobTermMap)
       (conflictedTypes, unconflictedTypes) = Map.foldlWithKey (phi conflictedTypeNames) (Map.empty, Map.empty) (align aliceTypeMap bobTypeMap)
 
-      phi :: forall v. Set Name -> (Map Name (v,v), Map Name v) -> Name -> These v v -> (Map Name (v,v), Map Name v)
+      phi :: forall v. Set Name -> (Map Name (v, v), Map Name v) -> Name -> These v v -> (Map Name (v, v), Map Name v)
       phi conflictedNames = \(conflicted, unconflicted) k v -> case v of
         This v ->
           let !unconflicted' = Map.insert k v unconflicted
-          in (conflicted, unconflicted')
+           in (conflicted, unconflicted')
         That v ->
           let !unconflicted' = Map.insert k v unconflicted
-          in (conflicted, unconflicted')
+           in (conflicted, unconflicted')
         These v0 v1 -> case Set.member k conflictedNames of
           True ->
-            let !conflicted' = Map.insert k (v0,v1) conflicted
-            in (conflicted', unconflicted)
+            let !conflicted' = Map.insert k (v0, v1) conflicted
+             in (conflicted', unconflicted)
           False ->
             let !unconflicted' = Map.insert k v0 unconflicted
-            in (conflicted, unconflicted')
-  in (Defns conflictedTerms conflictedTypes, Defns unconflictedTerms unconflictedTypes)
+             in (conflicted, unconflicted')
+   in (Defns conflictedTerms conflictedTypes, Defns unconflictedTerms unconflictedTypes)
 
 loadNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
 loadNamesExcludingLibdeps db ci = (<>) <$> loadLcaNamesExcludingLibdeps db ci <*> loadUnconflictedNamesExcludingLibdeps db ci
 
 loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadLcaNamesExcludingLibdeps db ConflictInfo{lcaDefns = Defns {terms, types}} = do
+loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} = do
   terms <- traverse (referent2to1 db) (BiMultimap.range terms)
-  pure Names.Names { terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types) }
+  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types)}
 
 loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadUnconflictedNamesExcludingLibdeps db ConflictInfo{unconflictedDefns = Defns {terms, types}} = do
+loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedDefns = Defns {terms, types}} = do
   terms <- traverse (referent2to1 db) terms
-  pure Names.Names { terms = Relation.fromMap terms, types = Relation.fromMap types }
+  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap types}
 
 unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-unconflictedRel ConflictInfo{unconflictedDefns = Defns {terms, types}} =
+unconflictedRel ConflictInfo {unconflictedDefns = Defns {terms, types}} =
   let termRefIds = flip mapMaybe terms \case
         Referent.Ref r -> case r of
           ReferenceBuiltin _ -> error "todo"
           ReferenceDerived r -> Just r
         Referent.Con _ _ -> Nothing
-      typeRefIds = types <&> \case
-        ReferenceBuiltin _ -> error "todo"
-        ReferenceDerived r -> r
-  in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
+      typeRefIds =
+        types <&> \case
+          ReferenceBuiltin _ -> error "todo"
+          ReferenceDerived r -> r
+   in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
 
 hasConflicts :: ConflictInfo -> Bool
 hasConflicts ConflictInfo {conflictedDefns} = null (conflictedDefns ^. #terms) && null (conflictedDefns ^. #types)
 
 promptUser ::
-  ProjectAndBranch Project ProjectBranch ->
-  NameSegment ->
-  NameSegment ->
-  V1.Branch.Branch IO ->
+  MergeInfo ->
+  ConflictInfo ->
   Pretty ColorText ->
   Cli a
-promptUser currentProjectAndBranch targetBranchName selfBranchName lcaBranch prettyUnisonFile = do
-  let currentProjectId = currentProjectAndBranch ^. #project . #projectId
+promptUser mergeInfo conflictInfo prettyUnisonFile = do
   Cli.Env {writeSource} <- ask
-  let textualDescriptionOfUpgrade = "merge"
-  -- Small race condition: since picking a branch name and creating the branch happen in different
-  -- transactions, creating could fail.
-  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
-  _temporaryBranchId <-
-    HandleInput.Branch.doCreateBranch'
-      lcaBranch
-      Nothing
-      (currentProjectAndBranch ^. #project)
-      temporaryBranchName
-      textualDescriptionOfUpgrade
+  -- let currentProjectId = currentProjectAndBranch ^. #project . #projectId
+  -- let textualDescriptionOfUpgrade = "merge"
+  -- -- Small race condition: since picking a branch name and creating the branch happen in different
+  -- -- transactions, creating could fail.
+  -- temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
+  -- _temporaryBranchId <-
+  --   HandleInput.Branch.doCreateBranch'
+  --     lcaBranch
+  --     Nothing
+  --     (currentProjectAndBranch ^. #project)
+  --     temporaryBranchName
+  --     textualDescriptionOfUpgrade
   scratchFilePath <-
     Cli.getLatestFile <&> \case
       Nothing -> "scratch.u"
