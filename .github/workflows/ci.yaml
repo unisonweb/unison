@@ -470,7 +470,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.base-codebase}}
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md'}-${{github.sha}}
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
           restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
 
       - name: set ucm permissions
