@@ -424,9 +424,6 @@ jobs:
         with:
           name: unison-${{ matrix.os }}
           path: ${{ runner.temp }}
-      - run: |
-          chmod +x ${{ env.ucm }}
-          ${{ env.ucm }} transcript setup-jit.md
 
       - name: build jit binary
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
@@ -446,6 +443,7 @@ jobs:
       - name: jit tests ${{ matrix.os }}
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
         run: |
+          chmod +x ${{ env.ucm }}
           time ${{ env.ucm }} transcript unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
