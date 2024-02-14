@@ -440,7 +440,6 @@ jobs:
           path: ${{ env.jit_src_scheme }}
 
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
 
       - name: build jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
