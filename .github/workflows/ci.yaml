@@ -303,7 +303,7 @@ jobs:
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: 1arp/create-a-file-action@0.3
         with:
-          file: 'setup-jit.md'
+          file: ${{ runner.temp }}/setup-jit.md
           content: |
             ```ucm
             .> project.create-empty jit-setup
@@ -343,7 +343,7 @@ jobs:
           mkdir -p ${{ env.jit_src_scheme }}
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
           chmod +x ${{ env.ucm }}
-          ${{ env.ucm }} transcript setup-jit.md
+          ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
 
       - name: save jit source
         if: steps.jit_src_exists.outputs.files_exists == 'false'
