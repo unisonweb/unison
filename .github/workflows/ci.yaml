@@ -25,6 +25,7 @@ env:
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
   jit_bin: "unison-jit-bin"
   jit_generator_os: ubuntu-20.04
+  base-codebase: "~/.cache/unisonlanguage/base.unison"
 
 jobs:
   ormolu:
@@ -346,6 +347,10 @@ jobs:
           name: unison-${{ env.jit_generator_os }}
           path: ${{ runner.temp }}
 
+      - name: set ucm permissions
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        run: chmod +x ${{ env.ucm }}
+
       - name: download scheme-libs
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/checkout@v4
@@ -359,7 +364,6 @@ jobs:
         run: |
           mkdir -p ${{ env.jit_src_scheme }}
           cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
-          chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
 
       - name: save jit source
@@ -461,11 +465,25 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_bin }}/**
 
+      - name: cache base.md codebase
+        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.base-codebase}}
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md'}-${{github.sha}}
+          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
+
+      - name: set ucm permissions
+        run: chmod +x ${{ env.ucm }}
+
+      - name: create base.md codebase
+        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        run: ${{env.ucm}} transcript -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
+
       - name: jit tests ${{ matrix.os }}
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
         run: |
-          chmod +x ${{ env.ucm }}
-          time ${{ env.ucm }} transcript unison-src/builtin-tests/jit-tests.md
+          time ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
           if [ -n "$CHANGE" ]; then
@@ -476,7 +494,7 @@ jobs:
       - name: interpreter tests
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
         run: |
-          time ${{ env.ucm }} transcript unison-src/builtin-tests/interpreter-tests.md
+          time ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
           if [ -n "$CHANGE" ]; then
