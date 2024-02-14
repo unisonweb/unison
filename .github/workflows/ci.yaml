@@ -419,73 +419,63 @@ jobs:
             ~/.local/share/racket
           key: ${{ runner.os }}-racket-${{env.racket_version}}
       - uses: Bogdanp/setup-racket@v1.11
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.jit_bin_exists.outputs.files_exists == 'false'
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: download jit source
-        # if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/download-artifact@v4
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}
 
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
-        # if: steps.jit_src_exists.outputs.files_exists == 'false'
-
-      - name: download ucm
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
-        uses: actions/download-artifact@v4
-        with:
-          name: unison-${{ matrix.os }}
-          path: ${{ runner.temp }}
-
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
 
       - name: build jit binary
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         run: |
           cp -R scheme-libs/racket/* ${jit_src_scheme//\\//} # replace \\ with / (on windows)
-          raco pkg install --auto ${{ env.jit_src_scheme }}/unison
+          raco pkg install --auto --skip-installed ${{ env.jit_src_scheme }}/unison |
           raco exe ${{ env.jit_src_scheme }}/unison-runtime.rkt
           raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}/unison-runtime
 
       - name: save jit binary
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_bin }}/**
 
       - name: cache base.md codebase
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         uses: actions/cache@v4
         with:
           path: ${{ env.base-codebase}}
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
           restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
 
+      - name: download ucm
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ runner.temp }}
+
       - name: set ucm permissions
         run: chmod +x ${{ env.ucm }}
 
       - name: create base.md codebase
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
         run: ${{env.ucm}} transcript -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
-
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
 
       - name: jit tests ${{ matrix.os }}
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
