@@ -513,3 +513,7 @@ jobs:
             echo "The interpreter-tests output has changed"
             exit 1
           fi
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ always() }}
