@@ -445,10 +445,11 @@ jobs:
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
         shell: bash
         run: |
-          cp -R scheme-libs/racket/* ${jit_src_scheme//\\//} # replace \\ with / (on windows)
-          raco pkg install --auto --skip-installed ${{ env.jit_src_scheme }}/unison
-          raco exe ${{ env.jit_src_scheme }}/unison-runtime.rkt
-          raco distribute ${{ env.jit_bin }} ${{ env.jit_src_scheme }}/unison-runtime
+          jit_src_scheme_adjusted="${jit_src_scheme//\\//}" # replace \\ with / (on windows)
+          cp -R scheme-libs/racket/* "$jit_src_scheme_adjusted"
+          raco pkg install --auto --skip-installed "$jit_src_scheme_adjusted"/unison
+          raco exe "$jit_src_scheme_adjusted"/unison-runtime.rkt
+          raco distribute ${{ env.jit_bin }} "$jit_src_scheme_adjusted"/unison-runtime
 
       - name: save jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
