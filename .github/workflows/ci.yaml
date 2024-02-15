@@ -449,7 +449,7 @@ jobs:
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        if: runner.os == 'Windows'
+        if: ${{ always() }} && runner.os == 'Windows'
 
       - name: save jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
