@@ -475,7 +475,7 @@ jobs:
         run: chmod +x ${{ env.ucm }}
 
       - name: create base.md codebase
-        run: ${{env.ucm}} transcript -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
+        run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: jit tests ${{ matrix.os }}
         # if: steps.jit_bin_exists.outputs.files_exists == 'false'
