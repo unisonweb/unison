@@ -433,7 +433,7 @@ jobs:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: download jit source
-        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         uses: actions/download-artifact@v4
         with:
           name: jit-source
