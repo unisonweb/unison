@@ -437,10 +437,6 @@ jobs:
 
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
-
       - name: build jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
         shell: bash
@@ -450,6 +446,10 @@ jobs:
           raco pkg install --auto --skip-installed "$jit_src_scheme_adjusted"/unison
           raco exe "$jit_src_scheme_adjusted"/unison-runtime.rkt
           raco distribute ${{ env.jit_bin }} "$jit_src_scheme_adjusted"/unison-runtime
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: runner.os == 'Windows'
 
       - name: save jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
