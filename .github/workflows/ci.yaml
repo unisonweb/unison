@@ -442,14 +442,20 @@ jobs:
         shell: bash
         run: |
           jit_src_scheme_adjusted="${jit_src_scheme//\\//}" # replace \\ with / (on windows)
+          jit_bin_adjusted=${jit_bin//\\//} # replace \\ with / (on windows)
           cp -R scheme-libs/racket/* "$jit_src_scheme_adjusted"
           raco pkg install --auto --skip-installed "$jit_src_scheme_adjusted"/unison
           raco exe "$jit_src_scheme_adjusted"/unison-runtime.rkt
-          raco distribute ${{ env.jit_bin }} "$jit_src_scheme_adjusted"/unison-runtime
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            unison_runtime_exe="$jit_src_scheme_adjusted/unison-runtime.exe"
+          else
+            unison_runtime_exe="$jit_src_scheme_adjusted/unison-runtime"
+          fi
+          raco distribute "$jit_bin_adjusted" "$unison_runtime_exe"
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }} && runner.os == 'Windows'
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }} && runner.os == 'Windows'
 
       - name: save jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
