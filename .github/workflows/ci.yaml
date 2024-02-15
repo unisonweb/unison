@@ -457,7 +457,6 @@ jobs:
           path: ${{ env.jit_bin }}/**
 
       - name: cache base.md codebase
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
         uses: actions/cache@v4
         with:
           path: ${{ env.base-codebase}}
