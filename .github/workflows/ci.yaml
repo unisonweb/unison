@@ -355,10 +355,6 @@ jobs:
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         uses: actions/checkout@v4
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
-
       - name: generate source
         if: steps.jit_src_exists.outputs.files_exists == 'false'
         run: |
@@ -440,6 +436,10 @@ jobs:
           path: ${{ env.jit_src_scheme }}
 
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
 
       - name: build jit binary
         if: steps.jit_bin_exists.outputs.files_exists == 'false'
