@@ -3,6 +3,16 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Causal qualified as V1.Causal
+import Unison.Codebase.Causal qualified as V1 (Causal)
+import Unison.Hash qualified as Hash
+import Unison.Codebase.Causal.Type qualified as V1.Causal
+import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
+import U.Codebase.Sqlite.HashHandle qualified as HashHandle
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -139,32 +149,36 @@ handleMerge bobBranchName = do
         lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
 
         let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
-        unisonFile0 <- do
-          addDefinitionsToUnisonFile
-            abort
-            codebase
-            (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
-            (unconflictedRel conflictInfo)
-            UnisonFile.emptyUnisonFile
-        dependents <-
-          getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
         unisonFile <- do
           addDefinitionsToUnisonFile
             abort
             codebase
+            -- todo: fix output
             (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
-            dependents
-            unisonFile0
+            (unconflictedRel conflictInfo)
+            UnisonFile.emptyUnisonFile
+        -- dependents <-
+        --   getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
+        -- unisonFile <- do
+        --   addDefinitionsToUnisonFile
+        --     abort
+        --     codebase
+        --     -- todo: fix output
+        --     (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
+        --     dependents
+        --     unisonFile0
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
         let namesExcludingLibdeps = lcaNamesExcludingLibdeps <> unconflictedNamesExcludingLibdeps
-        let pped = PPED.makePPED (PPE.namer namesExcludingLibdeps) (PPE.suffixifyByName namesExcludingLibdeps)
+        let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
+        let namesIncludingLibdeps = namesExcludingLibdeps <> mergedLibdepNames
+        let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
         pure (conflictInfo, unisonFile, pped)
       True -> do
         -- conflicts
         error "conflicts path not implemented yet"
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   promptUser mergeInfo conflictInfo prettyUf
-  undefined
+  pure ()
 
 data MergeInfo = MergeInfo
   { alicePath :: Path.Absolute,
@@ -285,12 +299,14 @@ getConflictInfo
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
     let (conflictedDefns, unconflictedDefns) = partitionConflicts conflictedNames defns
-    pure ConflictInfo {lcaDefns, conflictedDefns, unconflictedDefns}
+    mergedLibdeps <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
+    pure ConflictInfo {lcaDefns, conflictedDefns, unconflictedDefns, mergedLibdeps}
 
 data ConflictInfo = ConflictInfo
   { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
     unconflictedDefns :: Defns (Map Name Referent) (Map Name TypeReference),
-    lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+    lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    mergedLibdeps :: V1.Branch Transaction
   }
 
 partitionConflicts ::
@@ -862,3 +878,72 @@ getConflicts (Merge.TwoWay aliceDiff bobDiff) =
       --   add/delete
       --   add/update
       _ -> Nothing
+
+-- `convertLibdepsToV1Causal db parents libdeps` loads `libdeps` as a V1 branch (without history), and then turns it
+-- into a V1 causal using `parents` as history.
+convertLibdepsToV1Causal ::
+  MergeDatabase ->
+  Set CausalHash ->
+  Map NameSegment (CausalBranch Transaction) ->
+  Transaction (V1.Branch Transaction)
+convertLibdepsToV1Causal db@MergeDatabase {loadCausal, loadDeclType} parents libdeps = do
+  let branch :: Branch Transaction
+      branch =
+        Branch
+          { terms = Map.empty,
+            types = Map.empty,
+            patches = Map.empty,
+            children = libdeps
+          }
+
+  branchHash <- HashHandle.hashBranch v2HashHandle branch
+
+  v1Branch <- do
+    -- We make a fresh branch cache to load the branch of libdeps.
+    -- It would probably be better to reuse the codebase's branch cache.
+    -- FIXME how slow/bad is this without that branch cache?
+    branchCache <- Sqlite.unsafeIO newBranchCache
+    Conversions.branch2to1 branchCache loadDeclType branch
+
+  pure $
+    addCausalHistoryV1
+      db
+      (HashHandle.hashCausal v2HashHandle branchHash parents)
+      branchHash
+      v1Branch
+      (Map.fromSet loadCausal parents)
+
+-- Add causal history to a V1 branch (V1.Branch0), making it a V1 causal (V1.Branch).
+addCausalHistoryV1 ::
+  MergeDatabase ->
+  CausalHash ->
+  BranchHash ->
+  V1.Branch0 Transaction ->
+  Map CausalHash (Transaction (CausalBranch Transaction)) ->
+  V1.Branch Transaction
+addCausalHistoryV1 MergeDatabase {loadV1Branch} currentHash valueHash0 head parents =
+  V1.Branch case Map.toList parents of
+    [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+    [(parentHash, parent)] ->
+      V1.Causal.UnsafeCons
+        { currentHash,
+          valueHash,
+          head,
+          tail = (parentHash, convertParent parent)
+        }
+    _ ->
+      V1.Causal.UnsafeMerge
+        { currentHash,
+          valueHash,
+          head,
+          tails = convertParent <$> parents
+        }
+  where
+    convertParent :: Transaction (CausalBranch Transaction) -> Transaction (V1.Causal Transaction (V1.Branch0 Transaction))
+    convertParent loadParent = do
+      parent <- loadParent
+      v1Branch <- loadV1Branch (parent ^. #causalHash)
+      pure (V1.Branch._history v1Branch)
+
+    valueHash =
+      coerce @BranchHash @(Hash.HashFor (V1.Branch0 Transaction)) valueHash0
