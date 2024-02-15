@@ -23,7 +23,7 @@ env:
   ucm_local_bin: "ucm-local-bin"
   jit_version: "@unison/internal/releases/0.0.10"
   jit_src_scheme: "unison-jit-src/scheme-libs/racket"
-  jit_bin: "unison-jit-bin"
+  jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
   base-codebase: "~/.cache/unisonlanguage/base.unison"
 
@@ -386,28 +386,44 @@ jobs:
           - windows-2019
     steps:
       - name: set up environment
+        id: checks
         run: |
-          echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
-          echo "jit_bin=${{ runner.temp }}/${{ env.jit_bin }}" >> $GITHUB_ENV
-          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+          jit_src_scheme="${{ runner.temp }}/${{ env.jit_src_scheme }}" # scheme source
+          jit_exe="${jit_src_scheme}/unison-runtime" # initially built jit
+          jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
+          jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
+          ucm="${{ runner.temp }}/unison"
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            jit_src_scheme="${jit_src_scheme//\\//}"
+            jit_dist="${jit_dist//\\//}"
+
+            jit_exe="${jit_exe//\\//}.exe"
+            jit_dist_exe="${jit_dist_exe//\\//}.exe"
+            ucm="${ucm//\\//}.exe"
+          fi
+
+          if [[ -f "$jit_dist_exe" ]]; then
+            echo "jit_dist_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "jit_dist_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "jit_src_scheme=$jit_src_scheme" >> $GITHUB_ENV
+          echo "jit_exe=$jit_exe" >> $GITHUB_ENV
+          echo "jit_dist=$jit_dist" >> $GITHUB_ENV
+          echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
+          echo "ucm=$ucm" >> $GITHUB_ENV
+
       - name: cache jit binaries
         uses: actions/cache@v4
         with:
-          path: ${{ env.jit_bin }}
-          key: jit_bin.racket_${{ env.racket_version }}.jit_${{ env.jit_src_scheme }}.${{ github.sha }}
-          restore-keys: jit_bin.racket_${{ env.racket_version }}.jit_${{ env.jit_src_scheme }}.
-
-      - name: check binary exists
-        id: jit_bin_exists
-        run: |
-          if [[ -f "${{ env.jit_bin }}/bin/unison-runtime" ]]; then
-              echo "files_exists=true" >> $GITHUB_OUTPUT
-          else
-              echo "files_exists=false" >> $GITHUB_OUTPUT
-          fi
+          path: ${{ env.jit_dist }}
+          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_src_scheme }}.${{ github.sha }}
+          restore-keys: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_src_scheme }}.
 
       - name: Cache Racket dependencies
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.checks.outputs.jit_dist_exists == 'false'
         uses: actions/cache@v4
         with:
           path: |
@@ -415,21 +431,21 @@ jobs:
             ~/.local/share/racket
           key: ${{ runner.os }}-racket-${{env.racket_version}}
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.checks.outputs.jit_dist_exists == 'false'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux' && steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: runner.os == 'Linux' && steps.checks.outputs.jit_dist_exists == 'false'
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: download jit source
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.checks.outputs.jit_dist_exists == 'false'
         uses: actions/download-artifact@v4
         with:
           name: jit-source
@@ -438,31 +454,24 @@ jobs:
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
 
       - name: build jit binary
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.checks.outputs.jit_dist_exists == 'false'
         shell: bash
         run: |
-          jit_src_scheme_adjusted="${jit_src_scheme//\\//}" # replace \\ with / (on windows)
-          jit_bin_adjusted=${jit_bin//\\//} # replace \\ with / (on windows)
-          cp -R scheme-libs/racket/* "$jit_src_scheme_adjusted"
-          raco pkg install --auto --skip-installed "$jit_src_scheme_adjusted"/unison
-          raco exe "$jit_src_scheme_adjusted"/unison-runtime.rkt
-          if [[ ${{runner.os}} = "Windows" ]]; then
-            unison_runtime_exe="$jit_src_scheme_adjusted/unison-runtime.exe"
-          else
-            unison_runtime_exe="$jit_src_scheme_adjusted/unison-runtime"
-          fi
-          raco distribute "$jit_bin_adjusted" "$unison_runtime_exe"
+          cp -R scheme-libs/racket/* "$jit_src_scheme"
+          raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
+          raco exe "$jit_src_scheme"/unison-runtime.rkt
+          raco distribute "$jit_dist" "$jit_exe"
 
       # - name: Setup tmate session
       #   uses: mxschmitt/action-tmate@v3
       #   if: ${{ always() }} && runner.os == 'Windows'
 
       - name: save jit binary
-        if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        if: steps.checks.outputs.jit_dist_exists == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: jit-binary-${{ matrix.os }}
-          path: ${{ env.jit_bin }}/**
+          path: ${{ env.jit_dist }}/**
 
       - name: cache base.md codebase
         uses: actions/cache@v4
@@ -484,9 +493,9 @@ jobs:
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: jit tests ${{ matrix.os }}
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        # if: steps.checks.outputs.jit_dist_exists == 'false'
         run: |
-          time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_bin }}/bin -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
+          time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist }}/bin -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
           if [ -n "$CHANGE" ]; then
@@ -495,7 +504,7 @@ jobs:
           fi
 
       - name: interpreter tests
-        # if: steps.jit_bin_exists.outputs.files_exists == 'false'
+        # if: steps.checks.outputs.jit_dist_exists == 'false'
         run: |
           time ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
