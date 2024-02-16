@@ -91,14 +91,9 @@ jobs:
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: |
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-1_${{matrix.os}}-
+          restore-keys: stack-1_${{matrix.os}}-
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
       - uses: actions/cache@v4
@@ -109,14 +104,9 @@ jobs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
+          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: |
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-1_${{matrix.os}}-
+          restore-keys: stack-1_${{matrix.os}}-
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v4
@@ -131,13 +121,8 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          restore-keys: |
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-work-4_${{matrix.os}}-
+          key: stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
+          restore-keys: stack-work-4_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
@@ -289,8 +274,7 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{env.jit_version}}.${{github.sha}}
-          restore-keys: jit_src_scheme.racket_${{env.racket_version}}.jit_${{env.jit_version}}.
+          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{env.jit_version}}
 
       - name: check source exists
         id: jit_src_exists
@@ -417,8 +401,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.${{ github.sha }}
-          restore-keys: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}.
+          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
         if: steps.checks.outputs.jit_dist_exists == 'false'
@@ -475,8 +458,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.base-codebase}}
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}-
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
 
       - name: download ucm
         uses: actions/download-artifact@v4
