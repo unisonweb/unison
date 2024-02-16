@@ -495,7 +495,7 @@ jobs:
       - name: jit tests ${{ matrix.os }}
         # if: steps.checks.outputs.jit_dist_exists == 'false'
         run: |
-          time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist }}/bin -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
+          time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
           if [ -n "$CHANGE" ]; then
@@ -514,6 +514,6 @@ jobs:
             exit 1
           fi
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ always() }}
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ always() }}
