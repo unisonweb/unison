@@ -122,8 +122,10 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/*.hs')}}
-          restore-keys: stack-work-4_${{matrix.os}}-
+          key: stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          restore-keys: |
+            stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            stack-work-4_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
