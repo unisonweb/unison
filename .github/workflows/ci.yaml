@@ -397,7 +397,7 @@ jobs:
             jit_dist="${jit_dist//\\//}"
 
             jit_exe="${jit_exe//\\//}.exe"
-            jit_dist_exe="${jit_dist_exe//\\//}.exe"
+            jit_dist_exe="${jit_dist//\\//}/unison-runtime.exe"
             ucm="${ucm//\\//}.exe"
           fi
 
