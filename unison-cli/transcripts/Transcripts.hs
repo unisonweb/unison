@@ -16,6 +16,7 @@ import System.FilePath
     splitFileName,
     takeExtensions,
     (</>),
+    (<.>),
   )
 import System.IO.CodePage (withCP65001)
 import System.IO.Silently (silence)
@@ -153,9 +154,11 @@ handleArgs acc [prefix] = acc { matchPrefix = Just prefix }
 handleArgs acc _ = acc
 
 defaultConfig :: IO TestConfig
-defaultConfig =
-  TestConfig Nothing <$>
-    getXdgDirectory XdgData "unisonlanguage/libexec"
+defaultConfig = TestConfig Nothing <$> defaultRTP
+  where
+    defaultRTP = do
+      dir <- getXdgDirectory XdgData ("unisonlanguage" </> "libexec")
+      pure (dir </> "unison-runtime" <.> exeExtension)
 
 main :: IO ()
 main = withCP65001 do

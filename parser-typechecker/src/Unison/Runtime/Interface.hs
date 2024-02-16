@@ -451,13 +451,13 @@ nativeEval ::
   PrettyPrintEnv ->
   Term Symbol ->
   IO (Either Error ([Error], Term Symbol))
-nativeEval execDir ctxVar cl ppe tm = catchInternalErrors $ do
+nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectDeps cl tm
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
   writeIORef ctxVar ctx
-  nativeEvalInContext execDir ppe ctx (codes ++ tcodes) base
+  nativeEvalInContext executable ppe ctx (codes ++ tcodes) base
 
 interpEval ::
   ActiveThreads ->
@@ -490,15 +490,16 @@ ensureExists cmd err =
   ccall = call `UnliftIO.catch` \(_ :: IOException) -> pure False
 
 ensureRuntimeExists :: HasCallStack => FilePath -> IO ()
-ensureRuntimeExists execDir = ensureExists cmd (runtimeErrMsg execDir)
+ensureRuntimeExists executable =
+  ensureExists cmd (runtimeErrMsg executable)
   where
-    cmd = proc (ucrFile execDir) ["--help"]
+    cmd = proc executable ["--help"]
 
 ensureRacoExists :: HasCallStack => IO ()
 ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
 
 runtimeErrMsg :: String -> Pretty ColorText 
-runtimeErrMsg execDir =
+runtimeErrMsg executable =
   P.lines
     [ P.wrap
         "I can't seem to call `unison-runtime`. I was looking for\
@@ -506,7 +507,7 @@ runtimeErrMsg execDir =
       "",
       P.indentN
         2
-        (fromString $ ucrFile execDir),
+        (fromString executable),
       "",
       "See",
       "",
@@ -548,12 +549,12 @@ nativeCompile ::
   Reference ->
   FilePath ->
   IO (Maybe Error)
-nativeCompile execDir ctxVar cl ppe base path = tryM $ do
+nativeCompile executable ctxVar cl ppe base path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl base
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   Just ibase <- pure $ baseToIntermed ctx base
-  nativeCompileCodes execDir codes ibase path
+  nativeCompileCodes executable codes ibase path
 
 interpCompile ::
   Text ->
@@ -723,12 +724,9 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
-ucrFile :: FilePath -> FilePath
-ucrFile execDir = execDir </> "unison-runtime"
-
 ucrProc :: FilePath -> [String] -> CreateProcess
-ucrProc execDir args =
-  (proc (ucrFile execDir) args)
+ucrProc executable args =
+  (proc executable args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
@@ -752,8 +750,8 @@ nativeEvalInContext ::
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   IO (Either Error ([Error], Term Symbol))
-nativeEvalInContext execDir _ ctx codes base = do
-  ensureRuntimeExists execDir
+nativeEvalInContext executable _ ctx codes base = do
+  ensureRuntimeExists executable
   let cc = ccache ctx
   crs <- readTVarIO $ combRefs cc
   let bytes = serializeValue . compileValue base $ codes
@@ -777,8 +775,8 @@ nativeEvalInContext execDir _ ctx codes base = do
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
-      ucrError (_ :: IOException) = pure $ Left (runtimeErrMsg execDir)
-  withCreateProcess (ucrProc execDir []) callout
+      ucrError (_ :: IOException) = pure $ Left (runtimeErrMsg executable)
+  withCreateProcess (ucrProc executable []) callout
     `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
@@ -787,8 +785,8 @@ nativeCompileCodes ::
   Reference ->
   FilePath ->
   IO ()
-nativeCompileCodes execDir codes base path = do
-  ensureRuntimeExists execDir
+nativeCompileCodes executable codes base path = do
+  ensureRuntimeExists executable
   ensureRacoExists
   genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
   createDirectoryIfMissing True genDir
@@ -802,9 +800,9 @@ nativeCompileCodes execDir codes base path = do
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
       ucrError (_ :: IOException) =
-        throwIO $ PE callStack (runtimeErrMsg execDir)
+        throwIO $ PE callStack (runtimeErrMsg executable)
       racoError (_ :: IOException) = throwIO $ PE callStack racoErrMsg
-  withCreateProcess (ucrProc execDir ["-G", srcPath]) callout
+  withCreateProcess (ucrProc executable ["-G", srcPath]) callout
     `UnliftIO.catch` ucrError
   callProcess "raco" ["exe", "-o", path, srcPath]
     `UnliftIO.catch` racoError
@@ -1017,13 +1015,13 @@ startRuntime sandboxed runtimeHost version = do
       }
 
 startNativeRuntime :: Text -> FilePath -> IO (Runtime Symbol)
-startNativeRuntime _version execDir = do
+startNativeRuntime _version executable = do
   ctxVar <- newIORef =<< baseContext False
   pure $
     Runtime
       { terminate = pure (),
-        evaluate = nativeEval execDir ctxVar,
-        compileTo = nativeCompile execDir ctxVar,
+        evaluate = nativeEval executable ctxVar,
+        compileTo = nativeCompile executable ctxVar,
         mainType = builtinMain External,
         ioTestTypes = builtinIOTestTypes External
       }

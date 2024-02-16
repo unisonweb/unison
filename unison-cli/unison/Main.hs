@@ -41,7 +41,14 @@ import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
-import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive, getXdgDirectory, XdgDirectory(..))
+import System.Directory
+  ( canonicalizePath,
+    getCurrentDirectory,
+    removeDirectoryRecursive,
+    getXdgDirectory,
+    XdgDirectory(..),
+    exeExtension
+  )
 import System.Environment (getProgName, withArgs)
 import System.Exit qualified as Exit
 import System.FilePath qualified as FP
@@ -90,7 +97,9 @@ type Runtimes =
 fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
 fixNativeRuntimePath = maybe dflt pure
   where
-    dflt = getXdgDirectory XdgData ("unisonlanguage" FP.</> "libexec")
+    exe = "unison-runtime" FP.<.> exeExtension
+    unisonDir = "unisonlanguage" FP.</> "libexec"
+    dflt = (FP.</> exe) <$> getXdgDirectory XdgData unisonDir
 
 main :: IO ()
 main = do
