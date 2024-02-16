@@ -533,6 +533,9 @@ prettyCallError = \case
                         else P.lines $ [fromString stdout, "", "---", "", fromString stderr]
               ]
 
+-- https://hackage.haskell.org/package/process-1.6.18.0/docs/System-Process.html#t:CreateProcess
+-- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOError
+-- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOErrorType
 runtimeErrMsg :: CreateProcess -> Either (Int, String, String) IOException -> Pretty ColorText
 runtimeErrMsg cp error =
   case error of
