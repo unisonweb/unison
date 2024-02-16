@@ -92,7 +92,7 @@ jobs:
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
+          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: stack-1_${{matrix.os}}-
 
@@ -105,7 +105,7 @@ jobs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml')}}
+          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
           restore-keys: stack-1_${{matrix.os}}-
 
