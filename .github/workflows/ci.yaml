@@ -289,7 +289,7 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{hashFiles(format('{0}/**', env.jit_src_scheme)}}.${{github.sha}}
+          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{hashFiles(format('{0}/**', env.jit_src_scheme))}}.${{github.sha}}
           restore-keys: jit_src_scheme.racket_${{env.racket_version}}.jit_${{hashFiles(format('{0}/**', env.jit_src_scheme)}}.
 
       - name: check source exists
