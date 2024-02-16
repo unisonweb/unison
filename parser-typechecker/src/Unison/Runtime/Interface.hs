@@ -45,6 +45,7 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
+import GHC.IO.Exception (IOErrorType (NoSuchThing, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
 import System.Directory
   ( XdgDirectory (XdgCache),
@@ -54,7 +55,8 @@ import System.Directory
 import System.Exit (ExitCode (..))
 import System.FilePath ((<.>), (</>))
 import System.Process
-  ( CreateProcess (..),
+  ( CmdSpec (RawCommand, ShellCommand),
+    CreateProcess (..),
     StdStream (..),
     callProcess,
     proc,
@@ -478,67 +480,106 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     evalInContext ppe ctx activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
-ensureExists :: HasCallStack => CreateProcess -> (Maybe String -> Pretty ColorText) -> IO ()
+ensureExists :: HasCallStack => CreateProcess -> (CreateProcess -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
 ensureExists cmd err =
   ccall >>= \case
     Nothing -> pure ()
-    Just exception -> dieP $ err exception
+    Just failure -> dieP $ err cmd failure
   where
     call =
       readCreateProcessWithExitCode cmd "" >>= \case
-        (ExitSuccess, _, _) -> pure Nothing
-        (ExitFailure _, _, _) -> pure (Just Nothing)
-    ccall = call `UnliftIO.catch` \(e :: IOException) -> pure . Just . Just $ show e
+        (ExitSuccess, _stdout, _stderr) -> pure Nothing
+        (ExitFailure exitCode, stdout, stderr) -> pure (Just (Left (exitCode, stdout, stderr)))
+    ccall = call `UnliftIO.catch` \(e :: IOException) -> pure . Just $ Right e
 
 ensureRuntimeExists :: HasCallStack => FilePath -> IO ()
 ensureRuntimeExists executable =
-  ensureExists cmd (runtimeErrMsg executable)
+  ensureExists cmd runtimeErrMsg
   where
     cmd = proc executable ["--help"]
 
 ensureRacoExists :: HasCallStack => IO ()
-ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
+ensureRacoExists = ensureExists (shell "raco help") (const racoErrMsg)
 
-runtimeErrMsg :: String -> Maybe String -> Pretty ColorText
-runtimeErrMsg executable error =
-  P.lines
-    [ P.wrap
-        "I can't seem to call the Unison native runtime at:",
-      "",
-      P.indentN
-        2
-        (fromString executable),
-      "",
-      case error of
-        Just msg ->
-          P.lines
-            [ P.wrap "The error message I received was:",
-              "",
-              P.indentN 2 (fromString msg)
-            ]
-        Nothing -> P.wrap "I'm sorry I don't know more specifically what went wrong.",
-      "",
-      P.wrap
-        "If you have the executable installed somewhere other than the above location, you can\
-        \ use the `--runtime-path` command line argument to specify\
-        \ where it is."
-    ]
+prettyCmdSpec :: CmdSpec -> Pretty ColorText
+prettyCmdSpec = \case
+  ShellCommand string -> fromString string
+  System.Process.RawCommand filePath args ->
+    P.sep " " (fromString filePath : Prelude.map fromString args)
 
-racoErrMsg :: Maybe String -> Pretty ColorText
+prettyCallError :: Either (Int, String, String) IOException -> Pretty ColorText
+prettyCallError = \case
+  Right ex ->
+    P.lines
+      [ P.wrap . fromString $ "The error type was: '" ++ show (ioe_type ex) ++ "', and the message is:",
+        "",
+        P.indentN 2 (fromString (ioe_description ex))
+      ]
+  Left (errCode, stdout, stderr) ->
+    let prettyExitCode = "The exit code was" <> fromString (show errCode)
+     in if null stdout && null stderr
+          then P.wrap $ prettyExitCode <> " but there was no output."
+          else
+            P.lines
+              [ P.wrap $ prettyExitCode <> "and the output was:",
+                "",
+                P.indentN
+                  2
+                  if null stdout
+                    then fromString stderr
+                    else
+                      if null stderr
+                        then fromString stdout
+                        else P.lines $ [fromString stdout, "", "---", "", fromString stderr]
+              ]
+
+runtimeErrMsg :: CreateProcess -> Either (Int, String, String) IOException -> Pretty ColorText
+runtimeErrMsg cp error =
+  case error of
+    Right (ioe_type -> NoSuchThing) ->
+      P.lines
+        [ P.wrap "I couldn't find the Unison native runtime. I tried to start it with:",
+          "",
+          P.indentN 2 $ prettyCmdSpec (cmdspec cp),
+          "",
+          P.wrap
+            "If that doesn't look right, you can use the `--runtime-path` command line \
+            \argument to specify the correct path for the executable."
+        ]
+    Right (ioe_type -> PermissionDenied) ->
+      P.lines
+        [ P.wrap
+            "I got a 'Permission Denied' error when trying to start the \
+            \Unison native runtime with:",
+          "",
+          P.indentN 2 $ prettyCmdSpec (cmdspec cp),
+          "",
+          P.wrap
+            "Please check the permisssions (e.g. check that the directory is accessible, \
+            \and that the program is marked executable).",
+          "",
+          P.wrap
+            "If it looks like I'm calling the wrong executable altogether, you can use the \
+            \`--runtime-path` command line argument to specify the correct one."
+        ]
+    _ ->
+      P.lines
+        [ P.wrap
+            "I got an error when starting the Unison native runtime using:",
+          "",
+          P.indentN 2 (prettyCmdSpec (System.Process.cmdspec cp)),
+          "",
+          prettyCallError error
+        ]
+
+racoErrMsg :: Either (Int, String, String) IOException -> Pretty ColorText
 racoErrMsg error =
   P.lines
     [ P.wrap
         "I can't seem to call `raco`. Please ensure Racket \
         \is installed.",
       "",
-      case error of
-        Just msg ->
-          P.lines
-            [ P.wrap "The error message I received was:",
-              "",
-              P.indentN 2 (fromString msg)
-            ]
-        Nothing -> P.wrap "I'm sorry I don't know more specifically what went wrong.",
+      prettyCallError error,
       "",
       "See",
       "",
@@ -783,8 +824,9 @@ nativeEvalInContext executable _ ctx codes base = do
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
-      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg executable (Just $ show e))
-  withCreateProcess (ucrProc executable []) callout
+      p = ucrProc executable []
+      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg p (Right e))
+  withCreateProcess p callout
     `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
@@ -808,9 +850,10 @@ nativeCompileCodes executable codes base path = do
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
       ucrError (e :: IOException) =
-        throwIO $ PE callStack (runtimeErrMsg executable (Just (show e)))
-      racoError (e :: IOException) = throwIO $ PE callStack (racoErrMsg (Just (show e)))
-  withCreateProcess (ucrProc executable ["-G", srcPath]) callout
+        throwIO $ PE callStack (runtimeErrMsg p (Right e))
+      racoError (e :: IOException) = throwIO $ PE callStack (racoErrMsg (Right e))
+      p = ucrProc executable ["-G", srcPath]
+  withCreateProcess p callout
     `UnliftIO.catch` ucrError
   callProcess "raco" ["exe", "-o", path, srcPath]
     `UnliftIO.catch` racoError
