@@ -20,3 +20,6 @@ Default Environment Variables:
 https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
 
 When using the `cache` action, getting a cache hit on the primary key means you won't update the cache with any changes.
+
+Workflow syntax:
+https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
