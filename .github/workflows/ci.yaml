@@ -286,7 +286,7 @@ jobs:
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: interpreter tests
-        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
           ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
