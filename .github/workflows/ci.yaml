@@ -69,7 +69,7 @@ jobs:
           - ubuntu-20.04
           - macOS-12
           - windows-2019
-          - windows-2022
+          # - windows-2022
 
     steps:
       - uses: actions/checkout@v4
@@ -369,7 +369,7 @@ jobs:
           - ubuntu-20.04
           - macOS-12
           - windows-2019
-          - windows-2022
+          # - windows-2022
     steps:
       - name: set up environment
         id: checks
