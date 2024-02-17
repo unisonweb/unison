@@ -76,7 +76,8 @@ jobs:
 
       - name: tweak environment
         run: |
-          echo "ucm_local_bin=${RUNNER_TEMP//\\//}/${ucm_local_bin}" >> $GITHUB_ENV
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
           if [[ ${{runner.os}} = "Windows" ]]; then
             echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
             echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
