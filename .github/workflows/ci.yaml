@@ -79,7 +79,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{runner.temp}}/${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs') }}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          restore-keys: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs') }}-
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
