@@ -189,16 +189,16 @@ jobs:
             --test \
             --no-run-tests \
             --no-terminal \
-            --local-bin-path ${{env.ucm_local_bin}} \
+            --local-bin-path ${{runner.temp}}/${{env.ucm_local_bin}} \
             --copy-bins
 
       - name: output ucm path
         id: ucm-path
         run: |
           if [[ ${{runner.os}} = "Windows" ]]; then
-            echo "ucm-path=${{env.ucm_local_bin}}/unison.exe" >> $GITHUB_OUTPUT
+            echo "ucm-path=${{runner.temp}}/${{env.ucm_local_bin}}/unison.exe" >> $GITHUB_OUTPUT
           else
-            echo "ucm-path=${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
+            echo "ucm-path=${{runner.temp}}/${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
           fi
 
       # Run each test suite (tests and transcripts)
