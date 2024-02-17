@@ -73,6 +73,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: cache ucm binaries
+        id: cache-ucm-binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{runner.temp}}/${{env.ucm_local_bin}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs') }}
+
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
       # purge one manually.
@@ -80,40 +88,41 @@ jobs:
         name: record stackage resolver
         # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
         # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
-        # `nightly` or `lts-xx`.  the whole resolver string is put into resolver_long as a backup cache key
-        # ${{ steps.stackage-resolver.outputs.resolver_short }}
-        # ${{ steps.stackage-resolver.outputs.resolver_long }}
+        # `nightly` or `lts-xx`.  the whole resolver string is put into $resolver as a backup cache key
+        # ${{ env.resolver_short }}
+        # ${{ env.resolver }}
         run: |
-          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_OUTPUT"
-          grep resolver stack.yaml | awk '{print "resolver_long="$2}' >> "$GITHUB_OUTPUT"
+          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
+          grep resolver stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v4
-        name: cache ~/.stack (unix)
-        if: runner.os != 'Windows'
+      - name: cache ~/.stack (non-Windows)
+        uses: actions/cache@v4
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: stack-1_${{matrix.os}}-
+          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          # Fall-back to use the most recent cache for this resolver
+          restore-keys: stack-1_${{matrix.os}}-${{env.resolver}}-
+          save-always: true
 
       # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v4
-        name: cache ~/.stack (Windows)
-        if: runner.os == 'Windows'
+      - name: cache ~/.stack (Windows)
+        uses: actions/cache@v4
+        if: runner.os == 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         with:
-          save-always: true
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: stack-1_${{matrix.os}}-
+          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          # Fall-back to use the most recent cache for this resolver
+          restore-keys: stack-1_${{matrix.os}}-${{env.resolver}}-
+          save-always: true
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v4
-        name: cache .stack-work
+      - name: cache .stack-work
+        uses: actions/cache@v4
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         with:
-          save-always: true
           path: |
             **/.stack-work
           # Main cache key: commit hash. This should always result in a cache miss...
@@ -122,15 +131,17 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          key: stack-work-4_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
           restore-keys: |
-            stack-work-4_${{matrix.os}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            stack-work-4_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            stack-work-4_${{matrix.os}}-${{env.resolver}}-
             stack-work-4_${{matrix.os}}-
+          save-always: true
 
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
       - name: install stack (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           mkdir stack && cd stack
@@ -138,16 +149,16 @@ jobs:
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: install stack (macOS)
+        if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
-        if: runner.os == 'macOS'
         run: |
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-osx-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
 
       - name: install stack (windows)
+        if: runner.os == 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
-        if: runner.os == 'Windows'
         run: |
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
@@ -166,6 +177,7 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         # Run up to 5 times in a row before giving up.
         # It's very unlikely that our build-dependencies step will fail on most builds,
         # so if it fails its almost certainly due to a race condition on the Windows
@@ -180,84 +192,107 @@ jobs:
           fi
 
           for (( i = 0; i < $tries; i++ )); do
-              stack --no-terminal build --fast --only-dependencies && break;
+              stack build --fast --only-dependencies && break;
           done
       - name: build
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
           stack build \
             --fast \
             --test \
             --no-run-tests \
-            --no-terminal \
+            \
             --local-bin-path ${{runner.temp}}/${{env.ucm_local_bin}} \
             --copy-bins
 
-      - name: output ucm path
-        id: ucm-path
-        run: |
           if [[ ${{runner.os}} = "Windows" ]]; then
-            echo "ucm-path=${{runner.temp}}/${{env.ucm_local_bin}}/unison.exe" >> $GITHUB_OUTPUT
+            echo "ucm=${{runner.temp}}/${{env.ucm_local_bin}}/unison.exe" >> $GITHUB_ENV
           else
-            echo "ucm-path=${{runner.temp}}/${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
+            echo "ucm=${{runner.temp}}/${{env.ucm_local_bin}}/unison" >> $GITHUB_ENV
           fi
 
       # Run each test suite (tests and transcripts)
-      - name: check disk space before
-        if: ${{ always() }}
-        run: df -h
       - name: unison-cli test
-        run: stack --no-terminal build --fast --test unison-cli
-      - name: check disk space after
-        if: ${{ always() }}
-        run: df -h
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-cli
+
       - name: unison-core tests
-        run: stack --no-terminal build --fast --test unison-core
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-core
+
       - name: unison-parser-typechecker tests
-        run: stack --no-terminal build --fast --test unison-parser-typechecker
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-parser-typechecker
+
       - name: unison-sqlite tests
-        run: stack --no-terminal build --fast --test unison-sqlite
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-sqlite
+
       - name: unison-syntax tests
-        run: stack --no-terminal build --fast --test unison-syntax
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-syntax
+
       - name: unison-util-bytes tests
-        run: stack --no-terminal build --fast --test unison-util-bytes
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-bytes
+
       - name: unison-util-cache tests
-        run: stack --no-terminal build --fast --test unison-util-cache
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-cache
+
       - name: unison-util-relation tests
-        run: stack --no-terminal build --fast --test unison-util-relation
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-relation
+
       - name: round-trip-tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
-          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-          stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
+          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
+          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-round-trip/main.output.md \
             unison-src/transcripts-manual/rewrites.output.md
+
       - name: transcripts
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
-          stack --no-terminal exec transcripts
+          ${{runner.temp}}/${{env.ucm_local_bin}}/transcripts
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+
       - name: cli-integration-tests
-        run: stack --no-terminal exec cli-integration-tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack exec cli-integration-tests
+
       - name: verify stack ghci startup
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
 
-      - name: debug check ucm artifact
+      - name: cache base codebase
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.base-codebase }}
+          # this key probably needs something about the schema version too
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
+
+      - name: create base.md codebase
+        run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
+
+      - name: interpreter tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
-          ls -l ${{ env.ucm_local_bin }}
-          ls -l ${{ steps.ucm-path.outputs.ucm-path }}
+          ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
+          cat unison-src/builtin-tests/interpreter-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{ matrix.os }}
-          path: ${{ steps.ucm-path.outputs.ucm-path }}
+          path: ${{ env.ucm }}
           if-no-files-found: error
 
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }}
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
     name: Generate JIT source
@@ -454,12 +489,6 @@ jobs:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
 
-      - name: cache base.md codebase
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.base-codebase}}
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
-
       - name: download ucm
         uses: actions/download-artifact@v4
         with:
@@ -469,22 +498,21 @@ jobs:
       - name: set ucm permissions
         run: chmod +x ${{ env.ucm }}
 
+      - name: get base codebase
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.base-codebase}}
+          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
+
       - name: create base.md codebase
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: jit tests ${{ matrix.os }}
         # if: steps.checks.outputs.jit_dist_exists == 'false'
         run: |
-          time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
+          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
           git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
-
-      - name: interpreter tests
-        # if: steps.checks.outputs.jit_dist_exists == 'false'
-        run: |
-          time ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
-          cat unison-src/builtin-tests/interpreter-tests.output.md
-          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
