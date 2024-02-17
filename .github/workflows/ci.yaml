@@ -201,51 +201,51 @@ jobs:
             echo "ucm-path=${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
           fi
 
-      # Run each test suite (tests and transcripts)
-      # - name: check disk space before
-      #   if: ${{ always() }}
-      #   run: df -h
-      # - name: unison-cli test
-      #   run: stack --no-terminal build --fast --test unison-cli
-      # - name: check disk space after
-      #   if: ${{ always() }}
-      #   run: df -h
-      # - name: unison-core tests
-      #   run: stack --no-terminal build --fast --test unison-core
-      # - name: unison-parser-typechecker tests
-      #   run: stack --no-terminal build --fast --test unison-parser-typechecker
-      # - name: unison-sqlite tests
-      #   run: stack --no-terminal build --fast --test unison-sqlite
-      # - name: unison-syntax tests
-      #   run: stack --no-terminal build --fast --test unison-syntax
-      # - name: unison-util-bytes tests
-      #   run: stack --no-terminal build --fast --test unison-util-bytes
-      # - name: unison-util-cache tests
-      #   run: stack --no-terminal build --fast --test unison-util-cache
-      # - name: unison-util-relation tests
-      #   run: stack --no-terminal build --fast --test unison-util-relation
-      # - name: round-trip-tests
-      #   run: |
-      #     stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-      #     git add unison-src/transcripts-round-trip/main.output.md
-      #     # Fail if any transcripts cause git diffs.
-      #     git diff --cached --ignore-cr-at-eol --exit-code
-      #     stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
-      #     git add unison-src/transcripts-manual/rewrites.output.md
-      #     # Fail if any transcripts cause git diffs.
-      #     git diff --cached --ignore-cr-at-eol --exit-code
-      # - name: transcripts
-      #   run: |
-      #     stack --no-terminal exec transcripts
-      #     # Add all changes to the index for when we diff.
-      #     git add --all
-      #     # Fail if any transcripts cause git diffs.
-      #     git diff --cached --ignore-cr-at-eol --exit-code
-      # - name: cli-integration-tests
-      #   run: stack --no-terminal exec cli-integration-tests
-      # - name: verify stack ghci startup
-      #   if: runner.os == 'macOS'
-      #   run: echo | stack ghci
+      Run each test suite (tests and transcripts)
+      - name: check disk space before
+        if: ${{ always() }}
+        run: df -h
+      - name: unison-cli test
+        run: stack --no-terminal build --fast --test unison-cli
+      - name: check disk space after
+        if: ${{ always() }}
+        run: df -h
+      - name: unison-core tests
+        run: stack --no-terminal build --fast --test unison-core
+      - name: unison-parser-typechecker tests
+        run: stack --no-terminal build --fast --test unison-parser-typechecker
+      - name: unison-sqlite tests
+        run: stack --no-terminal build --fast --test unison-sqlite
+      - name: unison-syntax tests
+        run: stack --no-terminal build --fast --test unison-syntax
+      - name: unison-util-bytes tests
+        run: stack --no-terminal build --fast --test unison-util-bytes
+      - name: unison-util-cache tests
+        run: stack --no-terminal build --fast --test unison-util-cache
+      - name: unison-util-relation tests
+        run: stack --no-terminal build --fast --test unison-util-relation
+      - name: round-trip-tests
+        run: |
+          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+          git add unison-src/transcripts-round-trip/main.output.md
+          # Fail if any transcripts cause git diffs.
+          git diff --cached --ignore-cr-at-eol --exit-code
+          stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
+          git add unison-src/transcripts-manual/rewrites.output.md
+          # Fail if any transcripts cause git diffs.
+          git diff --cached --ignore-cr-at-eol --exit-code
+      - name: transcripts
+        run: |
+          stack --no-terminal exec transcripts
+          # Add all changes to the index for when we diff.
+          git add --all
+          # Fail if any transcripts cause git diffs.
+          git diff --cached --ignore-cr-at-eol --exit-code
+      - name: cli-integration-tests
+        run: stack --no-terminal exec cli-integration-tests
+      - name: verify stack ghci startup
+        if: runner.os == 'macOS'
+        run: echo | stack ghci
 
       - name: debug check ucm artifact
         run: |
