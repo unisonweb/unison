@@ -45,7 +45,7 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
-import GHC.IO.Exception (IOErrorType (NoSuchThing, PermissionDenied), IOException (ioe_description, ioe_type))
+import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
 import System.Directory
   ( XdgDirectory (XdgCache),
@@ -480,11 +480,11 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     evalInContext ppe ctx activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
-ensureExists :: HasCallStack => CreateProcess -> (CreateProcess -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
+ensureExists :: HasCallStack => CreateProcess -> (CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
 ensureExists cmd err =
   ccall >>= \case
     Nothing -> pure ()
-    Just failure -> dieP $ err cmd failure
+    Just failure -> dieP $ err (cmdspec cmd) failure
   where
     call =
       readCreateProcessWithExitCode cmd "" >>= \case
@@ -499,7 +499,7 @@ ensureRuntimeExists executable =
     cmd = proc executable ["--help"]
 
 ensureRacoExists :: HasCallStack => IO ()
-ensureRacoExists = ensureExists (shell "raco help") (const racoErrMsg)
+ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
 
 prettyCmdSpec :: CmdSpec -> Pretty ColorText
 prettyCmdSpec = \case
@@ -536,14 +536,14 @@ prettyCallError = \case
 -- https://hackage.haskell.org/package/process-1.6.18.0/docs/System-Process.html#t:CreateProcess
 -- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOError
 -- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOErrorType
-runtimeErrMsg :: CreateProcess -> Either (Int, String, String) IOException -> Pretty ColorText
-runtimeErrMsg cp error =
+runtimeErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
+runtimeErrMsg c error =
   case error of
     Right (ioe_type -> NoSuchThing) ->
       P.lines
         [ P.wrap "I couldn't find the Unison native runtime. I tried to start it with:",
           "",
-          P.indentN 2 $ prettyCmdSpec (cmdspec cp),
+          P.indentN 2 $ prettyCmdSpec c,
           "",
           P.wrap
             "If that doesn't look right, you can use the `--runtime-path` command line \
@@ -555,7 +555,7 @@ runtimeErrMsg cp error =
             "I got a 'Permission Denied' error when trying to start the \
             \Unison native runtime with:",
           "",
-          P.indentN 2 $ prettyCmdSpec (cmdspec cp),
+          P.indentN 2 $ prettyCmdSpec c,
           "",
           P.wrap
             "Please check the permisssions (e.g. check that the directory is accessible, \
@@ -570,28 +570,39 @@ runtimeErrMsg cp error =
         [ P.wrap
             "I got an error when starting the Unison native runtime using:",
           "",
-          P.indentN 2 (prettyCmdSpec (System.Process.cmdspec cp)),
+          P.indentN 2 (prettyCmdSpec c),
           "",
           prettyCallError error
         ]
 
-racoErrMsg :: Either (Int, String, String) IOException -> Pretty ColorText
-racoErrMsg error =
-  P.lines
-    [ P.wrap
-        "I can't seem to call `raco`. Please ensure Racket \
-        \is installed.",
-      "",
-      prettyCallError error,
-      "",
-      "See",
-      "",
-      P.indentN
-        2
-        "https://download.racket-lang.org/",
-      "",
-      "for how to install Racket manually."
-    ]
+racoErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
+racoErrMsg c = \case
+  Right (ioe_type -> e@OtherError) ->
+    P.lines
+      [ P.wrap . fromString $
+          "Sorry, I got an error of type '"
+            ++ show e
+            ++ "' when I ran `raco`, \
+               \and I'm not sure what to do about it.",
+        "",
+        "For debugging purposes, the full command was:",
+        "",
+        P.indentN 2 (prettyCmdSpec c)
+      ]
+  error ->
+    P.lines
+      [ P.wrap
+          "I can't seem to call `raco`. Please ensure Racket \
+          \is installed.",
+        "",
+        prettyCallError error,
+        "",
+        "See",
+        "",
+        P.indentN 2 "https://download.racket-lang.org/",
+        "",
+        "for how to install Racket manually."
+      ]
 
 nativeCompile ::
   FilePath ->
@@ -828,7 +839,7 @@ nativeEvalInContext executable _ ctx codes base = do
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
       p = ucrProc executable []
-      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg p (Right e))
+      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
   withCreateProcess p callout
     `UnliftIO.catch` ucrError
 
@@ -853,12 +864,15 @@ nativeCompileCodes executable codes base path = do
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
       ucrError (e :: IOException) =
-        throwIO $ PE callStack (runtimeErrMsg p (Right e))
-      racoError (e :: IOException) = throwIO $ PE callStack (racoErrMsg (Right e))
+        throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
+      racoError (e :: IOException) =
+        throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
       p = ucrProc executable ["-G", srcPath]
+      makeRacoCmd :: (FilePath -> [String] -> a) -> a
+      makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
   withCreateProcess p callout
     `UnliftIO.catch` ucrError
-  callProcess "raco" ["exe", "-o", path, srcPath]
+  makeRacoCmd callProcess
     `UnliftIO.catch` racoError
 
 evalInContext ::
