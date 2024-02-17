@@ -201,7 +201,7 @@ jobs:
             echo "ucm-path=${{env.ucm_local_bin}}/unison" >> $GITHUB_OUTPUT
           fi
 
-      Run each test suite (tests and transcripts)
+      # Run each test suite (tests and transcripts)
       - name: check disk space before
         if: ${{ always() }}
         run: df -h
