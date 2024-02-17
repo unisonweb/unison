@@ -227,20 +227,16 @@ jobs:
       - name: round-trip-tests
         run: |
           stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-          git add unison-src/transcripts-round-trip/main.output.md
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
           stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
-          git add unison-src/transcripts-manual/rewrites.output.md
           # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-round-trip/main.output.md \
+            unison-src/transcripts-manual/rewrites.output.md
       - name: transcripts
         run: |
           stack --no-terminal exec transcripts
-          # Add all changes to the index for when we diff.
-          git add --all
           # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
+          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
       - name: cli-integration-tests
         run: stack --no-terminal exec cli-integration-tests
       - name: verify stack ghci startup
@@ -481,22 +477,14 @@ jobs:
         run: |
           time ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The jit-tests output has changed"
-            exit 1
-          fi
+          git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
 
       - name: interpreter tests
         # if: steps.checks.outputs.jit_dist_exists == 'false'
         run: |
           time ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The interpreter-tests output has changed"
-            exit 1
-          fi
+          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
