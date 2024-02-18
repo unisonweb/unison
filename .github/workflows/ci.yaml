@@ -409,12 +409,6 @@ jobs:
           - macOS-12
           - windows-2019
     steps:
-      - name: restore jit binaries
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/${{ env.jit_dist }}
-          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
-
       - name: set up environment
         id: checks
         run: |
@@ -444,6 +438,13 @@ jobs:
           echo "jit_dist=$jit_dist" >> $GITHUB_ENV
           echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
+
+      - name: restore jit binaries
+        id: restore-jit-binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
         if: steps.checks.outputs.jit_dist_exists == 'false'
@@ -484,10 +485,6 @@ jobs:
           raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
           raco exe "$jit_src_scheme"/unison-runtime.rkt
           raco distribute "$jit_dist" "$jit_exe"
-
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      #   if: ${{ always() }} && runner.os == 'Windows'
 
       - name: save jit binary
         if: steps.checks.outputs.jit_dist_exists == 'false'
