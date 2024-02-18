@@ -276,6 +276,7 @@ jobs:
         run: echo | stack ghci
 
       - name: cache base codebase
+        id: cache-base-codebase
         uses: actions/cache@v4
         with:
           path: ${{ env.base-codebase }}
@@ -283,6 +284,7 @@ jobs:
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
 
       - name: create base.md codebase
+        if: steps.cache-base-codebase.outputs.cache-hit != 'true'
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: interpreter tests
@@ -508,9 +510,6 @@ jobs:
         with:
           path: ${{ env.base-codebase}}
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
-
-      - name: create base.md codebase
-        run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows'
