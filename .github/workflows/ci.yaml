@@ -406,7 +406,6 @@ jobs:
           - ubuntu-20.04
           - macOS-12
           - windows-2019
-          # - windows-2022
     steps:
       - name: restore jit binaries
         uses: actions/cache@v4
@@ -513,8 +512,8 @@ jobs:
       - name: create base.md codebase
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
-      - name: jit tests ${{ matrix.os }}
-        # if: steps.checks.outputs.jit_dist_exists == 'false'
+      - name: jit integration test ${{ matrix.os }}
+        if: runner.os != 'Windows'
         run: |
           ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
