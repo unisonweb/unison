@@ -56,6 +56,7 @@ import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
@@ -2284,6 +2285,16 @@ debugType =
         _ -> Left (I.help debugType)
     )
 
+debugLSPFoldRanges :: InputPattern
+debugLSPFoldRanges =
+  InputPattern
+    "debug.lsp.fold-ranges"
+    []
+    I.Hidden
+    []
+    "Output the source from the most recently parsed file, but annotated with the computed fold ranges."
+    (const $ Right Input.DebugLSPFoldRangesI)
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache =
   InputPattern
@@ -2959,7 +2970,7 @@ upgrade =
     { patternName = "upgrade",
       aliases = [],
       visibility = I.Visible,
-      args = [],
+      args = [("dependency to upgrade", Required, dependencyArg), ("dependency to upgrade to", Required, dependencyArg)],
       help =
         P.wrap $
           "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
@@ -3006,6 +3017,7 @@ validInputs =
       debugTerm,
       debugTermVerbose,
       debugType,
+      debugLSPFoldRanges,
       debugFileHashes,
       debugNameDiff,
       debugNumberedArgs,
@@ -3217,6 +3229,17 @@ namespaceOrDefinitionArg =
         pure (List.nubOrd $ namespaces <> termsTypes),
       fzfResolver =
         Just Resolvers.namespaceOrDefinitionResolver
+    }
+
+-- | A dependency name. E.g. if your project has `lib.base`, `base` would be a dependency
+-- name.
+dependencyArg :: ArgumentType
+dependencyArg =
+  ArgumentType
+    { typeName = "project dependency",
+      suggestions = \q cb _http p -> Codebase.runTransaction cb do
+        prefixCompleteNamespace q (p Path.:> NameSegment.libSegment),
+      fzfResolver = Just Resolvers.projectDependencyResolver
     }
 
 newNameArg :: ArgumentType

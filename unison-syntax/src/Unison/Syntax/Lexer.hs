@@ -559,6 +559,14 @@ lexemes' eof =
         nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
         nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
 
+        -- Allows whitespace or a newline, but not more than two newlines in a row.
+        whitespaceWithoutParagraphBreak :: P ()
+        whitespaceWithoutParagraphBreak = void do
+          void nonNewlineSpaces
+          optional newline >>= \case
+            Just _ -> void nonNewlineSpaces
+            Nothing -> pure ()
+
         fencedBlock =
           P.label "block eval (syntax: a fenced code block)" $
             evalUnison <|> exampleBlock <|> other
@@ -623,7 +631,7 @@ lexemes' eof =
           wrap (name end) . wrap "syntax.docParagraph" $
             join
               <$> P.someTill
-                (leafy (closing <|> (void $ lit end)) <* nonNewlineSpaces)
+                (leafy (closing <|> (void $ lit end)) <* whitespaceWithoutParagraphBreak)
                 (lit end)
 
         externalLink =

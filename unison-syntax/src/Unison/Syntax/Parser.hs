@@ -328,8 +328,16 @@ symbolyDefinitionName = queryToken $ \case
   L.SymbolyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
 
-parenthesize :: (Ord v) => P v m a -> P v m a
-parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
+-- | Expect parentheses around a token, includes the parentheses within the start/end
+-- annotations of the resulting token.
+parenthesize :: (Ord v) => P v m (L.Token a) -> P v m (L.Token a)
+parenthesize p = do
+  (start, a) <- P.try do
+    start <- L.start <$> openBlockWith "("
+    a <- p
+    pure (start, a)
+  end <- L.end <$> closeBlock
+  pure (L.Token {payload = L.payload a, start, end})
 
 hqPrefixId, hqInfixId :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_

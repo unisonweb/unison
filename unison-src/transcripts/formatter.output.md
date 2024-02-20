@@ -15,6 +15,15 @@ x y =
     x + y
 -- Should keep comments after
 
+-- symbolyDefinition
+(<|>) : Nat -> Nat -> (Nat, Nat)
+(<|>) a b = (a, b)
+
+symbolyEndOfBlock =
+  x = 1
+  (+:)
+
+
 -- Test for a previous regression that added extra brackets.
 oneLiner = {{ one liner }}
 -- After
@@ -34,6 +43,19 @@ ability Thing where
   more  : Nat -> Text -> Nat
   doThing  : Nat -> Int
 
+
+{{ Ability with single constructor }}
+structural ability Ask a where 
+  ask : {Ask a} a
+
+-- Regression test for: https://github.com/unisonweb/unison/issues/4666
+provide : a -> '{Ask a} r -> r
+provide a action = 
+  h = cases
+        {ask -> resume} -> handle resume a with h
+        {r} -> r
+  handle !action with h
+
 {{ 
 A Doc before a type 
 }}
@@ -44,6 +66,21 @@ structural type Optional   a = More Text
 
 {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
+
+-- Regression for https://github.com/unisonweb/unison/issues/4669
+
+multilineBold = {{
+
+**This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block**
+
+_This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block_
+
+~This paragraph is really really really really really long and spans multiple lines 
+with a strike-through block~
+
+}}
 ```
 
 ```ucm
@@ -66,6 +103,15 @@ x y =
   x + y
 -- Should keep comments after
 
+-- symbolyDefinition
+(<|>) : Nat -> Nat -> (Nat, Nat)
+a <|> b = (a, b)
+
+symbolyEndOfBlock =
+  x = 1
+  (+:)
+
+
 -- Test for a previous regression that added extra brackets.
 oneLiner = {{ one liner }}
 -- After
@@ -86,11 +132,37 @@ ability Thing where
   more : Nat -> Text ->{Thing} Nat
   doThing : Nat ->{Thing} Int
 
+
+Ask.doc = {{ Ability with single constructor }}
+structural ability Ask a where ask : {Ask a} a
+
+-- Regression test for: https://github.com/unisonweb/unison/issues/4666
+provide : a -> '{Ask a} r -> r
+provide a action =
+  h = cases
+    { ask -> resume } -> handle resume a with h
+    { r }             -> r
+  handle !action with h
+
 Optional.doc = {{ A Doc before a type }}
 structural type Optional a = More Text | Some | Other a | None Nat 
 
 Two.doc = {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text
+
+-- Regression for https://github.com/unisonweb/unison/issues/4669
+
+multilineBold =
+  {{
+  **This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block**
+  
+  __This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block__
+  
+  ~~This paragraph is really really really really really long and spans
+  multiple lines with a strike-through block~~
+  }}
 ```
 
 Formatter should leave things alone if the file doesn't typecheck.

@@ -160,6 +160,9 @@ import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 
+reportBugURL :: Pretty
+reportBugURL = "https://github.com/unisonweb/unison/issues/new"
+
 type Pretty = P.Pretty P.ColorText
 
 shortenDirectory :: FilePath -> IO FilePath
@@ -1791,6 +1794,7 @@ notifyUser dir = \case
         <> case typ of
           Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
           Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =
           -- We don't use the constructor type in the actual output here, so there's no
@@ -2315,7 +2319,8 @@ prettyUpdatePathError repoInfo = \case
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
   Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyValidationFailure validationFailureErr
-  Share.UploadEntitiesError'HashMismatchForEntity _hashMismatch -> error "TODO: hash mismatch error message"
+  Share.UploadEntitiesError'HashMismatchForEntity (Share.HashMismatchForEntity {supplied, computed}) ->
+    hashMismatchFromShare supplied computed
   Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.UploadEntitiesError'NeedDependencies dependencies -> needDependencies dependencies
   Share.UploadEntitiesError'NoWritePermission repoInfo -> noWritePermissionForRepo repoInfo
@@ -2443,6 +2448,18 @@ invalidRepoInfo err repoInfo =
       P.text "The invalid path is:\n"
         <> P.indentN 2 (P.text (Share.unRepoInfo repoInfo)),
       P.text err
+    ]
+
+hashMismatchFromShare :: Hash32 -> Hash32 -> Pretty
+hashMismatchFromShare supplied computed =
+  P.lines
+    [ P.wrap "Uh oh, Share double-checked the hash of something you're uploading and it didn't match.",
+      P.wrap "Don't worry, you didn't do anything wrong, this is a bug in UCM, please report it and we'll do our best to sort it out 🤞",
+      reportBugURL,
+      "",
+      "Please include the following information in your report:",
+      P.wrap $ "The hash provided by your UCM is: " <> prettyHash32 supplied,
+      P.wrap $ "The hash computed by Share is: " <> prettyHash32 computed
     ]
 
 pushPublicNote :: InputPattern -> Text -> [Text] -> Pretty

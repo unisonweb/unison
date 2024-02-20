@@ -222,6 +222,7 @@ data Input
   | DebugDumpNamespaceSimpleI
   | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
   | DebugTypeI (HQ.HashQualified Name)
+  | DebugLSPFoldRangesI
   | DebugClearWatchI
   | DebugDoctorI
   | DebugNameDiffI ShortCausalHash ShortCausalHash

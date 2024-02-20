@@ -30,6 +30,11 @@ instance Show NameSegment where
 
 -- | Convert a name segment to unescaped text.
 --
+-- You might use this when storing a name segment as text in a database, where the literal name segment bytes are all
+-- that matter. However, you wouldn't use this to display the name segment to a user - that depends on concrete syntax.
+-- See Unison.Syntax.NameSegment (or indeed, some actual yet-built interface that abstracts concrete syntax) for that
+-- kind of function.
+--
 -- > toUnescapedText (unsafeFromText ".~") = ".~"
 toUnescapedText :: NameSegment -> Text
 toUnescapedText =
