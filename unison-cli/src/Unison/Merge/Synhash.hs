@@ -55,6 +55,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import qualified Data.Text as Text
 
 type Token = H.Token Hash
 
@@ -242,7 +243,24 @@ hashLengthToken =
 
 hashReferentToken :: PrettyPrintEnv -> V1.Referent -> Token
 hashReferentToken ppe =
-  H.Text . HQ.toTextWith Name.toText . PPE.termNameOrHashOnlyFq ppe
+  H.Hashed . H.accumulate . hashReferentTokens ppe
+
+hashReferentTokens :: PrettyPrintEnv -> V1.Referent -> [Token]
+hashReferentTokens ppe referent = case referent of
+  V1.Referent.Con (ConstructorReference ref _i) _ct ->
+    let declName = HQ.toTextWith Name.toText (PPE.typeNameOrHashOnlyFq ppe ref)
+        conName =
+          let cname = HQ.toTextWith Name.toText (referentName referent)
+          in case Text.stripPrefix declName cname of
+            Nothing -> error "[hashReferentTokens] Precondition violation: constructor name not under decl name"
+            Just x -> x
+        declTok = hashTypeReferenceToken ppe ref
+        conTok = H.Text conName
+    in [declTok, conTok]
+  V1.Referent.Ref _ -> [nameToToken (referentName referent)]
+  where
+    referentName = PPE.termNameOrHashOnlyFq ppe
+    nameToToken = H.Text . HQ.toTextWith Name.toText
 
 hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =
