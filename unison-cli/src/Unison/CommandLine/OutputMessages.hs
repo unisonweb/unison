@@ -1075,11 +1075,11 @@ notifyUser dir = \case
       formatEntry :: (Var v) => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry ppe = \case
         ShallowTermEntry termEntry ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
+          ( P.syntaxToColor . prettyHashQualified' . Backend.termEntryHQName $ termEntry,
             P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) (Backend.termEntryType termEntry) <> P.lit ")"
           )
         ShallowTypeEntry typeEntry ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.typeEntryHQName $ typeEntry,
+          ( P.syntaxToColor . prettyHashQualified' . Backend.typeEntryHQName $ typeEntry,
             isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
