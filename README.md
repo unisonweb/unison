@@ -1,7 +1,7 @@
 The Unison language
 ===================
 
-[![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
+[![Build Status](https://github.com/unisonweb/unison/actions/workflows/ci.yaml/badge.svg)](https://github.com/unisonweb/unison/actions/workflows/ci.yaml?query=branch%3Atrunk)
 
 * [Overview](#overview)
 * [Building using Stack](#building-using-stack)
