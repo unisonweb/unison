@@ -82,6 +82,14 @@ maxSimultaneousPullDownloaders = 5
 maxSimultaneousPushWorkers :: Int
 maxSimultaneousPushWorkers = 5
 
+-- | The maximum number of entities to download in a single batch.
+maxPullBatchSize :: Int
+maxPullBatchSize = 50
+
+-- | The maximum number of entities to upload in a single batch.
+maxPushBatchSize :: Int
+maxPushBatchSize = 50
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
 
@@ -594,7 +602,7 @@ completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallba
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           check (not (Set.null hashes))
-          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          let (hashes1, hashes2) = Set.splitAt maxPullBatchSize hashes
           modifyTVar' uninsertedHashesVar (Set.union hashes1)
           writeTVar hashesVar hashes2
           pure (DispatcherForkWorker (NESet.unsafeFromSet hashes1))
@@ -805,7 +813,7 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           when (Set.null hashes) retry
-          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          let (hashes1, hashes2) = Set.splitAt maxPushBatchSize hashes
           modifyTVar' dedupeVar (Set.union hashes1)
           writeTVar hashesVar hashes2
           pure (UploadDispatcherForkWorkerWhenAvailable (NESet.unsafeFromSet hashes1))
@@ -833,10 +841,13 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
       NESet Hash32 ->
       IO ()
     worker httpClient runTransaction hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
+      -- Conditionally expand the set of hashes we're about to upload to saturate our network
+      -- requests as best we can.
+      expandedHashes <- runTransaction $ Q.expandCausalSpines maxPushBatchSize hashes
       entities <-
         fmap NEMap.fromAscList do
           runTransaction do
-            for (NESet.toAscList hashes) \hash -> do
+            for (NESet.toAscList expandedHashes) \hash -> do
               entity <- expectEntity hash
               pure (hash, entity)
 

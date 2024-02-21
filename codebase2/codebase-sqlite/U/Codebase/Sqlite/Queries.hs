@@ -231,6 +231,9 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
+    -- * other sync helpers
+    expandCausalSpines,
+
     -- * most recent namespace
     expectMostRecentNamespace,
     setMostRecentNamespace,
@@ -305,6 +308,8 @@ import Data.Map.NonEmpty qualified as NEMap
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
@@ -4285,3 +4290,57 @@ saveSquashResult bhId chId =
         )
       ON CONFLICT DO NOTHING
     |]
+
+-- | When uploading we want to make sure we're saturating our push/pull requests to avoid
+-- unnecessary back-and-forth over the network.
+-- Generally when syncing a long history it will eventually degrade into sending a single
+-- causal history node at a time. We can avoid this by optimistically expanding out the
+-- history of causals we haven't yet uploaded.
+-- If we end up syncing redundant causals that's fine, it's worth the payoff.
+--
+-- This method takes a set of hashes we know we need to upload and will expand out the history
+-- of any causals they correspond to. Returns the original set of hashes plus any new ones we
+-- found.
+--
+-- If the input set is larger than the limit we just return that set, otherwise we top-up the
+-- set to the size of the limit.
+expandCausalSpines :: Int -> NESet Hash32 -> Transaction (NESet Hash32)
+expandCausalSpines limit hashes = do
+  execute
+    [sql|
+    CREATE TEMPORARY TABLE hashes_to_sync (
+      hash TEXT PRIMARY KEY
+    )
+    |]
+  for_ hashes \hash ->
+    execute
+      [sql|
+      INSERT INTO hashes_to_sync (hash)
+      VALUES (:hash)
+      ON CONFLICT DO NOTHING
+    |]
+
+  newHashes <-
+    queryListCol @Hash32
+      [sql|
+    WITH RECURSIVE rec AS (
+      SELECT hash FROM hashes_to_sync
+      UNION
+      -- Join in causal ancestry first, since they're cheap to serialize and easy to crawl.
+      -- Not all hashes are from causals, but the ones that aren't will just fail to join and won't add any new hashes which is fine.
+      SELECT parent_hash.base32 AS hash
+        FROM rec
+        JOIN hash causal_hash ON causal_hash.base32 = rec.hash
+        JOIN causal_parent causal ON causal_parent.causal_hash_id = causal_hash.id
+        JOIN hash parent_hash ON parent_hash.id = causal.parent_id
+      UNION
+      -- If we still haven't gotten enough hashes, join in the causal's namespaces too.
+      SELECT namespace_hash.base32 AS hash
+        FROM rec
+        JOIN hash causal_hash ON causal_hash.base32 = rec.hash
+        JOIN causals causal ON causal.self_hash_id = causal_hash.id
+        JOIN hash namespace_hash ON namespace_hash.id = causal.value_hash_id
+    ) SELECT hash FROM rec LIMIT :limit
+    |]
+  execute [sql| DROP TABLE hashes_to_sync |]
+  pure $ fromMaybe hashes (fmap NESet.fromList . Nel.nonEmpty $ newHashes)
