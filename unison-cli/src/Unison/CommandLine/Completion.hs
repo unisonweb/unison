@@ -21,7 +21,6 @@ module Unison.CommandLine.Completion
 where
 
 import Control.Lens (ifoldMap)
-import Control.Lens qualified as Lens
 import Control.Lens.Cons (unsnoc)
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
@@ -52,7 +51,7 @@ import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
@@ -149,7 +148,8 @@ completeWithinNamespace compTypes query currentPath = do
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
-      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.unsafeParseText match))
+      -- See Note [Naughty NameSegment]
+      & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
       & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
       & pure
@@ -179,9 +179,8 @@ completeWithinNamespace compTypes query currentPath = do
                   childBranch <- V2Causal.value childCausal
                   nib <- namesInBranch shortHashLen childBranch
                   nib
-                    & fmap
-                      ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.unsafeParseText match)
-                      )
+                    -- See Note [Naughty NameSegment]
+                    & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
                     & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                     & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
                     & pure

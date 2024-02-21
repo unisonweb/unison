@@ -59,14 +59,15 @@ unique type subnamespace.AType = A | B
 -- Should tab complete namespaces since they may contain terms/types
 .> debug.tab-complete view sub
 
-   subnamespace.
-   subnamespace2.
+  
 
 -- Should not complete things from child namespaces of the current query if there are other completions at this level
 .> debug.tab-complete view subnamespace
 
-   subnamespace.
-   subnamespace2.
+  * subnamespace.AType
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 -- Should complete things from child namespaces of the current query if it's dot-suffixed
 .> debug.tab-complete view subnamespace.
@@ -79,24 +80,21 @@ unique type subnamespace.AType = A | B
 -- Should complete things from child namespaces of the current query if there are no more completions at this level.
 .> debug.tab-complete view subnamespace2
 
-    subnamespace2.
   * subnamespace2.thing
 
 -- Should prefix-filter by query suffix
 .> debug.tab-complete view subnamespace.some
 
-  * subnamespace.someName
-  * subnamespace.someOtherName
+  
 
 .> debug.tab-complete view subnamespace.someOther
 
-  * subnamespace.someOtherName
+  
 
 -- Should tab complete absolute names
 .othernamespace> debug.tab-complete view .subnamespace.some
 
-  * .subnamespace.someName
-  * .subnamespace.someOtherName
+  
 
 ```
 ## Tab complete namespaces
@@ -105,13 +103,11 @@ unique type subnamespace.AType = A | B
 -- Should tab complete namespaces
 .> debug.tab-complete cd sub
 
-   subnamespace
-   subnamespace2
+  
 
 .> debug.tab-complete cd subnamespace
 
-   subnamespace
-   subnamespace2
+   subnamespace.AType
 
 .> debug.tab-complete cd subnamespace.
 
@@ -119,13 +115,13 @@ unique type subnamespace.AType = A | B
 
 .> debug.tab-complete io.test sub
 
-   subnamespace.
-   subnamespace2.
+  
 
 .> debug.tab-complete io.test subnamespace
 
-   subnamespace.
-   subnamespace2.
+    subnamespace.AType.
+  * subnamespace.someName
+  * subnamespace.someOtherName
 
 .> debug.tab-complete io.test subnamespace.
 
@@ -166,12 +162,11 @@ add b = b
 
 .> debug.tab-complete delete.type Foo
 
-  * Foo
-    Foo.
+  
 
 .> debug.tab-complete delete.term add
 
-  * add
+  
 
 ```
 ## Tab complete projects and branches
@@ -238,6 +233,5 @@ myproject/main> add
 myproject/main> debug.tab-complete merge mybr
 
    /mybranch
-   mybranchsubnamespace
 
 ```
