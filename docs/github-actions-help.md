@@ -20,7 +20,8 @@ e.g.
 When using the `cache` action, getting a cache hit on the primary key means you won't update the cache with any changes.
 
 When picking a key, you have to ask, "Which key, if exactly matched, would mean that I'm already so done that I don't even want to save anything new from this run."
-`save-always: true` only if you know there will be nothing new to save, even if a previous run failed.
+
+Similarly, `save-always: true` only if a key hit means there will be nothing new to save, even if a previous run failed AND a failed result is worth starting with.
 
 Backup restore keys: "Is there a prior run that would be worth starting out from? With the caveat that any irrelevant garbage it includes will be saved into this run too."
 
