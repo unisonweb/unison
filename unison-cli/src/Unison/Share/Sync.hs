@@ -39,7 +39,6 @@ import Data.Sequence.NonEmpty qualified as NESeq (fromList, nonEmptySeq, (><|))
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
-import Data.Text.IO qualified as TIO
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import GHC.IO (unsafePerformIO)
@@ -845,8 +844,11 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
       -- Conditionally expand the set of hashes we're about to upload to saturate our network
       -- requests as best we can.
       expandedHashes <- runTransaction $ Q.expandCausalSpines maxPushBatchSize hashes
-      putStrLn $ "Uploading batch of " <> show (NESet.size hashes) <> " entities"
-      TIO.appendFile "./upload-chunks" (tShow (NESet.size hashes) <> "\n")
+      atomically $ do
+        modifyTVar' hashesVar (`Set.difference` NESet.toSet expandedHashes)
+      -- let expandedHashes = hashes
+      -- putStrLn $ "Uploading batch of " <> show (NESet.size hashes) <> " entities expanded to: " <> show (NESet.size expandedHashes)
+      -- TIO.appendFile "./upload-chunks" (tShow (NESet.size hashes) <> " " <> tShow (NESet.size expandedHashes) <> "\n")
       entities <-
         fmap NEMap.fromAscList do
           runTransaction do
@@ -869,7 +871,7 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
       case result of
         Left err -> void (atomically (tryPutTMVar workerFailedVar err))
         Right moreHashes -> do
-          uploadedCallback (NESet.size hashes)
+          uploadedCallback (NESet.size expandedHashes)
           maybeYoungestWorkerThatWasAlive <-
             atomically do
               -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
@@ -900,7 +902,7 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
               workers <- readTVar workersVar
               whenJust (Set.lookupMin workers) \oldestWorkerAlive ->
                 when (oldestWorkerAlive <= youngestWorkerThatWasAlive) retry
-          atomically (modifyTVar' dedupeVar (`Set.difference` (NESet.toSet hashes)))
+          atomically (modifyTVar' dedupeVar (`Set.difference` (NESet.toSet expandedHashes)))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations

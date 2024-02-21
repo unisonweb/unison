@@ -4305,24 +4305,26 @@ saveSquashResult bhId chId =
 -- If the input set is larger than the limit we just return that set, otherwise we top-up the
 -- set to the size of the limit.
 expandCausalSpines :: Int -> NESet Hash32 -> Transaction (NESet Hash32)
-expandCausalSpines limit hashes = do
-  execute
-    [sql|
+expandCausalSpines limit hashes
+  | NESet.size hashes >= limit = pure hashes
+  | otherwise = do
+      execute
+        [sql|
     CREATE TEMPORARY TABLE hashes_to_sync (
       hash TEXT PRIMARY KEY
     )
     |]
-  for_ hashes \hash ->
-    execute
-      [sql|
+      for_ hashes \hash ->
+        execute
+          [sql|
       INSERT INTO hashes_to_sync (hash)
       VALUES (:hash)
       ON CONFLICT DO NOTHING
     |]
 
-  newHashes <-
-    queryListCol @Hash32
-      [sql|
+      newHashes <-
+        queryListCol @Hash32
+          [sql|
     WITH RECURSIVE rec AS (
       SELECT hash FROM hashes_to_sync
       UNION
@@ -4331,16 +4333,16 @@ expandCausalSpines limit hashes = do
       SELECT parent_hash.base32 AS hash
         FROM rec
         JOIN hash causal_hash ON causal_hash.base32 = rec.hash
-        JOIN causal_parent causal ON causal_parent.causal_hash_id = causal_hash.id
+        JOIN causal_parent causal ON causal.causal_id = causal_hash.id
         JOIN hash parent_hash ON parent_hash.id = causal.parent_id
       UNION
       -- If we still haven't gotten enough hashes, join in the causal's namespaces too.
       SELECT namespace_hash.base32 AS hash
         FROM rec
         JOIN hash causal_hash ON causal_hash.base32 = rec.hash
-        JOIN causals causal ON causal.self_hash_id = causal_hash.id
+        JOIN causal ON causal.self_hash_id = causal_hash.id
         JOIN hash namespace_hash ON namespace_hash.id = causal.value_hash_id
     ) SELECT hash FROM rec LIMIT :limit
     |]
-  execute [sql| DROP TABLE hashes_to_sync |]
-  pure $ fromMaybe hashes (fmap NESet.fromList . Nel.nonEmpty $ newHashes)
+      execute [sql| DROP TABLE hashes_to_sync |]
+      pure $ fromMaybe hashes (fmap NESet.fromList . Nel.nonEmpty $ newHashes)

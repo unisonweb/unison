@@ -15,7 +15,6 @@ import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.List.NonEmpty qualified as Nel
 import Data.Text qualified as Text
-import Data.Text.IO qualified as TIO
 import Data.These
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
@@ -293,8 +292,8 @@ withEntitiesDownloadedProgressCallback action = do
             <> " entities...\n\n"
       action
         ( ( \n -> do
-              putStrLn (show n <> "\n")
-              TIO.appendFile "./download-chunks" (tShow n <> "\n")
+              -- putStrLn (show n <> "\n")
+              -- TIO.appendFile "./download-chunks" (tShow n <> "\n")
               atomically (modifyTVar' entitiesDownloadedVar (+ n))
           ),
           readTVarIO entitiesDownloadedVar
