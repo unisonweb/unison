@@ -2,11 +2,16 @@
 
 -- | Syntax-related combinators for HashQualified (to/from string types).
 module Unison.Syntax.HashQualified
-  ( parseText,
+  ( -- * String conversions
+    parseText,
+    parseTextWith,
     unsafeParseText,
     toText,
     unsafeFromVar,
     toVar,
+
+    -- * Parsers
+    hashQualifiedP,
   )
 where
 
@@ -38,6 +43,10 @@ parseText text =
   where
     parser =
       hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.nameP) <* P.eof
+
+parseTextWith :: P.Parsec (Token Text) [Char] name -> Text -> Maybe (HashQualified name)
+parseTextWith parser text =
+  eitherToMaybe (P.runParser (hashQualifiedP parser <* P.eof) "" (Text.unpack text))
 
 unsafeParseText :: Text -> HashQualified Name
 unsafeParseText txt = fromMaybe msg . parseText $ txt

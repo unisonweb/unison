@@ -32,6 +32,7 @@ import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileEx
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcessWithExitCode, shell)
+import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
@@ -178,8 +179,9 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeParseText, parseText)
+import Unison.Syntax.HashQualified qualified as HQ (parseText, parseTextWith, toText, unsafeParseText)
 import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser qualified as Parser
@@ -1496,7 +1498,13 @@ handleFindI isVerbose fscope ws input = do
 
           -- name query
           qs -> do
-            let srs = searchBranchScored names fuzzyNameDistance (map (HQ.unsafeParseText . Text.pack) qs)
+            let anythingBeforeHash :: Megaparsec.Parsec (Lexer.Token Text) [Char] Text
+                anythingBeforeHash = Text.pack <$> Megaparsec.takeWhileP Nothing (/= '#')
+            let srs =
+                  searchBranchScored
+                    names
+                    Find.simpleFuzzyScore
+                    (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         Cli.setNumberedArgs $ fmap searchResultToHQString results
@@ -1828,11 +1836,6 @@ searchResultToHQString = \case
   SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n (Referent.Ref r)
   _ -> error "impossible match failure"
 
--- Return a list of definitions whose names fuzzy match the given queries.
-fuzzyNameDistance :: Name -> Name -> Maybe Int
-fuzzyNameDistance (Name.toText -> q) (Name.toText -> n) =
-  Find.simpleFuzzyScore q n
-
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
 _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
@@ -1867,8 +1870,8 @@ searchBranchScored ::
   forall score.
   (Ord score) =>
   Names ->
-  (Name -> Name -> Maybe score) ->
-  [HQ.HashQualified Name] ->
+  (Text -> Text -> Maybe score) ->
+  [HQ.HashQualified Text] ->
   [SearchResult]
 searchBranchScored names0 score queries =
   nubOrd
@@ -1878,9 +1881,9 @@ searchBranchScored names0 score queries =
   where
     searchTermNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query :: HQ.HashQualified Text -> [(Maybe score, SearchResult)]
         do1query q = mapMaybe (score1hq q) (R.toList . Names.terms $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
+        score1hq :: HQ.HashQualified Text -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -1894,12 +1897,12 @@ searchBranchScored names0 score queries =
           where
             result = SR.termSearchResult names0 name ref
             pair qn =
-              (\score -> (Just score, result)) <$> score qn name
+              (\score -> (Just score, result)) <$> score qn (Name.toText name)
     searchTypeNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query :: HQ.HashQualified Text -> [(Maybe score, SearchResult)]
         do1query q = mapMaybe (score1hq q) (R.toList . Names.types $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
+        score1hq :: HQ.HashQualified Text -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -1913,7 +1916,7 @@ searchBranchScored names0 score queries =
           where
             result = SR.typeSearchResult names0 name ref
             pair qn =
-              (\score -> (Just score, result)) <$> score qn name
+              (\score -> (Just score, result)) <$> score qn (Name.toText name)
 
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
