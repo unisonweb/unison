@@ -50,7 +50,7 @@ Announce on #general Discord channel. Template below.
 
 ---
 
-We've just released a new version of Unison, $RELEASE_NAME.
+@everyone We've just released a new version of Unison, $RELEASE_NAME.
 
 ---
 
