@@ -15,6 +15,7 @@ import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.List.NonEmpty qualified as Nel
 import Data.Text qualified as Text
+import Data.Text.IO qualified as TIO
 import Data.These
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
@@ -290,7 +291,14 @@ withEntitiesDownloadedProgressCallback action = do
           "\n  Downloaded "
             <> tShow entitiesDownloaded
             <> " entities...\n\n"
-      action ((\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n))), readTVarIO entitiesDownloadedVar)
+      action
+        ( ( \n -> do
+              putStrLn (show n <> "\n")
+              TIO.appendFile "./download-chunks" (tShow n <> "\n")
+              atomically (modifyTVar' entitiesDownloadedVar (+ n))
+          ),
+          readTVarIO entitiesDownloadedVar
+        )
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect

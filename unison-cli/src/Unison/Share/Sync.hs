@@ -39,6 +39,7 @@ import Data.Sequence.NonEmpty qualified as NESeq (fromList, nonEmptySeq, (><|))
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
+import Data.Text.IO qualified as TIO
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import GHC.IO (unsafePerformIO)
@@ -844,6 +845,8 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
       -- Conditionally expand the set of hashes we're about to upload to saturate our network
       -- requests as best we can.
       expandedHashes <- runTransaction $ Q.expandCausalSpines maxPushBatchSize hashes
+      putStrLn $ "Uploading batch of " <> show (NESet.size hashes) <> " entities"
+      TIO.appendFile "./upload-chunks" (tShow (NESet.size hashes) <> "\n")
       entities <-
         fmap NEMap.fromAscList do
           runTransaction do
