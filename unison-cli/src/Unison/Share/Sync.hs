@@ -833,6 +833,8 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
       NESet Hash32 ->
       IO ()
     worker httpClient runTransaction hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
+      putStrLn $ "Uploading batch of " <> show (NESet.size hashes) <> " entities"
+      appendFile "./upload-chunks" (show (NESet.size hashes) <> "\n")
       entities <-
         fmap NEMap.fromAscList do
           runTransaction do

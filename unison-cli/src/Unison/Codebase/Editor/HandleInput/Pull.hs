@@ -290,7 +290,13 @@ withEntitiesDownloadedProgressCallback action = do
           "\n  Downloaded "
             <> tShow entitiesDownloaded
             <> " entities...\n\n"
-      action ((\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n))), readTVarIO entitiesDownloadedVar)
+      action
+        ( ( \n -> do
+              putStrLn (show n <> "\n")
+              atomically (modifyTVar' entitiesDownloadedVar (+ n))
+          ),
+          readTVarIO entitiesDownloadedVar
+        )
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
