@@ -31,6 +31,7 @@ module Unison.Merge.Synhash
 where
 
 import Data.Char (ord)
+import Data.Text qualified as Text
 import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -242,7 +243,29 @@ hashLengthToken =
 
 hashReferentToken :: PrettyPrintEnv -> V1.Referent -> Token
 hashReferentToken ppe =
-  H.Text . HQ.toTextWith Name.toText . PPE.termNameOrHashOnlyFq ppe
+  H.Hashed . H.accumulate . hashReferentTokens ppe
+
+hashReferentTokens :: PrettyPrintEnv -> V1.Referent -> [Token]
+hashReferentTokens ppe referent = case referent of
+  -- Concern
+  --
+  -- What if the decl is declared in two places of the namespace and
+  -- the PPE picks the decl from one but a constructor from the
+  -- other?
+  V1.Referent.Con (ConstructorReference ref _i) _ct ->
+    let declName = HQ.toTextWith Name.toText (PPE.typeNameOrHashOnlyFq ppe ref)
+        conName =
+          let cname = HQ.toTextWith Name.toText (referentName referent)
+           in case Text.stripPrefix declName cname of
+                Nothing -> error "[hashReferentTokens] Precondition violation: constructor name not under decl name"
+                Just x -> x
+        declTok = hashTypeReferenceToken ppe ref
+        conTok = H.Text conName
+     in [declTok, conTok]
+  V1.Referent.Ref _ -> [nameToToken (referentName referent)]
+  where
+    referentName = PPE.termNameOrHashOnlyFq ppe
+    nameToToken = H.Text . HQ.toTextWith Name.toText
 
 hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =

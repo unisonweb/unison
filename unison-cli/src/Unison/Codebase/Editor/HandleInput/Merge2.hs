@@ -3,19 +3,6 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Causal qualified as V1.Causal
-import Unison.Codebase.Causal qualified as V1 (Causal)
-import Unison.Hash qualified as Hash
-import Unison.Codebase.Causal.Type qualified as V1.Causal
-import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
-import U.Codebase.Sqlite.HashHandle qualified as HashHandle
-import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
-import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
-import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
@@ -58,10 +45,12 @@ import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
 import U.Codebase.Sqlite.DbId (ProjectId)
+import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project)
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -70,13 +59,21 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Causal qualified as V1 (Causal)
+import Unison.Codebase.Causal qualified as V1.Causal
+import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, findCtorNames, forwardCtorNames, getExistingReferencesNamed, getNamespaceDependentsOf)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
+import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Hash (Hash)
+import Unison.Hash qualified as Hash
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
@@ -91,6 +88,9 @@ import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Referent qualified as V1 (Referent)
 import Unison.Referent qualified as V1.Referent
@@ -119,6 +119,7 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
+import Unison.Codebase (Codebase)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -149,24 +150,7 @@ handleMerge bobBranchName = do
         lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
 
         let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
-        unisonFile <- do
-          addDefinitionsToUnisonFile
-            abort
-            codebase
-            -- todo: fix output
-            (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
-            (unconflictedRel conflictInfo)
-            UnisonFile.emptyUnisonFile
-        -- dependents <-
-        --   getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
-        -- unisonFile <- do
-        --   addDefinitionsToUnisonFile
-        --     abort
-        --     codebase
-        --     -- todo: fix output
-        --     (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
-        --     dependents
-        --     unisonFile0
+        unisonFile <- makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
         let namesExcludingLibdeps = lcaNamesExcludingLibdeps <> unconflictedNamesExcludingLibdeps
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
@@ -179,6 +163,30 @@ handleMerge bobBranchName = do
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   promptUser mergeInfo conflictInfo prettyUf
   pure ()
+
+makeUnisonFile :: (forall x. Output -> Transaction x) -> Codebase IO Symbol Ann -> Names -> ConflictInfo -> Transaction (UnisonFile Symbol Ann)
+makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo = do
+  unisonFile <- do
+    addDefinitionsToUnisonFile
+      abort
+      codebase
+      -- todo: fix output
+      -- todo: not lca, we need to find all constructor names in unconflicted defns
+      (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
+      (unconflictedRel conflictInfo)
+      UnisonFile.emptyUnisonFile
+
+  -- dependents <-
+  --   getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
+  -- unisonFile <- do
+  --   addDefinitionsToUnisonFile
+  --     abort
+  --     codebase
+  --     -- todo: fix output
+  --     (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
+  --     dependents
+  --     unisonFile0
+  pure unisonFile
 
 data MergeInfo = MergeInfo
   { alicePath :: Path.Absolute,
@@ -243,19 +251,19 @@ getConflictInfo
     bobBranch <- Causal.value bobCausal
 
     -- Load deep definitions
-    (aliceCausalTree, aliceDeclNames, aliceDefns) <-
+    --
+    -- maybe todo: optimize this by getting defns from in memory root branch
+    (_aliceCausalTree, _aliceDeclNames, aliceDefns) <-
       step "load alice definitions" do
         (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
         (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch definitions0
         pure (causalHashes, declNames, definitions1)
-    (bobCausalTree, bobDeclNames, bobDefns) <-
+    (_bobCausalTree, _bobDeclNames, bobDefns) <-
       step "load bob definitions" do
         (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
         (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
         pure (causalHashes, declNames, definitions1)
     let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
-    let causalHashes = Merge.TwoWay {alice = aliceCausalTree, bob = bobCausalTree}
-    let declNames = Merge.TwoWay {alice = aliceDeclNames, bob = bobDeclNames}
 
     (lcaDefns, lcaLibdeps, diffs) <- do
       case maybeLcaCausal of
@@ -527,7 +535,7 @@ assertNamespaceSatisfiesPreconditions ::
   ( Nametree
       (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
   ) ->
-  Transaction (BiMultimap Name Name, Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup Name.libSegment (branch ^. #children) `whenJust` \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
@@ -629,12 +637,12 @@ checkDeclCoherency ::
   ( Nametree
       (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
   ) ->
-  -- | Returns @BiMultimap TypeName ConstructorName@
-  Transaction (Either Merge.PreconditionViolation (BiMultimap Name Name))
+  -- | Returns @Map TypeName [ConstructorName]@
+  Transaction (Either Merge.PreconditionViolation (Map Name [Name]))
 checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
   runExceptT
     . fmap (view #declNames)
-    . (`State.execStateT` DeclCoherencyCheckState Map.empty BiMultimap.empty)
+    . (`State.execStateT` DeclCoherencyCheckState Map.empty Map.empty)
     . go []
   where
     go ::
@@ -696,8 +704,7 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
                     Except.throwError (Merge.MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
-                #declNames %= \declNames ->
-                  foldr (BiMultimap.insert typeName) declNames constructorNames
+                #declNames %= Map.insert typeName constructorNames
                 pure (Just name)
             where
               typeName = fullName name
@@ -710,7 +717,7 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
   { expectedConstructors :: !(Map TypeReferenceId (IntMap MaybeConstructorName)),
-    declNames :: !(BiMultimap Name Name)
+    declNames :: !(Map Name [Name])
   }
   deriving stock (Generic)
 
