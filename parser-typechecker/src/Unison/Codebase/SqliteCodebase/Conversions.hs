@@ -440,8 +440,9 @@ causalbranch1to2 (V1.Branch.Branch c) =
                       Map.fromList
                         [ (referent1to2 r, pure md)
                           | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
-                            let mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
-                                md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                            -- throwing away the metadata type reference here as we are trying to phase out metadata completely
+                            let mdrefs1to2 (_typeR1, valR1) = reference1to2 valR1
+                                md = V2.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
             ]
 
@@ -454,8 +455,9 @@ causalbranch1to2 (V1.Branch.Branch c) =
                       Map.fromList
                         [ (reference1to2 r, pure md)
                           | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
-                            let mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
-                                md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                            -- throwing away the metadata type reference here as we are trying to phase out metadata completely
+                            let mdrefs1to2 (_typeR1, valR1) = reference1to2 valR1
+                                md = V2.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
             ]
 
@@ -530,9 +532,9 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
           let facts = Set.singleton ref
               names = Relation.singleton ref name
               types :: Relation.Relation ref V1.Metadata.Type =
-                Relation.insertManyRan ref (fmap mdref2to1 (Map.elems mdvals)) mempty
+                Relation.insertManyRan ref (fmap (const ()) (Set.toList mdvals)) mempty
               vals :: Relation.Relation ref (V1.Metadata.Type, V1.Metadata.Value) =
-                Relation.insertManyRan ref (fmap (\(v, t) -> (mdref2to1 t, mdref2to1 v)) (Map.toList mdvals)) mempty
+                Relation.insertManyRan ref (fmap (\v -> ((), mdref2to1 v)) (Set.toList mdvals)) mempty
            in star <> V1.Star3.Star3 facts names types vals
 
 -- | Generates a v1 short hash from a v2 referent.

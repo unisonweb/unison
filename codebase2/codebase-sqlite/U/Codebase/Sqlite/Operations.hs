@@ -215,11 +215,6 @@ import Unison.Util.Set qualified as Set
 debug :: Bool
 debug = False
 
-newtype NeedTypeForBuiltinMetadata
-  = NeedTypeForBuiltinMetadata Text
-  deriving stock (Show)
-  deriving anyclass (SqliteExceptionReason)
-
 -- * Database lookups
 
 objectExistsForHash :: H.Hash -> Transaction Bool
@@ -558,20 +553,6 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
     <*> doPatches patches
     <*> doChildren children
   where
-    loadMetadataType :: S.Reference -> Transaction C.Reference
-    loadMetadataType = \case
-      C.ReferenceBuiltin tId ->
-        Q.expectTextCheck tId (Left . NeedTypeForBuiltinMetadata)
-      C.ReferenceDerived id ->
-        typeReferenceForTerm id >>= h2cReference
-
-    loadTypesForMetadata :: Set S.Reference -> Transaction (Map C.Reference C.Reference)
-    loadTypesForMetadata rs =
-      Map.fromList
-        <$> traverse
-          (\r -> (,) <$> s2cReference r <*> loadMetadataType r)
-          (Foldable.toList rs)
-
     doTerms ::
       Map Db.TextId (Map S.Referent S.DbMetadataSet) ->
       Transaction (Map NameSegment (Map C.Referent (Transaction C.Branch.MdValues)))
@@ -580,7 +561,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReferent \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
         )
     doTypes ::
       Map Db.TextId (Map S.Reference S.DbMetadataSet) ->
@@ -590,7 +571,7 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
         (fmap NameSegment . Q.expectText)
         ( Map.bitraverse s2cReference \case
             S.MetadataSet.Inline rs ->
-              pure $ C.Branch.MdValues <$> loadTypesForMetadata rs
+              pure $ C.Branch.MdValues <$> Set.traverse s2cReference rs
         )
     doPatches ::
       Map Db.TextId Db.PatchObjectId ->
@@ -732,7 +713,7 @@ saveNamespace hh bhId me = do
     c2sMetadata :: Transaction C.Branch.MdValues -> Transaction S.Branch.Full.DbMetadataSet
     c2sMetadata mm = do
       C.Branch.MdValues m <- mm
-      S.Branch.Full.Inline <$> Set.traverse c2sReference (Map.keysSet m)
+      S.Branch.Full.Inline <$> Set.traverse c2sReference m
 
     savePatchObjectId :: (PatchHash, Transaction C.Branch.Patch) -> Transaction Db.PatchObjectId
     savePatchObjectId (h, mp) = do
@@ -1067,9 +1048,6 @@ filterTermsByReferentHavingType cTypeRef cTermRefIds =
       sTermRefIds <- traverse c2sReferentId cTermRefIds
       matches <- Q.filterTermsByReferentHavingType sTypeRef sTermRefIds
       traverse s2cReferentId matches
-
-typeReferenceForTerm :: S.Reference.Id -> Transaction S.ReferenceH
-typeReferenceForTerm = Q.getTypeReferenceForReferent . C.Referent.RefId
 
 termsMentioningType :: C.Reference -> Transaction (Set C.Referent.Id)
 termsMentioningType cTypeRef =

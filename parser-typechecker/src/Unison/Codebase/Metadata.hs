@@ -9,15 +9,15 @@ where
 
 import Data.Map qualified as Map
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TermReference)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
 import Unison.Util.Star3 (Star3)
 import Unison.Util.Star3 qualified as Star3
 
-type Type = Reference
+type Type = () -- dummy value, intermediate phase of removing metadata altogether
 
-type Value = Reference
+type Value = TermReference
 
 -- `a` is generally the type of references or hashes
 -- `n` is generally the the type of name associated with the references
