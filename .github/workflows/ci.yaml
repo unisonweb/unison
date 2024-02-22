@@ -99,7 +99,6 @@ jobs:
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: ./.github/workflows/composite/install-stack
         with:
-          stack-version: "2.9.1"
           cache-id: ${{matrix.os}}
 
       # One of the transcripts fails if the user's git name hasn't been set.
