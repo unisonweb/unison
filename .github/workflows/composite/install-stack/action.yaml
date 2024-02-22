@@ -17,8 +17,9 @@ runs:
   using: "composite"
   steps:
     # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
-    - id: stackage-resolver
-      name: record stackage resolver
+    - name: record stackage resolver
+      shell: bash
+      id: stackage-resolver
       # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
       # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
       # `nightly` or `lts-xx`.  the whole resolver string is put into $resolver as a backup cache key
