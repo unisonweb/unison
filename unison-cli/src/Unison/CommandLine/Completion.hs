@@ -148,7 +148,6 @@ completeWithinNamespace compTypes query currentPath = do
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
-      -- See Note [Naughty NameSegment]
       & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
       & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
@@ -179,7 +178,6 @@ completeWithinNamespace compTypes query currentPath = do
                   childBranch <- V2Causal.value childCausal
                   nib <- namesInBranch shortHashLen childBranch
                   nib
-                    -- See Note [Naughty NameSegment]
                     & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
                     & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                     & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
@@ -250,8 +248,11 @@ completeWithinNamespace compTypes query currentPath = do
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
   case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
-    Left _err -> (Path.RelativePath' (Path.Relative Path.empty), txt)
-    Right (path, rest) -> (Path.unsplit' path, Text.pack rest)
+    Left _err -> (Path.relativeEmpty', txt)
+    Right ((path, segment), rest) ->
+      if take 1 rest == "."
+        then (Path.unsplit' (path, segment), Text.empty)
+        else (path, NameSegment.toEscapedText segment)
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::

@@ -9,6 +9,8 @@ module Unison.Codebase.Path.Parse
     parseShortHashOrHQSplit',
 
     -- * Path parsers
+    pathP,
+    pathP',
     splitP,
     splitP',
   )
@@ -17,6 +19,7 @@ where
 import Data.Text qualified as Text
 import Text.Megaparsec (Parsec)
 import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as P (char)
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Codebase.Path
 import Unison.HashQualified' qualified as HQ'
@@ -31,9 +34,8 @@ import Unison.Syntax.ShortHash qualified as ShortHash
 -- Path parsing functions
 
 parsePath :: String -> Either Text Path
-parsePath = \case
-  "" -> Right empty
-  path -> unsplit <$> parseSplit path
+parsePath =
+  runParser pathP
 
 parsePath' :: String -> Either Text Path'
 parsePath' = \case
@@ -65,11 +67,22 @@ parseHQSplit' =
 
 runParser :: Parsec (Lexer.Token Text) [Char] a -> String -> Either Text a
 runParser p =
-  mapLeft (Text.pack . P.errorBundlePretty)
-    . P.runParser (p <* P.eof) ""
+  mapLeft (Text.pack . P.errorBundlePretty) . P.runParser (p <* P.eof) ""
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Path parsers
+
+pathP :: Parsec (Lexer.Token Text) [Char] Path
+pathP =
+  (unsplit <$> splitP) <|> pure empty
+
+pathP' :: Parsec (Lexer.Token Text) [Char] Path'
+pathP' =
+  asum
+    [ unsplit' <$> splitP',
+      P.char '.' $> absoluteEmpty',
+      pure relativeEmpty'
+    ]
 
 splitP :: Parsec (Lexer.Token Text) [Char] Split
 splitP =
