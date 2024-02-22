@@ -31,7 +31,7 @@ branch0Tests =
           b0 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
+              (Star3.fromList [(dummy, "b", (), ((), dummy))])
               Map.empty
               Map.empty
       let -- a.b
@@ -39,7 +39,7 @@ branch0Tests =
           b1 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
+              (Star3.fromList [(dummy, "b", (), ((), dummy))])
               (Map.singleton "a" (Branch (Causal.one b0)))
               Map.empty
 
