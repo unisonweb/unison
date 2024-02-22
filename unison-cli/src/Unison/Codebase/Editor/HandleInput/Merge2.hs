@@ -58,6 +58,7 @@ import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
+import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as V1.Branch
@@ -119,7 +120,6 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
-import Unison.Codebase (Codebase)
 
 -- Temporary simple way to time a transaction
 step :: Text -> Transaction a -> Transaction a
@@ -143,13 +143,12 @@ handleMerge bobBranchName = do
   mergeInfo <- getMergeInfo bobBranchName
   (conflictInfo, unisonFile, pped) <- Cli.runTransactionWithRollback \abort -> do
     conflictInfo <- getConflictInfo db mergeInfo abort
-    case hasConflicts conflictInfo of
-      False -> do
-        -- no conflicts
-
+    case conflictState conflictInfo of
+      Conflicted _ -> do
+        error "conflicts path not implemented yet"
+      Unconflicted unconflictedInfo -> do
         lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
 
-        let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
         unisonFile <- makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
         let namesExcludingLibdeps = lcaNamesExcludingLibdeps <> unconflictedNamesExcludingLibdeps
@@ -157,15 +156,13 @@ handleMerge bobBranchName = do
         let namesIncludingLibdeps = namesExcludingLibdeps <> mergedLibdepNames
         let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
         pure (conflictInfo, unisonFile, pped)
-      True -> do
-        -- conflicts
-        error "conflicts path not implemented yet"
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   promptUser mergeInfo conflictInfo prettyUf
   pure ()
 
 makeUnisonFile :: (forall x. Output -> Transaction x) -> Codebase IO Symbol Ann -> Names -> ConflictInfo -> Transaction (UnisonFile Symbol Ann)
 makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo = do
+  let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
   unisonFile <- do
     addDefinitionsToUnisonFile
       abort
@@ -253,12 +250,12 @@ getConflictInfo
     -- Load deep definitions
     --
     -- maybe todo: optimize this by getting defns from in memory root branch
-    (_aliceCausalTree, _aliceDeclNames, aliceDefns) <-
+    (_aliceCausalTree, aliceDeclNames, aliceDefns) <-
       step "load alice definitions" do
         (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
         (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch definitions0
         pure (causalHashes, declNames, definitions1)
-    (_bobCausalTree, _bobDeclNames, bobDefns) <-
+    (_bobCausalTree, bobDeclNames, bobDefns) <-
       step "load bob definitions" do
         (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
         (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
@@ -307,14 +304,48 @@ getConflictInfo
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
     let (conflictedDefns, unconflictedDefns) = partitionConflicts conflictedNames defns
+    let conflictState = case Map.null (view #terms conflictedDefns) && Map.null (view #types conflictedDefns) of
+          True ->
+            Unconflicted
+              UnconflictedInfo
+                { declNames = aliceDeclNames <> bobDeclNames
+                }
+          False ->
+            Conflicted
+              ConflictedInfo
+                { conflictedDefns,
+                  aliceDeclNames,
+                  bobDeclNames
+                }
+
     mergedLibdeps <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
-    pure ConflictInfo {lcaDefns, conflictedDefns, unconflictedDefns, mergedLibdeps}
+    pure
+      ConflictInfo
+        { lcaDefns,
+          mergedLibdeps,
+          unconflictedDefns,
+          conflictState
+        }
 
 data ConflictInfo = ConflictInfo
-  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
+  { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    mergedLibdeps :: V1.Branch Transaction,
     unconflictedDefns :: Defns (Map Name Referent) (Map Name TypeReference),
-    lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-    mergedLibdeps :: V1.Branch Transaction
+    conflictState :: ConflictState
+  }
+
+data ConflictState
+  = Conflicted ConflictedInfo
+  | Unconflicted UnconflictedInfo
+
+data ConflictedInfo = ConflictedInfo
+  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
+    aliceDeclNames :: Map Name [Name],
+    bobDeclNames :: Map Name [Name]
+  }
+
+data UnconflictedInfo = UnconflictedInfo
+  { declNames :: Map Name [Name]
   }
 
 partitionConflicts ::
@@ -376,9 +407,6 @@ unconflictedRel ConflictInfo {unconflictedDefns = Defns {terms, types}} =
           ReferenceBuiltin _ -> error "todo"
           ReferenceDerived r -> r
    in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
-
-hasConflicts :: ConflictInfo -> Bool
-hasConflicts ConflictInfo {conflictedDefns} = not (null (conflictedDefns ^. #terms) && null (conflictedDefns ^. #types))
 
 promptUser ::
   MergeInfo ->
