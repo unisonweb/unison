@@ -152,7 +152,12 @@ jobs:
           save-always: true
 
       # Install stack by downloading the binary from GitHub.
-      - uses: ./.github/workflows/composite/install-stack
+      - name: install stack
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: ./.github/workflows/composite/install-stack
+        with:
+          stack-version: "2.9.1"
+          cache-id: ${{matrix.os}}
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -365,7 +370,6 @@ jobs:
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}/**
-
 
   build-jit-binary:
     if: always() && needs.generate-jit-source.result == 'success'

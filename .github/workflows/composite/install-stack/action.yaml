@@ -2,13 +2,75 @@ name: "Install Stack"
 
 inputs:
   stack-version:
-    description: "The version of stack to install"
+    description: "The version of stack to install, e.g. 2.9.1"
     required: true
     default: "2.9.1"
+  cache-id:
+    description: "an identifier for the cache key, e.g. ubuntu-20.04"
+    required: true
+    default: ${{runner.os}}
+
+env:
+  cache-version: '' # increment this to invalidate the cache
 
 runs:
   using: "composite"
   steps:
+    # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
+    - id: stackage-resolver
+      name: record stackage resolver
+      # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
+      # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
+      # `nightly` or `lts-xx`.  the whole resolver string is put into $resolver as a backup cache key
+      # ${{ env.resolver_short }}
+      # ${{ env.resolver }}
+      run: |
+        grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
+        grep resolver stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
+
+    # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+    - name: cache ~/.stack (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: ~/.stack
+        key: stack${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+        # Fall-back to use the most recent cache for this resolver
+        restore-keys: stack${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-
+        save-always: true
+
+    # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
+    - name: cache ~/.stack (Windows)
+      uses: actions/cache@v4
+      if: runner.os == 'Windows'
+      with:
+        path: |
+          C:\Users\runneradmin\AppData\Roaming\stack
+          C:\Users\runneradmin\AppData\Local\Programs\stack
+        key: stack${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+        # Fall-back to use the most recent cache for this resolver
+        restore-keys: stack${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-
+        save-always: true
+
+    # Cache each local package's ~/.stack-work for fast incremental builds in CI.
+    - name: cache .stack-work
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/.stack-work
+        # Main cache key: commit hash. This should always result in a cache miss...
+        # So when loading a cache we'll always fall back to the restore-keys,
+        # which should load the most recent cache via a prefix search on the most
+        # recent branch cache.
+        # Then it will save a new cache at this commit sha, which should be used by
+        # the next build on this branch.
+        key: stack-work${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+        restore-keys: |
+          stack-work${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+          stack-work${{env.cache-version}}_${{inputs.cache-id}}-${{env.resolver}}-
+          stack-work${{env.cache-version}}_${{inputs.cache-id}}-
+        save-always: true
+
     - name: install stack
       shell: bash
       working-directory: ${{ runner.temp }}
