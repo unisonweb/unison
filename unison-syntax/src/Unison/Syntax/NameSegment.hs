@@ -27,6 +27,8 @@ where
 import Data.Char qualified as Char
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Lazy.Builder qualified as Text (Builder)
+import Data.Text.Lazy.Builder qualified as Text.Builder
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
@@ -36,8 +38,6 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..), posP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators)
-import Data.Text.Lazy.Builder qualified as Text.Builder
-import Data.Text.Lazy.Builder qualified as Text (Builder)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
@@ -165,14 +165,17 @@ symbolyIdChar =
 
 -- | The set of characters allowed in an unescaped symboly identifier.
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
+symbolyIdChars =
+  Set.fromList "!$%^&*-=+<>~\\/|:"
 
 escapedSymbolyIdChar :: Char -> Bool
-escapedSymbolyIdChar = (`Set.member` escapedSymbolyIdChars)
+escapedSymbolyIdChar =
+  (`Set.member` escapedSymbolyIdChars)
 
 -- | The set of characters allowed in an escaped symboly identifier.
 escapedSymbolyIdChars :: Set Char
-escapedSymbolyIdChars = Set.insert '.' symbolyIdChars
+escapedSymbolyIdChars =
+  Set.fromList ".()" <> symbolyIdChars
 
 wordyIdStartChar :: Char -> Bool
 wordyIdStartChar ch =
