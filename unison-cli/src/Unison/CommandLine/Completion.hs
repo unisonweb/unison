@@ -21,6 +21,7 @@ module Unison.CommandLine.Completion
 where
 
 import Control.Lens (ifoldMap)
+import Control.Lens qualified as Lens
 import Control.Lens.Cons (unsnoc)
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
@@ -148,7 +149,12 @@ completeWithinNamespace compTypes query currentPath = do
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
-      & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
+      & fmap
+        ( \(ty, isFinished, match) ->
+            ( isFinished,
+              Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> NameSegment match)))
+            )
+        )
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
       & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
       & pure
@@ -178,11 +184,16 @@ completeWithinNamespace compTypes query currentPath = do
                   childBranch <- V2Causal.value childCausal
                   nib <- namesInBranch shortHashLen childBranch
                   nib
-                    & fmap (\(isFinished, match) -> (isFinished, Text.unpack (Path.toText' queryPathPrefix <> "." <> match)))
+                    & fmap
+                      ( \(ty, isFinished, match) ->
+                          ( isFinished,
+                            Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> suffix Lens.:> NameSegment match)))
+                          )
+                      )
                     & filter (\(_isFinished, match) -> List.isPrefixOf query match)
                     & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
                     & pure
-    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
+    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(CompletionType, Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
       let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
@@ -192,10 +203,18 @@ completeWithinNamespace compTypes query currentPath = do
               & fmap (HQ'.toTextWith NameSegment.toEscapedText)
               & fmap (True,)
       pure $
-        ((False,) <$> dotifyNamespaces (fmap NameSegment.toEscapedText . Map.keys $ nonEmptyChildren))
-          <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
-          <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
-          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
+        concat
+          [ (NamespaceCompletion,False,) <$> (fmap NameSegment.toEscapedText . Map.keys $ nonEmptyChildren),
+            Monoid.whenM
+              (NESet.member TermCompletion compTypes)
+              (map (\(x, y) -> (TermCompletion, x, y)) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)),
+            Monoid.whenM
+              (NESet.member TypeCompletion compTypes)
+              (map (\(x, y) -> (TypeCompletion, x, y)) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)),
+            Monoid.whenM
+              (NESet.member PatchCompletion compTypes)
+              (fmap ((PatchCompletion,True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
+          ]
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
@@ -214,11 +233,9 @@ completeWithinNamespace compTypes query currentPath = do
 
     -- If we're not completing namespaces, then all namespace completions should automatically
     -- drill-down by adding a trailing '.'
-    dotifyNamespaces :: [Text] -> [Text]
-    dotifyNamespaces namespaces =
-      if not (NESet.member NamespaceCompletion compTypes)
-        then fmap (<> ".") namespaces
-        else namespaces
+    dotifyNamespace :: CompletionType -> Text -> Text
+    dotifyNamespace NamespaceCompletion | not (NESet.member NamespaceCompletion compTypes) = (<> ".")
+    dotifyNamespace _ = id
 
 -- | A path parser which which is more lax with respect to well formed paths,
 -- specifically we can determine a valid path prefix with a (possibly empty) suffix query.
