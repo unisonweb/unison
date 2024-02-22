@@ -1,0 +1,45 @@
+name: "Install Stack"
+
+defaults:
+  run:
+    shell: bash
+
+inputs:
+  stack-version:
+    description: "The version of stack to install"
+    required: true
+    default: "2.9.1"
+
+runs:
+  using: "composite"
+  steps:
+    - name: install stack
+      working-directory: ${{ runner.temp }}
+      run: |
+        if [[ ${{runner.os}} = 'Windows' ]]; then
+          stack_os="windows"
+        elif [[ ${{runner.os}} = 'macOS' ]]; then
+          stack_os="osx"
+        elif [[ ${{runner.os}} = 'Linux' ]]; then
+          stack_os="linux"
+        else
+          echo "Unsupported OS: ${{runner.os}}"
+          exit 1
+        fi
+        if [[ ${{runner.arch}} = 'X64' ]]; then
+          stack_arch="x86_64"
+        elif [[ ${{runner.arch}} = 'ARM64' ]]; then
+          stack_arch="aarch64"
+        else
+          echo "Unsupported architecture: ${{runner.arch}}"
+          exit 1
+        fi
+
+        mkdir stack && cd stack
+        curl -L https://github.com/commercialhaskell/stack/releases/download/v${{inputs.stack-version}}/stack-${{inputs.stack-version}}-${stack_os}-${stack_arch}.tar.gz | tar -xz
+        echo "$PWD/stack-"* >> $GITHUB_PATH
+        echo "stack_path=$PWD/stack-"* >> $GITHUB_ENV
+
+    - name: remove ~/.stack/setup-exe-cache on macOS
+      if: runner.os == 'macOS'
+      run: rm -rf ~/.stack/setup-exe-cache
