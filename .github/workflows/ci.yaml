@@ -152,7 +152,7 @@ jobs:
           save-always: true
 
       # Install stack by downloading the binary from GitHub.
-      - uses: ./.github/workflows/call-install-stack.yaml
+      - uses: .github/workflows/composite/install-stack
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
