@@ -1,9 +1,5 @@
 name: "Install Stack"
 
-defaults:
-  run:
-    shell: bash
-
 inputs:
   stack-version:
     description: "The version of stack to install"
@@ -14,6 +10,7 @@ runs:
   using: "composite"
   steps:
     - name: install stack
+      shell: bash
       working-directory: ${{ runner.temp }}
       run: |
         if [[ ${{runner.os}} = 'Windows' ]]; then
@@ -43,3 +40,4 @@ runs:
     - name: remove ~/.stack/setup-exe-cache on macOS
       if: runner.os == 'macOS'
       run: rm -rf ~/.stack/setup-exe-cache
+      shell: bash
