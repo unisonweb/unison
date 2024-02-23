@@ -1645,6 +1645,34 @@ notifyUser dir = \case
         prettyNamespaceKey dest
           <> "was already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
+  MergeConflictedAliases branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are not aliases, but they used to be."
+  MergeConflictedTermName _name _refs -> pure "Conflicted term name."
+  MergeConflictedTypeName _name _refs -> pure "Conflicted type name."
+  MergeConflictInvolvingBuiltin name ->
+    pure . P.wrap $
+      "There's a merge conflict on"
+        <> P.group (prettyName name <> ",")
+        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
+  MergeConstructorAlias branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are aliases. Every type declaration must have exactly one name for each constructor."
+  MergeDefnsInLib -> pure "Defns in lib"
+  MergeMissingConstructorName _name -> pure "Missing constructor name."
+  MergeNestedDeclAlias _name -> pure "Nested decl alias."
+  MergeNoConstructorNames _name -> pure "No constructor names."
+  MergeStrayConstructor _name -> pure "Stray constructor."
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $

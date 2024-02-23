@@ -3,26 +3,22 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (Lens', over, view, (%=), (.=), (.~), (^.))
+import Control.Lens (view, (%=), (.=), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT)
 import Control.Monad.Trans.Except qualified as Except
-import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (pattern (:|))
-import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Data.Maybe (catMaybes, fromJust)
-import Data.Semialign (Semialign (..), alignWith, unzip, zip)
+import Data.Maybe (fromJust)
+import Data.Semialign (Semialign (..), alignWith, unzip)
 import Data.Set qualified as Set
-import Data.Set.NonEmpty (NESet)
-import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -33,18 +29,14 @@ import U.Codebase.Branch qualified as Branch
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
-  ( Reference,
-    Reference' (..),
-    ReferenceType,
-    TermReference,
+  ( Reference' (..),
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
   )
-import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
-import U.Codebase.Sqlite.DbId (ProjectId)
+-- import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project)
@@ -56,8 +48,6 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
-import Unison.Cli.TypeCheck (computeTypecheckingEnvironment, typecheckTerm)
-import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
@@ -66,8 +56,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
-import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, forwardCtorNames, getExistingReferencesNamed, getNamespaceDependentsOf)
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -86,22 +75,15 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
-import Unison.Server.Backend qualified as Backend
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name
-import Unison.Syntax.Parser qualified as Parser
-import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -112,14 +94,13 @@ import Unison.Util.Nametree
     bimapDefns,
     flattenNametree,
     traverseNametreeWithName,
-    unflattenNametree,
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
-import Witch (unsafeFrom)
+-- import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
@@ -169,8 +150,7 @@ makeUnisonFile ::
   Map Name [Name] ->
   Transaction (UnisonFile Symbol Ann)
 makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
-  let -- _termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
-      lookupCons k = case Map.lookup k declMap of
+  let lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
   unisonFile <- do
@@ -182,9 +162,9 @@ makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
       (unconflictedRel conflictInfo)
       UnisonFile.emptyUnisonFile
 
-  let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (view #unconflictedAdds conflictInfo <> view #unconflictedUpdates conflictInfo)
+  let updatedTermsAndDecls = bimapDefns Map.keysSet Map.keysSet (view #unconflictedUpdates conflictInfo)
   dependents <-
-    getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
+    getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed updatedTermsAndDecls lcaNamesExcludingLibdeps)
   unisonFile <- do
     addDefinitionsToUnisonFile
       abort
@@ -207,7 +187,6 @@ getMergeInfo :: ProjectBranchName -> Cli MergeInfo
 getMergeInfo bobBranchName = do
   (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
   bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
-  let projectBranches = Merge.TwoWay {alice = aliceProjectBranch, bob = bobProjectBranch}
   let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
   pure
@@ -424,9 +403,6 @@ partitionConflicts (Defns classifiedTermNames classifiedTypeNames) Merge.TwoWay 
           deletedNames = Defns deletedTerms deletedTypes
         }
 
-loadNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadNamesExcludingLibdeps db ci = (<>) <$> loadLcaNamesExcludingLibdeps db ci <*> loadUnconflictedNamesExcludingLibdeps db ci
-
 loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
 loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} = do
   terms <- traverse (referent2to1 db) (BiMultimap.range terms)
@@ -457,7 +433,7 @@ promptUser ::
   ConflictInfo ->
   Pretty ColorText ->
   Cli a
-promptUser mergeInfo conflictInfo prettyUnisonFile = do
+promptUser _mergeInfo _conflictInfo prettyUnisonFile = do
   Cli.Env {writeSource} <- ask
   -- let currentProjectId = currentProjectAndBranch ^. #project . #projectId
   -- let textualDescriptionOfUpgrade = "merge"
@@ -479,17 +455,17 @@ promptUser mergeInfo conflictInfo prettyUnisonFile = do
   -- todo: respond with some message
   Cli.returnEarlyWithoutOutput
 
-findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
-findTemporaryBranchName projectId other self = do
-  Cli.findTemporaryBranchName projectId preferred
-  where
-    preferred :: ProjectBranchName
-    preferred =
-      unsafeFrom @Text $
-        "merge-"
-          <> NameSegment.toText other
-          <> "-into-"
-          <> NameSegment.toText self
+-- findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
+-- findTemporaryBranchName projectId other self = do
+--   Cli.findTemporaryBranchName projectId preferred
+--   where
+--     preferred :: ProjectBranchName
+--     preferred =
+--       unsafeFrom @Text $
+--         "merge-"
+--           <> NameSegment.toText other
+--           <> "-into-"
+--           <> NameSegment.toText self
 
 -- Load namespace info into memory.
 --
@@ -965,7 +941,7 @@ partitionDiff (Merge.TwoWay aliceDiff bobDiff) =
       These (Merge.Updated _ _) (Merge.Deleted _) -> Update
       These a@(Merge.Updated {}) b@(Merge.Added {}) -> f (These b a)
       These (Merge.Deleted _) (Merge.Deleted _) -> Deletion
-      These a@(Merge.Deleted _) b@(Merge.Updated _ _) -> f (These b a)
+      These a@(Merge.Deleted _) b -> f (These b a)
       This x -> diffOpToTag x
       That x -> diffOpToTag x
 
