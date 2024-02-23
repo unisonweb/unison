@@ -479,17 +479,15 @@ validateEntities entities =
         Just err -> do
           Left err
 
--- | Only validate entities if this flag is set.
--- It defaults to disabled because there are terms in the wild that currently fail hash
--- validation.
+-- | Validate entities received from the server unless this flag is set to false.
 validationEnvKey :: String
 validationEnvKey = "UNISON_ENTITY_VALIDATION"
 
 shouldValidateEntities :: Bool
 shouldValidateEntities = unsafePerformIO $ do
   lookupEnv validationEnvKey <&> \case
-    Just "true" -> True
-    _ -> False
+    Just "false" -> False
+    _ -> True
 {-# NOINLINE shouldValidateEntities #-}
 
 type WorkerCount =

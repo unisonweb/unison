@@ -108,10 +108,11 @@ $ UNISON_READONLY="true" ucm
 
 ### `UNISON_ENTITY_VALIDATION`
 
-Enable validation of entities pulled from a codebase server.
+Allows disabling validation of entities pulled from a codebase server.
+Defaults to enabled.
 
 ```sh
-$ UNISON_ENTITY_VALIDATION="true" ucm
+$ UNISON_ENTITY_VALIDATION="false" ucm
 ```
 
 ### Local Codebase Server
