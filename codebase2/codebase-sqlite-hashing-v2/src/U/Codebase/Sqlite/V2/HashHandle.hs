@@ -3,7 +3,6 @@ module U.Codebase.Sqlite.V2.HashHandle
   )
 where
 
-import Data.Function ((&))
 import Data.Set qualified as Set
 import U.Codebase.Branch.Hashing qualified as H2
 import U.Codebase.Causal.Hashing qualified as H2
@@ -14,8 +13,10 @@ import U.Codebase.Sqlite.HashHandle
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Term.Hashing as H2
 import U.Util.Type (removeAllEffectVars)
+import Unison.Debug qualified as Debug
 import Unison.Hashing.V2 qualified as H2
 import Unison.Hashing.V2.Convert2 (h2ToV2Reference, hashBranchFormatToH2Branch, hashPatchFormatToH2Patch, v2ToH2Type, v2ToH2TypeD)
+import Unison.Prelude
 
 v2HashHandle :: HashHandle
 v2HashHandle =
@@ -34,10 +35,13 @@ v2HashHandle =
     }
   where
     hashBranchFormatFull localIds localBranch =
-      BranchFormat.localToHashBranch localIds localBranch
-        & hashBranchFormatToH2Branch
-        & H2.contentHash
-        & BranchHash
+      let hashBranch =
+            BranchFormat.localToHashBranch localIds localBranch
+              & hashBranchFormatToH2Branch
+       in hashBranch
+            & H2.contentHash
+            & (\h -> fst $ Debug.debug Debug.Temp "hashbranch" (h, hashBranch))
+            & BranchHash
     hashPatchFormatFull localIds localPatch =
       PatchFormat.localPatchToHashPatch localIds localPatch
         & hashPatchFormatToH2Patch

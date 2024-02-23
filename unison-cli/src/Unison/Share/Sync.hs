@@ -26,6 +26,8 @@ import Control.Monad.Except
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.Trans.Reader qualified as Reader
+import Data.ByteString.Lazy qualified as BL
+import Data.Csv qualified as Csv
 import Data.Foldable qualified as Foldable (find)
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List (NonEmpty)
@@ -41,6 +43,7 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
+import Data.Vector qualified as Vector
 import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
@@ -52,6 +55,7 @@ import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
+import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
@@ -59,6 +63,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Sync.Types
@@ -461,6 +466,25 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
 
+expectedMismatches :: Map Hash32 Hash32
+expectedMismatches = unsafePerformIO $ do
+  file <- BL.readFile "component_mismatches.csv"
+  pure $
+    case Csv.decode Csv.HasHeader file of
+      Left err -> do
+        error err
+      Right rows -> do
+        rows
+          & Vector.toList
+          & map
+            ( \(provided, actual) -> fromMaybe (error "invalid hash") do
+                provided32 <- Hash32.unsafeFromBase32Hex <$> Base32Hex.fromText provided
+                actual32 <- Hash32.unsafeFromBase32Hex <$> Base32Hex.fromText actual
+                pure (provided32, actual32)
+            )
+          & Map.fromList
+{-# NOINLINE expectedMismatches #-}
+
 -- | Validates the provided entities if and only if the environment variable `UNISON_ENTITY_VALIDATION` is set to "true".
 validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
 validateEntities entities =
@@ -470,8 +494,15 @@ validateEntities entities =
       let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
       case EV.validateEntity hash entityWithHashes of
         Nothing -> pure ()
+        Just err@(Share.EntityHashMismatch _et (Share.HashMismatchForEntity {supplied, computed})) ->
+          case Map.lookup supplied expectedMismatches of
+            Just expected
+              | expected == computed -> pure ()
+            _ -> do
+              Debug.debugM Debug.Temp "Entity validation failed" (hash, entityWithHashes, err)
+              Left err
         Just err -> do
-          Debug.debugM Debug.Temp "Entity validation failed" (hash, entity, err)
+          Debug.debugM Debug.Temp "Entity validation failed" (hash, entityWithHashes, err)
           Left err
 
 -- | Only validate entities if this flag is set.
