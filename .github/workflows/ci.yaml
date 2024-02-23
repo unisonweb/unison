@@ -312,6 +312,7 @@ jobs:
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}/**
+          if-no-files-found: error
 
   build-jit-binary:
     if: always() && needs.generate-jit-source.result == 'success'
@@ -404,6 +405,7 @@ jobs:
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
+          if-no-files-found: error
 
       - name: download ucm
         if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
