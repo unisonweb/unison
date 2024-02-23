@@ -47,8 +47,16 @@ import Unison.Syntax.ReservedWords (keywords, reservedOperators)
 -- > toEscapedText (unsafeFromText ".~") = "`.~`"
 toEscapedText :: NameSegment -> Text
 toEscapedText segment@(NameSegment text)
-  | isSymboly segment && not (Text.all symbolyIdChar text) = "`" <> text <> "`"
+  | shouldEscape = "`" <> text <> "`"
   | otherwise = text
+  where
+    shouldEscape =
+      if isSymboly segment
+        then isReservedOperator || symbolNeedsEscaping
+        else isKeyword
+    isKeyword = Set.member text keywords
+    isReservedOperator = Set.member text reservedOperators
+    symbolNeedsEscaping = not (Text.all symbolyIdChar text)
 
 toEscapedTextBuilder :: NameSegment -> Text.Builder
 toEscapedTextBuilder =
@@ -90,60 +98,65 @@ segmentP =
 
 -- | A symboly name segment parser, which consists only of symboly characters.
 --
--- A symboly name segment can optionally be escaped by surrounding it with backticks. Thus, there are two different
--- syntaxes for the ++ operator, for example:
+-- A symboly name segment can optionally be escaped by surrounding it with backticks, which expands the list of allowed
+-- symbols to include these three: . ( )
 --
---   1. ++
---   2. `++`
---
--- The only difference is that the literal dot character (.) is allowed in escaped segments, but not unescaped segments.
--- Thus, there is only one syntax for the .~ operator:
---
---   1. `.~`
---
--- The backticks of escaped symboly segments are not present in the data itself, i.e. the string "`.~`" corresponds
--- to the data NameSegment ".~".
---
--- Throws the parsed name segment as an error if it's reserved, e.g. "=".
+-- Throws the parsed name segment as an error if it's unescaped and reserved, e.g. "=".
 symbolyP :: ParsecT (Token Text) [Char] m NameSegment
 symbolyP = do
   start <- posP
-  string <- escaped <|> unescaped
-  let text = Text.pack string
-  if Set.member text reservedOperators
-    then do
-      end <- posP
-      P.customFailure (Token text start end)
-    else pure (NameSegment text)
+  asum
+    [ do
+        _ <- P.try (P.lookAhead (P.char '`' *> P.satisfy escapedSymbolyIdChar))
+        escapeP (segmentP (description escapedSymbolyIdChars) escapedSymbolyIdChar),
+      do
+        symbol <- segmentP (description symbolyIdChars) symbolyIdChar
+        check start symbol
+        pure symbol
+    ]
   where
-    unescaped =
-      P.takeWhile1P (Just (description symbolyIdChars)) symbolyIdChar
+    segmentP name predicate =
+      NameSegment . Text.pack <$> P.takeWhile1P (Just name) predicate
 
-    escaped = do
-      _ <- P.char '`'
-      s <- P.takeWhile1P (Just (description escapedSymbolyIdChars)) escapedSymbolyIdChar
-      _ <- P.char '`'
-      pure s
+    check start (NameSegment symbol) =
+      when (Set.member symbol reservedOperators) do
+        end <- posP
+        P.customFailure (Token symbol start end)
 
     description valid =
       "operator (valid characters: " ++ Set.toList valid ++ ")"
 
 -- | A wordy name segment parser, which consists only of wordy characters.
 --
--- Throws the parsed name segment as an error if it's a keyword, e.g. "match".
+-- Throws the parsed name segment as an error if it's an unescaped keyword, e.g. "match".
 wordyP :: ParsecT (Token Text) [Char] m NameSegment
 wordyP = do
   start <- posP
-  ch <- P.satisfy wordyIdStartChar
-  rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
-  let word = Text.pack (ch : rest)
-  if Set.member word keywords
-    then do
-      end <- posP
-      P.customFailure (Token word start end)
-    else pure (NameSegment word)
+  asum
+    [ do
+        _ <- P.try (P.lookAhead (P.char '`' *> P.satisfy wordyIdStartChar))
+        escapeP unescaped,
+      do
+        word <- unescaped
+        check start word
+        pure word
+    ]
   where
+    unescaped = do
+      ch <- P.satisfy wordyIdStartChar
+      rest <- P.takeWhileP (Just wordyMsg) wordyIdChar
+      pure (NameSegment (Text.pack (ch : rest)))
+
+    check start (NameSegment word) =
+      when (Set.member word keywords) do
+        end <- posP
+        P.customFailure (Token word start end)
+
     wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+
+escapeP :: ParsecT (Token Text) [Char] m a -> ParsecT (Token Text) [Char] m a
+escapeP parser =
+  P.char '`' *> parser <* P.char '`'
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers
@@ -157,7 +170,7 @@ isSymboly =
 
 segmentStartChar :: Char -> Bool
 segmentStartChar c =
-  wordyIdStartChar c || symbolyIdChar c || c == '`' -- backtick starts an escaped symboly segment
+  wordyIdStartChar c || symbolyIdChar c || c == '`' -- backtick starts an escaped segment
 
 symbolyIdChar :: Char -> Bool
 symbolyIdChar =

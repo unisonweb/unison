@@ -62,9 +62,6 @@ parseTextEither s =
     & mapLeft (Text.pack . P.errorBundlePretty)
 
 -- | Unsafely parse a name from a string literal.
---
--- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
--- no attempt at rejecting bogus names like "foo...bar...baz".
 unsafeParseText :: (HasCallStack) => Text -> Name
 unsafeParseText =
   either (error . Text.unpack) id . parseTextEither
