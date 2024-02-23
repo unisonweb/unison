@@ -19,7 +19,6 @@ dependencies:
   - base
   - bytes
   - bytestring
-  - cassava
   - concurrent-output
   - configurator
   - containers >= 0.6.3

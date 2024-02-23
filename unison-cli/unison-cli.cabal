@@ -129,6 +129,7 @@ library
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
       Unison.Share.Codeserver
+      Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
       Unison.Share.Sync.Types
       Unison.Util.HTTP
@@ -178,7 +179,6 @@ library
     , base
     , bytes
     , bytestring
-    , cassava
     , co-log-core
     , concurrent-output
     , configurator
@@ -315,7 +315,6 @@ executable cli-integration-tests
     , base
     , bytes
     , bytestring
-    , cassava
     , co-log-core
     , code-page
     , concurrent-output
@@ -448,7 +447,6 @@ executable transcripts
     , base
     , bytes
     , bytestring
-    , cassava
     , co-log-core
     , code-page
     , concurrent-output
@@ -588,7 +586,6 @@ executable unison
     , base
     , bytes
     , bytestring
-    , cassava
     , co-log-core
     , code-page
     , concurrent-output
@@ -732,7 +729,6 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
-    , cassava
     , co-log-core
     , code-page
     , concurrent-output
