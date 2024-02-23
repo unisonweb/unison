@@ -442,7 +442,7 @@ jobs:
           key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -450,21 +450,21 @@ jobs:
             ~/.local/share/racket
           key: ${{ runner.os }}-racket-${{env.racket_version}}
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: download jit source
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: jit-source
@@ -473,7 +473,7 @@ jobs:
       - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
 
       - name: build jit binary
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         shell: bash
         run: |
           cp -R scheme-libs/racket/* "$jit_src_scheme"
@@ -486,28 +486,27 @@ jobs:
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**
-          if-no-files-found: error
 
       - name: download ucm
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: unison-${{ matrix.os }}
           path: ${{ runner.temp }}
 
       - name: set ucm permissions
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: chmod +x ${{ env.ucm }}
 
       - name: get base codebase
-        if: steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.base-codebase}}
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
 
       - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit == 'false'
+        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: |
           ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
