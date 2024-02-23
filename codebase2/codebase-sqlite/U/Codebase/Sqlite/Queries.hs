@@ -4326,23 +4326,24 @@ expandCausalSpines limit hashes
         queryListCol @Hash32
           [sql|
     WITH RECURSIVE rec AS (
-      SELECT hash FROM hashes_to_sync
+      SELECT hash AS hash, true AS could_be_causal FROM hashes_to_sync
       UNION
       -- Join in causal ancestry first, since they're cheap to serialize and easy to crawl.
       -- Not all hashes are from causals, but the ones that aren't will just fail to join and won't add any new hashes which is fine.
-      SELECT parent_hash.base32 AS hash
+      SELECT parent_hash.base32 AS hash, true AS could_be_causal
         FROM rec
         JOIN hash causal_hash ON causal_hash.base32 = rec.hash
         JOIN causal_parent causal ON causal.causal_id = causal_hash.id
         JOIN hash parent_hash ON parent_hash.id = causal.parent_id
       UNION
       -- If we still haven't gotten enough hashes, join in the causal's namespaces too.
-      SELECT namespace_hash.base32 AS hash
+      SELECT namespace_hash.base32 AS hash, false AS could_be_causal
         FROM rec
         JOIN hash causal_hash ON causal_hash.base32 = rec.hash
         JOIN causal ON causal.self_hash_id = causal_hash.id
         JOIN hash namespace_hash ON namespace_hash.id = causal.value_hash_id
-    ) SELECT hash FROM rec LIMIT :limit
+      LIMIT :limit
+    ) SELECT hash FROM rec
     |]
       execute [sql| DROP TABLE hashes_to_sync |]
       pure $ fromMaybe hashes (fmap NESet.fromList . Nel.nonEmpty $ newHashes)
