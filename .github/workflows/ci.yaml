@@ -233,7 +233,6 @@ jobs:
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - uses: actions/cache@v4
         name: cache jit source
-        if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
           key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{env.jit_version}}
