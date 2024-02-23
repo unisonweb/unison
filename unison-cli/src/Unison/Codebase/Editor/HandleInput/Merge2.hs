@@ -129,11 +129,11 @@ handleMerge bobBranchName = do
       Conflicted _ -> do
         error "conflicts path not implemented yet"
       Unconflicted unconflictedInfo -> do
-        lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
+        lcaNamesExcludingLibdepsAndDeletions <- loadLcaNamesExcludingLibdepsAndDeletions db conflictInfo
 
-        unisonFile <- makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo (view #declNames unconflictedInfo)
+        unisonFile <- makeUnisonFile abort codebase lcaNamesExcludingLibdepsAndDeletions conflictInfo (view #declNames unconflictedInfo)
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
-        let namesExcludingLibdeps = lcaNamesExcludingLibdeps <> unconflictedNamesExcludingLibdeps
+        let namesExcludingLibdeps = lcaNamesExcludingLibdepsAndDeletions <> unconflictedNamesExcludingLibdeps
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
         let namesIncludingLibdeps = namesExcludingLibdeps <> mergedLibdepNames
         let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
@@ -403,10 +403,12 @@ partitionConflicts (Defns classifiedTermNames classifiedTypeNames) Merge.TwoWay 
           deletedNames = Defns deletedTerms deletedTypes
         }
 
-loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} = do
-  terms <- traverse (referent2to1 db) (BiMultimap.range terms)
-  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types)}
+loadLcaNamesExcludingLibdepsAndDeletions :: MergeDatabase -> ConflictInfo -> Transaction Names
+loadLcaNamesExcludingLibdepsAndDeletions db ConflictInfo {lcaDefns = Defns {terms, types}, deletedNames} = do
+  let deletedTerms = foldMap (\k -> Map.singleton k ()) $ view #terms deletedNames
+  let deletedTypes = foldMap (\k -> Map.singleton k ()) $ view #types deletedNames
+  terms <- traverse (referent2to1 db) (BiMultimap.range terms Map.\\ deletedTerms)
+  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types Map.\\ deletedTypes)}
 
 loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
 loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedAdds, unconflictedUpdates} = do
