@@ -168,18 +168,12 @@ makeUnisonFile ::
   ConflictInfo ->
   Map Name [Name] ->
   Transaction (UnisonFile Symbol Ann)
-makeUnisonFile abort codebase _lcaNamesExcludingLibdeps conflictInfo declMap = do
-  let _termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
+makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
+  let -- _termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (unconflictedDefns conflictInfo)
       lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
-      debugStr =
-        let (termRel, typeRel) = unconflictedRel conflictInfo
-            getNameList = Set.toList . Relation.dom
-            termStr = (foldMap (\t -> '\t' : Text.unpack (Name.toText t) ++ "\n") $ getNameList termRel)
-            typeStr = (foldMap (\t -> '\t' : Text.unpack (Name.toText t) ++ "\n") $ getNameList typeRel)
-         in "Terms:\n" ++ termStr ++ "\nTypes:\n" ++ typeStr
-  unisonFile <- trace debugStr do
+  unisonFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
@@ -188,16 +182,17 @@ makeUnisonFile abort codebase _lcaNamesExcludingLibdeps conflictInfo declMap = d
       (unconflictedRel conflictInfo)
       UnisonFile.emptyUnisonFile
 
-  -- dependents <-
-  --   getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
-  -- unisonFile <- do
-  --   addDefinitionsToUnisonFile
-  --     abort
-  --     codebase
-  --     -- todo: fix output
-  --     (findCtorNames Output.UOUUpgrade lcaNamesExcludingLibdeps (forwardCtorNames lcaNamesExcludingLibdeps))
-  --     dependents
-  --     unisonFile0
+  let termAndDeclNames = bimapDefns Map.keysSet Map.keysSet (view #unconflictedAdds conflictInfo <> view #unconflictedUpdates conflictInfo)
+  dependents <-
+    getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed termAndDeclNames lcaNamesExcludingLibdeps)
+  unisonFile <- do
+    addDefinitionsToUnisonFile
+      abort
+      codebase
+      -- todo: fix output
+      (const lookupCons)
+      dependents
+      unisonFile
   pure unisonFile
 
 data MergeInfo = MergeInfo
@@ -318,8 +313,7 @@ getConflictInfo
     -- TODO is swapping constructors' names handled correctly here?
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
-    let PartitionedDefns {unconflictedAdds, unconflictedUpdates, conflicted} = partitionConflicts classifiedDiff defns
-    let unconflictedDefns = unconflictedAdds <> unconflictedUpdates
+    let PartitionedDefns {unconflictedAdds, unconflictedUpdates, conflicted, deletedNames} = partitionConflicts classifiedDiff defns
     let conflictState = case Map.null (view #terms conflicted) && Map.null (view #types conflicted) of
           True ->
             Unconflicted
@@ -339,16 +333,20 @@ getConflictInfo
       ConflictInfo
         { lcaDefns,
           mergedLibdeps,
-          unconflictedDefns,
+          unconflictedAdds,
+          unconflictedUpdates,
+          deletedNames,
           conflictState
         }
 
 data ConflictInfo = ConflictInfo
   { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     mergedLibdeps :: V1.Branch Transaction,
-    unconflictedDefns :: Defns (Map Name Referent) (Map Name TypeReference),
+    unconflictedAdds :: Defns (Map Name Referent) (Map Name TypeReference),
+    unconflictedUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    deletedNames :: Defns (Set Name) (Set Name),
     conflictState :: ConflictState
-  }
+  } deriving stock Generic
 
 data ConflictState
   = Conflicted ConflictedInfo
@@ -435,13 +433,15 @@ loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} =
   pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types)}
 
 loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedDefns = Defns {terms, types}} = do
+loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedAdds, unconflictedUpdates} = do
+  let Defns {terms, types} = unconflictedAdds <> unconflictedUpdates
   terms <- traverse (referent2to1 db) terms
   pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap types}
 
 unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-unconflictedRel ConflictInfo {unconflictedDefns = Defns {terms, types}} =
-  let termRefIds = flip mapMaybe terms \case
+unconflictedRel ConflictInfo {unconflictedAdds, unconflictedUpdates} =
+  let Defns {terms, types} = unconflictedAdds <> unconflictedUpdates
+      termRefIds = flip mapMaybe terms \case
         Referent.Ref r -> case r of
           ReferenceBuiltin _ -> Nothing -- todo
           ReferenceDerived r -> Just r
