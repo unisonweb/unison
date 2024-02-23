@@ -704,6 +704,7 @@ builtinsSrc =
     ++ moveUnder "io2" stmBuiltins
     ++ moveUnder "io2" refPromiseBuiltins
     ++ hashBuiltins
+    ++ cryptoBuiltins
     ++ fmap (uncurry B) codeBuiltins
 
 moveUnder :: Text -> [(Text, Type)] -> [BuiltinDSL]
@@ -760,6 +761,14 @@ hashBuiltins =
   where
     hashAlgo = Type.ref () Type.hashAlgorithmRef
     h name = B ("crypto.HashAlgorithm." <> name) hashAlgo
+
+cryptoBuiltins :: [BuiltinDSL]
+cryptoBuiltins =
+  [ B "crypto.Ed25519.sign.impl" $
+      bytes --> bytes --> bytes --> eithert failure bytes,
+    B "crypto.Ed25519.verify.impl" $
+      bytes --> bytes --> bytes --> eithert failure boolean
+  ]
 
 ioBuiltins :: [(Text, Type)]
 ioBuiltins =
