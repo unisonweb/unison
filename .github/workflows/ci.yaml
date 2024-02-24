@@ -478,7 +478,7 @@ jobs:
         run: |
           cp -R scheme-libs/racket/* "$jit_src_scheme"
           raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
-          raco exe "$jit_src_scheme"/unison-runtime.rkt
+          raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
           raco distribute "$jit_dist" "$jit_exe"
 
       - name: save jit binary
@@ -506,7 +506,7 @@ jobs:
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
 
       - name: jit integration test ${{ matrix.os }}
-        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: |
           ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
