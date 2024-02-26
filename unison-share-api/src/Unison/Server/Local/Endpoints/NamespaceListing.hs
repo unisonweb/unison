@@ -26,7 +26,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Hash qualified as Hash
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -42,6 +41,7 @@ import Unison.Server.Types
     v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
 
@@ -183,12 +183,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowBranchEntry name hash (NamespaceStats {numContainedTerms, numContainedTypes, numContainedPatches}) ->
     Subnamespace $
       NamedNamespace
-        { namespaceName = NameSegment.toText name,
+        { namespaceName = NameSegment.toEscapedText name,
           namespaceHash = "#" <> Hash.toBase32HexText (unCausalHash hash),
           namespaceSize = numContainedTerms + numContainedTypes + numContainedPatches
         }
   Backend.ShallowPatchEntry name ->
-    PatchObject . NamedPatch $ NameSegment.toText name
+    PatchObject . NamedPatch $ NameSegment.toEscapedText name
 
 serve ::
   Codebase IO Symbol Ann ->
@@ -215,10 +215,9 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
   let relativeToPath = fromMaybe Path.empty mayRelativeTo
   let namespacePath = fromMaybe Path.empty mayNamespaceName
   let path = relativeToPath <> namespacePath
-  let path' = Path.toPath' path
   (listingCausal, listingBranch) <-
     (lift . Codebase.runTransaction codebase) do
-      listingCausal <- Codebase.getShallowCausalAtPath (Path.fromPath' path') (Just rootCausal)
+      listingCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)
       listingBranch <- V2Causal.value listingCausal
       pure (listingCausal, listingBranch)
   -- TODO: Currently the ppe is just used to render the types returned from the namespace
@@ -226,7 +225,7 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
   -- If we ever show types on hover we need to build and use a proper PPE here, but it's not
   -- shallowPPE <- liftIO $ Backend.shallowPPE codebase listingBranch
   let shallowPPE = PPE.empty
-  let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+  let listingFQN = Path.toText path
   let listingHash = v2CausalBranchToUnisonHash listingCausal
   listingEntries <- lift (Backend.lsBranch codebase listingBranch)
   makeNamespaceListing shallowPPE listingFQN listingHash listingEntries

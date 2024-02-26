@@ -32,6 +32,7 @@ import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileEx
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.Process (callProcess, readCreateProcessWithExitCode, shell)
+import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
@@ -178,9 +179,11 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (fromString, toString, toText, unsafeFromString)
+import Unison.Syntax.HashQualified qualified as HQ (parseText, parseTextWith, toText, unsafeParseText)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, toText, toVar, unsafeFromVar)
+import Unison.Syntax.Lexer qualified as Lexer
+import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
@@ -801,7 +804,7 @@ loop e = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               Cli.respond $ ListOfPatches $ Set.fromList patches
-              Cli.setNumberedArgs $ fmap Name.toString patches
+              Cli.setNumberedArgs $ fmap (Text.unpack . Name.toText) patches
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
 
@@ -820,11 +823,11 @@ loop e = do
               where
                 entryToHQString :: ShallowListEntry v Ann -> String
                 entryToHQString e =
-                  fixup case e of
-                    ShallowTypeEntry te -> Text.unpack $ Backend.typeEntryDisplayName te
-                    ShallowTermEntry te -> Text.unpack $ Backend.termEntryDisplayName te
-                    ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                    ShallowPatchEntry ns -> NameSegment.toString ns
+                  fixup $ Text.unpack case e of
+                    ShallowTypeEntry te -> Backend.typeEntryDisplayName te
+                    ShallowTermEntry te -> Backend.termEntryDisplayName te
+                    ShallowBranchEntry ns _ _ -> NameSegment.toEscapedText ns
+                    ShallowPatchEntry ns -> NameSegment.toEscapedText ns
                   where
                     fixup s = case pathArgStr of
                       "" -> s
@@ -904,8 +907,8 @@ loop e = do
                   ambiguous t rs =
                     Cli.returnEarly case t of
                       HQ.HashOnly h -> HashAmbiguous h rs'
-                      (Path.parseHQSplit' . HQ.toString -> Right n) -> DeleteNameAmbiguous hqLength n rs' Set.empty
-                      _ -> BadName (HQ.toString t)
+                      (Path.parseHQSplit' . Text.unpack . HQ.toText -> Right n) -> DeleteNameAmbiguous hqLength n rs' Set.empty
+                      _ -> BadName (HQ.toText t)
                     where
                       rs' = Set.map Referent.Ref $ Set.fromList rs
 
@@ -1045,9 +1048,9 @@ loop e = do
               hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile
               let datas, effects, terms :: [(Name, Reference.Id)]
-                  datas = [(Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
-                  effects = [(Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-                  terms = [(Name.unsafeFromVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+                  datas = [(Name.unsafeParseVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
+                  effects = [(Name.unsafeParseVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
+                  terms = [(Name.unsafeParseVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
@@ -1127,14 +1130,14 @@ loop e = do
                                [ Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents)),
                                  Monoid.unlessM (null terms) $ P.lit "Terms:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Referent.toText) $ Map.toList terms)),
                                  Monoid.unlessM (null types) $ P.lit "Types:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Reference.toText) $ Map.toList types)),
-                                 Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toText) P.shown) $ Map.toList patches)),
-                                 Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toText) P.shown) $ Map.toList children))
+                                 Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toEscapedText) P.shown) $ Map.toList patches)),
+                                 Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap (P.text . NameSegment.toEscapedText) P.shown) $ Map.toList children))
                                ]
                          )
                     where
                       prettyRef renderR r = P.indentN 2 $ P.text (renderR r)
                       prettyDefn renderR (r, Foldable.toList -> names) =
-                        P.lines (P.text . NameSegment.toText <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyRef renderR r
+                        P.lines (P.text <$> if null names then ["<unnamed>"] else NameSegment.toEscapedText <$> names) <> P.newline <> prettyRef renderR r
               rootBranch <- Cli.getRootBranch
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal rootBranch]
             DebugDumpNamespaceSimpleI -> do
@@ -1319,7 +1322,7 @@ inputDescription input =
       scope <- p' scope0
       pure ("patch " <> p <> " " <> scope)
     UndoI {} -> pure "undo"
-    ExecuteI s args -> pure ("execute " <> Text.unwords (fmap Text.pack (s : args)))
+    ExecuteI s args -> pure ("execute " <> Text.unwords (s : fmap Text.pack args))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
@@ -1327,14 +1330,14 @@ inputDescription input =
     MergeIOBuiltinsI -> pure "builtins.mergeio"
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $ "run.native " <> Text.unwords (fmap Text.pack (nm : args))
-    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> Text.pack fi)
+      pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
+    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
     GenSchemeLibsI mdir ->
       pure $
         "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
     FetchSchemeCompilerI name branch ->
       pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
-    CreateAuthorI (NameSegment id) name -> pure ("create.author " <> id <> " " <> name)
+    CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
       pure ("delete.term-replacement" <> HQ.toText src <> " " <> p)
@@ -1348,7 +1351,6 @@ inputDescription input =
       pure (Text.unwords ["diff.namespace.to-patch", branchId1, branchId2, patch])
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
-    UpgradeI old new -> pure (Text.unwords ["upgrade", NameSegment.toText old, NameSegment.toText new])
     --
     ApiI -> wat
     AuthLoginI {} -> wat
@@ -1414,6 +1416,7 @@ inputDescription input =
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
+    UpgradeI {} -> wat
     VersionI -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
@@ -1434,7 +1437,7 @@ inputDescription input =
     hqs' :: Path.HQSplit' -> Cli Text
     hqs' (p0, hq) = do
       p <- if Path.isRoot' p0 then pure mempty else p' p0
-      pure (p <> "." <> HQ'.toTextWith NameSegment.toText hq)
+      pure (p <> "." <> HQ'.toTextWith NameSegment.toEscapedText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
     looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
@@ -1494,8 +1497,14 @@ handleFindI isVerbose fscope ws input = do
                 searchResultsFor names (Set.toList matches) []
 
           -- name query
-          (map HQ.unsafeFromString -> qs) -> do
-            let srs = searchBranchScored names fuzzyNameDistance qs
+          qs -> do
+            let anythingBeforeHash :: Megaparsec.Parsec (Lexer.Token Text) [Char] Text
+                anythingBeforeHash = Text.pack <$> Megaparsec.takeWhileP Nothing (/= '#')
+            let srs =
+                  searchBranchScored
+                    names
+                    Find.simpleFuzzyScore
+                    (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
         Cli.setNumberedArgs $ fmap searchResultToHQString results
@@ -1507,7 +1516,7 @@ handleFindI isVerbose fscope ws input = do
       Cli.respond FindNoLocalMatches
       -- We've already searched everything else, so now we search JUST the
       -- names in lib.
-      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ (\cs -> Map.singleton "lib" <$> Map.lookup "lib" cs)
+      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
       case mayOnlyLibBranch of
         Nothing -> respondResults []
         Just onlyLibBranch -> do
@@ -1584,7 +1593,7 @@ handleDependents hq = do
           r <- Set.toList dependents
           Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
           fullName <- [HQ'.toName hq]
-          guard (not (Name.beginsWithSegment fullName Name.libSegment))
+          guard (not (Name.beginsWithSegment fullName NameSegment.libSegment))
           Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
           pure (isTerm, HQ'.toHQ shortName, r)
     pure results
@@ -1823,14 +1832,9 @@ confirmedCommand i = do
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
 searchResultToHQString = \case
-  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
-  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n r
+  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n (Referent.Ref r)
   _ -> error "impossible match failure"
-
--- Return a list of definitions whose names fuzzy match the given queries.
-fuzzyNameDistance :: Name -> Name -> Maybe Int
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-  Find.simpleFuzzyScore q n
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
@@ -1866,8 +1870,8 @@ searchBranchScored ::
   forall score.
   (Ord score) =>
   Names ->
-  (Name -> Name -> Maybe score) ->
-  [HQ.HashQualified Name] ->
+  (Text -> Text -> Maybe score) ->
+  [HQ.HashQualified Text] ->
   [SearchResult]
 searchBranchScored names0 score queries =
   nubOrd
@@ -1877,9 +1881,9 @@ searchBranchScored names0 score queries =
   where
     searchTermNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query :: HQ.HashQualified Text -> [(Maybe score, SearchResult)]
         do1query q = mapMaybe (score1hq q) (R.toList . Names.terms $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
+        score1hq :: HQ.HashQualified Text -> (Name, Referent) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -1893,12 +1897,12 @@ searchBranchScored names0 score queries =
           where
             result = SR.termSearchResult names0 name ref
             pair qn =
-              (\score -> (Just score, result)) <$> score qn name
+              (\score -> (Just score, result)) <$> score qn (Name.toText name)
     searchTypeNamespace = queries >>= do1query
       where
-        do1query :: HQ.HashQualified Name -> [(Maybe score, SearchResult)]
+        do1query :: HQ.HashQualified Text -> [(Maybe score, SearchResult)]
         do1query q = mapMaybe (score1hq q) (R.toList . Names.types $ names0)
-        score1hq :: HQ.HashQualified Name -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
+        score1hq :: HQ.HashQualified Text -> (Name, Reference) -> Maybe (Maybe score, SearchResult)
         score1hq query (name, ref) = case query of
           HQ.NameOnly qn ->
             pair qn
@@ -1912,12 +1916,12 @@ searchBranchScored names0 score queries =
           where
             result = SR.typeSearchResult names0 name ref
             pair qn =
-              (\score -> (Just score, result)) <$> score qn name
+              (\score -> (Just score, result)) <$> score qn (Name.toText name)
 
 compilerPath :: Path.Path'
 compilerPath = Path.Path' {Path.unPath' = Left abs}
   where
-    segs = NameSegment <$> ["unison", "internal"]
+    segs = ["unison", "internal"]
     rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
     abs = Path.Absolute {Path.unabsolute = rootPath}
 
@@ -1980,20 +1984,17 @@ doGenerateSchemeBoot force mppe mdir = do
   gen ppe saveWrap cwrapf dirTm compoundWrapName
   where
     a = External
-    hq nm
-      | Just hqn <- HQ.fromString nm = hqn
-      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-    sbName = hq ".unison.internal.compiler.scheme.saveBaseFile"
-    swName = hq ".unison.internal.compiler.scheme.saveWrapperFile"
-    sdName = hq ".unison.internal.compiler.scheme.saveDataInfoFile"
-    dinfoName = hq ".unison.internal.compiler.scheme.dataInfos"
-    bootName = hq ".unison.internal.compiler.scheme.bootSpec"
-    builtinName = hq ".unison.internal.compiler.scheme.builtinSpec"
+    sbName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveBaseFile"
+    swName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveWrapperFile"
+    sdName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveDataInfoFile"
+    dinfoName = HQ.unsafeParseText ".unison.internal.compiler.scheme.dataInfos"
+    bootName = HQ.unsafeParseText ".unison.internal.compiler.scheme.bootSpec"
+    builtinName = HQ.unsafeParseText ".unison.internal.compiler.scheme.builtinSpec"
     simpleWrapName =
-      hq ".unison.internal.compiler.scheme.simpleWrapperSpec"
+      HQ.unsafeParseText ".unison.internal.compiler.scheme.simpleWrapperSpec"
     compoundWrapName =
-      hq ".unison.internal.compiler.scheme.compoundWrapperSpec"
+      HQ.unsafeParseText ".unison.internal.compiler.scheme.compoundWrapperSpec"
 
     gen ppe save file dir nm =
       liftIO (doesFileExist file) >>= \b -> when (not b || force) do
@@ -2015,10 +2016,10 @@ typecheckAndEval ppe tm = do
     Result.Result notes Nothing -> do
       currentPath <- Cli.getCurrentPath
       let tes = [err | Result.TypeError err <- toList notes]
-      Cli.returnEarly (TypeErrors currentPath (Text.pack rendered) ppe tes)
+      Cli.returnEarly (TypeErrors currentPath rendered ppe tes)
   where
     a = External
-    rendered = P.toPlainUnbroken $ TP.pretty ppe tm
+    rendered = Text.pack (P.toPlainUnbroken $ TP.pretty ppe tm)
 
 ensureSchemeExists :: Cli ()
 ensureSchemeExists =
@@ -2062,16 +2063,16 @@ runScheme file args = do
   unless success $
     Cli.returnEarly (PrintMessage "Scheme evaluation failed.")
 
-buildScheme :: String -> String -> Cli ()
+buildScheme :: Text -> String -> Cli ()
 buildScheme main file = do
   ensureSchemeExists
   statDir <- getSchemeStaticLibDir
   genDir <- getSchemeGenLibDir
   buildRacket genDir statDir main file
 
-buildRacket :: String -> String -> String -> String -> Cli ()
+buildRacket :: String -> String -> Text -> String -> Cli ()
 buildRacket genDir statDir main file =
-  let args = ["-l", "raco", "--", "exe", "-o", main, file]
+  let args = ["-l", "raco", "--", "exe", "-o", Text.unpack main, file]
       opts = racketOpts genDir statDir args
    in void . liftIO $
         catch
@@ -2095,25 +2096,25 @@ doCompile native output main = do
     )
     (Cli.returnEarly . EvaluationFailure)
 
-doRunAsScheme :: String -> [String] -> Cli ()
-doRunAsScheme main0 args = case HQ.fromString main0 of
+doRunAsScheme :: Text -> [String] -> Cli ()
+doRunAsScheme main0 args = case HQ.parseText main0 of
   Just main -> do
     fullpath <- generateSchemeFile True main0 main
     runScheme fullpath args
   Nothing -> Cli.respond $ BadName main0
 
-doCompileScheme :: String -> HQ.HashQualified Name -> Cli ()
+doCompileScheme :: Text -> HQ.HashQualified Name -> Cli ()
 doCompileScheme out main =
   generateSchemeFile True out main >>= buildScheme out
 
-generateSchemeFile :: Bool -> String -> HQ.HashQualified Name -> Cli String
+generateSchemeFile :: Bool -> Text -> HQ.HashQualified Name -> Cli String
 generateSchemeFile exec out main = do
   (comp, ppe) <- resolveMainRef main
   ensureCompilerExists
   doGenerateSchemeBoot False (Just ppe) Nothing
   cacheDir <- getCacheDir
   liftIO $ createDirectoryIfMissing True (cacheDir </> "scheme-tmp")
-  let scratch = out ++ ".scm"
+  let scratch = Text.unpack out ++ ".scm"
       fullpath = cacheDir </> "scheme-tmp" </> scratch
       output = Text.pack fullpath
   sscm <- Term.ref a <$> resolveTermRef saveNm
@@ -2128,12 +2129,9 @@ generateSchemeFile exec out main = do
   pure fullpath
   where
     a = External
-    hq nm
-      | Just hqn <- HQ.fromString nm = hqn
-      | otherwise = error $ "internal error: cannot hash qualify: " ++ nm
 
-    saveNm = hq ".unison.internal.compiler.saveScheme"
-    filePathNm = hq "FilePath.FilePath"
+    saveNm = HQ.unsafeParseText ".unison.internal.compiler.saveScheme"
+    filePathNm = HQ.unsafeParseText "FilePath.FilePath"
 
 delete ::
   Input ->
@@ -2286,7 +2284,7 @@ displayI outputLoc hq = do
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   let bias = maybeToList $ HQ.toName hq
   latestTypecheckedFile <- Cli.getLatestTypecheckedFile
-  case addWatch (HQ.toString hq) latestTypecheckedFile of
+  case addWatch (Text.unpack (HQ.toText hq)) latestTypecheckedFile of
     Nothing -> do
       let results = Names.lookupHQTerm Names.IncludeSuffixes hq names
       ref <-
@@ -2304,7 +2302,7 @@ displayI outputLoc hq = do
       let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
       (_, watches) <- evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile []
       (_, _, _, _, tm, _) <-
-        Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> HQ.toString hq)
+        Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
       doDisplay outputLoc ns tm
 
@@ -2323,7 +2321,7 @@ docsI src = do
        in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
-    dotDoc = hq <&> \n -> Name.joinDot n "doc"
+    dotDoc = hq <&> \n -> Name.joinDot n (Name.fromSegment "doc")
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do
@@ -2382,7 +2380,7 @@ parseType input src = do
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames Name.unsafeFromVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeParseVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 -- Adds a watch expression of the given name to the file, if

@@ -214,12 +214,12 @@ we get an error when attempting to delete something that is neither a type nor a
 
   This patch is empty.
 
-.> delete.type-replacement not-here
+.> delete.type-replacement notHere
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
-    not-here
+    notHere
 
 .> view.patch
 

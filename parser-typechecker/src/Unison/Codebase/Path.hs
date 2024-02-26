@@ -45,8 +45,8 @@ module Unison.Codebase.Path
     fromName,
     fromName',
     fromPath',
-    fromText,
-    fromText',
+    unsafeParseText,
+    unsafeParseText',
     toAbsoluteSplit,
     toSplit',
     toList,
@@ -54,7 +54,6 @@ module Unison.Codebase.Path
     toName',
     unsafeToName,
     unsafeToName',
-    toPath',
     toText,
     toText',
     unsplit,
@@ -65,6 +64,7 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Parse` instances
     splitFromName,
+    splitFromName',
     hqSplitFromName',
 
     -- * things that could be replaced with `Cons` instances
@@ -91,12 +91,10 @@ import GHC.Exts qualified as GHC
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
-import Unison.Syntax.Name qualified as Name (toString, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
-import Unison.Util.Monoid (intercalateMap)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path {toSeq :: Seq NameSegment}
@@ -225,12 +223,6 @@ relativeEmpty' = RelativePath' (Relative empty)
 absoluteEmpty' :: Path'
 absoluteEmpty' = AbsolutePath' (Absolute empty)
 
--- | Mitchell: this function is bogus, because an empty name segment is bogus
-toPath' :: Path -> Path'
-toPath' = \case
-  Path (NameSegment "" :<| tail) -> AbsolutePath' . Absolute . Path $ tail
-  p -> Path' . Right . Relative $ p
-
 -- Forget whether the path is absolute or relative
 fromPath' :: Path' -> Path
 fromPath' = \case
@@ -256,9 +248,19 @@ hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
 -- >>> splitFromName "foo"
 -- (,foo)
 splitFromName :: Name -> Split
-splitFromName name =
+splitFromName =
+  over _1 fromPath' . splitFromName'
+
+splitFromName' :: Name -> Split'
+splitFromName' name =
   case Name.reverseSegments name of
-    (seg :| pathSegments) -> (fromList $ reverse pathSegments, seg)
+    (seg :| pathSegments) ->
+      let path = fromList (reverse pathSegments)
+       in ( if Name.isAbsolute name
+              then AbsolutePath' (Absolute path)
+              else RelativePath' (Relative path),
+            seg
+          )
 
 -- | Remove a path prefix from a name.
 -- Returns 'Nothing' if there are no remaining segments to construct the name from.
@@ -302,19 +304,20 @@ fromName :: Name -> Path
 fromName = fromList . List.NonEmpty.toList . Name.segments
 
 fromName' :: Name -> Path'
-fromName' n = case take 1 (Name.toString n) of
-  "." -> AbsolutePath' . Absolute $ Path seq
-  _ -> RelativePath' $ Relative path
+fromName' n
+  | Name.isAbsolute n = AbsolutePath' (Absolute path)
+  | otherwise = RelativePath' (Relative path)
   where
     path = fromName n
-    seq = toSeq path
 
 unsafeToName :: Path -> Name
-unsafeToName = Name.unsafeFromText . toText
+unsafeToName =
+  fromMaybe (error "empty path") . toName
 
 -- | Convert a Path' to a Name
 unsafeToName' :: Path' -> Name
-unsafeToName' = Name.unsafeFromText . toText'
+unsafeToName' =
+  fromMaybe (error "empty path") . toName'
 
 toName :: Path -> Maybe Name
 toName = \case
@@ -347,12 +350,13 @@ instance Show Path where
 
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
-toText (Path nss) = intercalateMap "." NameSegment.toText nss
+toText =
+  maybe Text.empty Name.toText . toName
 
-fromText :: Text -> Path
-fromText = \case
+unsafeParseText :: Text -> Path
+unsafeParseText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> NameSegment.segments' t
+  text -> fromName (Name.unsafeParseText text)
 
 -- | Construct a Path' from a text
 --
@@ -364,17 +368,17 @@ fromText = \case
 --
 -- >>> show $ fromText' ""
 -- ""
-fromText' :: Text -> Path'
-fromText' txt =
-  case Text.uncons txt of
-    Nothing -> relativeEmpty'
-    Just ('.', p) -> AbsolutePath' . Absolute $ fromText p
-    Just _ -> RelativePath' . Relative $ fromText txt
+unsafeParseText' :: Text -> Path'
+unsafeParseText' = \case
+  "" -> RelativePath' (Relative mempty)
+  "." -> AbsolutePath' (Absolute mempty)
+  text -> fromName' (Name.unsafeParseText text)
 
 toText' :: Path' -> Text
-toText' = \case
-  AbsolutePath' (Absolute path) -> Text.cons '.' (toText path)
-  RelativePath' (Relative path) -> toText path
+toText' path =
+  case toName' path of
+    Nothing -> if isAbsolute path then "." else ""
+    Just name -> Name.toText name
 
 {-# COMPLETE Empty, (:<) #-}
 
@@ -523,7 +527,8 @@ instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
 
-instance Convert Name Split where convert = splitFromName
+instance Convert Name Split where
+  convert = splitFromName
 
 instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
   convert (path, name) =

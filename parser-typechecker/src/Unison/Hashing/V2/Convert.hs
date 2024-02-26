@@ -45,7 +45,7 @@ import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
 import Unison.Reference qualified as Memory.Reference
 import Unison.Referent qualified as Memory.Referent
-import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
 import Unison.Util.Map qualified as Map
@@ -230,7 +230,7 @@ hashDataDecls ::
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
-  hashingResult <- Hashing.hashDecls Name.unsafeFromVar hashingDecls
+  hashingResult <- Hashing.hashDecls Name.unsafeParseVar hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
     h2mDeclResult :: (Ord v) => (v, Hashing.ReferenceId, Hashing.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
@@ -410,4 +410,5 @@ m2hBranch0 b =
     doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
-m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.NameSegment s
+m2hNameSegment =
+  Hashing.NameSegment . Memory.NameSegment.toUnescapedText

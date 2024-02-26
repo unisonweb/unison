@@ -26,7 +26,7 @@ import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -96,7 +96,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             [ (Name.toText name, Var.name v, r)
               | (name, r) <- Rel.toList (Names.terms preexistingNames),
                 v <- Set.toList (Term.freeVars tm),
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v))
+                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v))
             ]
           possibleRefs = Referent.toReference . view _3 <$> possibleDeps
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
@@ -122,7 +122,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                 [ (Var.name v, nr)
                   | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
                     v <- Set.toList (Term.freeVars tm),
-                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
+                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v)),
                     typ <- toList $ TL.typeOfReferent tl r,
                     let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
                 ]

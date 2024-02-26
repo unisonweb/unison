@@ -1,63 +1,57 @@
-module Unison.NameSegment where
+module Unison.NameSegment
+  ( NameSegment (..),
+    toUnescapedText,
+    isPrefixOf,
+
+    -- * Sentinel name segments
+    defaultPatchSegment,
+    docSegment,
+    libSegment,
+  )
+where
 
 import Data.Text qualified as Text
-import Data.Text.Lazy.Builder qualified as Text (Builder)
-import Data.Text.Lazy.Builder qualified as Text.Builder
 import Unison.Prelude
-import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import Unison.Util.Alphabetical (Alphabetical)
 
 -- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment {toText :: Text}
+newtype NameSegment
+  = NameSegment Text
   deriving stock (Eq, Ord, Generic)
-
-instance Alphabetical NameSegment where
-  compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
-
--- Split text into segments. A smarter version of `Text.splitOn` that handles
--- the name `.` properly.
-segments' :: Text -> [Text]
-segments' n = go split
-  where
-    split = Text.splitOn "." n
-    go [] = []
-    go ("" : "" : z) = "." : go z
-    go ("" : z) = go z
-    go (x : y) = x : go y
-
--- Same as reverse . segments', but produces the output as a
--- lazy list, suitable for suffix-based ordering purposes or
--- building suffix tries. Examples:
---
---   reverseSegments' "foo.bar.baz"  => ["baz","bar","foo"]
---   reverseSegments' ".foo.bar.baz" => ["baz","bar","foo"]
---   reverseSegments' ".."           => ["."]
---   reverseSegments' "Nat.++"       => ["++","Nat"]
---   reverseSegments' "Nat.++.zoo"   => ["zoo","++","Nat"]
-reverseSegments' :: Text -> [Text]
-reverseSegments' = go
-  where
-    go "" = []
-    go t =
-      let seg0 = Text.takeWhileEnd (/= '.') t
-          seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
-          rem = Text.dropEnd (Text.length seg + 1) t
-       in seg : go rem
-
-isEmpty :: NameSegment -> Bool
-isEmpty ns = toText ns == mempty
-
-isPrefixOf :: NameSegment -> NameSegment -> Bool
-isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
-
-toString :: NameSegment -> String
-toString = Text.unpack . toText
-
-toTextBuilder :: NameSegment -> Text.Builder
-toTextBuilder =
-  coerce Text.Builder.fromText
+  deriving newtype (Alphabetical)
 
 instance IsString NameSegment where
-  fromString = NameSegment . Text.pack
+  fromString =
+    NameSegment . Text.pack
 
 instance Show NameSegment where
-  show = show . toText
+  show =
+    Text.unpack . toUnescapedText
+
+-- | Convert a name segment to unescaped text.
+--
+-- You might use this when storing a name segment as text in a database, where the literal name segment bytes are all
+-- that matter. However, you wouldn't use this to display the name segment to a user - that depends on concrete syntax.
+-- See Unison.Syntax.NameSegment (or indeed, some actual yet-built interface that abstracts concrete syntax) for that
+-- kind of function.
+--
+-- > toUnescapedText (unsafeFromText ".~") = ".~"
+toUnescapedText :: NameSegment -> Text
+toUnescapedText =
+  coerce
+
+isPrefixOf :: NameSegment -> NameSegment -> Bool
+isPrefixOf =
+  coerce Text.isPrefixOf
+
+defaultPatchSegment :: NameSegment
+defaultPatchSegment =
+  "patch"
+
+docSegment :: NameSegment
+docSegment =
+  "doc"
+
+libSegment :: NameSegment
+libSegment =
+  "lib"

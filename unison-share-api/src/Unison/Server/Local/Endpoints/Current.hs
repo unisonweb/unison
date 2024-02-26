@@ -16,9 +16,9 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Project.Util (pattern UUIDNameSegment)
+import Unison.Project.Util (pattern BranchesNameSegment, pattern ProjectsNameSegment, pattern UUIDNameSegment)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 
@@ -40,7 +40,7 @@ instance ToSample Current where
         Current
           (Just $ UnsafeProjectName "@unison/base")
           (Just $ UnsafeProjectBranchName "main")
-          (Path.Absolute $ Path.fromText ".__projects._53393e4b_1f61_467c_a488_b6068c727daa.branches._f0aec0e3_249f_4004_b836_572fea3981c1")
+          (Path.Absolute $ Path.unsafeParseText ".__projects._53393e4b_1f61_467c_a488_b6068c727daa.branches._f0aec0e3_249f_4004_b836_572fea3981c1")
       )
     ]
 
@@ -57,8 +57,7 @@ serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
-  namespace <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
-  let segments = NameSegment <$> namespace
+  segments <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
   let absolutePath = toPath segments
   case toIds segments of
     ProjectAndBranch (Just projectId) branchId ->
@@ -72,9 +71,9 @@ getCurrentProjectBranch codebase = do
     toIds :: [NameSegment] -> ProjectAndBranch (Maybe ProjectId) (Maybe ProjectBranchId)
     toIds segments =
       case segments of
-        "__projects" : UUIDNameSegment projectId : "branches" : UUIDNameSegment branchId : _ ->
+        ProjectsNameSegment : UUIDNameSegment projectId : BranchesNameSegment : UUIDNameSegment branchId : _ ->
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Just $ ProjectBranchId branchId}
-        "__projects" : UUIDNameSegment projectId : _ ->
+        ProjectsNameSegment : UUIDNameSegment projectId : _ ->
           ProjectAndBranch {project = Just $ ProjectId projectId, branch = Nothing}
         _ ->
           ProjectAndBranch {project = Nothing, branch = Nothing}

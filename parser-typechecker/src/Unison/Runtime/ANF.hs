@@ -101,7 +101,7 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
-import Unison.Prelude hiding (Text)
+import Unison.Prelude
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
@@ -621,11 +621,11 @@ saturate dat = ABT.visitPure $ \case
         fvs = foldMap freeVars args
         args' = saturate dat <$> args
 
-addDefaultCases :: (Var v) => (Monoid a) => String -> Term v a -> Term v a
+addDefaultCases :: (Var v) => (Monoid a) => Text -> Term v a -> Term v a
 addDefaultCases = ABT.visitPure . defaultCaseVisitor
 
 defaultCaseVisitor ::
-  (Var v) => (Monoid a) => String -> Term v a -> Maybe (Term v a)
+  (Var v) => (Monoid a) => Text -> Term v a -> Maybe (Term v a)
 defaultCaseVisitor func m@(Match' scrut cases)
   | scrut <- addDefaultCases func scrut,
     cases <- fmap (addDefaultCases func) <$> cases =
@@ -634,7 +634,7 @@ defaultCaseVisitor func m@(Match' scrut cases)
     a = ABT.annotation m
     v = Var.freshIn mempty $ typed Var.Blank
     txt = "pattern match failure in function `" <> func <> "`"
-    msg = text a $ Data.Text.pack txt
+    msg = text a txt
     bu = ref a (Builtin "bug")
     dflt =
       MatchCase (P.Var a) Nothing

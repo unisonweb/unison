@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -91,7 +90,6 @@ import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.HashQualified
 import Unison.Name as Name (Name, segments)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -111,6 +109,7 @@ import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
 import Unison.Server.Types (mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
+import Unison.Syntax.NameSegment qualified as NameSegment
 
 -- HTML content type
 data HTML = HTML
@@ -256,7 +255,7 @@ urlFor service baseUrl =
     namespacePath path =
       if path == Path.empty
         then []
-        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toText <$> Path.toList path)
+        else [DontEscape "namespaces"] <> (EscapeMe . NameSegment.toEscapedText <$> Path.toList path)
 
     definitionPath :: Maybe DefinitionReference -> Maybe [URISegment]
     definitionPath def =
@@ -274,11 +273,11 @@ urlFor service baseUrl =
     refToUrlText r =
       case r of
         NameOnly n ->
-          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
+          n & Name.segments & fmap (EscapeMe . NameSegment.toEscapedText) & toList
         HashOnly h ->
           [EscapeMe $ ShortHash.toText h]
         HashQualified n _ ->
-          n & Name.segments & fmap (EscapeMe . NameSegment.toText) & toList
+          n & Name.segments & fmap (EscapeMe . NameSegment.toEscapedText) & toList
 
     toDefinitionPath :: DefinitionReference -> [URISegment]
     toDefinitionPath d =

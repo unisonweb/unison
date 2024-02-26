@@ -120,6 +120,7 @@ import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
@@ -151,7 +152,7 @@ withoutLib Branch0 {..} =
         _children
           & imapMaybe
             ( \nameSegment child ->
-                if nameSegment == Name.libSegment
+                if nameSegment == NameSegment.libSegment
                   then Nothing
                   else Just (child & head_ %~ withoutLib)
             )
@@ -165,7 +166,7 @@ withoutTransitiveLibs Branch0 {..} =
         _children
           & imapMaybe
             ( \nameSegment child ->
-                if nameSegment == Name.libSegment
+                if nameSegment == NameSegment.libSegment
                   then Just (child & head_ %~ withoutLib)
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
@@ -348,7 +349,7 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
           pure
             if isShallowDependency || isUnseenNamespace
               then
-                let libDepth' = if ns == "lib" then libDepth + 1 else libDepth
+                let libDepth' = if ns == NameSegment.libSegment then libDepth + 1 else libDepth
                  in Seq.singleton (ns : reversePrefix, libDepth', head b)
               else Seq.empty
         State.modify' (Set.insert h)

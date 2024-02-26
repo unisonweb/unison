@@ -80,13 +80,13 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
     ifor (typesToSyntax suffixifyBindings width pped types) \ref tp -> do
       let hqTypeName = PPE.typeNameOrHashOnly fqnPPE ref
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTypeName))
-      mkTypeDefinition codebase pped namesRoot shallowRoot width ref docs tp
+      mkTypeDefinition codebase pped width ref docs tp
   termDefinitions <-
     ifor (termsToSyntax suffixifyBindings width pped terms) \reference trm -> do
       let referent = Referent.Ref reference
       let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTermName))
-      mkTermDefinition codebase pped namesRoot shallowRoot width reference docs trm
+      mkTermDefinition codebase pped width reference docs trm
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
       renderedMisses = fmap HQ.toText misses

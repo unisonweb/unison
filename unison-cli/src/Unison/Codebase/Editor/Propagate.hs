@@ -39,6 +39,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -612,7 +613,7 @@ applyPropagate patch Edits {termReplacements, typeReplacements, constructorRepla
     stepEverywhereButLib f branch =
       let children =
             Map.mapWithKey
-              (\name child -> if name == "lib" then child else Branch.step (Branch.stepEverywhere f) child)
+              (\name child -> if name == NameSegment.libSegment then child else Branch.step (Branch.stepEverywhere f) child)
               (branch ^. Branch.children)
        in f (Branch.branch0 (branch ^. Branch.terms) (branch ^. Branch.types) children (branch ^. Branch.edits))
     isPropagated r = Set.notMember r allPatchTargets
@@ -707,4 +708,4 @@ computeDirty getDependents patch shouldUpdate =
 
 nameNotInLibNamespace :: Name -> Bool
 nameNotInLibNamespace name =
-  not (Name.beginsWithSegment name "lib")
+  not (Name.beginsWithSegment name NameSegment.libSegment)

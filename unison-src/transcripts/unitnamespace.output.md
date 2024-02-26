@@ -16,17 +16,17 @@ foo = "bar"
 
 ```
 ```ucm
-.> cd ()
+.> cd `()`
 
-  ☝️  The namespace .() is empty.
+  ☝️  The namespace .`()` is empty.
 
-.()> add
+.`()`> add
 
   ⍟ I've added these definitions:
   
     foo : ##Text
 
-.> delete.namespace ()
+.> delete.namespace `()`
 
   Done.
 
