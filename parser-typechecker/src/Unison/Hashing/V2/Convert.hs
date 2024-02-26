@@ -50,7 +50,7 @@ import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star3 qualified as Memory.Star3
+import Unison.Util.Star2 qualified as Memory.Star2
 import Unison.Var (Var)
 
 typeToReference :: (Var v) => Memory.Type.Type v a -> Memory.Reference.Reference
@@ -374,13 +374,12 @@ m2hBranch0 b =
     doTerms s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
             let m2 =
                   Map.fromList
                     [ (fst (Writer.runWriter (m2hReferent r)), md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md = Hashing.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                        let md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
                     ]
         ]
 
@@ -390,14 +389,13 @@ m2hBranch0 b =
     doTypes s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
             let m2 =
                   Map.fromList
                     [ (m2hReference r, md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md :: Hashing.MdValues
-                            md = Hashing.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                        let md :: Hashing.MdValues
+                            md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
                     ]
         ]
 

@@ -60,7 +60,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
@@ -596,8 +596,8 @@ applyDeprecations patch =
       deleteDeprecatedTypes ::
         Set Reference -> Branch0 m -> Branch0 m
     deleteDeprecatedTerms rs =
-      over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
-    deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
+      over Branch.terms (Star2.deleteFact (Set.map Referent.Ref rs))
+    deleteDeprecatedTypes rs = over Branch.types (Star2.deleteFact rs)
 
 -- | Things in the patch are not marked as propagated changes, but every other
 -- definition that is created by the `Edits` which is passed in is marked as
@@ -617,8 +617,8 @@ applyPropagate patch Edits {termReplacements, typeReplacements, constructorRepla
        in f (Branch.branch0 (branch ^. Branch.terms) (branch ^. Branch.types) children (branch ^. Branch.edits))
     isPropagated r = Set.notMember r allPatchTargets
     allPatchTargets = Patch.allReferenceTargets patch
-    propagatedMd :: forall r. r -> (r, Metadata.Type, Metadata.Value)
-    propagatedMd r = (r, (), IOSource.isPropagatedValue)
+    propagatedMd :: forall r. r -> (r, Metadata.Value)
+    propagatedMd r = (r, IOSource.isPropagatedValue)
 
     updateLevel ::
       Map Referent Referent ->
@@ -632,25 +632,25 @@ applyPropagate patch Edits {termReplacements, typeReplacements, constructorRepla
         isPropagatedReferent (Referent.Ref r) = isPropagated r
 
         terms0 :: Metadata.Star Referent NameSegment
-        terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+        terms0 = Star2.replaceFacts replaceConstructor constructorReplacements _terms
         terms :: Branch.Star Referent NameSegment
         terms =
           updateMetadatas $
-            Star3.replaceFacts replaceTerm termEdits terms0
+            Star2.replaceFacts replaceTerm termEdits terms0
         types :: Branch.Star Reference NameSegment
         types =
           updateMetadatas $
-            Star3.replaceFacts replaceType typeEdits _types
+            Star2.replaceFacts replaceType typeEdits _types
 
         updateMetadatas ::
           (Ord r) =>
-          Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
-          Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
-        updateMetadatas s = Star3.mapD3 go s
+          Metadata.Star r NameSegment ->
+          Metadata.Star r NameSegment
+        updateMetadatas s = Star2.mapD2 go s
           where
-            go (tp, v) = case Map.lookup (Referent.Ref v) termEdits of
-              Just (Referent.Ref r) -> ((), r)
-              _ -> (tp, v)
+            go v = case Map.lookup (Referent.Ref v) termEdits of
+              Just (Referent.Ref r) -> r
+              _ -> v
 
         replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
         replaceTerm _r r' s =

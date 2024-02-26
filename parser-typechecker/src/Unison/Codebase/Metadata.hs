@@ -1,39 +1,24 @@
 module Unison.Codebase.Metadata
   ( Star,
-    Type,
     Value,
     insert,
     delete,
   )
 where
 
-import Data.Map qualified as Map
-import Unison.Prelude
 import Unison.Reference (TermReference)
-import Unison.Util.List qualified as List
-import Unison.Util.Relation qualified as R
-import Unison.Util.Star3 (Star3)
-import Unison.Util.Star3 qualified as Star3
-
-type Type = () -- dummy value, intermediate phase of removing metadata altogether
+import Unison.Util.Star2 (Star2)
+import Unison.Util.Star2 qualified as Star2
 
 type Value = TermReference
 
 -- `a` is generally the type of references or hashes
 -- `n` is generally the the type of name associated with the references
--- `Type` is the type of metadata. Duplicate info to speed up certain queries.
--- `(Type, Value)` is the metadata value itself along with its type.
-type Star a n = Star3 a n Type (Type, Value)
+-- `Value` is the metadata value itself.
+type Star a n = Star2 a n Value
 
-insert :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
-insert (a, ty, v) = Star3.insertD23 (a, ty, (ty, v))
+insert :: (Ord a, Ord n) => (a, Value) -> Star a n -> Star a n
+insert (a, v) = Star2.insertD2 (a, v)
 
-delete :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
-delete (a, ty, v) s =
-  let s' = Star3.deleteD3 (a, (ty, v)) s
-      -- if (ty,v) is the last metadata of type ty
-      -- we also delete (a, ty) from the d2 index
-      metadataByType = List.multimap (toList (R.lookupDom a (Star3.d3 s)))
-   in case Map.lookup ty metadataByType of
-        Just vs | all (== v) vs -> Star3.deleteD2 (a, ty) s'
-        _ -> s'
+delete :: (Ord a, Ord n) => (a, Value) -> Star a n -> Star a n
+delete (a, v) s = Star2.deleteD2 (a, v) s

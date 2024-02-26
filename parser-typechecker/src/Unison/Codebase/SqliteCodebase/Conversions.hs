@@ -51,7 +51,7 @@ import Unison.Term qualified as V1.Term
 import Unison.Type qualified as V1.Type
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star3 qualified as V1.Star3
+import Unison.Util.Star2 qualified as V1.Star2
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as V1.WK
 
@@ -435,14 +435,12 @@ causalbranch1to2 (V1.Branch.Branch c) =
         doTerms s =
           Map.fromList
             [ (ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star3.d1 s,
+              | ns <- toList . Relation.ran $ V1.Star2.d1 s,
                 let m2 =
                       Map.fromList
                         [ (referent1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
-                            -- throwing away the metadata type reference here as we are trying to phase out metadata completely
-                            let mdrefs1to2 (_typeR1, valR1) = reference1to2 valR1
-                                md = V2.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ V1.Star3.d3 s
+                          | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
+                            let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
                         ]
             ]
 
@@ -450,14 +448,12 @@ causalbranch1to2 (V1.Branch.Branch c) =
         doTypes s =
           Map.fromList
             [ (ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star3.d1 s,
+              | ns <- toList . Relation.ran $ V1.Star2.d1 s,
                 let m2 =
                       Map.fromList
                         [ (reference1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
-                            -- throwing away the metadata type reference here as we are trying to phase out metadata completely
-                            let mdrefs1to2 (_typeR1, valR1) = reference1to2 valR1
-                                md = V2.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ V1.Star3.d3 s
+                          | r <- toList . Relation.lookupRan ns $ V1.Star2.d1 s,
+                            let md = V2.Branch.MdValues . Set.map reference1to2 . Relation.lookupDom r $ V1.Star2.d2 s
                         ]
             ]
 
@@ -531,11 +527,9 @@ branch2to1 branchCache lookupCT (V2.Branch.Branch v2terms v2types v2patches v2ch
         insert' name star (ref, V2.Branch.MdValues mdvals) =
           let facts = Set.singleton ref
               names = Relation.singleton ref name
-              types :: Relation.Relation ref V1.Metadata.Type =
-                Relation.insertManyRan ref (fmap (const ()) (Set.toList mdvals)) mempty
-              vals :: Relation.Relation ref (V1.Metadata.Type, V1.Metadata.Value) =
-                Relation.insertManyRan ref (fmap (\v -> ((), mdref2to1 v)) (Set.toList mdvals)) mempty
-           in star <> V1.Star3.Star3 facts names types vals
+              vals :: Relation.Relation ref V1.Metadata.Value =
+                Relation.insertManyRan ref (map mdref2to1 (Set.toList mdvals)) mempty
+           in star <> V1.Star2.Star2 facts names vals
 
 -- | Generates a v1 short hash from a v2 referent.
 -- Also shortens the hash to the provided length. If 'Nothing', it will include the full
