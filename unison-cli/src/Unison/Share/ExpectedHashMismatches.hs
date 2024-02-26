@@ -1,11 +1,4 @@
-module Unison.Share.ExpectedHashMismatches (expectedComponentHashMismatches) where
-
-import Data.Map qualified as Map
-import U.Util.Base32Hex qualified as Base32Hex
-import Unison.Hash32 (Hash32 (..))
-import Unison.Prelude
-
--- | Unfortunately, due to bugs in previous versions of UCM there are some components whose
+-- | Unfortunately, due to bugs in previous versions of UCM there are some entities whose
 -- hashes are not what they should be, but have propagated widely into end-user's codebases.
 -- This is a map from the nominal hash to the actual hash of the component of components which
 -- are known to have widely available incorrect hashes.
@@ -15,6 +8,13 @@ import Unison.Prelude
 --
 -- While we certainly don't want to make this a common occurence, it's safe as long as we
 -- are specific about both the provided and actual hashes.
+module Unison.Share.ExpectedHashMismatches (expectedComponentHashMismatches, expectedCausalHashMismatches) where
+
+import Data.Map qualified as Map
+import U.Util.Base32Hex qualified as Base32Hex
+import Unison.Hash32 (Hash32 (..))
+import Unison.Prelude
+
 expectedComponentHashMismatches :: Map Hash32 Hash32
 expectedComponentHashMismatches =
   Map.fromList . map (\(nominalComponentHash, actualComponentHash) -> (UnsafeFromBase32Hex . Base32Hex.UnsafeFromText $ nominalComponentHash, UnsafeFromBase32Hex . Base32Hex.UnsafeFromText $ actualComponentHash)) $
@@ -677,4 +677,11 @@ expectedComponentHashMismatches =
       ("hfaj3bm5lrun3giv843hc8der1r4obars3af4lk86gj6jf02g1i6spmm9ghgsn6kjj2r9ulfj2pp1fckvpk12mi3574t5eki3ushuio", "uu5glnuklimsmtnlo75i4otvqkib5pfo7oabf61hrbneob419u5jnvg2b834ihiom39pstpi75gafnh5jjg4qhn4itajvcp4mp5uhho"),
       ("r4cj1g20i1ehhhb023o64mt2b4ffaqavqrj40jjueug5tkiq67e8kmb57a2kebmcghtrikd7sapcdkqv01vj8eki21ih1mne6hpbe0g", "vsbb3e5ml2f9i818rc7t4cfj3jj1u887c5snkuh749t5odn2f3ob2qr886mnv0jd6gtqggfupk4lsfh90fgecjuf6755r69nencf7i8"),
       ("vcvo26v7u8ifpv32t9srculth7efb3sdiuicdkrsr564bkqt0k0ibv73foo11dcr6lpomfpcortvththnffkh5rnnpi62jq04vpgc8o", "2h42daj99t2ies7kdq6ldhmkrcrhcntcjq503q9trsisr9g34lgk5gj6gdn7mglpgb7nlnp7971shr0763gvg5opmjr4lca7am8nj58")
+    ]
+
+expectedCausalHashMismatches :: Map Hash32 Hash32
+expectedCausalHashMismatches =
+  Map.fromList . map (\(nominalComponentHash, actualComponentHash) -> (UnsafeFromBase32Hex . Base32Hex.UnsafeFromText $ nominalComponentHash, UnsafeFromBase32Hex . Base32Hex.UnsafeFromText $ actualComponentHash)) $
+    [ ("2ka6lc5suqjp1j323hsqe0bbvg7pnk5bo3d7e5ek22uvpsivormtoj45fh70s2f9odl7d3bvaa5802pd7aai0kid0iit8218752fij8", "8nn80pp45l23i6hnko8uqushhggp32rrh2euf66dtrpqkesa7647sosgoj8ol8rand93sl1a3recdlm9rih9lcm8mmk6f1qm1iulbbo"),
+      ("c311hak51uqhs9ouu7tu9ukjj5qfk1pfismucnq3njjkbbaf8im2bq79cn9ofe04l6j5bjcinuliulcqroav3mk2gvggobs2tj1juno", "1rr75t1svnp0likhj027ccolau8l56hnmk4lupt3lm4f5upajsfefbr53so8ldhi0uhsqh8mnjtkqs3d3bqfqk5nlgfkp1v6md2s87o")
     ]
