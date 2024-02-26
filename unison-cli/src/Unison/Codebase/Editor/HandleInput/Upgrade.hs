@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
   )
 where
 
-import Control.Lens (ix, over, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
@@ -59,8 +59,8 @@ import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
-handleUpgrade oldDepName newDepName = do
-  when (oldDepName == newDepName) do
+handleUpgrade oldName newName = do
+  when (oldName == newName) do
     Cli.returnEarlyWithoutOutput
 
   Cli.Env {codebase, writeSource} <- ask
@@ -68,21 +68,29 @@ handleUpgrade oldDepName newDepName = do
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
   let projectId = projectAndBranch ^. #project . #projectId
   let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId (projectAndBranch ^. #branch . #branchId))
-  let oldDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, oldDepName]))
-  let newDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newDepName]))
+  let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, oldName]))
+  let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newName]))
 
-  currentV1Branch <- Cli.getBranch0At projectPath
-  let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
-  oldDep <- Cli.expectBranch0AtPath' oldDepPath
-  let oldDepWithoutDeps = deleteLibdeps oldDep
-  let oldTransitiveDeps = fromMaybe Branch.empty0 $ fmap Branch.head $ Map.lookup Name.libSegment (oldDep ^. Branch.children)
+  currentNamespace <- Cli.getBranch0At projectPath
+  let currentNamespaceSansOld = Branch.deleteLibdep oldName currentNamespace
+  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld
+  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld
+  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps currentNamespace)
+  let currentLocalConstructorNames = forwardCtorNames currentLocalNames
+  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld
 
-  newDep <- Cli.expectBranch0AtPath' newDepPath
-  let newDepWithoutDeps = deleteLibdeps newDep
+  oldNamespace <- Cli.expectBranch0AtPath' oldPath
+  let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
+  let oldLocalTerms = Branch.deepTerms oldLocalNamespace
+  let oldLocalTypes = Branch.deepTypes oldLocalNamespace
+  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup Name.libSegment (oldNamespace ^. Branch.children))
+  let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
+  let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 
-  let namesExcludingLibdeps = Branch.toNames (deleteLibdeps currentV1Branch)
-  let constructorNamesExcludingLibdeps = forwardCtorNames namesExcludingLibdeps
-  let namesExcludingOldDep = Branch.toNames currentV1BranchWithoutOldDep
+  newNamespace <- Cli.expectBranch0AtPath' newPath
+  let newLocalNamespace = Branch.deleteLibdeps newNamespace
+  let newLocalTerms = Branch.deepTerms newLocalNamespace
+  let newLocalTypes = Branch.deepTypes newLocalNamespace
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -111,75 +119,46 @@ handleUpgrade oldDepName newDepName = do
   --
   --     mything#mything2 = #newfoo + 10
 
-  let filterUnchangedTerms :: Relation Referent Name -> Set TermReference
-      filterUnchangedTerms oldTerms =
-        let phi ref oldNames = case Referent.toTermReference ref of
-              Nothing -> Set.empty
-              Just termRef ->
-                let newNames = Relation.lookupDom ref newTerms
-                 in case newNames `Set.disjoint` oldNames of
-                      True -> Set.singleton termRef
-                      False -> Set.empty
-         in Map.foldMapWithKey phi $
-              Relation.domain oldTerms
-        where
-          newTerms = Branch.deepTerms newDepWithoutDeps
-
-  let filterUnchangedTypes :: Relation TypeReference Name -> Set TypeReference
-      filterUnchangedTypes oldTypes =
-        let phi typeRef oldNames =
-              let newNames = Relation.lookupDom typeRef newTypes
-               in case newNames `Set.disjoint` oldNames of
-                    True -> Set.singleton typeRef
-                    False -> Set.empty
-         in Map.foldMapWithKey phi $
-              Relation.domain oldTypes
-        where
-          newTypes = Branch.deepTypes newDepWithoutDeps
-
-  let filterTransitiveTerms :: Relation Referent Name -> Set TermReference
-      filterTransitiveTerms oldTerms =
-        Relation.dom oldTerms
-          & Set.mapMaybe \referent -> do
-            ref <- Referent.toTermReference referent
-            guard (not $ Relation.memberDom referent (Branch.deepTerms currentV1BranchWithoutOldDep))
-            pure ref
-
-  let filterTransitiveTypes :: Relation TypeReference Name -> Set TypeReference
-      filterTransitiveTypes oldTypes =
-        Relation.dom oldTypes
-          & Set.filter \typ -> not (Relation.memberDom typ (Branch.deepTypes currentV1BranchWithoutOldDep))
-
   (unisonFile, printPPE) <-
     Cli.runTransactionWithRollback \abort -> do
       dependents <-
         getNamespaceDependentsOf
-          namesExcludingLibdeps
-          ( filterUnchangedTerms (Branch.deepTerms oldDepWithoutDeps)
-              <> filterUnchangedTypes (Branch.deepTypes oldDepWithoutDeps)
-              <> filterTransitiveTerms (Branch.deepTerms oldTransitiveDeps)
-              <> filterTransitiveTypes (Branch.deepTypes oldTransitiveDeps)
+          currentLocalNames
+          ( Set.unions
+              [ keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms,
+                keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes,
+                keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld,
+                keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld
+              ]
           )
       unisonFile <- do
         addDefinitionsToUnisonFile
           abort
           codebase
-          (findCtorNames Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps)
+          (findCtorNames Output.UOUUpgrade currentLocalNames currentLocalConstructorNames)
           dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
       pure
         ( unisonFile,
-          makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps
-            `PPED.addFallback` makeComplicatedPPE hashLength namesExcludingOldDep mempty dependents
+          makeOldDepPPE
+            oldName
+            newName
+            currentDeepNamesSansOld
+            oldNamespace
+            oldLocalTerms
+            oldLocalTypes
+            newLocalTerms
+            newLocalTypes
+            `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
         )
 
-  parsingEnv <- makeParsingEnv projectPath namesExcludingOldDep
+  parsingEnv <- makeParsingEnv projectPath currentDeepNamesSansOld
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
       -- Small race condition: since picking a branch name and creating the branch happen in different
       -- transactions, creating could fail.
-      temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName projectId oldDepName newDepName)
+      temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName projectId oldName newName)
       temporaryBranchId <-
         HandleInput.Branch.doCreateBranch
           (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
@@ -187,13 +166,13 @@ handleUpgrade oldDepName newDepName = do
           temporaryBranchName
           textualDescriptionOfUpgrade
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
-      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentV1BranchWithoutOldDep)
+      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentNamespaceSansOld)
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure scratchFilePath oldDepName newDepName)
+      Cli.respond (Output.UpgradeFailure scratchFilePath oldName newName)
       Cli.returnEarlyWithoutOutput
 
   branchUpdates <-
@@ -201,64 +180,116 @@ handleUpgrade oldDepName newDepName = do
       Codebase.addDefsToCodebase codebase typecheckedUnisonFile
       typecheckedUnisonFileToBranchUpdates
         abort
-        (findCtorNamesMaybe Output.UOUUpgrade namesExcludingLibdeps constructorNamesExcludingLibdeps Nothing)
+        (findCtorNamesMaybe Output.UOUUpgrade currentLocalNames currentLocalConstructorNames Nothing)
         typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade
     ( Path.unabsolute projectPath,
-      deleteLibdep oldDepName . Branch.batchUpdates branchUpdates
+      Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
     )
-  Cli.respond (Output.UpgradeSuccess oldDepName newDepName)
+  Cli.respond (Output.UpgradeSuccess oldName newName)
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
-      Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
+      Text.unwords ["upgrade", NameSegment.toText oldName, NameSegment.toText newName]
+
+-- Keep only the old terms that aren't "in" new, where "in" is defined as follows:
+--
+--   * Consider some term in old, #foo, with set of names { "bar", "baz" }.
+--
+--   * We say this term is "in" new if the names associated with #foo include at least "bar" or "baz" (that is, there is
+--   a non-empty intersection of sets of names).
+--
+-- Here are a couple common cases:
+--
+--   1. A term #foo isn't touched between old and new versions, i.e. it has the same set of names in both. This function
+--      would not return such a term.
+--
+--   2. A term #old => { "foo" } exists in old, but not in new, because it's been updated to #new => { "foo" }. This
+--      function would return #old.
+keepOldLocalTermsNotInNew :: Relation Referent Name -> Relation Referent Name -> Set TermReference
+keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms =
+  Map.foldMapWithKey phi (Relation.domain oldLocalTerms)
+  where
+    phi :: Referent -> Set Name -> Set TermReference
+    phi referent oldNames =
+      case Referent.toTermReference referent of
+        Nothing -> Set.empty
+        Just ref ->
+          let newNames = Relation.lookupDom referent newLocalTerms
+           in case newNames `Set.disjoint` oldNames of
+                True -> Set.singleton ref
+                False -> Set.empty
+
+keepOldLocalTypesNotInNew :: Relation TypeReference Name -> Relation TypeReference Name -> Set TypeReference
+keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes =
+  Map.foldMapWithKey phi (Relation.domain oldLocalTypes)
+  where
+    phi :: TypeReference -> Set Name -> Set TypeReference
+    phi typeRef oldNames =
+      let newNames = Relation.lookupDom typeRef newLocalTypes
+       in case newNames `Set.disjoint` oldNames of
+            True -> Set.singleton typeRef
+            False -> Set.empty
+
+keepOldDeepTermsStillInUse :: Relation Referent Name -> Relation Referent Name -> Set TermReference
+keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld =
+  Relation.dom oldDeepMinusLocalTerms & Set.mapMaybe \referent -> do
+    ref <- Referent.toTermReference referent
+    guard (not (Relation.memberDom referent currentDeepTermsSansOld))
+    pure ref
+
+keepOldDeepTypesStillInUse :: Relation TypeReference Name -> Relation TypeReference Name -> Set TypeReference
+keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld =
+  Relation.dom oldDeepMinusLocalTypes
+    & Set.filter \typ -> not (Relation.memberDom typ currentDeepTypesSansOld)
 
 makeOldDepPPE ::
   NameSegment ->
   NameSegment ->
   Names ->
   Branch0 m ->
-  Branch0 m ->
-  Branch0 m ->
+  Relation Referent Name ->
+  Relation TypeReference Name ->
+  Relation Referent Name ->
+  Relation TypeReference Name ->
   PrettyPrintEnvDecl
-makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDeps newDepWithoutDeps =
+makeOldDepPPE oldName newName currentDeepNamesSansOld oldNamespace oldLocalTerms oldLocalTypes newLocalTerms newLocalTypes =
   let makePPE suffixifier =
-        PPE.PrettyPrintEnv
-          ( \ref ->
-              let oldDirectNames = Relation.lookupDom ref (Branch.deepTerms oldDepWithoutDeps)
-                  newDirectRefsForOldDirectNames =
-                    Relation.range (Branch.deepTerms newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
-               in case ( Set.null oldDirectNames,
-                         Map.null newDirectRefsForOldDirectNames,
-                         Set.member ref (Branch.deepReferents oldDep),
-                         Relation.memberRan ref (Names.terms namesExcludingOldDep)
-                       ) of
-                    (False, False, _, _) -> PPE.makeTermNames fakeNames suffixifier ref
-                    (_, _, True, False) -> PPE.makeTermNames prefixedOldNames PPE.dontSuffixify ref
-                    _ -> []
-          )
-          ( \ref ->
-              let oldDirectNames = Relation.lookupDom ref (Branch.deepTypes oldDepWithoutDeps)
-                  newDirectRefsForOldDirectNames =
-                    Relation.range (Branch.deepTypes newDepWithoutDeps) `Map.restrictKeys` oldDirectNames
-               in case ( Set.null oldDirectNames,
-                         Map.null newDirectRefsForOldDirectNames,
-                         Set.member ref (Branch.deepTypeReferences oldDep),
-                         Relation.memberRan ref (Names.types namesExcludingOldDep)
-                       ) of
-                    (False, False, _, _) -> PPE.makeTypeNames fakeNames suffixifier ref
-                    (_, _, True, False) -> PPE.makeTypeNames prefixedOldNames PPE.dontSuffixify ref
-                    _ -> []
-          )
+        PPE.PrettyPrintEnv termToNames typeToNames
+        where
+          termToNames ref =
+            case ( Set.null oldDirectNames,
+                   Map.null newDirectRefsForOldDirectNames,
+                   Set.member ref (Branch.deepReferents oldNamespace),
+                   Relation.memberRan ref (Names.terms currentDeepNamesSansOld)
+                 ) of
+              (False, False, _, _) -> PPE.makeTermNames fakeNames suffixifier ref
+              (_, _, True, False) -> PPE.makeTermNames prefixedOldNames PPE.dontSuffixify ref
+              _ -> []
+            where
+              oldDirectNames = Relation.lookupDom ref oldLocalTerms
+              newDirectRefsForOldDirectNames = Relation.range newLocalTerms `Map.restrictKeys` oldDirectNames
+          typeToNames ref =
+            case ( Set.null oldDirectNames,
+                   Map.null newDirectRefsForOldDirectNames,
+                   Set.member ref (Branch.deepTypeReferences oldNamespace),
+                   Relation.memberRan ref (Names.types currentDeepNamesSansOld)
+                 ) of
+              (False, False, _, _) -> PPE.makeTypeNames fakeNames suffixifier ref
+              (_, _, True, False) -> PPE.makeTypeNames prefixedOldNames PPE.dontSuffixify ref
+              _ -> []
+            where
+              oldDirectNames = Relation.lookupDom ref oldLocalTypes
+              newDirectRefsForOldDirectNames = Relation.range newLocalTypes `Map.restrictKeys` oldDirectNames
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixifyByHash namesExcludingOldDep)
+          suffixifiedPPE = makePPE (PPE.suffixifyByHash currentDeepNamesSansOld)
         }
   where
-    oldNames = Branch.toNames oldDep
-    prefixedOldNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames)
-    fakeNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment])) oldNames)
+    oldDepNames = Branch.toNames oldNamespace
+    prefixedOldNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldName :| [Name.libSegment])) oldDepNames)
+    fakeNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newName :| [Name.libSegment])) oldDepNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
@@ -288,11 +319,3 @@ findTemporaryBranchName projectId oldDepName newDepName = do
                 <> NameSegment.toText newDepName
 
   pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
-
-deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
-deleteLibdep dep =
-  over (Branch.children . ix Name.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
-
-deleteLibdeps :: Branch0 m -> Branch0 m
-deleteLibdeps =
-  over Branch.children (Map.delete Name.libSegment)
