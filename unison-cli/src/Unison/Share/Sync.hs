@@ -61,7 +61,7 @@ import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
-import Unison.Share.ExpectedHashMismatches (expectedComponentHashMismatches)
+import Unison.Share.ExpectedHashMismatches (expectedCausalHashMismatches, expectedComponentHashMismatches)
 import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.API qualified as Share (API)
@@ -470,12 +470,17 @@ validateEntities entities =
       let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
       case EV.validateEntity hash entityWithHashes of
         Nothing -> pure ()
-        Just err@(Share.EntityHashMismatch _et (Share.HashMismatchForEntity {supplied, computed})) ->
-          case Map.lookup supplied expectedComponentHashMismatches of
-            Just expected
-              | expected == computed -> pure ()
-            _ -> do
-              Left err
+        Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
+          let expectedMismatches = case et of
+                Share.TermComponentType -> expectedComponentHashMismatches
+                Share.DeclComponentType -> expectedComponentHashMismatches
+                Share.CausalType -> expectedCausalHashMismatches
+                _ -> mempty
+           in case Map.lookup supplied expectedMismatches of
+                Just expected
+                  | expected == computed -> pure ()
+                _ -> do
+                  Left err
         Just err -> do
           Left err
 
