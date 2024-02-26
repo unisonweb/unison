@@ -200,7 +200,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -1107,9 +1107,9 @@ loop e = do
                     Branch0 terms0 types0 children0 patches0 _ _ _ _ _ ->
                       let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
                           ignoreMetadata s r =
-                            (r, R.lookupDom r $ Star3.d1 s)
-                          terms = Map.fromList . map (ignoreMetadata terms0) . Foldable.toList $ Star3.fact terms0
-                          types = Map.fromList . map (ignoreMetadata types0) . Foldable.toList $ Star3.fact types0
+                            (r, R.lookupDom r $ Star2.d1 s)
+                          terms = Map.fromList . map (ignoreMetadata terms0) . Foldable.toList $ Star2.fact terms0
+                          types = Map.fromList . map (ignoreMetadata types0) . Foldable.toList $ Star2.fact types0
                           patches = fmap fst patches0
                           children = fmap Branch.headHash children0
                        in do

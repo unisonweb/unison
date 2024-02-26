@@ -33,7 +33,7 @@ import Unison.Hashing.V2.Convert qualified as H
 import Unison.Prelude hiding (empty)
 import Unison.Util.Map (unionWithM)
 import Unison.Util.Relation qualified as R
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 import Prelude hiding (head, read, subtract)
 
 data MergeMode = RegularMerge | SquashMerge deriving (Eq, Ord, Show)
@@ -91,8 +91,8 @@ merge'' lca mode (Branch x) (Branch y) =
              in (PatchHash (H.hashPatch p), pure p)
       pure $
         branch0
-          (Star3.difference (_terms b0) removedTerms <> addedTerms)
-          (Star3.difference (_types b0) removedTypes <> addedTypes)
+          (Star2.difference (_terms b0) removedTerms <> addedTerms)
+          (Star2.difference (_types b0) removedTypes <> addedTypes)
           (_children b0)
           (patches <> newPatches)
     patchMerge mhp Patch.PatchDiff {..} = Just $ do
