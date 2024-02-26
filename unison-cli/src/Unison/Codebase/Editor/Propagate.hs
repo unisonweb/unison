@@ -603,10 +603,9 @@ applyDeprecations patch =
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate :: forall m. (Applicative m) => Patch -> Edits Symbol -> Branch0 m -> Branch0 m
-applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constructorReplacements} = do
-  let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
+applyPropagate patch Edits {termReplacements, typeReplacements, constructorReplacements} = do
   -- recursively update names and delete deprecated definitions
-  stepEverywhereButLib (updateLevel termReplacements typeReplacements termTypes)
+  stepEverywhereButLib (updateLevel termReplacements typeReplacements)
   where
     -- Like Branch.stepEverywhere, but don't step the child named "lib"
     stepEverywhereButLib :: (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
@@ -619,15 +618,14 @@ applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constr
     isPropagated r = Set.notMember r allPatchTargets
     allPatchTargets = Patch.allReferenceTargets patch
     propagatedMd :: forall r. r -> (r, Metadata.Type, Metadata.Value)
-    propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
+    propagatedMd r = (r, (), IOSource.isPropagatedValue)
 
     updateLevel ::
       Map Referent Referent ->
       Map Reference Reference ->
-      Map Reference Reference ->
       Branch0 m ->
       Branch0 m
-    updateLevel termEdits typeEdits termTypes Branch0 {..} =
+    updateLevel termEdits typeEdits Branch0 {..} =
       Branch.branch0 terms types _children _edits
       where
         isPropagatedReferent (Referent.Con _ _) = True
@@ -651,9 +649,8 @@ applyPropagate patch Edits {newTerms, termReplacements, typeReplacements, constr
         updateMetadatas s = Star3.mapD3 go s
           where
             go (tp, v) = case Map.lookup (Referent.Ref v) termEdits of
-              Just (Referent.Ref r) -> (typeOf r tp, r)
+              Just (Referent.Ref r) -> ((), r)
               _ -> (tp, v)
-            typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
         replaceTerm :: Referent -> Referent -> Metadata.Star Referent NameSegment -> Metadata.Star Referent NameSegment
         replaceTerm _r r' s =

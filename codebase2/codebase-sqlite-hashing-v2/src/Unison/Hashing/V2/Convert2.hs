@@ -117,7 +117,6 @@ v2ToH2Branch V2.Branch {terms, types, patches, children} = do
 v2ToH2MdValues :: V2Branch.MdValues -> H2.MdValues
 v2ToH2MdValues (V2Branch.MdValues mdMap) =
   mdMap
-    & Map.keysSet
     & Set.map v2ToH2Reference
     & H2.MdValues
 
