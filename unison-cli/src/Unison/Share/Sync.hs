@@ -75,7 +75,7 @@ import Unison.Util.Monoid (foldMapM)
 
 -- | The maximum number of downloader threads, during a pull.
 maxSimultaneousPullDownloaders :: Int
-maxSimultaneousPullDownloaders = 1
+maxSimultaneousPullDownloaders = 5
 
 -- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
 -- Share currently parallelizes on it's own in the backend, and any more than one push worker
