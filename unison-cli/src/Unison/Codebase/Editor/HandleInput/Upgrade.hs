@@ -149,8 +149,7 @@ handleUpgrade oldName newName = do
             currentDeepNamesSansOld
             (Branch.toNames oldNamespace)
             (Branch.toNames oldLocalNamespace)
-            newLocalTerms
-            newLocalTypes
+            (Branch.toNames newLocalNamespace)
             `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
         )
 
@@ -251,10 +250,9 @@ makeOldDepPPE ::
   Names ->
   Names ->
   Names ->
-  Relation Referent Name ->
-  Relation TypeReference Name ->
+  Names ->
   PrettyPrintEnvDecl
-makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames newLocalTerms newLocalTypes =
+makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames newLocalNames =
   let makePPE suffixifier =
         PPE.PrettyPrintEnv termToNames typeToNames
         where
@@ -265,9 +263,9 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
             | onlyInOldNamespace = PPE.makeTermNames fullOldDeepNames PPE.dontSuffixify ref
             | otherwise = []
             where
-              inNewNamespace = Relation.memberRan ref (Names.terms oldLocalNames)
+              inNewNamespace = Relation.memberRan ref (Names.terms newLocalNames)
               hasNewLocalTermsForOldLocalNames =
-                not (Map.null (Relation.range newLocalTerms `Map.restrictKeys` theOldLocalNames))
+                not (Map.null (Relation.domain (Names.terms newLocalNames) `Map.restrictKeys` theOldLocalNames))
               theOldLocalNames = Relation.lookupRan ref (Names.terms oldLocalNames)
               onlyInOldNamespace = inOldNamespace && not inCurrentNamespaceSansOld
               inOldNamespace = Relation.memberRan ref (Names.terms oldDeepNames)
@@ -279,9 +277,9 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
             | onlyInOldNamespace = PPE.makeTypeNames fullOldDeepNames PPE.dontSuffixify ref
             | otherwise = []
             where
-              inNewNamespace = Relation.memberRan ref (Names.types oldLocalNames)
+              inNewNamespace = Relation.memberRan ref (Names.types newLocalNames)
               hasNewLocalTypesForOldLocalNames =
-                not (Map.null (Relation.range newLocalTypes `Map.restrictKeys` theOldLocalNames))
+                not (Map.null (Relation.domain (Names.types newLocalNames) `Map.restrictKeys` theOldLocalNames))
               theOldLocalNames = Relation.lookupRan ref (Names.types oldLocalNames)
               onlyInOldNamespace = inOldNamespace && not inCurrentNamespaceSansOld
               inOldNamespace = Relation.memberRan ref (Names.types oldDeepNames)
