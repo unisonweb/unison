@@ -13,7 +13,7 @@ usage() {
     echo "NOTE: must be run from the root of the project."
     echo "Usage: $0 VERSION [TARGET]"
     echo "VERSION: The version you're releasing, e.g. M4a"
-    echo "TARGET: The revision to make the release from, defaults to 'trunk'"
+    echo "TARGET: The revision to make the release from, defaults to 'origin/trunk'"
     echo ""
     echo "E.g."
     echo "$0 M4a"
@@ -39,15 +39,15 @@ fi
 
 version="${1}"
 prev_version=$("${script_dir}/previous-tag.sh" "$version")
-target=${2:-trunk}
+target=${2:-origin/trunk}
 tag="release/${version}"
 
 echo "Creating release in unison-local-ui..."
 gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes --notes-start-tag "release/${prev_version}"
 
 echo "Kicking off release workflow in unisonweb/unison"
-# Make sure our local trunk is up to date, since that's usually what gets tagged.
-git fetch origin trunk:trunk
+# Make sure our origin/trunk ref is up to date, since that's usually what gets tagged.
+git fetch origin trunk
 git tag "${tag}" "${target}"
 git push origin "${tag}"
 gh workflow run release --repo unisonweb/unison --field "version=${version}"
