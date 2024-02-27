@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (view, (%=), (.=), (^.))
+import Control.Lens (view, (%=), (%~), (.=), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -93,7 +93,8 @@ import Unison.Util.Nametree
     Nametree (..),
     bimapDefns,
     flattenNametree,
-    traverseNametreeWithName, zipDefns,
+    traverseNametreeWithName,
+    zipDefns,
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -162,7 +163,7 @@ makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
       (unconflictedRel conflictInfo)
       UnisonFile.emptyUnisonFile
 
-  let updatedTermsAndDecls = bimapDefns Map.keysSet Map.keysSet (view #unconflictedUpdates conflictInfo)
+  let updatedTermsAndDecls = bimapDefns Map.keysSet Map.keysSet (unconflictedUpdates $ view #unconflictedPartitionedDefns conflictInfo)
   dependents <-
     getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed updatedTermsAndDecls lcaNamesExcludingLibdeps)
   unisonFile <- do
@@ -293,7 +294,7 @@ getConflictInfo
               diffWithContext =
                 let Merge.TwoWay alice bob = diffs
                     zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
-                in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
+                 in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
            in Defns
                 { terms = partitionDiff (view #terms <$> diffWithContext),
                   types = partitionDiff (view #types <$> diffWithContext)
@@ -301,8 +302,8 @@ getConflictInfo
     -- TODO is swapping constructors' names handled correctly here?
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
-    let PartitionedDefns {unconflictedAdds, unconflictedUpdates, conflicted, deletedNames} = partitionConflicts classifiedDiff
-    let conflictState = case Map.null (view #terms conflicted) && Map.null (view #types conflicted) of
+    let PartitionedDefns {unconflictedPartitionedDefns, conflicts} = partitionConflicts classifiedDiff
+    let conflictState = case Map.null (view #terms conflicts) && Map.null (view #types conflicts) of
           True ->
             Unconflicted
               UnconflictedInfo
@@ -311,7 +312,7 @@ getConflictInfo
           False ->
             Conflicted
               ConflictedInfo
-                { conflictedDefns = conflicted,
+                { conflictedDefns = conflicts,
                   aliceDeclNames,
                   bobDeclNames
                 }
@@ -321,18 +322,14 @@ getConflictInfo
       ConflictInfo
         { lcaDefns,
           mergedLibdeps,
-          unconflictedAdds,
-          unconflictedUpdates,
-          deletedNames,
+          unconflictedPartitionedDefns,
           conflictState
         }
 
 data ConflictInfo = ConflictInfo
   { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     mergedLibdeps :: V1.Branch Transaction,
-    unconflictedAdds :: Defns (Map Name Referent) (Map Name TypeReference),
-    unconflictedUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    deletedNames :: Defns (Set Name) (Set Name),
+    unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
     conflictState :: ConflictState
   }
   deriving stock (Generic)
@@ -352,71 +349,132 @@ data UnconflictedInfo = UnconflictedInfo
   }
   deriving stock (Generic)
 
-data PartitionedDefns = PartitionedDefns
-  { unconflictedAdds :: Defns (Map Name Referent) (Map Name TypeReference),
-    unconflictedUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    conflicted :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
-    deletedNames :: Defns (Set Name) (Set Name)
+data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
+  { aliceAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    aliceUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    aliceDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
+
+unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedAdditions UnconflictedPartitionedDefns { aliceAdditions, bobAdditions, bothAdditions } =
+  aliceAdditions <> bobAdditions <> bothAdditions
+
+unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedUpdates UnconflictedPartitionedDefns { aliceUpdates, bobUpdates, bothUpdates } =
+  aliceUpdates <> bobUpdates <> bothUpdates
+
+unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedDeletions UnconflictedPartitionedDefns { aliceDeletions, bobDeletions, bothDeletions } =
+  aliceDeletions <> bobDeletions <> bothDeletions
+
+data PartitionedDefns = PartitionedDefns
+  { unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
+    conflicts :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference))
+  }
+
+data PartitionState v = PartitionState
+  { aliceAdditions :: !(Map Name v),
+    bobAdditions :: !(Map Name v),
+    bothAdditions :: !(Map Name v),
+    aliceUpdates :: !(Map Name v),
+    bobUpdates :: !(Map Name v),
+    bothUpdates :: !(Map Name v),
+    aliceDeletions :: !(Map Name v),
+    bobDeletions :: !(Map Name v),
+    bothDeletions :: !(Map Name v),
+    conflicts :: !(Map Name (v, v))
+  }
+  deriving stock (Generic)
+
+emptyPartitionState :: PartitionState v
+emptyPartitionState =
+  PartitionState
+    { aliceAdditions = Map.empty,
+      bobAdditions = Map.empty,
+      bothAdditions = Map.empty,
+      aliceUpdates = Map.empty,
+      bobUpdates = Map.empty,
+      bothUpdates = Map.empty,
+      aliceDeletions = Map.empty,
+      bobDeletions = Map.empty,
+      bothDeletions = Map.empty,
+      conflicts = Map.empty
+    }
 
 partitionConflicts ::
   -- | Classified names
   Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
   PartitionedDefns
 partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
-  let (conflictedTerms, addedTerms, updatedTerms, deletedTerms) =
+  let termSt =
         Map.foldlWithKey
           phi
-          (Map.empty, Map.empty, Map.empty, Set.empty)
+          emptyPartitionState
           classifiedTermNames
-      (conflictedTypes, addedTypes, updatedTypes, deletedTypes) =
+      typeSt =
         Map.foldlWithKey
           phi
-          (Map.empty, Map.empty, Map.empty, Set.empty)
+          emptyPartitionState
           classifiedTypeNames
 
-      phi = \(conflicted, added, updated, deleted) k v -> case v of
-          Conflict a b ->
-            let !conflicted' = Map.insert k (a, b) conflicted
-             in (conflicted', added, updated, deleted)
-          Addition a ->
-            let !added' = Map.insert k a added
-             in (conflicted, added', updated, deleted)
-          Update a ->
-            let !updated' = Map.insert k a updated
-             in (conflicted, added, updated', deleted)
-          DoubleDeletion _ ->
-            let !deleted' = Set.insert k deleted
-             in (conflicted, added, updated, deleted')
-          AliceDeletion _ ->
-            let !deleted' = Set.insert k deleted
-             in (conflicted, added, updated, deleted')
-          BobDeletion _ ->
-            let !deleted' = Set.insert k deleted
-             in (conflicted, added, updated, deleted')
+      phi :: forall v. PartitionState v -> Name -> TwoDiffsOp v -> PartitionState v
+      phi = \st k v -> case v of
+        Conflict a b -> st & #conflicts %~ Map.insert k (a, b)
+        Addition actor a ->
+          let l = case actor of
+                Alice -> #aliceAdditions
+                Bob -> #bobAdditions
+                Both -> #bothAdditions
+           in st & l %~ Map.insert k a
+        Update actor a ->
+          let l = case actor of
+                Alice -> #aliceUpdates
+                Bob -> #bobUpdates
+                Both -> #bothUpdates
+           in st & l %~ Map.insert k a
+        Deletion actor a ->
+          let l = case actor of
+                Alice -> #aliceDeletions
+                Bob -> #bobDeletions
+                Both -> #bothDeletions
+           in st & l %~ Map.insert k a
    in PartitionedDefns
-        { conflicted = Defns conflictedTerms conflictedTypes,
-          unconflictedAdds = Defns addedTerms addedTypes,
-          unconflictedUpdates = Defns updatedTerms updatedTypes,
-          deletedNames = Defns deletedTerms deletedTypes
+        { unconflictedPartitionedDefns =
+            UnconflictedPartitionedDefns
+              { aliceAdditions = Defns (view #aliceAdditions termSt) (view #aliceAdditions typeSt),
+                bobAdditions = Defns (view #bobAdditions termSt) (view #bobAdditions typeSt),
+                bothAdditions = Defns (view #bothAdditions termSt) (view #bothAdditions typeSt),
+                aliceUpdates = Defns (view #aliceUpdates termSt) (view #aliceUpdates typeSt),
+                bobUpdates = Defns (view #bobUpdates termSt) (view #bobUpdates typeSt),
+                bothUpdates = Defns (view #bothUpdates termSt) (view #bothUpdates typeSt),
+                aliceDeletions = Defns (view #aliceDeletions termSt) (view #aliceDeletions typeSt),
+                bobDeletions = Defns (view #bobDeletions termSt) (view #bobDeletions typeSt),
+                bothDeletions = Defns (view #bothDeletions termSt) (view #bothDeletions typeSt)
+              },
+          conflicts = Defns (view #conflicts termSt) (view #conflicts typeSt)
         }
 
 loadLcaNamesExcludingLibdepsAndDeletions :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadLcaNamesExcludingLibdepsAndDeletions db ConflictInfo {lcaDefns = Defns {terms, types}, deletedNames} = do
-  let deletedTerms = foldMap (\k -> Map.singleton k ()) $ view #terms deletedNames
-  let deletedTypes = foldMap (\k -> Map.singleton k ()) $ view #types deletedNames
+loadLcaNamesExcludingLibdepsAndDeletions db ConflictInfo {lcaDefns = Defns {terms, types}, unconflictedPartitionedDefns} = do
+  let Defns deletedTerms deletedTypes = unconflictedDeletions unconflictedPartitionedDefns
   terms <- traverse (referent2to1 db) (BiMultimap.range terms Map.\\ deletedTerms)
   pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types Map.\\ deletedTypes)}
 
 loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedAdds, unconflictedUpdates} = do
-  let Defns {terms, types} = unconflictedAdds <> unconflictedUpdates
+loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedPartitionedDefns} = do
+  let Defns {terms, types} = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
   terms <- traverse (referent2to1 db) terms
   pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap types}
 
 unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-unconflictedRel ConflictInfo {unconflictedAdds, unconflictedUpdates} =
-  let Defns {terms, types} = unconflictedAdds <> unconflictedUpdates
+unconflictedRel ConflictInfo {unconflictedPartitionedDefns} =
+  let Defns {terms, types} = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
       termRefIds = flip mapMaybe terms \case
         Referent.Ref r -> case r of
           ReferenceBuiltin _ -> Nothing -- todo
@@ -913,11 +971,14 @@ getTwoFreshNames names name0 =
 
 data TwoDiffsOp v
   = Conflict v v
-  | Addition v
-  | Update v
-  | AliceDeletion v
-  | BobDeletion v
-  | DoubleDeletion v
+  | Addition Actor v
+  | Update Actor v
+  | Deletion Actor v
+
+data Actor
+  = Alice
+  | Bob
+  | Both
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Conflicts
@@ -926,26 +987,26 @@ data TwoDiffsOp v
 -- their LCA.
 partitionDiff :: forall v hash. Eq hash => Merge.TwoWay (Map Name (v, Merge.DiffOp hash)) -> Map Name (TwoDiffsOp v)
 partitionDiff (Merge.TwoWay aliceDiff bobDiff) =
-  alignWith f aliceDiff bobDiff
+  alignWith (f Alice Bob) aliceDiff bobDiff
   where
-    diffOpToTag :: forall x. (v -> TwoDiffsOp v) -> (v, Merge.DiffOp x) -> TwoDiffsOp v
-    diffOpToTag singleDeletion (a, diffop) = case diffop of
-      Merge.Added _ -> Addition a
-      Merge.Updated _ _ -> Update a
-      Merge.Deleted _ -> singleDeletion a
-    f :: These (v, Merge.DiffOp hash) (v, Merge.DiffOp hash) -> TwoDiffsOp v
-    f = \case
-      These (a, Merge.Added x) (b, Merge.Added y) -> if x /= y then Conflict a b else Addition a
+    diffOpToTag :: forall x. Actor -> (v, Merge.DiffOp x) -> TwoDiffsOp v
+    diffOpToTag actor (a, diffop) = case diffop of
+      Merge.Added _ -> Addition actor a
+      Merge.Updated _ _ -> Update actor a
+      Merge.Deleted _ -> Deletion actor a
+    f :: Actor -> Actor -> These (v, Merge.DiffOp hash) (v, Merge.DiffOp hash) -> TwoDiffsOp v
+    f this that = \case
+      These (a, Merge.Added x) (b, Merge.Added y) -> if x /= y then Conflict a b else Addition Both a
       These (_, Merge.Added _) (_, Merge.Updated _ _) -> error "impossible"
       These (_, Merge.Added _) (_, Merge.Deleted _) -> error "impossible"
-      These (a, Merge.Updated _ x) (b, Merge.Updated _ y) -> if x /= y then Conflict a b else Update a
+      These (a, Merge.Updated _ x) (b, Merge.Updated _ y) -> if x /= y then Conflict a b else Update Both a
       -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-      These (a, Merge.Updated _ _) (_, Merge.Deleted _) -> Update a
+      These (a, Merge.Updated _ _) (_, Merge.Deleted _) -> Update this a
       These (_, Merge.Updated {}) (_, Merge.Added {}) -> error "impossible"
-      These (a, Merge.Deleted _) (_, Merge.Deleted _) -> DoubleDeletion a
-      These a@(_, Merge.Deleted _) b -> f (These b a)
-      This x -> diffOpToTag AliceDeletion x
-      That x -> diffOpToTag BobDeletion x
+      These (a, Merge.Deleted _) (_, Merge.Deleted _) -> Deletion Both a
+      These a@(_, Merge.Deleted _) b -> f that this (These b a)
+      This x -> diffOpToTag this x
+      That x -> diffOpToTag that x
 
 -- `convertLibdepsToV1Causal db parents libdeps` loads `libdeps` as a V1 branch (without history), and then turns it
 -- into a V1 causal using `parents` as history.
