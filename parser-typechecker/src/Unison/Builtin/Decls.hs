@@ -48,6 +48,7 @@ eitherRef = lookupDeclRef "Either"
 
 testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
 failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
+cryptoFailureRef :: Reference
 exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
 isPropagatedRef = lookupDeclRef "IsPropagated"
@@ -73,6 +74,8 @@ ioFailureRef = lookupDeclRef "io2.IOFailure"
 tlsFailureRef = lookupDeclRef "io2.TlsFailure"
 
 arrayFailureRef = lookupDeclRef "io2.ArrayFailure"
+
+cryptoFailureRef = lookupDeclRef "crypto.CryptoFailure"
 
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
@@ -267,6 +270,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.MiscFailure", miscFailure),
           (v "io2.STMFailure", stmFailure),
           (v "io2.ThreadKilledFailure", threadKilledFailure),
+          (v "crypto.CryptoFailure", cryptoFailure),
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteSignature", rewriteType),
           (v "RewriteCase", rewriteCase),
@@ -504,6 +508,13 @@ builtinDataDecls = rs1 ++ rs
     threadKilledFailure =
       DataDeclaration
         (Unique "e7e479ebb757edcd5acff958b00aa228ac75b0c53638d44cf9d62fca045c33cf")
+        ()
+        []
+        []
+
+    cryptoFailure =
+      DataDeclaration
+        (Unique "09132bf0cc3f07db75be127d141da91fdd545adcff88866268dfd428e9879742")
         ()
         []
         []
