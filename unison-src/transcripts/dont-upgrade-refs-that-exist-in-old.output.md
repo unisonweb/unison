@@ -43,6 +43,6 @@ foo/main> view mything
   mything : Nat
   mything =
     use Nat +
-    foo + foo
+    other + other
 
 ```

@@ -258,10 +258,12 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
         where
           termToNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           termToNames ref
+            | inNewNamespace = []
             | hasNewLocalTermsForOldLocalNames = PPE.makeTermNames fakeLocalNames suffixifier ref
             | onlyInOldNamespace = PPE.makeTermNames fullOldDeepNames PPE.dontSuffixify ref
             | otherwise = []
             where
+              inNewNamespace = Relation.memberRan ref (Names.terms oldLocalNames)
               hasNewLocalTermsForOldLocalNames =
                 not (Map.null (Relation.range newLocalTerms `Map.restrictKeys` theOldLocalNames))
               theOldLocalNames = Relation.lookupRan ref (Names.terms oldLocalNames)
@@ -270,10 +272,12 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
               inCurrentNamespaceSansOld = Relation.memberRan ref (Names.terms currentDeepNamesSansOld)
           typeToNames :: TypeReference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           typeToNames ref
+            | inNewNamespace = []
             | hasNewLocalTypesForOldLocalNames = PPE.makeTypeNames fakeLocalNames suffixifier ref
             | onlyInOldNamespace = PPE.makeTypeNames fullOldDeepNames PPE.dontSuffixify ref
             | otherwise = []
             where
+              inNewNamespace = Relation.memberRan ref (Names.types oldLocalNames)
               hasNewLocalTypesForOldLocalNames =
                 not (Map.null (Relation.range newLocalTypes `Map.restrictKeys` theOldLocalNames))
               theOldLocalNames = Relation.lookupRan ref (Names.types oldLocalNames)
