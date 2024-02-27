@@ -25,6 +25,10 @@ Similarly, `save-always: true` only if a key hit means there will be nothing new
 
 Backup restore keys: "Is there a prior run that would be worth starting out from? With the caveat that any irrelevant garbage it includes will be saved into this run too."
 
+### Composite Actions
+
+Needs to have `shell:` specified on every `run:`
+
 ### Reference
 
 Default Environment Variables:
