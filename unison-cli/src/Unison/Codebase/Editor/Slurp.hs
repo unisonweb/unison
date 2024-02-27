@@ -23,7 +23,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Map qualified as Map
@@ -159,7 +159,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
         & filter (\(typeV, _) -> Set.member (TypeVar typeV) involvedVars)
         & concatMap (\(_typeV, (_refId, decl)) -> DD.constructors' decl)
         & fmap
-          ( \(_ann, v, _typ) -> Name.unsafeFromVar v
+          ( \(_ann, v, _typ) -> Name.unsafeParseVar v
           )
         & Set.fromList
 
@@ -170,7 +170,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
             let effectNames = Map.keys (UF.effectDeclarationsId' uf)
             typeName <- declNames <> effectNames
             when (not . null $ involvedVars) (guard (TypeVar typeName `Set.member` involvedVars))
-            pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeFromVar typeName)
+            pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeParseVar typeName)
           existingConstructorsFromEditedTypes = Set.fromList $ do
             -- List Monad
             ref <- Set.toList oldRefsForEditedTypes
@@ -194,8 +194,8 @@ computeSelfStatuses vars varReferences codebaseNames =
             Just r -> r
             Nothing -> error $ "Expected LabeledDependency in map for var: " <> show tv
           v = untagged tv
-          existingTypesAtName = Names.typesNamed codebaseNames (Name.unsafeFromVar v)
-          existingTermsOrCtorsAtName = Names.termsNamed codebaseNames (Name.unsafeFromVar v)
+          existingTypesAtName = Names.typesNamed codebaseNames (Name.unsafeParseVar v)
+          existingTermsOrCtorsAtName = Names.termsNamed codebaseNames (Name.unsafeParseVar v)
        in case ld of
             LD.TypeReference _typeRef ->
               case Set.toList existingTypesAtName of

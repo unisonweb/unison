@@ -45,6 +45,7 @@ import Unison.Prelude
 import Unison.Project.Util (ProjectContext (..))
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as Relation
@@ -104,10 +105,10 @@ namespaceOptions _codebase _projCtx searchBranch0 = do
 projectDependencyOptions :: OptionFetcher
 projectDependencyOptions _codebase _projCtx searchBranch0 = do
   searchBranch0
-    & Branch.getAt0 (Path.singleton Name.libSegment)
+    & Branch.getAt0 (Path.singleton NameSegment.libSegment)
     & Branch.nonEmptyChildren
     & Map.keys
-    & fmap NameSegment.toText
+    & fmap NameSegment.toEscapedText
     & pure
 
 -- | Select a namespace from the given branch.

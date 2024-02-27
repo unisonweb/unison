@@ -34,7 +34,7 @@ verifyDeclFormatHash (ComponentHash hash) (DeclFormat.Decl (DeclFormat.LocallyIn
     & Map.toList
     & fmap (\(_refId, (v, decl, ())) -> (v, either H2.toDataDecl id $ H2.v2ToH2Decl decl))
     & Map.fromList
-    & H2.hashDecls Name.unsafeFromVar
+    & H2.hashDecls Name.unsafeParseVar
     & \case
       Left _err -> Just HH.DeclHashResolutionFailure
       Right m ->

@@ -51,12 +51,14 @@ import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
+import qualified Data.Char as Char
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldDepName newDepName = do
@@ -68,14 +70,14 @@ handleUpgrade oldDepName newDepName = do
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
   let projectId = projectAndBranch ^. #project . #projectId
   let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId (projectAndBranch ^. #branch . #branchId))
-  let oldDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, oldDepName]))
-  let newDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newDepName]))
+  let oldDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, oldDepName]))
+  let newDepPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, newDepName]))
 
   currentV1Branch <- Cli.getBranch0At projectPath
   let currentV1BranchWithoutOldDep = deleteLibdep oldDepName currentV1Branch
   oldDep <- Cli.expectBranch0AtPath' oldDepPath
   let oldDepWithoutDeps = deleteLibdeps oldDep
-  let oldTransitiveDeps = fromMaybe Branch.empty0 $ fmap Branch.head $ Map.lookup Name.libSegment (oldDep ^. Branch.children)
+  let oldTransitiveDeps = fromMaybe Branch.empty0 $ fmap Branch.head $ Map.lookup NameSegment.libSegment (oldDep ^. Branch.children)
 
   newDep <- Cli.expectBranch0AtPath' newDepPath
   let newDepWithoutDeps = deleteLibdeps newDep
@@ -212,7 +214,7 @@ handleUpgrade oldDepName newDepName = do
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
-      Text.unwords ["upgrade", NameSegment.toText oldDepName, NameSegment.toText newDepName]
+      Text.unwords ["upgrade", NameSegment.toEscapedText oldDepName, NameSegment.toEscapedText newDepName]
 
 makeOldDepPPE ::
   NameSegment ->
@@ -257,8 +259,8 @@ makeOldDepPPE oldDepName newDepName namesExcludingOldDep oldDep oldDepWithoutDep
         }
   where
     oldNames = Branch.toNames oldDep
-    prefixedOldNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [Name.libSegment])) oldNames)
-    fakeNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newDepName :| [Name.libSegment])) oldNames)
+    prefixedOldNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldDepName :| [NameSegment.libSegment])) oldNames)
+    fakeNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newDepName :| [NameSegment.libSegment])) oldNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
@@ -281,18 +283,19 @@ findTemporaryBranchName projectId oldDepName newDepName = do
         where
           preferred :: ProjectBranchName
           preferred =
+            -- filter isAlpha just to make it more likely this is a valid project name :sweat-smile:
             unsafeFrom @Text $
               "upgrade-"
-                <> NameSegment.toText oldDepName
+                <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
                 <> "-to-"
-                <> NameSegment.toText newDepName
+                <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
 
   pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
 
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
-  over (Branch.children . ix Name.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
+  over (Branch.children . ix NameSegment.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
 
 deleteLibdeps :: Branch0 m -> Branch0 m
 deleteLibdeps =
-  over Branch.children (Map.delete Name.libSegment)
+  over Branch.children (Map.delete NameSegment.libSegment)

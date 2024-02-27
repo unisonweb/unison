@@ -35,6 +35,7 @@ import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty.MegaParsec qualified as P
 
@@ -378,7 +379,7 @@ absolutePath = do
 
 nameSegment :: P NameSegment
 nameSegment =
-  NameSegment . Text.pack
+  NameSegment.unsafeParseText . Text.pack
     <$> ( (:)
             <$> P.satisfy Unison.Syntax.Lexer.wordyIdStartChar
             <*> P.many (P.satisfy Unison.Syntax.Lexer.wordyIdChar)

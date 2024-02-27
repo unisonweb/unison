@@ -154,13 +154,13 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction Text PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      String
+      Text
       -- ^ what we were trying to do (e.g. "run", "io.test")
-      String
+      Text
       -- ^ name of function
       (Type Symbol Ann)
       -- ^ bad type of function
@@ -306,7 +306,7 @@ data Output
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
-  | BadName String
+  | BadName Text
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)

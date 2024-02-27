@@ -109,7 +109,7 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (toString)
+import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
@@ -529,7 +529,7 @@ intermediateTerms ppe ctx rtms =
             . splitPatterns (dspec ctx)
             . addDefaultCases tmName
           where
-            tmName = HQ.toString . termName ppe $ RF.Ref ref
+            tmName = HQ.toText . termName ppe $ RF.Ref ref
   where
     orig =
       Map.fromList
@@ -597,7 +597,7 @@ intermediateTerm ppe ctx tm =
   case normalizeTerm ctx tm of
     (ref, frem, cmbs, dcmp) -> (ref, frem, fmap f cmbs, dcmp)
       where
-        tmName = HQ.toString . termName ppe $ RF.Ref ref
+        tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
           superNormalize
             . splitPatterns (dspec ctx)

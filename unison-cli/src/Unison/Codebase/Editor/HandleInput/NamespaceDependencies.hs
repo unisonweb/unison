@@ -22,7 +22,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
-import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
@@ -97,4 +97,4 @@ namespaceDependencies codebase branch = do
 
   pure onlyExternalDeps
   where
-    branchWithoutLibdeps = branch & over Branch.children (Map.delete Name.libSegment)
+    branchWithoutLibdeps = branch & over Branch.children (Map.delete NameSegment.libSegment)

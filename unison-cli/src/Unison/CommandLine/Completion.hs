@@ -27,6 +27,7 @@ import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
@@ -37,6 +38,7 @@ import Network.URI qualified as URI
 import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
+import Text.Megaparsec qualified as P
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Reference qualified as Reference
@@ -45,11 +47,12 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualified' qualified as HQ'
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
@@ -57,6 +60,8 @@ import Unison.Server.Types qualified as Server
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Types qualified as Share
 import Unison.Sqlite qualified as Sqlite
+import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
 import UnliftIO qualified
@@ -144,7 +149,12 @@ completeWithinNamespace compTypes query currentPath = do
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
-      & fmap (\(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> NameSegment.NameSegment match))
+      & fmap
+        ( \(ty, isFinished, match) ->
+            ( isFinished,
+              Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> NameSegment match)))
+            )
+        )
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
       & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
       & pure
@@ -156,42 +166,55 @@ completeWithinNamespace compTypes query currentPath = do
   pure . nubOrdOn Haskeline.replacement . List.sortOn Haskeline.replacement $ allSuggestions
   where
     queryPathPrefix :: Path.Path'
-    querySuffix :: NameSegment.NameSegment
+    querySuffix :: Text
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
     absQueryPath :: Path.Absolute
     absQueryPath = Path.resolve currentPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
-    getChildSuggestions shortHashLen b = do
-      nonEmptyChildren <- V2Branch.nonEmptyChildren b
-      case querySuffix of
-        "" -> pure []
-        suffix -> do
-          case Map.lookup suffix nonEmptyChildren of
-            Nothing -> pure []
-            Just childCausal -> do
-              childBranch <- V2Causal.value childCausal
-              nib <- namesInBranch shortHashLen childBranch
-              nib
-                & fmap
-                  ( \(isFinished, match) -> (isFinished, Text.unpack . Path.toText' $ queryPathPrefix Lens.:> suffix Lens.:> NameSegment.NameSegment match)
-                  )
-                & filter (\(_isFinished, match) -> List.isPrefixOf query match)
-                & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
-                & pure
-    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(Bool, Text)]
+    getChildSuggestions shortHashLen b
+      | Text.null querySuffix = pure []
+      | otherwise =
+          case NameSegment.parseText querySuffix of
+            Left _ -> pure []
+            Right suffix -> do
+              nonEmptyChildren <- V2Branch.nonEmptyChildren b
+              case Map.lookup suffix nonEmptyChildren of
+                Nothing -> pure []
+                Just childCausal -> do
+                  childBranch <- V2Causal.value childCausal
+                  nib <- namesInBranch shortHashLen childBranch
+                  nib
+                    & fmap
+                      ( \(ty, isFinished, match) ->
+                          ( isFinished,
+                            Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> suffix Lens.:> NameSegment match)))
+                          )
+                      )
+                    & filter (\(_isFinished, match) -> List.isPrefixOf query match)
+                    & fmap (\(isFinished, match) -> prettyCompletionWithQueryPrefix isFinished query match)
+                    & pure
+    namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(CompletionType, Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
       let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
           textifyHQ f xs =
             xs
               & hashQualifyCompletions f
-              & fmap (HQ'.toTextWith NameSegment.toText)
+              & fmap (HQ'.toTextWith NameSegment.toEscapedText)
               & fmap (True,)
       pure $
-        ((False,) <$> dotifyNamespaces (fmap NameSegment.toText . Map.keys $ nonEmptyChildren))
-          <> Monoid.whenM (NESet.member TermCompletion compTypes) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)
-          <> Monoid.whenM (NESet.member TypeCompletion compTypes) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)
-          <> Monoid.whenM (NESet.member PatchCompletion compTypes) (fmap ((True,) . NameSegment.toText) . Map.keys $ V2Branch.patches b)
+        concat
+          [ (NamespaceCompletion,False,) <$> (fmap NameSegment.toEscapedText . Map.keys $ nonEmptyChildren),
+            Monoid.whenM
+              (NESet.member TermCompletion compTypes)
+              (map (\(x, y) -> (TermCompletion, x, y)) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)),
+            Monoid.whenM
+              (NESet.member TypeCompletion compTypes)
+              (map (\(x, y) -> (TypeCompletion, x, y)) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)),
+            Monoid.whenM
+              (NESet.member PatchCompletion compTypes)
+              (fmap ((PatchCompletion,True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
+          ]
 
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
@@ -205,16 +228,14 @@ completeWithinNamespace compTypes query currentPath = do
         -- completions.
         qualifyRefs :: NameSegment -> Map r metadata -> [HQ'.HashQualified NameSegment]
         qualifyRefs n refs
-          | ((Text.isInfixOf "#" . NameSegment.toText) querySuffix) || length refs > 1 = refs & Map.keys <&> qualify n
+          | Text.isInfixOf "#" querySuffix || length refs > 1 = refs & Map.keys <&> qualify n
           | otherwise = [HQ'.NameOnly n]
 
     -- If we're not completing namespaces, then all namespace completions should automatically
     -- drill-down by adding a trailing '.'
-    dotifyNamespaces :: [Text] -> [Text]
-    dotifyNamespaces namespaces =
-      if not (NESet.member NamespaceCompletion compTypes)
-        then fmap (<> ".") namespaces
-        else namespaces
+    dotifyNamespace :: CompletionType -> Text -> Text
+    dotifyNamespace NamespaceCompletion | not (NESet.member NamespaceCompletion compTypes) = (<> ".")
+    dotifyNamespace _ = id
 
 -- | A path parser which which is more lax with respect to well formed paths,
 -- specifically we can determine a valid path prefix with a (possibly empty) suffix query.
@@ -241,22 +262,14 @@ completeWithinNamespace compTypes query currentPath = do
 --
 -- >>> parseLaxPath'Query "base.List"
 -- (base,"List")
-parseLaxPath'Query :: Text -> (Path.Path', NameSegment)
+parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
-  case unsnoc (Text.splitOn "." txt) of
-    -- This case is impossible due to the behaviour of 'splitOn'
-    Nothing ->
-      (Path.relativeEmpty', NameSegment "")
-    -- ".base."
-    -- ".base.List"
-    Just ("" : pathPrefix, querySegment) -> (Path.AbsolutePath' . Path.Absolute . Path.fromList . fmap NameSegment $ pathPrefix, NameSegment querySegment)
-    -- ""
-    -- "base"
-    -- "base.List"
-    Just (pathPrefix, querySegment) ->
-      ( Path.RelativePath' . Path.Relative . Path.fromList . fmap NameSegment $ pathPrefix,
-        NameSegment querySegment
-      )
+  case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
+    Left _err -> (Path.relativeEmpty', txt)
+    Right ((path, segment), rest) ->
+      if take 1 rest == "."
+        then (Path.unsplit' (path, segment), Text.empty)
+        else (path, NameSegment.toEscapedText segment)
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
@@ -350,19 +363,21 @@ shareCompletion ::
   m [Completion]
 shareCompletion completionTypes authHTTPClient str =
   fromMaybe [] <$> runMaybeT do
-    case Text.splitOn "." (Text.pack str) of
-      [] -> empty
-      [userPrefix] -> do
-        userHandles <- searchUsers authHTTPClient userPrefix
+    case Path.toList <$> Path.parsePath str of
+      Left _err -> empty
+      Right [] -> empty
+      Right [userPrefix] -> do
+        userHandles <- searchUsers authHTTPClient (NameSegment.toEscapedText userPrefix)
         pure $
           userHandles
-            & filter (userPrefix `Text.isPrefixOf`)
-            <&> \handle -> prettyCompletionWithQueryPrefix False (Text.unpack userPrefix) (Text.unpack handle)
-      userHandle : path -> do
-        (userHandle, path, pathSuffix) <- case unsnoc path of
-          Just (path, pathSuffix) -> pure (userHandle, Path.fromList (NameSegment <$> path), pathSuffix)
-          Nothing -> pure (userHandle, Path.empty, "")
-        NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient userHandle path
+            & filter (\userHandle -> NameSegment.toEscapedText userPrefix `Text.isPrefixOf` userHandle)
+            <&> \handle -> prettyCompletionWithQueryPrefix False (Text.unpack (NameSegment.toEscapedText userPrefix)) (Text.unpack handle)
+      Right (userHandle : path0) -> do
+        let (path, pathSuffix) =
+              case unsnoc path0 of
+                Just (path, pathSuffix) -> (Path.fromList path, NameSegment.toEscapedText pathSuffix)
+                Nothing -> (Path.empty, "")
+        NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient (NameSegment.toEscapedText userHandle) path
         namespaceListingChildren
           & fmap
             ( \case
@@ -370,10 +385,10 @@ shareCompletion completionTypes authHTTPClient str =
                   let name = Server.namespaceName nn
                    in (NamespaceCompletion, name)
                 Server.TermObject nt ->
-                  let name = HQ'.toTextWith NameSegment.toText $ Server.termName nt
+                  let name = HQ'.toTextWith Name.toText $ Server.termName nt
                    in (NamespaceCompletion, name)
                 Server.TypeObject nt ->
-                  let name = HQ'.toTextWith NameSegment.toText $ Server.typeName nt
+                  let name = HQ'.toTextWith Name.toText $ Server.typeName nt
                    in (TermCompletion, name)
                 Server.PatchObject np ->
                   let name = Server.patchName np
@@ -382,8 +397,13 @@ shareCompletion completionTypes authHTTPClient str =
           & filter (\(typ, name) -> typ `NESet.member` completionTypes && pathSuffix `Text.isPrefixOf` name)
           & fmap
             ( \(_, name) ->
-                let queryPath = userHandle : coerce (Path.toList path)
-                    result = Text.unpack $ Text.intercalate "." (queryPath <> [name])
+                let queryPath = userHandle : Path.toList path
+                    result =
+                      (queryPath ++ [NameSegment.unsafeParseText name])
+                        & List.NonEmpty.fromList
+                        & Name.fromSegments
+                        & Name.toText
+                        & Text.unpack
                  in prettyCompletionWithQueryPrefix False str result
             )
           & pure

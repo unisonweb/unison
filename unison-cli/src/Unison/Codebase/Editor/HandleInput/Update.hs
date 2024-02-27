@@ -53,7 +53,7 @@ import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name (toVar, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -90,7 +90,7 @@ handleUpdate input optionalPatch requestedNames = do
       typeEdits :: [(Name, Reference, Reference)]
       typeEdits = do
         v <- Set.toList (SC.types (updates sr))
-        let n = Name.unsafeFromVar v
+        let n = Name.unsafeParseVar v
         let oldRefs0 = Names.typesNamed currentCodebaseNames n
         let newRefs = Names.typesNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
@@ -105,7 +105,7 @@ handleUpdate input optionalPatch requestedNames = do
       termEdits :: [(Name, Reference, Reference)]
       termEdits = do
         v <- Set.toList (SC.terms (updates sr))
-        let n = Name.unsafeFromVar v
+        let n = Name.unsafeParseVar v
         let oldRefs0 = Names.refTermsNamed currentCodebaseNames n
         let newRefs = Names.refTermsNamed fileNames n
         case (,) <$> NESet.nonEmptySet oldRefs0 <*> Set.asSingleton newRefs of
@@ -215,7 +215,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
         Set.map Name.toVar . Names.namesForReferent slurpCheckNames . Referent.fromTermReferenceId
 
   let nameToTermRefs :: Symbol -> Set TermReference
-      nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeFromVar
+      nameToTermRefs = Names.refTermsNamed slurpCheckNames . Name.unsafeParseVar
 
   slurp1 <- do
     Cli.Env {codebase} <- ask
@@ -593,10 +593,10 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
         SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     doTerm :: Symbol -> (Path, Branch0 m -> Branch0 m)
-    doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
+    doTerm v = case toList (Names.termsNamed names (Name.unsafeParseVar v)) of
       [] -> errorMissingVar v
       [r] ->
-        let split = Path.splitFromName (Name.unsafeFromVar v)
+        let split = Path.splitFromName (Name.unsafeParseVar v)
          in BranchUtil.makeAddTermName split r
       wha ->
         error $
@@ -605,10 +605,10 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
             <> ": "
             <> show wha
     doType :: Symbol -> (Path, Branch0 m -> Branch0 m)
-    doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
+    doType v = case toList (Names.typesNamed names (Name.unsafeParseVar v)) of
       [] -> errorMissingVar v
       [r] ->
-        let split = Path.splitFromName (Name.unsafeFromVar v)
+        let split = Path.splitFromName (Name.unsafeParseVar v)
          in BranchUtil.makeAddTypeName split r
       wha ->
         error $

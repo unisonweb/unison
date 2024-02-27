@@ -210,8 +210,8 @@ incrementalBranchRelativePathParser =
         Left err -> failureAt offset err
         Right x -> pure x
 
-    failureAt :: forall a. Int -> String -> Megaparsec.Parsec Void Text a
-    failureAt offset str = Megaparsec.parseError (Megaparsec.FancyError offset (Set.singleton (Megaparsec.ErrorFail str)))
+    failureAt :: forall a. Int -> Text -> Megaparsec.Parsec Void Text a
+    failureAt offset str = Megaparsec.parseError (Megaparsec.FancyError offset (Set.singleton (Megaparsec.ErrorFail (Text.unpack str))))
 
     parseThese ::
       forall a b.

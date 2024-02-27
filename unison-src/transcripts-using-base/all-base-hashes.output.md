@@ -2554,25 +2554,22 @@ This transcript is intended to make visible accidental changes to the hashing al
        ->{IO} [(Link.Term, Code)]
        
   732. -- #srpc2uag5p1grvshbcm3urjntakgi3g3dthfse2cp38sd6uestd5neseces5ue7kum2ca0gsg9i0cilkl0gn8dn3q5dn86v4r8lbha0
-       compose : ∀ i1 g1 o i g.
-         (i1 ->{g1} o) -> (i ->{g} i1) -> i ->{g1, g} o
+       compose : (i1 ->{g1} o) -> (i ->{g} i1) -> i ->{g1, g} o
        
   733. -- #stnrk323b8mm7dknlonfl70epd9f9ede60iom7sgok31mmggnic7etgi0are2uccs9g429qo3ruaeb9tk90bh35obnce1038p5qe6co
-       compose2 : ∀ i2 g2 o i1 g1 i g.
-         (i2 ->{g2} o)
-         -> (i1 ->{g1} i ->{g} i2)
-         -> i1
-         -> i
-         ->{g2, g1, g} o
+       compose2 : (i2 ->{g2} o)
+       -> (i1 ->{g1} i ->{g} i2)
+       -> i1
+       -> i
+       ->{g2, g1, g} o
        
   734. -- #mrc183aovjcae3i03r1a0ia26crmmkcf2e723pda860ps6q11rancsenjoqhc3fn0eraih1mobcvt245jr77l27uoujqa452utq8p68
-       compose3 : ∀ i3 g3 o i2 g2 i1 g1 i g.
-         (i3 ->{g3} o)
-         -> (i2 ->{g2} i1 ->{g1} i ->{g} i3)
-         -> i2
-         -> i1
-         -> i
-         ->{g3, g2, g1, g} o
+       compose3 : (i3 ->{g3} o)
+       -> (i2 ->{g2} i1 ->{g1} i ->{g} i3)
+       -> i2
+       -> i1
+       -> i
+       ->{g3, g2, g1, g} o
        
   735. -- #ilkeid6l866bmq90d2v1ilqp9dsjo6ucmf8udgrokq3nr3mo9skl2vao2mo7ish136as52rsf19u9v3jkmd85bl08gnmamo4e5v2fqo
        contains : Text -> Text -> Boolean
@@ -2829,7 +2826,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        setEcho : Handle -> Boolean ->{IO, Exception} ()
        
   811. -- #in06o7cfgnlmm6pvdtv0jv9hniahcli0fvh27o01ork1p77ro2v51rc05ts1h6p9mtffqld4ufs8klcc4bse1tsj93cu0na0bbiuqb0
-       snd : ∀ a1 a. (a1, a) -> a
+       snd : (a1, a) -> a
        
   812. -- #km3cpkvcnvcos0isfbnb7pb3s45ri5q42n74jmm9c4v1bcu8nlk63353u4ohfr7av4k00s4s180ddnqbam6a01thhlt2tie1hm5a9bo
        socketAccept : Socket ->{IO, Exception} Socket
@@ -2889,8 +2886,7 @@ This transcript is intended to make visible accidental changes to the hashing al
        Throw.throw : e ->{Throw e} a
        
   831. -- #f6pkvs6ukf8ngh2j8lm935p1bqadso76o7e3t0j1ukupjh1rg0m1rhtp7u492sq17p3bkbintbnjehc1cqs33qlhnfkoihf5uee4ug0
-       uncurry : ∀ i1 g1 i g o.
-         (i1 ->{g1} i ->{g} o) -> (i1, i) ->{g1, g} o
+       uncurry : (i1 ->{g1} i ->{g} o) -> (i1, i) ->{g1, g} o
        
   832. -- #u1o44hd0cdlfa8racf458sahdmgea409k8baajgc5k7bqukf2ak5ggs2ped0u3h85v99pgefgb9r7ct2dv4nn9eihjghnqf30p4l57g
        Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]

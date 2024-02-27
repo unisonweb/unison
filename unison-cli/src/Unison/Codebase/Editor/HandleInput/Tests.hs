@@ -134,7 +134,7 @@ handleIOTest main = do
   (fails, oks) <-
     refs & foldMapM \(ref, typ) -> do
       when (not $ isIOTest typ) do
-        Cli.returnEarly (BadMainFunction "io.test" (HQ.toString main) typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
+        Cli.returnEarly (BadMainFunction "io.test" (HQ.toText main) typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
       runIOTest suffixifiedPPE ref
   Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
@@ -180,7 +180,7 @@ resolveHQNames parseNames hqNames =
     getNameFromScratchFile :: HQ.HashQualified Name -> MaybeT Cli (Reference.Id, Type.Type Symbol Ann)
     getNameFromScratchFile main = do
       typecheckedFile <- MaybeT Cli.getLatestTypecheckedFile
-      mainName <- hoistMaybe $ Name.fromText (HQ.toText main)
+      mainName <- hoistMaybe $ Name.parseText (HQ.toText main)
       (_, ref, _wk, _term, typ) <- hoistMaybe $ Map.lookup (Name.toVar mainName) (UF.hashTermsId typecheckedFile)
       pure (ref, typ)
 

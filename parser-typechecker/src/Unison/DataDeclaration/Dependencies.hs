@@ -27,6 +27,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
+import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
@@ -83,7 +84,7 @@ hashFieldAccessors ::
   )
 hashFieldAccessors ppe declName vars declRef dd = do
   let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors mempty (map (,()) vars) declName declRef
+      accessors = DD.generateRecordAccessors Var.namespaced mempty (map (,()) vars) declName declRef
   let typeLookup :: TypeLookup v ()
       typeLookup =
         TypeLookup

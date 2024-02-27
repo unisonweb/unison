@@ -4,14 +4,15 @@ module Unison.Syntax.FileParser
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
+import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -20,9 +21,10 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toString, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
+import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (UnisonFile (..))
@@ -51,12 +53,12 @@ file = do
     Left es -> resolutionFailures (toList es)
   let accessors :: [[(v, Ann, Term v Ann)]]
       accessors =
-        [ DD.generateRecordAccessors Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
+        [ DD.generateRecordAccessors Var.namespaced Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors,
             Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
         ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
-  let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v, v2) <- imports]
+  let importNames = [(Name.unsafeParseVar v, Name.unsafeParseVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations. The `push locals` here has the effect
@@ -97,13 +99,13 @@ file = do
             -- All unique local term name suffixes - these we want to
             -- avoid resolving to a term that's in the codebase
             locals :: [Name.Name]
-            locals = (Name.unsafeFromVar <$> Map.keys canonicalVars)
+            locals = (Name.unsafeParseVar <$> Map.keys canonicalVars)
 
             -- A function to replace unique local term suffixes with their
             -- fully qualified name
             replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
             resolveLocals = ABT.substsInheritAnnotation replacements
-    let bindNames = Term.bindSomeNames Name.unsafeFromVar (Set.fromList fqLocalTerms) curNames . resolveLocals
+    let bindNames = Term.bindSomeNames Name.unsafeParseVar (Set.fromList fqLocalTerms) curNames . resolveLocals
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
@@ -217,14 +219,14 @@ stanza = watchExpression <|> unexpectedAction <|> binding
       binding@((_, v), _) <- TermParser.binding
       pure $ case doc of
         Nothing -> Binding binding
-        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.joinDot v (Var.named "doc")), doc), binding]
+        Just (spanAnn, doc) -> Bindings [((spanAnn, Var.namespaced (v :| [Var.named "doc"])), doc), binding]
 
 watched :: (Monad m, Var v) => P v m (UF.WatchKind, Text, Ann)
 watched = P.try do
-  kind <- (fmap . fmap . fmap) Name.toString (optional importWordyId)
+  kind <- (fmap . fmap . fmap) (Text.unpack . Name.toText) (optional importWordyId)
   guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead importSymbolyId)
-  guard (op == Just (Name.fromSegment (NameSegment ">")))
+  guard (op == Just (Name.fromSegment ">"))
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)

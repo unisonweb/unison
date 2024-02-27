@@ -39,6 +39,8 @@ where
 
 import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
 import Control.Monad.State (evalState)
+import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
@@ -147,19 +149,20 @@ withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 -- propose to move this code to some very feature-specific module —AI
 generateRecordAccessors ::
   (Semigroup a, Var v) =>
+  (List.NonEmpty v -> v) ->
   (a -> a) ->
   [(v, a)] ->
   v ->
   Reference ->
   [(v, a, Term v a)]
-generateRecordAccessors generatedAnn fields typename typ =
+generateRecordAccessors namespaced generatedAnn fields typename typ =
   join [tm t i | (t, i) <- fields `zip` [(0 :: Int) ..]]
   where
     argname = Var.uncapitalize typename
     tm (fname, fieldAnn) i =
-      [ (Var.namespaced [typename, fname], ann, get),
-        (Var.namespaced [typename, fname, Var.named "set"], ann, set),
-        (Var.namespaced [typename, fname, Var.named "modify"], ann, modify)
+      [ (namespaced (typename :| [fname]), ann, get),
+        (namespaced (typename :| [fname, Var.named "set"]), ann, set),
+        (namespaced (typename :| [fname, Var.named "modify"]), ann, modify)
       ]
       where
         ann = generatedAnn fieldAnn

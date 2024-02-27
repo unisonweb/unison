@@ -130,8 +130,8 @@ import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
-import Unison.Syntax.HashQualified qualified as HQ (toString, toText, unsafeFromVar)
-import Unison.Syntax.Name qualified as Name (toString, toText)
+import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter
   ( prettyHashQualified,
     prettyHashQualified',
@@ -143,6 +143,7 @@ import Unison.Syntax.NamePrinter
     prettyShortHash,
     styleHashQualified,
   )
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -305,7 +306,7 @@ notifyNumbered = \case
               "",
               tip $
                 "Add"
-                  <> prettyName "License"
+                  <> prettyName (Name.fromSegment "License")
                   <> "values for"
                   <> prettyName (Name.fromSegment authorNS)
                   <> "under"
@@ -492,7 +493,7 @@ notifyNumbered = \case
         E.AmbiguousReset'Hash -> \xs -> xs
         E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
       reset = IP.makeExample IP.reset
-      relPath0 = prettyPath' (Path.toPath' path)
+      relPath0 = prettyPath path
       absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
   ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
   ListNamespaceDependencies ppe path' externalDependencies ->
@@ -514,12 +515,13 @@ notifyNumbered = \case
                     newNextNum = nextNum + length unnumberedNames
                  in ( newNextNum,
                       ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
-                        args <> fmap Name.toString unnumberedNames
+                        args <> fmap Name.toText unnumberedNames
                       )
                     )
             )
             (1, (mempty, mempty))
           & snd
+          & over (_2 . mapped) Text.unpack
       externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
       externalDepsTable = ifoldMap $ \ld dependents ->
         [(prettyLD ld, prettyDependents dependents)]
@@ -610,7 +612,7 @@ showListEdits patch ppe =
         TermEdit.Replace rhsRef _typing -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
-          lift $ tell ([lhsHash], [HQ.toString rhsTermName])
+          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTermName)])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
@@ -635,7 +637,7 @@ showListEdits patch ppe =
         TypeEdit.Replace rhsRef -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTypeName = PPE.typeName ppe rhsRef
-          lift $ tell ([lhsHash], [HQ.toString rhsTypeName])
+          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTypeName)])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
@@ -648,7 +650,7 @@ notifyUser dir = \case
       . P.warnCallout
       . P.wrap
       $ "Cannot save the last run result into"
-        <> P.backticked (P.string (Name.toString name))
+        <> P.backticked (P.text (Name.toText name))
         <> "because that name conflicts with a name in the scratch file."
   NoLastRunResult ->
     pure
@@ -747,7 +749,7 @@ notifyUser dir = \case
             "Use"
               <> IP.makeExample
                 IP.todo
-                [ prettyPath' (snoc mergedPath "patch"),
+                [ prettyPath' (snoc mergedPath NameSegment.defaultPatchSegment),
                   prettyPath' mergedPath
                 ]
               <> "to see what work is remaining for the merge.",
@@ -886,21 +888,21 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $
             "I looked for a function"
-              <> P.backticked (P.string main)
+              <> P.backticked (P.text main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
-          P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   BadMainFunction what main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
-          P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
+          P.indentN 2 $ P.text main <> " : " <> TypePrinter.pretty ppe ty,
           "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.string what) <> "it needs to be a subtype of:",
+          P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
           "",
-          P.indentN 2 $ P.lines [P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
@@ -1073,11 +1075,11 @@ notifyUser dir = \case
       formatEntry :: (Var v) => PPE.PrettyPrintEnv -> ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry ppe = \case
         ShallowTermEntry termEntry ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.termEntryHQName $ termEntry,
+          ( P.syntaxToColor . prettyHashQualified' . Backend.termEntryHQName $ termEntry,
             P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) (Backend.termEntryType termEntry) <> P.lit ")"
           )
         ShallowTypeEntry typeEntry ->
-          ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment . Backend.typeEntryHQName $ typeEntry,
+          ( P.syntaxToColor . prettyHashQualified' . Backend.typeEntryHQName $ typeEntry,
             isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
@@ -1549,8 +1551,7 @@ notifyUser dir = \case
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
-  BadName n ->
-    pure . P.wrap $ P.string n <> " is not a kind of name I understand."
+  BadName n -> pure . P.wrap $ P.text n <> " is not a kind of name I understand."
   TermNotFound' sh ->
     pure $
       "I could't find a term with hash "
@@ -1864,9 +1865,7 @@ notifyUser dir = \case
               ( "Use"
                   <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "or"
-                  <> IP.makeExample
-                    IP.mergeLocal
-                    [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
@@ -2211,19 +2210,19 @@ notifyUser dir = \case
   UpgradeFailure path old new ->
     pure . P.wrap $
       "I couldn't automatically upgrade"
-        <> P.text (NameSegment.toText old)
+        <> P.text (NameSegment.toEscapedText old)
         <> "to"
-        <> P.group (P.text (NameSegment.toText new) <> ".")
+        <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"
-        <> P.text (NameSegment.toText old)
+        <> P.text (NameSegment.toEscapedText old)
         <> "to"
-        <> P.group (P.text (NameSegment.toText new) <> ",")
+        <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
-        <> P.group (P.text (NameSegment.toText old) <> ".")
+        <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -2735,7 +2734,7 @@ renderNameConflicts ppe conflictedNames = do
       P.lines <$> do
         for (Map.toList conflictedNames) $ \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
-            n <- addNumberedArg (HQ.toString hash)
+            n <- addNumberedArg (Text.unpack (HQ.toText hash))
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
           pure . P.wrap $
             ( "The "
@@ -2767,7 +2766,7 @@ renderEditConflicts ppe Patch {..} = do
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
     numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
     numberedHQName hqName = do
-      n <- addNumberedArg (HQ.toString hqName)
+      n <- addNumberedArg (Text.unpack (HQ.toText hqName))
       pure $ formatNum n <> styleHashQualified P.bold hqName
     formatTypeEdits ::
       (Reference, Set TypeEdit.TypeEdit) ->
@@ -2880,11 +2879,11 @@ todoOutput ppe todo = runNumbered do
     todoEdits :: Numbered Pretty
     todoEdits = do
       numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
-        n <- addNumberedArg (HQ.toString $ PPE.typeName ppeu ref)
+        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.typeName ppeu ref))
         pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
       let filteredTerms = goodTerms (unscore <$> dirtyTerms)
       termNumbers <- for filteredTerms \(ref, _, _) -> do
-        n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
+        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.termName ppeu ref))
         pure $ formatNum n
       let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
@@ -3300,8 +3299,8 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- prefixBranchId ".base" "List.map" -> ".base.List.map"
     prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
-      Left sch -> "#" <> SCH.toString sch <> ":" <> Name.toString (Name.makeAbsolute name)
-      Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
+      Left sch -> "#" <> SCH.toString sch <> ":" <> Text.unpack (Name.toText (Name.makeAbsolute name))
+      Right pathPrefix -> Text.unpack (Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name))
 
     addNumberedArg' :: String -> Numbered Pretty
     addNumberedArg' s = case sn of
@@ -3558,7 +3557,7 @@ numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
-    & fmap (HQ.toString . PPE.labeledRefName ppe)
+    & fmap (Text.unpack . HQ.toText . PPE.labeledRefName ppe)
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
