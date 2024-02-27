@@ -129,6 +129,7 @@ library
       Unison.LSP.UCMWorker
       Unison.LSP.VFS
       Unison.Share.Codeserver
+      Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
       Unison.Share.Sync.Types
       Unison.Util.HTTP

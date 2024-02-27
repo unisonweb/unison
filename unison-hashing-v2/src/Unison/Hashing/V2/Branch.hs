@@ -25,6 +25,7 @@ data Branch = Branch
     patches :: Map NameSegment Hash,
     children :: Map NameSegment Hash -- the Causal Hash
   }
+  deriving (Eq, Ord, Show)
 
 instance ContentAddressable Branch where
   contentHash = H.hashTokenizable

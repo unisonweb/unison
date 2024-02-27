@@ -2265,7 +2265,7 @@ prettyDownloadEntitiesError = \case
   Share.DownloadEntitiesInvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
   Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
   Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
-  Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationError err
+  Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationFailure err
 
 prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
 prettyFastForwardPathError path = \case
@@ -2318,7 +2318,7 @@ prettyUpdatePathError repoInfo = \case
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
-  Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyValidationFailure validationFailureErr
+  Share.UploadEntitiesError'EntityValidationFailure validationFailureErr -> prettyEntityValidationFailure validationFailureErr
   Share.UploadEntitiesError'HashMismatchForEntity (Share.HashMismatchForEntity {supplied, computed}) ->
     hashMismatchFromShare supplied computed
   Share.UploadEntitiesError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
@@ -2327,14 +2327,16 @@ prettyUploadEntitiesError = \case
   Share.UploadEntitiesError'ProjectNotFound project -> shareProjectNotFound project
   Share.UploadEntitiesError'UserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
 
-prettyValidationFailure :: Share.EntityValidationError -> Pretty
-prettyValidationFailure = \case
+prettyEntityValidationFailure :: Share.EntityValidationError -> Pretty
+prettyEntityValidationFailure = \case
   Share.EntityHashMismatch entityType (Share.HashMismatchForEntity {supplied, computed}) ->
     P.lines
       [ P.wrap $ "The hash associated with the given " <> prettyEntityType entityType <> " entity is incorrect.",
         "",
         P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
-        P.wrap $ "The computed hash is: " <> prettyHash32 computed
+        P.wrap $ "The computed hash is: " <> prettyHash32 computed,
+        "",
+        "Please create an issue and report this to the Unison team."
       ]
   Share.UnsupportedEntityType hash32 entityType ->
     P.lines
@@ -2349,6 +2351,7 @@ prettyValidationFailure = \case
         P.wrap $ "The error was: " <> P.text msg
       ]
   Share.HashResolutionFailure hash32 ->
+    -- See https://github.com/unisonweb/unison/pull/4381#discussion_r1452652087 for discussion.
     P.lines
       [ P.wrap $ "Failed to resolve a referenced hash when validating the hash for " <> prettyHash32 hash32 <> ".",
         "Please create an issue and report this to the Unison team"
@@ -2400,34 +2403,6 @@ prettyTransportError = \case
     responseRequestId :: Servant.Response -> Maybe Text
     responseRequestId =
       fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
-
-prettyEntityValidationError :: Share.EntityValidationError -> Pretty
-prettyEntityValidationError = \case
-  Share.EntityHashMismatch typ (Share.HashMismatchForEntity {supplied, computed}) ->
-    P.lines
-      [ P.wrap $ "The hash associated with the given " <> prettyEntityType typ <> " entity is incorrect.",
-        "",
-        P.wrap $ "The associated hash is: " <> prettyHash32 supplied,
-        P.wrap $ "The computed hash is: " <> prettyHash32 computed
-      ]
-  Share.UnsupportedEntityType hash typ ->
-    P.lines
-      [ P.wrap $ "The entity with hash " <> prettyHash32 hash <> " of type " <> prettyEntityType typ <> " is not supported by your version of ucm.",
-        P.wrap $ "Try upgrading to the latest version of ucm."
-      ]
-  Share.InvalidByteEncoding hash typ err ->
-    P.lines
-      [ P.wrap $ "Failed to decode a " <> prettyEntityType typ <> " entity with the hash " <> prettyHash32 hash <> ".",
-        "Please create an issue and report this to the Unison team",
-        "",
-        P.wrap $ "The error was: " <> P.text err
-      ]
-  Share.HashResolutionFailure hash ->
-    -- See https://github.com/unisonweb/unison/pull/4381#discussion_r1452652087 for discussion.
-    P.lines
-      [ P.wrap $ "Failed to resolve data when hashing " <> prettyHash32 hash <> ".",
-        "Please create an issue and report this to the Unison team"
-      ]
 
 prettyEntityType :: Share.EntityType -> Pretty
 prettyEntityType = \case
