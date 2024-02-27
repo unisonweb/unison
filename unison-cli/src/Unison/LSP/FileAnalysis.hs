@@ -458,7 +458,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & Zip.zip symbolsWithoutTypeSigs
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
-                name <- Name.fromText (Var.name v)
+                name <- Name.parseText (Var.name v)
                 range <- annToRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start

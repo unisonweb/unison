@@ -82,12 +82,11 @@ mkTestCase = do
                    -> (Tree Text -> Text)
                    -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
                    -> Text
-      foldMap    : ∀ r g2 g1 a g.
-                     r
-                     -> (r ->{g2} r ->{g1} r)
-                     -> (a ->{g} r)
-                     -> Tree a
-                     ->{g2, g1, g} r
+      foldMap    : r
+                   -> (r ->{g2} r ->{g1} r)
+                   -> (a ->{g} r)
+                   -> Tree a
+                   ->{g2, g1, g} r
       mkTestCase : '{IO, Exception} ()
       tree0      : Tree Nat
       tree1      : Tree Nat
@@ -105,12 +104,11 @@ mkTestCase = do
                  -> (Tree Text -> Text)
                  -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
                  -> Text
-    foldMap    : ∀ r g2 g1 a g.
-                   r
-                   -> (r ->{g2} r ->{g1} r)
-                   -> (a ->{g} r)
-                   -> Tree a
-                   ->{g2, g1, g} r
+    foldMap    : r
+                 -> (r ->{g2} r ->{g1} r)
+                 -> (a ->{g} r)
+                 -> Tree a
+                 ->{g2, g1, g} r
     mkTestCase : '{IO, Exception} ()
     tree0      : Tree Nat
     tree1      : Tree Nat

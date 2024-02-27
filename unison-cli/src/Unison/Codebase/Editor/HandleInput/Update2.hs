@@ -59,7 +59,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -102,7 +103,7 @@ handleUpdate2 = do
   currentPath <- Cli.getCurrentPath
   currentBranch0 <- Cli.getBranch0At currentPath
   let namesIncludingLibdeps = Branch.toNames currentBranch0
-  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete Name.libSegment))
+  let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   Cli.respond Output.UpdateLookingForDependents
@@ -228,7 +229,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
         makeDeclUpdates (symbol, (typeRefId, decl)) = do
           -- some decls will be deleted, we want to delete their
           -- constructors as well
-          deleteConstructorActions <- case maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeFromVar symbol) of
+          deleteConstructorActions <- case maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeParseVar symbol) of
             Left err -> abort err
             Right actions -> pure actions
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
@@ -261,7 +262,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
             else []
 
     splitVar :: Symbol -> Path.Split
-    splitVar = Path.splitFromName . Name.unsafeFromVar
+    splitVar = Path.splitFromName . Name.unsafeParseVar
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
@@ -430,14 +431,14 @@ getTermAndDeclNames tuf =
       UF.hashTermsId tuf
         & Map.foldMapWithKey \var (_, _, wk, _, _) ->
           if WK.watchKindShouldBeStoredInDatabase wk
-            then Set.singleton (Name.unsafeFromVar var)
+            then Set.singleton (Name.unsafeParseVar var)
             else Set.empty
     effects = keysToNames $ UF.effectDeclarationsId' tuf
     datas = keysToNames $ UF.dataDeclarationsId' tuf
     effectCtors = foldMap ctorsToNames $ fmap (Decl.toDataDecl . snd) $ UF.effectDeclarationsId' tuf
     dataCtors = foldMap ctorsToNames $ fmap snd $ UF.dataDeclarationsId' tuf
-    keysToNames = Set.map Name.unsafeFromVar . Map.keysSet
-    ctorsToNames = Set.fromList . map Name.unsafeFromVar . Decl.constructorVars
+    keysToNames = Set.map Name.unsafeParseVar . Map.keysSet
+    ctorsToNames = Set.fromList . map Name.unsafeParseVar . Decl.constructorVars
 
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.

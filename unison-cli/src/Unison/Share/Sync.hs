@@ -61,6 +61,7 @@ import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
+import Unison.Share.ExpectedHashMismatches (expectedCausalHashMismatches, expectedComponentHashMismatches)
 import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.API qualified as Share (API)
@@ -80,7 +81,7 @@ maxSimultaneousPullDownloaders = 5
 -- Share currently parallelizes on it's own in the backend, and any more than one push worker
 -- just results in serialization conflicts which slow things down.
 maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = 5
+maxSimultaneousPushWorkers = 1
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -460,27 +461,38 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
-  where
-    validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
-    validateEntities entities =
-      when shouldValidateEntities $ do
-        ifor_ (NEMap.toMap entities) \hash entity -> do
-          let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
-          case EV.validateEntity hash entityWithHashes of
-            Nothing -> pure ()
-            Just err -> Left err
 
--- | Only validate entities if this flag is set.
--- It defaults to disabled because there are terms in the wild that currently fail hash
--- validation.
+-- | Validates the provided entities if and only if the environment variable `UNISON_ENTITY_VALIDATION` is set to "true".
+validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
+validateEntities entities =
+  when shouldValidateEntities $ do
+    ifor_ (NEMap.toMap entities) \hash entity -> do
+      let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
+      case EV.validateEntity hash entityWithHashes of
+        Nothing -> pure ()
+        Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
+          let expectedMismatches = case et of
+                Share.TermComponentType -> expectedComponentHashMismatches
+                Share.DeclComponentType -> expectedComponentHashMismatches
+                Share.CausalType -> expectedCausalHashMismatches
+                _ -> mempty
+           in case Map.lookup supplied expectedMismatches of
+                Just expected
+                  | expected == computed -> pure ()
+                _ -> do
+                  Left err
+        Just err -> do
+          Left err
+
+-- | Validate entities received from the server unless this flag is set to false.
 validationEnvKey :: String
 validationEnvKey = "UNISON_ENTITY_VALIDATION"
 
 shouldValidateEntities :: Bool
 shouldValidateEntities = unsafePerformIO $ do
   lookupEnv validationEnvKey <&> \case
-    Just "true" -> True
-    _ -> False
+    Just "false" -> False
+    _ -> True
 {-# NOINLINE shouldValidateEntities #-}
 
 type WorkerCount =
@@ -624,10 +636,13 @@ completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallba
           pure (Left (SyncError err))
         Right (Share.DownloadEntitiesSuccess entities) -> do
           downloadedCallback (NESet.size hashes)
-          atomically do
-            writeTQueue entitiesQueue (hashes, entities)
-            recordNotWorking workerCount
-          pure (Right ())
+          case validateEntities entities of
+            Left err -> pure . Left . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
+            Right () -> do
+              atomically do
+                writeTQueue entitiesQueue (hashes, entities)
+                recordNotWorking workerCount
+              pure (Right ())
 
     -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
     inserter ::

@@ -402,7 +402,7 @@ popd = do
 
 setMostRecentNamespace :: Path.Absolute -> Cli ()
 setMostRecentNamespace =
-  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toText . Path.toList . Path.unabsolute
+  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toUnescapedText . Path.toList . Path.unabsolute
 
 respond :: Output -> Cli ()
 respond output = do

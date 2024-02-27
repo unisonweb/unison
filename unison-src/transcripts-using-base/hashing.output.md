@@ -122,20 +122,29 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  hash : HashAlgorithm -> a -> ##Bytes
-  2.  builtin type HashAlgorithm
-  3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
-  4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
-  5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  6.  HashAlgorithm.Md5 : HashAlgorithm
-  7.  HashAlgorithm.Sha1 : HashAlgorithm
-  8.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  9.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  10. HashAlgorithm.Sha3_256 : HashAlgorithm
-  11. HashAlgorithm.Sha3_512 : HashAlgorithm
-  12. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
-  13. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
-  14. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
+  1.  type CryptoFailure
+  2.  Ed25519.sign.impl : ##Bytes
+                          -> ##Bytes
+                          -> ##Bytes
+                          -> #0o7mf021fo #r29dja8j9d ##Bytes
+  3.  Ed25519.verify.impl : ##Bytes
+                            -> ##Bytes
+                            -> ##Bytes
+                            -> #0o7mf021fo #r29dja8j9d ##Boolean
+  4.  hash : HashAlgorithm -> a -> ##Bytes
+  5.  builtin type HashAlgorithm
+  6.  HashAlgorithm.Blake2b_256 : HashAlgorithm
+  7.  HashAlgorithm.Blake2b_512 : HashAlgorithm
+  8.  HashAlgorithm.Blake2s_256 : HashAlgorithm
+  9.  HashAlgorithm.Md5 : HashAlgorithm
+  10. HashAlgorithm.Sha1 : HashAlgorithm
+  11. HashAlgorithm.Sha2_256 : HashAlgorithm
+  12. HashAlgorithm.Sha2_512 : HashAlgorithm
+  13. HashAlgorithm.Sha3_256 : HashAlgorithm
+  14. HashAlgorithm.Sha3_512 : HashAlgorithm
+  15. hashBytes : HashAlgorithm -> ##Bytes -> ##Bytes
+  16. hmac : HashAlgorithm -> ##Bytes -> a -> ##Bytes
+  17. hmacBytes : HashAlgorithm -> ##Bytes -> ##Bytes -> ##Bytes
   
 
 .> cd .

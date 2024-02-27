@@ -124,6 +124,7 @@ import Unison.Hashing.V2.Convert qualified as H
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
@@ -133,7 +134,7 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
 
@@ -155,7 +156,7 @@ withoutLib Branch0 {..} =
         _children
           & imapMaybe
             ( \nameSegment child ->
-                if nameSegment == Name.libSegment
+                if nameSegment == NameSegment.libSegment
                   then Nothing
                   else Just (child & head_ %~ withoutLib)
             )
@@ -169,7 +170,7 @@ withoutTransitiveLibs Branch0 {..} =
         _children
           & imapMaybe
             ( \nameSegment child ->
-                if nameSegment == Name.libSegment
+                if nameSegment == NameSegment.libSegment
                   then Just (child & head_ %~ withoutLib)
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
@@ -178,12 +179,12 @@ withoutTransitiveLibs Branch0 {..} =
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
-  over (children . ix Name.libSegment . head_ . children) (Map.delete dep)
+  over (children . ix NameSegment.libSegment . head_ . children) (Map.delete dep)
 
 -- | @deleteLibdeps branch@ deletes all libdeps from @branch@.
 deleteLibdeps :: Branch0 m -> Branch0 m
 deleteLibdeps =
-  over children (Map.delete Name.libSegment)
+  over children (Map.delete NameSegment.libSegment)
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -243,8 +244,8 @@ branch0 terms types children edits =
       _children = children,
       _edits = edits,
       isEmpty0 =
-        R.null (Star3.d1 terms)
-          && R.null (Star3.d1 types)
+        R.null (Star2.d1 terms)
+          && R.null (Star2.d1 types)
           && Map.null edits
           && all (isEmpty0 . head) children,
       -- These are all overwritten immediately
@@ -280,7 +281,7 @@ deriveDeepTerms branch =
               terms =
                 map
                   (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix)))
-                  (R.toList (Star3.d1 (_terms b0)))
+                  (R.toList (Star2.d1 (_terms b0)))
           children <- deepChildrenHelper e
           go (work <> children) (terms <> acc)
 
@@ -299,7 +300,7 @@ deriveDeepTypes branch =
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let types :: [(TypeReference, Name)]
-              types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star3.d1 (_types b0)))
+              types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star2.d1 (_types b0)))
           children <- deepChildrenHelper e
           go (work <> children) (types <> acc)
 
@@ -362,7 +363,7 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
           pure
             if isShallowDependency || isUnseenNamespace
               then
-                let libDepth' = if ns == "lib" then libDepth + 1 else libDepth
+                let libDepth' = if ns == NameSegment.libSegment then libDepth + 1 else libDepth
                  in Seq.singleton (ns : reversePrefix, libDepth', head b)
               else Seq.empty
         State.modify' (Set.insert h)
@@ -690,28 +691,28 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
 -- todo: consider inlining these into Actions2
 addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 addTermName r new =
-  over terms (Star3.insertD1 (r, new))
+  over terms (Star2.insertD1 (r, new))
 
 addTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 addTypeName r new =
-  over types (Star3.insertD1 (r, new))
+  over types (Star2.insertD1 (r, new))
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
-  | Star3.memberD1 (r, n) (view terms b) =
-      over terms (Star3.deletePrimaryD1 (r, n)) b
+  | Star2.memberD1 (r, n) (view terms b) =
+      over terms (Star2.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 annihilateTermName :: NameSegment -> Branch0 m -> Branch0 m
-annihilateTermName = over terms . Star3.deleteD1
+annihilateTermName = over terms . Star2.deleteD1
 
 annihilateTypeName :: NameSegment -> Branch0 m -> Branch0 m
-annihilateTypeName = over types . Star3.deleteD1
+annihilateTypeName = over types . Star2.deleteD1
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
-  | Star3.memberD1 (r, n) (view types b) =
-      over types (Star3.deletePrimaryD1 (r, n)) b
+  | Star2.memberD1 (r, n) (view types b) =
+      over types (Star2.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: (Monad m) => Branch m -> Branch m -> m (Maybe (Branch m))

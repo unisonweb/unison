@@ -13,7 +13,9 @@ dependencies:
   - lens
   - megaparsec
   - mtl
+  - parser-combinators
   - text
+  - text-builder
   - unison-core
   - unison-core1
   - unison-hash

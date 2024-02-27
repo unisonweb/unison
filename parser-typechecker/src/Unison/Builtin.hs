@@ -38,7 +38,7 @@ import Unison.Prelude
 import Unison.Reference qualified as R
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name (unsafeFromText, unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseText, unsafeParseVar)
 import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Util.Relation qualified as Rel
@@ -56,24 +56,24 @@ names = Names terms types
     terms =
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)
         <> Rel.fromList
-          [ (Name.unsafeFromVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
+          [ (Name.unsafeParseVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
             | (ct, (_, (r, decl))) <-
                 ((CT.Data,) <$> builtinDataDecls)
                   <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
               ((_, vc, _), cid) <- DD.constructors' decl `zip` [0 ..]
           ]
         <> Rel.fromList
-          [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
+          [ (Name.unsafeParseVar v, Referent.Ref (R.DerivedId i))
             | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
         <> Rel.fromList
-          [ (Name.unsafeFromVar v, R.DerivedId r)
+          [ (Name.unsafeParseVar v, R.DerivedId r)
             | (v, (r, _)) <- builtinDataDecls
           ]
         <> Rel.fromList
-          [ (Name.unsafeFromVar v, R.DerivedId r)
+          [ (Name.unsafeParseVar v, R.DerivedId r)
             | (v, (r, _)) <- builtinEffectDecls
           ]
 
@@ -147,7 +147,7 @@ builtinTypeDependentsOfComponent h0 = Rel.searchRan ord builtinDependencies
 -- if we decide to change their names.
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes =
-  Map.toList . Map.mapKeys Name.unsafeFromText $
+  Map.toList . Map.mapKeys Name.unsafeParseText $
     foldl' go mempty builtinTypesSrc
   where
     go m = \case
@@ -286,7 +286,7 @@ instance Show BuiltinDSL where
   show _ = ""
 
 termNameRefs :: Map Name R.Reference
-termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (stripVersion builtinsSrc)
+termNameRefs = Map.mapKeys Name.unsafeParseText $ foldl' go mempty (stripVersion builtinsSrc)
   where
     go m = \case
       B r _tp -> Map.insert r (R.Builtin r) m
@@ -704,6 +704,7 @@ builtinsSrc =
     ++ moveUnder "io2" stmBuiltins
     ++ moveUnder "io2" refPromiseBuiltins
     ++ hashBuiltins
+    ++ cryptoBuiltins
     ++ fmap (uncurry B) codeBuiltins
 
 moveUnder :: Text -> [(Text, Type)] -> [BuiltinDSL]
@@ -760,6 +761,14 @@ hashBuiltins =
   where
     hashAlgo = Type.ref () Type.hashAlgorithmRef
     h name = B ("crypto.HashAlgorithm." <> name) hashAlgo
+
+cryptoBuiltins :: [BuiltinDSL]
+cryptoBuiltins =
+  [ B "crypto.Ed25519.sign.impl" $
+      bytes --> bytes --> bytes --> eithert failure bytes,
+    B "crypto.Ed25519.verify.impl" $
+      bytes --> bytes --> bytes --> eithert failure boolean
+  ]
 
 ioBuiltins :: [(Text, Type)]
 ioBuiltins =

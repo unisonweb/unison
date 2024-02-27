@@ -40,7 +40,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Var qualified as Var
 
-handleRun :: Bool -> String -> [String] -> Cli ()
+handleRun :: Bool -> Text -> [String] -> Cli ()
 handleRun native main args = do
   (unisonFile, mainResType) <- do
     (sym, term, typ, otyp) <- getTerm main
@@ -75,7 +75,7 @@ data GetTermResult
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
 -- the type of the evaluated term.
-getTerm :: String -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+getTerm :: Text -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
@@ -90,7 +90,7 @@ getTerm main =
       Cli.returnEarly $ Output.BadMainFunction "run" main ty suffixifiedPPE [mainType]
     GetTermSuccess x -> pure x
 
-getTerm' :: String -> Cli GetTermResult
+getTerm' :: Text -> Cli GetTermResult
 getTerm' mainName =
   let getFromCodebase = do
         Cli.Env {codebase, runtime} <- ask
@@ -108,7 +108,7 @@ getTerm' mainName =
                   pure (GetTermSuccess (v, tm, typ, otyp))
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.nameStr v == mainName) . view _1) components
+        let mainComponent = filter ((\v -> Var.name v == mainName) . view _1) components
         case mainComponent of
           [(v, _, tm, ty)] ->
             checkType ty \otyp ->

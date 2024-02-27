@@ -45,12 +45,12 @@ import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
 import Unison.Reference qualified as Memory.Reference
 import Unison.Referent qualified as Memory.Referent
-import Unison.Syntax.Name qualified as Name (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Term qualified as Memory.Term
 import Unison.Type qualified as Memory.Type
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star3 qualified as Memory.Star3
+import Unison.Util.Star2 qualified as Memory.Star2
 import Unison.Var (Var)
 
 typeToReference :: (Var v) => Memory.Type.Type v a -> Memory.Reference.Reference
@@ -230,7 +230,7 @@ hashDataDecls ::
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
-  hashingResult <- Hashing.hashDecls Name.unsafeFromVar hashingDecls
+  hashingResult <- Hashing.hashDecls Name.unsafeParseVar hashingDecls
   pure $ map h2mDeclResult hashingResult
   where
     h2mDeclResult :: (Ord v) => (v, Hashing.ReferenceId, Hashing.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
@@ -374,13 +374,12 @@ m2hBranch0 b =
     doTerms s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
             let m2 =
                   Map.fromList
                     [ (fst (Writer.runWriter (m2hReferent r)), md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md = Hashing.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                        let md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
                     ]
         ]
 
@@ -390,14 +389,13 @@ m2hBranch0 b =
     doTypes s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
             let m2 =
                   Map.fromList
                     [ (m2hReference r, md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
-                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
-                            md :: Hashing.MdValues
-                            md = Hashing.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                        let md :: Hashing.MdValues
+                            md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
                     ]
         ]
 
@@ -412,4 +410,5 @@ m2hBranch0 b =
     doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
 m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
-m2hNameSegment (Memory.NameSegment.NameSegment s) = Hashing.NameSegment s
+m2hNameSegment =
+  Hashing.NameSegment . Memory.NameSegment.toUnescapedText

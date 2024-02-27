@@ -1,11 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Local.Endpoints.FuzzyFind where
@@ -26,7 +20,6 @@ import Servant.Docs
   )
 import Servant.OpenApi ()
 import Text.FuzzyFind qualified as FZF
-import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -34,7 +27,6 @@ import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPE
@@ -51,6 +43,7 @@ import Unison.Server.Types
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
+import qualified Unison.Syntax.Name as Name
 
 type FuzzyFindAPI =
   "find"
@@ -161,10 +154,6 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       Backend.normaliseRootCausalHash mayRoot
   (localNamesOnly, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just rootCausal) path
-  relativeToBranch <- do
-    (lift . Codebase.runTransaction codebase) do
-      relativeToCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)
-      V2Causal.value relativeToCausal
   let alignments ::
         ( [ ( FZF.Alignment,
               UnisonName,
@@ -174,26 +163,25 @@ serveFuzzyFind codebase mayRoot relativeTo limit typeWidth query = do
         )
       alignments =
         take (fromMaybe 10 limit) $ Backend.fuzzyFind localNamesOnly (fromMaybe "" query)
-  lift (join <$> traverse (loadEntry (Just relativeToBranch) (PPE.suffixifiedPPE ppe)) alignments)
+  lift (join <$> traverse (loadEntry (PPE.suffixifiedPPE ppe)) alignments)
   where
-    loadEntry relativeToBranch ppe (a, n, refs) = do
-      for refs $
-        \case
-          Backend.FoundTermRef r ->
-            ( \te ->
-                ( a,
-                  FoundTermResult
-                    . FoundTerm
-                      (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
-                    $ Backend.termEntryToNamedTerm ppe typeWidth te
-                )
-            )
-              <$> Backend.termListEntry codebase relativeToBranch (ExactName (NameSegment n) (Cv.referent1to2 r))
-          Backend.FoundTypeRef r ->
-            Codebase.runTransaction codebase do
-              te <- Backend.typeListEntry codebase relativeToBranch (ExactName (NameSegment n) r)
-              let namedType = Backend.typeEntryToNamedType te
-              let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
-              typeHeader <- Backend.typeDeclHeader codebase ppe r
-              let ft = FoundType typeName typeHeader namedType
-              pure (a, FoundTypeResult ft)
+    loadEntry ppe (a, n, refs) = do
+      for refs \case
+        Backend.FoundTermRef r ->
+          ( \te ->
+              ( a,
+                FoundTermResult
+                  . FoundTerm
+                    (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
+                  $ Backend.termEntryToNamedTerm ppe typeWidth te
+              )
+          )
+            <$> Backend.termListEntry codebase (ExactName (Name.unsafeParseText n) (Cv.referent1to2 r))
+        Backend.FoundTypeRef r ->
+          Codebase.runTransaction codebase do
+            te <- Backend.typeListEntry codebase (ExactName (Name.unsafeParseText n) r)
+            let namedType = Backend.typeEntryToNamedType te
+            let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
+            typeHeader <- Backend.typeDeclHeader codebase ppe r
+            let ft = FoundType typeName typeHeader namedType
+            pure (a, FoundTypeResult ft)

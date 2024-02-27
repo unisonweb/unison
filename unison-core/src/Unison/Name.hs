@@ -37,7 +37,6 @@ module Unison.Name
 
     -- * To organize later
     commonPrefix,
-    libSegment,
     preferShallowLibDepth,
     searchByRankedSuffix,
     searchBySuffix,
@@ -67,7 +66,7 @@ import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
-import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
@@ -361,15 +360,12 @@ preferShallowLibDepth = \case
   [x] -> Set.singleton (snd x)
   rs ->
     let byDepth = List.multimap (map (first minLibs) rs)
-        libCount = length . filter (== libSegment) . toList . reverseSegments
+        libCount = length . filter (== NameSegment.libSegment) . toList . reverseSegments
         minLibs [] = 0
         minLibs ns = minimum (map libCount ns)
      in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
           Nothing -> Set.fromList (map snd rs)
           Just rs -> Set.fromList rs
-
-libSegment :: NameSegment
-libSegment = NameSegment "lib"
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
@@ -573,11 +569,6 @@ class Convert a b where
 
 class Parse a b where
   parse :: a -> Maybe b
-
-instance Parse Text NameSegment where
-  parse txt = case NameSegment.segments' txt of
-    [n] -> Just (NameSegment.NameSegment n)
-    _ -> Nothing
 
 instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
   parse (a, b) = (,) <$> parse a <*> parse b

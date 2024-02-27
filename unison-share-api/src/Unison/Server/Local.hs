@@ -13,7 +13,9 @@ import U.Codebase.Causal qualified as Causal
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
-import Unison.Name (Name, libSegment)
+import Unison.Name (Name)
+import Unison.NameSegment (libSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Backend
 import Unison.Sqlite qualified as Sqlite
@@ -59,7 +61,13 @@ inferNamesRoot p b
   | otherwise = getLast <$> execWriterT (runReaderT (go p b) Path.empty)
   where
     findBaseProject :: Path -> Maybe Path
-    findBaseProject ("public" Cons.:< "base" Cons.:< release Cons.:< _rest) = Just (Path.fromList ["public", "base", release])
+    findBaseProject
+      ( (NameSegment.toUnescapedText -> "public")
+          Cons.:< (NameSegment.toUnescapedText -> "base")
+          Cons.:< release
+          Cons.:< _rest
+        ) =
+        Just (Path.fromList ["public", "base", release])
     findBaseProject _ = Nothing
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
     go p b = do

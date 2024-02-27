@@ -51,12 +51,14 @@ import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
+import qualified Data.Char as Char
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldName newName = do
@@ -68,8 +70,8 @@ handleUpgrade oldName newName = do
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
   let projectId = projectAndBranch ^. #project . #projectId
   let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId (projectAndBranch ^. #branch . #branchId))
-  let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, oldName]))
-  let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [Name.libSegment, newName]))
+  let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, oldName]))
+  let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, newName]))
 
   currentNamespace <- Cli.getBranch0At projectPath
   let currentNamespaceSansOld = Branch.deleteLibdep oldName currentNamespace
@@ -83,7 +85,7 @@ handleUpgrade oldName newName = do
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
   let oldLocalTerms = Branch.deepTerms oldLocalNamespace
   let oldLocalTypes = Branch.deepTypes oldLocalNamespace
-  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup Name.libSegment (oldNamespace ^. Branch.children))
+  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children))
   let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
   let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 
@@ -190,7 +192,7 @@ handleUpgrade oldName newName = do
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
-      Text.unwords ["upgrade", NameSegment.toText oldName, NameSegment.toText newName]
+      Text.unwords ["upgrade", NameSegment.toEscapedText oldName, NameSegment.toEscapedText newName]
 
 -- Keep only the old terms that aren't "in" new, where "in" is defined as follows:
 --
@@ -290,8 +292,8 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
         }
   where
     -- "full" means "with lib.old.* prefix"
-    fullOldDeepNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldName :| [Name.libSegment])) oldDeepNames)
-    fakeLocalNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newName :| [Name.libSegment])) oldLocalNames)
+    fullOldDeepNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldName :| [NameSegment.libSegment])) oldDeepNames)
+    fakeLocalNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newName :| [NameSegment.libSegment])) oldLocalNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
@@ -314,10 +316,11 @@ findTemporaryBranchName projectId oldDepName newDepName = do
         where
           preferred :: ProjectBranchName
           preferred =
+            -- filter isAlpha just to make it more likely this is a valid project name :sweat-smile:
             unsafeFrom @Text $
               "upgrade-"
-                <> NameSegment.toText oldDepName
+                <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
                 <> "-to-"
-                <> NameSegment.toText newDepName
+                <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
 
   pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))

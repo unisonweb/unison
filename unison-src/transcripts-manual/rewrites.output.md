@@ -123,12 +123,11 @@ After adding to the codebase, here's the rewritten source:
   ex1 = List.map Nat.increment [1, 2, 3, 4, 5, 6, 7]
   
   rule1 :
-    ∀ i g o g1.
-      (i ->{g} o)
-      -> Nat
-      -> Rewrites
-        ( RewriteTerm Nat Nat,
-          RewriteTerm (i ->{g, g1} o) (i ->{g} o))
+    (i ->{g} o)
+    -> Nat
+    -> Rewrites
+      ( RewriteTerm Nat Nat,
+        RewriteTerm (i ->{g, g1} o) (i ->{g} o))
   rule1 f x =
     use Nat +
     @rewrite
