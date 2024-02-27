@@ -913,25 +913,25 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
-data DiffTag
-  = Conflict
-  | Addition
-  | Update
-  | Deletion
+data DiffTag v
+  = Conflict v v
+  | Addition v
+  | Update v
+  | Deletion v
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Conflicts
 
 -- `getConflicts diffs` returns the set of conflicted names in `diffs`, where `diffs` contains two branches' diffs from
 -- their LCA.
-partitionDiff :: forall hash. Eq hash => Merge.TwoWay (Map Name (Merge.DiffOp hash)) -> Map Name DiffTag
+partitionDiff :: forall v hash. Eq hash => Merge.TwoWay (Map Name (v, Merge.DiffOp hash)) -> Map Name (DiffTag v)
 partitionDiff (Merge.TwoWay aliceDiff bobDiff) =
   alignWith f aliceDiff bobDiff
   where
-    diffOpToTag :: forall x. Merge.DiffOp x -> DiffTag
+    diffOpToTag :: forall x. (v, Merge.DiffOp x) -> DiffTag v
     diffOpToTag = \case
-      Merge.Added _ -> Addition
-      Merge.Updated _ _ -> Update
+      Merge.Added v -> Addition v
+      Merge.Updated _ v -> Update v
       Merge.Deleted _ -> Deletion
     f :: These (Merge.DiffOp hash) (Merge.DiffOp hash) -> DiffTag
     f = \case
