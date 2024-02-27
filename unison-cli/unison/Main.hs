@@ -354,6 +354,7 @@ main = do
       RTI.withRuntime False mode Version.gitDescribeWithDate \runtime -> do
         RTI.withRuntime True mode Version.gitDescribeWithDate \sbRuntime ->
           action . (runtime,sbRuntime,)
+            -- startNativeRuntime saves the path to `unison-runtime`
             =<< RTI.startNativeRuntime Version.gitDescribeWithDate nrtp
     withConfig :: Maybe CodebasePathOption -> (Config -> IO a) -> IO a
     withConfig mCodePathOption action = do
