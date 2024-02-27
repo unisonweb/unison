@@ -12,6 +12,7 @@ module Unison.Util.Nametree
     Defns (..),
     mapDefns,
     bimapDefns,
+    zipDefns,
   )
 where
 
@@ -165,3 +166,6 @@ mapDefns f (Defns terms types) =
 bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
 bimapDefns f g (Defns terms types) =
   Defns (f terms) (g types)
+
+zipDefns :: (a -> c -> e) -> (b -> d -> f) -> Defns a b -> Defns c d -> Defns e f
+zipDefns f g (Defns a b) (Defns c d) = Defns (f a c) (g b d)

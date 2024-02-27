@@ -17,7 +17,7 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
-import Data.Semialign (Semialign (..), alignWith, unzip)
+import Data.Semialign (Semialign (..), alignWith, unzip, zip)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -93,7 +93,7 @@ import Unison.Util.Nametree
     Nametree (..),
     bimapDefns,
     flattenNametree,
-    traverseNametreeWithName,
+    traverseNametreeWithName, zipDefns,
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -249,7 +249,6 @@ getConflictInfo
         (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
         (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
         pure (causalHashes, declNames, definitions1)
-    let defns = Merge.TwoWay {alice = aliceDefns, bob = bobDefns}
 
     (lcaDefns, lcaLibdeps, diffs) <- do
       case maybeLcaCausal of
@@ -285,14 +284,24 @@ getConflictInfo
         )
 
     let classifiedDiff =
-          Defns
-            { terms = partitionDiff (view #terms <$> diffs),
-              types = partitionDiff (view #types <$> diffs)
-            }
+          let diffWithContext ::
+                Merge.TwoWay
+                  ( Defns
+                      (Map Name (Referent, Merge.DiffOp Hash))
+                      (Map Name (TypeReference, Merge.DiffOp Hash))
+                  )
+              diffWithContext =
+                let Merge.TwoWay alice bob = diffs
+                    zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
+                in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
+           in Defns
+                { terms = partitionDiff (view #terms <$> diffWithContext),
+                  types = partitionDiff (view #types <$> diffWithContext)
+                }
     -- TODO is swapping constructors' names handled correctly here?
     -- TODO is exchanging constructor for function handled correctly here?
     -- TODO is exchanging function for constructor handled correctly here?
-    let PartitionedDefns {unconflictedAdds, unconflictedUpdates, conflicted, deletedNames} = partitionConflicts classifiedDiff defns
+    let PartitionedDefns {unconflictedAdds, unconflictedUpdates, conflicted, deletedNames} = partitionConflicts classifiedDiff
     let conflictState = case Map.null (view #terms conflicted) && Map.null (view #types conflicted) of
           True ->
             Unconflicted
@@ -325,7 +334,8 @@ data ConflictInfo = ConflictInfo
     unconflictedUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
     deletedNames :: Defns (Set Name) (Set Name),
     conflictState :: ConflictState
-  } deriving stock Generic
+  }
+  deriving stock (Generic)
 
 data ConflictState
   = Conflicted ConflictedInfo
@@ -351,51 +361,39 @@ data PartitionedDefns = PartitionedDefns
 
 partitionConflicts ::
   -- | Classified names
-  Defns (Map Name DiffTag) (Map Name DiffTag) ->
-  -- | alice and bob defns
-  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
   PartitionedDefns
-partitionConflicts (Defns classifiedTermNames classifiedTypeNames) Merge.TwoWay {alice = Defns aliceTerms aliceTypes, bob = Defns bobTerms bobTypes} =
-  let aliceTermMap = BiMultimap.range aliceTerms
-      aliceTypeMap = BiMultimap.range aliceTypes
-      bobTermMap = BiMultimap.range bobTerms
-      bobTypeMap = BiMultimap.range bobTypes
-
-      (conflictedTerms, addedTerms, updatedTerms, deletedTerms) =
+partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
+  let (conflictedTerms, addedTerms, updatedTerms, deletedTerms) =
         Map.foldlWithKey
-          (phi classifiedTermNames)
+          phi
           (Map.empty, Map.empty, Map.empty, Set.empty)
-          (align aliceTermMap bobTermMap)
+          classifiedTermNames
       (conflictedTypes, addedTypes, updatedTypes, deletedTypes) =
         Map.foldlWithKey
-          (phi classifiedTypeNames)
+          phi
           (Map.empty, Map.empty, Map.empty, Set.empty)
-          (align aliceTypeMap bobTypeMap)
+          classifiedTypeNames
 
-      pluck :: These v v -> v
-      pluck = \case
-        This v -> v
-        That v -> v
-        These v _ -> v
-
-      phi classifiedNames = \st@(conflicted, added, updated, deleted) k v ->
-        case Map.lookup k classifiedNames of
-          Just x -> case x of
-            Conflict -> case v of
-              These v0 v1 ->
-                let !conflicted' = Map.insert k (v0, v1) conflicted
-                 in (conflicted', added, updated, deleted)
-              _ -> error "impossible: conflict but the name doesn't appear in both namespaces"
-            Addition ->
-              let !added' = Map.insert k (pluck v) added
-               in (conflicted, added', updated, deleted)
-            Update ->
-              let !updated' = Map.insert k (pluck v) updated
-               in (conflicted, added, updated', deleted)
-            Deletion ->
-              let !deleted' = Set.insert k deleted
-               in (conflicted, added, updated, deleted')
-          Nothing -> st
+      phi = \(conflicted, added, updated, deleted) k v -> case v of
+          Conflict a b ->
+            let !conflicted' = Map.insert k (a, b) conflicted
+             in (conflicted', added, updated, deleted)
+          Addition a ->
+            let !added' = Map.insert k a added
+             in (conflicted, added', updated, deleted)
+          Update a ->
+            let !updated' = Map.insert k a updated
+             in (conflicted, added, updated', deleted)
+          DoubleDeletion _ ->
+            let !deleted' = Set.insert k deleted
+             in (conflicted, added, updated, deleted')
+          AliceDeletion _ ->
+            let !deleted' = Set.insert k deleted
+             in (conflicted, added, updated, deleted')
+          BobDeletion _ ->
+            let !deleted' = Set.insert k deleted
+             in (conflicted, added, updated, deleted')
    in PartitionedDefns
         { conflicted = Defns conflictedTerms conflictedTypes,
           unconflictedAdds = Defns addedTerms addedTypes,
@@ -913,39 +911,41 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
 
-data DiffTag v
+data TwoDiffsOp v
   = Conflict v v
   | Addition v
   | Update v
-  | Deletion v
+  | AliceDeletion v
+  | BobDeletion v
+  | DoubleDeletion v
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Conflicts
 
 -- `getConflicts diffs` returns the set of conflicted names in `diffs`, where `diffs` contains two branches' diffs from
 -- their LCA.
-partitionDiff :: forall v hash. Eq hash => Merge.TwoWay (Map Name (v, Merge.DiffOp hash)) -> Map Name (DiffTag v)
+partitionDiff :: forall v hash. Eq hash => Merge.TwoWay (Map Name (v, Merge.DiffOp hash)) -> Map Name (TwoDiffsOp v)
 partitionDiff (Merge.TwoWay aliceDiff bobDiff) =
   alignWith f aliceDiff bobDiff
   where
-    diffOpToTag :: forall x. (v, Merge.DiffOp x) -> DiffTag v
-    diffOpToTag = \case
-      Merge.Added v -> Addition v
-      Merge.Updated _ v -> Update v
-      Merge.Deleted _ -> Deletion
-    f :: These (Merge.DiffOp hash) (Merge.DiffOp hash) -> DiffTag
+    diffOpToTag :: forall x. (v -> TwoDiffsOp v) -> (v, Merge.DiffOp x) -> TwoDiffsOp v
+    diffOpToTag singleDeletion (a, diffop) = case diffop of
+      Merge.Added _ -> Addition a
+      Merge.Updated _ _ -> Update a
+      Merge.Deleted _ -> singleDeletion a
+    f :: These (v, Merge.DiffOp hash) (v, Merge.DiffOp hash) -> TwoDiffsOp v
     f = \case
-      These (Merge.Added x) (Merge.Added y) -> if x /= y then Conflict else Addition
-      These (Merge.Added _) (Merge.Updated _ _) -> error "impossible"
-      These (Merge.Added _) (Merge.Deleted _) -> error "impossible"
-      These (Merge.Updated _ x) (Merge.Updated _ y) -> if x /= y then Conflict else Update
+      These (a, Merge.Added x) (b, Merge.Added y) -> if x /= y then Conflict a b else Addition a
+      These (_, Merge.Added _) (_, Merge.Updated _ _) -> error "impossible"
+      These (_, Merge.Added _) (_, Merge.Deleted _) -> error "impossible"
+      These (a, Merge.Updated _ x) (b, Merge.Updated _ y) -> if x /= y then Conflict a b else Update a
       -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-      These (Merge.Updated _ _) (Merge.Deleted _) -> Update
-      These a@(Merge.Updated {}) b@(Merge.Added {}) -> f (These b a)
-      These (Merge.Deleted _) (Merge.Deleted _) -> Deletion
-      These a@(Merge.Deleted _) b -> f (These b a)
-      This x -> diffOpToTag x
-      That x -> diffOpToTag x
+      These (a, Merge.Updated _ _) (_, Merge.Deleted _) -> Update a
+      These (_, Merge.Updated {}) (_, Merge.Added {}) -> error "impossible"
+      These (a, Merge.Deleted _) (_, Merge.Deleted _) -> DoubleDeletion a
+      These a@(_, Merge.Deleted _) b -> f (These b a)
+      This x -> diffOpToTag AliceDeletion x
+      That x -> diffOpToTag BobDeletion x
 
 -- `convertLibdepsToV1Causal db parents libdeps` loads `libdeps` as a V1 branch (without history), and then turns it
 -- into a V1 causal using `parents` as history.
