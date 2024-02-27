@@ -5,6 +5,7 @@ where
 
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
+import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
@@ -58,7 +59,6 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
-import qualified Data.Char as Char
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldName newName = do
@@ -193,44 +193,17 @@ handleUpgrade oldName newName = do
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toEscapedText oldName, NameSegment.toEscapedText newName]
 
--- Keep only the old terms that aren't "in" new, where "in" is defined as follows:
---
---   * Consider some term in old, #foo, with set of names { "bar", "baz" }.
---
---   * We say this term is "in" new if the names associated with #foo include at least "bar" or "baz" (that is, there is
---   a non-empty intersection of sets of names).
---
--- Here are a couple common cases:
---
---   1. A term #foo isn't touched between old and new versions, i.e. it has the same set of names in both. This function
---      would not return such a term.
---
---   2. A term #old => { "foo" } exists in old, but not in new, because it's been updated to #new => { "foo" }. This
---      function would return #old.
 keepOldLocalTermsNotInNew :: Relation Referent Name -> Relation Referent Name -> Set TermReference
 keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms =
-  Map.foldMapWithKey phi (Relation.domain oldLocalTerms)
+  f oldLocalTerms `Set.difference` f newLocalTerms
   where
-    phi :: Referent -> Set Name -> Set TermReference
-    phi referent oldNames =
-      case Referent.toTermReference referent of
-        Nothing -> Set.empty
-        Just ref ->
-          let newNames = Relation.lookupDom referent newLocalTerms
-           in case newNames `Set.disjoint` oldNames of
-                True -> Set.singleton ref
-                False -> Set.empty
+    f :: Relation Referent Name -> Set TermReference
+    f =
+      Set.mapMaybe Referent.toTermReference . Relation.dom
 
 keepOldLocalTypesNotInNew :: Relation TypeReference Name -> Relation TypeReference Name -> Set TypeReference
 keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes =
-  Map.foldMapWithKey phi (Relation.domain oldLocalTypes)
-  where
-    phi :: TypeReference -> Set Name -> Set TypeReference
-    phi typeRef oldNames =
-      let newNames = Relation.lookupDom typeRef newLocalTypes
-       in case newNames `Set.disjoint` oldNames of
-            True -> Set.singleton typeRef
-            False -> Set.empty
+  Relation.dom oldLocalTypes `Set.difference` Relation.dom newLocalTypes
 
 keepOldDeepTermsStillInUse :: Relation Referent Name -> Relation Referent Name -> Set TermReference
 keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld =
