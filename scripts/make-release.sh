@@ -46,6 +46,8 @@ echo "Creating release in unison-local-ui..."
 gh release create "release/${version}" --repo unisonweb/unison-local-ui --target main --generate-notes --notes-start-tag "release/${prev_version}"
 
 echo "Kicking off release workflow in unisonweb/unison"
+# Make sure our local trunk is up to date, since that's usually what gets tagged.
+git fetch origin trunk:trunk
 git tag "${tag}" "${target}"
 git push origin "${tag}"
 gh workflow run release --repo unisonweb/unison --field "version=${version}"
