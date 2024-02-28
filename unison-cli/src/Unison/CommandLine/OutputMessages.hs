@@ -1794,6 +1794,10 @@ notifyUser dir = \case
         <> case typ of
           Left builtinTxt -> "Builtin type: ##" <> P.text builtinTxt
           Right decl -> either (P.text . TL.toStrict . pShowNoColor) (P.text . TL.toStrict . pShowNoColor) decl
+  HashValidationResult mayErr ->
+    pure $ case mayErr of
+      Nothing -> "The hash is valid"
+      Just err -> prettyEntityValidationFailure err
   AnnotatedFoldRanges txt -> pure $ P.text txt
   DisplayDebugNameDiff NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals} -> do
     let referentText =

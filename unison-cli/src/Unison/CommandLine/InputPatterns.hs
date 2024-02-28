@@ -51,6 +51,7 @@ import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
+import Unison.Hash32 qualified as Hash32
 import Unison.HashQualified qualified as HQ
 import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
@@ -2285,6 +2286,19 @@ debugType =
         _ -> Left (I.help debugType)
     )
 
+debugHashValidate :: InputPattern
+debugHashValidate =
+  InputPattern
+    "debug.hash-validate"
+    []
+    I.Hidden
+    [("full hash of a term in your codebase", Required, definitionQueryArg)]
+    "Validate the hash of a definition or namespace"
+    ( \case
+        [thing] -> Right . Input.DebugHashValidateI . Hash32.unsafeFromText . Text.pack $ thing
+        _ -> Left (I.help debugHashValidate)
+    )
+
 debugLSPFoldRanges :: InputPattern
 debugLSPFoldRanges =
   InputPattern
@@ -3017,6 +3031,7 @@ validInputs =
       debugTerm,
       debugTermVerbose,
       debugType,
+      debugHashValidate,
       debugLSPFoldRanges,
       debugFileHashes,
       debugNameDiff,

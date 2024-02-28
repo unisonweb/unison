@@ -69,6 +69,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
+import Unison.Codebase.Editor.HandleInput.DebugHashValidate qualified as DebugHashValidate
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
@@ -135,6 +136,7 @@ import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
+import Unison.Hash32 qualified as Hash32
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.HashQualified' qualified as HashQualified
@@ -1150,6 +1152,7 @@ loop e = do
             DebugLSPFoldRangesI -> do
               DebugFoldRanges.debugFoldRanges
             DebugTypeI hqName -> DebugDefinition.debugDecl hqName
+            DebugHashValidateI hash -> DebugHashValidate.debugHashValidate hash
             DebugClearWatchI {} ->
               Cli.runTransaction Codebase.clearWatches
             DebugDoctorI {} -> do
@@ -1368,6 +1371,7 @@ inputDescription input =
         then pure ("debug.term.verbose " <> HQ.toText hqName)
         else pure ("debug.term " <> HQ.toText hqName)
     DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
+    DebugHashValidateI hash -> pure ("debug.hash-validate " <> Hash32.toText hash)
     DebugLSPFoldRangesI -> pure "debug.lsp.fold-ranges"
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat

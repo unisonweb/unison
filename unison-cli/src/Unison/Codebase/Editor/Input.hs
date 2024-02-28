@@ -44,6 +44,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
+import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -222,6 +223,7 @@ data Input
   | DebugDumpNamespaceSimpleI
   | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
   | DebugTypeI (HQ.HashQualified Name)
+  | DebugHashValidateI Hash32
   | DebugLSPFoldRangesI
   | DebugClearWatchI
   | DebugDoctorI
