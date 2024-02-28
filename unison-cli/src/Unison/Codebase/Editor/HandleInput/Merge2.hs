@@ -17,6 +17,10 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
+-- import U.Codebase.Sqlite.DbId (ProjectId)
+
+-- import Witch (unsafeFrom)
+
 import Data.Semialign (Semialign (..), alignWith, unzip, zip)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -29,14 +33,14 @@ import U.Codebase.Branch qualified as Branch
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
-  ( Reference' (..),
+  ( Reference,
+    Reference' (..),
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
   )
 import U.Codebase.Referent (Referent)
 import U.Codebase.Referent qualified as Referent
--- import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project)
@@ -101,7 +105,6 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
--- import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
@@ -322,6 +325,8 @@ getConflictInfo
       ConflictInfo
         { lcaDefns,
           mergedLibdeps,
+          aliceDefns,
+          bobDefns,
           unconflictedPartitionedDefns,
           conflictState
         }
@@ -330,6 +335,8 @@ data ConflictInfo = ConflictInfo
   { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     mergedLibdeps :: V1.Branch Transaction,
     unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
+    aliceDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    bobDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     conflictState :: ConflictState
   }
   deriving stock (Generic)
@@ -361,16 +368,48 @@ data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
     bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
 
+partitionFileContents ::
+  MergeDatabase ->
+  ConflictInfo ->
+  Transaction
+    ( Defns (Map Name Referent) (Map Name TypeReference),
+      Defns (Map Name Referent) (Map Name TypeReference)
+    )
+partitionFileContents db conflictInfo = do
+  let UnconflictedPartitionedDefns
+        { aliceAdditions,
+          bobAdditions,
+          bothAdditions,
+          aliceUpdates,
+          bobUpdates,
+          bothUpdates,
+          aliceDeletions,
+          bobDeletions
+        } = view #unconflictedPartitionedDefns conflictInfo
+  aliceNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #aliceDefns conflictInfo)
+  bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #bobDefns conflictInfo)
+  let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
+  let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
+  d0 <- getNamespaceDependentsOf aliceNames bobsReferences
+  d1 <- getNamespaceDependentsOf bobNames alicesReferences
+  undefined
+  where
+    defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
+    defnRefs n = flip getExistingReferencesNamed n . defnNames2
+
+    defnNames2 :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
+    defnNames2 = bimapDefns Map.keysSet Map.keysSet
+
 unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedAdditions UnconflictedPartitionedDefns { aliceAdditions, bobAdditions, bothAdditions } =
+unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
   aliceAdditions <> bobAdditions <> bothAdditions
 
 unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedUpdates UnconflictedPartitionedDefns { aliceUpdates, bobUpdates, bothUpdates } =
+unconflictedUpdates UnconflictedPartitionedDefns {aliceUpdates, bobUpdates, bothUpdates} =
   aliceUpdates <> bobUpdates <> bothUpdates
 
 unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedDeletions UnconflictedPartitionedDefns { aliceDeletions, bobDeletions, bothDeletions } =
+unconflictedDeletions UnconflictedPartitionedDefns {aliceDeletions, bobDeletions, bothDeletions} =
   aliceDeletions <> bobDeletions <> bothDeletions
 
 data PartitionedDefns = PartitionedDefns
@@ -472,19 +511,37 @@ loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedPartitionedDe
   terms <- traverse (referent2to1 db) terms
   pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap types}
 
-unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-unconflictedRel ConflictInfo {unconflictedPartitionedDefns} =
-  let Defns {terms, types} = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
-      termRefIds = flip mapMaybe terms \case
+defnsToNames ::
+  MergeDatabase ->
+  Defns (Map Name Referent) (Map Name TypeReference) ->
+  Transaction Names
+defnsToNames db Defns {terms, types} = do
+  terms <- traverse (referent2to1 db) terms
+  pure
+    Names.Names
+      { terms = Relation.fromMap terms,
+        types = Relation.fromMap types
+      }
+
+defnsToRel ::
+  Defns (Map Name Referent) (Map Name TypeReference) ->
+  (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+defnsToRel Defns {terms, types} =
+  let termRefIds = flip mapMaybe terms \case
         Referent.Ref r -> case r of
-          ReferenceBuiltin _ -> Nothing -- todo
+          ReferenceBuiltin _ -> Nothing -- todo - explode
           ReferenceDerived r -> Just r
-        Referent.Con _ _ -> Nothing -- todo
+        Referent.Con _ _ -> Nothing -- todo - get the decl
       typeRefIds =
         flip mapMaybe types \case
-          ReferenceBuiltin _ -> Nothing -- todo
+          ReferenceBuiltin _ -> Nothing -- todo - explode
           ReferenceDerived r -> Just r
    in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
+
+unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+unconflictedRel ConflictInfo {unconflictedPartitionedDefns} =
+  let d = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
+   in defnsToRel d
 
 promptUser ::
   MergeInfo ->
