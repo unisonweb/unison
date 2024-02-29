@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (view, (%=), (%~), (.=), (^.))
+import Control.Lens (view, (%=), (%~), (.=), (^.), (%%~))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -127,7 +127,7 @@ handleMerge bobBranchName = do
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
-  (conflictInfo, unisonFile, pped) <- Cli.runTransactionWithRollback \abort -> do
+  (conflictInfo, unisonFile, pped, parsingEnvNames) <- Cli.runTransactionWithRollback \abort -> do
     conflictInfo <- getConflictInfo db mergeInfo abort
     case conflictState conflictInfo of
       Conflicted _ -> do
@@ -135,50 +135,47 @@ handleMerge bobBranchName = do
       Unconflicted unconflictedInfo -> do
         lcaNamesExcludingLibdepsAndDeletions <- loadLcaNamesExcludingLibdepsAndDeletions db conflictInfo
 
-        unisonFile <- makeUnisonFile db abort codebase lcaNamesExcludingLibdepsAndDeletions conflictInfo (view #declNames unconflictedInfo)
+        PartitionedContents { fileContents, lcaAddsAndUpdates, lcaDeletions } <- partitionFileContents db conflictInfo
+        unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
         let namesExcludingLibdeps = lcaNamesExcludingLibdepsAndDeletions <> unconflictedNamesExcludingLibdeps
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
-        let namesIncludingLibdeps = namesExcludingLibdeps <> mergedLibdepNames
+        lcaAddsAndUpdates <- lcaAddsAndUpdates & #terms.traverse %%~ referent2to1 db
+        let mungedNames =
+              let termMap = Relation.domain (Names.terms namesExcludingLibdeps)
+                  typeMap = Relation.domain (Names.types namesExcludingLibdeps)
+                  termMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) termMap (view #terms lcaAddsAndUpdates)
+                  typeMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) typeMap (view #types lcaAddsAndUpdates)
+                  termMap'' = Map.withoutKeys termMap' (view #terms lcaDeletions)
+                  typeMap'' = Map.withoutKeys typeMap' (view #types lcaDeletions)
+              in Names.Names { terms = Relation.fromMultimap termMap'',
+                               types = Relation.fromMultimap typeMap''
+                             }
+        let namesIncludingLibdeps = mungedNames <> mergedLibdepNames
         let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
-        pure (conflictInfo, unisonFile, pped)
+        pure (conflictInfo, unisonFile, pped, namesIncludingLibdeps)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   promptUser mergeInfo conflictInfo prettyUf
   pure ()
 
 makeUnisonFile ::
-  MergeDatabase ->
+  Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
-  Names ->
-  ConflictInfo ->
   Map Name [Name] ->
   Transaction (UnisonFile Symbol Ann)
-makeUnisonFile db abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
+makeUnisonFile Defns {terms, types} abort codebase declMap = do
   let lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
-  unconflictedRel <- fileContents db conflictInfo
   unisonFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
       -- todo: fix output
       (const lookupCons)
-      unconflictedRel
+      (terms, types)
       UnisonFile.emptyUnisonFile
-
-  let updatedTermsAndDecls = bimapDefns Map.keysSet Map.keysSet (unconflictedUpdates $ view #unconflictedPartitionedDefns conflictInfo)
-  dependents <-
-    getNamespaceDependentsOf lcaNamesExcludingLibdeps (getExistingReferencesNamed updatedTermsAndDecls lcaNamesExcludingLibdeps)
-  unisonFile <- do
-    addDefinitionsToUnisonFile
-      abort
-      codebase
-      -- todo: fix output
-      (const lookupCons)
-      dependents
-      unisonFile
   pure unisonFile
 
 data MergeInfo = MergeInfo
@@ -370,25 +367,47 @@ data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
     bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
 
-fileContents ::
+data PartitionedContents
+  = PartitionedContents
+  { fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId),
+    lcaAddsAndUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    lcaDeletions :: Defns (Set Name) (Set Name)
+  }
+
+partitionFileContents ::
   MergeDatabase ->
   ConflictInfo ->
-  Transaction (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+  Transaction PartitionedContents
    
-fileContents db conflictInfo = do
+partitionFileContents db conflictInfo = do
   let UnconflictedPartitionedDefns
         { aliceUpdates,
           bobUpdates,
+          bothUpdates,
+          aliceAdditions,
+          bobAdditions,
+          bothAdditions,
           aliceDeletions,
-          bobDeletions
+          bobDeletions,
+          bothDeletions
         } = view #unconflictedPartitionedDefns conflictInfo
   aliceNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #aliceDefns conflictInfo)
   bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #bobDefns conflictInfo)
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
-  d0 <- bimap Relation.domain Relation.domain <$> getNamespaceDependentsOf aliceNames bobsReferences
-  d1 <- bimap Relation.domain Relation.domain <$> getNamespaceDependentsOf bobNames alicesReferences
-  pure (bimap Relation.fromMultimap Relation.fromMultimap (d0 <> d1))
+  d0 <- (\(a,b) -> Defns { terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
+  d1 <- (\(a,b) -> Defns { terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
+  let fileContentsMap = d0 <> d1
+  let fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
+  let lcaAddsAndUpdates =
+        let candidates = aliceUpdates <> bobUpdates <> bothUpdates <> aliceAdditions <> bobAdditions <> bothAdditions
+        in bimapDefns (Map.\\ view #terms fileContentsMap) (Map.\\ view #types fileContentsMap) candidates
+  let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (aliceDeletions <> bobDeletions <> bothDeletions)
+  pure PartitionedContents
+    { fileContents,
+      lcaAddsAndUpdates,
+      lcaDeletions
+    }
   where
     defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
     defnRefs n = flip getExistingReferencesNamed n . defnNames
