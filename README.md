@@ -31,7 +31,7 @@ Other resources:
 
 * [Learn about the big idea behind Unison](https://www.unison-lang.org/learn/the-big-idea/)
 * Check out [the project website](https://unison-lang.org)
-* Say hello or lurk [in the Discord chat](https://discord.gg/unison)
+* Say hello or lurk [in the Discord chat](https://unison-lang.org/discord)
 * Explore [the Unison ecosystem](https://share.unison-lang.org/)
 * [Learn Unison](https://www.unison-lang.org/learn/)
 
