@@ -270,6 +270,8 @@
   (cond
     [(equal? l r) '=]
     [(and (number? l) (number? r)) (if (< l r) '< '>)]
+    [(and (char? l) (char? r)) (if (char<? l r) '< '>)]
+    [(and (boolean? l) (boolean? r)) (if r '< '>)]
     [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
     [(and (chunked-string? l) (chunked-string? r))
      (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
