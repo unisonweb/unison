@@ -135,7 +135,7 @@ handleMerge bobBranchName = do
       Unconflicted unconflictedInfo -> do
         lcaNamesExcludingLibdepsAndDeletions <- loadLcaNamesExcludingLibdepsAndDeletions db conflictInfo
 
-        unisonFile <- makeUnisonFile abort codebase lcaNamesExcludingLibdepsAndDeletions conflictInfo (view #declNames unconflictedInfo)
+        unisonFile <- makeUnisonFile db abort codebase lcaNamesExcludingLibdepsAndDeletions conflictInfo (view #declNames unconflictedInfo)
         unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
         let namesExcludingLibdeps = lcaNamesExcludingLibdepsAndDeletions <> unconflictedNamesExcludingLibdeps
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
@@ -147,23 +147,25 @@ handleMerge bobBranchName = do
   pure ()
 
 makeUnisonFile ::
+  MergeDatabase ->
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
   Names ->
   ConflictInfo ->
   Map Name [Name] ->
   Transaction (UnisonFile Symbol Ann)
-makeUnisonFile abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
+makeUnisonFile db abort codebase lcaNamesExcludingLibdeps conflictInfo declMap = do
   let lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
+  unconflictedRel <- fileContents db conflictInfo
   unisonFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
       -- todo: fix output
       (const lookupCons)
-      (unconflictedRel conflictInfo)
+      unconflictedRel
       UnisonFile.emptyUnisonFile
 
   let updatedTermsAndDecls = bimapDefns Map.keysSet Map.keysSet (unconflictedUpdates $ view #unconflictedPartitionedDefns conflictInfo)
@@ -368,21 +370,15 @@ data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
     bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
 
-partitionFileContents ::
+fileContents ::
   MergeDatabase ->
   ConflictInfo ->
-  Transaction
-    ( Defns (Map Name Referent) (Map Name TypeReference),
-      Defns (Map Name Referent) (Map Name TypeReference)
-    )
-partitionFileContents db conflictInfo = do
+  Transaction (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+   
+fileContents db conflictInfo = do
   let UnconflictedPartitionedDefns
-        { aliceAdditions,
-          bobAdditions,
-          bothAdditions,
-          aliceUpdates,
+        { aliceUpdates,
           bobUpdates,
-          bothUpdates,
           aliceDeletions,
           bobDeletions
         } = view #unconflictedPartitionedDefns conflictInfo
@@ -390,15 +386,15 @@ partitionFileContents db conflictInfo = do
   bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #bobDefns conflictInfo)
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
-  d0 <- getNamespaceDependentsOf aliceNames bobsReferences
-  d1 <- getNamespaceDependentsOf bobNames alicesReferences
-  undefined
+  d0 <- bimap Relation.domain Relation.domain <$> getNamespaceDependentsOf aliceNames bobsReferences
+  d1 <- bimap Relation.domain Relation.domain <$> getNamespaceDependentsOf bobNames alicesReferences
+  pure (bimap Relation.fromMultimap Relation.fromMultimap (d0 <> d1))
   where
     defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
-    defnRefs n = flip getExistingReferencesNamed n . defnNames2
+    defnRefs n = flip getExistingReferencesNamed n . defnNames
 
-    defnNames2 :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
-    defnNames2 = bimapDefns Map.keysSet Map.keysSet
+    defnNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
+    defnNames = bimapDefns Map.keysSet Map.keysSet
 
 unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
 unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
