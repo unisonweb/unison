@@ -20,6 +20,13 @@
   data
   data-case
 
+  clamp-integer
+  clamp-natural
+  wrap-natural
+  bit64
+  bit63
+  nbit63
+
   expand-sandbox
   check-sandbox
   set-sandbox
@@ -72,6 +79,7 @@
   ; (for (only (racket base) quasisyntax/loc) expand)
   ; (for-syntax (only-in unison/core syntax->list))
   (only-in racket/control prompt0-at control0-at)
+  racket/performance-hint
   unison/core
   unison/data
   unison/sandbox
@@ -591,3 +599,31 @@
        (control 'ref-4n0fgs00 k
          (let ([disp (describe-value f)])
            (raise (make-exn:bug "builtin.bug" disp))))]]))
+
+(begin-encourage-inline
+  (define mask64 #xffffffffffffffff)
+  (define mask63 #x7fffffffffffffff)
+  (define bit63 #x8000000000000000)
+  (define bit64 #x10000000000000000)
+  (define nbit63 (- #x8000000000000000))
+
+  ; Operation to maintain Int values to within a range from
+  ; -2^63 to 2^63-1.
+  (define (clamp-integer i)
+    (if (fixnum? i) i
+      (let ([j (bitwise-and mask64 i)])
+        (if (< j bit63) j
+          (- j bit64)))))
+
+  ; modular arithmetic appropriate for when a Nat operation can only
+  ; overflow (be too large a positive number).
+  (define (clamp-natural n)
+    (if (fixnum? n) n
+      (modulo n bit64)))
+
+  ; module arithmetic appropriate for when a Nat operation my either
+  ; have too large or a negative result.
+  (define (wrap-natural n)
+    (if (and (fixnum? n) (exact-nonnegative-integer? n)) n
+      (modulo n bit64))))
+
