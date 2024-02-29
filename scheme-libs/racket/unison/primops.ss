@@ -139,6 +139,9 @@
     builtin-IO.randomBytes
     builtin-IO.randomBytes:termlink
 
+    builtin-Scope.bytearrayOf
+    builtin-Scope.bytearrayOf:termlink
+
     builtin-Universal.==
     builtin-Universal.==:termlink
     builtin-Universal.>
@@ -573,17 +576,24 @@
            (only (racket)
                  car
                  cdr
+                 exact-integer?
+                 exact-nonnegative-integer?
                  foldl
+                 integer-length
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
                  file-stream-buffer-mode
                  with-handlers
                  match
+                 modulo
+                 quotient
                  regexp-match-positions
                  sequence-ref
                  vector-copy!
-                 bytes-copy!)
+                 bytes-copy!
+                 sub1
+                 add1)
            (car icar) (cdr icdr))
           (unison arithmetic)
           (unison bytevector)
@@ -591,7 +601,13 @@
           (only (unison boot)
                 define-unison
                 referent->termlink
-                termlink->referent)
+                termlink->referent
+                clamp-integer
+                clamp-natural
+                wrap-natural
+                bit64
+                bit63
+                nbit63)
           (unison data)
           (unison data-info)
           (unison math)
@@ -713,6 +729,7 @@
   (define-builtin-link Pattern.captureAs)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
+  (define-builtin-link Scope.bytearrayOf)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -787,6 +804,9 @@
     (define-unison (builtin-Universal.compare x y)
       (case (universal-compare x y)
         [(>) 1] [(<) -1] [else 0]))
+
+    (define-unison (builtin-Scope.bytearrayOf i n)
+      (make-bytevector n i))
 
     (define (hash-string hs)
       (string-append "#" (bytevector->base32-string b32h hs)))
@@ -1400,5 +1420,6 @@
   (declare-builtin-link builtin-Universal.<=)
   (declare-builtin-link builtin-Universal.compare)
   (declare-builtin-link builtin-Pattern.isMatch)
+  (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
   )
