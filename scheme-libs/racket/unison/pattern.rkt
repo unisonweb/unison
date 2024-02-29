@@ -269,7 +269,7 @@
            (define-values [cstr* captures*]
              (for/fold ([cstr cstr]
                         [captures captures]
-                        #:result (ok cstr captures))
+                        #:result (values cstr captures))
                        ([i (in-range min-count)])
                #:break (not cstr)
                (pat-m cstr captures)))
@@ -297,4 +297,9 @@
    (p:char
     (λ (c) (match (pattern-pat cc)
              [(p:char 'any) #f]
-             [(p:char p) (not (p c))])))))
+             [(p:char p) (not (p c))]
+             [(p:or p q)
+              (char-class-and
+                (char-class-not p)
+                (char-class-not q))])))))
+
