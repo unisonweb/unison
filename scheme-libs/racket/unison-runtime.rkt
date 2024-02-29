@@ -93,19 +93,23 @@
   (write-module srcf main-ref icode))
 
 (define generate-to (make-parameter #f))
+(define show-version (make-parameter #f))
 
 (define (handle-command-line)
   (command-line
     #:program "unison-runtime"
     #:once-any
+    ["--version"
+     "display version"
+     (show-version #t)]
     [("-G" "--generate-file")
        file
        "generate code to <file>"
-       (generate-to file)]
-    #:args ()
-    (generate-to)))
+       (generate-to file)]))
 
-(let ([out (handle-command-line)])
-  (if out
-    (do-generate out)
-    (do-evaluate)))
+(begin
+  (handle-command-line)
+  (cond
+    [(show-version) (displayln "unison-runtime version 0.0.10")]
+    [(generate-to) (do-generate (generate-to))]
+    [else (do-evaluate)]))
