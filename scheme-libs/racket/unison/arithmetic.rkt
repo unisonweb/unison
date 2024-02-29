@@ -21,23 +21,22 @@
       Int.signum
       )))
 
-(require racket)
-(require racket/fixnum)
-(require racket/flonum)
-(require racket/performance-hint)
-(require unison/boot)
+(require racket
+         racket/fixnum
+         racket/flonum
+         racket/performance-hint
+         unison/boot)
 
 (begin-encourage-inline
-  (define-unison (Nat.+ m n) (+ m n))
+  (define-unison (Nat.+ m n) (clamp-natural (+ m n)))
   (define-unison (Nat.drop m n) (max 0 (- m n)))
 
-
-  (define-unison (Nat.increment n) (add1 n))
-  (define-unison (Int.increment i) (add1 i))
-  (define-unison (Int.negate i) (- i))
-  (define-unison (Int.+ i j) (+ i j))
-  (define-unison (Int.- i j) (- i j))
-  (define-unison (Int./ i j) (quotient i j))
+  (define-unison (Nat.increment n) (clamp-natural (add1 n)))
+  (define-unison (Int.increment i) (clamp-integer (add1 i)))
+  (define-unison (Int.negate i) (if (> i nbit63) (- i) i))
+  (define-unison (Int.+ i j) (clamp-integer (+ i j)))
+  (define-unison (Int.- i j) (clamp-integer (- i j)))
+  (define-unison (Int./ i j) (floor (/ i j)))
   (define-unison (Int.signum i) (sgn i))
   (define-unison (Float.* x y) (fl* x y))
 
