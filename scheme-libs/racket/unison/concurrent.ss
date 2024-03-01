@@ -18,6 +18,7 @@
   (import (rnrs)
           (rnrs records syntactic)
           (unison data)
+          (unison data-info)
           (unison core)
           (unison chunked-seq)
           (rename
@@ -110,7 +111,9 @@
     (with-handlers
       ([exn:break?
         (lambda (e) (exception "ThreadKilledFailure" (string->chunked-string "thread killed") ()))]
-       [exn:io? (lambda (e) (exception "IOFailure" (exception->string e) ()))]
+       [exn:io?
+         (lambda (e)
+           (exception unison-iofailure:link (exception->string e) ()))]
        [exn:arith? (lambda (e) (exception "ArithmeticFailure" (exception->string e) ()))]
        [exn:bug? (lambda (e) (exn:bug->exception e))]
        [exn:fail? (lambda (e) (exception "RuntimeFailure" (exception->string e) ()))]

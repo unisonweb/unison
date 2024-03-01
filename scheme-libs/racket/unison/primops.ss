@@ -1099,7 +1099,14 @@
     (define (unison-FOp-Text.fromUtf8.impl.v3 b)
       (with-handlers
         ([exn:fail:contract? ; TODO proper typeLink
-          (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+          (lambda (e)
+            (exception
+              unison-iofailure:link
+              (string->chunked-string
+                (string-append
+                  "Invalid UTF-8 stream: "
+                  (describe-value b)))
+              (exception->string e)))])
         (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
     ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?

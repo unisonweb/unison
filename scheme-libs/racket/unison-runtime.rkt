@@ -110,6 +110,6 @@
 (begin
   (handle-command-line)
   (cond
-    [(show-version) (displayln "unison-runtime version 0.0.10")]
+    [(show-version) (displayln "unison-runtime version 0.0.11")]
     [(generate-to) (do-generate (generate-to))]
     [else (do-evaluate)]))
