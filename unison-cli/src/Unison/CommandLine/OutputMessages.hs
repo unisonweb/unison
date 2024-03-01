@@ -1989,8 +1989,9 @@ notifyUser dir = \case
   Unauthorized message ->
     pure . P.wrap $
       P.text ("Unauthorized: " <> message)
-  ServantClientError err ->
-    pure case err of
+  ServantClientError err -> do
+    print err
+    pure $ case err of
       Servant.ConnectionError exception ->
         P.wrap $
           fromMaybe "Something went wrong with the connection. Try again?" do
