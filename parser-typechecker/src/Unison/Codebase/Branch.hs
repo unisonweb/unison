@@ -66,8 +66,12 @@ module Unison.Codebase.Branch
     modifyAt,
     modifyAtM,
     children0,
+
+    -- *** Libdep manipulations
     withoutLib,
     withoutTransitiveLibs,
+    deleteLibdep,
+    deleteLibdeps,
 
     -- * Branch terms/types/edits
 
@@ -171,6 +175,16 @@ withoutTransitiveLibs Branch0 {..} =
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
    in branch0 _terms _types newChildren _edits
+
+-- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
+deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
+deleteLibdep dep =
+  over (children . ix NameSegment.libSegment . head_ . children) (Map.delete dep)
+
+-- | @deleteLibdeps branch@ deletes all libdeps from @branch@.
+deleteLibdeps :: Branch0 m -> Branch0 m
+deleteLibdeps =
+  over children (Map.delete NameSegment.libSegment)
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
