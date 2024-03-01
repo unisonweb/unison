@@ -595,6 +595,9 @@
                  sub1
                  add1)
            (car icar) (cdr icdr))
+          (only (racket string)
+                string-contains?
+                string-replace)
           (unison arithmetic)
           (unison bytevector)
           (unison core)
@@ -897,7 +900,14 @@
         (put-string p ": ")
         (display (describe-value x) p)
         (raise (make-exn:bug fnm x))))
-    (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
+    (define (unison-POp-FTOT f)
+      (define base (number->string f))
+      (define dotted
+        (if (string-contains? base ".")
+          base
+          (string-replace base "e" ".0e")))
+      (string->chunked-string
+        (string-replace dotted "+" "")))
     (define (unison-POp-IDXB n bs)
       (guard (x [else none])
         (some (chunked-bytes-ref bs n))))
