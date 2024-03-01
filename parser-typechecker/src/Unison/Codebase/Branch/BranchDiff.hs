@@ -9,7 +9,7 @@ import Unison.Codebase.Patch qualified as Patch
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 
 type Star r n = Metadata.Star r n
 
@@ -38,10 +38,10 @@ diff0 old new = do
           oldEdits
   pure $
     BranchDiff
-      { addedTerms = Star3.difference (_terms new) (_terms old),
-        removedTerms = Star3.difference (_terms old) (_terms new),
-        addedTypes = Star3.difference (_types new) (_types old),
-        removedTypes = Star3.difference (_types old) (_types new),
+      { addedTerms = Star2.difference (_terms new) (_terms old),
+        removedTerms = Star2.difference (_terms old) (_terms new),
+        addedTypes = Star2.difference (_types new) (_types old),
+        removedTypes = Star2.difference (_types old) (_types new),
         changedPatches = diffEdits
       }
 

@@ -70,7 +70,7 @@ validatePatchFull expectedHash32 localIds bytes = do
             HH.hashPatchFormatFull v2HashHandle localIds' localPatch
       if actualHash == PatchHash expectedHash
         then Nothing
-        else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unPatchHash actualHash))
+        else Just $ Share.EntityHashMismatch Share.PatchType (mismatch expectedHash (unPatchHash actualHash))
 
 validateBranchFull ::
   Hash ->
@@ -111,7 +111,7 @@ validateDecl expectedHash syncLocalComp = do
     Right localComp -> do
       case HH.verifyDeclFormatHash v2HashHandle (ComponentHash expectedHash) (DeclFormat.Decl localComp) of
         Nothing -> Nothing
-        Just (HH.DeclHashMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+        Just (HH.DeclHashMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Share.EntityHashMismatch Share.DeclComponentType $ mismatch expectedHash actualHash
         Just HH.DeclHashResolutionFailure -> Just $ Share.HashResolutionFailure (Hash32.fromHash expectedHash)
 
 validateCausal :: Hash32 -> Hash32 -> [Hash32] -> Maybe Share.EntityValidationError

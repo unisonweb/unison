@@ -23,7 +23,7 @@ import Unison.Reference (Reference, pattern Derived)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.Relation qualified as R
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 
 type Branches m = [(CausalHash, m (Branch m))]
 
@@ -67,9 +67,9 @@ fromBranch0 b =
     fromChildren :: (Applicative m) => Map NameSegment (Branch m) -> Branches m
     fromChildren m = [(Branch.headHash b, pure b) | b <- toList m]
     references :: Branch.Star r NameSegment -> [r]
-    references = toList . R.dom . Star3.d1
+    references = toList . R.dom . Star2.d1
     mdValues :: Branch.Star r NameSegment -> [Reference]
-    mdValues = fmap snd . toList . R.ran . Star3.d3
+    mdValues = toList . R.ran . Star2.d2
     fromTermsStar :: Branch.Star Referent NameSegment -> Dependencies
     fromTermsStar s = Dependencies mempty terms decls
       where

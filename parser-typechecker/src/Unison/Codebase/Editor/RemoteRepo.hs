@@ -12,6 +12,7 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
 import Unison.Util.Monoid qualified as Monoid
+import qualified Unison.NameSegment as NameSegment
 
 data ReadRepo
   = ReadRepoGit ReadGitRepo
@@ -131,7 +132,7 @@ data ReadShareLooseCode = ReadShareLooseCode
 isPublic :: ReadShareLooseCode -> Bool
 isPublic ReadShareLooseCode {path} =
   case path of
-    ("public" Path.:< _) -> True
+    ((NameSegment.toUnescapedText -> "public") Path.:< _) -> True
     _ -> False
 
 data WriteRemoteNamespace a

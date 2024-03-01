@@ -1,5 +1,3 @@
-use . Int -- imports `.Int` from root path and gives it the local name `Int`
-
 -- This brings `None` into scope unqualified
 use Optional None
 

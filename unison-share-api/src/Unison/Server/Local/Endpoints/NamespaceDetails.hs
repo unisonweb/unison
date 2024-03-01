@@ -1,11 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Local.Endpoints.NamespaceDetails where
@@ -78,4 +72,5 @@ namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
     pure $ NamespaceDetails namespacePath causalHash renderedReadme
   pure $ namespaceDetails
   where
-    readmeNames = Set.fromList ["README", "Readme", "ReadMe", "readme"]
+    readmeNames =
+      Set.fromList ["README", "Readme", "ReadMe", "readme"]

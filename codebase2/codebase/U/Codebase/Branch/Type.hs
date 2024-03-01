@@ -29,7 +29,7 @@ type MetadataType = Reference
 
 type MetadataValue = Reference
 
-newtype MdValues = MdValues {unMdValues :: Map MetadataValue MetadataType} deriving (Eq, Ord, Show)
+newtype MdValues = MdValues {unMdValues :: Set MetadataValue} deriving (Eq, Ord, Show)
 
 type CausalBranch m = Causal m CausalHash BranchHash (Branch m) (Branch m)
 

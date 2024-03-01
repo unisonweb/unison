@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -22,8 +22,13 @@ library
       Unison.Syntax.HashQualified
       Unison.Syntax.HashQualified'
       Unison.Syntax.Lexer
+      Unison.Syntax.Lexer.Token
       Unison.Syntax.Name
+      Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.ReservedWords
+      Unison.Syntax.ShortHash
+      Unison.Syntax.Var
       Unison.UnisonFile.Error
   hs-source-dirs:
       src
@@ -67,7 +72,9 @@ library
     , lens
     , megaparsec
     , mtl
+    , parser-combinators
     , text
+    , text-builder
     , unison-core
     , unison-core1
     , unison-hash
@@ -123,7 +130,9 @@ test-suite syntax-tests
     , lens
     , megaparsec
     , mtl
+    , parser-combinators
     , text
+    , text-builder
     , unison-core
     , unison-core1
     , unison-hash

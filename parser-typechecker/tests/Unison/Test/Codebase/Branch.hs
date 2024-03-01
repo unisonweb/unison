@@ -4,6 +4,7 @@ module Unison.Test.Codebase.Branch
   )
 where
 
+import Data.Function ((&))
 import Data.Functor.Identity
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -11,10 +12,11 @@ import EasyTest
 import Unison.Codebase.Branch (Branch (Branch), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Causal qualified as Causal
+import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star3 qualified as Star3
+import Unison.Util.Star2 qualified as Star2
 
 test :: Test ()
 test =
@@ -31,7 +33,10 @@ branch0Tests =
           b0 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
+              ( mempty
+                  & Star2.insertD1 (dummy, "b")
+                  & Metadata.insert (dummy, dummy)
+              )
               Map.empty
               Map.empty
       let -- a.b
@@ -39,7 +44,10 @@ branch0Tests =
           b1 :: Branch0 Identity =
             Branch.branch0
               mempty
-              (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
+              ( mempty
+                  & Star2.insertD1 (dummy, "b")
+                  & Metadata.insert (dummy, dummy)
+              )
               (Map.singleton "a" (Branch (Causal.one b0)))
               Map.empty
 

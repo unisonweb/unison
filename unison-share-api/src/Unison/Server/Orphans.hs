@@ -18,9 +18,7 @@ import U.Codebase.HashTags
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
-import Unison.Codebase.ShortCausalHash
-  ( ShortCausalHash (..),
-  )
+import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
@@ -32,16 +30,16 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Syntax.HashQualified qualified as HQ (fromText)
-import Unison.Syntax.HashQualified' qualified as HQ' (fromText)
-import Unison.Syntax.Name qualified as Name (fromTextEither, toText)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
+import Unison.Syntax.HashQualified' qualified as HQ' (parseText)
+import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.Pretty (Width (..))
 
 instance ToJSON Hash where
@@ -222,7 +220,7 @@ instance ToParam (QueryParam "name" Name) where
       Normal
 
 instance FromHttpApiData Name where
-  parseQueryParam = Name.fromTextEither
+  parseQueryParam = Name.parseTextEither
 
 deriving via Int instance FromHttpApiData Width
 
@@ -237,7 +235,7 @@ instance ToJSON ConstructorType where
 
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' p) -> Right p
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
 
@@ -246,7 +244,7 @@ instance ToHttpApiData Path.Relative where
 
 instance FromHttpApiData Path.Absolute where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' _) -> Left $ "Expected absolute path, but " <> txt <> " was relative."
     Right (Path.AbsolutePath' p) -> Right p
 
@@ -254,14 +252,14 @@ instance ToHttpApiData Path.Absolute where
   toUrlPiece = tShow
 
 instance FromHttpApiData Path.Path' where
-  parseUrlPiece txt = mapLeft Text.pack $ Path.parsePath' (Text.unpack txt)
+  parseUrlPiece txt = Path.parsePath' (Text.unpack txt)
 
 instance ToHttpApiData Path.Path' where
   toUrlPiece = tShow
 
 instance FromHttpApiData Path.Path where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left (Text.pack s)
+    Left s -> Left s
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
 
@@ -311,32 +309,32 @@ instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toTextWith Name.toText
 
 instance ToJSON (HQ.HashQualified NameSegment) where
-  toJSON = Aeson.String . HQ.toTextWith NameSegment.toText
+  toJSON = Aeson.String . HQ.toTextWith NameSegment.toEscapedText
 
 instance ToJSON (HQ'.HashQualified Name) where
   toJSON = Aeson.String . HQ'.toTextWith Name.toText
 
 instance ToJSON (HQ'.HashQualified NameSegment) where
-  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toText
+  toJSON = Aeson.String . HQ'.toTextWith NameSegment.toEscapedText
 
 instance FromJSON (HQ'.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified'" \txt ->
-    maybe (fail "Invalid HashQualified' Name") pure $ HQ'.fromText txt
+    maybe (fail "Invalid HashQualified' Name") pure $ HQ'.parseText txt
 
 instance FromJSON (HQ.HashQualified Name) where
   parseJSON = Aeson.withText "HashQualified" \txt ->
-    maybe (fail "Invalid HashQualified Name") pure $ HQ.fromText txt
+    maybe (fail "Invalid HashQualified Name") pure $ HQ.parseText txt
 
 instance FromJSON (HQ'.HashQualified NameSegment) where
   parseJSON = Aeson.withText "HashQualified'" \txt -> do
-    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ'.fromText txt
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ'.parseText txt
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
 
 instance FromJSON (HQ.HashQualified NameSegment) where
   parseJSON = Aeson.withText "HashQualified" \txt -> do
-    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ.fromText txt
+    hqName <- maybe (fail "Invalid HashQualified' NameSegment") pure $ HQ.parseText txt
     for hqName \name -> case Name.segments name of
       (ns :| []) -> pure ns
       _ -> fail $ "Expected a single name segment but received several: " <> Text.unpack txt
@@ -344,13 +342,13 @@ instance FromJSON (HQ.HashQualified NameSegment) where
 instance FromHttpApiData (HQ.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
-      & HQ.fromText
+      & HQ.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
 
 instance FromHttpApiData (HQ'.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
-      & HQ'.fromText
+      & HQ'.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
 
 instance ToParamSchema (HQ.HashQualified n) where

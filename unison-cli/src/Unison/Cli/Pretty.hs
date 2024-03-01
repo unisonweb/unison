@@ -17,6 +17,7 @@ module Unison.Cli.Pretty
     prettyHash32,
     prettyHumanReadableTime,
     prettyLabeledDependencies,
+    prettyPath,
     prettyPath',
     prettyProjectAndBranchName,
     prettyBranchName,
@@ -159,7 +160,7 @@ prettyShareLink :: WriteShareRemoteNamespace -> Pretty
 prettyShareLink WriteShareRemoteNamespace {repo, path} =
   let encodedPath =
         Path.toList path
-          & fmap (URI.encodeText . NameSegment.toText)
+          & fmap (URI.encodeText . NameSegment.toUnescapedText)
           & Text.intercalate "/"
    in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
 
@@ -175,6 +176,12 @@ prettySharePath =
 prettyFilePath :: FilePath -> Pretty
 prettyFilePath fp =
   P.blue (P.string fp)
+
+prettyPath :: Path.Path -> Pretty
+prettyPath path =
+  if path == Path.empty
+    then "the current namespace"
+    else P.blue (P.shown path)
 
 prettyPath' :: Path.Path' -> Pretty
 prettyPath' p' =

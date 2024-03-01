@@ -168,8 +168,9 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name as Name (toText, unsafeFromText)
+import Unison.Syntax.Name as Name (toText, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -204,8 +205,8 @@ listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry te -> termEntryDisplayName te
   ShallowTypeEntry te -> typeEntryDisplayName te
-  ShallowBranchEntry n _ _ -> NameSegment.toText n
-  ShallowPatchEntry n -> NameSegment.toText n
+  ShallowBranchEntry n _ _ -> NameSegment.toEscapedText n
+  ShallowPatchEntry n -> NameSegment.toEscapedText n
 
 data BackendError
   = NoSuchNamespace Path.Absolute
@@ -268,7 +269,7 @@ loadReferentType codebase = \case
 data TermEntry v a = TermEntry
   { termEntryReferent :: V2Referent.Referent,
     termEntryHash :: ShortHash,
-    termEntryName :: NameSegment,
+    termEntryName :: Name,
     termEntryConflicted :: Bool,
     termEntryType :: Maybe (Type v a),
     termEntryTag :: TermTag
@@ -287,9 +288,9 @@ termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEn
       _ -> error "termEntryLabeledDependencies: not a constructor, but one was required"
 
 termEntryDisplayName :: TermEntry v a -> Text
-termEntryDisplayName = HQ'.toTextWith NameSegment.toText . termEntryHQName
+termEntryDisplayName = HQ'.toTextWith Name.toText . termEntryHQName
 
-termEntryHQName :: TermEntry v a -> HQ'.HashQualified NameSegment
+termEntryHQName :: TermEntry v a -> HQ'.HashQualified Name
 termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
   if termEntryConflicted
     then HQ'.HashQualified termEntryName termEntryHash
@@ -298,7 +299,7 @@ termEntryHQName TermEntry {termEntryName, termEntryConflicted, termEntryHash} =
 data TypeEntry = TypeEntry
   { typeEntryReference :: Reference,
     typeEntryHash :: ShortHash,
-    typeEntryName :: NameSegment,
+    typeEntryName :: Name,
     typeEntryConflicted :: Bool,
     typeEntryTag :: TypeTag
   }
@@ -309,9 +310,9 @@ typeEntryLabeledDependencies TypeEntry {typeEntryReference} =
   Set.singleton (LD.TypeReference typeEntryReference)
 
 typeEntryDisplayName :: TypeEntry -> Text
-typeEntryDisplayName = HQ'.toTextWith NameSegment.toText . typeEntryHQName
+typeEntryDisplayName = HQ'.toTextWith Name.toText . typeEntryHQName
 
-typeEntryHQName :: TypeEntry -> HQ'.HashQualified NameSegment
+typeEntryHQName :: TypeEntry -> HQ'.HashQualified Name
 typeEntryHQName TypeEntry {typeEntryName, typeEntryConflicted, typeEntryReference} =
   if typeEntryConflicted
     then HQ'.HashQualified typeEntryName (Reference.toShortHash typeEntryReference)
@@ -348,7 +349,7 @@ fuzzyFind printNames query =
 
       -- Prefer shorter FQNs
       rank (alignment, name, _) =
-        ( Name.countSegments (Name.unsafeFromText name),
+        ( Name.countSegments (Name.unsafeParseText name),
           negate (FZF.score alignment)
         )
 
@@ -421,12 +422,9 @@ resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testR
 termListEntry ::
   (MonadIO m) =>
   Codebase m Symbol Ann ->
-  -- | Optional branch to check if the term is conflicted.
-  -- If omitted, all terms are just listed as not conflicted.
-  Maybe (V2Branch.Branch n) ->
-  ExactName NameSegment V2Referent.Referent ->
+  ExactName Name V2Referent.Referent ->
   m (TermEntry Symbol Ann)
-termListEntry codebase mayBranch (ExactName nameSegment ref) = do
+termListEntry codebase (ExactName name ref) = do
   ot <- Codebase.runTransaction codebase $ do
     v1Referent <- Cv.referent2to1 (Codebase.getDeclType codebase) ref
     ot <- loadReferentType codebase v1Referent
@@ -435,21 +433,13 @@ termListEntry codebase mayBranch (ExactName nameSegment ref) = do
   pure $
     TermEntry
       { termEntryReferent = ref,
-        termEntryName = nameSegment,
+        termEntryName = name,
         termEntryType = ot,
         termEntryTag = tag,
-        termEntryConflicted = isConflicted,
+        -- See typeEntryConflicted
+        termEntryConflicted = False,
         termEntryHash = Cv.referent2toshorthash1 Nothing ref
       }
-  where
-    isConflicted = case mayBranch of
-      Nothing -> False
-      Just branch ->
-        branch
-          & V2Branch.terms
-          & Map.lookup nameSegment
-          & maybe 0 Map.size
-          & (> 1)
 
 getTermTag ::
   (Var v, MonadIO m) =>
@@ -493,31 +483,21 @@ getTypeTag codebase r = do
 typeListEntry ::
   (Var v) =>
   Codebase m v Ann ->
-  -- | Optional branch to check if the term is conflicted.
-  -- If omitted, all terms are just listed as not conflicted.
-  Maybe (V2Branch.Branch n) ->
-  ExactName NameSegment Reference ->
+  ExactName Name Reference ->
   Sqlite.Transaction TypeEntry
-typeListEntry codebase mayBranch (ExactName nameSegment ref) = do
+typeListEntry codebase (ExactName name ref) = do
   hashLength <- Codebase.hashLength
   tag <- getTypeTag codebase ref
   pure $
     TypeEntry
       { typeEntryReference = ref,
-        typeEntryName = nameSegment,
-        typeEntryConflicted = isConflicted,
+        typeEntryName = name,
+        -- Mitchell says: at one point this was implemented incorrectly, but fixing it seemed like more trouble than it
+        -- was worth, because we don't really care about conflicted things anymore. Ditto for termEntryConflicted.
+        typeEntryConflicted = False,
         typeEntryTag = tag,
         typeEntryHash = SH.shortenTo hashLength $ Reference.toShortHash ref
       }
-  where
-    isConflicted = case mayBranch of
-      Nothing -> False
-      Just branch ->
-        branch
-          & V2Branch.types
-          & Map.lookup nameSegment
-          & maybe 0 Map.size
-          & (> 1)
 
 typeDeclHeader ::
   forall v m.
@@ -579,13 +559,13 @@ lsBranch codebase b0 = do
         (ns, refs) <- Map.toList m
         r <- Map.keys refs
         pure (r, ns)
-  termEntries <- for (flattenRefs $ V2Branch.terms b0) $ \(r, ns) -> do
-    ShallowTermEntry <$> termListEntry codebase (Just b0) (ExactName ns r)
+  termEntries <- for (flattenRefs $ V2Branch.terms b0) \(r, ns) -> do
+    ShallowTermEntry <$> termListEntry codebase (ExactName (Name.fromSegment ns) r)
   typeEntries <-
     Codebase.runTransaction codebase do
       for (flattenRefs $ V2Branch.types b0) \(r, ns) -> do
         let v1Ref = Cv.reference2to1 r
-        ShallowTypeEntry <$> typeListEntry codebase (Just b0) (ExactName ns v1Ref)
+        ShallowTypeEntry <$> typeListEntry codebase (ExactName (Name.fromSegment ns) v1Ref)
   childrenWithStats <- Codebase.runTransaction codebase (V2Branch.childStats b0)
   let branchEntries :: [ShallowListEntry Symbol Ann] = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
@@ -748,8 +728,6 @@ mkTypeDefinition ::
   MonadIO m =>
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
-  Path.Path ->
-  V2Branch.CausalBranch Sqlite.Transaction ->
   Width ->
   Reference ->
   [(HashQualifiedName, UnisonHash, Doc.Doc)] ->
@@ -757,13 +735,11 @@ mkTypeDefinition ::
     (AnnotatedText (UST.Element Reference))
     (AnnotatedText (UST.Element Reference)) ->
   m TypeDefinition
-mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
+mkTypeDefinition codebase pped width r docs tp = do
   let bn = bestNameForType @Symbol (PPED.suffixifiedPPE pped) width r
   tag <-
     liftIO $ Codebase.runTransaction codebase do
-      causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
-      branchAtPath <- V2Causal.value causalAtPath
-      typeEntryTag <$> typeListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) r)
+      typeEntryTag <$> typeListEntry codebase (ExactName (Name.unsafeParseText bn) r)
   pure $
     TypeDefinition
       (HQ'.toText <$> PPE.allTypeNames fqnPPE r)
@@ -777,8 +753,6 @@ mkTypeDefinition codebase pped namesRoot rootCausal width r docs tp = do
 mkTermDefinition ::
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
-  Path.Path ->
-  V2Branch.CausalBranch Sqlite.Transaction ->
   Width ->
   Reference ->
   [(HashQualifiedName, UnisonHash, Doc.Doc)] ->
@@ -786,19 +760,11 @@ mkTermDefinition ::
     (AnnotatedText (UST.Element Reference))
     (AnnotatedText (UST.Element Reference)) ->
   Backend IO TermDefinition
-mkTermDefinition codebase termPPED namesRoot rootCausal width r docs tm = do
+mkTermDefinition codebase termPPED width r docs tm = do
   let referent = Referent.Ref r
-  (ts, branchAtPath) <- liftIO $ Codebase.runTransaction codebase do
-    ts <- Codebase.getTypeOfTerm codebase r
-    causalAtPath <- Codebase.getShallowCausalAtPath namesRoot (Just rootCausal)
-    branchAtPath <- V2Causal.value causalAtPath
-    pure (ts, branchAtPath)
+  ts <- liftIO (Codebase.runTransaction codebase (Codebase.getTypeOfTerm codebase r))
   let bn = bestNameForTerm @Symbol (PPED.suffixifiedPPE termPPED) width (Referent.Ref r)
-  tag <-
-    lift
-      ( termEntryTag
-          <$> termListEntry codebase (Just branchAtPath) (ExactName (NameSegment bn) (Cv.referent1to2 referent))
-      )
+  tag <- lift (termEntryTag <$> termListEntry codebase (ExactName (Name.unsafeParseText bn) (Cv.referent1to2 referent)))
   mk ts bn tag
   where
     fqnTermPPE = PPED.unsuffixifiedPPE termPPED
@@ -918,7 +884,7 @@ docsInBranchToHtmlFiles ::
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
-  let notLib (_, name) = "lib" `notElem` Name.segments name
+  let notLib (_, name) = NameSegment.libSegment `notElem` Name.segments name
   (docTermsWithNames, hqLength) <-
     Codebase.runTransaction codebase do
       docTermsWithNames <- filterM (isDoc codebase . fst) (filter notLib allTerms)
@@ -948,7 +914,7 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
     docFilePath :: FilePath -> Name -> FilePath
     docFilePath destination docFQN =
       let (dir, fileName) =
-            case unsnoc . map NameSegment.toString . toList . Name.segments $ docFQN of
+            case unsnoc . map (Text.unpack . NameSegment.toUnescapedText) . toList . Name.segments $ docFQN of
               Just (path, leafName) ->
                 (directoryPath path, docFileName leafName)
               Nothing ->

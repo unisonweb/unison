@@ -42,15 +42,14 @@ import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
-import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
-import Unison.Syntax.HashQualified qualified as HQ (fromText)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -146,7 +145,7 @@ instance FromHttpApiData (ExactName Name ShortHash) where
     -- # is special in URLs, so we use @ for hash qualification instead;
     -- e.g. ".base.List.map@abc"
     -- e.g. ".base.Nat@@Nat"
-    case HQ.fromText (Text.replace "@" "#" txt) of
+    case HQ.parseText (Text.replace "@" "#" txt) of
       Nothing -> Left "Invalid absolute name with Hash"
       Just hq' -> case hq' of
         HQ.NameOnly _ -> Left "A name and hash are required, but only a name was provided"
@@ -246,7 +245,7 @@ unisonRefToText = \case
 
 data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
-    termName :: HQ'.HashQualified NameSegment,
+    termName :: HQ'.HashQualified Name,
     termHash :: ShortHash,
     termType :: Maybe SyntaxText,
     termTag :: TermTag
@@ -256,7 +255,7 @@ data NamedTerm = NamedTerm
 instance ToJSON NamedTerm where
   toJSON (NamedTerm n h typ tag) =
     Aeson.object
-      [ "termName" .= HQ'.toTextWith NameSegment.toText n,
+      [ "termName" .= HQ'.toTextWith Name.toText n,
         "termHash" .= h,
         "termType" .= typ,
         "termTag" .= tag
@@ -273,7 +272,7 @@ instance FromJSON NamedTerm where
 deriving instance ToSchema NamedTerm
 
 data NamedType = NamedType
-  { typeName :: HQ'.HashQualified NameSegment,
+  { typeName :: HQ'.HashQualified Name,
     typeHash :: ShortHash,
     typeTag :: TypeTag
   }
@@ -282,7 +281,7 @@ data NamedType = NamedType
 instance ToJSON NamedType where
   toJSON (NamedType n h tag) =
     Aeson.object
-      [ "typeName" .= HQ'.toTextWith NameSegment.toText n,
+      [ "typeName" .= HQ'.toTextWith Name.toText n,
         "typeHash" .= h,
         "typeTag" .= tag
       ]

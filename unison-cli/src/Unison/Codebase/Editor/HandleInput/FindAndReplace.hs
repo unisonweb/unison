@@ -22,6 +22,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -76,7 +77,7 @@ handleStructuredFindI rule = do
     r <- Set.toList (Relation.ran $ Names.terms names)
     Just hq <- [PPE.terms fqppe r]
     fullName <- [HQ'.toName hq]
-    guard (not (Name.beginsWithSegment fullName Name.libSegment))
+    guard (not (Name.beginsWithSegment fullName NameSegment.libSegment))
     Referent.Ref _ <- pure r
     Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
     pure (HQ'.toHQ shortName, r)
