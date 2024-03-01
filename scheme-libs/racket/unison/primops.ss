@@ -1171,7 +1171,7 @@
     (define (unison-FOp-Char.Class.printable) printable)
     (define (unison-FOp-Char.Class.mark) mark)
     (define (unison-FOp-Char.Class.separator) separator)
-    (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+    (define (unison-FOp-Char.Class.or p1 p2) (char-class-or p1 p2))
     (define (unison-FOp-Char.Class.range a z)
       (unison-FOp-Text.patterns.charRange a z))
     (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
