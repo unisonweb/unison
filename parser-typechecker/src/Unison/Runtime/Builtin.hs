@@ -52,6 +52,7 @@ import Data.IORef as SYS
     readIORef,
     writeIORef,
   )
+import Data.IP (IP)
 import Data.Map qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Set (insert)
@@ -81,9 +82,24 @@ import Network.Simple.TCP as SYS
 import Network.Socket as SYS
   ( Socket,
     accept,
-    socketPort,
+    socketPort, PortNumber,
   )
 import Network.TLS as TLS
+import Network.UDP as UDP
+  ( UDPSocket (..),
+    ClientSockAddr,
+    ListenSocket (listenSocket),
+    clientSocket,
+    close,
+    recv,
+    recvFrom,
+    send,
+    sendTo,
+    serverSocket,
+    stop,
+    udpSocket,
+  )
+
 import Network.TLS.Extra.Cipher as Cipher
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
@@ -1544,6 +1560,22 @@ outIoFailBool stack1 stack2 stack3 extra fail result =
         )
       ]
 
+outIoFailTup :: forall v . (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailTup stack1 stack2 stack3 stack4 stack5 extra fail result =
+  TMatch result . MatchSum $
+    mapFromList
+      [ failureCase stack1 stack2 stack3 extra fail,
+        ( 1,
+          ([BX, BX],
+            TAbss [stack1, stack2]
+              . TLetD stack3 BX (TCon Ty.unitRef 0 [])
+              . TLetD stack4 BX (TCon Ty.pairRef 0 [stack2, stack3])
+              . TLetD stack5 BX (TCon Ty.pairRef 0 [stack1, stack4])
+              $ right stack5
+          )
+        )
+      ] 
+
 outIoFailG ::
   (Var v) =>
   v ->
@@ -1648,6 +1680,16 @@ boxBoxTo0 instr =
     $ TCon Ty.unitRef 0 []
   where
     (arg1, arg2) = fresh
+
+-- -- a -> b -> c ->{E} ()
+-- boxBoxBoxTo0 :: ForeignOp
+-- boxBoxBoxTo0 instr =
+--   ([BX, BX, BX],)
+--     . TAbss [arg1, arg2, arg3]
+--     . TLets Direct [] [] (TFOp instr [arg1, arg2, arg3])
+--     $ TCon Ty.unitRef 0 []
+--   where
+--     (arg1, arg2, arg3) = fresh
 
 -- a -> b ->{E} Nat
 boxBoxToNat :: ForeignOp
@@ -1767,6 +1809,14 @@ boxToEFBox =
   where
     (arg, result, stack1, stack2, stack3, any, fail) = fresh
 
+-- a -> Either Failure (b, c)
+boxToEFTup :: ForeignOp
+boxToEFTup =
+  inBx arg result $
+    outIoFailTup stack1 stack2 stack3 stack4 stack5 extra fail result
+  where
+    (arg, result, stack1, stack2, stack3, stack4, stack5, extra, fail) = fresh
+
 -- a -> Either Failure (Maybe b)
 boxToEFMBox :: ForeignOp
 boxToEFMBox =
@@ -1857,6 +1907,14 @@ boxBoxToEF0 =
     outIoFailUnit stack1 stack2 stack3 fail unit result
   where
     (arg1, arg2, result, stack1, stack2, stack3, fail, unit) = fresh
+
+-- a -> b -> c -> Either Failure ()
+boxBoxBoxToEF0 :: ForeignOp
+boxBoxBoxToEF0 =
+  inBxBxBx arg1 arg2 arg3 result $
+    outIoFailUnit stack1 stack2 stack3 fail unit result
+  where
+    (arg1, arg2, arg3, result, stack1, stack2, stack3, fail, unit) = fresh
 
 -- a -> Either Failure Nat
 boxToEFNat :: ForeignOp
@@ -2290,8 +2348,81 @@ mkForeignTlsE f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
     flatten (Right (Right (Left e))) = Left e
     flatten (Right (Right (Right a))) = Right a
 
+declareUdpForeigns :: FDecl Symbol ()
+declareUdpForeigns = do
+  declareForeign Tracked "IO.UDP.clientSocket.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
+      let hostStr = Util.Text.toString host
+          portStr = Util.Text.toString port
+      in UDP.clientSocket hostStr portStr True
+
+  declareForeign Tracked "IO.UDP.UDPSocket.recv.impl.v1" boxToEFBox
+    . mkForeignIOF
+    $ \(sock :: UDPSocket) -> Bytes.fromArray <$> UDP.recv sock
+
+  -- declareForeign Tracked "IO.UDP.UDPSocket.send.impl.v1" boxBoxToExn0
+    -- . mkForeign $ fmap .uncurry UDP.send
+
+  declareForeign Tracked "IO.UDP.UDPSocket.send.impl.v1" boxBoxToEF0
+    . mkForeignIOF
+    $ \(sock :: UDPSocket, bytes :: Bytes.Bytes) ->
+      UDP.send sock (Bytes.toArray bytes)
+
+  declareForeign Tracked "IO.UDP.UDPSocket.socket.impl.v1" boxToEFBox
+    . mkForeignIOF 
+    $ \(socket:: UDPSocket) -> pure $ udpSocket socket
+
+  declareForeign Tracked "IO.UDP.UDPSocket.socket.impl.v1" boxDirect
+    . mkForeign $ pure . udpSocket
+
+  declareForeign Tracked "IO.UDP.UDPSocket.close.impl.v1" boxToEF0
+    . mkForeignIOF
+    $ \(sock :: UDPSocket) -> UDP.close sock
+
+  declareForeign Tracked "IO.UDP.ListenSocket.close.impl.v1" boxToEF0
+    . mkForeignIOF
+    $ \(sock :: ListenSocket) -> UDP.stop sock
+
+  declareForeign Tracked "IO.UDP.UDPSocket.toText.impl.v1" boxDirect
+    . mkForeign
+    $ \(sock :: UDPSocket) -> pure $ show sock
+
+  declareForeign Tracked "IO.UDP.serverSocket.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ \(ip :: Util.Text.Text, port :: Util.Text.Text) ->
+      let --ipStr = Util.Text.toString ip
+          -- portStr = Util.Text.toString port
+          -- maybeIp = readMaybe ipStr :: Maybe IP
+          maybeIp = readMaybe $ Util.Text.toString ip :: Maybe IP
+          -- maybePort = readMaybe portStr :: Maybe PortNumber
+          maybePort = readMaybe $ Util.Text.toString port :: Maybe PortNumber
+      in case (maybeIp, maybePort) of
+        (Nothing, _) -> fail "Invalid IP Address"
+        (_, Nothing) -> fail "Invalid Port Number"
+        (Just ip, Just pt) -> UDP.serverSocket (ip, pt)
+
+  declareForeign Tracked "IO.UDP.ListenSocket.toText.impl.v1" boxDirect
+    . mkForeign
+    $ \(sock :: ListenSocket) -> pure $ show sock
+
+  declareForeign Tracked "IO.UDP.ListenSocket.recvFrom.impl.v1" boxToEFTup .
+    mkForeignIOF $ fmap (first Bytes.fromArray) <$> UDP.recvFrom
+
+  declareForeign Tracked "IO.UDP.ClientSockAddr.toText.v1" boxDirect
+    . mkForeign
+    $ \(sock :: ClientSockAddr) -> pure $ show sock
+
+  declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v1" boxBoxBoxToEF0 .
+    mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) ->
+        UDP.sendTo socket (Bytes.toArray bytes) addr
+
+  declareForeign Tracked "IO.UDP.ListenSocket.socket.impl.v1" boxDirect
+    . mkForeign $ pure . listenSocket
+
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
+  declareUdpForeigns
   declareForeign Tracked "IO.openFile.impl.v3" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Util.Text.Text, n :: Int) ->
       let fname = Util.Text.toString fnameText

@@ -15,6 +15,18 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
+    ( join,
+      foldl',
+      Generic,
+      Generic1,
+      Map,
+      Text,
+      Const(Const, getConst),
+      ($>),
+      (<&>),
+      Set,
+      Identity(runIdentity),
+      sortOn )
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Settings qualified as Settings
@@ -269,6 +281,11 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+udpSocketRef, udpListenSocketRef, udpClientSockAddrRef :: Reference
+udpSocketRef = Reference.Builtin "UDPSocket"
+udpListenSocketRef = Reference.Builtin "ListenSocket"
+udpClientSockAddrRef = Reference.Builtin "ClientSockAddr"
+
 processHandleRef :: Reference
 processHandleRef = Reference.Builtin "ProcessHandle"
 
@@ -387,6 +404,15 @@ mbytearrayType a = ref a mbytearrayRef
 
 socket :: (Ord v) => a -> Type v a
 socket a = ref a socketRef
+
+udpSocket :: (Ord v) => a -> Type v a
+udpSocket a = ref a udpSocketRef
+
+udpListenSocket :: (Ord v) => a -> Type v a
+udpListenSocket a = ref a udpListenSocketRef
+
+udpClientSockAddr :: (Ord v) => a -> Type v a
+udpClientSockAddr a = ref a udpClientSockAddrRef
 
 list :: (Ord v) => a -> Type v a
 list a = ref a listRef

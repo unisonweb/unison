@@ -27,6 +27,7 @@ import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
 import Data.Tagged (Tagged (..))
 import Data.X509 qualified as X509
 import Network.Socket (Socket)
+import Network.UDP (ListenSocket, UDPSocket, ClientSockAddr)
 import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
@@ -80,6 +81,10 @@ tvarEq l r = l == r
 socketEq :: Socket -> Socket -> Bool
 socketEq l r = l == r
 {-# NOINLINE socketEq #-}
+
+udpSocketEq :: UDPSocket -> UDPSocket -> Bool
+udpSocketEq l r = l == r
+{-# NOINLINE udpSocketEq #-}
 
 refEq :: IORef () -> IORef () -> Bool
 refEq l r = l == r
@@ -157,6 +162,7 @@ ref2eq r
   -- Ditto
   | r == Ty.tvarRef = Just $ promote tvarEq
   | r == Ty.socketRef = Just $ promote socketEq
+  | r == Ty.udpSocketRef = Just $ promote udpSocketEq
   | r == Ty.refRef = Just $ promote refEq
   | r == Ty.threadIdRef = Just $ promote tidEq
   | r == Ty.marrayRef = Just $ promote marrEq
@@ -229,6 +235,12 @@ instance BuiltinForeign ProcessHandle where foreignRef = Tagged Ty.processHandle
 instance BuiltinForeign Referent where foreignRef = Tagged Ty.termLinkRef
 
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
+
+instance BuiltinForeign ListenSocket where foreignRef = Tagged Ty.udpListenSocketRef
+
+instance BuiltinForeign ClientSockAddr where foreignRef = Tagged Ty.udpClientSockAddrRef
+
+instance BuiltinForeign UDPSocket where foreignRef = Tagged Ty.udpSocketRef
 
 instance BuiltinForeign ThreadId where foreignRef = Tagged Ty.threadIdRef
 

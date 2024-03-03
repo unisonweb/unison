@@ -60,6 +60,7 @@ dependencies:
   - http-media
   - http-types
   - IntervalMap
+  - iproute
   - lens
   - lucid
   - megaparsec

@@ -26,6 +26,7 @@ import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (Socket)
+import Network.UDP (UDPSocket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
@@ -136,6 +137,10 @@ instance ForeignConvention Bytes where
   writeForeign = writeForeignBuiltin
 
 instance ForeignConvention Socket where
+  readForeign = readForeignBuiltin
+  writeForeign = writeForeignBuiltin
+
+instance ForeignConvention UDPSocket where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 

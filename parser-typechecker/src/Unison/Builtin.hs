@@ -245,7 +245,10 @@ builtinTypesSrc =
     B' "MutableArray" CT.Data,
     B' "ImmutableByteArray" CT.Data,
     B' "MutableByteArray" CT.Data,
-    B' "Char.Class" CT.Data
+    B' "Char.Class" CT.Data,
+    B' "UDPSocket" CT.Data,
+    B' "ListenSocket" CT.Data,
+    B' "ClientSockAddr" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -810,6 +813,19 @@ ioBuiltins =
     ("IO.serverSocket.impl.v3", optionalt text --> text --> iof socket),
     ("IO.listen.impl.v3", socket --> iof unit),
     ("IO.clientSocket.impl.v3", text --> text --> iof socket),
+    ("IO.UDP.clientSocket.impl.v1", text --> text --> iof udpSocket),
+    ("IO.UDP.ClientSockAddr.toText.v1", udpClientSockAddr --> text),
+    ("IO.UDP.UDPSocket.toText.impl.v1", udpSocket --> text),
+    ("IO.UDP.UDPSocket.close.impl.v1", udpSocket --> iof unit),
+    ("IO.UDP.UDPSocket.socket.impl.v1", udpSocket --> socket),
+    ("IO.UDP.serverSocket.impl.v1", text --> text --> iof udpListenSocket),
+    ("IO.UDP.ListenSocket.recvFrom.impl.v1", udpListenSocket --> iof (tuple [bytes, udpClientSockAddr])),
+    ("IO.UDP.ListenSocket.sendTo.impl.v1", udpListenSocket --> bytes --> udpClientSockAddr --> iof unit),
+    ("IO.UDP.ListenSocket.toText.impl.v1", udpListenSocket --> text),
+    ("IO.UDP.ListenSocket.close.impl.v1", udpListenSocket --> iof unit),
+    ("IO.UDP.ListenSocket.socket.impl.v1", udpListenSocket --> socket),
+    ("IO.UDP.UDPSocket.recv.impl.v1", udpSocket --> iof bytes),
+    ("IO.UDP.UDPSocket.send.impl.v1", udpSocket --> bytes --> iof unit),
     ("IO.closeSocket.impl.v3", socket --> iof unit),
     ("IO.socketPort.impl.v3", socket --> iof nat),
     ("IO.socketAccept.impl.v3", socket --> iof socket),
@@ -1049,6 +1065,12 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 phandle = Type.processHandle ()
 unit = DD.unitType ()
+
+
+udpSocket, udpListenSocket, udpClientSockAddr :: Type
+udpSocket = Type.udpSocket ()
+udpListenSocket = Type.udpListenSocket ()
+udpClientSockAddr = Type.udpClientSockAddr ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 tls = Type.ref () Type.tlsRef
