@@ -269,8 +269,9 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
-udpSocketRef :: Reference
+udpSocketRef, udpListenSocketRef :: Reference
 udpSocketRef = Reference.Builtin "UDPSocket"
+udpListenSocketRef = Reference.Builtin "ListenSocket"
 
 processHandleRef :: Reference
 processHandleRef = Reference.Builtin "ProcessHandle"
@@ -393,6 +394,9 @@ socket a = ref a socketRef
 
 udpSocket :: (Ord v) => a -> Type v a
 udpSocket a = ref a udpSocketRef
+
+udpListenSocket :: (Ord v) => a -> Type v a
+udpListenSocket a = ref a udpListenSocketRef
 
 list :: (Ord v) => a -> Type v a
 list a = ref a listRef

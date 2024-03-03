@@ -247,6 +247,7 @@ builtinTypesSrc =
     B' "MutableByteArray" CT.Data,
     B' "Char.Class" CT.Data,
     B' "UDPSocket" CT.Data,
+    B' "ListenSocket" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -1052,8 +1053,10 @@ handle = Type.fileHandle ()
 phandle = Type.processHandle ()
 unit = DD.unitType ()
 
-udpSocket :: Type
+
+udpSocket, udpListenSocket :: Type
 udpSocket = Type.udpSocket ()
+udpListenSocket = Type.udpListenSocket ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 tls = Type.ref () Type.tlsRef

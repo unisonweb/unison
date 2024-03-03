@@ -27,7 +27,7 @@ import Data.Primitive (ByteArray, MutableArray, MutableByteArray)
 import Data.Tagged (Tagged (..))
 import Data.X509 qualified as X509
 import Network.Socket (Socket)
-import Network.UDP (UDPSocket)
+import Network.UDP (ListenSocket, UDPSocket)
 import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
@@ -235,6 +235,8 @@ instance BuiltinForeign ProcessHandle where foreignRef = Tagged Ty.processHandle
 instance BuiltinForeign Referent where foreignRef = Tagged Ty.termLinkRef
 
 instance BuiltinForeign Socket where foreignRef = Tagged Ty.socketRef
+
+instance BuiltinForeign ListenSocket where foreignRef = Tagged Ty.udpListenSocketRef
 
 instance BuiltinForeign UDPSocket where foreignRef = Tagged Ty.udpSocketRef
 
