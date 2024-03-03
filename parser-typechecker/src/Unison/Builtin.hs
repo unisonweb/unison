@@ -813,6 +813,7 @@ ioBuiltins =
     ("IO.listen.impl.v3", socket --> iof unit),
     ("IO.clientSocket.impl.v3", text --> text --> iof socket),
     ("IO.UDP.clientSocket.impl.v1", text --> text --> iof udpSocket),
+    ("IO.UDP.serverSocket.impl.v1", text --> text --> iof udpListenSocket),
     ("IO.closeSocket.impl.v3", socket --> iof unit),
     ("IO.socketPort.impl.v3", socket --> iof nat),
     ("IO.socketAccept.impl.v3", socket --> iof socket),
