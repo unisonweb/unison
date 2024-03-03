@@ -245,7 +245,8 @@ builtinTypesSrc =
     B' "MutableArray" CT.Data,
     B' "ImmutableByteArray" CT.Data,
     B' "MutableByteArray" CT.Data,
-    B' "Char.Class" CT.Data
+    B' "Char.Class" CT.Data,
+    B' "UDPSocket" CT.Data,
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
