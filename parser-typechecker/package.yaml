@@ -73,6 +73,7 @@ dependencies:
   - natural-transformation
   - network
   - network-simple
+  - network-udp
   - network-uri
   - nonempty-containers
   - open-browser

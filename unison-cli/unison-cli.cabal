@@ -210,6 +210,7 @@ library
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -348,6 +349,7 @@ executable cli-integration-tests
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -480,6 +482,7 @@ executable transcripts
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -618,6 +621,7 @@ executable unison
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -763,6 +767,7 @@ test-suite cli-tests
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser

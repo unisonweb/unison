@@ -281,6 +281,7 @@ library
     , natural-transformation
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -475,6 +476,7 @@ test-suite parser-typechecker-tests
     , natural-transformation
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser

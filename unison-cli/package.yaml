@@ -49,6 +49,7 @@ dependencies:
   - mtl
   - network-uri
   - network-simple
+  - network-udp
   - network
   - co-log-core
   - uri-encode

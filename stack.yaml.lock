@@ -82,6 +82,13 @@ packages:
       size: 1060
   original:
     hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+- completed:
+    hackage: network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
+    pantry-tree:
+      sha256: ee19a66c9d420861c5cc1dfad3210e2a53cdc6088ff3dd90b44f7961f5caebee
+      size: 284
+  original:
+    hackage: network-udp-0.0.0
 snapshots:
 - completed:
     sha256: 5a59b2a405b3aba3c00188453be172b85893cab8ebc352b1ef58b0eae5d248a2
