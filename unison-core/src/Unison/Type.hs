@@ -269,6 +269,9 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+udpSocketRef :: Reference
+udpSocketRef = Reference.Builtin "UDPSocket"
+
 processHandleRef :: Reference
 processHandleRef = Reference.Builtin "ProcessHandle"
 
@@ -387,6 +390,9 @@ mbytearrayType a = ref a mbytearrayRef
 
 socket :: (Ord v) => a -> Type v a
 socket a = ref a socketRef
+
+udpSocket :: (Ord v) => a -> Type v a
+udpSocket a = ref a udpSocketRef
 
 list :: (Ord v) => a -> Type v a
 list a = ref a listRef

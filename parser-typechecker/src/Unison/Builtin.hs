@@ -810,6 +810,7 @@ ioBuiltins =
     ("IO.serverSocket.impl.v3", optionalt text --> text --> iof socket),
     ("IO.listen.impl.v3", socket --> iof unit),
     ("IO.clientSocket.impl.v3", text --> text --> iof socket),
+    ("IO.UDP.clientSocket.impl.v1", text --> text --> iof udpSocket),
     ("IO.closeSocket.impl.v3", socket --> iof unit),
     ("IO.socketPort.impl.v3", socket --> iof nat),
     ("IO.socketAccept.impl.v3", socket --> iof socket),
@@ -1049,6 +1050,9 @@ threadId = Type.threadId ()
 handle = Type.fileHandle ()
 phandle = Type.processHandle ()
 unit = DD.unitType ()
+
+udpSocket :: Type
+udpSocket = Type.udpSocket ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 tls = Type.ref () Type.tlsRef

@@ -83,6 +83,10 @@ import Network.Socket as SYS
     accept,
     socketPort,
   )
+import Network.UDP as UDP
+  ( -- UDPSocket,
+    clientSocket,
+  )
 import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
 import System.Clock (Clock (..), getTime, nsec, sec)
@@ -2473,6 +2477,13 @@ declareForeigns = do
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
     $ fmap fst . uncurry SYS.connectSock
+
+  declareForeign Tracked "IO.UDP.clientSocket.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
+      let hostStr = Util.Text.toString host
+          portStr = Util.Text.toString port
+      in UDP.clientSocket (read hostStr) (read portStr) True
 
   declareForeign Tracked "IO.closeSocket.impl.v3" boxToEF0 $
     mkForeignIOF SYS.closeSock

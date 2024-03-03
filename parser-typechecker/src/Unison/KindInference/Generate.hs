@@ -368,6 +368,7 @@ builtinConstraintTree =
           flip Type.ref Type.filePathRef,
           Type.threadId,
           Type.socket,
+          Type.udpSocket,
           Type.processHandle,
           Type.ibytearrayType,
           flip Type.ref Type.charClassRef,
