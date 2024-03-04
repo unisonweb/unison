@@ -90,8 +90,8 @@ import Network.UDP as UDP
   ( UDPSocket,
     ClientSockAddr,
     ListenSocket,
+    accept,
     clientSocket,
-    -- connected,
     recvFrom,
     sendTo,
     serverSocket,
@@ -2332,6 +2332,10 @@ declareUdpForeigns = do
       let hostStr = Util.Text.toString host
           portStr = Util.Text.toString port
       in UDP.serverSocket (read hostStr, read portStr)
+
+  declareForeign Tracked "IO.UDP.ListenSocket.accept.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ uncurry UDP.accept -- \(socket :: ListenSocket, clientSock :: ClientSockAddr) ->
 
   declareForeign Tracked "IO.UDP.recvFrom.impl.v1" boxToEFBox .
     mkForeignIOF $ \(socket :: ListenSocket) -> 
