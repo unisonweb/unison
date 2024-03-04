@@ -60,7 +60,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf)
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf, prettyParseTypecheck, makeParsingEnv, typecheckedUnisonFileToBranchUpdates)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -98,7 +98,7 @@ import Unison.Util.Nametree
     bimapDefns,
     flattenNametree,
     traverseNametreeWithName,
-    zipDefns,
+    zipDefns, unflattenNametree,
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -152,8 +152,31 @@ handleMerge bobBranchName = do
         let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
         pure (conflictInfo, unisonFile, pped, namesIncludingLibdeps)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
-  promptUser mergeInfo conflictInfo prettyUf
-  pure ()
+  currentPath <- Cli.getCurrentPath
+  parsingEnv <- makeParsingEnv currentPath parsingEnvNames
+  prettyParseTypecheck unisonFile pped parsingEnv >>= \case
+    Left prettyError -> undefined
+    Right tuf -> do
+      Cli.runTransactionWithRollback \abort -> do
+        updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
+        let lcaNametree = bimapDefns unflattenNametree unflattenNametree (view #lcaDefns conflictInfo)
+        -- batchUpdates updates lcaBranch
+        undefined
+
+nametreeToBranch0
+  :: Defns
+  (Nametree (Map NameSegment Referent))
+  (Nametree (Map NameSegment TypeReference)) ->
+  V1.Branch.Branch0 m
+nametreeToBranch0 Defns { terms, types } = undefined
+
+-- branch0 ::
+--   forall m.
+--   Metadata.Star Referent NameSegment ->
+--   Metadata.Star TypeReference NameSegment ->
+--   Map NameSegment (Branch m) ->
+--   Map NameSegment (PatchHash, m Patch) ->
+--   Branch0 m
 
 makeUnisonFile ::
   Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
