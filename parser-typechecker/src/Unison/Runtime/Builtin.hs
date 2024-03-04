@@ -80,19 +80,23 @@ import Network.Simple.TCP as SYS
   )
 import Network.Socket as SYS
   ( Socket,
+    -- HostName,
+    -- ServiceName,
     accept,
     socketPort,
   )
+import Network.TLS as TLS
 import Network.UDP as UDP
-  ( -- UDPSocket,
+  ( UDPSocket,
     ClientSockAddr,
     ListenSocket,
     clientSocket,
+    -- connected,
     recvFrom,
     sendTo,
     serverSocket,
   )
-import Network.TLS as TLS
+
 import Network.TLS.Extra.Cipher as Cipher
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
@@ -2316,7 +2320,11 @@ declareUdpForeigns = do
     $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
       let hostStr = Util.Text.toString host
           portStr = Util.Text.toString port
-      in UDP.clientSocket (read hostStr) (read portStr) True
+      in UDP.clientSocket hostStr portStr True
+
+  declareForeign Tracked "IO.UDP.UDPSocket.toText.impl.v1" boxDirect
+    . mkForeign
+    $ \(sock :: UDPSocket) -> pure $ show sock
 
   declareForeign Tracked "IO.UDP.serverSocket.impl.v1" boxBoxToEFBox
     . mkForeignIOF
