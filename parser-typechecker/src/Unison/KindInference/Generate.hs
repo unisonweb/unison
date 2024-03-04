@@ -370,6 +370,7 @@ builtinConstraintTree =
           Type.socket,
           Type.udpSocket,
           Type.udpListenSocket,
+          Type.udpClientSockAddr,
           Type.processHandle,
           Type.ibytearrayType,
           flip Type.ref Type.charClassRef,

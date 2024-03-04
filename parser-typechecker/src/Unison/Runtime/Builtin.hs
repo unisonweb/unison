@@ -85,7 +85,9 @@ import Network.Socket as SYS
   )
 import Network.UDP as UDP
   ( -- UDPSocket,
+    ListenSocket,
     clientSocket,
+    recvFrom,
     serverSocket,
   )
 import Network.TLS as TLS
@@ -2295,8 +2297,30 @@ mkForeignTlsE f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
     flatten (Right (Right (Left e))) = Left e
     flatten (Right (Right (Right a))) = Right a
 
+declareUdpForeigns :: FDecl Symbol ()
+declareUdpForeigns = do
+  declareForeign Tracked "IO.UDP.clientSocket.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
+      let hostStr = Util.Text.toString host
+          portStr = Util.Text.toString port
+      in UDP.clientSocket (read hostStr) (read portStr) True
+
+  declareForeign Tracked "IO.UDP.serverSocket.impl.v1" boxBoxToEFBox
+    . mkForeignIOF
+    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
+      let hostStr = Util.Text.toString host
+          portStr = Util.Text.toString port
+      in UDP.serverSocket (read hostStr, read portStr)
+
+  declareForeign Tracked "IO.UDP.recvFrom.impl.v1" boxToEFBox .
+    mkForeignIOF $ \(socket :: ListenSocket) -> 
+        (first Bytes.fromArray) <$> (UDP.recvFrom socket)
+
+
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
+  declareUdpForeigns
   declareForeign Tracked "IO.openFile.impl.v3" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Util.Text.Text, n :: Int) ->
       let fname = Util.Text.toString fnameText
@@ -2478,20 +2502,6 @@ declareForeigns = do
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF
     $ fmap fst . uncurry SYS.connectSock
-
-  declareForeign Tracked "IO.UDP.clientSocket.impl.v1" boxBoxToEFBox
-    . mkForeignIOF
-    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
-      let hostStr = Util.Text.toString host
-          portStr = Util.Text.toString port
-      in UDP.clientSocket (read hostStr) (read portStr) True
-
-  declareForeign Tracked "IO.UDP.serverSocket.impl.v1" boxBoxToEFBox
-    . mkForeignIOF
-    $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
-      let hostStr = Util.Text.toString host
-          portStr = Util.Text.toString port
-      in UDP.serverSocket (read hostStr, read portStr)
 
   declareForeign Tracked "IO.closeSocket.impl.v3" boxToEF0 $
     mkForeignIOF SYS.closeSock

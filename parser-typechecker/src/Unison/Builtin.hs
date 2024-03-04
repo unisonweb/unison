@@ -247,7 +247,8 @@ builtinTypesSrc =
     B' "MutableByteArray" CT.Data,
     B' "Char.Class" CT.Data,
     B' "UDPSocket" CT.Data,
-    B' "ListenSocket" CT.Data
+    B' "ListenSocket" CT.Data,
+    B' "ClientSockAddr" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -814,6 +815,7 @@ ioBuiltins =
     ("IO.clientSocket.impl.v3", text --> text --> iof socket),
     ("IO.UDP.clientSocket.impl.v1", text --> text --> iof udpSocket),
     ("IO.UDP.serverSocket.impl.v1", text --> text --> iof udpListenSocket),
+    ("IO.UDP.recvFrom.impl.v1", udpListenSocket --> iof (tuple [bytes, udpClientSockAddr])),
     ("IO.closeSocket.impl.v3", socket --> iof unit),
     ("IO.socketPort.impl.v3", socket --> iof nat),
     ("IO.socketAccept.impl.v3", socket --> iof socket),
@@ -1055,9 +1057,10 @@ phandle = Type.processHandle ()
 unit = DD.unitType ()
 
 
-udpSocket, udpListenSocket :: Type
+udpSocket, udpListenSocket, udpClientSockAddr :: Type
 udpSocket = Type.udpSocket ()
 udpListenSocket = Type.udpListenSocket ()
+udpClientSockAddr = Type.udpClientSockAddr ()
 
 tls, tlsClientConfig, tlsServerConfig, tlsSignedCert, tlsPrivateKey, tlsVersion, tlsCipher :: Type
 tls = Type.ref () Type.tlsRef
