@@ -816,6 +816,7 @@ ioBuiltins =
     ("IO.UDP.clientSocket.impl.v1", text --> text --> iof udpSocket),
     ("IO.UDP.serverSocket.impl.v1", text --> text --> iof udpListenSocket),
     ("IO.UDP.recvFrom.impl.v1", udpListenSocket --> iof (tuple [bytes, udpClientSockAddr])),
+    ("IO.UDP.sendTo.impl.v1", udpListenSocket --> bytes --> udpClientSockAddr --> iof unit),
     ("IO.closeSocket.impl.v3", socket --> iof unit),
     ("IO.socketPort.impl.v3", socket --> iof nat),
     ("IO.socketAccept.impl.v3", socket --> iof socket),

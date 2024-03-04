@@ -85,9 +85,11 @@ import Network.Socket as SYS
   )
 import Network.UDP as UDP
   ( -- UDPSocket,
+    ClientSockAddr,
     ListenSocket,
     clientSocket,
     recvFrom,
+    sendTo,
     serverSocket,
   )
 import Network.TLS as TLS
@@ -1656,6 +1658,16 @@ boxBoxTo0 instr =
   where
     (arg1, arg2) = fresh
 
+-- a -> b -> c ->{E} ()
+boxBoxBoxTo0 :: ForeignOp
+boxBoxBoxTo0 instr =
+  ([BX, BX, BX],)
+    . TAbss [arg1, arg2, arg3]
+    . TLets Direct [] [] (TFOp instr [arg1, arg2, arg3])
+    $ TCon Ty.unitRef 0 []
+  where
+    (arg1, arg2, arg3) = fresh
+
 -- a -> b ->{E} Nat
 boxBoxToNat :: ForeignOp
 boxBoxToNat instr =
@@ -2317,6 +2329,9 @@ declareUdpForeigns = do
     mkForeignIOF $ \(socket :: ListenSocket) -> 
         (first Bytes.fromArray) <$> (UDP.recvFrom socket)
 
+  declareForeign Tracked "IO.UDP.sendTo.impl.v1" boxBoxBoxTo0 .
+    mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) -> 
+        UDP.sendTo socket (Bytes.toArray bytes) addr
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
