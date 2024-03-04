@@ -276,11 +276,3 @@ findTemporaryBranchName projectId oldDepName newDepName = do
           <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
           <> "-to-"
           <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
-
-deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
-deleteLibdep dep =
-  over (Branch.children . ix Name.libSegment . Branch.head_ . Branch.children) (Map.delete dep)
-
-deleteLibdeps :: Branch0 m -> Branch0 m
-deleteLibdeps =
-  over Branch.children (Map.delete Name.libSegment)

@@ -651,7 +651,7 @@ loadNamespaceInfo0 branch causalHash = do
   let types = Map.map Map.keysSet (branch ^. #types)
   let value = (Defns {terms, types}, causalHash)
   children <-
-    for (Map.delete Name.libSegment (branch ^. #children)) \childCausal -> do
+    for (Map.delete NameSegment.libSegment (branch ^. #children)) \childCausal -> do
       childBranch <- Causal.value childCausal
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure Nametree {value, children}
@@ -734,7 +734,7 @@ assertNamespaceSatisfiesPreconditions ::
   ) ->
   Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
-  Map.lookup Name.libSegment (branch ^. #children) `whenJust` \libdepsCausal -> do
+  Map.lookup NameSegment.libSegment (branch ^. #children) `whenJust` \libdepsCausal -> do
     libdepsBranch <- Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
       abort Merge.DefnsInLib
@@ -1020,7 +1020,7 @@ findConflictedAlias defns diff =
 -- | Load the library dependencies (lib.*) of a namespace.
 loadLibdeps :: Branch Transaction -> Transaction (Maybe (CausalHash, Map NameSegment (CausalBranch Transaction)))
 loadLibdeps branch =
-  case Map.lookup Name.libSegment (Branch.children branch) of
+  case Map.lookup NameSegment.libSegment (Branch.children branch) of
     Nothing -> pure Nothing
     Just dependenciesCausal -> do
       dependenciesBranch <- Causal.value dependenciesCausal
@@ -1058,7 +1058,7 @@ getTwoFreshNames names name0 =
 
     mangled :: Integer -> NameSegment
     mangled i =
-      NameSegment (NameSegment.toText name0 <> "__" <> tShow i)
+      NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)
 
 data TwoDiffsOp v
   = Conflict v v
