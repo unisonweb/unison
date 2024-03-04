@@ -133,17 +133,14 @@ handleMerge bobBranchName = do
       Conflicted _ -> do
         error "conflicts path not implemented yet"
       Unconflicted unconflictedInfo -> do
-        lcaNamesExcludingLibdepsAndDeletions <- loadLcaNamesExcludingLibdepsAndDeletions db conflictInfo
-
+        lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
         PartitionedContents { fileContents, lcaAddsAndUpdates, lcaDeletions } <- partitionFileContents db conflictInfo
         unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
-        unconflictedNamesExcludingLibdeps <- loadUnconflictedNamesExcludingLibdeps db conflictInfo
-        let namesExcludingLibdeps = lcaNamesExcludingLibdepsAndDeletions <> unconflictedNamesExcludingLibdeps
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
         lcaAddsAndUpdates <- lcaAddsAndUpdates & #terms.traverse %%~ referent2to1 db
         let mungedNames =
-              let termMap = Relation.domain (Names.terms namesExcludingLibdeps)
-                  typeMap = Relation.domain (Names.types namesExcludingLibdeps)
+              let termMap = Relation.domain (Names.terms lcaNamesExcludingLibdeps)
+                  typeMap = Relation.domain (Names.types lcaNamesExcludingLibdeps)
                   termMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) termMap (view #terms lcaAddsAndUpdates)
                   typeMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) typeMap (view #types lcaAddsAndUpdates)
                   termMap'' = Map.withoutKeys termMap' (view #terms lcaDeletions)
@@ -514,11 +511,10 @@ partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
           conflicts = Defns (view #conflicts termSt) (view #conflicts typeSt)
         }
 
-loadLcaNamesExcludingLibdepsAndDeletions :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadLcaNamesExcludingLibdepsAndDeletions db ConflictInfo {lcaDefns = Defns {terms, types}, unconflictedPartitionedDefns} = do
-  let Defns deletedTerms deletedTypes = unconflictedDeletions unconflictedPartitionedDefns
-  terms <- traverse (referent2to1 db) (BiMultimap.range terms Map.\\ deletedTerms)
-  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types Map.\\ deletedTypes)}
+loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
+loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} = do
+  terms <- traverse (referent2to1 db) (BiMultimap.range terms)
+  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types)}
 
 loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
 loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedPartitionedDefns} = do
