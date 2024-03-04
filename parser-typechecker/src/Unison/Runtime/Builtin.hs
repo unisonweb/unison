@@ -2337,6 +2337,10 @@ declareUdpForeigns = do
     . mkForeignIOF
     $ uncurry UDP.accept -- \(socket :: ListenSocket, clientSock :: ClientSockAddr) ->
 
+  declareForeign Tracked "IO.UDP.ListenSocket.toText.impl.v1" boxDirect
+    . mkForeign
+    $ \(sock :: ListenSocket) -> pure $ show sock
+
   declareForeign Tracked "IO.UDP.recvFrom.impl.v1" boxToEFBox .
     mkForeignIOF $ \(socket :: ListenSocket) -> 
         (first Bytes.fromArray) <$> (UDP.recvFrom socket)
