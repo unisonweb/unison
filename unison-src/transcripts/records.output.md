@@ -63,6 +63,61 @@ unique type Record4 =
         g : [Nat] }
 
 ```
+## Record with many many fields
+
+```unison
+unique type Record5 = {
+  zero : Nat,
+  one : [Nat],
+  two : [[Nat]],
+  three: [[[Nat]]],
+  four: [[[[Nat]]]],
+  five: [[[[[Nat]]]]],
+  six: [[[[[[Nat]]]]]],
+  seven: [[[[[[[Nat]]]]]]],
+  eight: [[[[[[[[Nat]]]]]]]],
+  nine: [[[[[[[[[Nat]]]]]]]]],
+  ten: [[[[[[[[[[Nat]]]]]]]]]],
+  eleven: [[[[[[[[[[[Nat]]]]]]]]]]],
+  twelve: [[[[[[[[[[[[Nat]]]]]]]]]]]],
+  thirteen: [[[[[[[[[[[[[Nat]]]]]]]]]]]]],
+  fourteen: [[[[[[[[[[[[[[Nat]]]]]]]]]]]]]],
+  fifteen: [[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]],
+  sixteen: [[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]],
+  seventeen: [[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]],
+  eighteen: [[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]],
+  nineteen: [[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]],
+  twenty: [[[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]]]
+}
+```
+
+```ucm
+.> view Record5
+
+  type Record5
+    = { zero : Nat,
+        one : [Nat],
+        two : [[Nat]],
+        three : [[[Nat]]],
+        four : [[[[Nat]]]],
+        five : [[[[[Nat]]]]],
+        six : [[[[[[Nat]]]]]],
+        seven : [[[[[[[Nat]]]]]]],
+        eight : [[[[[[[[Nat]]]]]]]],
+        nine : [[[[[[[[[Nat]]]]]]]]],
+        ten : [[[[[[[[[[Nat]]]]]]]]]],
+        eleven : [[[[[[[[[[[Nat]]]]]]]]]]],
+        twelve : [[[[[[[[[[[[Nat]]]]]]]]]]]],
+        thirteen : [[[[[[[[[[[[[Nat]]]]]]]]]]]]],
+        fourteen : [[[[[[[[[[[[[[Nat]]]]]]]]]]]]]],
+        fifteen : [[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]],
+        sixteen : [[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]],
+        seventeen : [[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]],
+        eighteen : [[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]],
+        nineteen : [[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]],
+        twenty : [[[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]]] }
+
+```
 ## Record with user-defined type fields
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
@@ -103,7 +158,6 @@ unique type Record5 =
   
     ⍟ These new definitions are ok to `add`:
     
-      type Record5
       Record5.a        : Record5 -> Text
       Record5.a.modify : (Text ->{g} Text)
                          -> Record5
@@ -114,5 +168,10 @@ unique type Record5 =
                          -> Record5
                          ->{g} Record5
       Record5.b.set    : Int -> Record5 -> Record5
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      type Record5
 
 ```
