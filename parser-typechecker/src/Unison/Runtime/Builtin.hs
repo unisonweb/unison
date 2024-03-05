@@ -93,10 +93,14 @@ import Network.UDP as UDP
     accept,
     clientSocket,
     close,
+    listenSocket,
+    recv,
     recvFrom,
+    send,
     sendTo,
     serverSocket,
     stop,
+    udpSocket,
   )
 
 import Network.TLS.Extra.Cipher as Cipher
@@ -2324,6 +2328,36 @@ declareUdpForeigns = do
           portStr = Util.Text.toString port
       in UDP.clientSocket hostStr portStr True
 
+  declareForeign Tracked "IO.UDP.recv.impl.v1" boxToEFBox
+    . mkForeignIOF
+    $ \(sock :: UDPSocket) -> Bytes.fromArray <$> UDP.recv sock
+
+  declareForeign Tracked "IO.UDP.send.impl.v1" boxBoxTo0
+    . mkForeignIOF
+    $ \(sock :: UDPSocket, bytes :: Bytes.Bytes) ->
+      UDP.send sock (Bytes.toArray bytes)
+
+  declareForeign Tracked "IO.UDP.UDPSocket.port.impl.v1" boxToEFNat
+    . mkForeignIOF
+    $ \(sock :: UDPSocket) -> do
+      let u = UDP.udpSocket sock
+      n <- SYS.socketPort u-- . UDP.udpSocket) sock
+      return (fromIntegral n :: Word64)
+
+  declareForeign Tracked "IO.UDP.ListenSocket.port.impl.v1" boxToEFNat
+    .mkForeignIOF
+    $ \(sock :: ListenSocket) -> do
+      let u = UDP.listenSocket sock
+      n <- SYS.socketPort u
+      return (fromIntegral n :: Word64)
+    -- $ (SYS.socketPort . UDP.listenSocket)
+
+  -- declareForeign Tracked "IO.socketPort.impl.v3" boxToEFNat
+  --   . mkForeignIOF
+  --   $ \(handle :: Socket) -> do
+  --     n <- SYS.socketPort handle
+  --     return (fromIntegral n :: Word64)
+
   declareForeign Tracked "IO.UDP.UDPSocket.close.impl.v1" boxToEF0
     . mkForeignIOF
     $ \(sock :: UDPSocket) -> UDP.close sock
@@ -2353,7 +2387,7 @@ declareUdpForeigns = do
 
   declareForeign Tracked "IO.UDP.recvFrom.impl.v1" boxToEFBox .
     mkForeignIOF $ \(socket :: ListenSocket) -> 
-        (first Bytes.fromArray) <$> (UDP.recvFrom socket)
+        first Bytes.fromArray <$> UDP.recvFrom socket
 
   declareForeign Tracked "IO.UDP.sendTo.impl.v1" boxBoxBoxTo0 .
     mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) -> 
