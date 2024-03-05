@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (view, (%=), (%~), (.=), (^.), (%%~))
+import Control.Lens (view, (%%~), (%=), (%~), (.=), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -60,7 +60,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal qualified as V1 (Causal)
 import Unison.Codebase.Causal qualified as V1.Causal
 import Unison.Codebase.Causal.Type qualified as V1.Causal
-import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf, prettyParseTypecheck, makeParsingEnv, typecheckedUnisonFileToBranchUpdates)
+import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf, makeParsingEnv, prettyParseTypecheck, typecheckedUnisonFileToBranchUpdates)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -84,6 +84,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Referent qualified as V1 (Referent)
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -98,13 +99,15 @@ import Unison.Util.Nametree
     bimapDefns,
     flattenNametree,
     traverseNametreeWithName,
-    zipDefns, unflattenNametree,
+    unflattenNametree,
+    zipDefns,
   )
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 qualified as Star2
 import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
@@ -134,10 +137,10 @@ handleMerge bobBranchName = do
         error "conflicts path not implemented yet"
       Unconflicted unconflictedInfo -> do
         lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
-        PartitionedContents { fileContents, lcaAddsAndUpdates, lcaDeletions } <- partitionFileContents db conflictInfo
+        PartitionedContents {fileContents, lcaAddsAndUpdates, lcaDeletions} <- partitionFileContents db conflictInfo
         unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
         let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
-        lcaAddsAndUpdates <- lcaAddsAndUpdates & #terms.traverse %%~ referent2to1 db
+        lcaAddsAndUpdates <- lcaAddsAndUpdates & #terms . traverse %%~ referent2to1 db
         let mungedNames =
               let termMap = Relation.domain (Names.terms lcaNamesExcludingLibdeps)
                   typeMap = Relation.domain (Names.types lcaNamesExcludingLibdeps)
@@ -145,9 +148,10 @@ handleMerge bobBranchName = do
                   typeMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) typeMap (view #types lcaAddsAndUpdates)
                   termMap'' = Map.withoutKeys termMap' (view #terms lcaDeletions)
                   typeMap'' = Map.withoutKeys typeMap' (view #types lcaDeletions)
-              in Names.Names { terms = Relation.fromMultimap termMap'',
-                               types = Relation.fromMultimap typeMap''
-                             }
+               in Names.Names
+                    { terms = Relation.fromMultimap termMap'',
+                      types = Relation.fromMultimap typeMap''
+                    }
         let namesIncludingLibdeps = mungedNames <> mergedLibdepNames
         let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
         pure (conflictInfo, unisonFile, pped, namesIncludingLibdeps)
@@ -157,26 +161,64 @@ handleMerge bobBranchName = do
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
     Left prettyError -> undefined
     Right tuf -> do
-      Cli.runTransactionWithRollback \abort -> do
+      mergedBranch0 <- Cli.runTransactionWithRollback \abort -> do
         updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
         let lcaNametree = bimapDefns unflattenNametree unflattenNametree (view #lcaDefns conflictInfo)
-        -- batchUpdates updates lcaBranch
-        undefined
+        lcaBranch0 <- nametreeToBranch0 db lcaNametree
+        let mergedBranch0 = V1.Branch.batchUpdates updates lcaBranch0
+        pure mergedBranch0
+      let bobBranchText =
+            into @Text
+              ( ProjectAndBranch
+                  (view (#project . #name) mergeInfo)
+                  (view (#bobProjectBranch . #name) mergeInfo)
+              )
+      Cli.stepAt ("merge " <> bobBranchText) (Path.unabsolute (alicePath mergeInfo), const mergedBranch0)
 
-nametreeToBranch0
-  :: Defns
-  (Nametree (Map NameSegment Referent))
-  (Nametree (Map NameSegment TypeReference)) ->
-  V1.Branch.Branch0 m
-nametreeToBranch0 Defns { terms, types } = undefined
+nametree2to1 ::
+  MergeDatabase ->
+  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Transaction (Defns (Nametree (Map NameSegment V1.Referent)) (Nametree (Map NameSegment TypeReference)))
+nametree2to1 db Defns {terms, types} = do
+  terms <- (traverse . traverse) (referent2to1 db) terms
+  pure Defns {terms, types}
 
--- branch0 ::
---   forall m.
---   Metadata.Star Referent NameSegment ->
---   Metadata.Star TypeReference NameSegment ->
---   Map NameSegment (Branch m) ->
---   Map NameSegment (PatchHash, m Patch) ->
---   Branch0 m
+mergeDefnsNametree ::
+  Defns (Nametree (Map NameSegment V1.Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Nametree (Map NameSegment V1.Referent, Map NameSegment TypeReference)
+mergeDefnsNametree Defns {terms, types} = alignWith phi terms types
+  where
+    phi = \case
+      This a -> (a, Map.empty)
+      That b -> (Map.empty, b)
+      These a b -> (a, b)
+
+v1NametreeToBranch0 :: forall m. Nametree (Map NameSegment V1.Referent, Map NameSegment TypeReference) -> V1.Branch.Branch0 m
+v1NametreeToBranch0 nt =
+  let starTerms =
+        Star2.Star2
+          { fact = Relation.dom termRel,
+            d1 = termRel,
+            d2 = Relation.empty
+          }
+      (termRel, typeRel) = bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) (value nt)
+      starTypes =
+        Star2.Star2
+          { fact = Relation.dom typeRel,
+            d1 = typeRel,
+            d2 = Relation.empty
+          }
+      ntChildren = V1.Branch.one . v1NametreeToBranch0 <$> view #children nt
+      res = V1.Branch.branch0 starTerms starTypes ntChildren Map.empty
+   in res
+
+nametreeToBranch0 ::
+  forall m.
+  MergeDatabase ->
+  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Transaction (V1.Branch.Branch0 m)
+nametreeToBranch0 db nt =
+  v1NametreeToBranch0 . mergeDefnsNametree <$> nametree2to1 db nt
 
 makeUnisonFile ::
   Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
@@ -205,6 +247,7 @@ data MergeInfo = MergeInfo
     bobProjectBranch :: ProjectBranch,
     project :: Project
   }
+  deriving stock (Generic)
 
 getMergeInfo :: ProjectBranchName -> Cli MergeInfo
 getMergeInfo bobBranchName = do
@@ -387,8 +430,7 @@ data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
     bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
 
-data PartitionedContents
-  = PartitionedContents
+data PartitionedContents = PartitionedContents
   { fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId),
     lcaAddsAndUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
     lcaDeletions :: Defns (Set Name) (Set Name)
@@ -398,7 +440,6 @@ partitionFileContents ::
   MergeDatabase ->
   ConflictInfo ->
   Transaction PartitionedContents
-   
 partitionFileContents db conflictInfo = do
   let UnconflictedPartitionedDefns
         { aliceUpdates,
@@ -415,19 +456,20 @@ partitionFileContents db conflictInfo = do
   bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #bobDefns conflictInfo)
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
-  d0 <- (\(a,b) -> Defns { terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
-  d1 <- (\(a,b) -> Defns { terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
+  d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
+  d1 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
   let fileContentsMap = d0 <> d1
   let fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
   let lcaAddsAndUpdates =
         let candidates = aliceUpdates <> bobUpdates <> bothUpdates <> aliceAdditions <> bobAdditions <> bothAdditions
-        in bimapDefns (Map.\\ view #terms fileContentsMap) (Map.\\ view #types fileContentsMap) candidates
+         in bimapDefns (Map.\\ view #terms fileContentsMap) (Map.\\ view #types fileContentsMap) candidates
   let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (aliceDeletions <> bobDeletions <> bothDeletions)
-  pure PartitionedContents
-    { fileContents,
-      lcaAddsAndUpdates,
-      lcaDeletions
-    }
+  pure
+    PartitionedContents
+      { fileContents,
+        lcaAddsAndUpdates,
+        lcaDeletions
+      }
   where
     defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
     defnRefs n = flip getExistingReferencesNamed n . defnNames

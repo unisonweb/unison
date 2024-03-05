@@ -35,7 +35,7 @@ data Nametree a = Nametree
   { value :: !a,
     children :: !(Map NameSegment (Nametree a))
   }
-  deriving stock (Functor, Generic, Show)
+  deriving stock (Functor, Foldable, Traversable, Generic, Show)
 
 instance Semialign Nametree where
   alignWith :: (These a b -> c) -> Nametree a -> Nametree b -> Nametree c
