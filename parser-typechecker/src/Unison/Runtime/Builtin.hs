@@ -92,9 +92,11 @@ import Network.UDP as UDP
     ListenSocket,
     accept,
     clientSocket,
+    close,
     recvFrom,
     sendTo,
     serverSocket,
+    stop,
   )
 
 import Network.TLS.Extra.Cipher as Cipher
@@ -2321,6 +2323,14 @@ declareUdpForeigns = do
       let hostStr = Util.Text.toString host
           portStr = Util.Text.toString port
       in UDP.clientSocket hostStr portStr True
+
+  declareForeign Tracked "IO.UDP.UDPSocket.close.impl.v1" boxToEF0
+    . mkForeignIOF
+    $ \(sock :: UDPSocket) -> UDP.close sock
+
+  declareForeign Tracked "IO.UDP.ListenSocket.close.impl.v1" boxToEF0
+    . mkForeignIOF
+    $ \(sock :: ListenSocket) -> UDP.stop sock
 
   declareForeign Tracked "IO.UDP.UDPSocket.toText.impl.v1" boxDirect
     . mkForeign
