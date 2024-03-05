@@ -17,10 +17,6 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
--- import U.Codebase.Sqlite.DbId (ProjectId)
-
--- import Witch (unsafeFrom)
-
 import Data.Semialign (Semialign (..), alignWith, unzip, zip)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -28,9 +24,9 @@ import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import GHC.Clock (getMonotonicTime)
 import Text.Printf (printf)
-import U.Codebase.Branch (Branch (..), CausalBranch)
-import U.Codebase.Branch qualified as Branch
-import U.Codebase.Causal qualified as Causal
+import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
+import U.Codebase.Branch qualified as V2.Branch
+import U.Codebase.Causal qualified as V2.Causal
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference
   ( Reference,
@@ -39,8 +35,8 @@ import U.Codebase.Reference
     TypeReference,
     TypeReferenceId,
   )
-import U.Codebase.Referent (Referent)
-import U.Codebase.Referent qualified as Referent
+import U.Codebase.Referent qualified as V2 (Referent)
+import U.Codebase.Referent qualified as V2.Referent
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project)
@@ -54,12 +50,12 @@ import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as V1 (Branch (..), Branch0)
-import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Branch (Branch (..), Branch0)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Causal qualified as V1 (Causal)
-import Unison.Codebase.Causal qualified as V1.Causal
-import Unison.Codebase.Causal.Type qualified as V1.Causal
+import Unison.Codebase.Causal (Causal)
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Codebase.Causal.Type qualified as Causal
 import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf, makeParsingEnv, prettyParseTypecheck, typecheckedUnisonFileToBranchUpdates)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
@@ -84,7 +80,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
-import Unison.Referent qualified as V1 (Referent)
+import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -124,48 +120,48 @@ handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
   Cli.Env {codebase} <- ask
   -- Create a bunch of cached database lookup functions
-  db <- do
-    Cli.Env {codebase} <- ask
-    makeMergeDatabase codebase
+  db <- makeMergeDatabase codebase
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
-  (conflictInfo, unisonFile, pped, parsingEnvNames) <- Cli.runTransactionWithRollback \abort -> do
+  (unisonFile, lcaBranch1) <- Cli.runTransactionWithRollback \abort -> do
     conflictInfo <- getConflictInfo db mergeInfo abort
     case conflictState conflictInfo of
       Conflicted _ -> do
         error "conflicts path not implemented yet"
       Unconflicted unconflictedInfo -> do
-        lcaNamesExcludingLibdeps <- loadLcaNamesExcludingLibdeps db conflictInfo
         PartitionedContents {fileContents, lcaAddsAndUpdates, lcaDeletions} <- partitionFileContents db conflictInfo
+        let theDefns0 :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name)
+            theDefns0 = view #lcaDefns conflictInfo
+        let theDefns1 :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name)
+            theDefns1 =
+              case theDefns0 of
+                Defns terms types ->
+                  Defns
+                    ( let terms1 = Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range terms) (view #terms lcaAddsAndUpdates)
+                          terms2 = Map.withoutKeys terms1 (view #terms lcaDeletions)
+                       in BiMultimap.fromRange terms2
+                    )
+                    ( let types1 = Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range types) (view #types lcaAddsAndUpdates)
+                          types2 = Map.withoutKeys types1 (view #types lcaDeletions)
+                       in BiMultimap.fromRange types2
+                    )
+        let lcaNametree = bimapDefns unflattenNametree unflattenNametree theDefns1
+        lcaBranch0 <- nametreeToBranch0 db lcaNametree
+        let lcaBranch1 = Branch.setChildBranch NameSegment.libSegment (view #mergedLibdeps conflictInfo) lcaBranch0
         unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
-        let mergedLibdepNames = Branch.toNames (V1.Branch.head $ mergedLibdeps conflictInfo)
-        lcaAddsAndUpdates <- lcaAddsAndUpdates & #terms . traverse %%~ referent2to1 db
-        let mungedNames =
-              let termMap = Relation.domain (Names.terms lcaNamesExcludingLibdeps)
-                  typeMap = Relation.domain (Names.types lcaNamesExcludingLibdeps)
-                  termMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) termMap (view #terms lcaAddsAndUpdates)
-                  typeMap' = Map.foldlWithKey' (\b k v -> Map.insert k (Set.singleton v) b) typeMap (view #types lcaAddsAndUpdates)
-                  termMap'' = Map.withoutKeys termMap' (view #terms lcaDeletions)
-                  typeMap'' = Map.withoutKeys typeMap' (view #types lcaDeletions)
-               in Names.Names
-                    { terms = Relation.fromMultimap termMap'',
-                      types = Relation.fromMultimap typeMap''
-                    }
-        let namesIncludingLibdeps = mungedNames <> mergedLibdepNames
-        let pped = PPED.makePPED (PPE.namer namesIncludingLibdeps) (PPE.suffixifyByName namesIncludingLibdeps)
-        pure (conflictInfo, unisonFile, pped, namesIncludingLibdeps)
+        pure (unisonFile, lcaBranch1)
+  let bonkNames = Branch.toNames lcaBranch1
+  let pped = PPED.makePPED (PPE.namer bonkNames) (PPE.suffixifyByName bonkNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   currentPath <- Cli.getCurrentPath
-  parsingEnv <- makeParsingEnv currentPath parsingEnvNames
+  parsingEnv <- makeParsingEnv currentPath bonkNames
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
     Left prettyError -> undefined
     Right tuf -> do
       mergedBranch0 <- Cli.runTransactionWithRollback \abort -> do
         updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
-        let lcaNametree = bimapDefns unflattenNametree unflattenNametree (view #lcaDefns conflictInfo)
-        lcaBranch0 <- nametreeToBranch0 db lcaNametree
-        let mergedBranch0 = V1.Branch.batchUpdates updates lcaBranch0
+        let mergedBranch0 = Branch.batchUpdates updates lcaBranch1
         pure mergedBranch0
       let bobBranchText =
             into @Text
@@ -173,19 +169,23 @@ handleMerge bobBranchName = do
                   (view (#project . #name) mergeInfo)
                   (view (#bobProjectBranch . #name) mergeInfo)
               )
-      Cli.stepAt ("merge " <> bobBranchText) (Path.unabsolute (alicePath mergeInfo), const mergedBranch0)
+      Cli.stepAt
+        ("merge " <> bobBranchText)
+        ( Path.unabsolute (alicePath mergeInfo),
+          const (Branch.transform0 (Codebase.runTransaction codebase) mergedBranch0)
+        )
 
 nametree2to1 ::
   MergeDatabase ->
-  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Transaction (Defns (Nametree (Map NameSegment V1.Referent)) (Nametree (Map NameSegment TypeReference)))
+  Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Transaction (Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)))
 nametree2to1 db Defns {terms, types} = do
   terms <- (traverse . traverse) (referent2to1 db) terms
   pure Defns {terms, types}
 
 mergeDefnsNametree ::
-  Defns (Nametree (Map NameSegment V1.Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Nametree (Map NameSegment V1.Referent, Map NameSegment TypeReference)
+  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Nametree (Map NameSegment Referent, Map NameSegment TypeReference)
 mergeDefnsNametree Defns {terms, types} = alignWith phi terms types
   where
     phi = \case
@@ -193,7 +193,7 @@ mergeDefnsNametree Defns {terms, types} = alignWith phi terms types
       That b -> (Map.empty, b)
       These a b -> (a, b)
 
-v1NametreeToBranch0 :: forall m. Nametree (Map NameSegment V1.Referent, Map NameSegment TypeReference) -> V1.Branch.Branch0 m
+v1NametreeToBranch0 :: forall m. Nametree (Map NameSegment Referent, Map NameSegment TypeReference) -> Branch0 m
 v1NametreeToBranch0 nt =
   let starTerms =
         Star2.Star2
@@ -208,15 +208,15 @@ v1NametreeToBranch0 nt =
             d1 = typeRel,
             d2 = Relation.empty
           }
-      ntChildren = V1.Branch.one . v1NametreeToBranch0 <$> view #children nt
-      res = V1.Branch.branch0 starTerms starTypes ntChildren Map.empty
+      ntChildren = Branch.one . v1NametreeToBranch0 <$> view #children nt
+      res = Branch.branch0 starTerms starTypes ntChildren Map.empty
    in res
 
 nametreeToBranch0 ::
   forall m.
   MergeDatabase ->
-  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Transaction (V1.Branch.Branch0 m)
+  Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
+  Transaction (Branch0 m)
 nametreeToBranch0 db nt =
   v1NametreeToBranch0 . mergeDefnsNametree <$> nametree2to1 db nt
 
@@ -288,7 +288,7 @@ getConflictInfo
     aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
     bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
     maybeLcaCausal <-
-      step "compute lca" (Operations.lca (Causal.causalHash aliceCausal) (Causal.causalHash bobCausal)) >>= \case
+      step "compute lca" (Operations.lca (V2.Causal.causalHash aliceCausal) (V2.Causal.causalHash bobCausal)) >>= \case
         Nothing -> pure Nothing
         Just lcaCausalHash -> do
           -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
@@ -299,8 +299,8 @@ getConflictInfo
                 (Right (ProjectAndBranch project aliceProjectBranch))
           Just <$> loadCausal lcaCausalHash
     -- Load shallow branches
-    aliceBranch <- Causal.value aliceCausal
-    bobBranch <- Causal.value bobCausal
+    aliceBranch <- V2.Causal.value aliceCausal
+    bobBranch <- V2.Causal.value bobCausal
 
     -- Load deep definitions
     --
@@ -325,7 +325,7 @@ getConflictInfo
               Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
           pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
         Just lcaCausal -> do
-          lcaBranch <- Causal.value lcaCausal
+          lcaBranch <- V2.Causal.value lcaCausal
           lcaDefns <- loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
           diffs <-
             Merge.nameBasedNamespaceDiff
@@ -342,7 +342,7 @@ getConflictInfo
       pure $
         ( Set.fromList (catMaybes [fst <$> maybeAliceLibdeps, fst <$> maybeBobLibdeps]),
           Merge.mergeLibdeps
-            ((==) `on` Causal.causalHash)
+            ((==) `on` V2.Causal.causalHash)
             getTwoFreshNames
             lcaLibdeps
             (maybe Map.empty snd maybeAliceLibdeps)
@@ -353,7 +353,7 @@ getConflictInfo
           let diffWithContext ::
                 Merge.TwoWay
                   ( Defns
-                      (Map Name (Referent, Merge.DiffOp Hash))
+                      (Map Name (V2.Referent, Merge.DiffOp Hash))
                       (Map Name (TypeReference, Merge.DiffOp Hash))
                   )
               diffWithContext =
@@ -394,11 +394,11 @@ getConflictInfo
         }
 
 data ConflictInfo = ConflictInfo
-  { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-    mergedLibdeps :: V1.Branch Transaction,
+  { lcaDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
+    mergedLibdeps :: Branch Transaction,
     unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
-    aliceDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-    bobDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    aliceDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
+    bobDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
     conflictState :: ConflictState
   }
   deriving stock (Generic)
@@ -408,7 +408,7 @@ data ConflictState
   | Unconflicted UnconflictedInfo
 
 data ConflictedInfo = ConflictedInfo
-  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
+  { conflictedDefns :: Defns (Map Name (V2.Referent, V2.Referent)) (Map Name (TypeReference, TypeReference)),
     aliceDeclNames :: Map Name [Name],
     bobDeclNames :: Map Name [Name]
   }
@@ -419,20 +419,20 @@ data UnconflictedInfo = UnconflictedInfo
   deriving stock (Generic)
 
 data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
-  { aliceAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    aliceUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    aliceDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
+  { aliceAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bobAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bothAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    aliceUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bobUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bothUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    aliceDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bobDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    bothDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference)
   }
 
 data PartitionedContents = PartitionedContents
   { fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId),
-    lcaAddsAndUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    lcaAddsAndUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
     lcaDeletions :: Defns (Set Name) (Set Name)
   }
 
@@ -471,27 +471,27 @@ partitionFileContents db conflictInfo = do
         lcaDeletions
       }
   where
-    defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
+    defnRefs :: Names -> Defns (Map Name V2.Referent) (Map Name TypeReference) -> Set Reference
     defnRefs n = flip getExistingReferencesNamed n . defnNames
 
-    defnNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
+    defnNames :: Defns (Map Name V2.Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
     defnNames = bimapDefns Map.keysSet Map.keysSet
 
-unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
 unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
   aliceAdditions <> bobAdditions <> bothAdditions
 
-unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
 unconflictedUpdates UnconflictedPartitionedDefns {aliceUpdates, bobUpdates, bothUpdates} =
   aliceUpdates <> bobUpdates <> bothUpdates
 
-unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
+unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
 unconflictedDeletions UnconflictedPartitionedDefns {aliceDeletions, bobDeletions, bothDeletions} =
   aliceDeletions <> bobDeletions <> bothDeletions
 
 data PartitionedDefns = PartitionedDefns
   { unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
-    conflicts :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference))
+    conflicts :: Defns (Map Name (V2.Referent, V2.Referent)) (Map Name (TypeReference, TypeReference))
   }
 
 data PartitionState v = PartitionState
@@ -525,7 +525,7 @@ emptyPartitionState =
 
 partitionConflicts ::
   -- | Classified names
-  Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
+  Defns (Map Name (TwoDiffsOp V2.Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
   PartitionedDefns
 partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
   let termSt =
@@ -589,7 +589,7 @@ loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedPartitionedDe
 
 defnsToNames ::
   MergeDatabase ->
-  Defns (Map Name Referent) (Map Name TypeReference) ->
+  Defns (Map Name V2.Referent) (Map Name TypeReference) ->
   Transaction Names
 defnsToNames db Defns {terms, types} = do
   terms <- traverse (referent2to1 db) terms
@@ -600,14 +600,14 @@ defnsToNames db Defns {terms, types} = do
       }
 
 defnsToRel ::
-  Defns (Map Name Referent) (Map Name TypeReference) ->
+  Defns (Map Name V2.Referent) (Map Name TypeReference) ->
   (Relation Name TermReferenceId, Relation Name TypeReferenceId)
 defnsToRel Defns {terms, types} =
   let termRefIds = flip mapMaybe terms \case
-        Referent.Ref r -> case r of
+        V2.Referent.Ref r -> case r of
           ReferenceBuiltin _ -> Nothing -- todo - explode
           ReferenceDerived r -> Just r
-        Referent.Con _ _ -> Nothing -- todo - get the decl
+        V2.Referent.Con _ _ -> Nothing -- todo - get the decl
       typeRefIds =
         flip mapMaybe types \case
           ReferenceBuiltin _ -> Nothing -- todo - explode
@@ -665,10 +665,10 @@ promptUser _mergeInfo _conflictInfo prettyUnisonFile = do
 loadNamespaceInfo ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   CausalHash ->
-  Branch Transaction ->
+  V2.Branch Transaction ->
   Transaction
     ( Nametree
-        ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+        ( Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference),
           CausalHash
         )
     )
@@ -680,11 +680,11 @@ loadNamespaceInfo abort causalHash branch = do
 -- in the "lib" namespace.
 loadNamespaceInfo0 ::
   Monad m =>
-  Branch m ->
+  V2.Branch m ->
   CausalHash ->
   m
     ( Nametree
-        ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+        ( Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference)),
           CausalHash
         )
     )
@@ -694,17 +694,17 @@ loadNamespaceInfo0 branch causalHash = do
   let value = (Defns {terms, types}, causalHash)
   children <-
     for (Map.delete NameSegment.libSegment (branch ^. #children)) \childCausal -> do
-      childBranch <- Causal.value childCausal
+      childBranch <- V2.Causal.value childCausal
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure Nametree {value, children}
 
 loadNamespaceInfo0_ ::
   Monad m =>
-  Branch m ->
+  V2.Branch m ->
   CausalHash ->
   m
     ( Nametree
-        ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+        ( Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference)),
           CausalHash
         )
     )
@@ -714,20 +714,20 @@ loadNamespaceInfo0_ branch causalHash = do
   let value = (Defns {terms, types}, causalHash)
   children <-
     for (branch ^. #children) \childCausal -> do
-      childBranch <- Causal.value childCausal
+      childBranch <- V2.Causal.value childCausal
       loadNamespaceInfo0_ childBranch (childCausal ^. #causalHash)
   pure Nametree {value, children}
 
 -- | Assert that there are no unconflicted names in a namespace.
 assertNamespaceHasNoConflictedNames ::
   Nametree
-    ( Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference)),
+    ( Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference)),
       CausalHash
     ) ->
   Either
     Merge.PreconditionViolation
     ( Nametree
-        ( Defns (Map NameSegment Referent) (Map NameSegment TypeReference),
+        ( Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference),
           CausalHash
         )
     )
@@ -770,14 +770,14 @@ assertNamespaceSatisfiesPreconditions ::
   MergeDatabase ->
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   ProjectBranchName ->
-  Branch Transaction ->
+  V2.Branch Transaction ->
   ( Nametree
-      (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+      (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference))
   ) ->
-  Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  Transaction (Map Name [Name], Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup NameSegment.libSegment (branch ^. #children) `whenJust` \libdepsCausal -> do
-    libdepsBranch <- Causal.value libdepsCausal
+    libdepsBranch <- V2.Causal.value libdepsCausal
     when (not (Map.null (libdepsBranch ^. #terms)) || not (Map.null (libdepsBranch ^. #types))) do
       abort Merge.DefnsInLib
   declNames <- checkDeclCoherency db branchName defns & onLeftM abort
@@ -874,7 +874,7 @@ checkDeclCoherency ::
   MergeDatabase ->
   ProjectBranchName ->
   ( Nametree
-      (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+      (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference))
   ) ->
   -- | Returns @Map TypeName [ConstructorName]@
   Transaction (Either Merge.PreconditionViolation (Map Name [Name]))
@@ -887,14 +887,14 @@ checkDeclCoherency MergeDatabase {loadDeclNumConstructors} branchName =
     go ::
       [NameSegment] ->
       ( Nametree
-          (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+          (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference))
       ) ->
       StateT DeclCoherencyCheckState (ExceptT Merge.PreconditionViolation Transaction) ()
     go prefix (Nametree Defns {terms, types} children) = do
       for_ (Map.toList terms) \case
-        (_, Referent.Ref _) -> pure ()
-        (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
-        (name, Referent.Con (ReferenceDerived typeRef) conId) -> do
+        (_, V2.Referent.Ref _) -> pure ()
+        (_, V2.Referent.Con (ReferenceBuiltin _) _) -> pure ()
+        (name, V2.Referent.Con (ReferenceDerived typeRef) conId) -> do
           DeclCoherencyCheckState {expectedConstructors} <- State.get
           expectedConstructors1 <- lift (Except.except (Map.upsertF f typeRef expectedConstructors))
           #expectedConstructors .= expectedConstructors1
@@ -986,8 +986,8 @@ loadLcaDefinitions ::
   Monad m =>
   (forall void. Merge.PreconditionViolation -> m void) ->
   CausalHash ->
-  Branch m ->
-  m (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  V2.Branch m ->
+  m (Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name))
 loadLcaDefinitions abort causalHash branch = do
   defns0 <- loadNamespaceInfo0 branch causalHash
   defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
@@ -1001,7 +1001,7 @@ loadLcaDefinitions abort causalHash branch = do
 abortIfAnyConflictedAliases ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   Merge.TwoWay Sqlite.ProjectBranch ->
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name) ->
   Merge.TwoWay (Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
   Transaction ()
 abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
@@ -1028,7 +1028,7 @@ abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name) ->
   Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
@@ -1060,13 +1060,13 @@ findConflictedAlias defns diff =
                 _ -> Just (name, alias)
 
 -- | Load the library dependencies (lib.*) of a namespace.
-loadLibdeps :: Branch Transaction -> Transaction (Maybe (CausalHash, Map NameSegment (CausalBranch Transaction)))
+loadLibdeps :: V2.Branch Transaction -> Transaction (Maybe (CausalHash, Map NameSegment (V2.CausalBranch Transaction)))
 loadLibdeps branch =
-  case Map.lookup NameSegment.libSegment (Branch.children branch) of
+  case Map.lookup NameSegment.libSegment (V2.Branch.children branch) of
     Nothing -> pure Nothing
     Just dependenciesCausal -> do
-      dependenciesBranch <- Causal.value dependenciesCausal
-      pure (Just (Causal.causalHash dependenciesCausal, Branch.children dependenciesBranch))
+      dependenciesBranch <- V2.Causal.value dependenciesCausal
+      pure (Just (V2.Causal.causalHash dependenciesCausal, V2.Branch.children dependenciesBranch))
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.
@@ -1146,12 +1146,12 @@ partitionDiff (Merge.TwoWay aliceDiff bobDiff) =
 convertLibdepsToV1Causal ::
   MergeDatabase ->
   Set CausalHash ->
-  Map NameSegment (CausalBranch Transaction) ->
-  Transaction (V1.Branch Transaction)
+  Map NameSegment (V2.CausalBranch Transaction) ->
+  Transaction (Branch Transaction)
 convertLibdepsToV1Causal db@MergeDatabase {loadCausal, loadDeclType} parents libdeps = do
-  let branch :: Branch Transaction
+  let branch :: V2.Branch Transaction
       branch =
-        Branch
+        V2.Branch
           { terms = Map.empty,
             types = Map.empty,
             patches = Map.empty,
@@ -1180,32 +1180,32 @@ addCausalHistoryV1 ::
   MergeDatabase ->
   CausalHash ->
   BranchHash ->
-  V1.Branch0 Transaction ->
-  Map CausalHash (Transaction (CausalBranch Transaction)) ->
-  V1.Branch Transaction
+  Branch0 Transaction ->
+  Map CausalHash (Transaction (V2.CausalBranch Transaction)) ->
+  Branch Transaction
 addCausalHistoryV1 MergeDatabase {loadV1Branch} currentHash valueHash0 head parents =
-  V1.Branch case Map.toList parents of
-    [] -> V1.Causal.UnsafeOne {currentHash, valueHash, head}
+  Branch case Map.toList parents of
+    [] -> Causal.UnsafeOne {currentHash, valueHash, head}
     [(parentHash, parent)] ->
-      V1.Causal.UnsafeCons
+      Causal.UnsafeCons
         { currentHash,
           valueHash,
           head,
           tail = (parentHash, convertParent parent)
         }
     _ ->
-      V1.Causal.UnsafeMerge
+      Causal.UnsafeMerge
         { currentHash,
           valueHash,
           head,
           tails = convertParent <$> parents
         }
   where
-    convertParent :: Transaction (CausalBranch Transaction) -> Transaction (V1.Causal Transaction (V1.Branch0 Transaction))
+    convertParent :: Transaction (V2.CausalBranch Transaction) -> Transaction (Causal Transaction (Branch0 Transaction))
     convertParent loadParent = do
       parent <- loadParent
       v1Branch <- loadV1Branch (parent ^. #causalHash)
-      pure (V1.Branch._history v1Branch)
+      pure (Branch._history v1Branch)
 
     valueHash =
-      coerce @BranchHash @(Hash.HashFor (V1.Branch0 Transaction)) valueHash0
+      coerce @BranchHash @(Hash.HashFor (Branch0 Transaction)) valueHash0
