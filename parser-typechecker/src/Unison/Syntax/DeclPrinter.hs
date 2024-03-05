@@ -175,7 +175,7 @@ fieldNames env r name dd = do
     [(_, typ)] -> Just typ
     _ -> Nothing
   let vars :: [v]
-      vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
+      vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> Text.pack (show n))) | n <- [0 .. Type.arity typ - 1]]
   hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
   let names =
         [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)
