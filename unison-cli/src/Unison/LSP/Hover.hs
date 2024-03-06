@@ -94,7 +94,7 @@ hoverInfo uri pos =
           LD.TypeReference (Reference.Builtin {}) -> do
             pure (symAtCursor <> " : <builtin>")
           LD.TypeReference ref@(Reference.DerivedId refId) -> do
-            nameAtCursor <- MaybeT . pure $ Name.fromText symAtCursor
+            nameAtCursor <- MaybeT . pure $ Name.parseText symAtCursor
             decl <- LSPQ.getTypeDeclaration uri refId
             let typ = Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $ DeclPrinter.prettyDecl pped ref (HQ.NameOnly nameAtCursor) decl
             pure typ

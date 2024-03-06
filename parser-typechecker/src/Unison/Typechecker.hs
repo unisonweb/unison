@@ -51,7 +51,7 @@ import Unison.Result
     pattern Result,
   )
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeFromText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -242,7 +242,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
       for_ vtts $ \(v, typ, _) ->
-        for_ (Name.suffixes . Name.unsafeFromText . Var.name $ Var.reset v) $ \suffix ->
+        for_ (Name.suffixes . Name.unsafeParseText . Var.name $ Var.reset v) $ \suffix ->
           termsByShortname
             %= Map.insertWith
               (<>)
@@ -278,7 +278,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
                     Map.insertWith
                       Set.union
                       suggestionReplacement
-                      (Set.singleton (Name.unsafeFromText suggestionName))
+                      (Set.singleton (Name.unsafeParseText suggestionName))
                       b
                 )
                 Map.empty

@@ -19,7 +19,6 @@ module Unison.Syntax.Parser
     failureIf,
     hqInfixId,
     hqPrefixId,
-    importDotId,
     importSymbolyId,
     importWordyId,
     label,
@@ -75,7 +74,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
-import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -85,7 +83,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Name qualified as Name (toVar, unsafeFromString)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText)
 import Unison.Term (MatchCase (..))
 import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
@@ -270,14 +268,6 @@ openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
 matchToken :: (Ord v) => L.Lexeme -> P v m (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
--- The package name that refers to the root, literally just `.`
-importDotId :: (Ord v) => P v m (L.Token Name)
-importDotId = queryToken go
-  where
-    go = \case
-      L.SymbolyId (HQ'.NameOnly name@(Name.reverseSegments -> NameSegment "." Nel.:| [])) -> Just name
-      _ -> Nothing
-
 -- Consume a virtual semicolon
 semi :: (Ord v) => P v m (L.Token ())
 semi = label "newline or semicolon" $ queryToken go
@@ -323,7 +313,7 @@ wordyDefinitionName = queryToken $ \case
 importWordyId :: Ord v => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
-  L.Blank s | not (null s) -> Just $ Name.unsafeFromString ("_" <> s)
+  L.Blank s | not (null s) -> Just $ Name.unsafeParseText (Text.pack ("_" <> s))
   _ -> Nothing
 
 -- The `+` in: use Foo.bar + as a Name
@@ -338,8 +328,16 @@ symbolyDefinitionName = queryToken $ \case
   L.SymbolyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
 
-parenthesize :: (Ord v) => P v m a -> P v m a
-parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
+-- | Expect parentheses around a token, includes the parentheses within the start/end
+-- annotations of the resulting token.
+parenthesize :: (Ord v) => P v m (L.Token a) -> P v m (L.Token a)
+parenthesize p = do
+  (start, a) <- P.try do
+    start <- L.start <$> openBlockWith "("
+    a <- p
+    pure (start, a)
+  end <- L.end <$> closeBlock
+  pure (L.Token {payload = L.payload a, start, end})
 
 hqPrefixId, hqInfixId :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
@@ -350,7 +348,7 @@ hqWordyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
   L.WordyId n -> Just $ HQ'.toHQ n
   L.Hash h -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeFromString ("_" <> s))
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeParseText (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&

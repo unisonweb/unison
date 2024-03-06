@@ -67,7 +67,7 @@ unique[bb] type bar = Foo | Bar
 we get an error when attempting to delete something that is neither a type nor a term
 ```ucm:error
 .> view.patch
-.> delete.type-replacement not-here
+.> delete.type-replacement notHere
 .> view.patch
 ```
 

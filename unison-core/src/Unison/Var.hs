@@ -16,13 +16,11 @@ module Unison.Var
     inferTypeConstructor,
     inferTypeConstructorArg,
     isAction,
-    joinDot,
     missingResult,
     name,
     nameStr,
     named,
     nameds,
-    namespaced,
     rawName,
     reset,
     uncapitalize,
@@ -32,14 +30,12 @@ module Unison.Var
   )
 where
 
-import Data.Char (isLower, toLower)
+import Data.Char (isAlphaNum, isLower, toLower)
 import Data.Text (pack)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
-import Unison.NameSegment qualified as Name
 import Unison.Prelude
 import Unison.Reference qualified as Reference
-import Unison.Util.Monoid (intercalateMap)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
 -- | A class for variables. Variables may have auxiliary information which
@@ -195,31 +191,14 @@ data InferenceType
 reset :: (Var v) => v -> v
 reset v = typed (typeOf v)
 
-unqualifiedName :: (Var v) => v -> Text
-unqualifiedName = fromMaybe "" . lastMay . Name.segments' . name
-
-unqualified :: (Var v) => v -> v
-unqualified v = case typeOf v of
-  User _ -> named . unqualifiedName $ v
-  _ -> v
-
-namespaced :: (Var v) => [v] -> v
-namespaced vs = named $ intercalateMap "." name vs
-
 nameStr :: (Var v) => v -> String
 nameStr = Text.unpack . name
 
 nameds :: (Var v) => String -> v
 nameds s = named (Text.pack s)
 
-joinDot :: (Var v) => v -> v -> v
-joinDot prefix v2 =
-  if name prefix == "."
-    then named (name prefix `mappend` name v2)
-    else named (name prefix `mappend` "." `mappend` name v2)
-
 universallyQuantifyIfFree :: forall v. (Var v) => v -> Bool
 universallyQuantifyIfFree v =
-  ok (name $ reset v) && unqualified v == v
+  Text.all isLower (Text.take 1 n) && Text.all isAlphaNum n
   where
-    ok n = (all isLower . take 1 . Text.unpack) n
+    n = name $ reset v

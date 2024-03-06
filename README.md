@@ -1,7 +1,7 @@
 The Unison language
 ===================
 
-[![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
+[![Build Status](https://github.com/unisonweb/unison/actions/workflows/ci.yaml/badge.svg)](https://github.com/unisonweb/unison/actions/workflows/ci.yaml?query=branch%3Atrunk)
 
 * [Overview](#overview)
 * [Building using Stack](#building-using-stack)
@@ -31,7 +31,7 @@ Other resources:
 
 * [Learn about the big idea behind Unison](https://www.unison-lang.org/learn/the-big-idea/)
 * Check out [the project website](https://unison-lang.org)
-* Say hello or lurk [in the Slack chat](https://unison-lang.org/slack)
+* Say hello or lurk [in the Discord chat](https://unison-lang.org/discord)
 * Explore [the Unison ecosystem](https://share.unison-lang.org/)
 * [Learn Unison](https://www.unison-lang.org/learn/)
 

@@ -51,6 +51,7 @@ import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName)
 import Unison.Share.API.Hash (HashJWT)
@@ -329,13 +330,13 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
   Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
     original <- Cli.getBranch0At dest
-    patch <- liftIO $ Branch.getPatch Cli.defaultPatchNameSegment original
+    patch <- liftIO $ Branch.getPatch NameSegment.defaultPatchSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
         Cli.respond Output.CalculatingDiff
         patched <- Cli.getBranchAt dest
-        let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [Cli.defaultPatchNameSegment])))
+        let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [NameSegment.defaultPatchSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
 

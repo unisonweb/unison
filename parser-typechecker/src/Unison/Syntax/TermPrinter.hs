@@ -39,7 +39,6 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -52,9 +51,10 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
-import Unison.Syntax.Lexer (showEscapeChar, symbolyId)
-import Unison.Syntax.Name qualified as Name (fromText, toString, toText, unsafeFromText)
+import Unison.Syntax.Lexer (showEscapeChar)
+import Unison.Syntax.Name qualified as Name (isSymboly, parseText, parseTextEither, toText, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
@@ -206,7 +206,7 @@ pretty0
       elideUnit = elideUnit
     }
   term =
-    specialCases term $ \case
+    specialCases term \case
       Var' v -> pure . parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
         where
           -- OK since all term vars are user specified, any freshening was just added during typechecking
@@ -298,7 +298,7 @@ pretty0
                     `PP.hang` pb
                     <> PP.softbreak
                     <> fmt S.ControlKeyword "with"
-                    `hangHandler` ph
+                      `hangHandler` ph
                 ]
       Delay' x
         | isLet x || p < 0 -> do
@@ -1078,14 +1078,8 @@ l :: (IsString s) => String -> Pretty s
 l = fromString
 
 isSymbolic :: HQ.HashQualified Name -> Bool
-isSymbolic (HQ.NameOnly name) = isSymbolic' name
-isSymbolic (HQ.HashQualified name _) = isSymbolic' name
-isSymbolic (HQ.HashOnly _) = False
-
-isSymbolic' :: Name -> Bool
-isSymbolic' name = case symbolyId . Name.toString $ name of
-  Right _ -> True
-  _ -> False
+isSymbolic =
+  maybe False Name.isSymboly . HQ.toName
 
 emptyAc :: AmbientContext
 emptyAc = ac (-1) Normal Map.empty MaybeDoc
@@ -1271,7 +1265,7 @@ printAnnotate n tm =
       Set.fromList [n | v <- ABT.allVars tm, n <- varToName v]
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
-    varToName v = toList (Name.fromText (Var.name v))
+    varToName v = toList (Name.parseText (Var.name v))
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
 
@@ -1314,11 +1308,11 @@ countName n =
     { usages =
         Map.fromList do
           (p, s) <- Name.splits n
-          pure (Name.toText s, Map.singleton (map NameSegment.toText p) 1)
+          pure (Name.toText s, Map.singleton (map NameSegment.toEscapedText p) 1)
     }
 
 joinName :: Prefix -> Suffix -> Name
-joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
+joinName p s = Name.unsafeParseText $ dotConcat $ p ++ [s]
 
 dotConcat :: [Text] -> Text
 dotConcat = Text.concat . intersperse "."
@@ -1395,8 +1389,7 @@ calcImports im tm = (im', render $ getUses result)
         |> filter
           ( \s ->
               let (p, i) = lookupOrDie s m
-               in (i > 1 || isRight (symbolyId (unpack s)))
-                    && not (null p)
+               in (i > 1 || either (const False) Name.isSymboly (Name.parseTextEither s)) && not (null p)
           )
         |> map (\s -> (s, lookupOrDie s m))
         |> Map.fromList
@@ -2169,7 +2162,8 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
                   & maybe fullName HQ'.NameOnly
            in (fullName, minimallySuffixed)
     tweak _ p = p
-    varToName v = toList (Name.fromText (Var.name v))
+    varToName :: Var v => v -> [Name]
+    varToName = toList . Name.parseText . Var.name
 
 isLeaf :: Term2 vt at ap v a -> Bool
 isLeaf (Var' {}) = True

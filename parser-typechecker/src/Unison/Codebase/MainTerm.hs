@@ -16,7 +16,7 @@ import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.HashQualified qualified as HQ (fromString)
+import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -26,20 +26,20 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 
 data MainTerm v
-  = NotAFunctionName String
-  | NotFound String
-  | BadType String (Maybe (Type v Ann))
+  = NotAFunctionName Text
+  | NotFound Text
+  | BadType Text (Maybe (Type v Ann))
   | Success (HQ.HashQualified Name) (Term v Ann) (Type v Ann)
 
 getMainTerm ::
   (Monad m, Var v) =>
   (Reference -> m (Maybe (Type v Ann))) ->
   Names.Names ->
-  String ->
+  Text ->
   Type.Type v Ann ->
   m (MainTerm v)
 getMainTerm loadTypeOfTerm parseNames mainName mainType =
-  case HQ.fromString mainName of
+  case HQ.parseText mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
       let refs = Names.lookupHQTerm Names.IncludeSuffixes hq parseNames

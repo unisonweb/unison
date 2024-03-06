@@ -154,13 +154,13 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction String PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction Text PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      String
+      Text
       -- ^ what we were trying to do (e.g. "run", "io.test")
-      String
+      Text
       -- ^ name of function
       (Type Symbol Ann)
       -- ^ bad type of function
@@ -306,7 +306,7 @@ data Output
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
-  | BadName String
+  | BadName Text
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
@@ -327,6 +327,7 @@ data Output
   | DebugFuzzyOptionsNoResolver
   | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
   | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
+  | AnnotatedFoldRanges Text
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
   | CreatedProject Bool {- randomly-generated name? -} ProjectName
@@ -574,6 +575,7 @@ isFailure o = case o of
   DebugFuzzyOptionsNoResolver {} -> True
   DebugTerm {} -> False
   DebugDecl {} -> False
+  AnnotatedFoldRanges {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False
   PulledEmptyBranch {} -> False

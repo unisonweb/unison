@@ -8,7 +8,6 @@ module Unison.Util.Find
   )
 where
 
-import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.Text qualified as Text
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
@@ -27,7 +26,7 @@ import Unison.Referent qualified as Referent
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.ShortHash qualified as SH
-import Unison.Syntax.Name qualified as Name (toString)
+import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as P
@@ -46,46 +45,46 @@ fuzzyFinder query items render =
 
 simpleFuzzyFinder ::
   forall a.
-  String ->
+  Text ->
   [a] ->
-  (a -> String) ->
+  (a -> Text) ->
   [(a, P.Pretty P.ColorText)]
 simpleFuzzyFinder query items render =
-  sortAndCleanup $ do
+  sortAndCleanup do
     a <- items
     let s = render a
     score <- toList (simpleFuzzyScore query s)
-    pure ((a, hi s), score)
+    pure ((a, hi (Text.unpack s)), score)
   where
     hi = highlightSimple query
     sortAndCleanup = List.map fst . List.sortOn snd
 
 -- highlights `query` if it is a prefix of `s`, or if it
 -- appears in the final segement of s (after the final `.`)
-highlightSimple :: String -> String -> P.Pretty P.ColorText
-highlightSimple "" = P.string
-highlightSimple query = go
+highlightSimple :: Text -> String -> P.Pretty P.ColorText
+highlightSimple query
+  | Text.null query = P.string
+  | otherwise = go
   where
     go [] = mempty
     go s@(h : t)
-      | query `List.isPrefixOf` s = hiQuery <> go (drop len s)
+      | query `Text.isPrefixOf` (Text.pack s) = hiQuery <> go (drop len s)
       | otherwise = P.string [h] <> go t
-    len = length query
-    hiQuery = P.hiBlack (P.string query)
+    len = Text.length query
+    hiQuery = P.hiBlack (P.text query)
 
-simpleFuzzyScore :: String -> String -> Maybe Int
+simpleFuzzyScore :: Text -> Text -> Maybe Int
 simpleFuzzyScore query s
-  | query `List.isPrefixOf` s = Just (bonus s 2)
-  | query `List.isSuffixOf` s = Just (bonus s 1)
-  | query `List.isInfixOf` s = Just (bonus s 3)
-  | lowerquery `List.isInfixOf` lowers = Just (bonus s 4)
+  | query `Text.isPrefixOf` s = Just (bonus s 2)
+  | query `Text.isSuffixOf` s = Just (bonus s 1)
+  | query `Text.isInfixOf` s = Just (bonus s 3)
+  | lowerquery `Text.isInfixOf` lowers = Just (bonus s 4)
   | otherwise = Nothing
   where
     -- prefer relative names
-    bonus ('.' : _) n = n * 10
-    bonus _ n = n
-    lowerquery = Char.toLower <$> query
-    lowers = Char.toLower <$> s
+    bonus s n = if Text.take 1 s == "." then n * 10 else n
+    lowerquery = Text.toLower query
+    lowers = Text.toLower s
 
 -- This logic was split out of fuzzyFinder because the `RE.MatchArray` has an
 -- `Ord` instance that helps us sort the fuzzy matches in a nice way. (see
@@ -155,13 +154,13 @@ fuzzyFindInBranch ::
   [(SearchResult, P.Pretty P.ColorText)]
 fuzzyFindInBranch b hq =
   simpleFuzzyFinder
-    (Name.toString (HQ'.toName hq))
+    (Name.toText (HQ'.toName hq))
     (candidates b hq)
     ( \sr ->
         case HQ.toName (SR.name sr) of
           -- see invariant on `candidates` below.
           Nothing -> error "search result without name"
-          Just name -> Name.toString name
+          Just name -> Name.toText name
     )
 
 getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)

@@ -46,18 +46,26 @@ Smoke test of the new release. Try `brew upgrade unison-language`, launch it, la
 
 ## 4
 
-Announce on #general Discord channel. Template below.
+Write up release notes, template below.
+
+Preview the markdown in Slack #general and tag @paul.
+
+## 5
+
+If there are new builtins, redeploy Share.
+
+## 6
+
+Announce on #general Discord channel.
 
 ---
 
-We've just released a new version of Unison, $RELEASE_NAME.
+@everyone We've just released a new version of Unison, $RELEASE_NAME.
 
 ---
 
 **macOS or Linux w/ Homebrew:**
-Install or upgrade is just `brew install unisonweb/unison/unison-language`.
-
-If you have previously done `brew install unison-language --head` to install a dev build, uninstall that first via `brew uninstall unison-language`.
+Install or upgrade is just `brew upgrade unisonweb/unison/unison-language`.
 
 **macOS or Linux manual install:**
 macOS

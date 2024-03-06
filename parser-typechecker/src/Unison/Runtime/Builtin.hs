@@ -35,8 +35,10 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
+import Crypto.Error (CryptoError(..), CryptoFailable(..))
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
+import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
@@ -1400,6 +1402,8 @@ outMaybeTup a b u bp ap result =
         )
       ]
 
+-- Note: the Io part doesn't really do anything. There's no actual
+-- representation of `IO`.
 outIoFail :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> ANormal v
 outIoFail stack1 stack2 stack3 any fail result =
   TMatch result . MatchSum $
@@ -1830,6 +1834,14 @@ boxBoxToEFBool =
   where
     (arg1, arg2, stack1, stack2, stack3, bool, fail, result) = fresh
 
+-- a -> b -> c -> Either Failure Bool
+boxBoxBoxToEFBool :: ForeignOp
+boxBoxBoxToEFBool =
+  inBxBxBx arg1 arg2 arg3 result $
+    outIoFailBool stack1 stack2 stack3 bool fail result
+  where
+    (arg1, arg2, arg3, stack1, stack2, stack3, bool, fail, result) = fresh
+
 -- a -> Either Failure ()
 boxToEF0 :: ForeignOp
 boxToEF0 =
@@ -1869,6 +1881,14 @@ boxBoxToEFBox =
     outIoFail stack1 stack2 stack3 any fail result
   where
     (arg1, arg2, result, stack1, stack2, stack3, any, fail) = fresh
+
+-- a -> b -> c -> Either Failure d
+boxBoxBoxToEFBox :: ForeignOp
+boxBoxBoxToEFBox =
+  inBxBxBx arg1 arg2 arg3 result $
+    outIoFail stack1 stack2 stack3 any fail result
+  where
+    (arg1, arg2, arg3, result, stack1, stack2, stack3, any, fail) = fresh
 
 -- Nat -> a
 -- Nat only
@@ -2802,6 +2822,12 @@ declareForeigns = do
               $ L.toChunks s
        in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
 
+  declareForeign Untracked "crypto.Ed25519.sign.impl" boxBoxBoxToEFBox
+    . mkForeign $ pure . signEd25519Wrapper
+
+  declareForeign Untracked "crypto.Ed25519.verify.impl" boxBoxBoxToEFBool
+    . mkForeign $ pure . verifyEd25519Wrapper
+
   let catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Util.Text.Text a)
       catchAll e = do
         e <- Exception.tryAnyDeep e
@@ -3396,6 +3422,48 @@ checkBoundsPrim name isz off esz act
 hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
 hostPreference (Just host) = SYS.Host $ Util.Text.unpack host
+
+signEd25519Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+signEd25519Wrapper (secret0, public0, msg0) = case validated of
+    CryptoFailed err ->
+      Left (Failure Ty.cryptoFailureRef (errMsg err) unitValue)
+    CryptoPassed (secret, public) ->
+      Right . Bytes.fromArray $ Ed25519.sign secret public msg
+  where
+    msg = Bytes.toArray msg0 :: ByteString
+    validated =
+      (,) <$> Ed25519.secretKey (Bytes.toArray secret0 :: ByteString)
+          <*> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
+
+    errMsg CryptoError_PublicKeySizeInvalid =
+      "ed25519: Public key size invalid"
+    errMsg CryptoError_SecretKeySizeInvalid =
+      "ed25519: Secret key size invalid"
+    errMsg CryptoError_SecretKeyStructureInvalid =
+      "ed25519: Secret key structure invalid"
+    errMsg _ = "ed25519: unexpected error"
+
+verifyEd25519Wrapper ::
+  (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool
+verifyEd25519Wrapper (public0, msg0, sig0) = case validated of
+    CryptoFailed err ->
+      Left $ Failure Ty.cryptoFailureRef (errMsg err) unitValue
+    CryptoPassed (public, sig) ->
+      Right $ Ed25519.verify public msg sig
+  where
+    msg = Bytes.toArray msg0 :: ByteString
+    validated =
+      (,) <$> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
+          <*> Ed25519.signature (Bytes.toArray sig0 :: ByteString)
+
+    errMsg CryptoError_PublicKeySizeInvalid =
+      "ed25519: Public key size invalid"
+    errMsg CryptoError_SecretKeySizeInvalid =
+      "ed25519: Secret key size invalid"
+    errMsg CryptoError_SecretKeyStructureInvalid =
+      "ed25519: Secret key structure invalid"
+    errMsg _ = "ed25519: unexpected error"
 
 typeReferences :: [(Reference, Word64)]
 typeReferences = zip rs [1 ..]

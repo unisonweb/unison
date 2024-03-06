@@ -3,7 +3,11 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Unison.LSP where
+module Unison.LSP
+  ( spawnLsp,
+    LspFormattingConfig (..),
+  )
+where
 
 import Colog.Core (LogAction (LogAction))
 import Colog.Core qualified as Colog
@@ -50,12 +54,15 @@ import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)
 
+data LspFormattingConfig = LspFormatEnabled | LspFormatDisabled
+  deriving (Show, Eq)
+
 getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
-spawnLsp codebase runtime latestRootHash latestPath =
+spawnLsp :: LspFormattingConfig -> Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
+spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
   ifEnabled . TCP.withSocketsDo $ do
     lspPort <- getLspPort
     UnliftIO.handleIO (handleFailure lspPort) $ do
@@ -75,7 +82,7 @@ spawnLsp codebase runtime latestRootHash latestPath =
           -- different un-saved state for the same file.
           initVFS $ \vfs -> do
             vfsVar <- newMVar vfs
-            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition vfsVar codebase runtime scope latestRootHash latestPath)
+            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope latestRootHash latestPath)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
@@ -101,6 +108,7 @@ spawnLsp codebase runtime latestRootHash latestPath =
         Nothing -> when (not onWindows) runServer
 
 serverDefinition ::
+  LspFormattingConfig ->
   MVar VFS ->
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
@@ -108,14 +116,14 @@ serverDefinition ::
   STM CausalHash ->
   STM (Path.Absolute) ->
   ServerDefinition Config
-serverDefinition vfsVar codebase runtime scope latestRootHash latestPath =
+serverDefinition lspFormattingConfig vfsVar codebase runtime scope latestRootHash latestPath =
   ServerDefinition
     { defaultConfig = defaultLSPConfig,
       configSection = "unison",
       parseConfig = Config.parseConfig,
       onConfigChange = Config.updateConfig,
       doInitialize = lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath,
-      staticHandlers = lspStaticHandlers,
+      staticHandlers = lspStaticHandlers lspFormattingConfig,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
     }
@@ -154,16 +162,16 @@ lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath lspConte
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
-lspStaticHandlers :: ClientCapabilities -> Handlers Lsp
-lspStaticHandlers _capabilities =
+lspStaticHandlers :: LspFormattingConfig -> ClientCapabilities -> Handlers Lsp
+lspStaticHandlers lspFormattingConfig _capabilities =
   Handlers
-    { reqHandlers = lspRequestHandlers,
+    { reqHandlers = lspRequestHandlers lspFormattingConfig,
       notHandlers = lspNotificationHandlers
     }
 
 -- | LSP request handlers
-lspRequestHandlers :: SMethodMap (ClientMessageHandler Lsp 'Msg.Request)
-lspRequestHandlers =
+lspRequestHandlers :: LspFormattingConfig -> SMethodMap (ClientMessageHandler Lsp 'Msg.Request)
+lspRequestHandlers lspFormattingConfig =
   mempty
     & SMM.insert Msg.SMethod_TextDocumentHover (mkHandler hoverHandler)
     & SMM.insert Msg.SMethod_TextDocumentCodeAction (mkHandler codeActionHandler)
@@ -172,9 +180,15 @@ lspRequestHandlers =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
-    & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
-    & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
+    & addFormattingHandlers
   where
+    addFormattingHandlers handlers =
+      case lspFormattingConfig of
+        LspFormatEnabled ->
+          handlers
+            & SMM.insert Msg.SMethod_TextDocumentFormatting (mkHandler formatDocRequest)
+            & SMM.insert Msg.SMethod_TextDocumentRangeFormatting (mkHandler formatRangeRequest)
+        LspFormatDisabled -> handlers
     defaultTimeout = 10_000 -- 10s
     mkHandler ::
       forall m.

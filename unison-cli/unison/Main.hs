@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -15,7 +14,7 @@ where
 import ArgParse
   ( CodebasePathOption (..),
     Command (Init, Launch, PrintVersion, Run, Transcript),
-    GlobalOptions (GlobalOptions, codebasePathOption, exitOption),
+    GlobalOptions (..),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
     ShouldExit (DoNotExit, Exit),
@@ -70,7 +69,6 @@ import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.LSP qualified as LSP
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -120,7 +118,7 @@ main = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
-      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption = exitOption} = globalOptions
+      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       withConfig mCodePathOption \config -> do
         currentDir <- getCurrentDirectory
         case command of
@@ -278,7 +276,7 @@ main = do
                       Just startingPath -> pure startingPath
                       Nothing -> do
                         segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                        pure (Path.Absolute (Path.fromList (map NameSegment.NameSegment segments)))
+                        pure (Path.Absolute (Path.fromList segments))
                   Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
                 rootCausalHash <- Codebase.runTransaction theCodebase (Queries.expectNamespaceRoot >>= Queries.expectCausalHash)
                 rootCausalHashVar <- newTVarIO rootCausalHash
@@ -293,7 +291,7 @@ main = do
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
+                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do

@@ -11,7 +11,7 @@ import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash (..))
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
-import Unison.Name (libSegment)
+import Unison.NameSegment (libSegment)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (ifoldMapM)

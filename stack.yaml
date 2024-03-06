@@ -70,3 +70,5 @@ ghc-options:
 
  # See https://github.com/haskell/haskell-language-server/issues/208
  "$everything": -haddock
+
+ statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173

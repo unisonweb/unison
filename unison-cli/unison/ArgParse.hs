@@ -1,18 +1,13 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | This module handles parsing CLI arguments into 'Command's.
 -- See the excellent documentation at https://hackage.haskell.org/package/optparse-applicative
 module ArgParse where
 
-import Control.Applicative (Alternative (many, (<|>)), Applicative (liftA2), optional)
-import Data.Foldable (Foldable (fold))
-import Data.Functor ((<&>))
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NE
+import Data.Text qualified as Text
 import Options.Applicative
   ( CommandFields,
     Mod,
@@ -55,17 +50,18 @@ import Options.Applicative.Help (bold, (<+>))
 import Options.Applicative.Help.Pretty qualified as P
 import Stats
 import System.Environment (lookupEnv)
-import Text.Read (readMaybe)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.LSP (LspFormattingConfig (..))
+import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Util.Pretty (Width (..))
 
 -- The name of a symbol to execute.
-type SymbolName = String
+type SymbolName = Text
 
 -- | Valid ways to provide source code to the run command
 data RunSource
@@ -117,7 +113,8 @@ data Command
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
-    exitOption :: ShouldExit
+    exitOption :: ShouldExit,
+    lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
 
@@ -259,12 +256,10 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
+  lspFormattingConfig <- lspFormattingParser
 
   pure
-    GlobalOptions
-      { codebasePathOption = codebasePathOption,
-        exitOption = exitOption
-      }
+    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -290,6 +285,11 @@ exitParser :: Parser ShouldExit
 exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
   where
     exitHelp = "Exit repl after the command."
+
+lspFormattingParser :: Parser LspFormattingConfig
+lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)
+  where
+    lspFormatHelp = "[Experimental] Enable formatting of source files via LSP."
 
 versionOptionParser :: String -> String -> Parser (a -> a)
 versionOptionParser progName version =
@@ -450,7 +450,7 @@ readPath' :: ReadM Path.Path'
 readPath' = do
   strPath <- OptParse.str
   case Path.parsePath' strPath of
-    Left err -> OptParse.readerError err
+    Left err -> OptParse.readerError (Text.unpack err)
     Right path' -> pure path'
 
 fileArgument :: String -> Parser FilePath
