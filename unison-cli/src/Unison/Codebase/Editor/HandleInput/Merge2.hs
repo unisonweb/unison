@@ -37,6 +37,7 @@ import U.Codebase.Reference
   )
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Referent qualified as V2.Referent
+import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.HashHandle qualified as HashHandle
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project)
@@ -56,6 +57,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Causal.Type qualified as Causal
+import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2 (addDefinitionsToUnisonFile, getExistingReferencesNamed, getNamespaceDependentsOf, makeParsingEnv, prettyParseTypecheck, typecheckedUnisonFileToBranchUpdates)
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
@@ -104,6 +106,7 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
+import Witch (into, unsafeFrom)
 import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
@@ -150,29 +153,24 @@ handleMerge bobBranchName = do
         lcaBranch0 <- nametreeToBranch0 db lcaNametree
         let lcaBranch1 = Branch.setChildBranch NameSegment.libSegment (view #mergedLibdeps conflictInfo) lcaBranch0
         unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
-        pure (unisonFile, lcaBranch1)
+        pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch1)
   let bonkNames = Branch.toNames lcaBranch1
   let pped = PPED.makePPED (PPE.namer bonkNames) (PPE.suffixifyByName bonkNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   currentPath <- Cli.getCurrentPath
   parsingEnv <- makeParsingEnv currentPath bonkNames
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
-    Left prettyError -> undefined
+    Left prettyError -> do
+      promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) lcaBranch1
     Right tuf -> do
       mergedBranch0 <- Cli.runTransactionWithRollback \abort -> do
         updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
         let mergedBranch0 = Branch.batchUpdates updates lcaBranch1
         pure mergedBranch0
-      let bobBranchText =
-            into @Text
-              ( ProjectAndBranch
-                  (view (#project . #name) mergeInfo)
-                  (view (#bobProjectBranch . #name) mergeInfo)
-              )
       Cli.stepAt
-        ("merge " <> bobBranchText)
+        (textualDescriptionOfMerge mergeInfo)
         ( Path.unabsolute (alicePath mergeInfo),
-          const (Branch.transform0 (Codebase.runTransaction codebase) mergedBranch0)
+          const mergedBranch0
         )
 
 nametree2to1 ::
@@ -248,6 +246,16 @@ data MergeInfo = MergeInfo
     project :: Project
   }
   deriving stock (Generic)
+
+textualDescriptionOfMerge :: MergeInfo -> Text
+textualDescriptionOfMerge mergeInfo =
+  let bobBranchText =
+        into @Text
+          ( ProjectAndBranch
+              (view (#project . #name) mergeInfo)
+              (view (#bobProjectBranch . #name) mergeInfo)
+          )
+   in "merge-" <> bobBranchText
 
 getMergeInfo :: ProjectBranchName -> Cli MergeInfo
 getMergeInfo bobBranchName = do
@@ -621,23 +629,24 @@ unconflictedRel ConflictInfo {unconflictedPartitionedDefns} =
 
 promptUser ::
   MergeInfo ->
-  ConflictInfo ->
   Pretty ColorText ->
+  Branch0 IO ->
   Cli a
-promptUser _mergeInfo _conflictInfo prettyUnisonFile = do
+promptUser mergeInfo prettyUnisonFile newBranch = do
   Cli.Env {writeSource} <- ask
-  -- let currentProjectId = currentProjectAndBranch ^. #project . #projectId
-  -- let textualDescriptionOfUpgrade = "merge"
-  -- -- Small race condition: since picking a branch name and creating the branch happen in different
-  -- -- transactions, creating could fail.
-  -- temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
-  -- _temporaryBranchId <-
-  --   HandleInput.Branch.doCreateBranch'
-  --     lcaBranch
-  --     Nothing
-  --     (currentProjectAndBranch ^. #project)
-  --     temporaryBranchName
-  --     textualDescriptionOfUpgrade
+  let currentProjectId = mergeInfo ^. #project . #projectId
+  let targetBranchName = mergeInfo ^. #bobProjectBranch . #name
+  let selfBranchName = mergeInfo ^. #aliceProjectBranch . #name
+  -- Small race condition: since picking a branch name and creating the branch happen in different
+  -- transactions, creating could fail.
+  temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
+  _temporaryBranchId <-
+    HandleInput.Branch.doCreateBranch'
+      (Branch.one newBranch)
+      Nothing
+      (mergeInfo ^. #project)
+      temporaryBranchName
+      (textualDescriptionOfMerge mergeInfo)
   scratchFilePath <-
     Cli.getLatestFile <&> \case
       Nothing -> "scratch.u"
@@ -646,17 +655,17 @@ promptUser _mergeInfo _conflictInfo prettyUnisonFile = do
   -- todo: respond with some message
   Cli.returnEarlyWithoutOutput
 
--- findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
--- findTemporaryBranchName projectId other self = do
---   Cli.findTemporaryBranchName projectId preferred
---   where
---     preferred :: ProjectBranchName
---     preferred =
---       unsafeFrom @Text $
---         "merge-"
---           <> NameSegment.toText other
---           <> "-into-"
---           <> NameSegment.toText self
+findTemporaryBranchName :: ProjectId -> ProjectBranchName -> ProjectBranchName -> Transaction ProjectBranchName
+findTemporaryBranchName projectId other self = do
+  Cli.findTemporaryBranchName projectId preferred
+  where
+    preferred :: ProjectBranchName
+    preferred =
+      unsafeFrom @Text $
+        "merge-"
+          <> into @Text other
+          <> "-into-"
+          <> into @Text self
 
 -- Load namespace info into memory.
 --
