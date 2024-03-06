@@ -1,5 +1,6 @@
 
 a |> f = f a
+f <| a = f a
 
 uncurry f = cases (x, y) -> f x y
 snd = cases (_, y) -> y

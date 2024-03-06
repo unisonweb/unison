@@ -234,7 +234,26 @@ enclose keep rec t@(Handle' h body)
     lamb
       | null evs = lam' a [fv] lbody
       | otherwise = lam' a evs lbody
+enclose keep rec t@(Match' s0 cs0) = Just $ match a s cs
+  where
+    a = ABT.annotation t
+    s = rec keep s0
+    cs = encloseCase a keep rec <$> cs0
 enclose _ _ _ = Nothing
+
+encloseCase ::
+  (Var v, Monoid a) =>
+  a ->
+  Set v ->
+  (Set v -> Term v a -> Term v a) ->
+  MatchCase a (Term v a) ->
+  MatchCase a (Term v a)
+encloseCase a keep rec0 (MatchCase pats guard body) =
+  MatchCase pats (rec <$> guard) (rec body)
+  where
+    rec (ABT.AbsN' vs bd) =
+      ABT.absChain' ((,) a <$> vs) $
+        rec0 (keep `Set.difference` Set.fromList vs) bd
 
 newtype Prefix v x = Pfx (Map v [v]) deriving (Show)
 
