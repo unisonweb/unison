@@ -1,9 +1,11 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Unison.Codebase.Editor.HandleInput.Merge2
   ( handleMerge,
   )
 where
 
-import Control.Lens (view, (%%~), (%=), (%~), (.=), (^.))
+import Control.Lens (traverseOf, view, (%=), (%~), (.=), (^.))
 import Control.Monad.Except qualified as Except (throwError)
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
@@ -106,7 +108,7 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
-import Witch (into, unsafeFrom)
+import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
 
 -- Temporary simple way to time a transaction
@@ -122,37 +124,36 @@ step name action = do
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
   Cli.Env {codebase} <- ask
+
   -- Create a bunch of cached database lookup functions
   db <- makeMergeDatabase codebase
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
+
   (unisonFile, lcaBranch1) <- Cli.runTransactionWithRollback \abort -> do
-    conflictInfo <- getConflictInfo db mergeInfo abort
+    conflictInfo <- getConflictInfo abort db mergeInfo
     case conflictState conflictInfo of
       Conflicted _ -> do
         error "conflicts path not implemented yet"
       Unconflicted unconflictedInfo -> do
-        PartitionedContents {fileContents, lcaAddsAndUpdates, lcaDeletions} <- partitionFileContents db conflictInfo
-        let theDefns0 :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name)
-            theDefns0 = view #lcaDefns conflictInfo
-        let theDefns1 :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name)
-            theDefns1 =
-              case theDefns0 of
-                Defns terms types ->
-                  Defns
-                    ( let terms1 = Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range terms) (view #terms lcaAddsAndUpdates)
-                          terms2 = Map.withoutKeys terms1 (view #terms lcaDeletions)
-                       in BiMultimap.fromRange terms2
-                    )
-                    ( let types1 = Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range types) (view #types lcaAddsAndUpdates)
-                          types2 = Map.withoutKeys types1 (view #types lcaDeletions)
-                       in BiMultimap.fromRange types2
-                    )
-        let lcaNametree = bimapDefns unflattenNametree unflattenNametree theDefns1
+        contents <- partitionFileContents db conflictInfo
+        let lcaNametree =
+              bimapDefns
+                ( unflattenNametree
+                    . BiMultimap.fromRange
+                    . performDeletes contents.lcaDeletions.terms
+                    . performAddsAndUpdates contents.lcaAddsAndUpdates.terms
+                )
+                ( unflattenNametree
+                    . BiMultimap.fromRange
+                    . performDeletes contents.lcaDeletions.types
+                    . performAddsAndUpdates contents.lcaAddsAndUpdates.types
+                )
+                conflictInfo.lcaDefns
         lcaBranch0 <- nametreeToBranch0 db lcaNametree
-        let lcaBranch1 = Branch.setChildBranch NameSegment.libSegment (view #mergedLibdeps conflictInfo) lcaBranch0
-        unisonFile <- makeUnisonFile fileContents abort codebase (view #declNames unconflictedInfo)
+        let lcaBranch1 = Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps lcaBranch0
+        unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
         pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch1)
   let bonkNames = Branch.toNames lcaBranch1
   let pped = PPED.makePPED (PPE.namer bonkNames) (PPE.suffixifyByName bonkNames)
@@ -173,13 +174,20 @@ handleMerge bobBranchName = do
           const mergedBranch0
         )
 
+performAddsAndUpdates :: Map Name ref -> BiMultimap ref Name -> Map Name ref
+performAddsAndUpdates addsAndUpdates refs =
+  Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range refs) addsAndUpdates
+
+performDeletes :: Set Name -> Map Name ref -> Map Name ref
+performDeletes deletions refs =
+  Map.withoutKeys refs deletions
+
 nametree2to1 ::
   MergeDatabase ->
   Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
   Transaction (Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)))
-nametree2to1 db Defns {terms, types} = do
-  terms <- (traverse . traverse) (referent2to1 db) terms
-  pure Defns {terms, types}
+nametree2to1 db =
+  traverseOf (#terms . traverse . traverse) (referent2to1 db)
 
 mergeDefnsNametree ::
   Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
@@ -206,7 +214,7 @@ v1NametreeToBranch0 nt =
             d1 = typeRel,
             d2 = Relation.empty
           }
-      ntChildren = Branch.one . v1NametreeToBranch0 <$> view #children nt
+      ntChildren = Branch.one . v1NametreeToBranch0 <$> nt.children
       res = Branch.branch0 starTerms starTypes ntChildren Map.empty
    in res
 
@@ -215,8 +223,8 @@ nametreeToBranch0 ::
   MergeDatabase ->
   Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
   Transaction (Branch0 m)
-nametreeToBranch0 db nt =
-  v1NametreeToBranch0 . mergeDefnsNametree <$> nametree2to1 db nt
+nametreeToBranch0 db nametree =
+  v1NametreeToBranch0 . mergeDefnsNametree <$> nametree2to1 db nametree
 
 makeUnisonFile ::
   Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
@@ -252,8 +260,8 @@ textualDescriptionOfMerge mergeInfo =
   let bobBranchText =
         into @Text
           ( ProjectAndBranch
-              (view (#project . #name) mergeInfo)
-              (view (#bobProjectBranch . #name) mergeInfo)
+              (view #name mergeInfo.project)
+              (view #name mergeInfo.bobProjectBranch)
           )
    in "merge-" <> bobBranchText
 
@@ -263,21 +271,11 @@ getMergeInfo bobBranchName = do
   bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
   let alicePath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (aliceProjectBranch ^. #branchId))
   let bobPath = Cli.projectBranchPath (ProjectAndBranch (project ^. #projectId) (bobProjectBranch ^. #branchId))
-  pure
-    MergeInfo
-      { alicePath,
-        bobPath,
-        aliceProjectBranch,
-        bobProjectBranch,
-        project
-      }
+  pure MergeInfo {alicePath, bobPath, aliceProjectBranch, bobProjectBranch, project}
 
-getConflictInfo ::
-  MergeDatabase ->
-  MergeInfo ->
-  (forall a. Output -> Transaction a) ->
-  Transaction ConflictInfo
+getConflictInfo :: (forall a. Output -> Transaction a) -> MergeDatabase -> MergeInfo -> Transaction ConflictInfo
 getConflictInfo
+  abort0
   db@MergeDatabase {loadCausal}
   MergeInfo
     { alicePath,
@@ -285,121 +283,121 @@ getConflictInfo
       aliceProjectBranch,
       bobProjectBranch,
       project
-    }
-  abort0 = do
-    let projectBranches = Merge.TwoWay {alice = aliceProjectBranch, bob = bobProjectBranch}
-    -- Helper used throughout: abort this transaction with an output message.
-    let abort :: Merge.PreconditionViolation -> Transaction void
-        abort =
-          mergePreconditionViolationToOutput db >=> abort0
-    -- Load causals
-    aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
-    bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
-    maybeLcaCausal <-
-      step "compute lca" (Operations.lca (V2.Causal.causalHash aliceCausal) (V2.Causal.causalHash bobCausal)) >>= \case
-        Nothing -> pure Nothing
-        Just lcaCausalHash -> do
-          -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
-          when (lcaCausalHash == bobCausal ^. #causalHash) do
-            abort0 $
-              Output.MergeAlreadyUpToDate
-                (Right (ProjectAndBranch project bobProjectBranch))
-                (Right (ProjectAndBranch project aliceProjectBranch))
-          Just <$> loadCausal lcaCausalHash
-    -- Load shallow branches
-    aliceBranch <- V2.Causal.value aliceCausal
-    bobBranch <- V2.Causal.value bobCausal
+    } =
+    do
+      let projectBranches = Merge.TwoWay {alice = aliceProjectBranch, bob = bobProjectBranch}
+      -- Helper used throughout: abort this transaction with an output message.
+      let abort :: Merge.PreconditionViolation -> Transaction void
+          abort =
+            mergePreconditionViolationToOutput db >=> abort0
+      -- Load causals
+      aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute alicePath)
+      bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute bobPath)
+      maybeLcaCausal <-
+        step "compute lca" (Operations.lca (V2.Causal.causalHash aliceCausal) (V2.Causal.causalHash bobCausal)) >>= \case
+          Nothing -> pure Nothing
+          Just lcaCausalHash -> do
+            -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
+            when (lcaCausalHash == bobCausal ^. #causalHash) do
+              abort0 $
+                Output.MergeAlreadyUpToDate
+                  (Right (ProjectAndBranch project bobProjectBranch))
+                  (Right (ProjectAndBranch project aliceProjectBranch))
+            Just <$> loadCausal lcaCausalHash
+      -- Load shallow branches
+      aliceBranch <- V2.Causal.value aliceCausal
+      bobBranch <- V2.Causal.value bobCausal
 
-    -- Load deep definitions
-    --
-    -- maybe todo: optimize this by getting defns from in memory root branch
-    (_aliceCausalTree, aliceDeclNames, aliceDefns) <-
-      step "load alice definitions" do
-        (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
-        (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch definitions0
-        pure (causalHashes, declNames, definitions1)
-    (_bobCausalTree, bobDeclNames, bobDefns) <-
-      step "load bob definitions" do
-        (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
-        (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
-        pure (causalHashes, declNames, definitions1)
+      -- Load deep definitions
+      --
+      -- maybe todo: optimize this by getting defns from in memory root branch
+      (_aliceCausalTree, aliceDeclNames, aliceDefns) <-
+        step "load alice definitions" do
+          (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (aliceCausal ^. #causalHash) aliceBranch
+          (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #alice . #name) aliceBranch definitions0
+          pure (causalHashes, declNames, definitions1)
+      (_bobCausalTree, bobDeclNames, bobDefns) <-
+        step "load bob definitions" do
+          (definitions0, causalHashes) <- unzip <$> loadNamespaceInfo abort (bobCausal ^. #causalHash) bobBranch
+          (declNames, definitions1) <- assertNamespaceSatisfiesPreconditions db abort (projectBranches ^. #bob . #name) bobBranch definitions0
+          pure (causalHashes, declNames, definitions1)
 
-    (lcaDefns, lcaLibdeps, diffs) <- do
-      case maybeLcaCausal of
-        Nothing -> do
-          diffs <-
-            Merge.nameBasedNamespaceDiff
-              db
-              Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
-          pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
-        Just lcaCausal -> do
-          lcaBranch <- V2.Causal.value lcaCausal
-          lcaDefns <- loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
-          diffs <-
-            Merge.nameBasedNamespaceDiff
-              db
-              Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
-          abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
-          lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
-          pure (lcaDefns, lcaLibdeps, diffs)
+      (lcaDefns, lcaLibdeps, diffs) <- do
+        case maybeLcaCausal of
+          Nothing -> do
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                db
+                Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
+            pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
+          Just lcaCausal -> do
+            lcaBranch <- V2.Causal.value lcaCausal
+            lcaDefns <- loadLcaDefinitions abort (lcaCausal ^. #causalHash) lcaBranch
+            diffs <-
+              Merge.nameBasedNamespaceDiff
+                db
+                Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
+            abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
+            lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
+            pure (lcaDefns, lcaLibdeps, diffs)
 
-    -- Load and merge libdeps
-    (libdepsCausalParents, libdeps) <- do
-      maybeAliceLibdeps <- loadLibdeps aliceBranch
-      maybeBobLibdeps <- loadLibdeps bobBranch
-      pure $
-        ( Set.fromList (catMaybes [fst <$> maybeAliceLibdeps, fst <$> maybeBobLibdeps]),
-          Merge.mergeLibdeps
-            ((==) `on` V2.Causal.causalHash)
-            getTwoFreshNames
-            lcaLibdeps
-            (maybe Map.empty snd maybeAliceLibdeps)
-            (maybe Map.empty snd maybeBobLibdeps)
-        )
+      -- Load and merge libdeps
+      (libdepsCausalParents, libdeps) <- do
+        maybeAliceLibdeps <- loadLibdeps aliceBranch
+        maybeBobLibdeps <- loadLibdeps bobBranch
+        pure $
+          ( Set.fromList (catMaybes [fst <$> maybeAliceLibdeps, fst <$> maybeBobLibdeps]),
+            Merge.mergeLibdeps
+              ((==) `on` V2.Causal.causalHash)
+              getTwoFreshNames
+              lcaLibdeps
+              (maybe Map.empty snd maybeAliceLibdeps)
+              (maybe Map.empty snd maybeBobLibdeps)
+          )
 
-    let classifiedDiff =
-          let diffWithContext ::
-                Merge.TwoWay
-                  ( Defns
-                      (Map Name (V2.Referent, Merge.DiffOp Hash))
-                      (Map Name (TypeReference, Merge.DiffOp Hash))
-                  )
-              diffWithContext =
-                let Merge.TwoWay alice bob = diffs
-                    zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
-                 in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
-           in Defns
-                { terms = partitionDiff (view #terms <$> diffWithContext),
-                  types = partitionDiff (view #types <$> diffWithContext)
-                }
-    -- TODO is swapping constructors' names handled correctly here?
-    -- TODO is exchanging constructor for function handled correctly here?
-    -- TODO is exchanging function for constructor handled correctly here?
-    let PartitionedDefns {unconflictedPartitionedDefns, conflicts} = partitionConflicts classifiedDiff
-    let conflictState = case Map.null (view #terms conflicts) && Map.null (view #types conflicts) of
-          True ->
-            Unconflicted
-              UnconflictedInfo
-                { declNames = aliceDeclNames <> bobDeclNames
-                }
-          False ->
-            Conflicted
-              ConflictedInfo
-                { conflictedDefns = conflicts,
-                  aliceDeclNames,
-                  bobDeclNames
-                }
+      let classifiedDiff =
+            let diffWithContext ::
+                  Merge.TwoWay
+                    ( Defns
+                        (Map Name (V2.Referent, Merge.DiffOp Hash))
+                        (Map Name (TypeReference, Merge.DiffOp Hash))
+                    )
+                diffWithContext =
+                  let Merge.TwoWay alice bob = diffs
+                      zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
+                   in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
+             in Defns
+                  { terms = partitionDiff (view #terms <$> diffWithContext),
+                    types = partitionDiff (view #types <$> diffWithContext)
+                  }
+      -- TODO is swapping constructors' names handled correctly here?
+      -- TODO is exchanging constructor for function handled correctly here?
+      -- TODO is exchanging function for constructor handled correctly here?
+      let PartitionedDefns {unconflictedPartitionedDefns, conflicts} = partitionConflicts classifiedDiff
+      let conflictState = case Map.null (view #terms conflicts) && Map.null (view #types conflicts) of
+            True ->
+              Unconflicted
+                UnconflictedInfo
+                  { declNames = aliceDeclNames <> bobDeclNames
+                  }
+            False ->
+              Conflicted
+                ConflictedInfo
+                  { conflictedDefns = conflicts,
+                    aliceDeclNames,
+                    bobDeclNames
+                  }
 
-    mergedLibdeps <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
-    pure
-      ConflictInfo
-        { lcaDefns,
-          mergedLibdeps,
-          aliceDefns,
-          bobDefns,
-          unconflictedPartitionedDefns,
-          conflictState
-        }
+      mergedLibdeps <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
+      pure
+        ConflictInfo
+          { lcaDefns,
+            mergedLibdeps,
+            aliceDefns,
+            bobDefns,
+            unconflictedPartitionedDefns,
+            conflictState
+          }
 
 data ConflictInfo = ConflictInfo
   { lcaDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
@@ -444,10 +442,7 @@ data PartitionedContents = PartitionedContents
     lcaDeletions :: Defns (Set Name) (Set Name)
   }
 
-partitionFileContents ::
-  MergeDatabase ->
-  ConflictInfo ->
-  Transaction PartitionedContents
+partitionFileContents :: MergeDatabase -> ConflictInfo -> Transaction PartitionedContents
 partitionFileContents db conflictInfo = do
   let UnconflictedPartitionedDefns
         { aliceUpdates,
@@ -459,9 +454,9 @@ partitionFileContents db conflictInfo = do
           aliceDeletions,
           bobDeletions,
           bothDeletions
-        } = view #unconflictedPartitionedDefns conflictInfo
-  aliceNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #aliceDefns conflictInfo)
-  bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range $ view #bobDefns conflictInfo)
+        } = conflictInfo.unconflictedPartitionedDefns
+  aliceNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.aliceDefns)
+  bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.bobDefns)
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
   d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
@@ -470,7 +465,7 @@ partitionFileContents db conflictInfo = do
   let fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
   let lcaAddsAndUpdates =
         let candidates = aliceUpdates <> bobUpdates <> bothUpdates <> aliceAdditions <> bobAdditions <> bothAdditions
-         in bimapDefns (Map.\\ view #terms fileContentsMap) (Map.\\ view #types fileContentsMap) candidates
+         in bimapDefns (Map.\\ fileContentsMap.terms) (Map.\\ fileContentsMap.types) candidates
   let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (aliceDeletions <> bobDeletions <> bothDeletions)
   pure
     PartitionedContents
@@ -571,29 +566,18 @@ partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
    in PartitionedDefns
         { unconflictedPartitionedDefns =
             UnconflictedPartitionedDefns
-              { aliceAdditions = Defns (view #aliceAdditions termSt) (view #aliceAdditions typeSt),
-                bobAdditions = Defns (view #bobAdditions termSt) (view #bobAdditions typeSt),
-                bothAdditions = Defns (view #bothAdditions termSt) (view #bothAdditions typeSt),
-                aliceUpdates = Defns (view #aliceUpdates termSt) (view #aliceUpdates typeSt),
-                bobUpdates = Defns (view #bobUpdates termSt) (view #bobUpdates typeSt),
-                bothUpdates = Defns (view #bothUpdates termSt) (view #bothUpdates typeSt),
-                aliceDeletions = Defns (view #aliceDeletions termSt) (view #aliceDeletions typeSt),
-                bobDeletions = Defns (view #bobDeletions termSt) (view #bobDeletions typeSt),
-                bothDeletions = Defns (view #bothDeletions termSt) (view #bothDeletions typeSt)
+              { aliceAdditions = Defns termSt.aliceAdditions typeSt.aliceAdditions,
+                bobAdditions = Defns termSt.bobAdditions typeSt.bobAdditions,
+                bothAdditions = Defns termSt.bothAdditions typeSt.bothAdditions,
+                aliceUpdates = Defns termSt.aliceUpdates typeSt.aliceUpdates,
+                bobUpdates = Defns termSt.bobUpdates typeSt.bobUpdates,
+                bothUpdates = Defns termSt.bothUpdates typeSt.bothUpdates,
+                aliceDeletions = Defns termSt.aliceDeletions typeSt.aliceDeletions,
+                bobDeletions = Defns termSt.bobDeletions typeSt.bobDeletions,
+                bothDeletions = Defns termSt.bothDeletions typeSt.bothDeletions
               },
-          conflicts = Defns (view #conflicts termSt) (view #conflicts typeSt)
+          conflicts = Defns termSt.conflicts typeSt.conflicts
         }
-
-loadLcaNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadLcaNamesExcludingLibdeps db ConflictInfo {lcaDefns = Defns {terms, types}} = do
-  terms <- traverse (referent2to1 db) (BiMultimap.range terms)
-  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap (BiMultimap.range types)}
-
-loadUnconflictedNamesExcludingLibdeps :: MergeDatabase -> ConflictInfo -> Transaction Names
-loadUnconflictedNamesExcludingLibdeps db ConflictInfo {unconflictedPartitionedDefns} = do
-  let Defns {terms, types} = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
-  terms <- traverse (referent2to1 db) terms
-  pure Names.Names {terms = Relation.fromMap terms, types = Relation.fromMap types}
 
 defnsToNames ::
   MergeDatabase ->
