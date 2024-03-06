@@ -108,8 +108,9 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
-import Unison.Util.Nametree (Defns (..), Nametree (..))
+import Unison.Util.Nametree (Nametree (..))
 import Witch (unsafeFrom)
 
 data IncoherentDeclReason

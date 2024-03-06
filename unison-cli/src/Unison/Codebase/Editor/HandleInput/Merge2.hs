@@ -92,16 +92,9 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..), bimapDefns, zipDefns)
 import Unison.Util.Map qualified as Map
-import Unison.Util.Nametree
-  ( Defns (..),
-    Nametree (..),
-    bimapDefns,
-    flattenNametree,
-    traverseNametreeWithName,
-    unflattenNametree,
-    zipDefns,
-  )
+import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -131,30 +124,33 @@ handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
 
-  (unisonFile, lcaBranch1) <- Cli.runTransactionWithRollback \abort -> do
-    conflictInfo <- getConflictInfo abort db mergeInfo
-    case conflictState conflictInfo of
-      Conflicted _ -> do
-        error "conflicts path not implemented yet"
-      Unconflicted unconflictedInfo -> do
-        contents <- partitionFileContents db conflictInfo
-        let lcaNametree =
-              bimapDefns
-                ( unflattenNametree
-                    . BiMultimap.fromRange
-                    . performDeletes contents.lcaDeletions.terms
-                    . performAddsAndUpdates contents.lcaAddsAndUpdates.terms
-                )
-                ( unflattenNametree
-                    . BiMultimap.fromRange
-                    . performDeletes contents.lcaDeletions.types
-                    . performAddsAndUpdates contents.lcaAddsAndUpdates.types
-                )
-                conflictInfo.lcaDefns
-        lcaBranch0 <- nametreeToBranch0 db lcaNametree
-        let lcaBranch1 = Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps lcaBranch0
-        unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
-        pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch1)
+  (unisonFile, lcaBranch1) <-
+    Cli.runTransactionWithRollback \abort -> do
+      conflictInfo <- getConflictInfo abort db mergeInfo
+      case conflictState conflictInfo of
+        Conflicted _ -> do
+          error "conflicts path not implemented yet"
+        Unconflicted unconflictedInfo -> do
+          contents <- partitionFileContents db conflictInfo
+          let lcaNametree =
+                bimapDefns
+                  ( unflattenNametree
+                      . BiMultimap.fromRange
+                      . performDeletes contents.lcaDeletions.terms
+                      . performAddsAndUpdates contents.lcaAddsAndUpdates.terms
+                  )
+                  ( unflattenNametree
+                      . BiMultimap.fromRange
+                      . performDeletes contents.lcaDeletions.types
+                      . performAddsAndUpdates contents.lcaAddsAndUpdates.types
+                  )
+                  conflictInfo.lcaDefns
+          lcaBranch <-
+            nametreeToBranch0 db lcaNametree
+              <&> Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps
+          unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
+          pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch)
+
   let bonkNames = Branch.toNames lcaBranch1
   let pped = PPED.makePPED (PPE.namer bonkNames) (PPE.suffixifyByName bonkNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile

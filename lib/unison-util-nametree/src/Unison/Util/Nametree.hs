@@ -7,12 +7,6 @@ module Unison.Util.Nametree
     -- ** Flattening and unflattening
     flattenNametree,
     unflattenNametree,
-
-    -- * Definitions
-    Defns (..),
-    mapDefns,
-    bimapDefns,
-    zipDefns,
   )
 where
 
@@ -20,11 +14,10 @@ import Data.List.NonEmpty (NonEmpty, pattern (:|))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Semialign (Semialign (alignWith), Unzip (unzipWith), Zip (zipWith))
-import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..), these)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -148,24 +141,3 @@ pattern NameThere :: a -> NonEmpty a -> NonEmpty a
 pattern NameThere x xs <- x :| (List.NonEmpty.nonEmpty -> Just xs)
 
 {-# COMPLETE NameHere, NameThere #-}
-
--- | Definitions (terms and types) in a namespace.
---
--- FIXME this doesn't belong in this module
-data Defns terms types = Defns
-  { terms :: !terms,
-    types :: !types
-  }
-  deriving stock (Generic, Show)
-  deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
-
-mapDefns :: (a -> b) -> Defns a a -> Defns b b
-mapDefns f (Defns terms types) =
-  Defns (f terms) (f types)
-
-bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
-bimapDefns f g (Defns terms types) =
-  Defns (f terms) (g types)
-
-zipDefns :: (a -> c -> e) -> (b -> d -> f) -> Defns a b -> Defns c d -> Defns e f
-zipDefns f g (Defns a b) (Defns c d) = Defns (f a c) (g b d)

@@ -28,7 +28,7 @@ import Unison.Referent qualified as V1.Referent
 import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Nametree (Defns (..))
+import Unison.Util.Defns (Defns (..))
 
 -- A couple of internal types and type aliases of questionable utility.
 
