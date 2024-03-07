@@ -47,11 +47,10 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
-import Unison.Server.Syntax (Element, SyntaxText)
+import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
-import Unison.Util.AnnotatedText qualified as AnnotatedText
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -193,6 +192,20 @@ instance ToJSON DefinitionDisplayResults where
 
 deriving instance ToSchema DefinitionDisplayResults
 
+data TermDefinitionDiff = TermDefinitionDiff
+  { left :: TermDefinition,
+    right :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+data TypeDefinitionDiff = TypeDefinitionDiff
+  { left :: TypeDefinition,
+    right :: TypeDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
 newtype Suffixify = Suffixify {suffixified :: Bool}
   deriving (Eq, Ord, Show, Generic)
 
@@ -200,8 +213,8 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName],
     bestTermName :: HashQualifiedName,
     defnTermTag :: TermTag,
-    termDefinition :: DisplayObject SyntaxText SyntaxText,
-    signature :: SyntaxText,
+    termDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
+    signature :: Syntax.SyntaxText,
     termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -210,7 +223,7 @@ data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName],
     bestTypeName :: HashQualifiedName,
     defnTypeTag :: TypeTag,
-    typeDefinition :: DisplayObject SyntaxText SyntaxText,
+    typeDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
     typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -236,7 +249,7 @@ data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
 -- | A diff of the syntax of a term or type
-newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff (AnnotatedText.Segment Element)))
+newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff Syntax.Element))
   deriving stock (Eq, Show)
 
 instance ToJSON DiffedSyntaxText where
@@ -256,7 +269,7 @@ instance ToJSON DiffedSyntaxText where
 -- undiffed syntax.
 data DisplayObjectDiff
   = DisplayObjectDiff (DisplayObject DiffedSyntaxText DiffedSyntaxText)
-  | MismatchedDisplayObjects (DisplayObject SyntaxText SyntaxText) (DisplayObject SyntaxText SyntaxText)
+  | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
   deriving stock (Show, Eq)
 
 instance ToJSON DisplayObjectDiff where
@@ -273,30 +286,30 @@ instance ToJSON DisplayObjectDiff where
           "to" .= to
         ]
 
-data TermDiff = TermDiff
+data TermDiffResponse = TermDiffResponse
   { fromTermDefinition :: TermDefinition,
     toTermDefinition :: TermDefinition,
     diff :: DisplayObjectDiff
   }
   deriving (Eq, Show)
 
-instance ToJSON TermDiff where
-  toJSON TermDiff {..} =
+instance ToJSON TermDiffResponse where
+  toJSON TermDiffResponse {..} =
     object
       [ "from" .= fromTermDefinition,
         "to" .= toTermDefinition,
         "diff" .= diff
       ]
 
-data TypeDiff = TypeDiff
+data TypeDiffResponse = TypeDiffResponse
   { fromTypeDefinition :: TermDefinition,
     toTypeDefinition :: TermDefinition,
     diff :: DisplayObjectDiff
   }
   deriving (Eq, Show)
 
-instance ToJSON TypeDiff where
-  toJSON TypeDiff {..} =
+instance ToJSON TypeDiffResponse where
+  toJSON TypeDiffResponse {..} =
     object
       [ "from" .= fromTypeDefinition,
         "to" .= toTypeDefinition,
@@ -317,7 +330,7 @@ data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
     termName :: HQ'.HashQualified Name,
     termHash :: ShortHash,
-    termType :: Maybe SyntaxText,
+    termType :: Maybe Syntax.SyntaxText,
     termTag :: TermTag
   }
   deriving (Eq, Generic, Show)

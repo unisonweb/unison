@@ -14,6 +14,7 @@ module Unison.Server.Backend
     FoundRef (..),
     IncludeCycles (..),
     DefinitionResults (..),
+    SyntaxText,
 
     -- * Endpoints
     fuzzyFind,
@@ -66,6 +67,7 @@ module Unison.Server.Backend
 
     -- * Re-exported for Share Server
     termsToSyntax,
+    termsToSyntaxOf,
     typesToSyntax,
     definitionResultsDependencies,
     evalDocRef,
@@ -1113,19 +1115,41 @@ displayType codebase = \case
     decl <- Codebase.unsafeGetTypeDeclaration codebase rid
     pure (UserObject decl)
 
+-- | Version of 'termsToSyntax' which works over arbitrary indexed traversals, e.g.
+-- 'itraversed'
+termsToSyntaxOf ::
+  (Var v) =>
+  (Ord a) =>
+  Suffixify ->
+  Width ->
+  PPED.PrettyPrintEnvDecl ->
+  IndexedTraversal Reference.Reference s t (DisplayObject (Type v a) (Term v a)) (DisplayObject SyntaxText SyntaxText) ->
+  s ->
+  t
+termsToSyntaxOf suff width ppe0 trav s =
+  s & iover (iunsafePartsOf trav) (\refs displayObjs -> termsToSyntax suff width ppe0 (zip refs displayObjs))
+
 termsToSyntax ::
   (Var v) =>
   (Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
-  Map Reference.Reference (DisplayObject (Type v a) (Term v a)) ->
-  Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
+  [(Reference.Reference, (DisplayObject (Type v a) (Term v a)))] ->
+  [DisplayObject SyntaxText SyntaxText]
 termsToSyntax suff width ppe0 terms =
-  Map.fromList . map go . Map.toList $
-    Map.mapKeys
-      (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
-      terms
+  terms
+    <&> \(r, dispObj) ->
+      let n = PPE.termName ppeDecl . Referent.Ref $ r
+       in case dispObj of
+            DisplayObject.BuiltinObject typ ->
+              DisplayObject.BuiltinObject $
+                formatType' (ppeBody r) width typ
+            DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
+            DisplayObject.UserObject tm ->
+              DisplayObject.UserObject
+                . Pretty.render width
+                $ TermPrinter.prettyBinding (ppeBody r) n tm
   where
     ppeBody r =
       if suffixified suff
@@ -1133,15 +1157,6 @@ termsToSyntax suff width ppe0 terms =
         else PPE.declarationPPE ppe0 r
     ppeDecl =
       (if suffixified suff then PPED.suffixifiedPPE else PPED.unsuffixifiedPPE) ppe0
-    go ((n, r), dt) = (r,) $ case dt of
-      DisplayObject.BuiltinObject typ ->
-        DisplayObject.BuiltinObject $
-          formatType' (ppeBody r) width typ
-      DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
-      DisplayObject.UserObject tm ->
-        DisplayObject.UserObject
-          . Pretty.render width
-          $ TermPrinter.prettyBinding (ppeBody r) n tm
 
 typesToSyntax ::
   (Var v) =>

@@ -82,7 +82,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTypeName))
       mkTypeDefinition codebase pped width ref docs tp
   termDefinitions <-
-    ifor (termsToSyntax suffixifyBindings width pped terms) \reference trm -> do
+    ifor (termsToSyntaxOf suffixifyBindings width pped itraversed terms) \reference trm -> do
       let referent = Referent.Ref reference
       let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTermName))

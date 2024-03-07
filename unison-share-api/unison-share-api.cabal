@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       Unison.Server.Backend
+      Unison.Server.Backend.DefinitionDiff
       Unison.Server.CodebaseServer
       Unison.Server.Doc
       Unison.Server.Doc.AsHtml
