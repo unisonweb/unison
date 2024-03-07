@@ -4,10 +4,10 @@ module Unison.Merge.PreconditionViolation
 where
 
 import U.Codebase.Reference (TypeReference)
-import U.Codebase.Referent (Referent)
 import Unison.Core.Project (ProjectBranchName)
 import Unison.Name (Name)
 import Unison.Prelude
+import Unison.Referent (Referent)
 
 -- | A reason that a merge could not be performed.
 data PreconditionViolation

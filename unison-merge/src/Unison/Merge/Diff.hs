@@ -12,20 +12,16 @@ import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Reference (TypeReference)
-import U.Codebase.Referent (Referent)
-import U.Codebase.Referent qualified as Referent
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
 import Unison.HashQualified' qualified as HQ'
-import Unison.Merge.Database (MergeDatabase (..), referent2to1)
+import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
+import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -87,7 +83,7 @@ nameBasedNamespaceDiff db defns = do
     synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Synhashes
     synhashDefns =
       -- FIXME: use cache so we only synhash each thing once
-      synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe <=< referent2to1 db) (Synhash.hashDecl db.loadV1Decl ppe)
+      synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe) (Synhash.hashDecl db.loadV1Decl ppe)
       where
         ppe :: PrettyPrintEnv
         ppe =
@@ -122,7 +118,7 @@ diffNamespaceDefns oldDefns newDefns =
 deepNamespaceDefinitionsToPpe :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> PrettyPrintEnv
 deepNamespaceDefinitionsToPpe Defns {terms, types} =
   PrettyPrintEnv
-    (\ref -> arbitraryName (referent1to2 ref) terms)
+    (\ref -> arbitraryName ref terms)
     (\ref -> arbitraryName ref types)
   where
     arbitraryName :: Ord ref => ref -> BiMultimap ref Name -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
@@ -131,21 +127,14 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
         & Set.lookupMin
         & maybe [] \name -> [(HQ'.NameOnly name, HQ'.NameOnly name)]
 
-    -- Our pretty-print env takes V1 referents, which have constructor types, but we can safely throw those constructor
-    -- types away, because the constructor reference is all we need to look up in our map.
-    referent1to2 :: V1.Referent -> Referent
-    referent1to2 = \case
-      V1.Referent.Con (ConstructorReference typeRef conId) _conTy -> Referent.Con typeRef conId
-      V1.Referent.Ref termRef -> Referent.Ref termRef
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Syntactic hashing helpers
 
 synhashDefnsWith ::
   Monad m =>
-  (Referent -> m Hash) ->
-  (TypeReference -> m Hash) ->
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  (term -> m Hash) ->
+  (typ -> m Hash) ->
+  Defns (BiMultimap term Name) (BiMultimap typ Name) ->
   m (Defns (Map Name Hash) (Map Name Hash))
 synhashDefnsWith hashReferent hashDecl defns = do
   terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashReferent defns.terms

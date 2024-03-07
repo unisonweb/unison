@@ -99,12 +99,13 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
-import U.Codebase.Referent (Referent)
-import U.Codebase.Referent qualified as Referent
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
@@ -141,8 +142,8 @@ checkDeclCoherency loadDeclNumConstructors =
     go prefix (Nametree Defns {terms, types} children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
-        (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
-        (name, Referent.Con (ReferenceDerived typeRef) conId) -> do
+        (_, Referent.Con (ConstructorReference (ReferenceBuiltin _) _) _) -> pure ()
+        (name, Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) _) -> do
           DeclCoherencyCheckState {expectedConstructors} <- State.get
           expectedConstructors1 <- lift (Except.except (Map.upsertF f typeRef expectedConstructors))
           #expectedConstructors .= expectedConstructors1

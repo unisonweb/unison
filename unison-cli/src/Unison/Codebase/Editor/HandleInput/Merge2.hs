@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (traverseOf, view, (%~))
+import Control.Lens (view, (%~))
 import Control.Monad.Reader (ask)
 import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
@@ -13,10 +13,7 @@ import Data.Map.Strict qualified as Map
 import Data.Semialign (Semialign (..), alignWith, zip)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 import Data.These (These (..))
-import GHC.Clock (getMonotonicTime)
-import Text.Printf (printf)
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -87,16 +84,6 @@ import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
-
--- Temporary simple way to time a transaction
-step :: Text -> Transaction a -> Transaction a
-step name action = do
-  t0 <- Sqlite.unsafeIO getMonotonicTime
-  result <- action
-  Sqlite.unsafeIO do
-    t1 <- getMonotonicTime
-    Text.putStrLn (Text.pack (printf "%4d ms | " (round ((t1 - t0) * 1000) :: Int)) <> name)
-  pure result
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
@@ -261,13 +248,13 @@ getConflictInfo abort0 db info = do
   -- Helper used throughout: abort this transaction with an output message.
   let abort :: Merge.PreconditionViolation -> Transaction void
       abort =
-        mergePreconditionViolationToOutput db >=> abort0
+        abort0 . mergePreconditionViolationToOutput
 
   -- Load causals
   aliceCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.alicePath)
   bobCausal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.bobPath)
   maybeLcaCausal <-
-    step "compute lca" (Operations.lca aliceCausal.causalHash bobCausal.causalHash) >>= \case
+    Operations.lca aliceCausal.causalHash bobCausal.causalHash >>= \case
       Nothing -> pure Nothing
       Just lcaCausalHash -> do
         -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
@@ -285,18 +272,16 @@ getConflictInfo abort0 db info = do
   -- Load deep definitions
   --
   -- maybe todo: optimize this by getting defns from in memory root branch
-  (aliceDeclNames, aliceDefns) <-
-    step "load alice definitions" do
-      definitions0 <- loadNamespaceInfo abort aliceBranch
-      (declNames, definitions1) <-
-        assertNamespaceSatisfiesPreconditions db abort info.aliceProjectBranch.name aliceBranch definitions0
-      pure (declNames, definitions1)
-  (bobDeclNames, bobDefns) <-
-    step "load bob definitions" do
-      definitions0 <- loadNamespaceInfo abort bobBranch
-      (declNames, definitions1) <-
-        assertNamespaceSatisfiesPreconditions db abort projectBranches.bob.name bobBranch definitions0
-      pure (declNames, definitions1)
+  (aliceDeclNames, aliceDefns) <- do
+    definitions0 <- loadNamespaceInfo abort db aliceBranch
+    (declNames, definitions1) <-
+      assertNamespaceSatisfiesPreconditions db abort info.aliceProjectBranch.name aliceBranch definitions0
+    pure (declNames, definitions1)
+  (bobDeclNames, bobDefns) <- do
+    definitions0 <- loadNamespaceInfo abort db bobBranch
+    (declNames, definitions1) <-
+      assertNamespaceSatisfiesPreconditions db abort projectBranches.bob.name bobBranch definitions0
+    pure (declNames, definitions1)
 
   (lcaDefns, lcaLibdeps) <-
     case maybeLcaCausal of
@@ -304,7 +289,7 @@ getConflictInfo abort0 db info = do
       Just lcaCausal -> do
         lcaBranch <- lcaCausal.value
         (,)
-          <$> loadLcaDefinitions abort lcaBranch
+          <$> loadLcaDefinitions abort (referent2to1 db) lcaBranch
           <*> loadLibdeps lcaBranch
 
   diffs <-
@@ -323,12 +308,6 @@ getConflictInfo abort0 db info = do
         lcaLibdeps
         aliceLibdeps
         bobLibdeps
-
-  -- For convenience to the rest of the algorithm, let's just do all of the kludgy "v2 referent to v1 referent"
-  -- hydration here.
-  lcaDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) lcaDefns
-  aliceDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) aliceDefns
-  bobDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) bobDefns
 
   let classifiedDiff :: Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference))
       classifiedDiff =
@@ -376,24 +355,24 @@ getConflictInfo abort0 db info = do
       }
 
 data ConflictInfo = ConflictInfo
-  { defns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
-    mergedLibdeps :: Branch0 Transaction,
-    unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
-    conflictState :: ConflictState
+  { defns :: !(Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))),
+    mergedLibdeps :: !(Branch0 Transaction),
+    unconflictedPartitionedDefns :: !UnconflictedPartitionedDefns,
+    conflictState :: !ConflictState
   }
   deriving stock (Generic)
 
 data ConflictState
-  = Conflicted ConflictedInfo
-  | Unconflicted UnconflictedInfo
+  = Conflicted !ConflictedInfo
+  | Unconflicted !UnconflictedInfo
 
 data ConflictedInfo = ConflictedInfo
-  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
-    declNames :: Merge.TwoWay (Map Name [Name])
+  { conflictedDefns :: !(Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference))),
+    declNames :: !(Merge.TwoWay (Map Name [Name]))
   }
 
 data UnconflictedInfo = UnconflictedInfo
-  { declNames :: Map Name [Name]
+  { declNames :: !(Map Name [Name])
   }
   deriving stock (Generic)
 
@@ -616,46 +595,53 @@ findTemporaryBranchName projectId other self = do
 --   * One name is associated with more than one reference.
 loadNamespaceInfo ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
+  MergeDatabase ->
   V2.Branch Transaction ->
-  Transaction (Nametree (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference)))
-loadNamespaceInfo abort branch = do
-  defns <- loadNamespaceInfo0 branch
+  Transaction (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
+loadNamespaceInfo abort db branch = do
+  defns <- loadNamespaceInfo0 (referent2to1 db) branch
   assertNamespaceHasNoConflictedNames defns & onLeft abort
 
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
 loadNamespaceInfo0 ::
   Monad m =>
+  (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference))))
-loadNamespaceInfo0 branch = do
-  let terms = Map.map Map.keysSet branch.terms
+  m (Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))))
+loadNamespaceInfo0 referent2to1 branch = do
+  terms <-
+    branch.terms
+      & Map.map Map.keysSet
+      & traverse (Set.traverse referent2to1)
   let types = Map.map Map.keysSet branch.types
   children <-
     for (Map.delete NameSegment.libSegment branch.children) \childCausal -> do
       childBranch <- childCausal.value
-      loadNamespaceInfo0_ childBranch
+      loadNamespaceInfo0_ referent2to1 childBranch
   pure Nametree {value = Defns {terms, types}, children}
 
 loadNamespaceInfo0_ ::
   Monad m =>
+  (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference))))
-loadNamespaceInfo0_ branch = do
-  let terms = Map.map Map.keysSet branch.terms
+  m (Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))))
+loadNamespaceInfo0_ referent2to1 branch = do
+  terms <-
+    branch.terms
+      & Map.map Map.keysSet
+      & traverse (Set.traverse referent2to1)
   let types = Map.map Map.keysSet branch.types
   children <-
     for branch.children \childCausal -> do
       childBranch <- childCausal.value
-      loadNamespaceInfo0_ childBranch
+      loadNamespaceInfo0_ referent2to1 childBranch
   pure Nametree {value = Defns {terms, types}, children}
 
 -- | Assert that there are no unconflicted names in a namespace.
 assertNamespaceHasNoConflictedNames ::
-  Nametree (Defns (Map NameSegment (Set V2.Referent)) (Map NameSegment (Set TypeReference))) ->
-  Either
-    Merge.PreconditionViolation
-    (Nametree (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference)))
+  Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))) ->
+  Either Merge.PreconditionViolation (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
 assertNamespaceHasNoConflictedNames =
   traverseNametreeWithName \names defns -> do
     terms <-
@@ -673,18 +659,18 @@ assertNamespaceHasNoConflictedNames =
         Just ref -> Right ref
 
 -- Convert a merge precondition violation to an output message.
-mergePreconditionViolationToOutput :: MergeDatabase -> Merge.PreconditionViolation -> Transaction Output.Output
-mergePreconditionViolationToOutput db = \case
-  Merge.ConflictedAliases branch name1 name2 -> pure (Output.MergeConflictedAliases branch name1 name2)
-  Merge.ConflictedTermName name refs -> Output.MergeConflictedTermName name <$> Set.traverse (referent2to1 db) refs
-  Merge.ConflictedTypeName name refs -> pure (Output.MergeConflictedTypeName name refs)
-  Merge.ConflictInvolvingBuiltin name -> pure (Output.MergeConflictInvolvingBuiltin name)
-  Merge.ConstructorAlias branch name1 name2 -> pure (Output.MergeConstructorAlias branch name1 name2)
-  Merge.DefnsInLib -> pure Output.MergeDefnsInLib
-  Merge.MissingConstructorName name -> pure (Output.MergeMissingConstructorName name)
-  Merge.NestedDeclAlias name -> pure (Output.MergeNestedDeclAlias name)
-  Merge.NoConstructorNames name -> pure (Output.MergeNoConstructorNames name)
-  Merge.StrayConstructor name -> pure (Output.MergeStrayConstructor name)
+mergePreconditionViolationToOutput :: Merge.PreconditionViolation -> Output.Output
+mergePreconditionViolationToOutput = \case
+  Merge.ConflictedAliases branch name1 name2 -> Output.MergeConflictedAliases branch name1 name2
+  Merge.ConflictedTermName name refs -> Output.MergeConflictedTermName name refs
+  Merge.ConflictedTypeName name refs -> Output.MergeConflictedTypeName name refs
+  Merge.ConflictInvolvingBuiltin name -> Output.MergeConflictInvolvingBuiltin name
+  Merge.ConstructorAlias branch name1 name2 -> Output.MergeConstructorAlias branch name1 name2
+  Merge.DefnsInLib -> Output.MergeDefnsInLib
+  Merge.MissingConstructorName name -> Output.MergeMissingConstructorName name
+  Merge.NestedDeclAlias name -> Output.MergeNestedDeclAlias name
+  Merge.NoConstructorNames name -> Output.MergeNoConstructorNames name
+  Merge.StrayConstructor name -> Output.MergeStrayConstructor name
 
 -- Assert that a namespace satisfies a few preconditions.
 --
@@ -696,10 +682,8 @@ assertNamespaceSatisfiesPreconditions ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   ProjectBranchName ->
   V2.Branch Transaction ->
-  ( Nametree
-      (Defns (Map NameSegment V2.Referent) (Map NameSegment TypeReference))
-  ) ->
-  Transaction (Map Name [Name], Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name))
+  (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))) ->
+  Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup NameSegment.libSegment branch.children `whenJust` \libdepsCausal -> do
     libdepsBranch <- libdepsCausal.value
@@ -732,10 +716,11 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
 loadLcaDefinitions ::
   Monad m =>
   (forall void. Merge.PreconditionViolation -> m void) ->
+  (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name))
-loadLcaDefinitions abort branch = do
-  defns0 <- loadNamespaceInfo0 branch
+  m (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+loadLcaDefinitions abort referent2to1 branch = do
+  defns0 <- loadNamespaceInfo0 referent2to1 branch
   defns1 <- assertNamespaceHasNoConflictedNames defns0 & onLeft abort
   pure
     Defns
@@ -746,7 +731,7 @@ loadLcaDefinitions abort branch = do
 abortIfAnyConflictedAliases ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   Merge.TwoWay ProjectBranch ->
-  Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Merge.TwoWay (Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
   Transaction ()
 abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
@@ -773,7 +758,7 @@ abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
-  Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
