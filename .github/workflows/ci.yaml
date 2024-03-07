@@ -316,12 +316,14 @@ jobs:
 
       - name: save ~/.stack (non-Windows)
         if: runner.os != 'Windows'
+        uses: actions/cache/save@v4
         with:
           path: ~/.stack
           key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
       - name: save ~/.stack (Windows)
         if: runner.os == 'Windows'
+        uses: actions/cache/save@v4
         with:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
