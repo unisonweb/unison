@@ -26,7 +26,8 @@ env:
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
   base-codebase: "~/.cache/unisonlanguage/base.unison"
-  transcript_results: "transcript-results"
+  # refers to all tests that depend on **/unison-src/**
+  unison_src_test_results: "unison-src-test-results"
 
 jobs:
   ormolu:
@@ -78,7 +79,7 @@ jobs:
       - name: tweak environment
         run: |
           ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
-          transcript_results="${RUNNER_TEMP//\\//}/${transcript_results}"
+          unison_src_test_results="${RUNNER_TEMP//\\//}/${unison_src_test_results}"
 
           echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
           if [[ ${{runner.os}} = "Windows" ]]; then
@@ -100,7 +101,7 @@ jobs:
         id: cache-transcript-results
         uses: actions/cache@v4
         with:
-          path: ${{env.transcript_results}}
+          path: ${{env.unison_src_test_results}}
           key: transcript-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
@@ -299,7 +300,8 @@ jobs:
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: interpreter tests
-        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
+        if: runner.os != 'Windows' && (steps.cache-ucm-binaries.outputs.cache-hit != 'true' || steps.cache-transcript-results.outputs.cache-hit != 'true')
         run: |
           ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
@@ -308,7 +310,7 @@ jobs:
       - name: mark transcripts as passing
         if: steps.cache-transcript-results.outputs.cache-hit != 'true'
         run: |
-          echo "transcripts_passed=true" >> "${{env.transcript_results}}"
+          echo "passing=true" >> "${{env.unison_src_test_results}}"
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
