@@ -6,10 +6,11 @@ where
 
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Unison.Merge.Diff (ThreeWay (..))
 import Unison.Merge.DiffOp (DiffOp (..))
+import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
+import qualified Data.Set as Set
 
 -- | Merge two collections of library dependencies.
 mergeLibdeps ::
@@ -28,7 +29,11 @@ mergeLibdeps eq freshen ThreeWay {lca, alice, bob} =
   where
     usedNames :: Set name
     usedNames =
-      Map.keysSet lca <> Map.keysSet alice <> Map.keysSet bob
+      Set.unions
+        [ Map.keysSet lca,
+          Map.keysSet alice,
+          Map.keysSet bob
+        ]
 
 -- Perform a three-way merge on two collections of library dependencies.
 threeWayLibdepsMerge ::

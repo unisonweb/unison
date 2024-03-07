@@ -1,9 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Unison.Merge.Diff
-  ( TwoWay (..),
-    ThreeWay (..),
-    nameBasedNamespaceDiff,
+  ( nameBasedNamespaceDiff,
   )
 where
 
@@ -17,6 +15,8 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
+import Unison.Merge.ThreeWay (ThreeWay (..))
+import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -27,33 +27,8 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..))
 
--- A couple of internal types and type aliases of questionable utility.
-
-type Synhashes =
-  Defns (Map Name Hash) (Map Name Hash)
-
 type Diff =
   Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
-
-data TwoWay a = TwoWay
-  { alice :: !a,
-    bob :: !a
-  }
-  deriving stock (Functor, Generic)
-
-instance Applicative TwoWay where
-  pure x = TwoWay x x
-  TwoWay f g <*> TwoWay x y = TwoWay (f x) (g y)
-
-instance Semigroup a => Semigroup (TwoWay a) where
-  TwoWay ax bx <> TwoWay ay by = TwoWay (ax <> ay) (bx <> by)
-
-data ThreeWay a = ThreeWay
-  { lca :: !a,
-    alice :: !a,
-    bob :: !a
-  }
-  deriving stock (Functor, Generic)
 
 -- | @nameBasedNamespaceDiff loadDecl loadTerm maybeLcaDefns aliceDefns bobDefns@ returns Alice's and Bob's name-based
 -- namespace diffs, each in the form:
@@ -74,13 +49,11 @@ nameBasedNamespaceDiff db defns = do
   lca <- synhashDefns defns.lca
   alice <- synhashDefns defns.alice
   bob <- synhashDefns defns.bob
-  pure
-    TwoWay
-      { alice = diffNamespaceDefns lca alice,
-        bob = diffNamespaceDefns lca bob
-      }
+  pure (diffNamespaceDefns lca <$> TwoWay {alice, bob})
   where
-    synhashDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Transaction Synhashes
+    synhashDefns ::
+      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      Transaction (Defns (Map Name Hash) (Map Name Hash))
     synhashDefns =
       -- FIXME: use cache so we only synhash each thing once
       synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe) (Synhash.hashDecl db.loadV1Decl ppe)

@@ -50,11 +50,12 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Hash (Hash)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
-import Unison.Merge.Diff (ThreeWay (..), TwoWay (..))
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
 import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
+import Unison.Merge.ThreeWay (ThreeWay (..))
+import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -286,7 +287,7 @@ getConflictInfo abort0 db info = do
   diffs <- Merge.nameBasedNamespaceDiff db defns
   abortIfAnyConflictedAliases abort info.projectBranches defns.lca diffs
 
-  -- Beef up the diffs structure by pairing each diff op (add, update, delete) with the actual ref
+  -- Beef up the diffs structure by pairing each diff op (add, update, delete) with the actual relevant ref
   let beefyDiffs ::
         TwoWay
           ( Defns

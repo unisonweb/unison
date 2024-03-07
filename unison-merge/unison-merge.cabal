@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -24,6 +24,8 @@ library
       Unison.Merge.Libdeps
       Unison.Merge.PreconditionViolation
       Unison.Merge.Synhash
+      Unison.Merge.ThreeWay
+      Unison.Merge.TwoWay
   hs-source-dirs:
       src
   default-extensions:
