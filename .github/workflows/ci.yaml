@@ -26,7 +26,7 @@ env:
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
   base-codebase: "~/.cache/unisonlanguage/base.unison"
-  test_results: "test-results"
+  transcript_results: "transcript-results"
 
 jobs:
   ormolu:
@@ -78,7 +78,7 @@ jobs:
       - name: tweak environment
         run: |
           ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
-          test_results="${RUNNER_TEMP//\\//}/${test_results}"
+          transcript_results="${RUNNER_TEMP//\\//}/${transcript_results}"
 
           echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
           if [[ ${{runner.os}} = "Windows" ]]; then
@@ -96,12 +96,12 @@ jobs:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
-      - name: cache test results
-        id: cache-test-results
+      - name: cache transcript results
+        id: cache-transcript-results
         uses: actions/cache@v4
         with:
-          path: ${{env.test_results}}
-          key: unison-src-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          path: ${{env.transcript_results}}
+          key: transcript-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -230,39 +230,39 @@ jobs:
 
       # Run each test suite (tests and transcripts)
       - name: unison-cli test
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-cli
 
       - name: unison-core tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-core
 
       - name: unison-parser-typechecker tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-parser-typechecker
 
       - name: unison-sqlite tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-sqlite
 
       - name: unison-syntax tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-syntax
 
       - name: unison-util-bytes tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-util-bytes
 
       - name: unison-util-cache tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-util-cache
 
       - name: unison-util-relation tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-util-relation
 
       - name: round-trip-tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
         run: |
           ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
           ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
@@ -272,14 +272,14 @@ jobs:
             unison-src/transcripts-manual/rewrites.output.md
 
       - name: transcripts
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
         run: |
           ${{env.transcripts}}
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
 
       - name: cli-integration-tests
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack exec cli-integration-tests
 
       - name: verify stack ghci startup
@@ -299,16 +299,16 @@ jobs:
         run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
 
       - name: interpreter tests
-        if: runner.os != 'Windows' && steps.cache-test-results.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
           ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
-      - name: mark tests as passing
-        if: steps.cache-test-results.outputs.cache-hit != 'true'
+      - name: mark transcripts as passing
+        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
         run: |
-          echo "tests_passed=true" >> "${{env.test_results}}"
+          echo "transcripts_passed=true" >> "${{env.transcript_results}}"
 
       - name: save ucm artifact
         uses: actions/upload-artifact@v4
