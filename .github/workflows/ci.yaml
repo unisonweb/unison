@@ -393,13 +393,6 @@ jobs:
             jit-setup/main> pull ${{ env.jit_version }} lib.jit
             ```
             ```unison
-            generateSchemeBoot dir = do
-              saveDataInfoFile dir dataInfos
-              saveBaseFile dir bootSpec
-              saveWrapperFile dir simpleWrapperSpec
-              saveBaseFile dir builtinSpec
-              saveWrapperFile dir compoundWrapperSpec
-
             go = generateSchemeBoot "${{ env.jit_src_scheme }}"
             ```
             ```ucm
