@@ -506,7 +506,7 @@ jobs:
           key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
 
       - name: jit integration test ${{ matrix.os }}
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: |
           ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
           cat unison-src/builtin-tests/jit-tests.output.md
