@@ -266,7 +266,8 @@ getMergeInfo bobBranchName = do
 
 getConflictInfo :: (forall a. Output -> Transaction a) -> MergeDatabase -> MergeInfo -> Transaction ConflictInfo
 getConflictInfo abort0 db info = do
-  let projectBranches = Merge.TwoWay info.aliceProjectBranch info.bobProjectBranch
+  let projectBranches =
+        Merge.TwoWay info.aliceProjectBranch info.bobProjectBranch
 
   -- Helper used throughout: abort this transaction with an output message.
   let abort :: Merge.PreconditionViolation -> Transaction void
@@ -287,6 +288,7 @@ getConflictInfo abort0 db info = do
               (Right (ProjectAndBranch info.project info.bobProjectBranch))
               (Right (ProjectAndBranch info.project info.aliceProjectBranch))
         Just <$> db.loadCausal lcaCausalHash
+
   -- Load shallow branches
   aliceBranch <- V2.Causal.value aliceCausal
   bobBranch <- V2.Causal.value bobCausal
@@ -307,24 +309,19 @@ getConflictInfo abort0 db info = do
         assertNamespaceSatisfiesPreconditions db abort projectBranches.bob.name bobBranch definitions0
       pure (causalHashes, declNames, definitions1)
 
-  (lcaDefns, lcaLibdeps, diffs) <- do
+  (lcaDefns, lcaLibdeps) <-
     case maybeLcaCausal of
-      Nothing -> do
-        diffs <-
-          Merge.nameBasedNamespaceDiff
-            db
-            Merge.TwoOrThreeWay {lca = Nothing, alice = aliceDefns, bob = bobDefns}
-        pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty, diffs)
+      Nothing -> pure (Defns BiMultimap.empty BiMultimap.empty, Map.empty)
       Just lcaCausal -> do
         lcaBranch <- V2.Causal.value lcaCausal
-        lcaDefns <- loadLcaDefinitions abort lcaCausal.causalHash lcaBranch
-        diffs <-
-          Merge.nameBasedNamespaceDiff
-            db
-            Merge.TwoOrThreeWay {lca = Just lcaDefns, alice = aliceDefns, bob = bobDefns}
-        abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
-        lcaLibdeps <- maybe Map.empty snd <$> loadLibdeps lcaBranch
-        pure (lcaDefns, lcaLibdeps, diffs)
+        (,)
+          <$> loadLcaDefinitions abort lcaCausal.causalHash lcaBranch
+          <*> (maybe Map.empty snd <$> loadLibdeps lcaBranch)
+
+  diffs <-
+    Merge.nameBasedNamespaceDiff db Merge.ThreeWay {lca = lcaDefns, alice = aliceDefns, bob = bobDefns}
+
+  abortIfAnyConflictedAliases abort projectBranches lcaDefns diffs
 
   -- Load and merge libdeps
   (libdepsCausalParents, libdeps) <- do
