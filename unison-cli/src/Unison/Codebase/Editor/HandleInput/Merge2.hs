@@ -85,6 +85,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -131,7 +132,7 @@ handleMerge bobBranchName = do
         Conflicted _ -> do
           error "conflicts path not implemented yet"
         Unconflicted unconflictedInfo -> do
-          contents <- partitionFileContents db conflictInfo
+          contents <- partitionFileContents conflictInfo
           let lcaNametree =
                 bimapDefns
                   ( unflattenNametree
@@ -145,9 +146,11 @@ handleMerge bobBranchName = do
                       . performAddsAndUpdates contents.lcaAddsAndUpdates.types
                   )
                   conflictInfo.lcaDefns
-          lcaBranch <-
-            nametreeToBranch0 db lcaNametree
-              <&> Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps
+          let lcaBranch =
+                lcaNametree
+                  & mergeDefnsNametree
+                  & v1NametreeToBranch0
+                  & Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps
           unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
           pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch)
 
@@ -178,13 +181,6 @@ performDeletes :: Set Name -> Map Name ref -> Map Name ref
 performDeletes deletions refs =
   Map.withoutKeys refs deletions
 
-nametree2to1 ::
-  MergeDatabase ->
-  Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Transaction (Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)))
-nametree2to1 db =
-  traverseOf (#terms . traverse . traverse) (referent2to1 db)
-
 mergeDefnsNametree ::
   Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
   Nametree (Map NameSegment Referent, Map NameSegment TypeReference)
@@ -213,14 +209,6 @@ v1NametreeToBranch0 nt =
       ntChildren = Branch.one . v1NametreeToBranch0 <$> nt.children
       res = Branch.branch0 starTerms starTypes ntChildren Map.empty
    in res
-
-nametreeToBranch0 ::
-  forall m.
-  MergeDatabase ->
-  Defns (Nametree (Map NameSegment V2.Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Transaction (Branch0 m)
-nametreeToBranch0 db nametree =
-  v1NametreeToBranch0 . mergeDefnsNametree <$> nametree2to1 db nametree
 
 makeUnisonFile ::
   Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
@@ -337,25 +325,33 @@ getConflictInfo abort0 db info = do
           (maybe Map.empty snd maybeBobLibdeps)
       )
 
-  let classifiedDiff =
+  -- For convenience to the rest of the algorithm, let's just do all of the kludgy "v2 referent to v1 referent"
+  -- hydration here.
+  lcaDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) lcaDefns
+  aliceDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) aliceDefns
+  bobDefns <- traverseOf #terms (BiMultimap.unsafeTraverseDom (referent2to1 db)) bobDefns
+
+  let classifiedDiff :: Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference))
+      classifiedDiff =
         let diffWithContext ::
               Merge.TwoWay
                 ( Defns
-                    (Map Name (V2.Referent, Merge.DiffOp Hash))
+                    (Map Name (Referent, Merge.DiffOp Hash))
                     (Map Name (TypeReference, Merge.DiffOp Hash))
                 )
             diffWithContext =
-              let Merge.TwoWay alice bob = diffs
-                  zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
-               in Merge.TwoWay (zipzipzip aliceDefns alice) (zipzipzip bobDefns bob)
+              let zipzipzip a b = zipDefns zip zip (bimapDefns BiMultimap.range BiMultimap.range a) b
+               in Merge.TwoWay (zipzipzip aliceDefns diffs.alice) (zipzipzip bobDefns diffs.bob)
          in Defns
               { terms = partitionDiff (view #terms <$> diffWithContext),
                 types = partitionDiff (view #types <$> diffWithContext)
               }
+
   -- TODO is swapping constructors' names handled correctly here?
   -- TODO is exchanging constructor for function handled correctly here?
   -- TODO is exchanging function for constructor handled correctly here?
   let PartitionedDefns {unconflictedPartitionedDefns, conflicts} = partitionConflicts classifiedDiff
+
   let conflictState = case Map.null conflicts.terms && Map.null conflicts.types of
         True ->
           Unconflicted
@@ -371,6 +367,7 @@ getConflictInfo abort0 db info = do
               }
 
   mergedLibdeps <- convertLibdepsToV1Causal db libdepsCausalParents libdeps
+
   pure
     ConflictInfo
       { lcaDefns,
@@ -382,11 +379,11 @@ getConflictInfo abort0 db info = do
       }
 
 data ConflictInfo = ConflictInfo
-  { lcaDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
+  { lcaDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     mergedLibdeps :: Branch Transaction,
     unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
-    aliceDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
-    bobDefns :: Defns (BiMultimap V2.Referent Name) (BiMultimap TypeReference Name),
+    aliceDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    bobDefns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
     conflictState :: ConflictState
   }
   deriving stock (Generic)
@@ -396,7 +393,7 @@ data ConflictState
   | Unconflicted UnconflictedInfo
 
 data ConflictedInfo = ConflictedInfo
-  { conflictedDefns :: Defns (Map Name (V2.Referent, V2.Referent)) (Map Name (TypeReference, TypeReference)),
+  { conflictedDefns :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
     aliceDeclNames :: Map Name [Name],
     bobDeclNames :: Map Name [Name]
   }
@@ -407,25 +404,25 @@ data UnconflictedInfo = UnconflictedInfo
   deriving stock (Generic)
 
 data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
-  { aliceAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bobAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bothAdditions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    aliceUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bobUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bothUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    aliceDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bobDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference),
-    bothDeletions :: Defns (Map Name V2.Referent) (Map Name TypeReference)
+  { aliceAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
+    aliceUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
+    aliceDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bobDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
+    bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
   }
 
 data PartitionedContents = PartitionedContents
   { fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId),
-    lcaAddsAndUpdates :: Defns (Map Name V2.Referent) (Map Name TypeReference),
+    lcaAddsAndUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
     lcaDeletions :: Defns (Set Name) (Set Name)
   }
 
-partitionFileContents :: MergeDatabase -> ConflictInfo -> Transaction PartitionedContents
-partitionFileContents db conflictInfo = do
+partitionFileContents :: ConflictInfo -> Transaction PartitionedContents
+partitionFileContents conflictInfo = do
   let UnconflictedPartitionedDefns
         { aliceUpdates,
           bobUpdates,
@@ -437,8 +434,8 @@ partitionFileContents db conflictInfo = do
           bobDeletions,
           bothDeletions
         } = conflictInfo.unconflictedPartitionedDefns
-  aliceNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.aliceDefns)
-  bobNames <- defnsToNames db (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.bobDefns)
+  let aliceNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.aliceDefns)
+  let bobNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.bobDefns)
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
   d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
@@ -456,27 +453,27 @@ partitionFileContents db conflictInfo = do
         lcaDeletions
       }
   where
-    defnRefs :: Names -> Defns (Map Name V2.Referent) (Map Name TypeReference) -> Set Reference
+    defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
     defnRefs n = flip getExistingReferencesNamed n . defnNames
 
-    defnNames :: Defns (Map Name V2.Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
+    defnNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
     defnNames = bimapDefns Map.keysSet Map.keysSet
 
-unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
+unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
 unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
   aliceAdditions <> bobAdditions <> bothAdditions
 
-unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
+unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
 unconflictedUpdates UnconflictedPartitionedDefns {aliceUpdates, bobUpdates, bothUpdates} =
   aliceUpdates <> bobUpdates <> bothUpdates
 
-unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name V2.Referent) (Map Name TypeReference)
+unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
 unconflictedDeletions UnconflictedPartitionedDefns {aliceDeletions, bobDeletions, bothDeletions} =
   aliceDeletions <> bobDeletions <> bothDeletions
 
 data PartitionedDefns = PartitionedDefns
   { unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
-    conflicts :: Defns (Map Name (V2.Referent, V2.Referent)) (Map Name (TypeReference, TypeReference))
+    conflicts :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference))
   }
 
 data PartitionState v = PartitionState
@@ -510,7 +507,7 @@ emptyPartitionState =
 
 partitionConflicts ::
   -- | Classified names
-  Defns (Map Name (TwoDiffsOp V2.Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
+  Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
   PartitionedDefns
 partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
   let termSt =
@@ -561,27 +558,22 @@ partitionConflicts (Defns classifiedTermNames classifiedTypeNames) =
           conflicts = Defns termSt.conflicts typeSt.conflicts
         }
 
-defnsToNames ::
-  MergeDatabase ->
-  Defns (Map Name V2.Referent) (Map Name TypeReference) ->
-  Transaction Names
-defnsToNames db Defns {terms, types} = do
-  terms <- traverse (referent2to1 db) terms
-  pure
-    Names.Names
-      { terms = Relation.fromMap terms,
-        types = Relation.fromMap types
-      }
+defnsToNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Names
+defnsToNames Defns {terms, types} = do
+  Names.Names
+    { terms = Relation.fromMap terms,
+      types = Relation.fromMap types
+    }
 
 defnsToRel ::
-  Defns (Map Name V2.Referent) (Map Name TypeReference) ->
+  Defns (Map Name Referent) (Map Name TypeReference) ->
   (Relation Name TermReferenceId, Relation Name TypeReferenceId)
 defnsToRel Defns {terms, types} =
   let termRefIds = flip mapMaybe terms \case
-        V2.Referent.Ref r -> case r of
+        Referent.Ref r -> case r of
           ReferenceBuiltin _ -> Nothing -- todo - explode
           ReferenceDerived r -> Just r
-        V2.Referent.Con _ _ -> Nothing -- todo - get the decl
+        Referent.Con _ _ -> Nothing -- todo - get the decl
       typeRefIds =
         flip mapMaybe types \case
           ReferenceBuiltin _ -> Nothing -- todo - explode
