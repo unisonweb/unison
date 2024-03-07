@@ -5,6 +5,7 @@ module Unison.Util.Map
     bitraversed,
     deleteLookup,
     foldMapM,
+    insertLookup,
     mergeMap,
     unionWithM,
     remap,
@@ -13,6 +14,7 @@ module Unison.Util.Map
     swap,
     upsert,
     upsertF,
+    upsertLookup,
     valuesVector,
   )
 where
@@ -22,8 +24,8 @@ import Control.Monad qualified as Monad
 import Data.Bifunctor qualified as B
 import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
-import Data.Map.Strict qualified as Map
 import Data.Map.Merge.Strict qualified as Map
+import Data.Map.Strict qualified as Map
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap)
@@ -43,6 +45,11 @@ swap :: (Ord b) => Map a b -> Map b a
 swap =
   Map.foldlWithKey' (\z a b -> Map.insert b a z) mempty
 
+-- | Like 'Map.insert', but returns the value as well.
+insertLookup :: Ord k => k -> v -> Map k v -> (Maybe v, Map k v)
+insertLookup k v =
+  upsertLookup (const v) k
+
 -- | Upsert an element into a map.
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v
 upsert f =
@@ -52,6 +59,11 @@ upsert f =
 upsertF :: (Functor f, Ord k) => (Maybe v -> f v) -> k -> Map k v -> f (Map k v)
 upsertF f =
   Map.alterF (fmap Just . f)
+
+-- | Like 'upsert', but returns the value as well.
+upsertLookup :: Ord k => (Maybe v -> v) -> k -> Map k v -> (Maybe v, Map k v)
+upsertLookup f =
+  upsertF (\v -> (v, f v))
 
 valuesVector :: Map k v -> Vector v
 valuesVector =

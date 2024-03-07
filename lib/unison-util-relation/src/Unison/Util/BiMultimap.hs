@@ -7,6 +7,7 @@ module Unison.Util.BiMultimap
     memberDom,
     lookupDom,
     lookupRan,
+    unsafeLookupRan,
     lookupPreimage,
 
     -- ** Mapping / traversing
@@ -82,6 +83,13 @@ lookupDom_ x xs =
 lookupRan :: Ord b => b -> BiMultimap a b -> Maybe a
 lookupRan b (BiMultimap _ r) =
   Map.lookup b r
+
+-- | Look up the @a@ related to a @b@.
+--
+-- /O(log b)/.
+unsafeLookupRan :: Ord b => b -> BiMultimap a b -> a
+unsafeLookupRan b (BiMultimap _ r) =
+  r Map.! b
 
 -- | Look up the preimage of a @b@, that is, the set of @b@ that are related to the same @a@ as the input @b@.
 --

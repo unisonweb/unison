@@ -6,6 +6,7 @@ where
 
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Unison.Merge.Diff (ThreeWay (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
@@ -18,15 +19,11 @@ mergeLibdeps ::
   (lib -> lib -> Bool) ->
   -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
   (Set name -> name -> (name, name)) ->
-  -- | LCA library dependencies (empty map if no dependencies or no LCA).
-  Map name lib ->
-  -- | Alice's library dependencies.
-  Map name lib ->
-  -- | Bob's library dependencies.
-  Map name lib ->
+  -- | Library dependencies.
+  ThreeWay (Map name lib) ->
   -- | Merged library dependencies.
   Map name lib
-mergeLibdeps eq freshen lca alice bob =
+mergeLibdeps eq freshen ThreeWay {lca, alice, bob} =
   threeWayLibdepsMerge eq (freshen usedNames) lca alice bob
   where
     usedNames :: Set name
