@@ -249,7 +249,7 @@ data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
 -- | A diff of the syntax of a term or type
-newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff Syntax.Element))
+newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff Syntax.SyntaxSegment))
   deriving stock (Eq, Show)
 
 instance ToJSON DiffedSyntaxText where
