@@ -106,12 +106,9 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite (Transaction)
-import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
 import Unison.Util.Nametree (Nametree (..))
-import Witch (unsafeFrom)
 
 data IncoherentDeclReason
   = -- | A second naming of a constructor was discovered underneath a decl's name, e.g.
@@ -128,11 +125,11 @@ data IncoherentDeclReason
 checkDeclCoherency ::
   (TypeReferenceId -> Transaction Int) ->
   (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))) ->
-  Transaction (Either IncoherentDeclReason (BiMultimap Name Name))
+  Transaction (Either IncoherentDeclReason (Map Name [Name]))
 checkDeclCoherency loadDeclNumConstructors =
   Except.runExceptT
     . fmap (view #declNames)
-    . (`State.execStateT` DeclCoherencyCheckState Map.empty BiMultimap.empty)
+    . (`State.execStateT` DeclCoherencyCheckState Map.empty Map.empty)
     . go []
   where
     go ::
@@ -153,7 +150,7 @@ checkDeclCoherency loadDeclNumConstructors =
             f :: Maybe (IntMap MaybeConstructorName) -> Either IncoherentDeclReason (IntMap MaybeConstructorName)
             f = \case
               Nothing -> Left (IncoherentDeclReason'StrayConstructor (fullName name))
-              Just expected -> IntMap.alterF g (unsafeFrom @Word64 conId) expected
+              Just expected -> IntMap.alterF g (fromIntegral @Word64 @Int conId) expected
                 where
                   g :: Maybe MaybeConstructorName -> Either IncoherentDeclReason (Maybe MaybeConstructorName)
                   g = \case
@@ -194,8 +191,7 @@ checkDeclCoherency loadDeclNumConstructors =
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
                     Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
-                #declNames %= \declNames ->
-                  foldr (BiMultimap.insert typeName) declNames constructorNames
+                #declNames %= Map.insert typeName constructorNames
                 pure (Just name)
             where
               typeName = fullName name
@@ -208,7 +204,7 @@ checkDeclCoherency loadDeclNumConstructors =
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
   { expectedConstructors :: !(Map TypeReferenceId (IntMap MaybeConstructorName)),
-    declNames :: !(BiMultimap Name Name)
+    declNames :: !(Map Name [Name])
   }
   deriving stock (Generic)
 
