@@ -78,12 +78,13 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), bimapDefns)
 import Unison.Util.Map qualified as Map (insertLookup)
-import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
+import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree, zipNametreesOfDefns)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip)
@@ -124,8 +125,8 @@ handleMerge bobBranchName = do
                  in (droppedNames, Defns {terms, types})
           let lcaBranch =
                 lcaNametree
-                  & mergeDefnsNametree
-                  & v1NametreeToBranch0
+                  & zipNametreesOfDefns Map.empty Map.empty
+                  & nametreeToBranch0
                   & Branch.setChildBranch NameSegment.libSegment (Branch.one conflictInfo.mergedLibdeps)
                   & Branch.transform0 (Codebase.runTransaction codebase)
           unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
@@ -168,34 +169,20 @@ performDeletes :: Set Name -> Map Name ref -> (Map Name ref, Map Name ref)
 performDeletes deletions refs =
   Map.partitionWithKey (\k _ -> not $ Set.member k deletions) refs
 
-mergeDefnsNametree ::
-  Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
-  Nametree (Map NameSegment Referent, Map NameSegment TypeReference)
-mergeDefnsNametree Defns {terms, types} = alignWith phi terms types
+nametreeToBranch0 :: forall m. Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)) -> Branch0 m
+nametreeToBranch0 nametree =
+  Branch.branch0
+    (rel2star defns.terms)
+    (rel2star defns.types)
+    (Branch.one . nametreeToBranch0 <$> nametree.children)
+    Map.empty
   where
-    phi = \case
-      This a -> (a, Map.empty)
-      That b -> (Map.empty, b)
-      These a b -> (a, b)
+    defns =
+      bimapDefns (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
 
-v1NametreeToBranch0 :: forall m. Nametree (Map NameSegment Referent, Map NameSegment TypeReference) -> Branch0 m
-v1NametreeToBranch0 nt =
-  let starTerms =
-        Star2.Star2
-          { fact = Relation.dom termRel,
-            d1 = termRel,
-            d2 = Relation.empty
-          }
-      (termRel, typeRel) = bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nt.value
-      starTypes =
-        Star2.Star2
-          { fact = Relation.dom typeRel,
-            d1 = typeRel,
-            d2 = Relation.empty
-          }
-      ntChildren = Branch.one . v1NametreeToBranch0 <$> nt.children
-      res = Branch.branch0 starTerms starTypes ntChildren Map.empty
-   in res
+    rel2star :: Relation ref name -> Star2 ref name metadata
+    rel2star rel =
+      Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
 
 makeUnisonFile ::
   Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->

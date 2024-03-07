@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Unison.Util.Nametree
   ( -- * Nametree
     Nametree (..),
     traverseNametreeWithName,
     unfoldNametree,
+    zipNametreesOfDefns,
 
     -- ** Flattening and unflattening
     flattenNametree,
@@ -21,6 +24,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..))
 import Prelude hiding (zipWith)
 
 -- | A nametree has a value, and a collection of children nametrees keyed by name segment.
@@ -61,6 +65,19 @@ unfoldNametree :: (a -> (b, Map NameSegment a)) -> a -> Nametree b
 unfoldNametree f x =
   let (y, ys) = f x
    in Nametree y (unfoldNametree f <$> ys)
+
+-- | Zip a term nametree and a type nametree together.
+--
+-- If a namespace is in one nametree but not the other (because it only consists of terms or types), then the provided
+-- default value is used, which is expected to be an empty collection.
+zipNametreesOfDefns :: a -> b -> Defns (Nametree a) (Nametree b) -> Nametree (Defns a b)
+zipNametreesOfDefns emptyTerms emptyTypes defns =
+  alignWith phi defns.terms defns.types
+  where
+    phi = \case
+      This terms -> Defns {terms, types = emptyTypes}
+      That types -> Defns {terms = emptyTerms, types}
+      These terms types -> Defns {terms, types}
 
 -- | 'flattenNametree' organizes a nametree like
 --
