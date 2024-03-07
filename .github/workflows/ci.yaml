@@ -97,12 +97,12 @@ jobs:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
-      - name: cache transcript results
-        id: cache-transcript-results
+      - name: cache unison-src test results
+        id: cache-unison-src-test-results
         uses: actions/cache@v4
         with:
           path: ${{env.unison_src_test_results}}
-          key: transcript-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -263,7 +263,7 @@ jobs:
         run: stack build --fast --test unison-util-relation
 
       - name: round-trip-tests
-        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
           ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
           ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
@@ -273,7 +273,7 @@ jobs:
             unison-src/transcripts-manual/rewrites.output.md
 
       - name: transcripts
-        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
           ${{env.transcripts}}
           # Fail if any transcripts cause git diffs.
@@ -301,14 +301,14 @@ jobs:
 
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
-        if: runner.os != 'Windows' && (steps.cache-ucm-binaries.outputs.cache-hit != 'true' || steps.cache-transcript-results.outputs.cache-hit != 'true')
+        if: runner.os != 'Windows' && (steps.cache-ucm-binaries.outputs.cache-hit != 'true' || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
         run: |
           ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
 
       - name: mark transcripts as passing
-        if: steps.cache-transcript-results.outputs.cache-hit != 'true'
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.unison_src_test_results}}"
 
