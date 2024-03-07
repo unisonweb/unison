@@ -26,8 +26,18 @@ env:
   jit_dist: "unison-jit-dist"
   jit_generator_os: ubuntu-20.04
   base-codebase: "~/.cache/unisonlanguage/base.unison"
+
   # refers to all tests that depend on **/unison-src/**
   unison_src_test_results: "unison-src-test-results"
+
+  # cache key versions, increment to invalidate one
+  ucm-binaries-cache-key-version: 1
+  unison-src-test-results-cache-key-version: 1
+  stack-cache-key-version: 1
+  stack-work-cache-key-version: 4
+  base-codebase-cache-key-version: 1
+  jit-src-cache-key-version: 1
+  jit-dist-cache-key-version: 1
 
 jobs:
   ormolu:
@@ -95,14 +105,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
+          key: ucm-${{env.ucm-binaries-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
       - name: cache unison-src test results
         id: cache-unison-src-test-results
         uses: actions/cache@v4
         with:
           path: ${{env.unison_src_test_results}}
-          key: unison-src-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
+          key: unison-src-test-results-${{env.unison-src-test-results-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
       # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
       # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -123,9 +133,9 @@ jobs:
         if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: stack-1_${{matrix.os}}-${{env.resolver}}-
+          restore-keys: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
 
       - name: restore ~/.stack (Windows)
         uses: actions/cache/restore@v4
@@ -134,9 +144,9 @@ jobs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: stack-1_${{matrix.os}}-${{env.resolver}}-
+          restore-keys: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
 
       - name: restore .stack-work
         uses: actions/cache/restore@v4
@@ -150,11 +160,11 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          key: stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
           restore-keys: |
-            stack-work-4_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
-            stack-work-4_${{matrix.os}}-${{env.resolver}}-
-            stack-work-4_${{matrix.os}}-
+            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub.
       # The installation process differs by OS.
@@ -293,7 +303,7 @@ jobs:
         with:
           path: ${{ env.base-codebase }}
           # key = base transcript contents + sqlite schema version
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
+          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
 
       - name: create base.md codebase
         if: steps.cache-base-codebase.outputs.cache-hit != 'true'
@@ -324,7 +334,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
       - name: save ~/.stack (Windows)
         if: runner.os == 'Windows'
@@ -333,14 +343,14 @@ jobs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
       - name: save .stack-work
         uses: actions/cache/save@v4
         with:
           path: |
             **/.stack-work
-          key: stack-work-4_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          key: stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
 
 
   generate-jit-source:
@@ -358,7 +368,7 @@ jobs:
         if: runner.os == 'Linux'
         with:
           path: ${{ env.jit_src_scheme }}
-          key: jit_src_scheme.racket_${{env.racket_version}}.jit_${{env.jit_version}}
+          key: jit_src_scheme-${{env.jit-src-cache-key-version}}.racket_${{env.racket_version}}.jit_${{env.jit_version}}
 
       - name: check source exists
         id: jit_src_exists
@@ -474,7 +484,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit_dist.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+          key: jit_dist-${{env.jit-dist-cache-key-version}}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
 
       - name: Cache Racket dependencies
         if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
@@ -538,7 +548,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.base-codebase}}
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md')}}.
+          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
 
       - name: jit integration test ${{ matrix.os }}
         if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
