@@ -5,7 +5,7 @@ import Data.Foldable qualified as Foldable
 import Data.Sequence qualified as Seq
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Server.Syntax (SyntaxText)
-import Unison.Server.Types (DiffedSyntaxText (DiffedSyntaxText), DisplayObjectDiff (..), termDefinition)
+import Unison.Server.Types (DiffedSyntaxText (DiffedSyntaxText), DisplayObjectDiff (..))
 
 diffDisplayObjects :: DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
 diffDisplayObjects from to = case (from, to) of

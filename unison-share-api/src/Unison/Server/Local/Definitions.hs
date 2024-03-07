@@ -26,6 +26,7 @@ import Unison.Server.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty (Width)
 
 -- | Renders a definition for the given name or hash alongside its documentation.
@@ -77,12 +78,12 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
 
   let fqnPPE = PPED.unsuffixifiedPPE pped
   typeDefinitions <-
-    ifor (typesToSyntax suffixifyBindings width pped types) \ref tp -> do
+    ifor (typesToSyntaxOf suffixifyBindings width pped (Map.asList_ . traversed) types) \ref tp -> do
       let hqTypeName = PPE.typeNameOrHashOnly fqnPPE ref
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTypeName))
       mkTypeDefinition codebase pped width ref docs tp
   termDefinitions <-
-    ifor (termsToSyntaxOf suffixifyBindings width pped itraversed terms) \reference trm -> do
+    ifor (termsToSyntaxOf suffixifyBindings width pped (Map.asList_ . traversed) terms) \reference trm -> do
       let referent = Referent.Ref reference
       let hqTermName = PPE.termNameOrHashOnly fqnPPE referent
       docs <- liftIO $ (maybe (pure []) docResults (HQ.toName hqTermName))

@@ -69,6 +69,7 @@ module Unison.Server.Backend
     termsToSyntax,
     termsToSyntaxOf,
     typesToSyntax,
+    typesToSyntaxOf,
     definitionResultsDependencies,
     evalDocRef,
     mkTermDefinition,
@@ -90,7 +91,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextE
 import Data.Text.Lazy (toStrict)
-import Data.Tuple.Extra (dupe)
 import Data.Yaml qualified as Yaml
 import Lucid qualified
 import System.Directory
@@ -149,7 +149,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Project.Util qualified as ProjectUtils
-import Unison.Reference (Reference, TermReference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -1123,11 +1123,11 @@ termsToSyntaxOf ::
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
-  IndexedTraversal Reference.Reference s t (DisplayObject (Type v a) (Term v a)) (DisplayObject SyntaxText SyntaxText) ->
+  Traversal s t (TermReference, DisplayObject (Type v a) (Term v a)) (TermReference, DisplayObject SyntaxText SyntaxText) ->
   s ->
   t
 termsToSyntaxOf suff width ppe0 trav s =
-  s & iover (iunsafePartsOf trav) (\refs displayObjs -> termsToSyntax suff width ppe0 (zip refs displayObjs))
+  s & over (unsafePartsOf trav) (\displayObjs -> termsToSyntax suff width ppe0 displayObjs)
 
 termsToSyntax ::
   (Var v) =>
@@ -1135,13 +1135,13 @@ termsToSyntax ::
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
-  [(Reference.Reference, (DisplayObject (Type v a) (Term v a)))] ->
-  [DisplayObject SyntaxText SyntaxText]
+  [(TermReference, (DisplayObject (Type v a) (Term v a)))] ->
+  [(TermReference, DisplayObject SyntaxText SyntaxText)]
 termsToSyntax suff width ppe0 terms =
   terms
     <&> \(r, dispObj) ->
       let n = PPE.termName ppeDecl . Referent.Ref $ r
-       in case dispObj of
+       in (r,) case dispObj of
             DisplayObject.BuiltinObject typ ->
               DisplayObject.BuiltinObject $
                 formatType' (ppeBody r) width typ
@@ -1158,31 +1158,43 @@ termsToSyntax suff width ppe0 terms =
     ppeDecl =
       (if suffixified suff then PPED.suffixifiedPPE else PPED.unsuffixifiedPPE) ppe0
 
+-- | Version of 'termsToSyntax' which works over arbitrary indexed traversals, e.g.
+-- 'itraversed'
+typesToSyntaxOf ::
+  (Var v) =>
+  (Ord a) =>
+  Suffixify ->
+  Width ->
+  PPED.PrettyPrintEnvDecl ->
+  Traversal s t (TypeReference, DisplayObject () (DD.Decl v a)) (TypeReference, DisplayObject SyntaxText SyntaxText) ->
+  s ->
+  t
+typesToSyntaxOf suff width ppe0 trav s =
+  s & over (unsafePartsOf trav) (typesToSyntax suff width ppe0)
+
 typesToSyntax ::
   (Var v) =>
   (Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
-  Map Reference.Reference (DisplayObject () (DD.Decl v a)) ->
-  Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
+  [(TypeReference, (DisplayObject () (DD.Decl v a)))] ->
+  [(TypeReference, (DisplayObject SyntaxText SyntaxText))]
 typesToSyntax suff width ppe0 types =
-  Map.fromList $
-    map go . Map.toList $
-      Map.mapKeys
-        (first (PPE.typeName ppeDecl) . dupe)
-        types
+  types
+    <&> \(r, dispObj) ->
+      let n = PPE.typeName ppeDecl r
+       in (r,) $ case dispObj of
+            BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
+            MissingObject sh -> MissingObject sh
+            UserObject d ->
+              UserObject . Pretty.render width $
+                DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
   where
     ppeDecl =
       if suffixified suff
         then PPED.suffixifiedPPE ppe0
         else PPED.unsuffixifiedPPE ppe0
-    go ((n, r), dt) = (r,) $ case dt of
-      BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
-      MissingObject sh -> MissingObject sh
-      UserObject d ->
-        UserObject . Pretty.render width $
-          DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
 
 -- | Renders a type to its decl header, e.g.
 --
