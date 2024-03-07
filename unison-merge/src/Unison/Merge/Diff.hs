@@ -15,6 +15,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Synhash qualified as Synhash
+import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Name (Name)
@@ -26,9 +27,6 @@ import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..))
-
-type Diff =
-  Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
 
 -- | @nameBasedNamespaceDiff loadDecl loadTerm maybeLcaDefns aliceDefns bobDefns@ returns Alice's and Bob's name-based
 -- namespace diffs, each in the form:
@@ -44,7 +42,13 @@ type Diff =
 nameBasedNamespaceDiff ::
   MergeDatabase ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Transaction (TwoWay Diff)
+  Transaction
+    ( TwoWay
+        ( Defns
+            (Map Name (DiffOp (Synhashed Referent)))
+            (Map Name (DiffOp (Synhashed TypeReference)))
+        )
+    )
 nameBasedNamespaceDiff db defns = do
   lca <- synhashDefns defns.lca
   alice <- synhashDefns defns.alice
@@ -53,7 +57,7 @@ nameBasedNamespaceDiff db defns = do
   where
     synhashDefns ::
       Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      Transaction (Defns (Map Name Hash) (Map Name Hash))
+      Transaction (Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)))
     synhashDefns =
       -- FIXME: use cache so we only synhash each thing once
       synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe) (Synhash.hashDecl db.loadV1Decl ppe)
@@ -64,20 +68,20 @@ nameBasedNamespaceDiff db defns = do
           (deepNamespaceDefinitionsToPpe defns.alice `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob)
 
 diffNamespaceDefns ::
-  Defns (Map Name Hash) (Map Name Hash) ->
-  Defns (Map Name Hash) (Map Name Hash) ->
-  Defns (Map Name (DiffOp Hash)) (Map Name (DiffOp Hash))
+  Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)) ->
+  Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)) ->
+  Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference)))
 diffNamespaceDefns oldDefns newDefns =
   Defns
     { terms = go oldDefns.terms newDefns.terms,
       types = go oldDefns.types newDefns.types
     }
   where
-    go :: Map Name Hash -> Map Name Hash -> Map Name (DiffOp Hash)
+    go :: Map Name (Synhashed ref) -> Map Name (Synhashed ref) -> Map Name (DiffOp (Synhashed ref))
     go old new =
       Map.mapMaybe id (alignWith f old new)
       where
-        f :: These Hash Hash -> Maybe (DiffOp Hash)
+        f :: Eq x => These x x -> Maybe (DiffOp x)
         f = \case
           This x -> Just (Deleted x)
           That y -> Just (Added y)
@@ -108,8 +112,16 @@ synhashDefnsWith ::
   (term -> m Hash) ->
   (typ -> m Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
-  m (Defns (Map Name Hash) (Map Name Hash))
-synhashDefnsWith hashReferent hashDecl defns = do
-  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashReferent defns.terms
-  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashDecl defns.types
+  m (Defns (Map Name (Synhashed term)) (Map Name (Synhashed typ)))
+synhashDefnsWith hashTerm hashType defns = do
+  terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashTerm1 defns.terms
+  types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashType1 defns.types
   pure Defns {terms, types}
+  where
+    hashTerm1 term = do
+      hash <- hashTerm term
+      pure (Synhashed hash term)
+
+    hashType1 typ = do
+      hash <- hashType typ
+      pure (Synhashed hash typ)

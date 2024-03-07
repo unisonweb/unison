@@ -24,6 +24,7 @@ library
       Unison.Merge.Libdeps
       Unison.Merge.PreconditionViolation
       Unison.Merge.Synhash
+      Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
       Unison.Merge.TwoWay
   hs-source-dirs:

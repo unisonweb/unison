@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (Lens', view, (%~))
+import Control.Lens (view, (%~))
 import Control.Monad.Reader (ask)
 import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
@@ -48,12 +48,12 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
-import Unison.Hash (Hash)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
 import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
+import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Name (Name)
@@ -186,7 +186,7 @@ v1NametreeToBranch0 nt =
             d1 = termRel,
             d2 = Relation.empty
           }
-      (termRel, typeRel) = bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) (value nt)
+      (termRel, typeRel) = bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nt.value
       starTypes =
         Star2.Star2
           { fact = Relation.dom typeRel,
@@ -287,25 +287,6 @@ getConflictInfo abort0 db info = do
   diffs <- Merge.nameBasedNamespaceDiff db defns
   abortIfAnyConflictedAliases abort info.projectBranches defns.lca diffs
 
-  -- Beef up the diffs structure by pairing each diff op (add, update, delete) with the actual relevant ref
-  let beefyDiffs ::
-        TwoWay
-          ( Defns
-              (Map Name (Merge.DiffOp (Referent, Hash)))
-              (Map Name (Merge.DiffOp (TypeReference, Hash)))
-          )
-      beefyDiffs =
-        TwoWay (go #alice) (go #bob) <*> diffs
-        where
-          go ::
-            (forall x. Lens' (ThreeWay x) x) ->
-            Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
-            (Defns (Map Name (Merge.DiffOp (Referent, Hash))) (Map Name (Merge.DiffOp (TypeReference, Hash))))
-          go who =
-            bimapDefns
-              (Map.mapWithKey (addContextToDiffOp defns who #terms))
-              (Map.mapWithKey (addContextToDiffOp defns who #types))
-
   -- Load and merge libdeps
   mergedLibdeps <- do
     lca <-
@@ -321,8 +302,8 @@ getConflictInfo abort0 db info = do
   let classifiedDiff :: Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference))
       classifiedDiff =
         Defns
-          { terms = partitionDiff (view #terms <$> beefyDiffs),
-            types = partitionDiff (view #types <$> beefyDiffs)
+          { terms = partitionDiff (view #terms <$> diffs),
+            types = partitionDiff (view #types <$> diffs)
           }
 
   -- TODO is swapping constructors' names handled correctly here?
@@ -356,21 +337,6 @@ getConflictInfo abort0 db info = do
     abort :: Merge.PreconditionViolation -> Transaction void
     abort =
       abort0 . mergePreconditionViolationToOutput
-
-addContextToDiffOp ::
-  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  (forall x. Lens' (ThreeWay x) x) ->
-  Lens' (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) (BiMultimap ref Name) ->
-  Name ->
-  Merge.DiffOp a ->
-  Merge.DiffOp (ref, a)
-addContextToDiffOp defns who which name = \case
-  Merge.Added x -> Merge.Added (getNew name, x)
-  Merge.Deleted x -> Merge.Deleted (getOld name, x)
-  Merge.Updated x y -> Merge.Updated (getOld name, x) (getNew name, y)
-  where
-    getOld name = BiMultimap.unsafeLookupRan name (view (#lca . which) defns)
-    getNew name = BiMultimap.unsafeLookupRan name (view (who . which) defns)
 
 data ConflictInfo = ConflictInfo
   { defns :: !(ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))),
@@ -750,7 +716,7 @@ abortIfAnyConflictedAliases ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   TwoWay ProjectBranch ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  TwoWay (Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash))) ->
+  TwoWay (Defns (Map Name (Merge.DiffOp (Synhashed Referent))) (Map Name (Merge.DiffOp (Synhashed TypeReference)))) ->
   Transaction ()
 abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
   whenJust (findConflictedAlias lcaDefns diffs.alice) \(name1, name2) ->
@@ -777,31 +743,31 @@ abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (Map Name (Merge.DiffOp Hash)) (Map Name (Merge.DiffOp Hash)) ->
+  Defns (Map Name (Merge.DiffOp (Synhashed Referent))) (Map Name (Merge.DiffOp (Synhashed TypeReference))) ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
   where
-    go :: forall ref. Ord ref => BiMultimap ref Name -> Map Name (Merge.DiffOp Hash) -> Maybe (Name, Name)
+    go :: forall ref. Ord ref => BiMultimap ref Name -> Map Name (Merge.DiffOp (Synhashed ref)) -> Maybe (Name, Name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
-        f :: (Name, Merge.DiffOp Hash) -> Maybe (Name, Name)
+        f :: (Name, Merge.DiffOp (Synhashed ref)) -> Maybe (Name, Name)
         f (name, op) =
           case op of
             Merge.Added _ -> Nothing
             Merge.Deleted _ -> Nothing
-            Merge.Updated _ hash ->
+            Merge.Updated _ hashed1 ->
               BiMultimap.lookupPreimage name namespace
                 & Set.delete name
                 & Set.toList
-                & map (g hash)
+                & map (g hashed1)
                 & asum
           where
-            g :: Hash -> Name -> Maybe (Name, Name)
-            g hash alias =
+            g :: Synhashed ref -> Name -> Maybe (Name, Name)
+            g hashed1 alias =
               case Map.lookup alias diff of
-                Just (Merge.Updated _ hash2) | hash == hash2 -> Nothing
+                Just (Merge.Updated _ hashed2) | hashed1 == hashed2 -> Nothing
                 _ -> Just (name, alias)
 
 -- | Load the library dependencies (lib.*) of a namespace.
@@ -863,25 +829,26 @@ data Actor
 
 -- `getConflicts diffs` returns the set of conflicted names in `diffs`, where `diffs` contains two branches' diffs from
 -- their LCA.
-partitionDiff :: forall v hash. Eq hash => TwoWay (Map Name (Merge.DiffOp (v, hash))) -> Map Name (TwoDiffsOp v)
+partitionDiff :: TwoWay (Map Name (Merge.DiffOp (Synhashed v))) -> Map Name (TwoDiffsOp v)
 partitionDiff diffs =
   alignWith (f Alice Bob) diffs.alice diffs.bob
   where
-    diffOpToTag :: forall x. Actor -> Merge.DiffOp (v, x) -> TwoDiffsOp v
-    diffOpToTag actor diffop = case diffop of
-      Merge.Added (a, _) -> Addition actor a
-      Merge.Updated _ (a, _) -> Update actor a
-      Merge.Deleted (a, _) -> Deletion actor a
-    f :: Actor -> Actor -> These (Merge.DiffOp (v, hash)) (Merge.DiffOp (v, hash)) -> TwoDiffsOp v
+    diffOpToTag :: Actor -> Merge.DiffOp (Synhashed v) -> TwoDiffsOp v
+    diffOpToTag actor = \case
+      Merge.Added x -> Addition actor x.value
+      Merge.Updated _ x -> Update actor x.value
+      Merge.Deleted x -> Deletion actor x.value
+
+    f :: Actor -> Actor -> These (Merge.DiffOp (Synhashed v)) (Merge.DiffOp (Synhashed v)) -> TwoDiffsOp v
     f this that = \case
-      These (Merge.Added (a, x)) (Merge.Added (b, y)) -> if x /= y then Conflict a b else Addition Both a
+      These (Merge.Added x) (Merge.Added y) -> if x /= y then Conflict x.value y.value else Addition Both x.value
       These (Merge.Added _) (Merge.Updated _ _) -> error "impossible"
       These (Merge.Added _) (Merge.Deleted _) -> error "impossible"
-      These (Merge.Updated _ (a, x)) (Merge.Updated _ (b, y)) -> if x /= y then Conflict a b else Update Both a
+      These (Merge.Updated _ x) (Merge.Updated _ y) -> if x /= y then Conflict x.value y.value else Update Both x.value
       -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-      These (Merge.Updated _ (a, _)) (Merge.Deleted _) -> Update this a
+      These (Merge.Updated _ x) (Merge.Deleted _) -> Update this x.value
       These (Merge.Updated _ _) (Merge.Added _) -> error "impossible"
-      These (Merge.Deleted (a, _)) (Merge.Deleted _) -> Deletion Both a
+      These (Merge.Deleted x) (Merge.Deleted _) -> Deletion Both x.value
       These a@(Merge.Deleted _) b -> f that this (These b a)
       This x -> diffOpToTag this x
       That x -> diffOpToTag that x
