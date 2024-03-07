@@ -125,7 +125,7 @@ handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
 
-  (unisonFile, lcaBranch1) <-
+  (unisonFile, lcaBranch1, droppedNames) <-
     Cli.runTransactionWithRollback \abort -> do
       conflictInfo <- getConflictInfo abort db mergeInfo
       case conflictState conflictInfo of
@@ -133,29 +133,38 @@ handleMerge bobBranchName = do
           error "conflicts path not implemented yet"
         Unconflicted unconflictedInfo -> do
           contents <- partitionFileContents conflictInfo
-          let lcaNametree =
-                bimapDefns
-                  ( unflattenNametree
-                      . BiMultimap.fromRange
-                      . performDeletes contents.lcaDeletions.terms
-                      . performAddsAndUpdates contents.lcaAddsAndUpdates.terms
-                  )
-                  ( unflattenNametree
-                      . BiMultimap.fromRange
-                      . performDeletes contents.lcaDeletions.types
-                      . performAddsAndUpdates contents.lcaAddsAndUpdates.types
-                  )
-                  conflictInfo.lcaDefns
+          let (droppedNames, lcaNametree) =
+                let Defns {terms, types} = conflictInfo.lcaDefns
+                    bonk ::
+                      Ord ref =>
+                      Map Name ref ->
+                      Set Name ->
+                      BiMultimap ref Name ->
+                      (Map Name ref, Nametree (Map NameSegment ref))
+                    bonk addsAndUpdates deletes bimulti =
+                      let (replaced, r0) = performAddsAndUpdates addsAndUpdates bimulti
+                          (deleted, r1) = performDeletes deletes r0
+                          r2 = unflattenNametree (BiMultimap.fromRange r1)
+                       in (replaced <> deleted, r2)
+                    (droppedTerms, terms') = bonk contents.lcaAddsAndUpdates.terms contents.lcaDeletions.terms terms
+                    (droppedTypes, types') = bonk contents.lcaAddsAndUpdates.types contents.lcaDeletions.types types
+                    droppedNames =
+                      Names.Names
+                        { terms = Relation.fromMap droppedTerms,
+                          types = Relation.fromMap droppedTypes
+                        }
+                 in (droppedNames, Defns {terms = terms', types = types'})
           let lcaBranch =
                 lcaNametree
                   & mergeDefnsNametree
                   & v1NametreeToBranch0
                   & Branch.setChildBranch NameSegment.libSegment conflictInfo.mergedLibdeps
           unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
-          pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch)
+          pure (unisonFile, Branch.transform0 (Codebase.runTransaction codebase) lcaBranch, droppedNames)
 
   let bonkNames = Branch.toNames lcaBranch1
-  let pped = PPED.makePPED (PPE.namer bonkNames) (PPE.suffixifyByName bonkNames)
+  let ppedNames = bonkNames <> droppedNames
+  let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   currentPath <- Cli.getCurrentPath
   parsingEnv <- makeParsingEnv currentPath bonkNames
@@ -173,13 +182,22 @@ handleMerge bobBranchName = do
           const mergedBranch0
         )
 
-performAddsAndUpdates :: Map Name ref -> BiMultimap ref Name -> Map Name ref
+performAddsAndUpdates :: Map Name ref -> BiMultimap ref Name -> (Map Name ref, Map Name ref)
 performAddsAndUpdates addsAndUpdates refs =
-  Map.foldlWithKey' (\b k v -> Map.insert k v b) (BiMultimap.range refs) addsAndUpdates
+  Map.foldlWithKey'
+    ( \(replaced, b) k v ->
+        let (mreplacedVal, !newMap) = Map.alterF (\old -> (old, Just v)) k b
+            !replaced' = case mreplacedVal of
+              Nothing -> replaced
+              Just v -> Map.insert k v replaced
+         in (replaced', newMap)
+    )
+    (Map.empty, BiMultimap.range refs)
+    addsAndUpdates
 
-performDeletes :: Set Name -> Map Name ref -> Map Name ref
+performDeletes :: Set Name -> Map Name ref -> (Map Name ref, Map Name ref)
 performDeletes deletions refs =
-  Map.withoutKeys refs deletions
+  Map.partitionWithKey (\k _ -> not $ Set.member k deletions) refs
 
 mergeDefnsNametree ::
   Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference)) ->
