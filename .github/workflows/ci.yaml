@@ -176,6 +176,9 @@ jobs:
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
+          # temporarily print what's in the cached system stack dir
+          ls C:/Users/runneradmin/AppData/Roaming/stack
+          ls C:/Users/runneradmin/AppData/Local/Programs/stack
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
