@@ -24,7 +24,7 @@ Some cached directories:
 `jit_generator_os: ubuntu-20.04`
   - afaik, the jit sources are generated in a platform-independent way, so we just choose one platform to generate them on.
 
-`*-cache-key-version` — increment one of these to invalidate its corresponding cache:
+`*-cache-key-version` — increment one of these to invalidate its corresponding cache, though you shouldn't have to:
   - `ucm-binaries`
   - `unison-src-test-results`
   - `stack`

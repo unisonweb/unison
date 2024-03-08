@@ -30,7 +30,7 @@ env:
   # refers to all tests that depend on **/unison-src/**
   unison_src_test_results: "unison-src-test-results"
 
-  # cache key versions, increment to invalidate one
+  # cache key versions, increment to invalidate one, though you aren't expected to have to.
   ucm-binaries-cache-key-version: 1
   unison-src-test-results-cache-key-version: 1
   stack-cache-key-version: 1
