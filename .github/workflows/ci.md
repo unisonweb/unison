@@ -1,4 +1,4 @@
-The new CI workflow builds `ucm`, generates racket source, and generates `unison-runtime` (aka `ucr`).
+The new CI workflow builds `ucm`, generates racket source, and generates `unison-runtime` (aka `ucr`), saving them all as build artifacts.
 
 At a high level, the CI process is:
 1. On all platforms, build `unisonweb/unison` Haskell program and run tests; save the resulting binaries as build artifacts
