@@ -1115,8 +1115,21 @@ displayType codebase = \case
     decl <- Codebase.unsafeGetTypeDeclaration codebase rid
     pure (UserObject decl)
 
--- | Version of 'termsToSyntax' which works over arbitrary indexed traversals, e.g.
--- 'itraversed'
+-- | Version of 'termsToSyntax' which works over arbitrary traversals.
+--
+-- E.g.
+-- @@
+-- termsToSyntaxOf suff width pped traversed [(ref, dispObj)]
+--
+-- or
+--
+-- termsToSyntaxOf suff width pped id (ref, dispObj)
+--
+-- or
+--
+-- termsToSyntaxOf suff width pped Map.asList_ (Map.singleton ref dispObj)
+-- @@
+-- e.g. 'traversed'
 termsToSyntaxOf ::
   (Var v) =>
   (Ord a) =>
@@ -1129,6 +1142,7 @@ termsToSyntaxOf ::
 termsToSyntaxOf suff width ppe0 trav s =
   s & over (unsafePartsOf trav) (\displayObjs -> termsToSyntax suff width ppe0 displayObjs)
 
+-- | Converts Type Display Objects into Syntax Text.
 termsToSyntax ::
   (Var v) =>
   (Ord a) =>
@@ -1158,8 +1172,20 @@ termsToSyntax suff width ppe0 terms =
     ppeDecl =
       (if suffixified suff then PPED.suffixifiedPPE else PPED.unsuffixifiedPPE) ppe0
 
--- | Version of 'termsToSyntax' which works over arbitrary indexed traversals, e.g.
--- 'itraversed'
+-- | Version of 'typesToSyntax' which works over arbitrary traversals.
+--
+-- E.g.
+-- @@
+-- typesToSyntaxOf suff width pped traversed [(ref, dispObj)]
+--
+-- or
+--
+-- typesToSyntaxOf suff width pped id (ref, dispObj)
+--
+-- or
+--
+-- typesToSyntaxOf suff width pped Map.asList_ (Map.singleton ref dispObj)
+-- @@
 typesToSyntaxOf ::
   (Var v) =>
   (Ord a) =>
@@ -1172,6 +1198,7 @@ typesToSyntaxOf ::
 typesToSyntaxOf suff width ppe0 trav s =
   s & over (unsafePartsOf trav) (typesToSyntax suff width ppe0)
 
+-- | Converts Type Display Objects into Syntax Text.
 typesToSyntax ::
   (Var v) =>
   (Ord a) =>

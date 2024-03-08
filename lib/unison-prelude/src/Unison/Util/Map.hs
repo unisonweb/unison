@@ -37,7 +37,8 @@ bitraversed :: (Ord a', Ord k') => Traversal k k' a a' -> Traversal v v' a a' ->
 bitraversed keyT valT f m =
   bitraverse (keyT f) (valT f) m
 
--- | A 'Traversal' for the list of key-value pairs in a 'Map'.
+-- | Traverse a map as a list of key-value pairs.
+-- Note: This can have unexpected results if the result contains duplicate keys.
 asList_ :: Ord k' => Traversal (Map k v) (Map k' v') [(k, v)] [(k', v')]
 asList_ f s =
   s

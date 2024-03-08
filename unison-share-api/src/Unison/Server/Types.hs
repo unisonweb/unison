@@ -247,6 +247,9 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
+-- | A type for semantic diffing of definitions.
+-- Includes special-cases for when the name in a definition has changed but the hash hasn't
+-- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
 data SemanticSyntaxDiff
   = From [Syntax.SyntaxSegment]
   | To [Syntax.SyntaxSegment]
