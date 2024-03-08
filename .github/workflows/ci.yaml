@@ -530,6 +530,7 @@ jobs:
           raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
           raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
           raco distribute "$jit_dist" "$jit_exe"
+          ls -l "$jit_dist/**"
 
       - name: save jit binary
         uses: actions/upload-artifact@v4
