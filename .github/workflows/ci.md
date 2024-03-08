@@ -1,4 +1,4 @@
-The new CI workflow builds `ucm`, generates racket source, and generates `unison-runtime` (aka `ucr`).
+The new CI workflow builds `ucm`, generates racket source, and generates `unison-runtime` (aka `ucr`), saving them all as build artifacts.
 
 At a high level, the CI process is:
 1. On all platforms, build `unisonweb/unison` Haskell program and run tests; save the resulting binaries as build artifacts
@@ -35,6 +35,7 @@ Some cached directories:
 
 ### Cached directories:
 
+#### `ucm_local_bin`
 A built `ucm` is cached in `ucm_local_bin` after a successful build and Haskell tests pass.
 - The **cache key** includes the os, `stack.yaml`, any `package.yaml`, and any `.hs` file.
 - On an exact cache hit, these steps are skipped, otherwise they are run:
@@ -55,6 +56,7 @@ A built `ucm` is cached in `ucm_local_bin` after a successful build and Haskell 
 	- verification of `stack ghci` startup
 	- `interpreter-tests.md`
 
+#### `unison_src_test_results`
 A bit is cached in `unison_src_test_results` after non-Haskell tests in the `unison` repo pass.
 - The **cache key** includes os, `stack.yaml`, any `package.yaml`, any `.hs` file, and any file in `unison-src/`
 - On an exact cache hit, these steps are skipped, otherwise they are run:
@@ -63,6 +65,11 @@ A bit is cached in `unison_src_test_results` after non-Haskell tests in the `uni
     - `unison-src/builtin-tests/interpreter-tests.md`
 - If all steps suceed, the `unison_src_test_results` bit is saved.
 
+#### `base-codebase`
+This stores the result of `base.md`, which can be reused later to save the cost of a `pull`. 
+No steps are skipped on a cache hit; however, a second `pull` will mostly be a no-op.
+
+#### `jit_src_scheme`
 JIT sources are cached in `jit_src_scheme` if the `generate-jit-source` job completes.
 - The **cache key** includes the version of Racket, and the release version of `@unison/internal`.
 - If the cache contains `{data-info, boot-generated, simple-wrappers, builtin-generated, compound-wrappers}.ss`, then these steps are skipped, otherwise they are run:
@@ -73,6 +80,7 @@ JIT sources are cached in `jit_src_scheme` if the `generate-jit-source` job comp
 	- run the previously generated transcript
 - If all steps succeed, the `jit_src_scheme` cache is saved.
 
+#### `jit_dist`
 JIT binaries are cached in `jit_dist` if the `build-jit-binary` job completes.
 - The **cache key** includes the version of Racket, and the release version of `@unison/internal`.
 - On an exact cache hit, these steps are skipped, otherwise they are run:
