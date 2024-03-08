@@ -21,17 +21,23 @@ cradle:
     - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
 
+    - path: "lib/orphans/network-uri-orphans-sqlite/src"
+      component: "network-uri-orphans-sqlite:lib"
+
     - path: "lib/orphans/unison-core-orphans-sqlite/src"
       component: "unison-core-orphans-sqlite:lib"
-
-    - path: "lib/unison-hash/src"
-      component: "unison-hash:lib"
 
     - path: "lib/orphans/unison-hash-orphans-aeson/src"
       component: "unison-hash-orphans-aeson:lib"
 
     - path: "lib/orphans/unison-hash-orphans-sqlite/src"
       component: "unison-hash-orphans-sqlite:lib"
+
+    - path: "lib/orphans/uuid-orphans-sqlite/src"
+      component: "uuid-orphans-sqlite:lib"
+
+    - path: "lib/unison-hash/src"
+      component: "unison-hash:lib"
 
     - path: "lib/unison-hashing/src"
       component: "unison-hashing:lib"
@@ -72,6 +78,9 @@ cradle:
     - path: "lib/unison-util-file-embed/src"
       component: "unison-util-file-embed:lib"
 
+    - path: "lib/unison-util-nametree/src"
+      component: "unison-util-nametree:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
@@ -83,9 +92,6 @@ cradle:
 
     - path: "lib/unison-util-rope/src"
       component: "unison-util-rope:lib"
-
-    - path: "lib/orphans/uuid-orphans-sqlite/src"
-      component: "uuid-orphans-sqlite:lib"
 
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
@@ -109,6 +115,9 @@ cradle:
       component: "unison-cli:exe:unison"
 
     - path: "unison-cli/unison/ArgParse.hs"
+      component: "unison-cli:exe:unison"
+
+    - path: "unison-cli/unison/Stats.hs"
       component: "unison-cli:exe:unison"
 
     - path: "unison-cli/unison/System/Path.hs"
