@@ -4,7 +4,9 @@ module Unison.Util.Map
     bitraverse,
     bitraversed,
     deleteLookup,
+    foldM,
     foldMapM,
+    for_,
     insertLookup,
     mergeMap,
     unionWithM,
@@ -24,11 +26,12 @@ import Control.Monad qualified as Monad
 import Data.Bifunctor qualified as B
 import Data.Bitraversable qualified as B
 import Data.Foldable (foldlM)
+import Data.Map.Internal qualified as Map (Map (Bin, Tip))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
-import Unison.Prelude hiding (bimap)
+import Unison.Prelude hiding (bimap, foldM, for_)
 
 bimap :: (Ord a') => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
 bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList
@@ -74,6 +77,18 @@ deleteLookup :: (Ord k) => k -> Map k v -> (Maybe v, Map k v)
 deleteLookup =
   Map.alterF (,Nothing)
 
+-- | Like 'Map.foldlWithKey'', but with a monadic accumulator.
+foldM :: Monad m => (acc -> k -> v -> m acc) -> acc -> Map k v -> m acc
+foldM f acc0 =
+  go acc0
+  where
+    go !acc = \case
+      Map.Tip -> pure acc
+      Map.Bin _ k v xs ys -> do
+        acc1 <- go acc xs
+        acc2 <- f acc1 k v
+        go acc2 ys
+
 -- | Construct a map from a foldable container by mapping each element to monadic action that returns a key and a value.
 --
 -- The map is constructed from the left: if two elements map to the same key, the second will overwrite the first.
@@ -84,6 +99,18 @@ foldMapM f =
     g acc x = do
       (k, v) <- f x
       pure $! Map.insert k v acc
+
+-- | Run a monadic action for each key/value pair in a map.
+for_ :: Monad m => Map k v -> (k -> v -> m ()) -> m ()
+for_ m f =
+  go m
+  where
+    go = \case
+      Map.Tip -> pure ()
+      Map.Bin _ k v xs ys -> do
+        go xs
+        f k v
+        go ys
 
 unionWithM ::
   forall m k a.

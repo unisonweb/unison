@@ -7,6 +7,10 @@ where
 
 import Control.Lens (view, (%~))
 import Control.Monad.Reader (ask)
+import Control.Monad.State.Strict (StateT)
+import Control.Monad.State.Strict qualified as State
+import Control.Monad.Trans.Writer.CPS (Writer)
+import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Function (on)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
@@ -76,8 +80,8 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), bimapDefns)
-import Unison.Util.Map qualified as Map (insertLookup)
+import Unison.Util.Defns (Defns (..), bimapDefns, unzipDefns, zipDefns)
+import Unison.Util.Map qualified as Map (for_, insertLookup)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree, zipNametreesOfDefns)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -99,7 +103,7 @@ handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
 
-  (unisonFile, lcaBranch, droppedNames) <-
+  (unisonFile, mergedBranch, droppedDefns) <-
     Cli.runTransactionWithRollback \abort -> do
       conflictInfo <- getConflictInfo abort db mergeInfo
       case conflictState conflictInfo of
@@ -107,67 +111,70 @@ handleMerge bobBranchName = do
           error "conflicts path not implemented yet"
         Unconflicted unconflictedInfo -> do
           contents <- partitionFileContents conflictInfo
-          let (droppedNames, lcaNametree) =
-                let bonk ::
-                      Ord ref =>
-                      Map Name ref ->
-                      Set Name ->
-                      BiMultimap ref Name ->
-                      (Map Name ref, Nametree (Map NameSegment ref))
-                    bonk addsAndUpdates deletes bimulti =
-                      let (replaced, r0) = performAddsAndUpdates addsAndUpdates bimulti
-                          (deleted, r1) = performDeletes deletes r0
-                          r2 = unflattenNametree (BiMultimap.fromRange r1)
-                       in (replaced <> deleted, r2)
-                    (droppedTerms, terms) = bonk contents.lcaAddsAndUpdates.terms contents.lcaDeletions.terms conflictInfo.defns.lca.terms
-                    (droppedTypes, types) = bonk contents.lcaAddsAndUpdates.types contents.lcaDeletions.types conflictInfo.defns.lca.types
-                    droppedNames = defnsToNames (Defns droppedTerms droppedTypes)
-                 in (droppedNames, Defns {terms, types})
-          let lcaBranch =
-                lcaNametree
+
+          let (droppedDefns, mergedDefns) =
+                unzipDefns
+                  id
+                  id
+                  ( zipDefns
+                      runNamespaceUpdate
+                      runNamespaceUpdate
+                      (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.defns.lca)
+                      (applyNamespaceChanges contents.changes)
+                  )
+
+          let mergedBranch =
+                mergedDefns
+                  & bimapDefns (unflattenNametree . BiMultimap.fromRange) (unflattenNametree . BiMultimap.fromRange)
                   & zipNametreesOfDefns Map.empty Map.empty
                   & nametreeToBranch0
                   & Branch.setChildBranch NameSegment.libSegment (Branch.one conflictInfo.mergedLibdeps)
                   & Branch.transform0 (Codebase.runTransaction codebase)
           unisonFile <- makeUnisonFile contents.fileContents abort codebase unconflictedInfo.declNames
-          pure (unisonFile, lcaBranch, droppedNames)
+          pure (unisonFile, mergedBranch, droppedDefns)
 
-  let lcaNames = Branch.toNames lcaBranch
-  let ppedNames = lcaNames <> droppedNames
+  let mergedNames = Branch.toNames mergedBranch
+  let ppedNames = mergedNames <> defnsToNames droppedDefns
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   currentPath <- Cli.getCurrentPath
-  parsingEnv <- makeParsingEnv currentPath lcaNames
+  parsingEnv <- makeParsingEnv currentPath mergedNames
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
     Left prettyError -> do
-      promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) lcaBranch
+      promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) mergedBranch
     Right tuf -> do
-      mergedBranch0 <- Cli.runTransactionWithRollback \abort -> do
-        updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
-        let mergedBranch0 = Branch.batchUpdates updates lcaBranch
-        pure mergedBranch0
+      mergedBranchPlusTuf <-
+        Cli.runTransactionWithRollback \abort -> do
+          updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
+          pure (Branch.batchUpdates updates mergedBranch)
       Cli.stepAt
         (textualDescriptionOfMerge mergeInfo)
         ( Path.unabsolute mergeInfo.paths.alice,
-          const mergedBranch0
+          const mergedBranchPlusTuf
         )
 
-performAddsAndUpdates :: Map Name ref -> BiMultimap ref Name -> (Map Name ref, Map Name ref)
-performAddsAndUpdates addsAndUpdates refs =
-  Map.foldlWithKey'
-    ( \(replaced, b) k v ->
-        let (mreplacedVal, !newMap) = Map.insertLookup k v b
-            !replaced' = case mreplacedVal of
-              Nothing -> replaced
-              Just v -> Map.insert k v replaced
-         in (replaced', newMap)
-    )
-    (Map.empty, BiMultimap.range refs)
-    addsAndUpdates
+type NamespaceUpdate ref a =
+  StateT (Map Name ref) (Writer (Map Name ref)) a
 
-performDeletes :: Set Name -> Map Name ref -> (Map Name ref, Map Name ref)
-performDeletes deletions refs =
-  Map.partitionWithKey (\k _ -> not $ Set.member k deletions) refs
+runNamespaceUpdate :: Map Name ref -> NamespaceUpdate ref () -> (Map Name ref, Map Name ref)
+runNamespaceUpdate refs update =
+  Writer.runWriter (State.execStateT update refs)
+
+performAddsAndUpdates' :: Map Name ref -> NamespaceUpdate ref ()
+performAddsAndUpdates' addsAndUpdates = do
+  Map.for_ addsAndUpdates \name newRef -> do
+    refs0 <- State.get
+    let (maybeOldRef, !refs1) = Map.insertLookup name newRef refs0
+    State.put refs1
+    whenJust maybeOldRef \oldRef ->
+      lift (Writer.tell (Map.singleton name oldRef))
+
+performDeletes' :: Set Name -> NamespaceUpdate ref ()
+performDeletes' deletions = do
+  refs0 <- State.get
+  let (refs1, deleted) = Map.partitionWithKey (\name _ -> not $ Set.member name deletions) refs0
+  State.put refs1
+  lift (Writer.tell deleted)
 
 nametreeToBranch0 :: forall m. Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)) -> Branch0 m
 nametreeToBranch0 nametree =
@@ -296,7 +303,7 @@ getConflictInfo abort0 db info = do
   -- TODO is swapping constructors' names handled correctly here?
   -- TODO is exchanging constructor for function handled correctly here?
   -- TODO is exchanging function for constructor handled correctly here?
-  let PartitionedDefns {unconflictedPartitionedDefns, conflicts} = partitionConflicts classifiedDiff
+  let PartitionedDefns {unconflictedDefns, conflicts} = partitionConflicts classifiedDiff
 
   let conflictState =
         case Map.null conflicts.terms && Map.null conflicts.types of
@@ -317,7 +324,7 @@ getConflictInfo abort0 db info = do
       { defns,
         conflictState,
         mergedLibdeps,
-        unconflictedPartitionedDefns
+        unconflictedDefns
       }
   where
     -- Helper used throughout: abort this transaction with an output message.
@@ -328,7 +335,7 @@ getConflictInfo abort0 db info = do
 data ConflictInfo = ConflictInfo
   { defns :: !(ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))),
     mergedLibdeps :: !(Branch0 Transaction),
-    unconflictedPartitionedDefns :: !UnconflictedPartitionedDefns,
+    unconflictedDefns :: !UnconflictedPartitionedDefns,
     conflictState :: !ConflictState
   }
   deriving stock (Generic)
@@ -360,13 +367,12 @@ data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
   }
 
 data PartitionedContents = PartitionedContents
-  { fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId),
-    lcaAddsAndUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    lcaDeletions :: Defns (Set Name) (Set Name)
+  { changes :: NamespaceChanges,
+    fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)
   }
 
 partitionFileContents :: ConflictInfo -> Transaction PartitionedContents
-partitionFileContents conflictInfo = do
+partitionFileContents info = do
   let UnconflictedPartitionedDefns
         { aliceUpdates,
           bobUpdates,
@@ -377,31 +383,59 @@ partitionFileContents conflictInfo = do
           aliceDeletions,
           bobDeletions,
           bothDeletions
-        } = conflictInfo.unconflictedPartitionedDefns
-  let aliceNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.defns.alice)
-  let bobNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range conflictInfo.defns.bob)
+        } = info.unconflictedDefns
+
+  let aliceNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range info.defns.alice)
+  let bobNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range info.defns.bob)
+
   let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
   let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
-  d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
-  d1 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
-  let fileContentsMap = d0 <> d1
-  let fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
+
+  fileContentsMap <- do
+    d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
+    d1 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
+
+    pure (d0 <> d1)
+
   let lcaAddsAndUpdates =
         let candidates = aliceUpdates <> bobUpdates <> bothUpdates <> aliceAdditions <> bobAdditions <> bothAdditions
          in bimapDefns (Map.\\ fileContentsMap.terms) (Map.\\ fileContentsMap.types) candidates
   let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (aliceDeletions <> bobDeletions <> bothDeletions)
+
   pure
     PartitionedContents
-      { fileContents,
-        lcaAddsAndUpdates,
-        lcaDeletions
+      { changes =
+          NamespaceChanges
+            { hello = lcaAddsAndUpdates,
+              goodbye = lcaDeletions
+            },
+        fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
       }
   where
     defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
-    defnRefs n = flip getExistingReferencesNamed n . defnNames
+    defnRefs names =
+      flip getExistingReferencesNamed names . defnNames
 
     defnNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
-    defnNames = bimapDefns Map.keysSet Map.keysSet
+    defnNames =
+      bimapDefns Map.keysSet Map.keysSet
+
+data NamespaceChanges = NamespaceChanges
+  { hello :: Defns (Map Name Referent) (Map Name TypeReference),
+    goodbye :: Defns (Set Name) (Set Name)
+  }
+
+applyNamespaceChanges :: NamespaceChanges -> Defns (NamespaceUpdate Referent ()) (NamespaceUpdate TypeReference ())
+applyNamespaceChanges changes =
+  Defns
+    { terms = go changes.hello.terms changes.goodbye.terms,
+      types = go changes.hello.types changes.goodbye.types
+    }
+  where
+    go :: Ord ref => Map Name ref -> Set Name -> NamespaceUpdate ref ()
+    go addsAndUpdates deletes = do
+      performAddsAndUpdates' addsAndUpdates
+      performDeletes' deletes
 
 unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
 unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
@@ -416,7 +450,7 @@ unconflictedDeletions UnconflictedPartitionedDefns {aliceDeletions, bobDeletions
   aliceDeletions <> bobDeletions <> bothDeletions
 
 data PartitionedDefns = PartitionedDefns
-  { unconflictedPartitionedDefns :: UnconflictedPartitionedDefns,
+  { unconflictedDefns :: UnconflictedPartitionedDefns,
     conflicts :: Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference))
   }
 
@@ -478,7 +512,7 @@ partitionConflicts defns =
                 Both -> #bothDeletions
            in st & l %~ Map.insert k a
    in PartitionedDefns
-        { unconflictedPartitionedDefns =
+        { unconflictedDefns =
             UnconflictedPartitionedDefns
               { aliceAdditions = Defns termSt.aliceAdditions typeSt.aliceAdditions,
                 bobAdditions = Defns termSt.bobAdditions typeSt.bobAdditions,
@@ -516,8 +550,8 @@ defnsToRel Defns {terms, types} =
    in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
 
 unconflictedRel :: ConflictInfo -> (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-unconflictedRel ConflictInfo {unconflictedPartitionedDefns} =
-  let d = unconflictedAdditions unconflictedPartitionedDefns <> unconflictedUpdates unconflictedPartitionedDefns
+unconflictedRel ConflictInfo {unconflictedDefns} =
+  let d = unconflictedAdditions unconflictedDefns <> unconflictedUpdates unconflictedDefns
    in defnsToRel d
 
 promptUser ::
