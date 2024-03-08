@@ -4,6 +4,7 @@
          racket/match
          racket/tcp
          unison/data
+         unison/data-info
          unison/chunked-seq
          unison/core)
 
@@ -26,7 +27,9 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+      [[exn:fail:network?
+         (lambda (e)
+           (exception unison-iofailure:link (exception->string e) '()))]
        [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (chunked-string->string (format "Unknown exception ~a" (exn->string e))) e))] ]
     (fn)))
@@ -82,7 +85,9 @@
                                              (chunked-string->string port))])])
 
       (with-handlers
-          [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+          [[exn:fail:network?
+             (lambda (e)
+               (exception unison-iofailure:link (exception->string e) '()))]
            [exn:fail:contract? (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
            [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string "Unknown exception") e))] ]
         (let ([listener (tcp-listen (string->number port ) 4 #f (if (equal? 0 hostname) #f hostname))])

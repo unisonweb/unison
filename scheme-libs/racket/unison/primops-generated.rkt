@@ -49,6 +49,7 @@
   termlink->name
 
   add-runtime-code
+  build-intermediate-module
   build-runtime-module
   termlink->proc)
 
@@ -557,6 +558,32 @@
            [mname (hash-ref runtime-module-map bs)])
        (parameterize ([current-namespace runtime-namespace])
          (dynamic-require `(quote ,mname) sym)))]))
+
+; Straight-line module builder given intermediate definitions.
+; This expects to receive a list of termlink, code pairs, and
+; generates a scheme module that contains the corresponding
+; definitions.
+(define (build-intermediate-module primary dfns0)
+  (let* ([udefs (chunked-list->list dfns0)]
+         [pname (termlink->name primary)]
+         [tmlinks (map ufst udefs)]
+         [codes (map usnd udefs)]
+         [tylinks (gen-typelinks codes)]
+         [sdefs (flatten (map gen-code udefs))])
+    `((require unison/boot
+               unison/data-info
+               unison/primops
+               unison/primops-generated
+               unison/builtin-generated
+               unison/simple-wrappers
+               unison/compound-wrappers)
+
+      ,@tylinks
+
+      ,@sdefs
+
+      (handle ['ref-4n0fgs00] top-exn-handler
+              (,pname #f)))))
 
 (define (build-runtime-module mname tylinks tmlinks defs)
   (let ([names (map termlink->name tmlinks)])

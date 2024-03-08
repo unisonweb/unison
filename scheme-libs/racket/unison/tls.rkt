@@ -6,6 +6,7 @@
          (only-in racket empty?)
          compatibility/mlist
          unison/data
+         unison/data-info
          unison/chunked-seq
          unison/core
          unison/tcp
@@ -111,15 +112,25 @@
 
 (define (handle-errors fn)
   (with-handlers
-      [[exn:fail:network? (lambda (e) (exception "IOFailure" (exception->string e) '()))]
+      [[exn:fail:network?
+         (lambda (e)
+           (exception unison-iofailure:link (exception->string e) '()))]
        [exn:fail:contract?
         (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
-        (lambda (e) (exception "IOFailure" (string->chunked-string "NameMismatch") '()))]
+        (lambda (e)
+          (exception
+            unison-iofailure:link
+            (string->chunked-string "NameMismatch")
+            '()))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
-        (lambda (e) (exception "IOFailure" (string->chunked-string "certificate verify failed") '()))]
+        (lambda (e)
+          (exception
+            unison-iofailure:link
+            (string->chunked-string "certificate verify failed")
+            '()))]
        [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string (format "Unknown exception ~a" (exn->string e))) e))]]
     (fn)))
 

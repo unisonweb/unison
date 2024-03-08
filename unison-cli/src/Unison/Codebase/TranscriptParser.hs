@@ -196,11 +196,12 @@ withTranscriptRunner ::
   (UnliftIO.MonadUnliftIO m) =>
   Verbosity ->
   UCMVersion ->
+  FilePath ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner verbosity ucmVersion configFile action = do
-  withRuntimes \runtime sbRuntime nRuntime -> withConfig \config -> do
+withTranscriptRunner verbosity ucmVersion nrtp configFile action = do
+  withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
@@ -209,12 +210,12 @@ withTranscriptRunner verbosity ucmVersion configFile action = do
         pure $ join @(Either TranscriptError) result
   where
     withRuntimes ::
-      (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
-    withRuntimes action =
+      FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes nrtp action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime -> do
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime -> do
           action runtime sbRuntime
-            =<< liftIO (RTI.startNativeRuntime ucmVersion)
+            =<< liftIO (RTI.startNativeRuntime ucmVersion nrtp)
     withConfig :: forall a. ((Maybe Config -> m a) -> m a)
     withConfig action = do
       case configFile of

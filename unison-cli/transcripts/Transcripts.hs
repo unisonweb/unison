@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 {- This module kicks off the Transcript Tests.
    It doesn't do the transcript parsing itself.
@@ -10,12 +10,13 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
 import System.Directory
-import System.Environment (getArgs)
+import System.Environment (getArgs, getExecutablePath)
 import System.FilePath
   ( replaceExtension,
     splitFileName,
     takeExtensions,
     (</>),
+    (<.>),
   )
 import System.IO.CodePage (withCP65001)
 import System.IO.Silently (silence)
@@ -27,17 +28,24 @@ import Unison.Prelude
 import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
-  { matchPrefix :: Maybe String
+  { matchPrefix :: Maybe String,
+    runtimePath :: FilePath
   }
   deriving (Show)
 
-type TestBuilder = FilePath -> [String] -> String -> Test ()
+type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
 testBuilder ::
-  Bool -> ((FilePath, Text) -> IO ()) -> FilePath -> [String] -> String -> Test ()
-testBuilder expectFailure recordFailure dir prelude transcript = scope transcript $ do
+  Bool ->
+  ((FilePath, Text) -> IO ()) ->
+  FilePath ->
+  FilePath ->
+  [String] ->
+  String ->
+  Test ()
+testBuilder expectFailure recordFailure runtimePath dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
-    withTranscriptRunner Verbosity.Silent "TODO: pass version here" Nothing \runTranscript -> do
+    withTranscriptRunner Verbosity.Silent "TODO: pass version here" runtimePath Nothing \runTranscript -> do
       for files \filePath -> do
         transcriptSrc <- readUtf8 filePath
         out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
@@ -73,7 +81,7 @@ outputFileForTranscript filePath =
   replaceExtension filePath ".output.md"
 
 buildTests :: TestConfig -> TestBuilder -> FilePath -> Test ()
-buildTests config testBuilder dir = do
+buildTests TestConfig{ .. } testBuilder dir = do
   io
     . putStrLn
     . unlines
@@ -88,7 +96,7 @@ buildTests config testBuilder dir = do
           & filter (\f -> takeExtensions f == ".md")
           & partition ((isPrefixOf "_") . snd . splitFileName)
           -- if there is a matchPrefix set, filter non-prelude files by that prefix - or return True
-          & second (filter (\f -> maybe True (`isPrefixOf` f) (matchPrefix config)))
+          & second (filter (\f -> maybe True (`isPrefixOf` f) matchPrefix))
 
   case length transcripts of
     0 -> pure ()
@@ -96,7 +104,7 @@ buildTests config testBuilder dir = do
     -- if you don't give it any tests, this keeps it going
     -- till the end so we can search all transcripts for
     -- prefix matches.
-    _ -> tests (testBuilder dir prelude <$> transcripts)
+    _ -> tests (testBuilder runtimePath dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
@@ -139,14 +147,21 @@ test config = do
     Text.putStrLn msg
   cleanup
 
-handleArgs :: [String] -> TestConfig
-handleArgs args =
-  let matchPrefix = case args of
-        [prefix] -> Just prefix
-        _ -> Nothing
-   in TestConfig matchPrefix
+handleArgs :: TestConfig -> [String] -> TestConfig
+handleArgs acc ("--runtime-path":p:rest) =
+  handleArgs (acc { runtimePath = p }) rest
+handleArgs acc [prefix] = acc { matchPrefix = Just prefix }
+handleArgs acc _ = acc
+
+defaultConfig :: IO TestConfig
+defaultConfig = TestConfig Nothing <$> defaultRTP
+  where
+    defaultRTP = do
+      ucm <- getExecutablePath
+      pure (ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
 
 main :: IO ()
 main = withCP65001 do
-  testConfig <- handleArgs <$> getArgs
+  dcfg <- defaultConfig
+  testConfig <- handleArgs dcfg <$> getArgs
   run (test testConfig)

@@ -139,6 +139,9 @@
     builtin-IO.randomBytes
     builtin-IO.randomBytes:termlink
 
+    builtin-Scope.bytearrayOf
+    builtin-Scope.bytearrayOf:termlink
+
     builtin-Universal.==
     builtin-Universal.==:termlink
     builtin-Universal.>
@@ -573,25 +576,41 @@
            (only (racket)
                  car
                  cdr
+                 exact-integer?
+                 exact-nonnegative-integer?
                  foldl
+                 integer-length
                  bytes->string/utf-8
                  string->bytes/utf-8
                  exn:fail:contract?
                  file-stream-buffer-mode
                  with-handlers
                  match
+                 modulo
+                 quotient
                  regexp-match-positions
                  sequence-ref
                  vector-copy!
-                 bytes-copy!)
+                 bytes-copy!
+                 sub1
+                 add1)
            (car icar) (cdr icdr))
+          (only (racket string)
+                string-contains?
+                string-replace)
           (unison arithmetic)
           (unison bytevector)
           (unison core)
           (only (unison boot)
                 define-unison
                 referent->termlink
-                termlink->referent)
+                termlink->referent
+                clamp-integer
+                clamp-natural
+                wrap-natural
+                bit64
+                bit63
+                nbit63)
           (unison data)
           (unison data-info)
           (unison math)
@@ -713,6 +732,7 @@
   (define-builtin-link Pattern.captureAs)
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
+  (define-builtin-link Scope.bytearrayOf)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -788,6 +808,9 @@
       (case (universal-compare x y)
         [(>) 1] [(<) -1] [else 0]))
 
+    (define-unison (builtin-Scope.bytearrayOf i n)
+      (make-bytevector n i))
+
     (define (hash-string hs)
       (string-append "#" (bytevector->base32-string b32h hs)))
 
@@ -834,11 +857,11 @@
        (chunked-bytes-length bs)
        (lambda (i) (chunked-bytes-ref bs i))))
 
-    (define unison-POp-ADDI +)
-    (define unison-POp-MULI *)
-    (define unison-POp-MODI mod)
+    (define (unison-POp-ADDI i j) (clamp-integer (+ i j)))
+    (define (unison-POp-MULI i j) (clamp-integer (* i j)))
+    (define (unison-POp-MODI i j) (clamp-integer (modulo i j)))
     (define (unison-POp-LEQI a b) (bool (<= a b)))
-    (define unison-POp-POWN expt)
+    (define (unison-POp-POWN m n) (clamp-natural (expt m n)))
     (define unison-POp-LOGF log)
 
     (define (reify-exn thunk)
@@ -848,7 +871,7 @@
         (thunk)))
 
     ; Core implemented primops, upon which primops-in-unison can be built.
-    (define (unison-POp-ADDN m n) (fx+ m n))
+    (define (unison-POp-ADDN m n) (clamp-natural (+ m n)))
     (define (unison-POp-ANDN m n) (bitwise-and m n))
     (define unison-POp-BLDS
       (lambda args-list
@@ -857,17 +880,17 @@
     (define (unison-POp-CATT l r) (chunked-string-append l r))
     (define (unison-POp-CATB l r) (chunked-bytes-append l r))
     (define (unison-POp-CMPU l r) (ord (universal-compare l r)))
-    (define (unison-POp-COMN n) (fxnot n))
+    (define (unison-POp-COMN n) (wrap-natural (bitwise-not n)))
     (define (unison-POp-CONS x xs) (chunked-list-add-first xs x))
-    (define (unison-POp-DECI n) (fx1- n))
-    (define (unison-POp-INCI n) (fx+ n 1))
-    (define (unison-POp-DECN n) (- n 1))
-    (define (unison-POp-INCN n) (+ n 1))
-    (define (unison-POp-DIVN m n) (fxdiv m n))
+    (define (unison-POp-DECI n) (clamp-integer (sub1 n)))
+    (define (unison-POp-INCI n) (clamp-integer (add1 n)))
+    (define (unison-POp-DECN n) (wrap-natural (sub1 n)))
+    (define (unison-POp-INCN n) (clamp-natural (add1 n)))
+    (define (unison-POp-DIVN m n) (quotient m n))
     (define (unison-POp-DRPB n bs) (chunked-bytes-drop bs n))
     (define (unison-POp-DRPS n l) (chunked-list-drop l n))
     (define (unison-POp-DRPT n t) (chunked-string-drop t n))
-    (define (unison-POp-EQLN m n) (bool (fx=? m n)))
+    (define (unison-POp-EQLN m n) (bool (= m n)))
     (define (unison-POp-EQLT s t) (bool (equal? s t)))
     (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
     (define (unison-POp-EQLU x y) (bool (universal=? x y)))
@@ -877,20 +900,27 @@
         (put-string p ": ")
         (display (describe-value x) p)
         (raise (make-exn:bug fnm x))))
-    (define (unison-POp-FTOT f) (string->chunked-string (number->string f)))
+    (define (unison-POp-FTOT f)
+      (define base (number->string f))
+      (define dotted
+        (if (string-contains? base ".")
+          base
+          (string-replace base "e" ".0e")))
+      (string->chunked-string
+        (string-replace dotted "+" "")))
     (define (unison-POp-IDXB n bs)
       (guard (x [else none])
         (some (chunked-bytes-ref bs n))))
     (define (unison-POp-IDXS n l)
       (guard (x [else none])
         (some (chunked-list-ref l n))))
-    (define (unison-POp-IORN m n) (fxior m n))
+    (define (unison-POp-IORN m n) (bitwise-ior m n))
     (define (unison-POp-ITOT n)
       (string->chunked-string (number->string n)))
     (define (unison-POp-LEQN m n) (bool (fx<=? m n)))
-    (define (unison-POp-LZRO m) (- 64 (fxlength m)))
-    (define (unison-POp-MULN m n) (* m n))
-    (define (unison-POp-MODN m n) (fxmod m n))
+    (define (unison-POp-LZRO m) (- 64 (integer-length m)))
+    (define (unison-POp-MULN m n) (clamp-natural (* m n)))
+    (define (unison-POp-MODN m n) (modulo m n))
     (define (unison-POp-NTOT n) (string->chunked-string (number->string n)))
     (define (unison-POp-PAKB l)
       (build-chunked-bytes
@@ -900,16 +930,18 @@
       (build-chunked-string
        (chunked-list-length l)
        (lambda (i) (chunked-list-ref l i))))
-    (define (unison-POp-SHLI i k) (fxarithmetic-shift-left i k))
-    (define (unison-POp-SHLN n k) (fxarithmetic-shift-left n k))
-    (define (unison-POp-SHRI i k) (fxarithmetic-shift-right i k))
-    (define (unison-POp-SHRN n k) (fxarithmetic-shift-right n k))
+    (define (unison-POp-SHLI i k)
+      (clamp-integer (bitwise-arithmetic-shift-left i k)))
+    (define (unison-POp-SHLN n k)
+      (clamp-natural (bitwise-arithmetic-shift-left n k)))
+    (define (unison-POp-SHRI i k) (bitwise-arithmetic-shift-right i k))
+    (define (unison-POp-SHRN n k) (bitwise-arithmetic-shift-right n k))
     (define (unison-POp-SIZS l) (chunked-list-length l))
     (define (unison-POp-SIZT t) (chunked-string-length t))
     (define (unison-POp-SIZB b) (chunked-bytes-length b))
     (define (unison-POp-SNOC xs x) (chunked-list-add-last xs x))
-    (define (unison-POp-SUBN m n) (fx- m n))
-    (define (unison-POp-SUBI m n) (- m n))
+    (define (unison-POp-SUBN m n) (clamp-integer (- m n)))
+    (define (unison-POp-SUBI m n) (clamp-integer (- m n)))
     (define (unison-POp-TAKS n s) (chunked-list-take s n))
     (define (unison-POp-TAKT n t) (chunked-string-take t n))
     (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
@@ -946,10 +978,14 @@
       (newline))
     (define (unison-POp-TTON s)
       (let ([mn (string->number (chunked-string->string s))])
-        (if (and (fixnum? mn) (>= mn 0)) (some mn) none)))
+        (if (and (exact-nonnegative-integer? mn) (< mn bit64))
+          (some mn)
+          none)))
     (define (unison-POp-TTOI s)
       (let ([mn (string->number (chunked-string->string s))])
-        (if (fixnum? mn) (some mn) none)))
+        (if (and (exact-integer? mn) (>= mn nbit63) (< mn bit63))
+          (some mn)
+          none)))
     (define (unison-POp-TTOF s)
       (let ([mn (string->number (chunked-string->string s))])
         (if mn (some mn) none)))
@@ -994,7 +1030,7 @@
     ;; TODO flatten operation on Bytes is a no-op for now (and possibly ever)
     (define (unison-POp-FLTB b) b)
 
-    (define (unison-POp-XORN m n) (fxxor m n))
+    (define (unison-POp-XORN m n) (bitwise-xor m n))
     (define (unison-POp-VALU c) (decode-value c))
 
     (define (unison-FOp-ImmutableByteArray.read16be bs n)
@@ -1063,7 +1099,14 @@
     (define (unison-FOp-Text.fromUtf8.impl.v3 b)
       (with-handlers
         ([exn:fail:contract? ; TODO proper typeLink
-          (lambda (e) (exception "MiscFailure" (exception->string e) ()))])
+          (lambda (e)
+            (exception
+              unison-iofailure:link
+              (string->chunked-string
+                (string-append
+                  "Invalid UTF-8 stream: "
+                  (describe-value b)))
+              (exception->string e)))])
         (right (string->chunked-string (bytes->string/utf-8 (chunked-bytes->bytes b))))))
 
     ;; TODO should we convert Text -> Bytes directly without the intermediate conversions?
@@ -1145,7 +1188,7 @@
     (define (unison-FOp-Char.Class.printable) printable)
     (define (unison-FOp-Char.Class.mark) mark)
     (define (unison-FOp-Char.Class.separator) separator)
-    (define (unison-FOp-Char.Class.or p1 p2) (unison-FOp-Pattern.or p1 p2))
+    (define (unison-FOp-Char.Class.or p1 p2) (char-class-or p1 p2))
     (define (unison-FOp-Char.Class.range a z)
       (unison-FOp-Text.patterns.charRange a z))
     (define (unison-FOp-Char.Class.anyOf cs) (unison-FOp-Text.patterns.charIn cs))
@@ -1394,5 +1437,6 @@
   (declare-builtin-link builtin-Universal.<=)
   (declare-builtin-link builtin-Universal.compare)
   (declare-builtin-link builtin-Pattern.isMatch)
+  (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
   )
