@@ -301,50 +301,6 @@ data DisplayObjectDiff
   | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
   deriving stock (Show, Eq)
 
-instance ToJSON DisplayObjectDiff where
-  toJSON = \case
-    DisplayObjectDiff objDiff ->
-      object
-        [ "diffKind" .= ("diffed" :: Text),
-          "diff" .= objDiff
-        ]
-    MismatchedDisplayObjects from to ->
-      object
-        [ "diffKind" .= ("mismatched" :: Text),
-          "from" .= from,
-          "to" .= to
-        ]
-
-data TermDiffResponse = TermDiffResponse
-  { fromTermDefinition :: TermDefinition,
-    toTermDefinition :: TermDefinition,
-    diff :: DisplayObjectDiff
-  }
-  deriving (Eq, Show)
-
-instance ToJSON TermDiffResponse where
-  toJSON TermDiffResponse {..} =
-    object
-      [ "from" .= fromTermDefinition,
-        "to" .= toTermDefinition,
-        "diff" .= diff
-      ]
-
-data TypeDiffResponse = TypeDiffResponse
-  { fromTypeDefinition :: TermDefinition,
-    toTypeDefinition :: TermDefinition,
-    diff :: DisplayObjectDiff
-  }
-  deriving (Eq, Show)
-
-instance ToJSON TypeDiffResponse where
-  toJSON TypeDiffResponse {..} =
-    object
-      [ "from" .= fromTypeDefinition,
-        "to" .= toTypeDefinition,
-        "diff" .= diff
-      ]
-
 data UnisonRef
   = TypeRef UnisonHash
   | TermRef UnisonHash
