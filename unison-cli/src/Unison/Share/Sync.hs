@@ -75,13 +75,28 @@ import Unison.Util.Monoid (foldMapM)
 
 -- | The maximum number of downloader threads, during a pull.
 maxSimultaneousPullDownloaders :: Int
-maxSimultaneousPullDownloaders = 5
+maxSimultaneousPullDownloaders = unsafePerformIO $ do
+  lookupEnv "UNISON_PULL_WORKERS" <&> \case
+    Just n -> read n
+    Nothing -> 5
+{-# NOINLINE maxSimultaneousPullDownloaders #-}
 
 -- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
 -- Share currently parallelizes on it's own in the backend, and any more than one push worker
 -- just results in serialization conflicts which slow things down.
 maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = 1
+maxSimultaneousPushWorkers = unsafePerformIO $ do
+  lookupEnv "UNISON_PUSH_WORKERS" <&> \case
+    Just n -> read n
+    Nothing -> 1
+{-# NOINLINE maxSimultaneousPushWorkers #-}
+
+syncChunkSize :: Int
+syncChunkSize = unsafePerformIO $ do
+  lookupEnv "UNISON_SYNC_CHUNK_SIZE" <&> \case
+    Just n -> read n
+    Nothing -> 50
+{-# NOINLINE syncChunkSize #-}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Push
@@ -606,7 +621,7 @@ completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallba
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           check (not (Set.null hashes))
-          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          let (hashes1, hashes2) = Set.splitAt syncChunkSize hashes
           modifyTVar' uninsertedHashesVar (Set.union hashes1)
           writeTVar hashesVar hashes2
           pure (DispatcherForkWorker (NESet.unsafeFromSet hashes1))
@@ -820,7 +835,7 @@ uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
         dispatchWorkMode = do
           hashes <- readTVar hashesVar
           when (Set.null hashes) retry
-          let (hashes1, hashes2) = Set.splitAt 50 hashes
+          let (hashes1, hashes2) = Set.splitAt syncChunkSize hashes
           modifyTVar' dedupeVar (Set.union hashes1)
           writeTVar hashesVar hashes2
           pure (UploadDispatcherForkWorkerWhenAvailable (NESet.unsafeFromSet hashes1))
