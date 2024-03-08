@@ -35,6 +35,18 @@ Some cached directories:
 
 ### Cached directories:
 
+#### `.stack`
+- The **cache key** includes the os, the stackage resolver, `stack.yaml`, and any `package.yaml`.
+
+This currently will re-save on failure, but only if the cache key didn't hit.
+If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
+
+#### `.stack-work`
+- The **cache key** includes the os, the stackage resolver, `stack.yaml`, and any `package.yaml`.
+
+This currently will re-save on failure, but only on an cache key miss.
+If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
+
 #### `ucm_local_bin`
 A built `ucm` is cached in `ucm_local_bin` after a successful build and Haskell tests pass.
 - The **cache key** includes the os, `stack.yaml`, any `package.yaml`, and any `.hs` file.
@@ -66,7 +78,7 @@ A bit is cached in `unison_src_test_results` after non-Haskell tests in the `uni
 - If all steps suceed, the `unison_src_test_results` bit is saved.
 
 #### `base-codebase`
-This stores the result of `base.md`, which can be reused later to save the cost of a `pull`. 
+This stores the result of `base.md`, which can be reused later to save the cost of a `pull`.
 No steps are skipped on a cache hit; however, a second `pull` will mostly be a no-op.
 
 #### `jit_src_scheme`
