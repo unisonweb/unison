@@ -80,7 +80,7 @@ A bit is cached in `unison_src_test_results` after non-Haskell tests in the `uni
     - `transcripts`
     - `unison-src/builtin-tests/interpreter-tests.md`
 - If all steps suceed, the `unison_src_test_results` bit is saved.
-- You can increment the key version if the structure of the tests has changed in `ci.yaml`.
+- You can increment the key version if the structure of the tests has changed in `ci.yaml` at a time when none of the other cache key components changed.
 
 #### `base-codebase`
 This stores the result of `base.md`, which can be reused later to save the cost of a `pull`.
