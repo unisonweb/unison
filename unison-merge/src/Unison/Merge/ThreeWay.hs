@@ -11,4 +11,3 @@ data ThreeWay a = ThreeWay
     bob :: !a
   }
   deriving stock (Functor, Generic)
-

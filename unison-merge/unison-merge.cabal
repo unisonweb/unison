@@ -26,6 +26,7 @@ library
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
+      Unison.Merge.TwoOrThreeWay
       Unison.Merge.TwoWay
   hs-source-dirs:
       src
