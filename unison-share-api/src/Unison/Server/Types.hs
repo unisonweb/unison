@@ -7,7 +7,6 @@ module Unison.Server.Types where
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.Aeson qualified as Aeson
-import Data.Algorithm.Diff qualified as Diff
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
@@ -248,27 +247,54 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
--- | A diff of the syntax of a term or type
-newtype DiffedSyntaxText = DiffedSyntaxText (Seq (Diff.Diff Syntax.SyntaxSegment))
-  deriving stock (Eq, Show)
+data SemanticSyntaxDiff
+  = From [Syntax.SyntaxSegment]
+  | To [Syntax.SyntaxSegment]
+  | Both [Syntax.SyntaxSegment]
+  | --  (fromSegment, toSegment) (shared annotation)
+    SegmentChange (String, String) (Maybe Syntax.Element)
+  | -- (shared segment) (fromAnnotation, toAnnotation)
+    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+  deriving (Eq, Show)
 
-instance ToJSON DiffedSyntaxText where
-  toJSON (DiffedSyntaxText diffs) =
-    ( diffs <&> \case
-        Diff.First a -> object ["diffTag" .= ("from" :: Text), "contents" .= a]
-        Diff.Second b -> object ["diffTag" .= ("to" :: Text), "contents" .= b]
-        -- Both values will be equal unless we're diffing on something other than pure
-        -- equality.
-        Diff.Both a _ -> object ["diffTag" .= ("both" :: Text), "contents" .= a]
-    )
-      & toJSON
+instance ToJSON SemanticSyntaxDiff where
+  toJSON = \case
+    From segments ->
+      object
+        [ "diffTag" .= ("from" :: Text),
+          "elements" .= segments
+        ]
+    To segments ->
+      object
+        [ "diffTag" .= ("to" :: Text),
+          "elements" .= segments
+        ]
+    Both segments ->
+      object
+        [ "diffTag" .= ("both" :: Text),
+          "elements" .= segments
+        ]
+    SegmentChange (fromSegment, toSegment) annotation ->
+      object
+        [ "diffTag" .= ("segmentChange" :: Text),
+          "fromSegment" .= fromSegment,
+          "toSegment" .= toSegment,
+          "annotation" .= annotation
+        ]
+    AnnotationChange segment (fromAnnotation, toAnnotation) ->
+      object
+        [ "diffTag" .= ("annotationChange" :: Text),
+          "segment" .= segment,
+          "fromAnnotation" .= fromAnnotation,
+          "toAnnotation" .= toAnnotation
+        ]
 
 -- | A diff of the syntax of a term or type
 --
 -- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
 -- undiffed syntax.
 data DisplayObjectDiff
-  = DisplayObjectDiff (DisplayObject DiffedSyntaxText DiffedSyntaxText)
+  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
   | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
   deriving stock (Show, Eq)
 
