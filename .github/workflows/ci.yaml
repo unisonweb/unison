@@ -333,14 +333,14 @@ jobs:
           if-no-files-found: error
 
       - name: save ~/.stack (non-Windows)
-        if: always() && runner.os != 'Windows' && steps.cache-stack-unix.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && ${{ !canceled() }} && steps.cache-stack-unix.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.stack
           key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
       - name: save ~/.stack (Windows)
-        if: always() && runner.os == 'Windows' && steps.cache-stack-windows.outputs.cache-hit != 'true'
+        if: runner.os == 'Windows' && ${{ !canceled() }} && steps.cache-stack-windows.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -350,7 +350,7 @@ jobs:
 
       - name: save .stack-work
         # can change this to always() if we find this isn't doing the right thing.
-        if: always() && steps.cache-stack-work.outputs.cache-hit != 'true'
+        if: ${{ !canceled() }} && steps.cache-stack-work.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |

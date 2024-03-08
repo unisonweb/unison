@@ -35,17 +35,21 @@ Some cached directories:
 
 ### Cached directories:
 
+One reason for this change is to reduce the CI time for commits that only change docs, or yaml or other uninteresting things.
+
 #### `.stack`
+Caches build dependencies needed by unison packages.
+
 - The **cache key** includes the os, the stackage resolver, `stack.yaml`, and any `package.yaml`.
 
-This currently will re-save on failure, but only if the cache key didn't hit.
-If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
+This currently will re-save on success or failure, but only on a cache miss (source changed).If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
 
 #### `.stack-work`
+Caches build outputs for unison packages themselves.
+
 - The **cache key** includes the os, the stackage resolver, `stack.yaml`, and any `package.yaml`.
 
-This currently will re-save on failure, but only on an cache key miss.
-If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
+This currently will re-save on success or failure, but only on a cache miss (source changed).If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
 
 #### `ucm_local_bin`
 A built `ucm` is cached in `ucm_local_bin` after a successful build and Haskell tests pass.
