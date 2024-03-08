@@ -10,7 +10,7 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
 import System.Directory
-import System.Environment (getArgs)
+import System.Environment (getArgs, getExecutablePath)
 import System.FilePath
   ( replaceExtension,
     splitFileName,
@@ -157,8 +157,8 @@ defaultConfig :: IO TestConfig
 defaultConfig = TestConfig Nothing <$> defaultRTP
   where
     defaultRTP = do
-      dir <- getXdgDirectory XdgData ("unisonlanguage" </> "libexec")
-      pure (dir </> "unison-runtime" <.> exeExtension)
+      ucm <- getExecutablePath
+      pure (ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
 
 main :: IO ()
 main = withCP65001 do

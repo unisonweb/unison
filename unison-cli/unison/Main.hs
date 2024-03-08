@@ -44,11 +44,9 @@ import System.Directory
   ( canonicalizePath,
     getCurrentDirectory,
     removeDirectoryRecursive,
-    getXdgDirectory,
-    XdgDirectory(..),
     exeExtension
   )
-import System.Environment (getProgName, withArgs)
+import System.Environment (getExecutablePath, getProgName, withArgs)
 import System.Exit qualified as Exit
 import System.FilePath qualified as FP
 import System.IO (stderr)
@@ -93,11 +91,10 @@ type Runtimes =
   (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
 
 fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
-fixNativeRuntimePath = maybe dflt pure
-  where
-    exe = "unison-runtime" FP.<.> exeExtension
-    unisonDir = "unisonlanguage" FP.</> "libexec"
-    dflt = (FP.</> exe) <$> getXdgDirectory XdgData unisonDir
+fixNativeRuntimePath override = do
+  ucm <- getExecutablePath
+  let ucr = ucm FP.</> "runtime" FP.</> "unison-runtime" FP.<.> exeExtension
+  pure $ maybe ucr id override
 
 main :: IO ()
 main = do
