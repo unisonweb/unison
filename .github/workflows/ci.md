@@ -65,6 +65,10 @@ A bit is cached in `unison_src_test_results` after non-Haskell tests in the `uni
     - `unison-src/builtin-tests/interpreter-tests.md`
 - If all steps suceed, the `unison_src_test_results` bit is saved.
 
+#### `base-codebase`
+This stores the result of `base.md`, which can be reused later to save the cost of a `pull`. 
+No steps are skipped on a cache hit; however, a second `pull` will mostly be a no-op.
+
 #### `jit_src_scheme`
 JIT sources are cached in `jit_src_scheme` if the `generate-jit-source` job completes.
 - The **cache key** includes the version of Racket, and the release version of `@unison/internal`.
