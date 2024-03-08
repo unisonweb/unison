@@ -52,7 +52,6 @@ import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.HashQualified qualified as HQ
-import Unison.JitInfo qualified as JitInfo
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -2540,73 +2539,6 @@ compileScheme =
         Input.CompileSchemeI (Text.pack file) <$> parseHashQualifiedName main
       _ -> Left $ showPatternHelp compileScheme
 
-schemeLibgen :: InputPattern
-schemeLibgen =
-  InputPattern
-    "compile.native.genlibs"
-    []
-    I.Visible
-    [("target directory", Optional, filePathArg)]
-    ( P.wrapColumn2
-        [ ( makeExample schemeLibgen ["[targetDir]"],
-            "Generates libraries necessary for scheme compilation.\n\n\
-            \There is no need to run this before"
-              <> P.group (makeExample compileScheme [])
-              <> "as\
-                 \ the latter will check if the libraries are missing and\
-                 \ auto-generate them. However, this will generate the\
-                 \ libraries even if their files already exist, so if the\
-                 \ compiler has been upgraded, this can be used to ensure\
-                 \ the generated libraries are up to date."
-          )
-        ]
-    )
-    \case
-      [] -> pure $ Input.GenSchemeLibsI Nothing
-      [dir] -> pure . Input.GenSchemeLibsI $ Just dir
-      _ -> Left $ showPatternHelp schemeLibgen
-
-fetchScheme :: InputPattern
-fetchScheme =
-  InputPattern
-    "compile.native.fetch"
-    []
-    I.Visible
-    [("name", Optional, noCompletionsArg), ("branch", Optional, noCompletionsArg)]
-    ( P.wrapColumn2
-        [ ( makeExample fetchScheme [],
-            P.lines . fmap P.wrap $
-              [ "Fetches the unison library for compiling to scheme.",
-                "This is done automatically when"
-                  <> P.group (makeExample compileScheme [])
-                  <> "is run if the library is not already in the\
-                     \ standard location (unison.internal). However,\
-                     \ this command will force a pull even if the\
-                     \ library already exists.",
-                "You can also specify a user and branch name to pull\
-                \ from in order to use an alternate version of the\
-                \ unison compiler (for development purposes, for\
-                \ example).",
-                "The default user is `unison`. The default branch\
-                \ for the `unison` user is a specified latest\
-                \ version of the compiler for stability. The\
-                \ default branch for other uses is `main`. The\
-                \ command fetches code from a project:",
-                P.indentN 2 ("@user/internal/branch")
-              ]
-          )
-        ]
-    )
-    \case
-      [] -> pure (Input.FetchSchemeCompilerI "unison" JitInfo.currentRelease)
-      [name] -> pure (Input.FetchSchemeCompilerI name branch)
-        where
-          branch
-            | name == "unison" = JitInfo.currentRelease
-            | otherwise = "main"
-      [name, branch] -> pure (Input.FetchSchemeCompilerI name branch)
-      _ -> Left $ showPatternHelp fetchScheme
-
 createAuthor :: InputPattern
 createAuthor =
   InputPattern
@@ -3049,7 +2981,6 @@ validInputs =
       edit,
       editNamespace,
       execute,
-      fetchScheme,
       find,
       findAll,
       findGlobal,
@@ -3104,7 +3035,6 @@ validInputs =
       resetRoot,
       runScheme,
       saveExecuteResult,
-      schemeLibgen,
       squashMerge,
       test,
       testAll,

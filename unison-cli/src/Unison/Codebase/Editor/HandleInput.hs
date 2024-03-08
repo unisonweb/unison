@@ -1,10 +1,7 @@
 {-# HLINT ignore "Use tuple-section" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Unison.Codebase.Editor.HandleInput
-  ( loop,
-  )
-where
+module Unison.Codebase.Editor.HandleInput (loop) where
 
 -- TODO: Don't import backend
 
@@ -19,7 +16,6 @@ import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
-import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
@@ -27,8 +23,6 @@ import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
-import System.Directory (XdgDirectory (..), createDirectoryIfMissing, doesFileExist, getXdgDirectory)
-import System.FilePath ((</>))
 import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
@@ -47,7 +41,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.TypeCheck (typecheckTerm)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
@@ -89,7 +82,7 @@ import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
-import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef, resolveTermRef)
+import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
@@ -100,7 +93,6 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
@@ -116,13 +108,11 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
-import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.TermEdit.Typing qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Codebase.TypeEdit qualified as TypeEdit
-import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
@@ -154,13 +144,12 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..))
+import Unison.Project (ProjectAndBranch (..))
 import Unison.Project.Util (projectContextFromPath)
 import Unison.Reference (Reference, TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Result qualified as Result
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
@@ -175,19 +164,17 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText, unsafeParseText)
+import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.Parser qualified as Parser
-import Unison.Syntax.TermPrinter qualified as TP
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Type.Names qualified as Type
-import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -205,7 +192,6 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
-import Witch (unsafeFrom)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -975,10 +961,6 @@ loop e = do
             CompileSchemeI output main ->
               doCompile True (Text.unpack output) main
             ExecuteSchemeI main args -> handleRun True main args
-            GenSchemeLibsI mdir ->
-              doGenerateSchemeBoot True Nothing mdir
-            FetchSchemeCompilerI name branch ->
-              doFetchCompiler name branch
             IOTestI main -> Tests.handleIOTest main
             IOTestAllI -> Tests.handleAllIOTests
             -- UpdateBuiltinsI -> do
@@ -1329,11 +1311,6 @@ inputDescription input =
     ExecuteSchemeI nm args ->
       pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
-    GenSchemeLibsI mdir ->
-      pure $
-        "compile.native.genlibs" <> Text.pack (maybe "" (" " ++) mdir)
-    FetchSchemeCompilerI name branch ->
-      pure ("compile.native.fetch" <> Text.pack name <> " " <> Text.pack branch)
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     RemoveTermReplacementI src p0 -> do
       p <- opatch p0
@@ -1914,96 +1891,6 @@ searchBranchScored names0 score queries =
             result = SR.typeSearchResult names0 name ref
             pair qn =
               (\score -> (Just score, result)) <$> score qn (Name.toText name)
-
-compilerPath :: Path.Path'
-compilerPath = Path.Path' {Path.unPath' = Left abs}
-  where
-    segs = ["unison", "internal"]
-    rootPath = Path.Path {Path.toSeq = Seq.fromList segs}
-    abs = Path.Absolute {Path.unabsolute = rootPath}
-
-doFetchCompiler :: String -> String -> Cli ()
-doFetchCompiler username branch =
-  doPullRemoteBranch sourceTarget SyncMode.Complete Input.PullWithoutHistory Verbosity.Silent
-  where
-    -- fetching info
-    prj =
-      These
-        (unsafeFrom @Text $ "@" <> Text.pack username <> "/internal")
-        (ProjectBranchNameOrLatestRelease'Name . unsafeFrom @Text $ Text.pack branch)
-
-    sourceTarget =
-      PullSourceTarget2
-        (ReadShare'ProjectBranch prj)
-        (This compilerPath)
-
-getCacheDir :: Cli String
-getCacheDir = liftIO $ getXdgDirectory XdgCache "unisonlanguage"
-
-getSchemeGenLibDir :: Cli String
-getSchemeGenLibDir =
-  Cli.getConfig "SchemeLibs.Generated" >>= \case
-    Just dir -> pure dir
-    Nothing -> (</> "scheme-libs") <$> getCacheDir
-
-doGenerateSchemeBoot ::
-  Bool -> Maybe PPE.PrettyPrintEnv -> Maybe String -> Cli ()
-doGenerateSchemeBoot force mppe mdir = do
-  ppe <- maybe (PPED.suffixifiedPPE <$> Cli.currentPrettyPrintEnvDecl) pure mppe
-  dir <- maybe getSchemeGenLibDir pure mdir
-  let bootf = dir </> "unison" </> "boot-generated.ss"
-      swrapf = dir </> "unison" </> "simple-wrappers.ss"
-      binf = dir </> "unison" </> "builtin-generated.ss"
-      cwrapf = dir </> "unison" </> "compound-wrappers.ss"
-      dinfof = dir </> "unison" </> "data-info.ss"
-      dirTm = Term.text a (Text.pack dir)
-  liftIO $ createDirectoryIfMissing True dir
-  saveData <- Term.ref a <$> resolveTermRef sdName
-  saveBase <- Term.ref a <$> resolveTermRef sbName
-  saveWrap <- Term.ref a <$> resolveTermRef swName
-  gen ppe saveData dinfof dirTm dinfoName
-  gen ppe saveBase bootf dirTm bootName
-  gen ppe saveWrap swrapf dirTm simpleWrapName
-  gen ppe saveBase binf dirTm builtinName
-  gen ppe saveWrap cwrapf dirTm compoundWrapName
-  where
-    a = External
-
-    sbName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveBaseFile"
-    swName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveWrapperFile"
-    sdName = HQ.unsafeParseText ".unison.internal.compiler.scheme.saveDataInfoFile"
-    dinfoName = HQ.unsafeParseText ".unison.internal.compiler.scheme.dataInfos"
-    bootName = HQ.unsafeParseText ".unison.internal.compiler.scheme.bootSpec"
-    builtinName = HQ.unsafeParseText ".unison.internal.compiler.scheme.builtinSpec"
-    simpleWrapName =
-      HQ.unsafeParseText ".unison.internal.compiler.scheme.simpleWrapperSpec"
-    compoundWrapName =
-      HQ.unsafeParseText ".unison.internal.compiler.scheme.compoundWrapperSpec"
-
-    gen ppe save file dir nm =
-      liftIO (doesFileExist file) >>= \b -> when (not b || force) do
-        spec <- Term.ref a <$> resolveTermRef nm
-        let make = Term.apps' save [dir, spec]
-        typecheckAndEval ppe make
-
-typecheckAndEval :: PPE.PrettyPrintEnv -> Term Symbol Ann -> Cli ()
-typecheckAndEval ppe tm = do
-  Cli.Env {codebase, runtime} <- ask
-  let mty = Runtime.mainType runtime
-  Cli.runTransaction (typecheckTerm codebase (Term.delay a tm)) >>= \case
-    -- Type checking succeeded
-    Result.Result _ (Just ty)
-      | Typechecker.fitsScheme ty mty ->
-          () <$ RuntimeUtils.evalUnisonTerm False ppe False tm
-      | otherwise ->
-          Cli.returnEarly $ BadMainFunction "run" rendered ty ppe [mty]
-    Result.Result notes Nothing -> do
-      currentPath <- Cli.getCurrentPath
-      let tes = [err | Result.TypeError err <- toList notes]
-      Cli.returnEarly (TypeErrors currentPath rendered ppe tes)
-  where
-    a = External
-    rendered = Text.pack (P.toPlainUnbroken $ TP.pretty ppe tm)
 
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile native output main = do

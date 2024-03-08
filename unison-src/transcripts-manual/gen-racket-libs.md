@@ -9,13 +9,6 @@ jit-setup/main> pull @unison/internal/releases/0.0.11 lib.jit
 ```
 
 ```unison
-generateSchemeBoot dir = do
-  saveDataInfoFile dir dataInfos
-  saveBaseFile dir bootSpec
-  saveWrapperFile dir simpleWrapperSpec
-  saveBaseFile dir builtinSpec
-  saveWrapperFile dir compoundWrapperSpec
-
 go = generateSchemeBoot "scheme-libs/racket"
 ```
 
