@@ -117,6 +117,33 @@ Defaults to enabled.
 $ UNISON_ENTITY_VALIDATION="false" ucm
 ```
 
+### `UNISON_PULL_WORKERS`
+
+Allows setting the number of workers to use when pulling from a codebase server.
+Defaults to 5.
+
+```sh
+$ UNISON_PULL_WORKERS=6 ucm
+```
+
+### `UNISON_PUSH_WORKERS`
+
+Allows setting the number of workers to use when pushing to a codebase server.
+Defaults to 1.
+
+```sh
+$ UNISON_PULL_WORKERS=2 ucm
+```
+
+### `UNISON_SYNC_CHUNK_SIZE`
+
+Allows setting the chunk size used in requests when syncing a codebase.
+Defaults to 50.
+
+```sh
+$ UNISON_SYNC_CHUNK_SIZE=100 ucm
+```
+
 ### Local Codebase Server
 
 The port, host and token to be used for the local codebase server can all be configured by providing environment
