@@ -2442,6 +2442,19 @@ checkWanted want (Term.LetRecTop' isTop lr) t =
   markThenRetractWanted (Var.named "let-rec-marker") $ do
     e <- annotateLetRecBindings isTop lr
     checkWanted want e t
+checkWanted want e@(Term.Match' scrut cases) t = do
+  (scrutType, swant) <- synthesize scrut
+  want <- coalesceWanted swant want
+  cwant <- checkCases scrutType t cases
+  want <- coalesceWanted cwant want
+  ctx <- getContext
+  let matchType = apply ctx t
+  getPatternMatchCoverageCheckAndKindInferenceSwitch >>= \case
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled ->
+      ensurePatternCoverage e matchType scrut scrutType cases
+    PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled ->
+      pure ()
+  pure want
 checkWanted want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
