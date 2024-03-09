@@ -93,7 +93,7 @@ type Runtimes =
 fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
 fixNativeRuntimePath override = do
   ucm <- getExecutablePath
-  let ucr = ucm FP.</> "runtime" FP.</> "unison-runtime" FP.<.> exeExtension
+  let ucr = takeDirectory ucm FP.</> "runtime" FP.</> "unison-runtime" FP.<.> exeExtension
   pure $ maybe ucr id override
 
 main :: IO ()
