@@ -14,6 +14,7 @@ import System.Environment (getArgs, getExecutablePath)
 import System.FilePath
   ( replaceExtension,
     splitFileName,
+    takeDirectory,
     takeExtensions,
     (</>),
     (<.>),

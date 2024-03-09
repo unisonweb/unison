@@ -48,7 +48,13 @@ import System.Directory
   )
 import System.Environment (getExecutablePath, getProgName, withArgs)
 import System.Exit qualified as Exit
-import System.FilePath qualified as FP
+import System.FilePath
+  ( replaceExtension,
+    takeDirectory,
+    takeExtension,
+    (</>),
+    (<.>),
+  )
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
@@ -93,7 +99,7 @@ type Runtimes =
 fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
 fixNativeRuntimePath override = do
   ucm <- getExecutablePath
-  let ucr = takeDirectory ucm FP.</> "runtime" FP.</> "unison-runtime" FP.<.> exeExtension
+  let ucr = takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension
   pure $ maybe ucr id override
 
 main :: IO ()
@@ -414,7 +420,7 @@ runTranscripts' progName mcodepath nativeRtp transcriptDir markdownFiles = do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
-        let outputFile = FP.replaceExtension (currentDir FP.</> fileName) ".output.md"
+        let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
         (output, succeeded) <- case result of
           Left err -> case err of
             TR.TranscriptParseError err -> do
@@ -544,16 +550,16 @@ launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl maySt
 newtype MarkdownFile = MarkdownFile FilePath
 
 markdownFile :: FilePath -> Validation FilePath MarkdownFile
-markdownFile md = case FP.takeExtension md of
+markdownFile md = case takeExtension md of
   ".md" -> Success $ MarkdownFile md
   ".markdown" -> Success $ MarkdownFile md
   _ -> Failure md
 
 isDotU :: String -> Bool
-isDotU file = FP.takeExtension file == ".u"
+isDotU file = takeExtension file == ".u"
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
-getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
+getConfigFilePath mcodepath = (</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do
