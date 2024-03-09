@@ -32,6 +32,7 @@ import Control.DeepSeq (NFData)
 import Control.Exception (evaluate)
 import Control.Exception.Safe qualified as Exception
 import Control.Monad.Catch (MonadCatch)
+-- import Control.Exception.Safe qualified as EX
 import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
@@ -80,17 +81,14 @@ import Network.Simple.TCP as SYS
   )
 import Network.Socket as SYS
   ( Socket,
-    -- HostName,
-    -- ServiceName,
     accept,
     socketPort,
   )
 import Network.TLS as TLS
 import Network.UDP as UDP
-  ( UDPSocket,
+  ( UDPSocket (..),
     ClientSockAddr,
     ListenSocket,
-    accept,
     clientSocket,
     close,
     listenSocket,
@@ -100,7 +98,7 @@ import Network.UDP as UDP
     sendTo,
     serverSocket,
     stop,
-    udpSocket,
+    udpSocket, accept,
   )
 
 import Network.TLS.Extra.Cipher as Cipher
@@ -196,6 +194,7 @@ import Unison.Util.Text (Text)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import Unison.Var
+-- import qualified Debug.Trace as Debug
 
 type Failure = F.Failure Closure
 
@@ -2377,21 +2376,76 @@ declareUdpForeigns = do
           portStr = Util.Text.toString port
       in UDP.serverSocket (read hostStr, read portStr)
 
-  declareForeign Tracked "IO.UDP.ListenSocket.accept.impl.v1" boxBoxToEFBox
+  declareForeign Tracked "IO.UDP.ListenSocket.accept.impl.v2" boxToEFBox
     . mkForeignIOF
-    $ uncurry UDP.accept -- \(socket :: ListenSocket, clientSock :: ClientSockAddr) ->
+    $ \(socket  :: ListenSocket, client :: ClientSockAddr) -> do
+      -- let
+        -- sock :: Socket
+        -- sock = UDP.listenSocket socket
+      -- pure $ Debug.trace "Socket = " (show sock)
+      -- (_, _) <- SYS.accept (UDP.listenSocket socket)
+      -- pure $ Debug.trace "Client addr" clientAddr
+      -- pure $ Debug.trace "conn" conn
+      -- pure socket
+      -- pure $ UDP.UDPSocket conn clientAddr True
+      UDP.accept socket client
+
+  -- declareForeign Tracked "IO.UDP.ListenSocket.accept.impl.v1" boxBoxToEFBox
+  --   . mkForeignIOF
+  --   $ uncurry UDP.accept -- \(socket :: ListenSocket, clientSock :: ClientSockAddr) ->
 
   declareForeign Tracked "IO.UDP.ListenSocket.toText.impl.v1" boxDirect
     . mkForeign
     $ \(sock :: ListenSocket) -> pure $ show sock
 
   declareForeign Tracked "IO.UDP.recvFrom.impl.v1" boxToEFBox .
-    mkForeignIOF $ \(socket :: ListenSocket) -> 
-        first Bytes.fromArray <$> UDP.recvFrom socket
+    -- mkForeignIOF $ \(socket :: ListenSocket) -> do
+      -- pure $ trace "IO.UDP.recvFrom.impl.v1: before recvFrom" (show socket)
+      -- (bytes, addr) <- UDP.recvFrom socket
+      -- pure $ trace "IO.UDP.recvFrom.impl.v1: after recvFrom"  (show (show bytes, show addr))
+      -- pure (Bytes.fromArray bytes, addr)
+    mkForeignIOF $ fmap (first Bytes.fromArray) <$> UDP.recvFrom
 
-  declareForeign Tracked "IO.UDP.sendTo.impl.v1" boxBoxBoxTo0 .
+        -- first Bytes.fromArray <$> UDP.recvFrom socket
+
+  declareForeign Tracked "IO.UDP.ClientSockAddr.toText.v1" boxDirect
+    . mkForeign
+    $ \(sock :: ClientSockAddr) -> pure $ show sock
+
+  declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v1" boxBoxBoxTo0 .
     mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) -> 
         UDP.sendTo socket (Bytes.toArray bytes) addr
+
+  -- ListenSocket -> Bytes -> ClientSockAddr -> Either Failure ()
+  -- declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v2" boxBoxBoxTo0 .
+  --   mkForeign $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) -> do
+  --     UDP.sendTo socket (Bytes.toArray bytes) addr
+  -- declareForeign Tracked "IO.UDP.sendTo.impl.v2" boxBoxBoxTo0 .
+  --   mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, (host, port) :: (Util.Text.Text, Util.Text.Text)) -> do
+  --     let
+  --       hostStr = Util.Text.toString host
+  --       portStr = Util.Text.toString port
+  --     addrs <- SYS.getAddrInfo (Just hints) (read hostStr) (read portStr)
+  --     tryAddrs bytes socket addrs
+  --     -- UDP.sendTo socket (Bytes.toArray bytes) addrs
+  --     where
+  --       hints = SYS.defaultHints 
+  --         { SYS.addrFlags = [AI_ADDRCONFIG]
+  --         , SYS.addrSocketType = SYS.Datagram }
+  --       tryAddrs :: Bytes.Bytes -> ListenSocket -> [AddrInfo] -> IO ()
+  --       tryAddrs bytes socket = \case
+  --         [] -> fail "Unison.Runtime.Builtin.IO.UDP.sendTo.impl.v2: No addresses available"
+  --         [x] -> useAddr bytes x socket
+  --         (x:xs) -> EX.catch (useAddr bytes x socket) (\(_ :: IOError) -> tryAddrs bytes socket xs)
+  --       useAddr :: Bytes.Bytes -> AddrInfo -> ListenSocket -> IO ()
+  --       useAddr bytes addr socket = do
+  --         let
+  --           cs :: ClientSockAddr
+  --           cs = ClientSockAddr (SYS.addrAddress addr) []
+  --         UDP.sendTo socket (Bytes.toArray bytes) cs-- ((SYS.addrAddress addr) [])
+  --         -- sock <- SYS.socket (SYS.addrFamily addr) (SYS.addrSocketType addr) (SYS.addrProtocol addr)
+  --         -- SYS.connect sock (SYS.addrAddress addr)
+  --         -- pure (sock, SYS.addrAddress addr)
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
