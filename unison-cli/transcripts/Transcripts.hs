@@ -14,6 +14,7 @@ import System.Environment (getArgs, getExecutablePath)
 import System.FilePath
   ( replaceExtension,
     splitFileName,
+    takeDirectory,
     takeExtensions,
     (</>),
     (<.>),
@@ -158,7 +159,7 @@ defaultConfig = TestConfig Nothing <$> defaultRTP
   where
     defaultRTP = do
       ucm <- getExecutablePath
-      pure (ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
+      pure (takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
 
 main :: IO ()
 main = withCP65001 do
