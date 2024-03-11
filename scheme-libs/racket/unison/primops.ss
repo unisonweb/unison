@@ -40,6 +40,8 @@
     builtin-Float.fromRepresentation:termlink
     builtin-Float.toRepresentation
     builtin-Float.toRepresentation:termlink
+    builtin-Float.ceiling
+    builtin-Float.ceiling:termlink
     builtin-Float.exp
     builtin-Float.exp:termlink
     builtin-Float.log
@@ -155,6 +157,9 @@
     builtin-Universal.compare
     builtin-Universal.compare:termlink
     builtin-Universal.murmurHash:termlink
+
+    builtin-unsafe.coerceAbilities
+    builtin-unsafe.coerceAbilities:termlink
 
     builtin-List.splitLeft
     builtin-List.splitLeft:termlink
@@ -633,6 +638,7 @@
   (define-builtin-link Float.*)
   (define-builtin-link Float.fromRepresentation)
   (define-builtin-link Float.toRepresentation)
+  (define-builtin-link Float.ceiling)
   (define-builtin-link Float.exp)
   (define-builtin-link Float.log)
   (define-builtin-link Float.max)
@@ -733,6 +739,7 @@
   (define-builtin-link Pattern.isMatch)
   (define-builtin-link Char.Class.is)
   (define-builtin-link Scope.bytearrayOf)
+  (define-builtin-link unsafe.coerceAbilities)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -851,6 +858,8 @@
 
     (define-unison (builtin-Pattern.isMatch p s)
       (pattern-match? p s))
+
+    (define-unison (builtin-unsafe.coerceAbilities f) f)
 
     (define (unison-POp-UPKB bs)
       (build-chunked-list
@@ -1337,10 +1346,12 @@
     (define (unison-FOp-Promise.read promise) (promise-read promise))
     (define (unison-FOp-Promise.tryRead promise) (promise-try-read promise))
     (define (unison-FOp-Promise.write promise a) (promise-write promise a)))
+
   
   (declare-builtin-link builtin-Float.*)
   (declare-builtin-link builtin-Float.fromRepresentation)
   (declare-builtin-link builtin-Float.toRepresentation)
+  (declare-builtin-link builtin-Float.ceiling)
   (declare-builtin-link builtin-Float.exp)
   (declare-builtin-link builtin-Float.log)
   (declare-builtin-link builtin-Float.max)
@@ -1439,4 +1450,5 @@
   (declare-builtin-link builtin-Pattern.isMatch)
   (declare-builtin-link builtin-Scope.bytearrayOf)
   (declare-builtin-link builtin-Char.Class.is)
+  (declare-builtin-link builtin-unsafe.coerceAbilities)
   )
