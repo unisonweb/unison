@@ -266,6 +266,18 @@
     [(< l r) '<]
     [else '>]))
 
+(define (compare-char a b)
+  (cond
+    [(char=? a b) '=]
+    [(char<? a b) '<]
+    [else '>]))
+
+(define (compare-byte a b)
+  (cond
+    [(= a b) '=]
+    [(< a b) '<]
+    [else '>]))
+
 (define (universal-compare l r)
   (cond
     [(equal? l r) '=]
@@ -274,9 +286,9 @@
     [(and (boolean? l) (boolean? r)) (if r '< '>)]
     [(and (chunked-list? l) (chunked-list? r)) (chunked-list-compare/recur l r universal-compare)]
     [(and (chunked-string? l) (chunked-string? r))
-     (chunked-string-compare/recur l r (lambda (a b) (if (char<? a b) '< '>)))]
+     (chunked-string-compare/recur l r compare-char)]
     [(and (chunked-bytes? l) (chunked-bytes? r))
-     (chunked-bytes-compare/recur l r (lambda (a b) (if (< a b) '< '>)))]
+     (chunked-bytes-compare/recur l r compare-byte)]
     [(and (bytes? l) (bytes? r))
      (cond
        [(bytes=? l r) '=]
