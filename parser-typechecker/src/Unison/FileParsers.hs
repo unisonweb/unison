@@ -193,8 +193,8 @@ synthesizeFile env0 uf = do
                 Just kind -> (kind, tlc)
     pure $
       UF.typecheckedUnisonFile
-        (UF.dataDeclarationsId uf)
-        (UF.effectDeclarationsId uf)
+        (coerce $ UF.dataDeclarationsId uf)
+        (coerce $ UF.effectDeclarationsId uf)
         terms'
         (map tlcKind watches')
   where

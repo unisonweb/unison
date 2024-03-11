@@ -167,8 +167,8 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
     mkUnisonFilesDeterministic mayUnisonFile mayTypecheckedFile =
       let sortedUF =
             mayUnisonFile
-              & _Just . #dataDeclarationsId . traversed . _2 %~ sortConstructors
-              & _Just . #effectDeclarationsId . traversed . _2 . Decl.asDataDecl_ %~ sortConstructors
+              & _Just . #dataDeclarationsId . traversed . _Wrapping Identity . _2 %~ sortConstructors
+              & _Just . #effectDeclarationsId . traversed . _Wrapping Identity . _2 . Decl.asDataDecl_ %~ sortConstructors
           sortedTF =
             mayTypecheckedFile
               & _Just . #dataDeclarationsId' . traversed . _2 %~ sortConstructors
@@ -199,8 +199,8 @@ annToInterval ann = annToRange ann <&> rangeToInterval
 -- parsed file, false otherwise.
 hasUserTypeSignature :: Eq v => UnisonFile v a -> v -> Bool
 hasUserTypeSignature parsedFile sym =
-  UF.terms parsedFile
-    & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
+  Map.toList (UF.terms parsedFile)
+    & any (\(v, Identity (_, trm)) -> v == sym && isJust (Term.getTypeAnnotation trm))
 
 -- | A text replacement to apply to a file.
 data TextReplacement = TextReplacement

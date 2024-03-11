@@ -19,7 +19,7 @@ import Unison.LSP.Types
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (UnisonFile (..))
+import Unison.UnisonFile (UnisonFile' (..))
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
 
@@ -39,12 +39,12 @@ foldingRangesForFile UnisonFileId {dataDeclarationsId, effectDeclarationsId, ter
   let dataFolds =
         dataDeclarationsId
           & Map.toList
-          & map \(sym, (_typ, decl)) -> (Just sym, DD.annotation decl)
+          & map \(sym, Identity (_typ, decl)) -> (Just sym, DD.annotation decl)
       abilityFolds =
         effectDeclarationsId
           & Map.toList
-          & map \(sym, (_typ, decl)) -> (Just sym, DD.annotation . DD.toDataDecl $ decl)
-      termFolds = terms & fmap \(sym, ann, _trm) -> (Just sym, ann)
+          & map \(sym, Identity (_typ, decl)) -> (Just sym, DD.annotation . DD.toDataDecl $ decl)
+      termFolds = terms & Map.toList & fmap \(sym, Identity (ann, _trm)) -> (Just sym, ann)
       watchFolds =
         watches
           & fold

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.UnisonFile.Type where
@@ -15,25 +16,29 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.WatchKind (WatchKind)
 
-data UnisonFile v a = UnisonFileId
-  { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
-    effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
-    terms :: [(v, a {- ann for whole binding -}, Term v a)],
+data UnisonFile' f v a = UnisonFileId
+  { dataDeclarationsId :: Map v (f (TypeReferenceId, DataDeclaration v a)),
+    effectDeclarationsId :: Map v (f (TypeReferenceId, EffectDeclaration v a)),
+    terms :: Map v (f (a {- ann for whole binding -}, Term v a)),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
-  deriving (Generic, Show)
+  deriving (Generic)
+
+deriving instance (forall x. Show x => Show (f x), Show v, Show a) => Show (UnisonFile' f v a)
+
+type UnisonFile = UnisonFile' Identity
 
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
-  [(v, a, Term v a)] ->
+  Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
 pattern UnisonFile ds es tms ws <-
   UnisonFileId
-    (fmap (first Reference.DerivedId) -> ds)
-    (fmap (first Reference.DerivedId) -> es)
-    tms
+    (fmap (first Reference.DerivedId) . coerce -> ds)
+    (fmap (first Reference.DerivedId) . coerce -> es)
+    (coerce -> tms)
     ws
 
 {-# COMPLETE UnisonFile #-}

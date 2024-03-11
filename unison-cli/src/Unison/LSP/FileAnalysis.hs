@@ -444,9 +444,9 @@ mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Sym
 mkTypeSignatureHints parsedFile typecheckedFile = do
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
-        UF.terms parsedFile
+        Map.toList (UF.terms parsedFile)
           & mapMaybe
-            ( \(v, ann, trm) -> do
+            ( \(v, Identity (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
                 guard (isNothing $ Term.getTypeAnnotation trm)
                 pure (v, ann)

@@ -129,7 +129,7 @@ handleUpdate2 = do
           and
             [ Map.size (UF.dataDeclarations smallUf) == Map.size (UF.dataDeclarations bigUf),
               Map.size (UF.effectDeclarations smallUf) == Map.size (UF.effectDeclarations bigUf),
-              length @[] (UF.terms smallUf) == length @[] (UF.terms bigUf),
+              Map.size (UF.terms smallUf) == Map.size (UF.terms bigUf),
               Map.size (UF.watches smallUf) == Map.size (UF.watches bigUf)
             ]
     if noChanges
@@ -306,9 +306,9 @@ addDefinitionsToUnisonFile abort codebase doFindCtorNames (terms, types) =
               let prependTerm to = (v, Ann.External, tm) : to
                in if isTest tp
                     then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
-                    else uf & #terms Lens.%~ prependTerm
+                    else uf & #terms Lens.%~ Map.insert v (Identity (Ann.External, tm))
         termNames =
-          Set.fromList [v | (v, _, _) <- uf.terms]
+          Map.keysSet uf.terms
             <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) uf.watches
 
     isTest = Typechecker.isEqual (Decls.testResultType mempty)
@@ -332,10 +332,10 @@ addDefinitionsToUnisonFile abort codebase doFindCtorNames (terms, types) =
             addRebuiltDefinition decl uf name = case decl of
               Left ed ->
                 overwriteConstructorNames name ed.toDataDecl >>= \case
-                  ed' -> pure uf {UF.effectDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed') uf.effectDeclarationsId}
+                  ed' -> pure uf {UF.effectDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Identity (Reference.Id h i, Decl.EffectDeclaration ed')) uf.effectDeclarationsId}
               Right dd ->
                 overwriteConstructorNames name dd >>= \case
-                  dd' -> pure uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd') uf.dataDeclarationsId}
+                  dd' -> pure uf {UF.dataDeclarationsId = Map.insertWith (\_new old -> old) (Name.toVar name) (Identity (Reference.Id h i, dd')) uf.dataDeclarationsId}
 
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
         overwriteConstructorNames name dd =

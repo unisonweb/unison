@@ -62,7 +62,6 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
-import Unison.UnisonFile.Type (UnisonFile (UnisonFileId))
 import Unison.Util.Map qualified as Map (remap, upsert)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
@@ -493,17 +492,16 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
 
         let unisonFile :: UnisonFile Symbol Ann
             unisonFile =
-              UnisonFileId
-                { dataDeclarationsId = UF.dataDeclarationsId' (Slurp.originalFile slurp0),
-                  effectDeclarationsId = UF.effectDeclarationsId' (Slurp.originalFile slurp0),
+              UF.UnisonFileId
+                { dataDeclarationsId = coerce $ UF.dataDeclarationsId' (Slurp.originalFile slurp0),
+                  effectDeclarationsId = coerce $ UF.effectDeclarationsId' (Slurp.originalFile slurp0),
                   -- Running example:
                   --
                   --   fresh1 = fresh3 + 4
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
-                  terms =
-                    Map.elems refToGeneratedNameAndTerm <&> \(v, term) ->
-                      (v, External, term),
+                  terms =  
+                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v,term) -> (v, Identity (External, term)),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty

@@ -55,13 +55,13 @@ bar =
   use Nat +
   x + c.y.y.y.y
 
-d.y.y.y.y : Nat
-d.y.y.y.y =
+c.y.y.y.y : Nat
+c.y.y.y.y =
   use Nat +
   foo + 10
 
-c.y.y.y.y : Nat
-c.y.y.y.y =
+d.y.y.y.y : Nat
+d.y.y.y.y =
   use Nat +
   foo + 10
 ```

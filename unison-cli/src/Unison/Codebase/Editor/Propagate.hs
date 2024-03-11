@@ -56,7 +56,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
-import Unison.UnisonFile (UnisonFile (..))
+import Unison.UnisonFile (UnisonFile' (..))
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
@@ -549,10 +549,9 @@ propagate patch b = case validatePatch patch of
                   mempty
                   mempty
                   ( componentMap
-                      & Map.toList
-                      & fmap
-                        ( \(v, (_ref, tm, _)) ->
-                            (v, External, tm)
+                      <&>
+                        ( \(_ref, tm, _) ->
+                            Identity (External, tm)
                         )
                   )
                   mempty
