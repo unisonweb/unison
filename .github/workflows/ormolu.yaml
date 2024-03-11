@@ -25,8 +25,6 @@ jobs:
           mode: inplace
       - name: apply formatting changes
         uses: peter-evans/create-pull-request@v6
-        # the previous step will "fail" if it makes any formatting changes
-        if: ${{ failure() }}
         with:
           commit_message: automatically run ormolu
           branch_suffix: random
