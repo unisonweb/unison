@@ -42,10 +42,6 @@ env:
 jobs:
   ormolu:
     runs-on: ubuntu-20.04
-    # Only run formatting on trunk commits
-    # This is because the job won't have permission to push back to
-    # contributor forks on contributor PRs.
-    if: github.ref_name == 'trunk'
     steps:
       - uses: actions/checkout@v4
       - name: Get changed files
@@ -64,7 +60,10 @@ jobs:
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
         uses: stefanzweifel/git-auto-commit-action@v4
-        if: ${{ always() }}
+        # Only try to commit formatting changes if we're running within the repo containing the PR,
+        # and not on a protected branch.
+        # The job doesn't have permission to push back to contributor forks on contributor PRs.
+        if: always() && !github.ref_protected && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
         with:
           commit_message: automatically run ormolu
   build-ucm:
