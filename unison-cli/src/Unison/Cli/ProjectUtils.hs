@@ -61,14 +61,15 @@ import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
-branchRelativePathToAbsolute brp = resolveBranchRelativePath brp <&> \case
-  BranchRelativePath.ResolvedLoosePath p -> p
-  BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
-    let projectBranchIds = getIds projectBranch
-        handleRel = case mRel of
-          Nothing -> id
-          Just rel -> flip Path.resolve rel
-    in handleRel (projectBranchPath projectBranchIds)
+branchRelativePathToAbsolute brp =
+  resolveBranchRelativePath brp <&> \case
+    BranchRelativePath.ResolvedLoosePath p -> p
+    BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
+      let projectBranchIds = getIds projectBranch
+          handleRel = case mRel of
+            Nothing -> id
+            Just rel -> flip Path.resolve rel
+       in handleRel (projectBranchPath projectBranchIds)
   where
     getIds = \case
       ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
@@ -91,7 +92,6 @@ resolveBranchRelativePath = \case
     toThese = \case
       Left branchName -> That branchName
       Right (projectName, branchName) -> These projectName branchName
-    
 
 -- | Get the current project that a user is on.
 getCurrentProject :: Cli (Maybe Sqlite.Project)

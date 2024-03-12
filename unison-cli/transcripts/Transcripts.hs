@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {- This module kicks off the Transcript Tests.
    It doesn't do the transcript parsing itself.
@@ -16,8 +17,8 @@ import System.FilePath
     splitFileName,
     takeDirectory,
     takeExtensions,
-    (</>),
     (<.>),
+    (</>),
   )
 import System.IO.CodePage (withCP65001)
 import System.IO.Silently (silence)
@@ -82,7 +83,7 @@ outputFileForTranscript filePath =
   replaceExtension filePath ".output.md"
 
 buildTests :: TestConfig -> TestBuilder -> FilePath -> Test ()
-buildTests TestConfig{ .. } testBuilder dir = do
+buildTests TestConfig {..} testBuilder dir = do
   io
     . putStrLn
     . unlines
@@ -149,9 +150,9 @@ test config = do
   cleanup
 
 handleArgs :: TestConfig -> [String] -> TestConfig
-handleArgs acc ("--runtime-path":p:rest) =
-  handleArgs (acc { runtimePath = p }) rest
-handleArgs acc [prefix] = acc { matchPrefix = Just prefix }
+handleArgs acc ("--runtime-path" : p : rest) =
+  handleArgs (acc {runtimePath = p}) rest
+handleArgs acc [prefix] = acc {matchPrefix = Just prefix}
 handleArgs acc _ = acc
 
 defaultConfig :: IO TestConfig
