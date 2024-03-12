@@ -13,10 +13,6 @@ env:
 jobs:
   ormolu:
     runs-on: ubuntu-20.04
-    # Only run formatting on trunk commits
-    # This is because the job won't have permission to push back to
-    # contributor forks on contributor PRs.
-    if: github.ref_name == 'trunk'
     steps:
       - uses: actions/checkout@v4
       - uses: haskell-actions/run-ormolu@v15
