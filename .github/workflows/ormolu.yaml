@@ -1,8 +1,4 @@
-name: ormolu
-
-defaults:
-  run:
-    shell: bash
+name: ormolu everything
 
 on:
   workflow_dispatch:
@@ -25,4 +21,4 @@ jobs:
           commit_message: automatically run ormolu
           branch: format/${{github.ref_name}}
           branch_suffix: random
-          title: autoformat ${{github.ref_name}}
+          title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}
