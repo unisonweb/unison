@@ -42,9 +42,9 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory
   ( canonicalizePath,
+    exeExtension,
     getCurrentDirectory,
     removeDirectoryRecursive,
-    exeExtension
   )
 import System.Environment (getExecutablePath, getProgName, withArgs)
 import System.Exit qualified as Exit
@@ -52,8 +52,8 @@ import System.FilePath
   ( replaceExtension,
     takeDirectory,
     takeExtension,
-    (</>),
     (<.>),
+    (</>),
   )
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)

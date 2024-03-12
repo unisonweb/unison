@@ -35,7 +35,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Primitive qualified as PA
 import Control.Monad.Reader (ReaderT (..), ask, runReaderT)
 import Control.Monad.State.Strict (State, execState, modify)
-import Crypto.Error (CryptoError(..), CryptoFailable(..))
+import Crypto.Error (CryptoError (..), CryptoFailable (..))
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
@@ -2823,10 +2823,12 @@ declareForeigns = do
        in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
 
   declareForeign Untracked "crypto.Ed25519.sign.impl" boxBoxBoxToEFBox
-    . mkForeign $ pure . signEd25519Wrapper
+    . mkForeign
+    $ pure . signEd25519Wrapper
 
   declareForeign Untracked "crypto.Ed25519.verify.impl" boxBoxBoxToEFBool
-    . mkForeign $ pure . verifyEd25519Wrapper
+    . mkForeign
+    $ pure . verifyEd25519Wrapper
 
   let catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Util.Text.Text a)
       catchAll e = do
@@ -3426,15 +3428,16 @@ hostPreference (Just host) = SYS.Host $ Util.Text.unpack host
 signEd25519Wrapper ::
   (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
 signEd25519Wrapper (secret0, public0, msg0) = case validated of
-    CryptoFailed err ->
-      Left (Failure Ty.cryptoFailureRef (errMsg err) unitValue)
-    CryptoPassed (secret, public) ->
-      Right . Bytes.fromArray $ Ed25519.sign secret public msg
+  CryptoFailed err ->
+    Left (Failure Ty.cryptoFailureRef (errMsg err) unitValue)
+  CryptoPassed (secret, public) ->
+    Right . Bytes.fromArray $ Ed25519.sign secret public msg
   where
     msg = Bytes.toArray msg0 :: ByteString
     validated =
-      (,) <$> Ed25519.secretKey (Bytes.toArray secret0 :: ByteString)
-          <*> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
+      (,)
+        <$> Ed25519.secretKey (Bytes.toArray secret0 :: ByteString)
+        <*> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
 
     errMsg CryptoError_PublicKeySizeInvalid =
       "ed25519: Public key size invalid"
@@ -3447,15 +3450,16 @@ signEd25519Wrapper (secret0, public0, msg0) = case validated of
 verifyEd25519Wrapper ::
   (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool
 verifyEd25519Wrapper (public0, msg0, sig0) = case validated of
-    CryptoFailed err ->
-      Left $ Failure Ty.cryptoFailureRef (errMsg err) unitValue
-    CryptoPassed (public, sig) ->
-      Right $ Ed25519.verify public msg sig
+  CryptoFailed err ->
+    Left $ Failure Ty.cryptoFailureRef (errMsg err) unitValue
+  CryptoPassed (public, sig) ->
+    Right $ Ed25519.verify public msg sig
   where
     msg = Bytes.toArray msg0 :: ByteString
     validated =
-      (,) <$> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
-          <*> Ed25519.signature (Bytes.toArray sig0 :: ByteString)
+      (,)
+        <$> Ed25519.publicKey (Bytes.toArray public0 :: ByteString)
+        <*> Ed25519.signature (Bytes.toArray sig0 :: ByteString)
 
     errMsg CryptoError_PublicKeySizeInvalid =
       "ed25519: Public key size invalid"
