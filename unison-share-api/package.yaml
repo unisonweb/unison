@@ -17,6 +17,7 @@ dependencies:
   - bytes
   - bytestring
   - containers
+  - Diff
   - directory
   - errors
   - extra

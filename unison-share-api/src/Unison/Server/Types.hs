@@ -46,7 +46,7 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
-import Unison.Server.Syntax (SyntaxText)
+import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
@@ -191,6 +191,20 @@ instance ToJSON DefinitionDisplayResults where
 
 deriving instance ToSchema DefinitionDisplayResults
 
+data TermDefinitionDiff = TermDefinitionDiff
+  { left :: TermDefinition,
+    right :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+data TypeDefinitionDiff = TypeDefinitionDiff
+  { left :: TypeDefinition,
+    right :: TypeDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
 newtype Suffixify = Suffixify {suffixified :: Bool}
   deriving (Eq, Ord, Show, Generic)
 
@@ -198,8 +212,8 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName],
     bestTermName :: HashQualifiedName,
     defnTermTag :: TermTag,
-    termDefinition :: DisplayObject SyntaxText SyntaxText,
-    signature :: SyntaxText,
+    termDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
+    signature :: Syntax.SyntaxText,
     termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -208,7 +222,7 @@ data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName],
     bestTypeName :: HashQualifiedName,
     defnTypeTag :: TypeTag,
-    typeDefinition :: DisplayObject SyntaxText SyntaxText,
+    typeDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
     typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -233,6 +247,60 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
+-- | A type for semantic diffing of definitions.
+-- Includes special-cases for when the name in a definition has changed but the hash hasn't
+-- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
+data SemanticSyntaxDiff
+  = From [Syntax.SyntaxSegment]
+  | To [Syntax.SyntaxSegment]
+  | Both [Syntax.SyntaxSegment]
+  | --  (fromSegment, toSegment) (shared annotation)
+    SegmentChange (String, String) (Maybe Syntax.Element)
+  | -- (shared segment) (fromAnnotation, toAnnotation)
+    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+  deriving (Eq, Show)
+
+instance ToJSON SemanticSyntaxDiff where
+  toJSON = \case
+    From segments ->
+      object
+        [ "diffTag" .= ("from" :: Text),
+          "elements" .= segments
+        ]
+    To segments ->
+      object
+        [ "diffTag" .= ("to" :: Text),
+          "elements" .= segments
+        ]
+    Both segments ->
+      object
+        [ "diffTag" .= ("both" :: Text),
+          "elements" .= segments
+        ]
+    SegmentChange (fromSegment, toSegment) annotation ->
+      object
+        [ "diffTag" .= ("segmentChange" :: Text),
+          "fromSegment" .= fromSegment,
+          "toSegment" .= toSegment,
+          "annotation" .= annotation
+        ]
+    AnnotationChange segment (fromAnnotation, toAnnotation) ->
+      object
+        [ "diffTag" .= ("annotationChange" :: Text),
+          "segment" .= segment,
+          "fromAnnotation" .= fromAnnotation,
+          "toAnnotation" .= toAnnotation
+        ]
+
+-- | A diff of the syntax of a term or type
+--
+-- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
+-- undiffed syntax.
+data DisplayObjectDiff
+  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
+  | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  deriving stock (Show, Eq)
+
 data UnisonRef
   = TypeRef UnisonHash
   | TermRef UnisonHash
@@ -247,7 +315,7 @@ data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
     termName :: HQ'.HashQualified Name,
     termHash :: ShortHash,
-    termType :: Maybe SyntaxText,
+    termType :: Maybe Syntax.SyntaxText,
     termTag :: TermTag
   }
   deriving (Eq, Generic, Show)
