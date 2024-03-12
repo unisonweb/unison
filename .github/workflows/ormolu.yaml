@@ -1,3 +1,6 @@
+# This workflow runs ormolu on all Haskell files in the branch and creates a PR with the result.
+# (The ormolu job in CI.yaml only runs ormolu on Haskell files that have changed in that PR.)
+
 name: ormolu everything
 
 on:
@@ -19,6 +22,6 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           commit_message: automatically run ormolu
-          branch: format/${{github.ref_name}}
-          branch_suffix: random
+          branch: autoformat/${{github.ref_name}}
+          # branch_suffix: random
           title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}
