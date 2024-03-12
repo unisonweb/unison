@@ -70,7 +70,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)
-import Unison.Sync.Types qualified as Share (DownloadEntitiesError, UploadEntitiesError)
+import Unison.Sync.Types qualified as Share (DownloadEntitiesError, EntityValidationError, UploadEntitiesError)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -327,6 +327,7 @@ data Output
   | DebugFuzzyOptionsNoResolver
   | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
   | DebugDecl (Either (Text {- A builtin hash -}) (DD.Decl Symbol Ann)) (Maybe ConstructorId {- If 'Just' we're debugging a constructor of the given decl -})
+  | HashValidationResult (Maybe Share.EntityValidationError)
   | AnnotatedFoldRanges Text
   | ClearScreen
   | PulledEmptyBranch (ReadRemoteNamespace Share.RemoteProjectBranch)
@@ -575,6 +576,7 @@ isFailure o = case o of
   DebugFuzzyOptionsNoResolver {} -> True
   DebugTerm {} -> False
   DebugDecl {} -> False
+  HashValidationResult err -> isJust err
   AnnotatedFoldRanges {} -> False
   DisplayDebugNameDiff {} -> False
   ClearScreen -> False

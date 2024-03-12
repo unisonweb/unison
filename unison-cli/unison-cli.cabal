@@ -52,6 +52,7 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
+      Unison.Codebase.Editor.HandleInput.DebugHashValidate
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.EditNamespace
@@ -236,6 +237,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -375,6 +377,7 @@ executable cli-integration-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -509,6 +512,7 @@ executable transcripts
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -649,6 +653,7 @@ executable unison
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -792,6 +797,7 @@ test-suite cli-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

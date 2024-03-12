@@ -15,6 +15,7 @@ module Unison.Hash32
 
     -- ** Text
     toText,
+    unsafeFromText,
   )
 where
 
@@ -52,6 +53,10 @@ toHash =
 -- | Convert base32hex to a hash32 (asserting that it is a 512-bit hash).
 unsafeFromBase32Hex :: Base32Hex -> Hash32
 unsafeFromBase32Hex =
+  coerce
+
+unsafeFromText :: Text -> Hash32
+unsafeFromText =
   coerce
 
 -- | Convert a hash32 to base32hex.
