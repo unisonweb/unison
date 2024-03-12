@@ -81,7 +81,7 @@ prettyGADT env ctorType r name dd =
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
-          `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
+        `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
 
 prettyPattern ::
@@ -113,9 +113,9 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
   (header <>)
     . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
     <$> constructor
-      `traverse` zip
-        [0 ..]
-        (DD.constructors' dd)
+    `traverse` zip
+      [0 ..]
+      (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
@@ -146,7 +146,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
       P.group $
         styleHashQualified'' (fmt (S.TypeReference r)) fname
           <> fmt S.TypeAscriptionColon " :"
-            `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
+          `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a

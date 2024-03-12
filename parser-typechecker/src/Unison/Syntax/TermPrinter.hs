@@ -298,7 +298,7 @@ pretty0
                     `PP.hang` pb
                     <> PP.softbreak
                     <> fmt S.ControlKeyword "with"
-                      `hangHandler` ph
+                    `hangHandler` ph
                 ]
       Delay' x
         | isLet x || p < 0 -> do
