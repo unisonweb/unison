@@ -11,6 +11,7 @@
       Float.*
       Float.fromRepresentation
       Float.toRepresentation
+      Float.ceiling
       Int.+
       Int.-
       Int./
@@ -41,6 +42,9 @@
   (define-unison (Float.* x y) (fl* x y))
 
   (define-unison (Nat.toFloat n) (->fl n))
+
+  (define-unison (Float.ceiling f)
+    (clamp-integer (fl->exact-integer (ceiling f))))
 
   ; If someone can suggest a better mechanism for these,
   ; that would be appreciated.
