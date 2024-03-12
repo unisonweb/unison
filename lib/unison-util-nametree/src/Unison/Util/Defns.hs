@@ -2,6 +2,7 @@ module Unison.Util.Defns
   ( Defns (..),
     mapDefns,
     bimapDefns,
+    bifoldMapDefns,
     unzipDefns,
     unzipDefnsWith,
     zipDefns,
@@ -27,6 +28,10 @@ mapDefns f =
 bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
 bimapDefns f g (Defns terms types) =
   Defns (f terms) (g types)
+
+bifoldMapDefns :: Monoid m => (a -> m) -> (b -> m) -> Defns a b -> m
+bifoldMapDefns f g (Defns terms types) =
+  f terms <> g types
 
 unzipDefns :: Defns (tm1, tm2) (ty1, ty2) -> (Defns tm1 ty1, Defns tm2 ty2)
 unzipDefns =
