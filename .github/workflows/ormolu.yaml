@@ -26,4 +26,3 @@ jobs:
           branch: formatting/${{github.ref}}
           branch_suffix: short-commit-hash
           title: autoformat ${{github.ref}}
-          body: ''
