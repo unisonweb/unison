@@ -319,7 +319,9 @@
 
 (define (reflect-typelink tl)
   (match tl
-    [(unison-typelink-builtin name) (unison-reference-builtin name)]
+    [(unison-typelink-builtin name)
+     (unison-reference-builtin
+       (string->chunked-string name))]
     [(unison-typelink-derived h i)
      (unison-reference-derived (unison-id-id h i))]))
 
@@ -328,7 +330,9 @@
     [(unison-termlink-con r i)
      (unison-referent-con (reflect-typelink r) i)]
     [(unison-termlink-builtin name)
-     (unison-referent-def (unison-reference-builtin name))]
+     (unison-referent-def
+       (unison-reference-builtin
+         (string->chunked-string name)))]
     [(unison-termlink-derived h i)
      (unison-referent-def
        (unison-reference-derived
