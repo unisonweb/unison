@@ -80,7 +80,7 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), bimapDefns, unzipDefns, zipDefns)
+import Unison.Util.Defns (Defns (..), bimapDefns, unzipDefns, zipDefnsWith)
 import Unison.Util.Map qualified as Map (for_, insertLookup)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree, zipNametreesOfDefns)
 import Unison.Util.Pretty (ColorText, Pretty)
@@ -127,11 +127,9 @@ handleMerge bobBranchName = do
         Unconflicted unconflictedInfo -> do
           contents <- partitionFileContents defns conflictInfo
 
-          let (droppedDefns, mergedDefns) =
+          let (mergedDefns, droppedDefns) =
                 unzipDefns
-                  id
-                  id
-                  ( zipDefns
+                  ( zipDefnsWith
                       runNamespaceUpdate
                       runNamespaceUpdate
                       (bimapDefns BiMultimap.range BiMultimap.range defns.lca)
@@ -168,10 +166,12 @@ handleMerge bobBranchName = do
           const mergedBranchPlusTuf
         )
 
-type NamespaceUpdate ref a =
-  StateT (Map Name ref) (Writer (Map Name ref)) a
+type Dropped a = a
 
-runNamespaceUpdate :: Map Name ref -> NamespaceUpdate ref () -> (Map Name ref, Map Name ref)
+type NamespaceUpdate ref a =
+  StateT (Map Name ref) (Writer (Dropped (Map Name ref))) a
+
+runNamespaceUpdate :: Map Name ref -> NamespaceUpdate ref () -> (Map Name ref, Dropped (Map Name ref))
 runNamespaceUpdate refs update =
   Writer.runWriter (State.execStateT update refs)
 
