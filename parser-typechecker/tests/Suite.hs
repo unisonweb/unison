@@ -3,7 +3,7 @@
 
 module Main where
 
-import EasyTest   
+import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
