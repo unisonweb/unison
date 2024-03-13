@@ -16,6 +16,7 @@ where
 
 import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
+import Data.Foldable qualified as Foldable
 import Data.Function (on)
 import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
@@ -1498,19 +1499,42 @@ renderParseErrors s = \case
               "",
               style ErrorSite msg
             ]
-  P.TrivialError errOffset unexpected expected ->
-    let (src, ranges) = case unexpected of
-          Just (P.Tokens (toList -> ts)) -> case ts of
-            [] -> (mempty, [])
-            _ ->
-              let rs = rangeForToken <$> ts
-               in (showSource s $ (\r -> (r, ErrorSite)) <$> rs, rs)
-          _ -> mempty
-        -- Same error that we just pattern matched on, but with a different error component (here Void) - we need one
-        -- with a ShowErrorComponent instance, which our error type doesn't have.
-        sameErr :: P.ParseError Parser.Input Void
-        sameErr = P.TrivialError errOffset unexpected expected
-     in [(fromString (P.parseErrorPretty sameErr) <> src, ranges)]
+  P.TrivialError _errOffset unexpected expected ->
+    let unexpectedTokens :: Maybe (Nel.NonEmpty (L.Token L.Lexeme))
+        unexpectedTokenStrs :: Set String
+        (unexpectedTokens, unexpectedTokenStrs) = case unexpected of
+          Just (P.Tokens ts) ->
+            Foldable.toList ts
+              & fmap (L.displayLexeme . L.payload)
+              & Set.fromList
+              & (Just ts,)
+          Just (P.Label ts) -> (mempty, Set.singleton $ Foldable.toList ts)
+          Just (P.EndOfInput) -> (mempty, Set.singleton "end of input")
+          Nothing -> (mempty, mempty)
+        expectedTokenStrs :: Set String
+        expectedTokenStrs =
+          expected & foldMap \case
+            (P.Tokens ts) ->
+              Foldable.toList ts
+                & fmap (L.displayLexeme . L.payload)
+                & Set.fromList
+            (P.Label ts) -> Set.singleton $ Foldable.toList ts
+            (P.EndOfInput) -> Set.singleton "end of input"
+        ranges = case unexpectedTokens of
+          Nothing -> []
+          Just ts -> rangeForToken <$> Foldable.toList ts
+        excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
+        msg = L.formatTrivialError _ unexpectedTokenStrs expectedTokenStrs
+     in [ ( Pr.lines
+              [ "I got confused here:",
+                "",
+                excerpt,
+                "",
+                style ErrorSite msg
+              ],
+            ranges
+          )
+        ]
   P.FancyError _sp fancyErrors ->
     (go' <$> Set.toList fancyErrors)
   where

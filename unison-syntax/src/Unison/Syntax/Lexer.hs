@@ -22,6 +22,10 @@ module Unison.Syntax.Lexer
     wordyIdChar,
     wordyIdStartChar,
     symbolyIdChar,
+
+    -- * Error formatting
+    formatTrivialError,
+    displayLexeme,
   )
 where
 
@@ -50,6 +54,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
+import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
@@ -267,17 +272,21 @@ lexer0' scope rem =
               let msg = intercalateMap "\n" showErrorFancy es
                in [Token (Err (UnexpectedTokens msg)) (toPos top) (toPos top)]
             P.TrivialError _errOffset mayUnexpectedTokens expectedTokens ->
-              let mayUnexpectedStr :: Maybe String
-                  mayUnexpectedStr = errorItemToString <$> mayUnexpectedTokens
+              let unexpectedStr :: Set String
+                  unexpectedStr =
+                    mayUnexpectedTokens
+                      & fmap errorItemToString
+                      & maybeToList
+                      & Set.fromList
                   expectedStr :: Set String
                   expectedStr =
                     expectedTokens
                       & Set.map errorItemToString
-                  err = UnexpectedTokens $ case (mayUnexpectedStr, Set.toList expectedStr) of
-                    (Nothing, []) -> "I found something I didn't expect."
-                    (Nothing, xs) -> "I found something I didn't expect here. I was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
-                    (Just x, []) -> "I was surprised to find the text '" <> x <> "' here."
-                    (Just x, xs) -> "I was surprised to find the text '" <> x <> "' here. I was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
+                  startsWithVowel :: String -> Bool
+                  startsWithVowel = \case
+                    [] -> False
+                    (ch : _) -> ch `elem` ("aeiou" :: String)
+                  err = UnexpectedTokens $ formatTrivialError startsWithVowel unexpectedStr expectedStr
                in [Token (Err err) (toPos top) (toPos top)]
        in errsWithSourcePos >>= errorToTokens
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
@@ -312,6 +321,46 @@ lexer0' scope rem =
             : tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
+
+formatTrivialError ::
+  (IsString s, Monoid s) =>
+  -- | A function that returns True if the given string starts with a vowel,
+  -- Used for selecting the correct article.
+  (s -> Bool) ->
+  Set s ->
+  Set s ->
+  s
+formatTrivialError startsWithVowel unexpectedTokens expectedTokens =
+  let unexpectedMsg = case Set.toList unexpectedTokens of
+        [] -> "I found something I didn't expect."
+        [x] ->
+          let article =
+                if startsWithVowel x
+                  then "an"
+                  else "a"
+           in "I was surprised to find " <> article <> " " <> x <> " here."
+        xs -> "I was surprised to find these:\n\n* " <> intercalateMap "\n* " id xs
+      expectedMsg = case Set.toList expectedTokens of
+        [] -> Nothing
+        xs -> Just $ "\nI was hoping for one of these instead:\n\n* " <> intercalateMap "\n* " id xs
+   in mconcat $ catMaybes [Just unexpectedMsg, expectedMsg]
+
+displayLexeme :: Lexeme -> String
+displayLexeme = \case
+  Open o -> o
+  Semi True -> "end of section"
+  Semi False -> "semicolon"
+  Close -> "end of section"
+  Reserved r -> "'" <> r <> "'"
+  Textual t -> "\"" <> t <> "\""
+  Character c -> "?" <> [c]
+  WordyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
+  SymbolyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
+  Blank b -> b
+  Numeric n -> n
+  Bytes _b -> "bytes literal"
+  Hash h -> Text.unpack (SH.toText h)
+  Err e -> show e
 
 infixl 2 <+>
 
