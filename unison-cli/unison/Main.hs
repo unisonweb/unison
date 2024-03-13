@@ -89,6 +89,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
+import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
 import UnliftIO.Directory (getHomeDirectory)
 import Version qualified
@@ -170,6 +171,9 @@ main = do
                     getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                       withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                         let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                        inputQueue <- Q.newIO
+                        let initialInputs = [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                        atomically $ for_ initialInputs (Q.enqueue inputQueue)
                         let noOpRootNotifier _ = pure ()
                         let noOpPathNotifier _ = pure ()
                         let serverUrl = Nothing
@@ -181,7 +185,7 @@ main = do
                           sbrt
                           nrt
                           theCodebase
-                          [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                          inputQueue
                           serverUrl
                           startPath
                           initRes
@@ -196,6 +200,9 @@ main = do
                 getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                   withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                     let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+                    let initialInputs = [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    inputQueue <- Q.newIO
+                    atomically $ for_ initialInputs (Q.enqueue inputQueue)
                     let noOpRootNotifier _ = pure ()
                     let noOpPathNotifier _ = pure ()
                     let serverUrl = Nothing
@@ -207,7 +214,7 @@ main = do
                       sbrt
                       nrt
                       theCodebase
-                      [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                      inputQueue
                       serverUrl
                       startPath
                       initRes
@@ -304,12 +311,14 @@ main = do
                       writeTVar rootCausalHashVar b
                 let notifyOnPathChanges :: Path.Absolute -> STM ()
                     notifyOnPathChanges = writeTVar pathVar
+                inputQueue <- Q.newIO
+                let enqueueInput i = Q.enqueue inputQueue i
                 -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
                 -- when waiting for input on handles, so if we listen for LSP connections it will
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
+                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar) enqueueInput
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
@@ -340,7 +349,7 @@ main = do
                             sbRuntime
                             nRuntime
                             theCodebase
-                            []
+                            inputQueue
                             (Just baseUrl)
                             (Just startingPath)
                             initRes
@@ -516,7 +525,7 @@ launch ::
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
-  [Either Input.Event Input.Input] ->
+  Q.TQueue (Either Input.Event Input.Input) ->
   Maybe Server.BaseUrl ->
   Maybe Path.Absolute ->
   InitResult ->
@@ -524,7 +533,7 @@ launch ::
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch dir config runtime sbRuntime nRuntime codebase inputQueue serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -536,7 +545,7 @@ launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl maySt
         welcome
         (fromMaybe defaultInitialPath mayStartingPath)
         config
-        inputs
+        inputQueue
         runtime
         sbRuntime
         nRuntime

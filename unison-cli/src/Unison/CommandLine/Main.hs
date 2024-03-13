@@ -120,7 +120,7 @@ main ::
   Welcome.Welcome ->
   Path.Absolute ->
   Config ->
-  [Either Event Input] ->
+  Q.TQueue (Either Event Input) ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
@@ -131,7 +131,7 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config inputQueue runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope do
@@ -159,12 +159,10 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
-  -- A queue for input or file events.
-  inputQueue <- Q.newIO @(Either Event Input)
-  -- Pre-load all start-up events.
+  -- Pre-load all start-up events onto the front of the input queue
   atomically $
-    for (Welcome.run welcome ++ initialInputs) \i -> do
-      Q.enqueue inputQueue i
+    for (reverse $ Welcome.run welcome) \i -> do
+      Q.undequeue inputQueue i
   pageOutput <- newIORef True
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())

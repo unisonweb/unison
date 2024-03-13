@@ -29,6 +29,7 @@ import System.Environment (lookupEnv)
 import System.IO (hPutStrLn)
 import U.Codebase.HashTags
 import Unison.Codebase
+import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
@@ -61,8 +62,8 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: LspFormattingConfig -> Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
-spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
+spawnLsp :: LspFormattingConfig -> Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> (Either Event Input -> STM ()) -> IO ()
+spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath _queueInput =
   ifEnabled . TCP.withSocketsDo $ do
     lspPort <- getLspPort
     UnliftIO.handleIO (handleFailure lspPort) $ do
