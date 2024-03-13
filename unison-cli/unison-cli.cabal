@@ -54,6 +54,7 @@ library
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.DiffDefinitions
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile

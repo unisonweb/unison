@@ -1748,6 +1748,50 @@ diffNamespace =
           branchInclusion = AllBranches
         }
 
+diffTerms :: InputPattern
+diffTerms =
+  InputPattern
+    { patternName = "diff.terms",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("before term", Required, exactDefinitionTermQueryArg), ("after term", Required, exactDefinitionTermQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( makeExample diffTerms ["before", "after"],
+              "shows how the term `after` differs from the term `before`"
+            )
+          ],
+      parse =
+        \case
+          [before, after] -> do
+            before <- parseHashQualifiedName before
+            after <- parseHashQualifiedName after
+            pure $ Input.DiffTermsI before after
+          _ -> Left $ I.help diffTerms
+    }
+
+diffTypes :: InputPattern
+diffTypes =
+  InputPattern
+    { patternName = "diff.types",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("before type", Required, exactDefinitionTypeQueryArg), ("after type", Required, exactDefinitionTypeQueryArg)],
+      help =
+        P.wrapColumn2
+          [ ( makeExample diffTypes ["before", "after"],
+              "shows how the type `after` differs from the type `before`"
+            )
+          ],
+      parse =
+        \case
+          [before, after] -> do
+            before <- parseHashQualifiedName before
+            after <- parseHashQualifiedName after
+            pure $ Input.DiffTypesI before after
+          _ -> Left $ I.help diffTypes
+    }
+
 previewMergeLocal :: InputPattern
 previewMergeLocal =
   InputPattern

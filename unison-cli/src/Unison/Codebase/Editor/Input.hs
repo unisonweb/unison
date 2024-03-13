@@ -115,6 +115,8 @@ data Input
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
+  | DiffTermsI (HQ.HashQualified Name) (HQ.HashQualified Name)
+  | DiffTypesI (HQ.HashQualified Name) (HQ.HashQualified Name)
   | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')

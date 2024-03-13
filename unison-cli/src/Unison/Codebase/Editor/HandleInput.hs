@@ -478,6 +478,8 @@ loop e = do
                 (False, False) -> pure ()
               (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               Cli.respondNumbered (ShowDiffNamespace absBefore absAfter ppe diff)
+            DiffTermsI before after -> _
+            DiffTypesI before after -> _
             MoveBranchI src' dest' -> do
               hasConfirmed <- confirmedCommand input
               description <- inputDescription input
@@ -1378,6 +1380,8 @@ inputDescription input =
     DeprecateTermI {} -> wat
     DeprecateTypeI {} -> wat
     DiffNamespaceI {} -> wat
+    DiffTermsI before after -> pure ("diff.terms " <> HQ.toText before <> " " <> HQ.toText after)
+    DiffTypesI before after -> pure ("diff.types " <> HQ.toText before <> " " <> HQ.toText after)
     DisplayI {} -> wat
     DocsI {} -> wat
     DocsToHtmlI {} -> wat

@@ -47,6 +47,8 @@ module Unison.Cli.Pretty
     prettyWriteRemoteNamespace,
     shareOrigin,
     unsafePrettyTermResultSigFull',
+    prettyTerm,
+    prettyType,
     prettyTermDisplayObjects,
     prettyTypeDisplayObjects,
   )
