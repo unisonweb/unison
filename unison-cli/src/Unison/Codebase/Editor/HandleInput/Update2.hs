@@ -117,7 +117,7 @@ handleUpdate2 = do
         abort
         codebase
         (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames)
-        dependents
+        (dependents.terms, dependents.types)
         (UF.discardTypes tuf)
     pure (makeComplicatedPPE hashLen namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents, bigUf)
 
@@ -443,7 +443,7 @@ getTermAndDeclNames tuf =
 
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (Relation Name TermReferenceId, Relation Name TypeReferenceId)
+getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
 getNamespaceDependentsOf names dependencies = do
   dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
   let dependentTerms :: Set TermReferenceId
@@ -456,7 +456,11 @@ getNamespaceDependentsOf names dependencies = do
           )
           (Set.empty, Set.empty)
           dependents
-  pure (foldMap nameTerm dependentTerms, foldMap nameType dependentTypes)
+  pure
+    Defns
+      { terms = foldMap nameTerm dependentTerms,
+        types = foldMap nameType dependentTypes
+      }
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
     nameTerm ref =
@@ -490,15 +494,15 @@ makeComplicatedPPE ::
   Int ->
   Names ->
   Names ->
-  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
+  Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
   PrettyPrintEnvDecl
-makeComplicatedPPE hashLen names initialFileNames (dependentTerms, dependentTypes) =
+makeComplicatedPPE hashLen names initialFileNames dependents =
   PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)
     `PPED.addFallback` PPED.makePPED (PPE.hqNamer hashLen namesInTheNamespace) (PPE.suffixifyByHash namesInTheNamespace)
   where
     namesInTheFile =
       initialFileNames
         <> Names
-          (Relation.mapRan Referent.fromTermReferenceId dependentTerms)
-          (Relation.mapRan Reference.fromId dependentTypes)
+          (Relation.mapRan Referent.fromTermReferenceId dependents.terms)
+          (Relation.mapRan Reference.fromId dependents.types)
     namesInTheNamespace = Names.unionLeftName names initialFileNames

@@ -59,6 +59,7 @@ import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
+import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Name (Name)
@@ -121,25 +122,28 @@ handleMerge bobBranchName = do
       -- Diff the definitions
       diff <- performDiff abort db mergeInfo defns
 
-      -- TODO is swapping constructors' names handled correctly here?
-      -- TODO is exchanging constructor for function handled correctly here?
-      -- TODO is exchanging function for constructor handled correctly here?
-      let (conflicted, unconflicted) = identifyConflicts diff
+      -- Partition the diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
+      -- things)
+      let flicts = partitionDiffIntoFlicts diff
 
-      PartitionedContents {changes, fileContents} <- partitionFileContents defns unconflicted
+      -- Identify the dependents we need to pull into the scratch file for typechecking
+      dependents <- identifyDependentsOfUnconflicts defns flicts.unconflicts
+
+      -- Compute the namespace changes to apply to the LCA
+      let changes = computeNamespaceChanges flicts.unconflicts dependents
 
       let (mergedDefns, droppedDefns) =
             unzipDefns
               ( zipDefnsWith
                   runNamespaceUpdate
                   runNamespaceUpdate
-                  (bimapDefns BiMultimap.range BiMultimap.range defns.lca)
+                  (defnsRangeOnly defns.lca)
                   (applyNamespaceChanges changes)
               )
 
-      case Map.null conflicted.terms && Map.null conflicted.types of
+      case Map.null flicts.conflicts.terms && Map.null flicts.conflicts.types of
         False -> do
-          honkingConflicted <- assertConflictsSatisfyPreconditions conflicted
+          honkingConflicted <- assertConflictsSatisfyPreconditions flicts.conflicts
           let conflictedFileContents =
                 let clonk ::
                       Name ->
@@ -162,10 +166,10 @@ handleMerge bobBranchName = do
                       (Map.foldMapWithKey clonk)
                       (fmap typesToDefns . Map.foldMapWithKey honk)
                       honkingConflicted
-          unisonFile <- makeUnisonFile2 abort codebase fileContents conflictedFileContents declNames
+          unisonFile <- makeUnisonFile2 abort codebase dependents conflictedFileContents declNames
           pure (mergedLibdeps, mergedDefns, droppedDefns, unisonFile)
         True -> do
-          unisonFile <- makeUnisonFile abort codebase fileContents (declNames.alice <> declNames.bob)
+          unisonFile <- makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
           pure (mergedLibdeps, mergedDefns, droppedDefns, unisonFile)
 
   let mergedBranch =
@@ -177,7 +181,7 @@ handleMerge bobBranchName = do
           & Branch.transform0 (Codebase.runTransaction codebase)
 
   let mergedNames = Branch.toNames mergedBranch
-  let ppedNames = mergedNames <> defnsToNames droppedDefns
+  let ppedNames = mergedNames <> defnsRangeToNames droppedDefns
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
   currentPath <- Cli.getCurrentPath
@@ -205,8 +209,8 @@ runNamespaceUpdate :: Map Name ref -> NamespaceUpdate ref () -> (Map Name ref, D
 runNamespaceUpdate refs update =
   Writer.runWriter (State.execStateT update refs)
 
-performAddsAndUpdates :: Map Name ref -> NamespaceUpdate ref ()
-performAddsAndUpdates addsAndUpdates = do
+performAdds :: Map Name ref -> NamespaceUpdate ref ()
+performAdds addsAndUpdates = do
   Map.for_ addsAndUpdates \name newRef -> do
     refs0 <- State.get
     let (maybeOldRef, !refs1) = Map.insertLookup name newRef refs0
@@ -239,51 +243,49 @@ nametreeToBranch0 nametree =
 makeUnisonFile ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
-  Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
+  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   Map Name [Name] ->
   Transaction (UnisonFile Symbol Ann)
 makeUnisonFile abort codebase defns declMap = do
   let lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
-  unisonFile <- do
-    addDefinitionsToUnisonFile
-      abort
-      codebase
-      -- todo: fix output
-      (const lookupCons)
-      (defns.terms, defns.types)
-      UnisonFile.emptyUnisonFile
-  pure unisonFile
+  addDefinitionsToUnisonFile
+    abort
+    codebase
+    -- todo: fix output
+    (const lookupCons)
+    (Relation.fromMultimap defns.terms, Relation.fromMultimap defns.types)
+    UnisonFile.emptyUnisonFile
 
 makeUnisonFile2 ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
-  Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
+  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)) ->
   TwoWay (Map Name [Name]) ->
   Transaction (UnisonFile Symbol Ann)
-makeUnisonFile2 abort codebase unconflicted conflicted declMap = do
+makeUnisonFile2 abort codebase unconflicts conflicts declMap = do
   unconflictedFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName (declMap.alice <> declMap.bob)))
-      (unconflicted.terms, unconflicted.types)
+      (Relation.fromMultimap unconflicts.terms, Relation.fromMultimap unconflicts.types)
       UnisonFile.emptyUnisonFile
   aliceFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName declMap.alice))
-      (conflicted.alice.terms, conflicted.alice.types)
+      (conflicts.alice.terms, conflicts.alice.types)
       UnisonFile.emptyUnisonFile
   bobFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName declMap.bob))
-      (conflicted.bob.terms, conflicted.bob.types)
+      (conflicts.bob.terms, conflicts.bob.types)
       UnisonFile.emptyUnisonFile
   pure wundefined
   where
@@ -412,7 +414,7 @@ data TwoWayAndBoth a = TwoWayAndBoth
     bob :: !a,
     both :: !a
   }
-  deriving stock (Generic)
+  deriving stock (Functor, Generic)
 
 foldTwoWayAndBoth :: Monoid a => TwoWayAndBoth a -> a
 foldTwoWayAndBoth x =
@@ -422,142 +424,141 @@ zipTwoWayAndBothWith :: (a -> b -> c) -> TwoWayAndBoth a -> TwoWayAndBoth b -> T
 zipTwoWayAndBothWith f (TwoWayAndBoth x1 x2 x3) (TwoWayAndBoth y1 y2 y3) =
   TwoWayAndBoth (f x1 y1) (f x2 y2) (f x3 y3)
 
-data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
-  { adds :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference)),
-    deletes :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference)),
-    updates :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference))
-  }
-  deriving stock (Generic)
+computeNamespaceChanges ::
+  Unconflicts (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
+  NamespaceChanges
+computeNamespaceChanges unconflicts dependents = do
+  NamespaceChanges
+    { adds =
+        let candidates = foldTwoWayAndBoth unconflicts.adds <> foldTwoWayAndBoth unconflicts.updates
+         in bimapDefns (Map.\\ dependents.terms) (Map.\\ dependents.types) candidates,
+      deletes = foldTwoWayAndBoth (defnsRangeNamesOnly <$> unconflicts.deletes)
+    }
 
-data PartitionedContents = PartitionedContents
-  { changes :: NamespaceChanges,
-    fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)
-  }
-
-partitionFileContents ::
+identifyDependentsOfUnconflicts ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  UnconflictedPartitionedDefns ->
-  Transaction PartitionedContents
-partitionFileContents defns unconflictedDefns = do
-  let UnconflictedPartitionedDefns {adds, deletes, updates} = unconflictedDefns
+  Unconflicts (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  Transaction (Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)))
+identifyDependentsOfUnconflicts defns unconflicts = do
+  let names = defnsToNames <$> ThreeWay.forgetLca defns
 
-  let aliceNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range defns.alice)
-  let bobNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range defns.bob)
+  let dependencies =
+        TwoWay
+          { alice = foldMap (defnRefs names.alice) [unconflicts.updates.bob, unconflicts.deletes.bob],
+            bob = foldMap (defnRefs names.bob) [unconflicts.updates.alice, unconflicts.deletes.alice]
+          }
 
-  let alicesReferences = foldMap (defnRefs bobNames) [updates.alice, deletes.alice]
-  let bobsReferences = foldMap (defnRefs aliceNames) [updates.bob, deletes.bob]
+  let getPersonDependents ::
+        (forall a. TwoWay a -> a) ->
+        Transaction (Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)))
+      getPersonDependents who =
+        bimapDefns Relation.domain Relation.domain <$> getNamespaceDependentsOf (who names) (who dependencies)
 
-  fileContentsMap <- do
-    d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
-    d1 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf bobNames alicesReferences
-    pure (d0 <> d1)
-
-  let lcaAddsAndUpdates =
-        let candidates = foldTwoWayAndBoth updates <> foldTwoWayAndBoth adds
-         in bimapDefns (Map.\\ fileContentsMap.terms) (Map.\\ fileContentsMap.types) candidates
-  let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (foldTwoWayAndBoth deletes)
-
-  pure
-    PartitionedContents
-      { changes =
-          NamespaceChanges
-            { hello = lcaAddsAndUpdates,
-              goodbye = lcaDeletions
-            },
-        fileContents = bimapDefns Relation.fromMultimap Relation.fromMultimap fileContentsMap
-      }
+  aliceDependents <- getPersonDependents (view #alice)
+  bobDependents <- getPersonDependents (view #bob)
+  -- FIXME document why left-biased merge is ok (seems like it is)
+  pure (aliceDependents <> bobDependents)
   where
     defnRefs :: Names -> Defns (Map Name Referent) (Map Name TypeReference) -> Set Reference
     defnRefs names =
-      flip getExistingReferencesNamed names . defnNames
+      flip getExistingReferencesNamed names . defnsRangeNamesOnly
 
-    defnNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Defns (Set Name) (Set Name)
-    defnNames =
-      bimapDefns Map.keysSet Map.keysSet
+defnsRangeNamesOnly :: Defns (Map Name a) (Map Name b) -> Defns (Set Name) (Set Name)
+defnsRangeNamesOnly =
+  bimapDefns Map.keysSet Map.keysSet
+
+defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> Defns (Map name term) (Map name typ)
+defnsRangeOnly =
+  bimapDefns BiMultimap.range BiMultimap.range
 
 data NamespaceChanges = NamespaceChanges
-  { hello :: Defns (Map Name Referent) (Map Name TypeReference),
-    goodbye :: Defns (Set Name) (Set Name)
+  { adds :: Defns (Map Name Referent) (Map Name TypeReference),
+    deletes :: Defns (Set Name) (Set Name)
   }
 
 applyNamespaceChanges :: NamespaceChanges -> Defns (NamespaceUpdate Referent ()) (NamespaceUpdate TypeReference ())
 applyNamespaceChanges changes =
   Defns
-    { terms = go changes.hello.terms changes.goodbye.terms,
-      types = go changes.hello.types changes.goodbye.types
+    { terms = go changes.adds.terms changes.deletes.terms,
+      types = go changes.adds.types changes.deletes.types
     }
   where
     go :: (Ord ref) => Map Name ref -> Set Name -> NamespaceUpdate ref ()
-    go addsAndUpdates deletes = do
-      performAddsAndUpdates addsAndUpdates
+    go adds deletes = do
+      performAdds adds
       performDeletes deletes
 
-data PartitionState v = PartitionState
-  { unconflicts :: !(UnconflictsV v),
+data Flicts = Flicts
+  { unconflicts :: !(Unconflicts (Defns (Map Name Referent) (Map Name TypeReference))),
+    conflicts :: !(Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)))
+  }
+  deriving stock (Generic)
+
+data FlictsV v = FlictsV
+  { unconflicts :: !(Unconflicts (Map Name v)),
     conflicts :: !(Map Name (TwoWay v))
   }
   deriving stock (Generic)
 
-data UnconflictsV v = UnconflictsV
-  { adds :: !(TwoWayAndBoth (Map Name v)),
-    deletes :: !(TwoWayAndBoth (Map Name v)),
-    updates :: !(TwoWayAndBoth (Map Name v))
+data Unconflicts a = Unconflicts
+  { adds :: !(TwoWayAndBoth a),
+    deletes :: !(TwoWayAndBoth a),
+    updates :: !(TwoWayAndBoth a)
   }
   deriving stock (Generic)
 
-emptyUnconflictsV :: UnconflictsV v
-emptyUnconflictsV =
-  UnconflictsV
-    { adds = TwoWayAndBoth Map.empty Map.empty Map.empty,
-      deletes = TwoWayAndBoth Map.empty Map.empty Map.empty,
-      updates = TwoWayAndBoth Map.empty Map.empty Map.empty
-    }
+zipUnconflictsWith :: (a -> b -> c) -> Unconflicts a -> Unconflicts b -> Unconflicts c
+zipUnconflictsWith f (Unconflicts x1 y1 z1) (Unconflicts x2 y2 z2) =
+  Unconflicts (zipTwoWayAndBothWith f x1 x2) (zipTwoWayAndBothWith f y1 y2) (zipTwoWayAndBothWith f z1 z2)
 
-data PartitionState2 = PartitionState2
-  { conflicts :: !(Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference))),
-    unconflicts :: !UnconflictedPartitionedDefns
-  }
-  deriving stock (Generic)
-
-emptyPartitionState :: PartitionState v
-emptyPartitionState =
-  PartitionState
-    { unconflicts = emptyUnconflictsV,
+emptyFlictsV :: FlictsV v
+emptyFlictsV =
+  FlictsV
+    { unconflicts =
+        Unconflicts
+          { adds = TwoWayAndBoth Map.empty Map.empty Map.empty,
+            deletes = TwoWayAndBoth Map.empty Map.empty Map.empty,
+            updates = TwoWayAndBoth Map.empty Map.empty Map.empty
+          },
       conflicts = Map.empty
     }
 
+makeFlictsV :: Map Name (TwoDiffsOp v) -> FlictsV v
+makeFlictsV =
+  Map.foldlWithKey' (\s k v -> insert k v s) emptyFlictsV
+  where
+    insert :: Name -> TwoDiffsOp v -> FlictsV v -> FlictsV v
+    insert k = \case
+      Conflict v -> #conflicts %~ Map.insert k v
+      Addition who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
+      Update who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
+      Deletion who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
+      where
+        whoL :: forall x. AliceIorBob -> Lens' (TwoWayAndBoth x) x
+        whoL = \case
+          AliceI -> #alice
+          BobI -> #bob
+          Both -> #both
+
 -- Partition definitions into conflicted and unconflicted.
-identifyConflicts ::
-  Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
-  ( Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)),
-    UnconflictedPartitionedDefns
-  )
-identifyConflicts defns =
-  let termSt = Map.foldlWithKey' phi emptyPartitionState defns.terms
-      typeSt = Map.foldlWithKey' phi emptyPartitionState defns.types
+partitionDiffIntoFlicts :: Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) -> Flicts
+partitionDiffIntoFlicts =
+  makeFlicts . bimapDefns makeFlictsV makeFlictsV
 
-      phi :: forall v. PartitionState v -> Name -> TwoDiffsOp v -> PartitionState v
-      phi = \st k -> \case
-        Conflict v -> st & #conflicts %~ Map.insert k v
-        Addition who v -> st & #unconflicts . #adds . whoL who %~ Map.insert k v
-        Update who v -> st & #unconflicts . #updates . whoL who %~ Map.insert k v
-        Deletion who v -> st & #unconflicts . #deletes . whoL who %~ Map.insert k v
-        where
-          whoL :: forall x. AliceIorBob -> Lens' (TwoWayAndBoth x) x
-          whoL = \case
-            AliceI -> #alice
-            BobI -> #bob
-            Both -> #both
-   in ( Defns termSt.conflicts typeSt.conflicts,
-        UnconflictedPartitionedDefns
-          { adds = zipTwoWayAndBothWith Defns termSt.unconflicts.adds typeSt.unconflicts.adds,
-            deletes = zipTwoWayAndBothWith Defns termSt.unconflicts.deletes typeSt.unconflicts.deletes,
-            updates = zipTwoWayAndBothWith Defns termSt.unconflicts.updates typeSt.unconflicts.updates
-          }
-      )
+makeFlicts :: Defns (FlictsV Referent) (FlictsV TypeReference) -> Flicts
+makeFlicts defns =
+  Flicts
+    { unconflicts = zipUnconflictsWith Defns defns.terms.unconflicts defns.types.unconflicts,
+      conflicts = Defns defns.terms.conflicts defns.types.conflicts
+    }
 
-defnsToNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Names
-defnsToNames Defns {terms, types} =
+defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
+defnsToNames =
+  defnsRangeToNames . defnsRangeOnly
+
+defnsRangeToNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Names
+defnsRangeToNames Defns {terms, types} =
   Names.Names
     { terms = Relation.fromMap terms,
       types = Relation.fromMap types
