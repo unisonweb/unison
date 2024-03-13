@@ -43,7 +43,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Name qualified as Name (parseText, nameP, toText)
+import Unison.Syntax.Name qualified as Name (nameP, parseText, toText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty

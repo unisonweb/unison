@@ -42,8 +42,8 @@ import Unison.Server.Types
     mayDefaultWidth,
   )
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.Pretty (Width)
-import qualified Unison.Syntax.Name as Name
 
 type FuzzyFindAPI =
   "find"
