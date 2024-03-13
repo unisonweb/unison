@@ -511,7 +511,7 @@ data PartitionState v = PartitionState
     aliceDeletions :: !(Map Name v),
     bobDeletions :: !(Map Name v),
     bothDeletions :: !(Map Name v),
-    conflicts :: !(Map Name (v, v))
+    conflicts :: !(Map Name (TwoWay v))
   }
   deriving stock (Generic)
 
@@ -533,7 +533,7 @@ emptyPartitionState =
 -- Partition definitions into conflicted and unconflicted.
 identifyConflicts ::
   Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) ->
-  ( Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)),
+  ( Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)),
     UnconflictedPartitionedDefns
   )
 identifyConflicts defns =
@@ -542,23 +542,23 @@ identifyConflicts defns =
 
       phi :: forall v. PartitionState v -> Name -> TwoDiffsOp v -> PartitionState v
       phi = \st k -> \case
-        Conflict a b -> st & #conflicts %~ Map.insert k (a, b)
+        Conflict v -> st & #conflicts %~ Map.insert k v
         Addition actor a ->
           let l = case actor of
-                Alice -> #aliceAdditions
-                Bob -> #bobAdditions
+                AliceI -> #aliceAdditions
+                BobI -> #bobAdditions
                 Both -> #bothAdditions
            in st & l %~ Map.insert k a
         Update actor a ->
           let l = case actor of
-                Alice -> #aliceUpdates
-                Bob -> #bobUpdates
+                AliceI -> #aliceUpdates
+                BobI -> #bobUpdates
                 Both -> #bothUpdates
            in st & l %~ Map.insert k a
         Deletion actor a ->
           let l = case actor of
-                Alice -> #aliceDeletions
-                Bob -> #bobDeletions
+                AliceI -> #aliceDeletions
+                BobI -> #bobDeletions
                 Both -> #bothDeletions
            in st & l %~ Map.insert k a
    in ( Defns termSt.conflicts typeSt.conflicts,
@@ -581,21 +581,6 @@ defnsToNames Defns {terms, types} =
     { terms = Relation.fromMap terms,
       types = Relation.fromMap types
     }
-
-defnsToRel ::
-  Defns (Map Name Referent) (Map Name TypeReference) ->
-  (Relation Name TermReferenceId, Relation Name TypeReferenceId)
-defnsToRel Defns {terms, types} =
-  let termRefIds = flip mapMaybe terms \case
-        Referent.Ref r -> case r of
-          ReferenceBuiltin _ -> Nothing -- todo - explode
-          ReferenceDerived r -> Just r
-        Referent.Con _ _ -> Nothing -- todo - get the decl
-      typeRefIds =
-        flip mapMaybe types \case
-          ReferenceBuiltin _ -> Nothing -- todo - explode
-          ReferenceDerived r -> Just r
-   in (Relation.fromMap termRefIds, Relation.fromMap typeRefIds)
 
 promptUser ::
   MergeInfo ->
@@ -758,7 +743,7 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
 
 assertConflictsSatisfyPreconditions ::
-  Defns (Map Name (Referent, Referent)) (Map Name (TypeReference, TypeReference)) ->
+  Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)) ->
   Transaction (Defns (Map Name (Referent.Id, Referent.Id)) (Map Name (TypeReferenceId, TypeReferenceId)))
 assertConflictsSatisfyPreconditions conflicts =
   undefined
@@ -875,15 +860,26 @@ getTwoFreshNames names name0 =
       NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)
 
 data TwoDiffsOp v
-  = Conflict v v
-  | Addition Actor v
-  | Update Actor v -- new value
-  | Deletion Actor v -- old value
+  = Conflict !(TwoWay v)
+  | Addition !AliceIorBob !v
+  | Update !AliceIorBob !v -- new value
+  | Deletion !AliceIorBob !v -- old value
 
-data Actor
-  = Alice
-  | Bob
+-- Alice exclusive-or Bob?
+data AliceXorBob
+  = AliceX
+  | BobX
+
+-- Alice inclusive-or Bob?
+data AliceIorBob
+  = AliceI
+  | BobI
   | Both
+
+aliceXorBob :: AliceXorBob -> AliceIorBob
+aliceXorBob = \case
+  AliceX -> AliceI
+  BobX -> BobI
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Conflicts
@@ -892,27 +888,38 @@ data Actor
 -- their LCA.
 partitionDiff :: TwoWay (Map Name (Merge.DiffOp (Synhashed v))) -> Map Name (TwoDiffsOp v)
 partitionDiff diffs =
-  alignWith (f Alice Bob) diffs.alice diffs.bob
+  alignWith (f AliceX BobX) diffs.alice diffs.bob
   where
-    diffOpToTag :: Actor -> Merge.DiffOp (Synhashed v) -> TwoDiffsOp v
-    diffOpToTag actor = \case
-      Merge.Added x -> Addition actor x.value
-      Merge.Updated _ x -> Update actor x.value
-      Merge.Deleted x -> Deletion actor x.value
+    diffOpToTag :: AliceXorBob -> Merge.DiffOp (Synhashed v) -> TwoDiffsOp v
+    diffOpToTag who = \case
+      Merge.Added x -> Addition (aliceXorBob who) x.value
+      Merge.Updated _ x -> Update (aliceXorBob who) x.value
+      Merge.Deleted x -> Deletion (aliceXorBob who) x.value
 
-    f :: Actor -> Actor -> These (Merge.DiffOp (Synhashed v)) (Merge.DiffOp (Synhashed v)) -> TwoDiffsOp v
+    f :: AliceXorBob -> AliceXorBob -> These (Merge.DiffOp (Synhashed v)) (Merge.DiffOp (Synhashed v)) -> TwoDiffsOp v
     f this that = \case
-      These (Merge.Added x) (Merge.Added y) -> if x /= y then Conflict x.value y.value else Addition Both x.value
+      These (Merge.Added x) (Merge.Added y) ->
+        if x /= y
+          then Conflict (twoWay this x.value y.value)
+          else Addition Both x.value
       These (Merge.Added _) (Merge.Updated _ _) -> error "impossible"
       These (Merge.Added _) (Merge.Deleted _) -> error "impossible"
-      These (Merge.Updated _ x) (Merge.Updated _ y) -> if x /= y then Conflict x.value y.value else Update Both x.value
+      These (Merge.Updated _ x) (Merge.Updated _ y) ->
+        if x /= y
+          then Conflict (twoWay this x.value y.value)
+          else Update Both x.value
       -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-      These (Merge.Updated _ x) (Merge.Deleted _) -> Update this x.value
+      These (Merge.Updated _ x) (Merge.Deleted _) -> Update (aliceXorBob this) x.value
       These (Merge.Updated _ _) (Merge.Added _) -> error "impossible"
       These (Merge.Deleted x) (Merge.Deleted _) -> Deletion Both x.value
       These a@(Merge.Deleted _) b -> f that this (These b a)
       This x -> diffOpToTag this x
       That x -> diffOpToTag that x
+
+    -- Make a two way, given who is on the left.
+    twoWay :: AliceXorBob -> v -> v -> TwoWay v
+    twoWay AliceX alice bob = TwoWay {alice, bob}
+    twoWay BobX bob alice = TwoWay {alice, bob}
 
 libdepsToBranch0 :: MergeDatabase -> Map NameSegment (V2.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
 libdepsToBranch0 db libdeps = do
