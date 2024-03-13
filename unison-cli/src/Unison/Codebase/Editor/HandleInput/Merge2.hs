@@ -106,41 +106,50 @@ handleMerge bobBranchName = do
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
   mergeInfo <- getMergeInfo bobBranchName
 
-  (mergedLibdeps, mergedDefns, droppedDefns, unisonFile) <-
+  -- Load alice, bob, and LCA branches
+  branches <-
     Cli.runTransactionWithRollback \abort -> do
-      -- Load alice, bob, and LCA branches
-      branches <- loadV2Branches =<< loadV2Causals abort db mergeInfo
+      loadV2Branches =<< loadV2Causals abort db mergeInfo
 
-      -- Load alice, bob, and LCA definitions + decl names
-      (declNames, defns) <- loadDefns abort db mergeInfo branches
+  -- Load alice, bob, and LCA definitions + decl names
+  (declNames, defns) <-
+    Cli.runTransactionWithRollback \abort -> do
+      loadDefns abort db mergeInfo branches
 
-      -- Load and merge alice and bob libdeps (this could be done later)
-      mergedLibdeps <- do
-        libdeps <- loadLibdeps branches
-        libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
+  -- Load and merge alice and bob libdeps (this could be done later)
+  mergedLibdeps <-
+    Cli.runTransaction do
+      libdeps <- loadLibdeps branches
+      libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-      -- Diff the definitions
-      diff <- performDiff abort db mergeInfo defns
+  -- Diff the definitions
+  diff <-
+    Cli.runTransactionWithRollback \abort -> do
+      performDiff abort db mergeInfo defns
 
-      -- Partition the diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
-      -- things)
-      let flicts = partitionDiffIntoFlicts diff
+  -- Partition the diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
+  -- things)
+  let flicts = partitionDiffIntoFlicts diff
 
-      -- Identify the dependents we need to pull into the scratch file for typechecking
-      dependents <- identifyDependentsOfUnconflicts defns flicts.unconflicts
+  -- Identify the dependents we need to pull into the scratch file for typechecking
+  dependents <-
+    Cli.runTransaction do
+      identifyDependentsOfUnconflicts defns flicts.unconflicts
 
-      -- Compute the namespace changes to apply to the LCA
-      let changes = computeNamespaceChanges flicts.unconflicts dependents
+  -- Compute the namespace changes to apply to the LCA
+  let changes = computeNamespaceChanges flicts.unconflicts dependents
 
-      let (mergedDefns, droppedDefns) =
-            unzipDefns
-              ( zipDefnsWith
-                  runNamespaceUpdate
-                  runNamespaceUpdate
-                  (defnsRangeOnly defns.lca)
-                  (applyNamespaceChanges changes)
-              )
+  let (mergedDefns, droppedDefns) =
+        unzipDefns
+          ( zipDefnsWith
+              runNamespaceUpdate
+              runNamespaceUpdate
+              (defnsRangeOnly defns.lca)
+              (applyNamespaceChanges changes)
+          )
 
+  unisonFile <-
+    Cli.runTransactionWithRollback \abort -> do
       case Map.null flicts.conflicts.terms && Map.null flicts.conflicts.types of
         False -> do
           honkingConflicted <- assertConflictsSatisfyPreconditions flicts.conflicts
@@ -166,11 +175,8 @@ handleMerge bobBranchName = do
                       (Map.foldMapWithKey clonk)
                       (fmap typesToDefns . Map.foldMapWithKey honk)
                       honkingConflicted
-          unisonFile <- makeUnisonFile2 abort codebase dependents conflictedFileContents declNames
-          pure (mergedLibdeps, mergedDefns, droppedDefns, unisonFile)
-        True -> do
-          unisonFile <- makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
-          pure (mergedLibdeps, mergedDefns, droppedDefns, unisonFile)
+          makeUnisonFile2 abort codebase dependents conflictedFileContents declNames
+        True -> makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
 
   let mergedBranch =
         mergedDefns
