@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (view, (%~))
+import Control.Lens (Lens', view, (%~))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
@@ -407,42 +407,45 @@ performDiff abort db info defns = do
         types = partitionDiff (view #types <$> diffs)
       }
 
-data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
-  { aliceAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothAdditions :: Defns (Map Name Referent) (Map Name TypeReference),
-    aliceUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothUpdates :: Defns (Map Name Referent) (Map Name TypeReference),
-    aliceDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bobDeletions :: Defns (Map Name Referent) (Map Name TypeReference),
-    bothDeletions :: Defns (Map Name Referent) (Map Name TypeReference)
+data TwoWayAndBoth a = TwoWayAndBoth
+  { alice :: !a,
+    bob :: !a,
+    both :: !a
   }
+  deriving stock (Generic)
+
+foldTwoWayAndBoth :: Monoid a => TwoWayAndBoth a -> a
+foldTwoWayAndBoth x =
+  x.alice <> x.bob <> x.both
+
+zipTwoWayAndBothWith :: (a -> b -> c) -> TwoWayAndBoth a -> TwoWayAndBoth b -> TwoWayAndBoth c
+zipTwoWayAndBothWith f (TwoWayAndBoth x1 x2 x3) (TwoWayAndBoth y1 y2 y3) =
+  TwoWayAndBoth (f x1 y1) (f x2 y2) (f x3 y3)
+
+data UnconflictedPartitionedDefns = UnconflictedPartitionedDefns
+  { adds :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference)),
+    deletes :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference)),
+    updates :: TwoWayAndBoth (Defns (Map Name Referent) (Map Name TypeReference))
+  }
+  deriving stock (Generic)
 
 data PartitionedContents = PartitionedContents
   { changes :: NamespaceChanges,
     fileContents :: Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)
   }
 
-partitionFileContents :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) -> UnconflictedPartitionedDefns -> Transaction PartitionedContents
+partitionFileContents ::
+  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  UnconflictedPartitionedDefns ->
+  Transaction PartitionedContents
 partitionFileContents defns unconflictedDefns = do
-  let UnconflictedPartitionedDefns
-        { aliceUpdates,
-          bobUpdates,
-          bothUpdates,
-          aliceAdditions,
-          bobAdditions,
-          bothAdditions,
-          aliceDeletions,
-          bobDeletions,
-          bothDeletions
-        } = unconflictedDefns
+  let UnconflictedPartitionedDefns {adds, deletes, updates} = unconflictedDefns
 
   let aliceNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range defns.alice)
   let bobNames = defnsToNames (bimapDefns BiMultimap.range BiMultimap.range defns.bob)
 
-  let alicesReferences = foldMap (defnRefs bobNames) [aliceUpdates, aliceDeletions]
-  let bobsReferences = foldMap (defnRefs aliceNames) [bobUpdates, bobDeletions]
+  let alicesReferences = foldMap (defnRefs bobNames) [updates.alice, deletes.alice]
+  let bobsReferences = foldMap (defnRefs aliceNames) [updates.bob, deletes.bob]
 
   fileContentsMap <- do
     d0 <- (\(a, b) -> Defns {terms = Relation.domain a, types = Relation.domain b}) <$> getNamespaceDependentsOf aliceNames bobsReferences
@@ -450,9 +453,9 @@ partitionFileContents defns unconflictedDefns = do
     pure (d0 <> d1)
 
   let lcaAddsAndUpdates =
-        let candidates = aliceUpdates <> bobUpdates <> bothUpdates <> aliceAdditions <> bobAdditions <> bothAdditions
+        let candidates = foldTwoWayAndBoth updates <> foldTwoWayAndBoth adds
          in bimapDefns (Map.\\ fileContentsMap.terms) (Map.\\ fileContentsMap.types) candidates
-  let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (aliceDeletions <> bobDeletions <> bothDeletions)
+  let lcaDeletions = bimapDefns Map.keysSet Map.keysSet (foldTwoWayAndBoth deletes)
 
   pure
     PartitionedContents
@@ -489,44 +492,37 @@ applyNamespaceChanges changes =
       performAddsAndUpdates addsAndUpdates
       performDeletes deletes
 
-unconflictedAdditions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedAdditions UnconflictedPartitionedDefns {aliceAdditions, bobAdditions, bothAdditions} =
-  aliceAdditions <> bobAdditions <> bothAdditions
-
-unconflictedUpdates :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedUpdates UnconflictedPartitionedDefns {aliceUpdates, bobUpdates, bothUpdates} =
-  aliceUpdates <> bobUpdates <> bothUpdates
-
-unconflictedDeletions :: UnconflictedPartitionedDefns -> Defns (Map Name Referent) (Map Name TypeReference)
-unconflictedDeletions UnconflictedPartitionedDefns {aliceDeletions, bobDeletions, bothDeletions} =
-  aliceDeletions <> bobDeletions <> bothDeletions
-
 data PartitionState v = PartitionState
-  { aliceAdditions :: !(Map Name v),
-    bobAdditions :: !(Map Name v),
-    bothAdditions :: !(Map Name v),
-    aliceUpdates :: !(Map Name v),
-    bobUpdates :: !(Map Name v),
-    bothUpdates :: !(Map Name v),
-    aliceDeletions :: !(Map Name v),
-    bobDeletions :: !(Map Name v),
-    bothDeletions :: !(Map Name v),
+  { unconflicts :: !(UnconflictsV v),
     conflicts :: !(Map Name (TwoWay v))
+  }
+  deriving stock (Generic)
+
+data UnconflictsV v = UnconflictsV
+  { adds :: !(TwoWayAndBoth (Map Name v)),
+    deletes :: !(TwoWayAndBoth (Map Name v)),
+    updates :: !(TwoWayAndBoth (Map Name v))
+  }
+  deriving stock (Generic)
+
+emptyUnconflictsV :: UnconflictsV v
+emptyUnconflictsV =
+  UnconflictsV
+    { adds = TwoWayAndBoth Map.empty Map.empty Map.empty,
+      deletes = TwoWayAndBoth Map.empty Map.empty Map.empty,
+      updates = TwoWayAndBoth Map.empty Map.empty Map.empty
+    }
+
+data PartitionState2 = PartitionState2
+  { conflicts :: !(Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference))),
+    unconflicts :: !UnconflictedPartitionedDefns
   }
   deriving stock (Generic)
 
 emptyPartitionState :: PartitionState v
 emptyPartitionState =
   PartitionState
-    { aliceAdditions = Map.empty,
-      bobAdditions = Map.empty,
-      bothAdditions = Map.empty,
-      aliceUpdates = Map.empty,
-      bobUpdates = Map.empty,
-      bothUpdates = Map.empty,
-      aliceDeletions = Map.empty,
-      bobDeletions = Map.empty,
-      bothDeletions = Map.empty,
+    { unconflicts = emptyUnconflictsV,
       conflicts = Map.empty
     }
 
@@ -537,41 +533,26 @@ identifyConflicts ::
     UnconflictedPartitionedDefns
   )
 identifyConflicts defns =
-  let termSt = Map.foldlWithKey phi emptyPartitionState defns.terms
-      typeSt = Map.foldlWithKey phi emptyPartitionState defns.types
+  let termSt = Map.foldlWithKey' phi emptyPartitionState defns.terms
+      typeSt = Map.foldlWithKey' phi emptyPartitionState defns.types
 
       phi :: forall v. PartitionState v -> Name -> TwoDiffsOp v -> PartitionState v
       phi = \st k -> \case
         Conflict v -> st & #conflicts %~ Map.insert k v
-        Addition actor a ->
-          let l = case actor of
-                AliceI -> #aliceAdditions
-                BobI -> #bobAdditions
-                Both -> #bothAdditions
-           in st & l %~ Map.insert k a
-        Update actor a ->
-          let l = case actor of
-                AliceI -> #aliceUpdates
-                BobI -> #bobUpdates
-                Both -> #bothUpdates
-           in st & l %~ Map.insert k a
-        Deletion actor a ->
-          let l = case actor of
-                AliceI -> #aliceDeletions
-                BobI -> #bobDeletions
-                Both -> #bothDeletions
-           in st & l %~ Map.insert k a
+        Addition who v -> st & #unconflicts . #adds . whoL who %~ Map.insert k v
+        Update who v -> st & #unconflicts . #updates . whoL who %~ Map.insert k v
+        Deletion who v -> st & #unconflicts . #deletes . whoL who %~ Map.insert k v
+        where
+          whoL :: forall x. AliceIorBob -> Lens' (TwoWayAndBoth x) x
+          whoL = \case
+            AliceI -> #alice
+            BobI -> #bob
+            Both -> #both
    in ( Defns termSt.conflicts typeSt.conflicts,
         UnconflictedPartitionedDefns
-          { aliceAdditions = Defns termSt.aliceAdditions typeSt.aliceAdditions,
-            bobAdditions = Defns termSt.bobAdditions typeSt.bobAdditions,
-            bothAdditions = Defns termSt.bothAdditions typeSt.bothAdditions,
-            aliceUpdates = Defns termSt.aliceUpdates typeSt.aliceUpdates,
-            bobUpdates = Defns termSt.bobUpdates typeSt.bobUpdates,
-            bothUpdates = Defns termSt.bothUpdates typeSt.bothUpdates,
-            aliceDeletions = Defns termSt.aliceDeletions typeSt.aliceDeletions,
-            bobDeletions = Defns termSt.bobDeletions typeSt.bobDeletions,
-            bothDeletions = Defns termSt.bothDeletions typeSt.bothDeletions
+          { adds = zipTwoWayAndBothWith Defns termSt.unconflicts.adds typeSt.unconflicts.adds,
+            deletes = zipTwoWayAndBothWith Defns termSt.unconflicts.deletes typeSt.unconflicts.deletes,
+            updates = zipTwoWayAndBothWith Defns termSt.unconflicts.updates typeSt.unconflicts.updates
           }
       )
 
