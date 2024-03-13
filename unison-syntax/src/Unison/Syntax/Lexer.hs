@@ -278,12 +278,20 @@ lexer0' scope rem =
                       & fmap errorItemToString
                       & maybeToList
                       & Set.fromList
+                  errorLength :: Int
+                  errorLength = case Set.toList unexpectedStr of
+                    [] -> 0
+                    (x : _) -> length x
                   expectedStr :: Set String
                   expectedStr =
                     expectedTokens
                       & Set.map errorItemToString
                   err = UnexpectedTokens $ formatTrivialError unexpectedStr expectedStr
-               in [Token (Err err) (toPos top) (toPos top)]
+                  startPos = toPos top
+                  -- This is just an attempt to highlight errors better in source excerpts.
+                  -- It may not work in all cases, but should generally provide a better experience.
+                  endPos = startPos & \(Pos l c) -> Pos l (c + errorLength)
+               in [Token (Err err) startPos endPos]
        in errsWithSourcePos >>= errorToTokens
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
@@ -330,7 +338,7 @@ formatTrivialError unexpectedTokens expectedTokens =
         xs -> "I was surprised to find these:\n\n* " <> List.intercalate "\n* " xs
       expectedMsg = case Set.toList expectedTokens of
         [] -> Nothing
-        xs -> Just $ "\nI was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
+        xs -> Just $ "\nI was expecting one of these instead:\n\n* " <> List.intercalate "\n* " xs
    in concat $ catMaybes [Just unexpectedMsg, expectedMsg]
 
 displayLexeme :: Lexeme -> String

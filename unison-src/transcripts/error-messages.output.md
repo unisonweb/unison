@@ -215,7 +215,7 @@ foo = match 1 with
       3 | 
   
   I was surprised to find an end of section here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * ","
   * case match
@@ -261,7 +261,7 @@ x = match Some a with
       7 | 
   
   I was surprised to find an end of section here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * ","
   * blank
@@ -289,7 +289,7 @@ x = match Some a with
   
   
   I was surprised to find a -> here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * newline or semicolon
 
@@ -311,7 +311,7 @@ x = match Some a with
   
   
   I was surprised to find a '|' here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * newline or semicolon
 

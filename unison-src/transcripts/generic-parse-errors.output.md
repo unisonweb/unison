@@ -15,7 +15,7 @@ x =
   
   
   I was surprised to find a 1 here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * end of input
   * hash (ex: #af3sj3)
@@ -79,7 +79,7 @@ x = "hi
       2 | 
   
   I was surprised to find an end of input here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * "
   * \s
@@ -99,7 +99,7 @@ y : a
       2 | 
   
   I was surprised to find an end of section here.
-  I was hoping for one of these instead:
+  I was expecting one of these instead:
   
   * ->
   * newline or semicolon
