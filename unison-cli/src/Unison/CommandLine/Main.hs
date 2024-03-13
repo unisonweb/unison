@@ -159,12 +159,16 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             pure (Just currentRoot)
           loop currentRoot
     loop Nothing
-  eventQueue <- Q.newIO
-  initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
+  -- A queue for input or file events.
+  inputQueue <- Q.newIO @(Either Event Input)
+  -- Pre-load all start-up events.
+  atomically $
+    for (Welcome.run welcome ++ initialInputs) \i -> do
+      Q.enqueue inputQueue i
   pageOutput <- newIORef True
   cancelFileSystemWatch <- case shouldWatchFiles of
     ShouldNotWatchFiles -> pure (pure ())
-    ShouldWatchFiles -> watchFileSystem eventQueue dir
+    ShouldWatchFiles -> watchFileSystem (atomically . Q.enqueue inputQueue . Left) dir
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
@@ -207,19 +211,15 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
       cleanup = cancelFileSystemWatch
       awaitInput :: Cli.LoopState -> IO (Either Event Input)
       awaitInput loopState = do
-        -- use up buffered input before consulting external events
-        readIORef initialInputsRef >>= \case
-          h : t -> writeIORef initialInputsRef t >> pure h
-          [] ->
-            -- Race the user input and file watch.
-            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
-              Left _ -> do
-                let e = Left <$> atomically (Q.dequeue eventQueue)
-                writeIORef pageOutput False
-                e
-              x -> do
-                writeIORef pageOutput True
-                pure x
+        -- Race the user input and file watch.
+        Async.race (atomically $ Q.peek inputQueue) (getInput loopState) >>= \case
+          Left _ -> do
+            let e = atomically (Q.dequeue inputQueue)
+            writeIORef pageOutput False
+            e
+          Right x -> do
+            writeIORef pageOutput True
+            pure (Right x)
 
   let foldLine :: Text
       foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"

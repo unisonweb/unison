@@ -59,8 +59,6 @@ import Unison.Symbol (Symbol)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
-import Unison.Util.TQueue qualified as Q
-import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 disableWatchConfig :: Bool
@@ -80,12 +78,12 @@ watchConfig path =
       (config, t) <- autoReload autoConfig [Optional path]
       pure (config, killThread t)
 
-watchFileSystem :: Q.TQueue Event -> FilePath -> IO (IO ())
-watchFileSystem q dir = do
+watchFileSystem :: (Event -> IO ()) -> FilePath -> IO (IO ())
+watchFileSystem enqueue dir = do
   (cancel, watcher) <- Watch.watchDirectory dir allow
   t <- forkIO . forever $ do
     (filePath, text) <- watcher
-    atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
+    enqueue $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
 warnNote :: String -> String
