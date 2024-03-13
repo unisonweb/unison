@@ -282,11 +282,7 @@ lexer0' scope rem =
                   expectedStr =
                     expectedTokens
                       & Set.map errorItemToString
-                  startsWithVowel :: String -> Bool
-                  startsWithVowel = \case
-                    [] -> False
-                    (ch : _) -> ch `elem` ("aeiou" :: String)
-                  err = UnexpectedTokens $ formatTrivialError startsWithVowel unexpectedStr expectedStr
+                  err = UnexpectedTokens $ formatTrivialError unexpectedStr expectedStr
                in [Token (Err err) (toPos top) (toPos top)]
        in errsWithSourcePos >>= errorToTokens
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
@@ -322,28 +318,20 @@ lexer0' scope rem =
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
-formatTrivialError ::
-  (IsString s, Monoid s) =>
-  -- | A function that returns True if the given string starts with a vowel,
-  -- Used for selecting the correct article.
-  (s -> Bool) ->
-  Set s ->
-  Set s ->
-  s
-formatTrivialError startsWithVowel unexpectedTokens expectedTokens =
+formatTrivialError :: Set String -> Set String -> [Char]
+formatTrivialError unexpectedTokens expectedTokens =
   let unexpectedMsg = case Set.toList unexpectedTokens of
         [] -> "I found something I didn't expect."
         [x] ->
-          let article =
-                if startsWithVowel x
-                  then "an"
-                  else "a"
+          let article = case x of
+                (c : _) | c `elem` ("aeiou" :: String) -> "an"
+                _ -> "a"
            in "I was surprised to find " <> article <> " " <> x <> " here."
-        xs -> "I was surprised to find these:\n\n* " <> intercalateMap "\n* " id xs
+        xs -> "I was surprised to find these:\n\n* " <> List.intercalate "\n* " xs
       expectedMsg = case Set.toList expectedTokens of
         [] -> Nothing
-        xs -> Just $ "\nI was hoping for one of these instead:\n\n* " <> intercalateMap "\n* " id xs
-   in mconcat $ catMaybes [Just unexpectedMsg, expectedMsg]
+        xs -> Just $ "\nI was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
+   in concat $ catMaybes [Just unexpectedMsg, expectedMsg]
 
 displayLexeme :: Lexeme -> String
 displayLexeme = \case

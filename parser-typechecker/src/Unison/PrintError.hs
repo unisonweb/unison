@@ -1524,7 +1524,7 @@ renderParseErrors s = \case
           Nothing -> []
           Just ts -> rangeForToken <$> Foldable.toList ts
         excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
-        msg = L.formatTrivialError _ unexpectedTokenStrs expectedTokenStrs
+        msg = L.formatTrivialError unexpectedTokenStrs expectedTokenStrs
      in [ ( Pr.lines
               [ "I got confused here:",
                 "",
