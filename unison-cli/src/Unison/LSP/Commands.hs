@@ -9,16 +9,44 @@ import Control.Lens hiding (List)
 import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Server (sendRequest)
+import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
+import Unison.LSP.Types qualified as Lsp
 import Unison.Prelude
+import Unison.Symbol
+import Unison.Var qualified as Var
+
+data UnisonLspCommand
+  = ReplaceText
+  | Add
+  | Update
+  deriving (Eq, Show, Ord, Enum, Bounded)
+
+commandName :: UnisonLspCommand -> Text
+commandName = \case
+  ReplaceText -> "unison.replaceText"
+  Add -> "unison.add"
+  Update -> "unison.update"
+
+fromCommandName :: Text -> Maybe UnisonLspCommand
+fromCommandName = \case
+  "unison.replaceText" -> Just ReplaceText
+  "unison.add" -> Just Add
+  "unison.update" -> Just Update
+  _ -> Nothing
 
 supportedCommands :: [Text]
-supportedCommands = ["replaceText"]
+supportedCommands =
+  commandName
+    <$> [ minBound :: UnisonLspCommand
+          .. maxBound :: UnisonLspCommand
+        ]
 
 replaceText ::
   --  | The text displayed to the user for this command if used in a CodeLens
@@ -56,6 +84,33 @@ instance Aeson.FromJSON TextReplacement where
       <*> o
         Aeson..: "fileUri"
 
+data AddOrUpdateArgs = AddOrUpdateParams {symbol :: Symbol, fileUri :: Uri}
+
+instance Aeson.ToJSON AddOrUpdateArgs where
+  toJSON (AddOrUpdateParams sym uri) =
+    Aeson.object
+      [ "symbol" Aeson..= Text.pack (Var.nameStr sym),
+        "fileUri" Aeson..= uri
+      ]
+
+instance Aeson.FromJSON AddOrUpdateArgs where
+  parseJSON = Aeson.withObject "AddOrUpdateArgs" $ \o -> do
+    sym <- o Aeson..: "symbol"
+    uri <- o Aeson..: "fileUri"
+    pure $ AddOrUpdateParams (Var.named sym) uri
+
+addCommand :: Symbol -> Uri -> Command
+addCommand sym uri =
+  let title = "Add Definition"
+      command = commandName Add
+   in Command title command (Just [Aeson.toJSON $ AddOrUpdateParams sym uri])
+
+updateCommand :: Symbol -> Uri -> Command
+updateCommand sym uri =
+  let title = "Update Definition"
+      command = commandName Update
+   in Command title command (Just [Aeson.toJSON $ AddOrUpdateParams sym uri])
+
 -- | Computes code actions for a document.
 executeCommandHandler :: Msg.TRequestMessage 'Msg.Method_WorkspaceExecuteCommand -> (Either Msg.ResponseError (Aeson.Value |? Null) -> Lsp ()) -> Lsp ()
 executeCommandHandler m respond =
@@ -63,8 +118,8 @@ executeCommandHandler m respond =
     let cmd = m ^. params . command
     let args = m ^. params . arguments
     let invalidCmdErr = throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
-    case cmd of
-      "replaceText" -> case args of
+    case fromCommandName cmd of
+      Just ReplaceText -> case args of
         Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do
           let params =
                 ApplyWorkspaceEditParams
@@ -76,5 +131,9 @@ executeCommandHandler m respond =
                 Right _ -> pure ()
             )
         _ -> invalidCmdErr
-      _ -> invalidCmdErr
+      Just Add -> case args of
+        Just [Aeson.fromJSON -> Aeson.Success (AddOrUpdateParams sym uri)] -> do
+          Lsp.sendUCMInput (Input.AddI sym)
+        _ -> invalidCmdErr
+      Nothing -> invalidCmdErr
     pure $ InL Aeson.Null
