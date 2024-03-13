@@ -27,6 +27,7 @@ where
 
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as Nel
@@ -105,9 +106,7 @@ data Err
   | LayoutError
   | CloseWithoutMatchingOpen String String -- open, close
   | UnexpectedDelimiter String
-  | Opaque String -- Catch-all failure type, generally these will be
-  -- automatically generated errors coming from megaparsec
-  -- Try to avoid this for common errors a user is likely to see.
+  | UnexpectedTokens String -- Catch-all for all other lexer errors, representing some unexpected tokens.
   deriving stock (Eq, Ord, Show) -- richer algebra
 
 -- Design principle:
@@ -261,17 +260,33 @@ lexer0' scope rem =
                 P.errorOffset
                 (toList (P.bundleErrors e))
                 (P.bundlePosState e)
+          errorToTokens :: (EP.ParseError String (Token Err), P.SourcePos) -> [Token Lexeme]
           errorToTokens (err, top) = case err of
             P.FancyError _ (customErrs -> es) | not (null es) -> es
             P.FancyError _errOffset es ->
               let msg = intercalateMap "\n" showErrorFancy es
-               in [Token (Err (Opaque msg)) (toPos top) (toPos top)]
-            P.TrivialError _errOffset _ _ ->
-              let msg = Opaque $ EP.parseErrorPretty err
-               in [Token (Err msg) (toPos top) (toPos top)]
+               in [Token (Err (UnexpectedTokens msg)) (toPos top) (toPos top)]
+            P.TrivialError _errOffset mayUnexpectedTokens expectedTokens ->
+              let mayUnexpectedStr :: Maybe String
+                  mayUnexpectedStr = errorItemToString <$> mayUnexpectedTokens
+                  expectedStr :: Set String
+                  expectedStr =
+                    expectedTokens
+                      & Set.map errorItemToString
+                  err = UnexpectedTokens $ case (mayUnexpectedStr, Set.toList expectedStr) of
+                    (Nothing, []) -> "I found something I didn't expect."
+                    (Nothing, xs) -> "I found something I didn't expect here. I was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
+                    (Just x, []) -> "I was surprised to find the text '" <> x <> "' here."
+                    (Just x, xs) -> "I was surprised to find the text '" <> x <> "' here. I was hoping for one of these instead:\n\n* " <> List.intercalate "\n* " xs
+               in [Token (Err err) (toPos top) (toPos top)]
        in errsWithSourcePos >>= errorToTokens
     Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
   where
+    errorItemToString :: EP.ErrorItem Char -> String
+    errorItemToString = \case
+      (P.Tokens ts) -> Foldable.toList ts
+      (P.Label ts) -> Foldable.toList ts
+      (P.EndOfInput) -> "end of input"
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
     toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
     env0 = ParsingEnv [] (Just scope) True 0 0
@@ -1168,7 +1183,7 @@ tok p = do
 --   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
 identifierP :: P (HQ'.HashQualified Name)
 identifierP = do
-  P.label "identifier (ex: abba1, snake_case, .foo.++#xyz, or 🌻)" do
+  P.label "identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)" do
     name <- PI.withParsecT (fmap nameSegmentParseErrToErr) Name.nameP
     P.optional shortHashP <&> \case
       Nothing -> HQ'.fromName name
@@ -1378,7 +1393,7 @@ debugFileLex file = do
   putStrLn s
 
 debugLex'' :: [Token Lexeme] -> String
-debugLex'' [Token (Err (Opaque msg)) start end] =
+debugLex'' [Token (Err (UnexpectedTokens msg)) start end] =
   (if start == end then msg1 else msg2) <> ":\n" <> msg
   where
     msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
@@ -1403,7 +1418,7 @@ instance EP.ShowErrorComponent (Token Err) where
   showErrorComponent (Token err _ _) = go err
     where
       go = \case
-        Opaque msg -> msg
+        UnexpectedTokens msg -> msg
         CloseWithoutMatchingOpen open close -> "I found a closing " <> close <> " but no matching " <> open <> "."
         Both e1 e2 -> go e1 <> "\n" <> go e2
         LayoutError -> "Indentation error"

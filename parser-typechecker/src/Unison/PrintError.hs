@@ -1490,7 +1490,14 @@ renderParseErrors s = \case
               "",
               excerpt
             ]
-        L.Opaque msg -> style ErrorSite msg
+        L.UnexpectedTokens msg ->
+          Pr.lines
+            [ "I got confused here:",
+              "",
+              excerpt,
+              "",
+              style ErrorSite msg
+            ]
   P.TrivialError errOffset unexpected expected ->
     let (src, ranges) = case unexpected of
           Just (P.Tokens (toList -> ts)) -> case ts of
