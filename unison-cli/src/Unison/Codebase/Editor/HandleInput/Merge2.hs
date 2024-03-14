@@ -71,6 +71,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Referent' qualified as Referent'
@@ -81,7 +82,7 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns)
+import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -101,7 +102,7 @@ handleMerge bobBranchName = do
   db <- makeMergeDatabase codebase
 
   -- Load the current project branch ("alice"), and the branch from the same project to merge in ("bob")
-  mergeInfo <- getMergeInfo bobBranchName
+  mergeInfo <- loadMergeInfo bobBranchName
 
   -- Load alice, bob, and LCA branches
   branches <-
@@ -140,7 +141,7 @@ handleMerge bobBranchName = do
     Cli.runTransactionWithRollback \abort -> do
       case Map.null flicts.conflicts.terms && Map.null flicts.conflicts.types of
         False -> do
-          conflicts <- weewoo <$> assertConflictsSatisfyPreconditions flicts.conflicts
+          conflicts <- weewoo <$> assertConflictsSatisfyPreconditions abort flicts.conflicts
           makeUnisonFile2 abort codebase declNames dependents conflicts
         True -> makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
 
@@ -177,6 +178,98 @@ handleMerge bobBranchName = do
         ( Path.unabsolute mergeInfo.paths.alice,
           const mergedBranchPlusTuf
         )
+
+------------------------------------------------------------------------------------------------------------------------
+-- Loading basic info out of the database
+
+loadMergeInfo :: ProjectBranchName -> Cli MergeInfo
+loadMergeInfo bobBranchName = do
+  (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
+  bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
+  let alicePath = Cli.projectBranchPath (ProjectAndBranch project.projectId aliceProjectBranch.branchId)
+  let bobPath = Cli.projectBranchPath (ProjectAndBranch project.projectId bobProjectBranch.branchId)
+  pure
+    MergeInfo
+      { paths = TwoWay alicePath bobPath,
+        projectBranches = TwoWay aliceProjectBranch bobProjectBranch,
+        project
+      }
+
+loadV2Causals ::
+  (forall a. Output -> Transaction a) ->
+  MergeDatabase ->
+  MergeInfo ->
+  Transaction (TwoOrThreeWay (V2.CausalBranch Transaction))
+loadV2Causals abort db info = do
+  alice <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.alice)
+  bob <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.bob)
+  lca <-
+    Operations.lca alice.causalHash bob.causalHash >>= \case
+      Nothing -> pure Nothing
+      Just lcaCausalHash -> do
+        -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
+        when (lcaCausalHash == bob.causalHash) do
+          abort $
+            Output.MergeAlreadyUpToDate
+              (Right (ProjectAndBranch info.project info.projectBranches.bob))
+              (Right (ProjectAndBranch info.project info.projectBranches.alice))
+        Just <$> db.loadCausal lcaCausalHash
+  pure TwoOrThreeWay {lca, alice, bob}
+
+loadV2Branches :: TwoOrThreeWay (V2.CausalBranch Transaction) -> Transaction (TwoOrThreeWay (V2.Branch Transaction))
+loadV2Branches causals = do
+  alice <- causals.alice.value
+  bob <- causals.bob.value
+  lca <- for causals.lca \causal -> causal.value
+  pure TwoOrThreeWay {lca, alice, bob}
+
+loadDefns ::
+  (forall a. Output -> Transaction a) ->
+  MergeDatabase ->
+  MergeInfo ->
+  (TwoOrThreeWay (V2.Branch Transaction)) ->
+  Transaction (TwoWay (Map Name [Name]), ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
+loadDefns abort0 db info branches = do
+  lcaDefns <-
+    case branches.lca of
+      Nothing -> pure (Defns BiMultimap.empty BiMultimap.empty)
+      Just lcaBranch -> loadLcaDefinitions abort (referent2to1 db) lcaBranch
+  aliceDefns0 <- loadNamespaceInfo abort db branches.alice
+  (aliceDeclNames, aliceDefns1) <-
+    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.alice.name branches.alice aliceDefns0
+  bobDefns0 <- loadNamespaceInfo abort db branches.bob
+  (bobDeclNames, bobDefns1) <-
+    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.bob.name branches.bob bobDefns0
+  pure
+    ( TwoWay {alice = aliceDeclNames, bob = bobDeclNames},
+      ThreeWay {lca = lcaDefns, alice = aliceDefns1, bob = bobDefns1}
+    )
+  where
+    abort :: Merge.PreconditionViolation -> Transaction void
+    abort =
+      abort0 . mergePreconditionViolationToOutput
+
+loadLibdeps ::
+  TwoOrThreeWay (V2.Branch Transaction) ->
+  Transaction (ThreeWay (Map NameSegment (V2.CausalBranch Transaction)))
+loadLibdeps branches = do
+  lca <-
+    case branches.lca of
+      Nothing -> pure Map.empty
+      Just lcaBranch -> load lcaBranch
+  alice <- load branches.alice
+  bob <- load branches.bob
+  pure ThreeWay {lca, alice, bob}
+  where
+    load :: V2.Branch Transaction -> Transaction (Map NameSegment (V2.CausalBranch Transaction))
+    load branch =
+      case Map.lookup NameSegment.libSegment branch.children of
+        Nothing -> pure Map.empty
+        Just libdepsCausal -> do
+          libdepsBranch <- libdepsCausal.value
+          pure libdepsBranch.children
+
+------------------------------------------------------------------------------------------------------------------------
 
 bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -375,93 +468,6 @@ textualDescriptionOfMerge :: MergeInfo -> Text
 textualDescriptionOfMerge mergeInfo =
   let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
    in "merge-" <> bobBranchText
-
-getMergeInfo :: ProjectBranchName -> Cli MergeInfo
-getMergeInfo bobBranchName = do
-  (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
-  bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
-  let alicePath = Cli.projectBranchPath (ProjectAndBranch project.projectId aliceProjectBranch.branchId)
-  let bobPath = Cli.projectBranchPath (ProjectAndBranch project.projectId bobProjectBranch.branchId)
-  pure
-    MergeInfo
-      { paths = TwoWay alicePath bobPath,
-        projectBranches = TwoWay aliceProjectBranch bobProjectBranch,
-        project
-      }
-
-loadV2Causals ::
-  (forall a. Output -> Transaction a) ->
-  MergeDatabase ->
-  MergeInfo ->
-  Transaction (TwoOrThreeWay (V2.CausalBranch Transaction))
-loadV2Causals abort db info = do
-  alice <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.alice)
-  bob <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.bob)
-  lca <-
-    Operations.lca alice.causalHash bob.causalHash >>= \case
-      Nothing -> pure Nothing
-      Just lcaCausalHash -> do
-        -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
-        when (lcaCausalHash == bob.causalHash) do
-          abort $
-            Output.MergeAlreadyUpToDate
-              (Right (ProjectAndBranch info.project info.projectBranches.bob))
-              (Right (ProjectAndBranch info.project info.projectBranches.alice))
-        Just <$> db.loadCausal lcaCausalHash
-  pure TwoOrThreeWay {lca, alice, bob}
-
-loadV2Branches :: TwoOrThreeWay (V2.CausalBranch Transaction) -> Transaction (TwoOrThreeWay (V2.Branch Transaction))
-loadV2Branches causals = do
-  alice <- causals.alice.value
-  bob <- causals.bob.value
-  lca <- for causals.lca \causal -> causal.value
-  pure TwoOrThreeWay {lca, alice, bob}
-
-loadDefns ::
-  (forall a. Output -> Transaction a) ->
-  MergeDatabase ->
-  MergeInfo ->
-  (TwoOrThreeWay (V2.Branch Transaction)) ->
-  Transaction (TwoWay (Map Name [Name]), ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
-loadDefns abort0 db info branches = do
-  lcaDefns <-
-    case branches.lca of
-      Nothing -> pure (Defns BiMultimap.empty BiMultimap.empty)
-      Just lcaBranch -> loadLcaDefinitions abort (referent2to1 db) lcaBranch
-  aliceDefns0 <- loadNamespaceInfo abort db branches.alice
-  (aliceDeclNames, aliceDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.alice.name branches.alice aliceDefns0
-  bobDefns0 <- loadNamespaceInfo abort db branches.bob
-  (bobDeclNames, bobDefns1) <-
-    assertNamespaceSatisfiesPreconditions db abort info.projectBranches.bob.name branches.bob bobDefns0
-  pure
-    ( TwoWay {alice = aliceDeclNames, bob = bobDeclNames},
-      ThreeWay {lca = lcaDefns, alice = aliceDefns1, bob = bobDefns1}
-    )
-  where
-    abort :: Merge.PreconditionViolation -> Transaction void
-    abort =
-      abort0 . mergePreconditionViolationToOutput
-
-loadLibdeps ::
-  TwoOrThreeWay (V2.Branch Transaction) ->
-  Transaction (ThreeWay (Map NameSegment (V2.CausalBranch Transaction)))
-loadLibdeps branches = do
-  lca <-
-    case branches.lca of
-      Nothing -> pure Map.empty
-      Just lcaBranch -> load lcaBranch
-  alice <- load branches.alice
-  bob <- load branches.bob
-  pure ThreeWay {lca, alice, bob}
-  where
-    load :: V2.Branch Transaction -> Transaction (Map NameSegment (V2.CausalBranch Transaction))
-    load branch =
-      case Map.lookup NameSegment.libSegment branch.children of
-        Nothing -> pure Map.empty
-        Just libdepsCausal -> do
-          libdepsBranch <- libdepsCausal.value
-          pure libdepsBranch.children
 
 data TwoWayAndBoth a = TwoWayAndBoth
   { alice :: !a,
@@ -747,10 +753,27 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
 
 assertConflictsSatisfyPreconditions ::
+  (forall void. Output -> Transaction void) ->
   Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)) ->
   Transaction (Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)))
-assertConflictsSatisfyPreconditions conflicts =
-  undefined
+assertConflictsSatisfyPreconditions abort =
+  bitraverseDefns
+    (Map.traverseWithKey assertTermIsntBuiltin)
+    (Map.traverseWithKey assertTypeIsntBuiltin)
+  where
+    assertTermIsntBuiltin :: Name -> TwoWay Referent -> Transaction (TwoWay Referent.Id)
+    assertTermIsntBuiltin name =
+      traverse \ref ->
+        case Referent.toId ref of
+          Nothing -> abort (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
+          Just refId -> pure refId
+
+    assertTypeIsntBuiltin :: Name -> TwoWay TypeReference -> Transaction (TwoWay TypeReferenceId)
+    assertTypeIsntBuiltin name =
+      traverse \ref ->
+        case Reference.toId ref of
+          Nothing -> abort (mergePreconditionViolationToOutput (Merge.ConflictInvolvingBuiltin name))
+          Just refId -> pure refId
 
 -- Like `loadNamespaceInfo`, but for loading the LCA, which has fewer preconditions.
 --

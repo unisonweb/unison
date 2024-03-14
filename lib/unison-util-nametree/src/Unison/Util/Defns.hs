@@ -5,6 +5,7 @@ module Unison.Util.Defns
     alignDefnsWith,
     bimapDefns,
     bifoldMapDefns,
+    bitraverseDefns,
     mapDefns,
     unzipDefns,
     unzipDefnsWith,
@@ -37,6 +38,10 @@ bimapDefns f g (Defns terms types) =
 bifoldMapDefns :: Monoid m => (a -> m) -> (b -> m) -> Defns a b -> m
 bifoldMapDefns f g (Defns terms types) =
   f terms <> g types
+
+bitraverseDefns :: Applicative f => (tm1 -> f tm2) -> (ty1 -> f ty2) -> Defns tm1 ty1 -> f (Defns tm2 ty2)
+bitraverseDefns f g (Defns terms types) =
+  Defns <$> f terms <*> g types
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =

@@ -10,7 +10,7 @@ data TwoWay a = TwoWay
   { alice :: !a,
     bob :: !a
   }
-  deriving stock (Functor, Generic)
+  deriving stock (Foldable, Functor, Generic, Traversable)
   deriving (Monoid, Semigroup) via (GenericSemigroupMonoid (TwoWay a))
 
 instance Applicative TwoWay where
