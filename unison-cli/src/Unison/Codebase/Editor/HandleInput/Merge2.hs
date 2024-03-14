@@ -52,6 +52,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Merge.CombineDiffs (AliceIorBob (..), CombinedDiffsOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge
@@ -413,14 +414,14 @@ performDiff ::
   MergeDatabase ->
   MergeInfo ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Transaction (Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)))
+  Transaction (Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference)))
 performDiff abort db info defns = do
   diffs <- Merge.nameBasedNamespaceDiff db defns
   abortIfAnyConflictedAliases (abort . mergePreconditionViolationToOutput) info.projectBranches defns.lca diffs
   pure
     Defns
-      { terms = partitionDiff (view #terms <$> diffs),
-        types = partitionDiff (view #types <$> diffs)
+      { terms = combineDiffs (view #terms <$> diffs),
+        types = combineDiffs (view #types <$> diffs)
       }
 
 data TwoWayAndBoth a = TwoWayAndBoth
@@ -533,25 +534,25 @@ emptyFlictsV =
       conflicts = Map.empty
     }
 
-makeFlictsV :: Map Name (TwoDiffsOp v) -> FlictsV v
+makeFlictsV :: Map Name (CombinedDiffsOp v) -> FlictsV v
 makeFlictsV =
   Map.foldlWithKey' (\s k v -> insert k v s) emptyFlictsV
   where
-    insert :: Name -> TwoDiffsOp v -> FlictsV v -> FlictsV v
+    insert :: Name -> CombinedDiffsOp v -> FlictsV v -> FlictsV v
     insert k = \case
+      Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
+      Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
+      Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
       Conflict v -> #conflicts %~ Map.insert k v
-      Addition who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
-      Update who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
-      Deletion who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
       where
         whoL :: forall x. AliceIorBob -> Lens' (TwoWayAndBoth x) x
         whoL = \case
-          AliceI -> #alice
-          BobI -> #bob
-          Both -> #both
+          OnlyAlice -> #alice
+          OnlyBob -> #bob
+          AliceAndBob -> #both
 
 -- Partition definitions into conflicted and unconflicted.
-partitionDiffIntoFlicts :: Defns (Map Name (TwoDiffsOp Referent)) (Map Name (TwoDiffsOp TypeReference)) -> Flicts
+partitionDiffIntoFlicts :: Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference)) -> Flicts
 partitionDiffIntoFlicts =
   makeFlicts . bimapDefns makeFlictsV makeFlictsV
 
@@ -849,68 +850,6 @@ getTwoFreshNames names name0 =
     mangled :: Integer -> NameSegment
     mangled i =
       NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)
-
-data TwoDiffsOp v
-  = Conflict !(TwoWay v)
-  | Addition !AliceIorBob !v
-  | Update !AliceIorBob !v -- new value
-  | Deletion !AliceIorBob !v -- old value
-
--- Alice exclusive-or Bob?
-data AliceXorBob
-  = AliceX
-  | BobX
-
--- Alice inclusive-or Bob?
-data AliceIorBob
-  = AliceI
-  | BobI
-  | Both
-
-aliceXorBob :: AliceXorBob -> AliceIorBob
-aliceXorBob = \case
-  AliceX -> AliceI
-  BobX -> BobI
-
-------------------------------------------------------------------------------------------------------------------------
--- Conflicts
-
--- `getConflicts diffs` returns the set of conflicted names in `diffs`, where `diffs` contains two branches' diffs from
--- their LCA.
-partitionDiff :: TwoWay (Map Name (Merge.DiffOp (Synhashed v))) -> Map Name (TwoDiffsOp v)
-partitionDiff diffs =
-  alignWith (f AliceX BobX) diffs.alice diffs.bob
-  where
-    diffOpToTag :: AliceXorBob -> Merge.DiffOp (Synhashed v) -> TwoDiffsOp v
-    diffOpToTag who = \case
-      Merge.Added x -> Addition (aliceXorBob who) x.value
-      Merge.Updated _ x -> Update (aliceXorBob who) x.value
-      Merge.Deleted x -> Deletion (aliceXorBob who) x.value
-
-    f :: AliceXorBob -> AliceXorBob -> These (Merge.DiffOp (Synhashed v)) (Merge.DiffOp (Synhashed v)) -> TwoDiffsOp v
-    f this that = \case
-      These (Merge.Added x) (Merge.Added y) ->
-        if x /= y
-          then Conflict (twoWay this x.value y.value)
-          else Addition Both x.value
-      These (Merge.Added _) (Merge.Updated _ _) -> error "impossible"
-      These (Merge.Added _) (Merge.Deleted _) -> error "impossible"
-      These (Merge.Updated _ x) (Merge.Updated _ y) ->
-        if x /= y
-          then Conflict (twoWay this x.value y.value)
-          else Update Both x.value
-      -- Not a conflict, perhaps only temporarily, because it's easier to implement (we ignore these deletes):
-      These (Merge.Updated _ x) (Merge.Deleted _) -> Update (aliceXorBob this) x.value
-      These (Merge.Updated _ _) (Merge.Added _) -> error "impossible"
-      These (Merge.Deleted x) (Merge.Deleted _) -> Deletion Both x.value
-      These a@(Merge.Deleted _) b -> f that this (These b a)
-      This x -> diffOpToTag this x
-      That x -> diffOpToTag that x
-
-    -- Make a two way, given who is on the left.
-    twoWay :: AliceXorBob -> v -> v -> TwoWay v
-    twoWay AliceX alice bob = TwoWay {alice, bob}
-    twoWay BobX bob alice = TwoWay {alice, bob}
 
 libdepsToBranch0 :: MergeDatabase -> Map NameSegment (V2.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
 libdepsToBranch0 db libdeps = do

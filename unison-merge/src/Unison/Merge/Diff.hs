@@ -28,17 +28,16 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..))
 
--- | @nameBasedNamespaceDiff loadDecl loadTerm maybeLcaDefns aliceDefns bobDefns@ returns Alice's and Bob's name-based
--- namespace diffs, each in the form:
+-- | @nameBasedNamespaceDiff db defns@ returns Alice's and Bob's name-based namespace diffs, each in the form:
 --
--- > decls :: Map Name (DiffOp Hash)
--- > terms :: Map Name (DiffOp Hash)
+-- > decls :: Map Name (DiffOp (Synhashed TypeReference))
+-- > terms :: Map Name (DiffOp (Synhashed Referent))
 --
 -- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
 -- branches. If the hash of a name did not change, it will not appear in the map.
 --
--- If there is no LCA (i.e. @maybeLcaDefns@ is @Nothing@), we fall back to a two-way diff, where every name in each of
--- Alice and Bob's branches is considered an add.
+-- If there is no LCA, this operation is equivalent to a two-way diff, where every name in each of Alice and Bob's
+-- branches is considered an add.
 nameBasedNamespaceDiff ::
   MergeDatabase ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
