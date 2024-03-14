@@ -9,15 +9,13 @@ import Control.Lens (Lens', view, (%~))
 import Control.Monad.Reader (ask)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
-import Data.Semialign (Semialign (..), alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.These (These (..))
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
-import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -52,6 +50,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Merge.CombineDiffs (AliceIorBob (..), CombinedDiffsOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
+import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.DiffOp qualified as Merge
 import Unison.Merge.Libdeps qualified as Merge
 import Unison.Merge.PreconditionViolation qualified as Merge
@@ -119,12 +118,19 @@ handleMerge bobBranchName = do
       libdeps <- loadLibdeps branches
       libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-  -- Diff the definitions
-  diff <-
-    Cli.runTransactionWithRollback \abort -> do
-      performDiff abort db mergeInfo defns
+  -- Diff LCA->Alice and LCA->Bob
+  diffs <-
+    Cli.runTransaction do
+      Merge.nameBasedNamespaceDiff db defns
 
-  -- Partition the diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
+  -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
+  whenJust (findOneConflictedAlias mergeInfo.projectBranches defns.lca diffs) \violation ->
+    Cli.returnEarly (mergePreconditionViolationToOutput violation)
+
+  -- Combine the LCA->Alice and LCA->Bob diffs together into a combined diff
+  let diff = combineDiffs diffs
+
+  -- Partition the combined diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
   -- things)
   let flicts = partitionDiffIntoFlicts diff
 
@@ -141,37 +147,30 @@ handleMerge bobBranchName = do
           makeUnisonFile2 abort codebase declNames dependents conflicts
         True -> makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
 
-  let (mergedDefns, droppedDefns) =
-        let -- Compute the adds to apply to the LCA
-            adds =
-              bimapDefns
-                (performAdds . (Map.\\ dependents.terms))
-                (performAdds . (Map.\\ dependents.types))
-                (fold (flicts.unconflicts.adds <> flicts.unconflicts.updates))
-            -- Compute the deletes to apply to the LCA
-            deletes =
-              bimapDefns
-                performDeletes
-                performDeletes
-                (fold (defnsRangeNamesOnly <$> flicts.unconflicts.deletes))
-         in (adds <> deletes)
-              -- Combine the separate term/type namespace updates into one
-              & combineNamespaceUpdates
-              -- Apply the updates to the LCA
-              & runNamespaceUpdate (defnsRangeOnly defns.lca)
+  let (mergedDefns, droppedDefns) = spelunk defns.lca flicts.unconflicts dependents
 
-  let mergedBranch =
-        mergedDefns
-          & bimapDefns (unflattenNametree . BiMultimap.fromRange) (unflattenNametree . BiMultimap.fromRange)
-          & zipNametreesOfDefns Map.empty Map.empty
-          & nametreeToBranch0
-          & Branch.setChildBranch NameSegment.libSegment (Branch.one mergedLibdeps)
-          & Branch.transform0 (Codebase.runTransaction codebase)
+  let oink1 :: Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference))
+      oink1 =
+        bimapDefns
+          (unflattenNametree . BiMultimap.fromRange)
+          (unflattenNametree . BiMultimap.fromRange)
+          mergedDefns
+
+  let oink2 :: Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+      oink2 =
+        zipNametreesOfDefns Map.empty Map.empty oink1
+
+  let oink3 = nametreeToBranch0 oink2
+
+  let oink4 = Branch.setChildBranch NameSegment.libSegment (Branch.one mergedLibdeps) oink3
+
+  let mergedBranch = Branch.transform0 (Codebase.runTransaction codebase) oink4
 
   let mergedNames = Branch.toNames mergedBranch
   let ppedNames = mergedNames <> defnsRangeToNames droppedDefns
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
+
   currentPath <- Cli.getCurrentPath
   parsingEnv <- makeParsingEnv currentPath mergedNames
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
@@ -187,6 +186,32 @@ handleMerge bobBranchName = do
         ( Path.unabsolute mergeInfo.paths.alice,
           const mergedBranchPlusTuf
         )
+
+spelunk ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Unconflicts (Defns (Map Name Referent) (Map Name TypeReference)) ->
+  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
+  ( Defns (Map Name Referent) (Map Name TypeReference),
+    Dropped (Defns (Map Name Referent) (Map Name TypeReference))
+  )
+spelunk lca unconflicts dependents =
+  let -- Compute the adds to apply to the LCA
+      adds =
+        bimapDefns
+          (performAdds . (Map.\\ dependents.terms))
+          (performAdds . (Map.\\ dependents.types))
+          (fold (unconflicts.adds <> unconflicts.updates))
+      -- Compute the deletes to apply to the LCA
+      deletes =
+        bimapDefns
+          performDeletes
+          performDeletes
+          (fold (defnsRangeNamesOnly <$> unconflicts.deletes))
+   in (adds <> deletes)
+        -- Combine the separate term/type namespace updates into one
+        & combineNamespaceUpdates
+        -- Apply the updates to the LCA
+        & runNamespaceUpdate (defnsRangeOnly lca)
 
 weewoo ::
   Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)) ->
@@ -413,22 +438,6 @@ loadLibdeps branches = do
         Just libdepsCausal -> do
           libdepsBranch <- libdepsCausal.value
           pure libdepsBranch.children
-
--- Diff definitions, and bail if there are any conflicted aliases, which we can't currently handle.
-performDiff ::
-  (forall a. Output -> Transaction a) ->
-  MergeDatabase ->
-  MergeInfo ->
-  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Transaction (Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference)))
-performDiff abort db info defns = do
-  diffs <- Merge.nameBasedNamespaceDiff db defns
-  abortIfAnyConflictedAliases (abort . mergePreconditionViolationToOutput) info.projectBranches defns.lca diffs
-  pure
-    Defns
-      { terms = combineDiffs (view #terms <$> diffs),
-        types = combineDiffs (view #types <$> diffs)
-      }
 
 data TwoWayAndBoth a = TwoWayAndBoth
   { alice :: !a,
@@ -738,17 +747,21 @@ loadLcaDefinitions abort referent2to1 branch = do
         types = flattenNametree (view #types) defns1
       }
 
-abortIfAnyConflictedAliases ::
-  (forall void. Merge.PreconditionViolation -> Transaction void) ->
+findOneConflictedAlias ::
   TwoWay ProjectBranch ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  TwoWay (Defns (Map Name (Merge.DiffOp (Synhashed Referent))) (Map Name (Merge.DiffOp (Synhashed TypeReference)))) ->
-  Transaction ()
-abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
-  whenJust (findConflictedAlias lcaDefns diffs.alice) \(name1, name2) ->
-    abort (Merge.ConflictedAliases projectBranchNames.alice.name name1 name2)
-  whenJust (findConflictedAlias lcaDefns diffs.bob) \(name1, name2) ->
-    abort (Merge.ConflictedAliases projectBranchNames.bob.name name1 name2)
+  TwoWay (Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference)))) ->
+  Maybe Merge.PreconditionViolation
+findOneConflictedAlias projectBranchNames lcaDefns diffs =
+  aliceConflictedAliases <|> bobConflictedAliases
+  where
+    aliceConflictedAliases =
+      findConflictedAlias lcaDefns diffs.alice <&> \(name1, name2) ->
+        Merge.ConflictedAliases projectBranchNames.alice.name name1 name2
+
+    bobConflictedAliases =
+      findConflictedAlias lcaDefns diffs.bob <&> \(name1, name2) ->
+        Merge.ConflictedAliases projectBranchNames.bob.name name1 name2
 
 -- @findConflictedAlias namespace diff@, given an old namespace and a diff to a new namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
@@ -769,16 +782,16 @@ abortIfAnyConflictedAliases abort projectBranchNames lcaDefns diffs = do
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (Map Name (Merge.DiffOp (Synhashed Referent))) (Map Name (Merge.DiffOp (Synhashed TypeReference))) ->
+  Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference))) ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
   where
-    go :: forall ref. (Ord ref) => BiMultimap ref Name -> Map Name (Merge.DiffOp (Synhashed ref)) -> Maybe (Name, Name)
+    go :: forall ref. (Ord ref) => BiMultimap ref Name -> Map Name (DiffOp (Synhashed ref)) -> Maybe (Name, Name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
-        f :: (Name, Merge.DiffOp (Synhashed ref)) -> Maybe (Name, Name)
+        f :: (Name, DiffOp (Synhashed ref)) -> Maybe (Name, Name)
         f (name, op) =
           case op of
             Merge.Added _ -> Nothing
