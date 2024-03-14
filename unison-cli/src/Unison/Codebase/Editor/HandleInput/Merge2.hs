@@ -136,17 +136,15 @@ handleMerge bobBranchName = do
     Cli.runTransaction do
       identifyDependentsOfUnconflicts defns flicts.unconflicts
 
-  -- Compute the namespace changes to apply to the LCA
-  let changes = computeNamespaceChanges flicts.unconflicts dependents
-
   let (mergedDefns, droppedDefns) =
-        unzipDefns
-          ( zipDefnsWith
-              runNamespaceUpdate
-              runNamespaceUpdate
-              (defnsRangeOnly defns.lca)
-              (applyNamespaceChanges changes)
-          )
+        -- Compute the namespace changes to apply to the LCA
+        computeNamespaceChanges flicts.unconflicts dependents
+          -- Convert the namespace changes (data) to separate term/type namespace updates (functions)
+          & makeNamespaceUpdates
+          -- Combine the separate term/type namespace updates into one
+          & combineNamespaceUpdates
+          -- Apply the updates to the LCA
+          & runNamespaceUpdate (defnsRangeOnly defns.lca)
 
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
@@ -208,28 +206,38 @@ handleMerge bobBranchName = do
 
 type Dropped a = a
 
-type NamespaceUpdate ref a =
-  StateT (Map Name ref) (Writer (Dropped (Map Name ref))) a
+newtype NamespaceUpdate a
+  = NamespaceUpdate (a -> (a, Dropped a))
 
-runNamespaceUpdate :: Map Name ref -> NamespaceUpdate ref () -> (Map Name ref, Dropped (Map Name ref))
-runNamespaceUpdate refs update =
-  Writer.runWriter (State.execStateT update refs)
+instance Semigroup a => Semigroup (NamespaceUpdate a) where
+  NamespaceUpdate update1 <> NamespaceUpdate update2 =
+    NamespaceUpdate \refs0 ->
+      let (refs1, dropped1) = update1 refs0
+          (refs2, dropped2) = update2 refs1
+       in (refs2, dropped1 <> dropped2)
 
-performAdds :: Map Name ref -> NamespaceUpdate ref ()
-performAdds addsAndUpdates = do
-  Map.for_ addsAndUpdates \name newRef -> do
-    refs0 <- State.get
-    let (maybeOldRef, !refs1) = Map.insertLookup name newRef refs0
-    State.put refs1
-    whenJust maybeOldRef \oldRef ->
-      lift (Writer.tell (Map.singleton name oldRef))
+runNamespaceUpdate :: a -> NamespaceUpdate a -> (a, Dropped a)
+runNamespaceUpdate refs (NamespaceUpdate update) =
+  update refs
 
-performDeletes :: Set Name -> NamespaceUpdate ref ()
-performDeletes deletions = do
-  refs0 <- State.get
-  let (refs1, deleted) = Map.partitionWithKey (\name _ -> not $ Set.member name deletions) refs0
-  State.put refs1
-  lift (Writer.tell deleted)
+-- Combine separate term and type updates together.
+combineNamespaceUpdates :: Defns (NamespaceUpdate tm) (NamespaceUpdate ty) -> NamespaceUpdate (Defns tm ty)
+combineNamespaceUpdates updates =
+  NamespaceUpdate \defns ->
+    let (newTerms, droppedTerms) = runNamespaceUpdate defns.terms updates.terms
+        (newTypes, droppedTypes) = runNamespaceUpdate defns.types updates.types
+     in (Defns newTerms newTypes, Defns droppedTerms droppedTypes)
+
+performAdds :: Map Name v -> NamespaceUpdate (Map Name v)
+performAdds adds =
+  NamespaceUpdate \refs ->
+    ( Map.unionWith (\new _old -> new) adds refs,
+      Map.intersectionWith (\_new old -> old) adds refs
+    )
+
+performDeletes :: Set Name -> NamespaceUpdate (Map Name v)
+performDeletes deletions =
+  NamespaceUpdate (Map.partitionWithKey (\name _ -> Set.notMember name deletions))
 
 nametreeToBranch0 :: forall m. Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)) -> Branch0 m
 nametreeToBranch0 nametree =
@@ -483,17 +491,12 @@ data NamespaceChanges = NamespaceChanges
     deletes :: Defns (Set Name) (Set Name)
   }
 
-applyNamespaceChanges :: NamespaceChanges -> Defns (NamespaceUpdate Referent ()) (NamespaceUpdate TypeReference ())
-applyNamespaceChanges changes =
-  Defns
-    { terms = go changes.adds.terms changes.deletes.terms,
-      types = go changes.adds.types changes.deletes.types
-    }
-  where
-    go :: (Ord ref) => Map Name ref -> Set Name -> NamespaceUpdate ref ()
-    go adds deletes = do
-      performAdds adds
-      performDeletes deletes
+-- Create namespace updates from namespace changes.
+makeNamespaceUpdates ::
+  NamespaceChanges ->
+  Defns (NamespaceUpdate (Map Name Referent)) (NamespaceUpdate (Map Name TypeReference))
+makeNamespaceUpdates changes =
+  bimapDefns performAdds performAdds changes.adds <> bimapDefns performDeletes performDeletes changes.deletes
 
 data Flicts = Flicts
   { unconflicts :: !(Unconflicts (Defns (Map Name Referent) (Map Name TypeReference))),
