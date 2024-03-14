@@ -34,6 +34,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
+import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update2
 import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
     getExistingReferencesNamed,
@@ -78,7 +79,7 @@ import Unison.Referent' qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile (UnisonFile, UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -408,18 +409,16 @@ makeUnisonFile ::
   Codebase IO Symbol Ann ->
   Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   Map Name [Name] ->
-  Transaction (UnisonFile Symbol Ann)
+  Transaction (UnisonFile' [] Symbol Ann)
 makeUnisonFile abort codebase defns declMap = do
   let lookupCons k = case Map.lookup k declMap of
         Nothing -> Left (error ("failed to find: " <> show k <> " in the declMap"))
         Just x -> Right x
-  addDefinitionsToUnisonFile
+  Update2.makeUnisonFile
     abort
     codebase
-    -- todo: fix output
     (const lookupCons)
     (Relation.fromMultimap defns.terms, Relation.fromMultimap defns.types)
-    UnisonFile.emptyUnisonFile
 
 makeUnisonFile2 ::
   (forall x. Output -> Transaction x) ->
@@ -427,30 +426,27 @@ makeUnisonFile2 ::
   TwoWay (Map Name [Name]) ->
   Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)) ->
-  Transaction (UnisonFile Symbol Ann)
+  Transaction (UnisonFile' [] Symbol Ann)
 makeUnisonFile2 abort codebase declNames unconflicts conflicts = do
   unconflictedFile <- do
-    addDefinitionsToUnisonFile
+    Update2.makeUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName (declNames.alice <> declNames.bob)))
       (Relation.fromMultimap unconflicts.terms, Relation.fromMultimap unconflicts.types)
-      UnisonFile.emptyUnisonFile
   aliceFile <- do
-    addDefinitionsToUnisonFile
+    Update2.makeUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName declNames.alice))
       (conflicts.alice.terms, conflicts.alice.types)
-      UnisonFile.emptyUnisonFile
   bobFile <- do
-    addDefinitionsToUnisonFile
+    Update2.makeUnisonFile
       abort
       codebase
       (\_ declName -> Right (lookupCons declName declNames.bob))
       (conflicts.bob.terms, conflicts.bob.types)
-      UnisonFile.emptyUnisonFile
-  pure wundefined
+  pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
   where
     lookupCons declName m =
       case Map.lookup declName m of
