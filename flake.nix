@@ -96,6 +96,7 @@
         {
           packages = nixpkgs-packages // {
             haskell-nix = haskell-nix-flake.packages;
+            docker = import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; };
             build-tools = pkgs.symlinkJoin {
               name = "build-tools";
               paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
