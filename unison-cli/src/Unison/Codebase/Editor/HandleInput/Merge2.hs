@@ -7,13 +7,10 @@ where
 
 import Control.Lens (Lens', view, (%~))
 import Control.Monad.Reader (ask)
-import Control.Monad.State.Strict (StateT)
-import Control.Monad.State.Strict qualified as State
-import Control.Monad.Trans.Writer.CPS (Writer)
-import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Semialign (Semialign (..), alignWith)
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -84,8 +81,7 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), bifoldMapDefns, bimapDefns, unzipDefns, zipDefnsWith)
-import Unison.Util.Map qualified as Map (for_, insertLookup)
+import Unison.Util.Defns (Defns (..), bifoldMapDefns, bimapDefns)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree, zipNametreesOfDefns)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -137,45 +133,32 @@ handleMerge bobBranchName = do
     Cli.runTransaction do
       identifyDependentsOfUnconflicts defns flicts.unconflicts
 
-  let (mergedDefns, droppedDefns) =
-        -- Compute the namespace changes to apply to the LCA
-        computeNamespaceChanges flicts.unconflicts dependents
-          -- Convert the namespace changes (data) to separate term/type namespace updates (functions)
-          & makeNamespaceUpdates
-          -- Combine the separate term/type namespace updates into one
-          & combineNamespaceUpdates
-          -- Apply the updates to the LCA
-          & runNamespaceUpdate (defnsRangeOnly defns.lca)
-
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
       case Map.null flicts.conflicts.terms && Map.null flicts.conflicts.types of
         False -> do
-          honkingConflicted <- assertConflictsSatisfyPreconditions flicts.conflicts
-          let conflictedFileContents =
-                let clonk ::
-                      Name ->
-                      (Referent.Id, Referent.Id) ->
-                      TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
-                    clonk name (alice, bob) =
-                      let f = \case
-                            Referent'.Ref' ref -> termsToDefns (Relation.singleton name ref)
-                            Referent'.Con' (ConstructorReference ref _) _ -> typesToDefns (Relation.singleton name ref)
-                       in TwoWay {alice = f alice, bob = f bob}
-                    honk :: Name -> (TypeReferenceId, TypeReferenceId) -> TwoWay (Relation Name TypeReferenceId)
-                    honk name (alice, bob) =
-                      TwoWay
-                        { alice = Relation.singleton name alice,
-                          bob = Relation.singleton name bob
-                        }
-                    termsToDefns terms = Defns {terms, types = Relation.empty}
-                    typesToDefns types = Defns {terms = Relation.empty, types}
-                 in bifoldMapDefns
-                      (Map.foldMapWithKey clonk)
-                      (fmap typesToDefns . Map.foldMapWithKey honk)
-                      honkingConflicted
-          makeUnisonFile2 abort codebase dependents conflictedFileContents declNames
+          conflicts <- weewoo <$> assertConflictsSatisfyPreconditions flicts.conflicts
+          makeUnisonFile2 abort codebase declNames dependents conflicts
         True -> makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
+
+  let (mergedDefns, droppedDefns) =
+        let -- Compute the adds to apply to the LCA
+            adds =
+              bimapDefns
+                (performAdds . (Map.\\ dependents.terms))
+                (performAdds . (Map.\\ dependents.types))
+                (fold (flicts.unconflicts.adds <> flicts.unconflicts.updates))
+            -- Compute the deletes to apply to the LCA
+            deletes =
+              bimapDefns
+                performDeletes
+                performDeletes
+                (fold (defnsRangeNamesOnly <$> flicts.unconflicts.deletes))
+         in (adds <> deletes)
+              -- Combine the separate term/type namespace updates into one
+              & combineNamespaceUpdates
+              -- Apply the updates to the LCA
+              & runNamespaceUpdate (defnsRangeOnly defns.lca)
 
   let mergedBranch =
         mergedDefns
@@ -204,6 +187,29 @@ handleMerge bobBranchName = do
         ( Path.unabsolute mergeInfo.paths.alice,
           const mergedBranchPlusTuf
         )
+
+weewoo ::
+  Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)) ->
+  TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
+weewoo =
+  bifoldMapDefns
+    (Map.foldMapWithKey clonk)
+    (fmap typesToDefns . Map.foldMapWithKey honk)
+  where
+    clonk ::
+      Name ->
+      TwoWay Referent.Id ->
+      TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
+    clonk name = fmap f
+      where
+        f :: Referent.Id -> Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)
+        f = \case
+          Referent'.Ref' ref -> termsToDefns (Relation.singleton name ref)
+          Referent'.Con' (ConstructorReference ref _) _ -> typesToDefns (Relation.singleton name ref)
+    honk :: Name -> TwoWay TypeReferenceId -> TwoWay (Relation Name TypeReferenceId)
+    honk name = fmap (Relation.singleton name)
+    termsToDefns terms = Defns {terms, types = Relation.empty}
+    typesToDefns types = Defns {terms = Relation.empty, types}
 
 type Dropped a = a
 
@@ -276,30 +282,30 @@ makeUnisonFile abort codebase defns declMap = do
 makeUnisonFile2 ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
+  TwoWay (Map Name [Name]) ->
   Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)) ->
-  TwoWay (Map Name [Name]) ->
   Transaction (UnisonFile Symbol Ann)
-makeUnisonFile2 abort codebase unconflicts conflicts declMap = do
+makeUnisonFile2 abort codebase declNames unconflicts conflicts = do
   unconflictedFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
-      (\_ declName -> Right (lookupCons declName (declMap.alice <> declMap.bob)))
+      (\_ declName -> Right (lookupCons declName (declNames.alice <> declNames.bob)))
       (Relation.fromMultimap unconflicts.terms, Relation.fromMultimap unconflicts.types)
       UnisonFile.emptyUnisonFile
   aliceFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
-      (\_ declName -> Right (lookupCons declName declMap.alice))
+      (\_ declName -> Right (lookupCons declName declNames.alice))
       (conflicts.alice.terms, conflicts.alice.types)
       UnisonFile.emptyUnisonFile
   bobFile <- do
     addDefinitionsToUnisonFile
       abort
       codebase
-      (\_ declName -> Right (lookupCons declName declMap.bob))
+      (\_ declName -> Right (lookupCons declName declNames.bob))
       (conflicts.bob.terms, conflicts.bob.types)
       UnisonFile.emptyUnisonFile
   pure wundefined
@@ -429,27 +435,12 @@ data TwoWayAndBoth a = TwoWayAndBoth
     bob :: !a,
     both :: !a
   }
-  deriving stock (Functor, Generic)
-
-foldTwoWayAndBoth :: Monoid a => TwoWayAndBoth a -> a
-foldTwoWayAndBoth x =
-  x.alice <> x.bob <> x.both
+  deriving stock (Foldable, Functor, Generic)
+  deriving (Semigroup) via (GenericSemigroupMonoid (TwoWayAndBoth a))
 
 zipTwoWayAndBothWith :: (a -> b -> c) -> TwoWayAndBoth a -> TwoWayAndBoth b -> TwoWayAndBoth c
 zipTwoWayAndBothWith f (TwoWayAndBoth x1 x2 x3) (TwoWayAndBoth y1 y2 y3) =
   TwoWayAndBoth (f x1 y1) (f x2 y2) (f x3 y3)
-
-computeNamespaceChanges ::
-  Unconflicts (Defns (Map Name Referent) (Map Name TypeReference)) ->
-  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
-  NamespaceChanges
-computeNamespaceChanges unconflicts dependents = do
-  NamespaceChanges
-    { adds =
-        let candidates = foldTwoWayAndBoth unconflicts.adds <> foldTwoWayAndBoth unconflicts.updates
-         in bimapDefns (Map.\\ dependents.terms) (Map.\\ dependents.types) candidates,
-      deletes = foldTwoWayAndBoth (defnsRangeNamesOnly <$> unconflicts.deletes)
-    }
 
 identifyDependentsOfUnconflicts ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -486,18 +477,6 @@ defnsRangeNamesOnly =
 defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> Defns (Map name term) (Map name typ)
 defnsRangeOnly =
   bimapDefns BiMultimap.range BiMultimap.range
-
-data NamespaceChanges = NamespaceChanges
-  { adds :: Defns (Map Name Referent) (Map Name TypeReference),
-    deletes :: Defns (Set Name) (Set Name)
-  }
-
--- Create namespace updates from namespace changes.
-makeNamespaceUpdates ::
-  NamespaceChanges ->
-  Defns (NamespaceUpdate (Map Name Referent)) (NamespaceUpdate (Map Name TypeReference))
-makeNamespaceUpdates changes =
-  bimapDefns performAdds performAdds changes.adds <> bimapDefns performDeletes performDeletes changes.deletes
 
 data Flicts = Flicts
   { unconflicts :: !(Unconflicts (Defns (Map Name Referent) (Map Name TypeReference))),
@@ -736,7 +715,7 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
 
 assertConflictsSatisfyPreconditions ::
   Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)) ->
-  Transaction (Defns (Map Name (Referent.Id, Referent.Id)) (Map Name (TypeReferenceId, TypeReferenceId)))
+  Transaction (Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)))
 assertConflictsSatisfyPreconditions conflicts =
   undefined
 
