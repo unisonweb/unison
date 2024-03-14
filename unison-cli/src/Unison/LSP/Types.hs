@@ -19,12 +19,13 @@ import Ki qualified
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message (MessageDirection (..), MessageKind (..), Method, TMessage, TNotificationMessage, fromServerNot)
+import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Server
 import Language.LSP.Server qualified as LSP
 import Language.LSP.VFS
 import Unison.Codebase
-import Unison.Codebase.Editor.Input (Event)
+import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
@@ -43,11 +44,9 @@ import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
 import Unison.Syntax.Lexer qualified as Lexer
-import Unison.Syntax.Parser (Input)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary (FileSummary (..))
-import Unison.Util.TQueue qualified as Q
 import UnliftIO
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
@@ -88,7 +87,7 @@ data Env = Env
     -- A lazily computed map of all valid completion suffixes from the current path.
     completionsVar :: TMVar CompletionTree,
     scope :: Ki.Scope,
-    ucmInputQueue :: Q.TQueue (Either Event Input)
+    ucmInputEnqueuer :: Either Event Input -> STM ()
   }
 
 -- | A suffix tree over path segments of name completions.
@@ -183,10 +182,11 @@ defaultLSPConfig = Config {..}
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
 lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
 
-sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
-sendNotification notif = do
+sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => Msg.SMethod m -> Msg.MessageParams m -> Lsp ()
+sendNotification method params = do
+  let jsonRPC = "2.0"
   sendServerMessage <- asks (resSendMessage . lspContext)
-  liftIO $ sendServerMessage $ fromServerNot notif -- (notif ^. method) notif
+  liftIO $ sendServerMessage $ fromServerNot (Msg.TNotificationMessage jsonRPC method params)
 
 data RangedCodeAction = RangedCodeAction
   { -- All the ranges the code action applies
@@ -234,5 +234,5 @@ setConfig = LSP.setConfig
 
 sendUCMInput :: Either Event Input -> Lsp ()
 sendUCMInput input = do
-  queue <- asks ucmInputQueue
-  liftIO $ atomically $ Q.enqueue queue input
+  send <- asks ucmInputEnqueuer
+  atomically $ send input

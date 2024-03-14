@@ -19,9 +19,8 @@ reportDiagnostics ::
   f Diagnostic ->
   Lsp ()
 reportDiagnostics docUri fileVersion diags = do
-  let jsonRPC = "2.0"
   let params = PublishDiagnosticsParams {_uri = docUri, _version = fromIntegral <$> fileVersion, _diagnostics = toList $ diags}
-  sendNotification (Msg.TNotificationMessage jsonRPC Msg.SMethod_TextDocumentPublishDiagnostics params)
+  sendNotification Msg.SMethod_TextDocumentPublishDiagnostics params
 
 mkDiagnostic :: Uri -> Range -> DiagnosticSeverity -> Text -> [(Text, Range)] -> Diagnostic
 mkDiagnostic uri r severity msg references =

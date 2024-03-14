@@ -101,6 +101,6 @@ mkSlurpLenses uri = do
                           & end . character .~ 0
                   pure $
                     case op of
-                      Add -> CodeLens lspRange (Just $ Commands.addCommand var uri) Nothing
-                      Update -> CodeLens lspRange (Just $ Commands.updateCommand var uri) Nothing
+                      Add -> CodeLens lspRange (Just $ Commands.addCommand var) Nothing
+                      Update -> CodeLens lspRange (Just $ Commands.updateCommand var) Nothing
     pure lenses

@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.SlurpComponent
   ( -- * Slurp component
     SlurpComponent (..),
+    slurpComponentSymbols,
 
     -- ** Basic constructors
     empty,
@@ -37,6 +38,9 @@ data SlurpComponent = SlurpComponent
     ctors :: Set Symbol
   }
   deriving (Eq, Ord, Show)
+
+slurpComponentSymbols :: SlurpComponent -> Set Symbol
+slurpComponentSymbols sc = types sc <> terms sc <> ctors sc
 
 isEmpty :: SlurpComponent -> Bool
 isEmpty sc = Set.null (types sc) && Set.null (terms sc) && Set.null (ctors sc)
