@@ -12,6 +12,7 @@ import Data.Map.Strict qualified as Map
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.These (These (..))
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -80,8 +81,8 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), bifoldMapDefns, bimapDefns)
-import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree, zipNametreesOfDefns)
+import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns)
+import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -112,12 +113,6 @@ handleMerge bobBranchName = do
     Cli.runTransactionWithRollback \abort -> do
       loadDefns abort db mergeInfo branches
 
-  -- Load and merge alice and bob libdeps (this could be done later)
-  mergedLibdeps <-
-    Cli.runTransaction do
-      libdeps <- loadLibdeps branches
-      libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
-
   -- Diff LCA->Alice and LCA->Bob
   diffs <-
     Cli.runTransaction do
@@ -134,11 +129,13 @@ handleMerge bobBranchName = do
   -- things)
   let flicts = partitionDiffIntoFlicts diff
 
-  -- Identify the dependents we need to pull into the scratch file for typechecking
+  -- Identify the dependents we need to pull into the scratch file (either first for typechecking, if there aren't
+  -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
     Cli.runTransaction do
       identifyDependentsOfUnconflicts defns flicts.unconflicts
 
+  -- Create the scratch file
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
       case Map.null flicts.conflicts.terms && Map.null flicts.conflicts.types of
@@ -147,54 +144,48 @@ handleMerge bobBranchName = do
           makeUnisonFile2 abort codebase declNames dependents conflicts
         True -> makeUnisonFile abort codebase dependents (declNames.alice <> declNames.bob)
 
-  let (mergedDefns, droppedDefns) = spelunk defns.lca flicts.unconflicts dependents
+  let (newDefns, droppedDefns) = bumpLca defns.lca flicts.unconflicts dependents
 
-  let oink1 :: Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference))
-      oink1 =
-        bimapDefns
-          (unflattenNametree . BiMultimap.fromRange)
-          (unflattenNametree . BiMultimap.fromRange)
-          mergedDefns
+  -- Load and merge Alice's and Bob's libdeps
+  libdeps <-
+    Cli.runTransaction do
+      libdeps <- loadLibdeps branches
+      libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-  let oink2 :: Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
-      oink2 =
-        zipNametreesOfDefns Map.empty Map.empty oink1
+  let newBranchIO = defnsAndLibdepsToBranch0 codebase newDefns libdeps
 
-  let oink3 = nametreeToBranch0 oink2
+  let mergedNames = Branch.toNames newBranchIO
 
-  let oink4 = Branch.setChildBranch NameSegment.libSegment (Branch.one mergedLibdeps) oink3
-
-  let mergedBranch = Branch.transform0 (Codebase.runTransaction codebase) oink4
-
-  let mergedNames = Branch.toNames mergedBranch
   let ppedNames = mergedNames <> defnsRangeToNames droppedDefns
+
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
+
   let prettyUf = Pretty.prettyUnisonFile pped unisonFile
 
   currentPath <- Cli.getCurrentPath
   parsingEnv <- makeParsingEnv currentPath mergedNames
   prettyParseTypecheck unisonFile pped parsingEnv >>= \case
     Left prettyError -> do
-      promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) mergedBranch
+      promptUser mergeInfo (Pretty.prettyUnisonFile pped unisonFile) newBranchIO
     Right tuf -> do
       mergedBranchPlusTuf <-
         Cli.runTransactionWithRollback \abort -> do
           updates <- typecheckedUnisonFileToBranchUpdates abort undefined tuf
-          pure (Branch.batchUpdates updates mergedBranch)
+          pure (Branch.batchUpdates updates newBranchIO)
       Cli.stepAt
         (textualDescriptionOfMerge mergeInfo)
         ( Path.unabsolute mergeInfo.paths.alice,
           const mergedBranchPlusTuf
         )
 
-spelunk ::
+bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Unconflicts (Defns (Map Name Referent) (Map Name TypeReference)) ->
   Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   ( Defns (Map Name Referent) (Map Name TypeReference),
     Dropped (Defns (Map Name Referent) (Map Name TypeReference))
   )
-spelunk lca unconflicts dependents =
+bumpLca lca unconflicts dependents =
   let -- Compute the adds to apply to the LCA
       adds =
         bimapDefns
@@ -270,6 +261,39 @@ performAdds adds =
 performDeletes :: Set Name -> NamespaceUpdate (Map Name v)
 performDeletes deletions =
   NamespaceUpdate (Map.partitionWithKey (\name _ -> Set.notMember name deletions))
+
+defnsAndLibdepsToBranch0 ::
+  Codebase IO v a ->
+  Defns (Map Name Referent) (Map Name TypeReference) ->
+  Branch0 Transaction ->
+  Branch0 IO
+defnsAndLibdepsToBranch0 codebase defns libdeps =
+  let -- Unflatten the collection of terms into tree, ditto for types
+      nametrees :: Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference))
+      nametrees =
+        bimapDefns go go defns
+
+      -- Align the tree of terms and tree of types into one tree
+      nametree :: Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+      nametree =
+        nametrees & alignDefnsWith \case
+          This x -> Defns x Map.empty
+          That y -> Defns Map.empty y
+          These x y -> Defns x y
+
+      -- Convert the tree to a branch0
+      branch0 = nametreeToBranch0 nametree
+
+      -- Add back the libdeps branch at path "lib"
+      branch1 = Branch.setChildBranch NameSegment.libSegment (Branch.one libdeps) branch0
+
+      -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
+      branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
+   in branch2
+  where
+    go :: Ord v => Map Name v -> Nametree (Map NameSegment v)
+    go =
+      unflattenNametree . BiMultimap.fromRange
 
 nametreeToBranch0 :: forall m. Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)) -> Branch0 m
 nametreeToBranch0 nametree =

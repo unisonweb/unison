@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Unison.Util.Defns
   ( Defns (..),
-    mapDefns,
+    alignDefnsWith,
     bimapDefns,
     bifoldMapDefns,
+    mapDefns,
     unzipDefns,
     unzipDefnsWith,
     zipDefns,
@@ -10,7 +13,9 @@ module Unison.Util.Defns
   )
 where
 
+import Data.Align (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
+import Data.These (These)
 import Unison.Prelude
 
 -- | Definitions (terms and types) in a namespace.
@@ -21,9 +26,9 @@ data Defns terms types = Defns
   deriving stock (Generic, Show)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
-mapDefns :: (a -> b) -> Defns a a -> Defns b b
-mapDefns f =
-  bimapDefns f f
+alignDefnsWith :: Semialign f => (These a b -> c) -> Defns (f a) (f b) -> f c
+alignDefnsWith f defns =
+  alignWith f defns.terms defns.types
 
 bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
 bimapDefns f g (Defns terms types) =
@@ -32,6 +37,10 @@ bimapDefns f g (Defns terms types) =
 bifoldMapDefns :: Monoid m => (a -> m) -> (b -> m) -> Defns a b -> m
 bifoldMapDefns f g (Defns terms types) =
   f terms <> g types
+
+mapDefns :: (a -> b) -> Defns a a -> Defns b b
+mapDefns f =
+  bimapDefns f f
 
 unzipDefns :: Defns (tm1, tm2) (ty1, ty2) -> (Defns tm1 ty1, Defns tm2 ty2)
 unzipDefns =
