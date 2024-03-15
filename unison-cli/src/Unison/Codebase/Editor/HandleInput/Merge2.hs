@@ -18,7 +18,7 @@ import Data.Zip (Zip, zipWith)
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
-import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -84,7 +84,7 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns, unzipDefns, unzipDefnsWith)
+import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns, unzipDefnsWith)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -128,22 +128,21 @@ handleMerge bobBranchName = do
   -- Combine the LCA->Alice and LCA->Bob diffs together into a combined diff
   let diff = combineDiffs diffs
 
-  -- Partition the combined diff into "flicts" - the CON-flicts (conflicted things) and the UN-CON-flicts (unconflicted
-  -- things)
-  let flicts = partitionDiffIntoFlicts diff
+  -- Partition the combined diff into the conflicted things and the unconflicted things
+  let (conflicts, unconflicts) = partitionDiff diff
 
   -- Identify the dependents we need to pull into the scratch file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
     Cli.runTransaction do
-      identifyDependentsOfUnconflicts (ThreeWay.forgetLca defns) flicts.unconflicts
+      identifyDependentsOfUnconflicts (ThreeWay.forgetLca defns) unconflicts
 
   -- Create the scratch file
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
-      absoluteHonk abort codebase declNames dependents flicts.conflicts
+      absoluteHonk abort codebase declNames dependents conflicts
 
-  let (newDefns, droppedDefns) = bumpLca defns.lca flicts.unconflicts dependents
+  let (newDefns, droppedDefns) = bumpLca defns.lca unconflicts dependents
 
   -- Load and merge Alice's and Bob's libdeps
   libdeps <-
@@ -286,7 +285,7 @@ absoluteHonk abort codebase declNames dependents conflicts =
 
 bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)) ->
+  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
   Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
   ( Defns (Map Name Referent) (Map Name TypeReference),
     Dropped (Defns (Map Name Referent) (Map Name TypeReference))
@@ -296,14 +295,14 @@ bumpLca lca unconflicts dependents =
       adds =
         bimapDefns f f unconflicts
         where
-          f :: Unconflicts (Map Name v) -> NamespaceUpdate (Map Name v)
+          f :: Unconflicts v -> NamespaceUpdate (Map Name v)
           f x = performAdds (fold (x.adds <> x.updates) Map.\\ dependents.terms)
 
       -- Compute the deletes to apply to the LCA
       deletes =
         bimapDefns f f unconflicts
         where
-          f :: Unconflicts (Map Name v) -> NamespaceUpdate (Map Name v)
+          f :: Unconflicts v -> NamespaceUpdate (Map Name v)
           f = performDeletes . foldMap Map.keysSet . view #deletes
    in (adds <> deletes)
         -- Combine the separate term/type namespace updates into one
@@ -504,7 +503,7 @@ instance Zip TwoWayI where
 
 identifyDependentsOfUnconflicts ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)) ->
+  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
   Transaction (Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)))
 identifyDependentsOfUnconflicts defns unconflicts = do
   let deletesAndUpdates = getSoloDeletesAndUpdates unconflicts
@@ -529,92 +528,49 @@ identifyDependentsOfUnconflicts defns unconflicts = do
     <*> getPersonDependents (view #bob)
 
 getSoloDeletesAndUpdates ::
-  Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)) ->
+  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
   TwoWay (Defns (Set Name) (Set Name))
 getSoloDeletesAndUpdates unconflicts =
-  TwoWay
-    { alice =
-        Defns
-          (Map.keysSet unconflicts.terms.deletes.alice <> Map.keysSet unconflicts.terms.updates.alice)
-          (Map.keysSet unconflicts.types.deletes.alice <> Map.keysSet unconflicts.types.updates.alice),
-      bob =
-        Defns
-          (Map.keysSet unconflicts.terms.deletes.bob <> Map.keysSet unconflicts.terms.updates.bob)
-          (Map.keysSet unconflicts.types.deletes.bob <> Map.keysSet unconflicts.types.updates.bob)
-    }
-
-getSoloDeletesAndUpdates2 ::
-  Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)) ->
-  TwoWay (Defns (Set Name) (Set Name))
-getSoloDeletesAndUpdates2 unconflicts =
-  -- Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)) ->
-  --         -> terms               :: Unconflicts (Map Name Referent)
-  --         -> terms.deletes       :: TwoWayI (Map Name Referent)
-  --         -> terms.deletes.alice :: Map Name Referent
-  TwoWay
-    { alice =
-        Defns
-          (Map.keysSet unconflicts.terms.deletes.alice <> Map.keysSet unconflicts.terms.updates.alice)
-          (Map.keysSet unconflicts.types.deletes.alice <> Map.keysSet unconflicts.types.updates.alice),
-      bob =
-        Defns
-          (Map.keysSet unconflicts.terms.deletes.bob <> Map.keysSet unconflicts.terms.updates.bob)
-          (Map.keysSet unconflicts.types.deletes.bob <> Map.keysSet unconflicts.types.updates.bob)
-    }
+  let (alice, bob) =
+        unzipDefnsWith
+          ( \terms ->
+              ( namesOfUnconflictedDeletesAndUpdates OnlyAlice terms,
+                namesOfUnconflictedDeletesAndUpdates OnlyBob terms
+              )
+          )
+          ( \types ->
+              ( namesOfUnconflictedDeletesAndUpdates OnlyAlice types,
+                namesOfUnconflictedDeletesAndUpdates OnlyBob types
+              )
+          )
+          unconflicts
+   in TwoWay {alice, bob}
 
 defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> Defns (Map name term) (Map name typ)
 defnsRangeOnly =
   bimapDefns BiMultimap.range BiMultimap.range
 
-data PartitionedDiff = Flicts
-  { conflicts :: !(Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference))),
-    unconflicts :: !(Defns (Unconflicts (Map Name Referent)) (Unconflicts (Map Name TypeReference)))
-  }
-  deriving stock (Generic)
-
-data FlictsV v = FlictsV
-  { unconflicts :: !(Unconflicts (Map Name v)),
+data PartitionedDiff v = PartitionedDiff
+  { unconflicts :: !(Unconflicts v),
     conflicts :: !(Map Name (TwoWay v))
   }
   deriving stock (Generic)
 
-data Changes a = Changes
-  { adds :: !a,
-    deletes :: !a,
-    updates :: !a
+data Unconflicts v = Unconflicts
+  { adds :: !(TwoWayI (Map Name v)),
+    deletes :: !(TwoWayI (Map Name v)),
+    updates :: !(TwoWayI (Map Name v))
   }
   deriving stock (Foldable, Functor, Generic)
 
-instance Semialign Changes where
-  alignWith :: (These a b -> c) -> Changes a -> Changes b -> Changes c
-  alignWith f =
-    zipWith \x y -> f (These x y)
+-- Names of the given person's deletes and updates.
+namesOfUnconflictedDeletesAndUpdates :: AliceIorBob -> Unconflicts v -> Set Name
+namesOfUnconflictedDeletesAndUpdates who unconflicts =
+  Map.keysSet (view (whoL who) unconflicts.deletes) <> Map.keysSet (view (whoL who) unconflicts.updates)
 
-instance Zip Changes where
-  zipWith :: (a -> b -> c) -> Changes a -> Changes b -> Changes c
-  zipWith f (Changes x1 x2 x3) (Changes y1 y2 y3) =
-    Changes (f x1 y1) (f x2 y2) (f x3 y3)
-
-data Unconflicts a = Unconflicts
-  { adds :: !(TwoWayI a),
-    deletes :: !(TwoWayI a),
-    updates :: !(TwoWayI a)
-  }
-  deriving stock (Foldable, Functor, Generic)
-
-instance Semialign Unconflicts where
-  alignWith :: (These a b -> c) -> Unconflicts a -> Unconflicts b -> Unconflicts c
-  alignWith f =
-    zipWith \x y -> f (These x y)
-
-instance Zip Unconflicts where
-  zipWith :: (a -> b -> c) -> Unconflicts a -> Unconflicts b -> Unconflicts c
-  zipWith f (Unconflicts x1 x2 x3) (Unconflicts y1 y2 y3) =
-    Unconflicts (zipWith f x1 y1) (zipWith f x2 y2) (zipWith f x3 y3)
-
-emptyFlictsV :: FlictsV v
-emptyFlictsV =
-  FlictsV
+emptyPartitionedDiff :: PartitionedDiff v
+emptyPartitionedDiff =
+  PartitionedDiff
     { unconflicts =
         Unconflicts
           { adds = TwoWayI Map.empty Map.empty Map.empty,
@@ -624,35 +580,33 @@ emptyFlictsV =
       conflicts = Map.empty
     }
 
-makeFlictsV :: Map Name (CombinedDiffsOp v) -> FlictsV v
-makeFlictsV =
-  Map.foldlWithKey' (\s k v -> insert k v s) emptyFlictsV
-  where
-    insert :: Name -> CombinedDiffsOp v -> FlictsV v -> FlictsV v
-    insert k = \case
-      Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
-      Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
-      Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
-      Conflict v -> #conflicts %~ Map.insert k v
-      where
-        whoL :: forall x. AliceIorBob -> Lens' (TwoWayI x) x
-        whoL = \case
-          OnlyAlice -> #alice
-          OnlyBob -> #bob
-          AliceAndBob -> #both
-
 -- Partition definitions into conflicted and unconflicted.
-partitionDiffIntoFlicts ::
+partitionDiff ::
   Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference)) ->
-  PartitionedDiff
-partitionDiffIntoFlicts =
-  makeFlicts . bimapDefns makeFlictsV makeFlictsV
+  ( (Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference))),
+    (Defns (Unconflicts Referent) (Unconflicts TypeReference))
+  )
+partitionDiff =
+  unzipDefnsWith f f
+  where
+    f = (\v -> (v.conflicts, v.unconflicts)) . partition1
 
-makeFlicts :: Defns (FlictsV Referent) (FlictsV TypeReference) -> PartitionedDiff
-makeFlicts defns =
-  let (conflicts, unconflicts) =
-        unzipDefnsWith (\v -> (v.conflicts, v.unconflicts)) (\v -> (v.conflicts, v.unconflicts)) defns
-   in Flicts {conflicts, unconflicts}
+    partition1 :: Map Name (CombinedDiffsOp v) -> PartitionedDiff v
+    partition1 =
+      Map.foldlWithKey' (\s k v -> insert k v s) emptyPartitionedDiff
+      where
+        insert :: Name -> CombinedDiffsOp v -> PartitionedDiff v -> PartitionedDiff v
+        insert k = \case
+          Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
+          Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
+          Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
+          Conflict v -> #conflicts %~ Map.insert k v
+
+whoL :: AliceIorBob -> Lens' (TwoWayI a) a
+whoL = \case
+  OnlyAlice -> #alice
+  OnlyBob -> #bob
+  AliceAndBob -> #both
 
 defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
 defnsToNames =
