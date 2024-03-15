@@ -23,6 +23,8 @@ packages:
   lib/unison-util-cache
   lib/unison-util-relation
   lib/unison-util-rope
+  lib/unison-util-file-embed
+  lib/unison-util-nametree
 
   parser-typechecker
   unison-core
@@ -46,7 +48,6 @@ source-repository-package
 constraints:
   fsnotify < 0.4,
   crypton-x509-store <= 1.6.8,
-  lsp < 2.0.0.0,
   servant <= 0.19.1,
   optparse-applicative <= 0.17.1.0
 
