@@ -1250,7 +1250,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     (Right
                                                       (Term.Term
                                                         (Any
-                                                          'Some)))))
+                                                          (do
+                                                            Some))))))
                                             , Lit
                                                 ()
                                                 (Right
@@ -1569,7 +1570,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           (SpecialForm.Link
                                             (Right
                                               (Term.Term
-                                                (Any 'lists)))))
+                                                (Any (do lists))))))
                                     ])))
                           ]))))
               , Lit () (Right (Plain "\n"))
@@ -2680,8 +2681,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                 (EvalInline
                                                   (Term.Term
                                                     (Any
-                                                      '(1
-                                                          Nat.+ 1)))))
+                                                      (do
+                                                        use Nat +
+                                                        1 + 1)))))
                                           , Lit
                                               ()
                                               (Right (Plain "."))
@@ -2937,7 +2939,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           )
                                         , ( Right
                                               (Term.Term
-                                                (Any 'sqr))
+                                                (Any (do sqr)))
                                           , []
                                           )
                                         ])))))
@@ -2996,7 +2998,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                           )
                                         , ( Right
                                               (Term.Term
-                                                (Any 'sqr))
+                                                (Any (do sqr)))
                                           , []
                                           )
                                         ])))))
@@ -3045,7 +3047,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                               (Left
                                                 (SignatureInline
                                                   (Term.Term
-                                                    (Any 'sqr))))
+                                                    (Any
+                                                      (do sqr)))))
                                           , Lit
                                               ()
                                               (Right (Plain ","))
@@ -3091,9 +3094,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (SpecialForm.Signature
-                                        [ Term.Term (Any 'sqr)
+                                        [ Term.Term
+                                            (Any (do sqr))
                                         , Term.Term
-                                            (Any '(Nat.+))
+                                            (Any
+                                              (do
+                                                use Nat +
+                                                (+)))
                                         ])))))
                           , Lit () (Right (Plain "\n"))
                           , Lit () (Right (Plain "\n"))
@@ -3129,7 +3136,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     (Left
                                       (SpecialForm.Signature
                                         [ Term.Term
-                                            (Any 'List.map)
+                                            (Any (do List.map))
                                         ])))))
                           , Lit () (Right (Plain "\n"))
                           , Lit () (Right (Plain "\n"))
@@ -3272,12 +3279,14 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               2
                                                               (Term.Term
                                                                 (Any
-                                                                  '(f
+                                                                  (do
+                                                                    use Nat +
+                                                                    f
                                                                     x ->
                                                                       f
                                                                         x
-                                                                        Nat.+ sqr
-                                                                                1)))))
+                                                                        + sqr
+                                                                            1)))))
                                                       , Lit
                                                           ()
                                                           (Right
@@ -3547,7 +3556,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        '(x ->
+                                                                        (do
+                                                                          x ->
                                                                             sqr
                                                                               x)))))
                                                             , Lit
@@ -3589,7 +3599,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                     1
                                                                     (Term.Term
                                                                       (Any
-                                                                        '(x ->
+                                                                        (do
+                                                                          x ->
                                                                             sqr
                                                                               x)))))
                                                             , Lit
@@ -3953,15 +3964,16 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   (Left
                                     (SpecialForm.Signature
                                       [ Term.Term
-                                          (Any 'docAside)
+                                          (Any (do docAside))
                                       , Term.Term
-                                          (Any 'docCallout)
+                                          (Any (do docCallout))
                                       , Term.Term
-                                          (Any 'docBlockquote)
+                                          (Any
+                                            (do docBlockquote))
                                       , Term.Term
-                                          (Any 'docTooltip)
+                                          (Any (do docTooltip))
                                       , Term.Term
-                                          (Any 'docTable)
+                                          (Any (do docTable))
                                       ]))))
                           , Lit () (Right (Plain "\n"))
                           , Lit () (Right (Plain "\n"))

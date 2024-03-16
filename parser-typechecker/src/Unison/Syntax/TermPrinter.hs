@@ -187,9 +187,8 @@ pretty0 ::
   AmbientContext ->
   Term3 v PrintAnnotation ->
   m (Pretty SyntaxText)
-pretty0 a tm | precedence a == -2 && not (isBindingSoftHangable tm) = do
-  -- precedence = -2 means this is a top level binding, and we allow
-  -- use clause insertion here even when it otherwise wouldn't be
+pretty0 a tm | isTopLevelPrecedence (precedence a) && not (isBindingSoftHangable tm) = do
+  -- we allow use clause insertion here even when it otherwise wouldn't be
   -- (as long as the tm isn't soft hangable, if it gets soft hung then
   -- adding use clauses beforehand will mess things up)
   tmp <- pretty0 (a {imports = im, precedence = -1}) tm
@@ -301,25 +300,21 @@ pretty0
                       `hangHandler` ph
                 ]
       Delay' x
-        | isLet x || p < 0 -> do
-            let (im', uses) = calcImports im x
-            let hang = if isSoftHangable x && null uses then PP.softHang else PP.hang
-            px <- pretty0 (ac 0 Block im' doc) x
-            pure . paren (p >= 3) $
-              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [px])
         | Match' _ _ <- x -> do
             px <- pretty0 (ac 0 Block im doc) x
             let hang = if isSoftHangable x then PP.softHang else PP.hang
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
-            px <- pretty0 (ac 10 Normal im doc) x
-            pure . paren (p >= 11 || isBlock x && p >= 3) $
-              fmt S.DelayForceChar (l "'")
-                -- Add indentation below since we're opening parens with '(
-                -- This is in case the contents are a long function application
-                -- in which case the arguments should be indented.
-                <> PP.indentAfterNewline "  " px
+            let (im', uses) = calcImports im x
+            let soft = isSoftHangable x && null uses && p < 3
+            let hang = if soft then PP.softHang else PP.hang
+            px <- pretty0 (ac 0 Block im' doc) x
+            -- this makes sure we get proper indentation if `px` spills onto
+            -- multiple lines, since `do` introduces layout block 
+            let indent = PP.Width (if soft then 2 else 0) + (if soft && p < 3 then 1 else 0)
+            pure . paren (p >= 3) $
+              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
       List' xs -> do
         let listLink p = fmt (S.TypeReference Type.listRef) p
         let comma = listLink ", " `PP.orElse` ("\n" <> listLink ", ")
@@ -2171,3 +2166,7 @@ isLeaf (Constructor' {}) = True
 isLeaf (Request' {}) = True
 isLeaf (Ref' {}) = True
 isLeaf _ = False
+
+-- | Indicates this is the RHS of a top-level definition.
+isTopLevelPrecedence :: Int -> Bool
+isTopLevelPrecedence i = i == -2
