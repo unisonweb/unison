@@ -311,7 +311,7 @@ pretty0
             let hang = if soft then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x
             -- this makes sure we get proper indentation if `px` spills onto
-            -- multiple lines, since `do` introduces layout block 
+            -- multiple lines, since `do` introduces layout block
             let indent = PP.Width (if soft then 2 else 0) + (if soft && p < 3 then 1 else 0)
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
