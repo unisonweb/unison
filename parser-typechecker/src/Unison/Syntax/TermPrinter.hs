@@ -306,7 +306,10 @@ pretty0
             pure . paren (p >= 3) $
               fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
-            let (im', uses) = calcImports im x
+            let (im0', uses0) = calcImports im x
+            let allowUses = isLet x || p < 0 
+            let im' = if allowUses then im0' else im
+            let uses = if allowUses then uses0 else []
             let soft = isSoftHangable x && null uses && p < 3
             let hang = if soft then PP.softHang else PP.hang
             px <- pretty0 (ac 0 Block im' doc) x

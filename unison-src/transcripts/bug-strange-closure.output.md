@@ -2682,8 +2682,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                   (Term.Term
                                                     (Any
                                                       (do
-                                                        use Nat +
-                                                        1 + 1)))))
+                                                        1
+                                                          Nat.+ 1)))))
                                           , Lit
                                               ()
                                               (Right (Plain "."))
@@ -3097,10 +3097,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         [ Term.Term
                                             (Any (do sqr))
                                         , Term.Term
-                                            (Any
-                                              (do
-                                                use Nat +
-                                                (+)))
+                                            (Any (do (Nat.+)))
                                         ])))))
                           , Lit () (Right (Plain "\n"))
                           , Lit () (Right (Plain "\n"))
@@ -3280,13 +3277,12 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                               (Term.Term
                                                                 (Any
                                                                   (do
-                                                                    use Nat +
                                                                     f
                                                                     x ->
                                                                       f
                                                                         x
-                                                                        + sqr
-                                                                            1)))))
+                                                                        Nat.+ sqr
+                                                                                1)))))
                                                       , Lit
                                                           ()
                                                           (Right
