@@ -53,7 +53,7 @@ jobs:
             **/*.hs
             **/*.hs-boot
           separator: "\n"
-      - uses: haskell-actions/run-ormolu@v14
+      - uses: haskell-actions/run-ormolu@v15
         with:
           version: ${{ env.ormolu_version }}
           mode: inplace
@@ -63,7 +63,10 @@ jobs:
         # Only try to commit formatting changes if we're running within the repo containing the PR,
         # and not on a protected branch.
         # The job doesn't have permission to push back to contributor forks on contributor PRs.
-        if: always() && !github.ref_protected && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
+        if: |
+          always()
+            && !github.ref_protected
+            && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
         with:
           commit_message: automatically run ormolu
   build-ucm:
@@ -285,7 +288,10 @@ jobs:
 
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
-        if: runner.os != 'Windows' && (steps.cache-ucm-binaries.outputs.cache-hit != 'true' || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
+        if: |
+          runner.os != 'Windows'
+            && (steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+                || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
         run: |
           ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
           cat unison-src/builtin-tests/interpreter-tests.output.md
@@ -304,14 +310,36 @@ jobs:
           if-no-files-found: error
 
       - name: save ~/.stack (non-Windows)
-        if: runner.os != 'Windows' && ${{ !cancelled() }} && steps.cache-stack-unix.outputs.cache-hit != 'true'
+        if: |
+          runner.os != 'Windows'
+            && !cancelled()
+            && steps.cache-stack-unix.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.stack
           key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
+      # temporarily print what's in the cached system stack dir
+      - name: print stack cache (Windows)
+        if: |
+          runner.os == 'Windows'
+            && !cancelled()
+            && steps.cache-stack-windows.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          echo "Is there anything in C:/Users/runneradmin/AppData/Roaming/stack?"
+          du -chs C:/Users/runneradmin/AppData/Roaming/stack || true
+          echo ""
+          echo "Is there anything in C:/Users/runneradmin/AppData/Local/Programs/stack?"
+          du -chs C:/Users/runneradmin/AppData/Local/Programs/stack || true
+
       - name: save ~/.stack (Windows)
-        if: runner.os == 'Windows' && ${{ !cancelled() }} && steps.cache-stack-windows.outputs.cache-hit != 'true'
+        if: |
+          runner.os == 'Windows'
+            && !cancelled()
+            && steps.cache-stack-windows.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -321,7 +349,10 @@ jobs:
 
       - name: save .stack-work
         # can change this to always() if we find this isn't doing the right thing.
-        if: ${{ !cancelled() }} && steps.cache-stack-work.outputs.cache-hit != 'true'
+        if: |
+          !cancelled()
+            && steps.cache-stack-work.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -408,7 +439,7 @@ jobs:
           ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
 
       - name: save jit source
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jit-source
