@@ -25,7 +25,11 @@ Similarly, `save-always: true` only if a key hit means there will be nothing new
 
 Backup restore keys: "Is there a prior run that would be worth starting out from? With the caveat that any irrelevant garbage it includes will be saved into this run too."
 
-### Composite Actions
+### Reusability
+
+Github supports splitting off "reusable workflows" (`jobs` that can be imported into another workflow), and "composite actions" (multi-step `steps` that can be imported into another `job`).
+
+#### Composite actions
 
 Needs to have `shell:` specified on every `run:`
 
@@ -36,3 +40,9 @@ https://docs.github.com/en/actions/learn-github-actions/variables#default-enviro
 
 Workflow syntax:
 https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+Reusable workflows:
+https://docs.github.com/en/actions/using-workflows/reusing-workflows
+
+Composite actions:
+https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
