@@ -307,7 +307,7 @@ pretty0
               fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
             let (im0', uses0) = calcImports im x
-            let allowUses = isLet x || p < 0 
+            let allowUses = isLet x || p < 0
             let im' = if allowUses then im0' else im
             let uses = if allowUses then uses0 else []
             let soft = isSoftHangable x && null uses && p < 3
