@@ -193,12 +193,6 @@ jobs:
           mkdir stack && cd stack
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
           echo "$PWD/stack-"* >> $GITHUB_PATH
-          # temporarily print what's in the cached system stack dir
-          echo "C:/Users/runneradmin/AppData/Roaming/stack:"
-          ls C:/Users/runneradmin/AppData/Roaming/stack
-          echo ""
-          echo "C:/Users/runneradmin/AppData/Local/Programs/stack:"
-          ls C:/Users/runneradmin/AppData/Local/Programs/stack
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
@@ -343,6 +337,16 @@ jobs:
         with:
           path: ~/.stack
           key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+
+      # temporarily print what's in the cached system stack dir
+      - name: print stack cache (Windows)
+        if: runner.os == 'Windows' && ${{ !cancelled() }} && steps.cache-stack-windows.outputs.cache-hit != 'true'
+        run: |
+          echo "Is there anything in C:/Users/runneradmin/AppData/Roaming/stack?"
+          du -chs C:/Users/runneradmin/AppData/Roaming/stack || true
+          echo ""
+          echo "Is there anything in C:/Users/runneradmin/AppData/Local/Programs/stack?"
+          du -chs C:/Users/runneradmin/AppData/Local/Programs/stack || true
 
       - name: save ~/.stack (Windows)
         if: runner.os == 'Windows' && ${{ !cancelled() }} && steps.cache-stack-windows.outputs.cache-hit != 'true'
