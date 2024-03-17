@@ -79,17 +79,15 @@ Abort.toOptional : '{g, Abort} a -> '{g} Optional a
 Abort.toOptional thunk = do toOptional! thunk
 
 Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+Abort.toOptional! thunk = toDefault! None do Some !thunk
 
 catchAll : x -> Nat
 catchAll x = 99
 
 Decode.remainder : '{Ask (Optional Bytes)} Bytes
-Decode.remainder = do
-  use Bytes ++
-  match ask with
-    None   -> Bytes.empty
-    Some b -> b ++ !Decode.remainder
+Decode.remainder = do match ask with
+  None   -> Bytes.empty
+  Some b -> b Bytes.++ !Decode.remainder
 
 ex1 : Nat
 ex1 =
@@ -232,9 +230,10 @@ fix_3110c : ()
 fix_3110c = fix_3110a [1, 2, 3] (x -> ignore (Nat.increment x))
 
 fix_3110d : ()
-fix_3110d = fix_3110a [1, 2, 3] '(x -> do
+fix_3110d = fix_3110a [1, 2, 3] do
+  x -> do
     y = Nat.increment x
-    ())
+    ()
 
 fix_3627 : Nat -> Nat -> Nat
 fix_3627 = cases
@@ -293,15 +292,15 @@ fix_4352 : Doc2
 fix_4352 = {{ `` +1 `` }}
 
 fix_4384 : Doc2
-fix_4384 = {{ {{ docExampleBlock 0 '2 }} }}
+fix_4384 = {{ {{ docExampleBlock 0 do 2 }} }}
 
 fix_4384a : Doc2
 fix_4384a =
   use Nat +
-  {{ {{ docExampleBlock 0 '(1 + 1) }} }}
+  {{ {{ docExampleBlock 0 do 1 + 1 }} }}
 
 fix_4384b : Doc2
-fix_4384b = {{ {{ docExampleBlock 0 '99 }} }}
+fix_4384b = {{ {{ docExampleBlock 0 do 99 }} }}
 
 fix_4384c : Doc2
 fix_4384c =
@@ -317,25 +316,8 @@ fix_4384d : Doc2
 fix_4384d =
   {{
   {{
-  docExampleBlock 0 '[ 1
-    , 2
-    , 3
-    , 4
-    , 5
-    , 6
-    , 7
-    , 8
-    , 9
-    , 10
-    , 11
-    , 12
-    , 13
-    , 14
-    , 15
-    , 16
-    , 17
-    , 18
-    ] }}
+  docExampleBlock 0 do
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] }}
   }}
 
 fix_4384e : Doc2
@@ -407,8 +389,9 @@ longlines1 =
 longlines2 : (Text, '{g} Bytes)
 longlines2 =
   ( "adsf"
-  , '(toUtf8
-        "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf")
+  , do
+      toUtf8
+        "adsfsfdgsfdgsdfgsdfgsfdgsfdgsdgsgsgfsfgsgsfdgsgfsfdgsgfsfdgsdgsdfgsgf"
   )
 
 longlines_helper : x -> 'x
@@ -640,7 +623,7 @@ stew_issue =
   toText a = a
   Debug : a -> b -> ()
   Debug a b = ()
-  error (Debug None '(Debug "Failed " 42))
+  error (Debug None do Debug "Failed " 42)
 
 stew_issue2 : ()
 stew_issue2 =
@@ -649,7 +632,7 @@ stew_issue2 =
   toText a = a
   Debug : a -> b -> ()
   Debug a b = ()
-  error (Debug None '("Failed " ++ toText 42))
+  error (Debug None do "Failed " ++ toText 42)
 
 stew_issue3 : ()
 stew_issue3 =
@@ -661,8 +644,8 @@ stew_issue3 =
   configPath = 0
   Debug a b = ()
   error
-    (Debug None '("Failed to get timestamp of config file "
-        ++ toText configPath))
+    (Debug None do
+      "Failed to get timestamp of config file " ++ toText configPath)
 
 test3 : '('('r))
 test3 = do
@@ -671,7 +654,7 @@ test3 = do
   runrun = 42
   a = "asldkfj"
   b = "asdflkjasdf"
-  ''(run runrun ''runrun)
+  do do run runrun do do runrun
 
 use_clauses_example : Int -> Text -> Nat
 use_clauses_example oo quaffle =
@@ -689,9 +672,8 @@ UUID.random = do UUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  use Bytes ++
   (UUID a (b, _)) = !random
-  encodeNat64be a ++ encodeNat64be b
+  encodeNat64be a Bytes.++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
 a |> f = f a
