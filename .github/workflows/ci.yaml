@@ -72,8 +72,6 @@ jobs:
   build-ucm:
     name: Build UCM ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: always()
-    needs: ormolu
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
