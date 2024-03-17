@@ -27,8 +27,7 @@ Backup restore keys: "Is there a prior run that would be worth starting out from
 
 ### Reusability
 
-Github supports splitting off "reusable workflows" (`jobs` that can be imported into another workflow),
-and "composite actions" (multi-step `steps` that can be imported into another `job`.)
+Github supports splitting off "reusable workflows" (`jobs` that can be imported into another workflow), and "composite actions" (multi-step `steps` that can be imported into another `job`).
 
 #### Composite actions
 
