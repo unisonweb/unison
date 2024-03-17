@@ -200,6 +200,12 @@ jobs:
           echo "C:/Users/runneradmin/AppData/Local/Programs/stack:"
           ls C:/Users/runneradmin/AppData/Local/Programs/stack
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+        timeout-minutes: 15
+
+
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
         run: |
