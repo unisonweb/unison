@@ -23,6 +23,7 @@ import ArgParse
     UsageRenderer,
     parseCLIArgs,
   )
+
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Concurrent.STM
