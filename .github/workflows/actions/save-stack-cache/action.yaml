@@ -1,0 +1,36 @@
+name: save stack cache
+description: save ~/.stack and .stack-work caches on Linux, macOS, and Windows
+
+inputs:
+  cache-prefix:
+    description: The cache prefix to use for `~/.stack`, e.g. "release" or "ci"
+    required: true
+  work-cache-prefix:
+    description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: save ~/.stack (non-Windows)
+      if: runner.os != 'Windows'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.stack
+        key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+
+    - name: save ~/.stack (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          C:\Users\runneradmin\AppData\Roaming\stack
+          C:\Users\runneradmin\AppData\Local\Programs\stack
+        key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+
+    - name: save .stack-work
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          **/.stack-work
+        key: ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}

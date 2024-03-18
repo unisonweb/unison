@@ -1,0 +1,83 @@
+name: restore stack cache
+description: restore ~/.stack and .stack-work caches on Linux, macOS, and Windows
+
+inputs:
+  cache-prefix:
+    description: The cache prefix to use for `~/.stack`, e.g. "release" or "ci"
+    required: true
+  work-cache-prefix:
+    description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
+    required: true
+
+outputs:
+  cache-hit:
+    description: Whether the .stack cache was restored with an exact match
+    value: ${{ steps.cache-stack-unix.outputs.cache-hit || steps.cache-stack-windows.outputs.cache-hit }}
+  work-cache-hit:
+    description: Whether the .stack-work cache was restored with an exact match
+    value: ${{ steps.cache-stack-work.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+      # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
+      # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
+      # purge one manually.
+      - id: stackage-resolver
+        name: record stackage resolver
+        shell: bash
+        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
+        # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
+        # `nightly` or `lts-xx`.  the whole resolver string is put into $resolver as a backup cache key
+        # ${{ env.resolver_short }}
+        # ${{ env.resolver }}
+        run: |
+          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
+          grep resolver stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
+
+      - name: restore ~/.stack (non-Windows)
+        uses: actions/cache/restore@v4
+        id: cache-stack-unix
+        if: runner.os != 'Windows'
+        with:
+          path: ~/.stack
+          key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          # Fall-back to use the most recent cache for this resolver
+          restore-keys: ${{inputs.cache-prefixid}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+
+      # we added this step out of necessity, don't exactly remember why.
+      # hope to remove it someday.
+      - name: remove ~/.stack/setup-exe-cache on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: rm -rf ~/.stack/setup-exe-cache
+
+      - name: restore ~/.stack (Windows)
+        uses: actions/cache/restore@v4
+        id: cache-stack-windows
+        if: runner.os == 'Windows'
+        with:
+          path: |
+            C:\Users\runneradmin\AppData\Roaming\stack
+            C:\Users\runneradmin\AppData\Local\Programs\stack
+          key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          # Fall-back to use the most recent cache for this resolver
+          restore-keys: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+
+      - name: restore .stack-work
+        uses: actions/cache/restore@v4
+        id: cache-stack-work
+        with:
+          path: |
+            **/.stack-work
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          restore-keys: |
+            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-
