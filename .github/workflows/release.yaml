@@ -28,9 +28,7 @@ jobs:
     name: "create_release"
     runs-on: ubuntu-20.04
     needs:
-      - build_linux
-      - build_macos
-      - build_windows
+      - build-ucm
 
     steps:
       - uses: actions/checkout@v2
