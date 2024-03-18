@@ -62,6 +62,8 @@ proj/topic> add
 
 proj/main> merge2 /topic
 
+  I merged proj/topic into proj/main.
+
 proj/main> view bar
 
   bar : Nat
@@ -124,6 +126,10 @@ proj/main> add
     foo : Nat
 
 proj/main> merge2 /topic
+
+  I couldn't automatically merge proj/topic into proj/main.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -233,6 +239,10 @@ attempt to merge `topic` into `main`
 
 ```ucm
 proj/main> merge2 /topic
+
+  I couldn't automatically merge proj/topic into proj/main.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u

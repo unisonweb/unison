@@ -72,7 +72,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -175,6 +175,21 @@ handleMerge bobBranchName = do
         ( Path.unabsolute mergeInfo.paths.alice,
           const mergedBranchPlusTuf
         )
+      Cli.respond (Output.MergeSuccess (aliceProjectAndBranchName mergeInfo) (bobProjectAndBranchName mergeInfo))
+
+aliceProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
+aliceProjectAndBranchName mergeInfo =
+  ProjectAndBranch
+    { project = view (#project . #name) mergeInfo,
+      branch = view (#projectBranches . #alice . #name) mergeInfo
+    }
+
+bobProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
+bobProjectAndBranchName mergeInfo =
+  ProjectAndBranch
+    { project = view (#project . #name) mergeInfo,
+      branch = view (#projectBranches . #bob . #name) mergeInfo
+    }
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading basic info out of the database
@@ -639,8 +654,7 @@ promptUser mergeInfo prettyUnisonFile newBranch = do
       Nothing -> "scratch.u"
       Just (file, _) -> file
   liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-  -- todo: respond with some message
-  Cli.returnEarlyWithoutOutput
+  Cli.returnEarly (Output.MergeFailure scratchFilePath (aliceProjectAndBranchName mergeInfo) (bobProjectAndBranchName mergeInfo))
 
 findTemporaryBranchName :: ProjectId -> ProjectBranchName -> ProjectBranchName -> Transaction ProjectBranchName
 findTemporaryBranchName projectId other self = do

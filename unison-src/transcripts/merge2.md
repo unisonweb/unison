@@ -57,7 +57,7 @@ foo : Nat
 foo = 4
 ```
 
-```ucm
+```ucm:error
 proj/main> add
 proj/main> merge2 /topic
 ```
@@ -111,7 +111,7 @@ proj/main> update
 
 attempt to merge `topic` into `main`
 
-```ucm
+```ucm:error
 proj/main> merge2 /topic
 ```
 

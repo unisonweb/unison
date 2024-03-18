@@ -2251,6 +2251,20 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
         <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
+  MergeFailure path base target ->
+    pure . P.wrap $
+      "I couldn't automatically merge"
+        <> prettyProjectAndBranchName target
+        <> "into"
+        <> P.group (prettyProjectAndBranchName base <> ".")
+        <> "However, I've added the definitions that need attention to the top of"
+        <> P.group (prettyFilePath path <> ".")
+  MergeSuccess base target ->
+    pure . P.wrap $
+      "I merged"
+        <> prettyProjectAndBranchName target
+        <> "into"
+        <> P.group (prettyProjectAndBranchName base <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
