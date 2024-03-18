@@ -26,7 +26,7 @@ import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
@@ -115,7 +115,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
               [ (shortname, nr)
                 | (name, shortname, r) <- possibleDeps,
                   typ <- toList $ TL.typeOfReferent tl r,
-                  let nr = Typechecker.NamedReference (Name.toText name) typ (Context.ReplacementRef r)
+                  let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
               ]
                 <>
                 -- local file TDNR possibilities
@@ -124,7 +124,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                     v <- Set.toList (Term.freeVars tm),
                     name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v)),
                     typ <- toList $ TL.typeOfReferent tl r,
-                    let nr = Typechecker.NamedReference (Name.toText name) typ (Context.ReplacementRef r)
+                    let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
                 ]
       pure
         Typechecker.Env

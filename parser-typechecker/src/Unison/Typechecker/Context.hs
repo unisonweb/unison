@@ -104,6 +104,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.Name (Name)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -330,7 +331,7 @@ data SuggestionMatch = Exact | WrongType | WrongName
   deriving (Ord, Eq, Show)
 
 data Suggestion v loc = Suggestion
-  { suggestionName :: Text,
+  { suggestionName :: Name,
     suggestionType :: Type v loc,
     suggestionReplacement :: Replacement v,
     suggestionMatch :: SuggestionMatch

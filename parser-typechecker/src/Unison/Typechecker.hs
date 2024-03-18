@@ -43,14 +43,9 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.Result
-  ( Result,
-    ResultT,
-    runResultT,
-    pattern Result,
-  )
+import Unison.Result (Result, ResultT, runResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -83,7 +78,7 @@ convertResult = \case
   Context.CompilerBug bug es is -> Result (Notes [bug] es is) Nothing
 
 data NamedReference v loc = NamedReference
-  { fqn :: Name,
+  { fqn :: Name.Name,
     fqnType :: Type v loc,
     replacement :: Context.Replacement v
   }
@@ -238,12 +233,9 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
       for_ vtts \(v, typ, _) ->
-        for_ (Name.suffixes . Name.unsafeParseText . Var.name $ Var.reset v) \suffix ->
-          #termsByShortname
-            %= Map.insertWith
-              (<>)
-              (Name.toText suffix)
-              [NamedReference (Var.name v) typ (Context.ReplacementVar v)]
+        let name = Name.unsafeParseVar (Var.reset v)
+         in for_ (Name.suffixes name) \suffix ->
+              #termsByShortname %= Map.insertWith (<>) (Name.toText suffix) [NamedReference name typ (Context.ReplacementVar v)]
     addTypedComponent _ = pure ()
 
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
@@ -274,7 +266,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
                     Map.insertWith
                       Set.union
                       suggestionReplacement
-                      (Set.singleton (Name.unsafeParseText suggestionName))
+                      (Set.singleton suggestionName)
                       b
                 )
                 Map.empty

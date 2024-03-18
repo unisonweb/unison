@@ -626,12 +626,7 @@ renderTypeError e env src = case e of
           foldr
             sep
             id
-            ( sortBy
-                ( comparing length <> compare
-                    `on` (Text.splitOn "." . C.suggestionName)
-                )
-                suggestions
-            )
+            (sortBy (comparing length <> compare `on` (Name.segments . C.suggestionName)) suggestions)
             ([], [], [])
         sep s@(C.Suggestion _ _ _ match) r =
           case match of
