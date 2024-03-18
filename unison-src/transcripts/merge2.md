@@ -1,0 +1,120 @@
+# tests for the new merge command
+
+## Basic fast-forward merge
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/topic> 
+```
+
+```unison
+bar : Nat
+bar = foo + 1
+```
+
+```ucm
+proj/topic> add
+proj/main> merge2 /topic
+proj/main> view bar
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
+## Basic conflict
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+proj/main> branch topic
+proj/topic>
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/topic> add
+proj/main> 
+```
+
+```unison
+foo : Nat
+foo = 4
+```
+
+```ucm
+proj/main> add
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
+## Altered dependent
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+`foo : Nat` is in the ancestor of `main` and `topic`
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/topic> 
+```
+
+`topic` adds a dependent of `foo`
+
+```unison
+bar : Nat
+bar = foo + 1
+```
+
+```ucm
+proj/topic> add
+proj/main>
+```
+
+`main` changes the type of `foo`
+
+```unison
+foo : Int
+foo = +1
+```
+
+```ucm
+proj/main> update
+```
+
+attempt to merge `topic` into `main`
+
+```ucm
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
