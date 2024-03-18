@@ -48,7 +48,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
-import Unison.Referent (Referent, toReference, pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -1195,7 +1195,7 @@ renderSuggestion env sug =
   where
     term =
       case C.suggestionReplacement sug of
-        C.ReplacementRef ref -> Term.ref () (toReference ref)
+        C.ReplacementRef ref -> Term.fromReferent () ref
         C.ReplacementVar v -> Term.var () v
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
