@@ -52,7 +52,7 @@ jobs:
           version="${{inputs.version}}"
           target="${{inputs.target}}"
           # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
-          prev_version="$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
+          prev_version=0.5.19 #"$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
 
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
