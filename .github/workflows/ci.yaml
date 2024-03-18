@@ -203,7 +203,7 @@ jobs:
           fi
 
           for (( i = 0; i < $tries; i++ )); do
-              stack build --fast --only-dependencies && break;
+              stack build --fast --only-dependencies --test --bench && break;
           done
 
       - name: build
