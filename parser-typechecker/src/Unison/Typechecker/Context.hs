@@ -31,6 +31,7 @@ module Unison.Typechecker.Context
     fitsScheme,
     isRedundant,
     Suggestion (..),
+    Replacement (..),
     SuggestionMatch (..),
     isExact,
     typeErrors,
@@ -331,13 +332,18 @@ data SuggestionMatch = Exact | WrongType | WrongName
 data Suggestion v loc = Suggestion
   { suggestionName :: Text,
     suggestionType :: Type v loc,
-    suggestionReplacement :: Either v Referent,
+    suggestionReplacement :: Replacement v,
     suggestionMatch :: SuggestionMatch
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 isExact :: Suggestion v loc -> Bool
 isExact Suggestion {..} = suggestionMatch == Exact
+
+data Replacement v
+  = ReplacementRef Referent
+  | ReplacementVar v
+  deriving stock (Eq, Ord, Show)
 
 data ErrorNote v loc = ErrorNote
   { cause :: Cause v loc,

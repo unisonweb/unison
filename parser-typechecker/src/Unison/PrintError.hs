@@ -1187,19 +1187,16 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
       where
         go = renderType0 env f
 
-renderSuggestion ::
-  (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+renderSuggestion :: (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  renderTerm
-    env
-    ( case C.suggestionReplacement sug of
-        Right ref -> Term.ref () (toReference ref)
-        Left v -> Term.var () v
-    )
+  renderTerm env term
     <> " : "
-    <> renderType'
-      env
-      (C.suggestionType sug)
+    <> renderType' env (C.suggestionType sug)
+  where
+    term =
+      case C.suggestionReplacement sug of
+        C.ReplacementRef ref -> Term.ref () (toReference ref)
+        C.ReplacementVar v -> Term.var () v
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "

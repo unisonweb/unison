@@ -85,15 +85,15 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
       tl <- typeLookupf (UF.dependencies uf)
       pure
         Typechecker.Env
-          { _ambientAbilities = ambientAbilities,
-            _typeLookup = tl,
-            _termsByShortname = Map.empty
+          { ambientAbilities = ambientAbilities,
+            typeLookup = tl,
+            termsByShortname = Map.empty
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let preexistingNames = Parser.names parsingEnv
           tm = UF.typecheckingTerm uf
           possibleDeps =
-            [ (Name.toText name, Var.name v, r)
+            [ (name, Var.name v, r)
               | (name, r) <- Rel.toList (Names.terms preexistingNames),
                 v <- Set.toList (Term.freeVars tm),
                 name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v))
@@ -115,7 +115,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
               [ (shortname, nr)
                 | (name, shortname, r) <- possibleDeps,
                   typ <- toList $ TL.typeOfReferent tl r,
-                  let nr = Typechecker.NamedReference name typ (Right r)
+                  let nr = Typechecker.NamedReference (Name.toText name) typ (Context.ReplacementRef r)
               ]
                 <>
                 -- local file TDNR possibilities
@@ -124,13 +124,13 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                     v <- Set.toList (Term.freeVars tm),
                     name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeParseVar v)),
                     typ <- toList $ TL.typeOfReferent tl r,
-                    let nr = Typechecker.NamedReference (Name.toText name) typ (Right r)
+                    let nr = Typechecker.NamedReference (Name.toText name) typ (Context.ReplacementRef r)
                 ]
       pure
         Typechecker.Env
-          { _ambientAbilities = ambientAbilities,
-            _typeLookup = tl,
-            _termsByShortname = fqnsByShortName
+          { ambientAbilities = ambientAbilities,
+            typeLookup = tl,
+            termsByShortname = fqnsByShortName
           }
 
 synthesizeFile ::
