@@ -125,7 +125,7 @@ jobs:
             tar -c -z -f ${{env.artifact_archive}} -C /tmp/ucm .
           fi
 
-      - name: upload ${{env.artifact_os}} artifact (non-windows)
+      - name: upload artifact
         uses: actions/upload-artifact@v2
         with:
           if-no-files-found: error
