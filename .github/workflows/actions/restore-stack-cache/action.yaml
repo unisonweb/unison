@@ -41,9 +41,9 @@ runs:
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: ${{inputs.cache-prefix}}-stack_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefixid}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+          restore-keys: ${{inputs.cache-prefixid}}-stack_${{matrix.os}}-${{env.resolver}}-
 
       # we added this step out of necessity, don't exactly remember why.
       # hope to remove it someday.
@@ -60,9 +60,9 @@ runs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: ${{inputs.cache-prefix}}-stack_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefix}}-stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
+          restore-keys: ${{inputs.cache-prefix}}-stack_${{matrix.os}}-${{env.resolver}}-
 
       - name: restore .stack-work
         uses: actions/cache/restore@v4
@@ -76,8 +76,8 @@ runs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          key: ${{inputs.work-cache-prefix}}-stack-work_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
           restore-keys: |
-            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
-            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
-            ${{inputs.work-cache-prefix}}-stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-
+            ${{inputs.work-cache-prefix}}-stack-work_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            ${{inputs.work-cache-prefix}}-stack-work_${{matrix.os}}-${{env.resolver}}-
+            ${{inputs.work-cache-prefix}}-stack-work_${{matrix.os}}-
