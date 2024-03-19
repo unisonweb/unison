@@ -91,6 +91,12 @@ jobs:
               stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
           done
 
+      - name: save stack caches
+        uses: ./.github/workflows/actions/save-stack-cache
+        with:
+          cache-prefix: release
+          work-cache-prefix: release
+
       - name: set up environment
         run: |
           if [[ ${{runner.os}} = 'Windows' ]]; then
