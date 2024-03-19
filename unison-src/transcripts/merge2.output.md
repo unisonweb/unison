@@ -310,6 +310,110 @@ foo : Nat
 foo = 2
 ```
 
+## Update/Update agree
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+```
+```unison
+foo : Nat
+foo = 2
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      foo : Nat
+
+```
+```ucm
+proj/topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+```unison
+foo : Nat
+foo = 2
+
+bar : Nat
+bar = 3
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      foo : Nat
+
+```
+```ucm
+proj/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  I merged topic into main.
+
+```
 ## Update/Delete conflict
 
 We don't consider these, so this transcript is capturing our

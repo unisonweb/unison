@@ -146,6 +146,53 @@ proj/main> merge2 /topic
 .> project.delete proj
 ```
 
+## Update/Update agree
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+```
+
+```unison
+foo : Nat
+foo = 2
+```
+
+```ucm
+proj/topic> update
+proj/main>
+```
+
+```unison
+foo : Nat
+foo = 2
+
+bar : Nat
+bar = 3
+```
+
+```ucm
+proj/main> update
+```
+
+```ucm
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
 ## Update/Delete conflict
 
 We don't consider these, so this transcript is capturing our
