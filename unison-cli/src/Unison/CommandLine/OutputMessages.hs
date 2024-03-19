@@ -2254,17 +2254,17 @@ notifyUser dir = \case
   MergeFailure path base target ->
     pure . P.wrap $
       "I couldn't automatically merge"
-        <> prettyProjectAndBranchName target
+        <> prettyProjectBranchName (view #branch target)
         <> "into"
-        <> P.group (prettyProjectAndBranchName base <> ".")
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
   MergeSuccess base target ->
     pure . P.wrap $
       "I merged"
-        <> prettyProjectAndBranchName target
+        <> prettyProjectBranchName (view #branch target)
         <> "into"
-        <> P.group (prettyProjectAndBranchName base <> ".")
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
