@@ -31,6 +31,5 @@ data PreconditionViolation
     DefnsInLib
   | MissingConstructorName !Name
   | NestedDeclAlias !Name
-  | NoConstructorNames !Name
   | StrayConstructor !Name
   deriving stock (Show)

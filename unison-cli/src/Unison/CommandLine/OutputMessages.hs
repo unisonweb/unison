@@ -1671,7 +1671,6 @@ notifyUser dir = \case
   MergeDefnsInLib -> pure "Defns in lib"
   MergeMissingConstructorName _name -> pure "Missing constructor name."
   MergeNestedDeclAlias _name -> pure "Nested decl alias."
-  MergeNoConstructorNames _name -> pure "No constructor names."
   MergeStrayConstructor _name -> pure "Stray constructor."
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $

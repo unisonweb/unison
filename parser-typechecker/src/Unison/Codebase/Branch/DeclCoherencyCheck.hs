@@ -120,7 +120,6 @@ data IncoherentDeclReason
     IncoherentDeclReason'ConstructorAlias !Name !Name
   | IncoherentDeclReason'MissingConstructorName !Name
   | IncoherentDeclReason'NestedDeclAlias !Name
-  | IncoherentDeclReason'NoConstructorNames !Name
   | IncoherentDeclReason'StrayConstructor !Name
 
 checkDeclCoherency ::
@@ -181,7 +180,7 @@ checkDeclCoherency loadDeclNumConstructors =
               InhabitedDecl expectedConstructors1 -> do
                 child <-
                   Map.lookup name children & onNothing do
-                    Except.throwError (IncoherentDeclReason'NoConstructorNames typeName)
+                    Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
                 go (name : prefix) child
                 DeclCoherencyCheckState {expectedConstructors} <- State.get

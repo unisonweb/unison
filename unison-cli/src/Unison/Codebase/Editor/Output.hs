@@ -405,7 +405,6 @@ data Output
   | MergeDefnsInLib
   | MergeMissingConstructorName !Name
   | MergeNestedDeclAlias !Name
-  | MergeNoConstructorNames !Name
   | MergeStrayConstructor !Name
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -645,7 +644,6 @@ isFailure o = case o of
   MergeDefnsInLib -> True
   MergeMissingConstructorName {} -> True
   MergeNestedDeclAlias {} -> True
-  MergeNoConstructorNames {} -> True
   MergeStrayConstructor {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool

@@ -748,7 +748,6 @@ mergePreconditionViolationToOutput = \case
   Merge.DefnsInLib -> Output.MergeDefnsInLib
   Merge.MissingConstructorName name -> Output.MergeMissingConstructorName name
   Merge.NestedDeclAlias name -> Output.MergeNestedDeclAlias name
-  Merge.NoConstructorNames name -> Output.MergeNoConstructorNames name
   Merge.StrayConstructor name -> Output.MergeStrayConstructor name
 
 -- Assert that a namespace satisfies a few preconditions.
@@ -785,7 +784,6 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
         Merge.ConstructorAlias branchName firstName secondName
       IncoherentDeclReason'MissingConstructorName name -> Merge.MissingConstructorName name
       IncoherentDeclReason'NestedDeclAlias name -> Merge.NestedDeclAlias name
-      IncoherentDeclReason'NoConstructorNames name -> Merge.NoConstructorNames name
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
 
 assertConflictsSatisfyPreconditions ::
