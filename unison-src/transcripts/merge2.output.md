@@ -72,6 +72,69 @@ proj/main> view bar
     foo + 1
 
 ```
+## Add/Add agree
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
+
+```
+```ucm
+proj/topic> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+```
+```unison
+foo : Nat
+foo = 1
+
+bar : Nat
+bar = 2
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    foo : Nat
+
+proj/main> merge2 /topic
+
+  I merged topic into main.
+
+```
 ## Add/Add conflict
 
 ```unison

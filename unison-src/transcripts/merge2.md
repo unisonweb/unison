@@ -33,6 +33,42 @@ proj/main> view bar
 .> project.delete proj
 ```
 
+## Add/Add agree
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+proj/main> branch topic
+proj/topic>
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/topic> add
+proj/main> 
+```
+
+```unison
+foo : Nat
+foo = 1
+
+bar : Nat
+bar = 2
+```
+
+```ucm
+proj/main> add
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
 ## Add/Add conflict
 
 ```ucm:hide
