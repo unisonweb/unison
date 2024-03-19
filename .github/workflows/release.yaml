@@ -61,6 +61,7 @@ jobs:
     name: build ucm ${{matrix.os}}
     runs-on: ${{matrix.os}}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-20.04, macos-12, windows-2019]
     steps:
