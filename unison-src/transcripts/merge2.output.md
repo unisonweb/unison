@@ -1043,3 +1043,47 @@ proj/main> merge2 /topic
   Nested decl alias.
 
 ```
+### Stray constructor alias
+
+```unison
+unique type Foo = Bar
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+proj/topic> alias.term Foo.Bar Stray
+
+  Done.
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  Stray constructor.
+
+```
