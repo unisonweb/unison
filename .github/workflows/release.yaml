@@ -14,8 +14,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (E.g. M4 or M4a or 0.4.1)'
+        description: Release version; e.g. `0.5.19`. We'll create tag `release/version`.
         required: true
+        type: string
+      prev_version:
+        description: Previous release to generate notes since; e.g. `0.5.18`
+        required: false
         type: string
       target:
         description: 'Ref to use for this release, defaults to trunk'
@@ -49,8 +53,10 @@ jobs:
         run: |
           version="${{inputs.version}}"
           target="${{inputs.target}}"
-          # E.g. M4a -> M4, M4c -> M4b, M4 -> M3
-          prev_version=0.5.19 #"$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
+          prev_version="${{inputs.prev_version}}"
+          if [ -z "$prev_version" ]; then
+            prev_version="$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
+          fi
 
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
