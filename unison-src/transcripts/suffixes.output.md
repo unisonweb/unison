@@ -57,10 +57,9 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
   
 
 ```
-## Preferring names not in `lib`
+## Preferring names not in `lib.*.lib.*`
 
-Suffix-based resolution prefers names with fewer name segments that are equal to "lib". This
-has the effect of preferring names defined in your project to names from dependencies of your project, and names from indirect dependencies have even lower weight.
+Suffix-based resolution prefers names that are not in an indirect dependency.
 
 ```unison
 cool.abra.cadabra = "my project"
@@ -97,7 +96,6 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 
 ```
 ```unison
-> abra.cadabra
 > baz.qux
 ```
 
@@ -112,13 +110,31 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | > abra.cadabra
-          ⧩
-          "my project"
-  
-    2 | > baz.qux
+    1 | > baz.qux
           ⧩
           "direct dependency 2"
+
+```
+```unison
+> abra.cadabra
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what abra.cadabra refers to here:
+  
+      1 | > abra.cadabra
+  
+  The name abra.cadabra is ambiguous. I couldn't narrow it down
+  by type, as any type would work here.
+  
+  I found some terms in scope that have matching names and
+  types. Maybe you meant one of these:
+  
+  cool.abra.cadabra : Text
+  distributed.abra.cadabra : Text
 
 ```
 ```ucm
@@ -126,6 +142,9 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 
   cool.abra.cadabra : Text
   cool.abra.cadabra = "my project"
+  
+  lib.distributed.abra.cadabra : Text
+  lib.distributed.abra.cadabra = "direct dependency 1"
 
 .> view baz.qux
 
