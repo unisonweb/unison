@@ -117,11 +117,13 @@ jobs:
           mkdir -p /tmp/ucm/ui # we need /tmp/ucm on the next line and /tmp/ucm/ui further down
           if [[ ${{runner.os}} = 'Windows' ]]; then
             cp $(stack exec -- where unison) /tmp/ucm/ucm.exe
+            wget="C:/msys64/usr/bin/wget.exe"
           else
             cp $(stack exec -- which unison) /tmp/ucm/ucm
+            wget="wget"
           fi
 
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          $wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
