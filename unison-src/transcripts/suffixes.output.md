@@ -96,26 +96,6 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 
 ```
 ```unison
-> baz.qux
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  ✅
-  
-  scratch.u changed.
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-    1 | > baz.qux
-          ⧩
-          "direct dependency 2"
-
-```
-```unison
 > abra.cadabra
 ```
 
@@ -135,6 +115,26 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   
   cool.abra.cadabra : Text
   distributed.abra.cadabra : Text
+
+```
+```unison
+> baz.qux
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  ✅
+  
+  scratch.u changed.
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > baz.qux
+          ⧩
+          "direct dependency 2"
 
 ```
 ```ucm
