@@ -450,3 +450,28 @@ proj/main> merge2 /topic
 ```ucm:hide
 .> project.delete proj
 ```
+
+### Missing constructor
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+unique type Foo = Bar | Baz
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/topic> delete.term Foo.Bar
+```
+
+```ucm:error
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
