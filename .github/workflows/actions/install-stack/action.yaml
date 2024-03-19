@@ -2,6 +2,7 @@
 # https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
 
 name: "Install Stack"
+description: "Install stack for Linux, macOS, and Windows"
 
 inputs:
   stack-version:
