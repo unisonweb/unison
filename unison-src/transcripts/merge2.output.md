@@ -329,6 +329,213 @@ proj/main> view foo
   foo = 2
 
 ```
+## Alice deletes x bob adds y
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+proj/main> delete.term foo
+
+  Done.
+
+```
+```unison
+bar : ()
+bar = ()
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : ()
+
+```
+```ucm
+proj/topic> add
+
+  ⍟ I've added these definitions:
+  
+    bar : ()
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  I merged topic into main.
+
+proj/main> ls
+
+  1. bar      (())
+  2. builtin/ (627 terms, 89 types)
+
+```
+## Alice adds x bob deletes y
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+proj/topic> delete.term foo
+
+  Done.
+
+```
+```unison
+bar : ()
+bar = ()
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : ()
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : ()
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  I merged topic into main.
+
+proj/main> ls
+
+  1. bar      (())
+  2. builtin/ (627 terms, 89 types)
+
+```
+## Alice deletes x bob deletes x
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Nat
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+proj/topic> delete.term foo
+
+  Done.
+
+proj/main> delete.term foo
+
+  Done.
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  😶
+  
+  proj/main was already up-to-date with proj/topic.
+
+proj/main> ls
+
+  1. builtin/ (627 terms, 89 types)
+
+```
 ## Altered dependent
 
 `foo : Nat` is in the ancestor of `main` and `topic`

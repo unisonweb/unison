@@ -151,6 +151,108 @@ proj/main> view foo
 .> project.delete proj
 ```
 
+## Alice deletes x bob adds y
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/main> delete.term foo
+proj/topic>
+```
+
+```unison
+bar : ()
+bar = ()
+```
+
+```ucm
+proj/topic> add
+```
+
+```ucm
+proj/main> merge2 /topic
+proj/main> ls
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
+## Alice adds x bob deletes y
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/topic> delete.term foo
+proj/main>
+```
+
+```unison
+bar : ()
+bar = ()
+```
+
+```ucm
+proj/main> add
+```
+
+```ucm
+proj/main> merge2 /topic
+proj/main> ls
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
+## Alice deletes x bob deletes x
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+foo : Nat
+foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+proj/topic> delete.term foo
+proj/main> delete.term foo
+```
+
+```ucm
+proj/main> merge2 /topic
+proj/main> ls
+```
+
+```ucm:hide
+.> project.delete proj
+```
+
 ## Altered dependent
 
 ```ucm:hide
