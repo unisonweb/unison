@@ -475,3 +475,35 @@ proj/main> merge2 /topic
 ```ucm:hide
 .> project.delete proj
 ```
+
+### Nested decl alias
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+structural type Foo = FooCon
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+```
+
+```unison
+structural type Foo.Bar = BarCon
+```
+
+```ucm
+proj/topic> add
+```
+
+```ucm:error
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```

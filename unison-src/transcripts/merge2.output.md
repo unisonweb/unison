@@ -974,3 +974,72 @@ proj/main> merge2 /topic
   Missing constructor name.
 
 ```
+### Nested decl alias
+
+```unison
+structural type Foo = FooCon
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo
+        (also named builtin.Unit)
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo
+      (also named builtin.Unit)
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+```
+```unison
+structural type Foo.Bar = BarCon
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo.Bar
+        (also named Foo and builtin.Unit)
+
+```
+```ucm
+proj/topic> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo.Bar
+      (also named Foo and builtin.Unit)
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  Nested decl alias.
+
+```
