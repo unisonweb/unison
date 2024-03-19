@@ -815,3 +815,73 @@ bar =
   foo + 1
 ```
 
+## Precondition violations
+
+### term in lib
+
+
+```unison
+lib.foo : Nat
+lib.foo = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      lib.foo : Nat
+
+```
+```ucm
+proj/main> add
+
+  ⍟ I've added these definitions:
+  
+    lib.foo : Nat
+
+proj/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: Use `merge /topic /main` to merge your work back into the
+       main branch.
+
+```
+```unison
+bonk : Nat
+bonk = 5
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bonk : Nat
+
+```
+```ucm
+proj/topic> add
+
+  ⍟ I've added these definitions:
+  
+    bonk : Nat
+
+```
+```ucm
+proj/main> merge2 /topic
+
+  Defns in lib
+
+```

@@ -388,3 +388,40 @@ proj/main> merge2 /topic
 ```ucm:hide
 .> project.delete proj
 ```
+
+## Precondition violations
+
+### term in lib
+
+
+```ucm:hide
+.> project.create-empty proj
+proj/main> builtins.mergeio
+```
+
+```unison
+lib.foo : Nat
+lib.foo = 1
+```
+
+```ucm
+proj/main> add
+proj/main> branch topic
+```
+
+```unison
+bonk : Nat
+bonk = 5
+```
+
+```ucm
+proj/topic> add
+```
+
+```ucm:error
+proj/main> merge2 /topic
+```
+
+```ucm:hide
+.> project.delete proj
+```
