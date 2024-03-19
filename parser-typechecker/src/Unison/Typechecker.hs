@@ -45,7 +45,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Result (Result, ResultT, runResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (parseText, toText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -303,30 +303,32 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
       Env v loc ->
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
-    resolveNote env (Context.SolvedBlank (B.Resolve loc str) v it) =
-      case Name.parseText (Text.pack str) of
-        Nothing -> pure Nothing
-        Just name ->
-          case Map.lookup name env.termsByShortname of
-            Nothing -> pure Nothing
-            Just terms -> do
-              suggestions <- wither (resolve it) terms
-              pure $
-                Just
-                  Resolution
-                    { resolvedName = Name.toText name,
-                      inferredType = it,
-                      resolvedLoc = loc,
-                      v,
-                      suggestions
-                    }
-    -- Solve the case where we have a placeholder for a missing result
-    -- at the end of a block. This is always an error.
-    resolveNote _ (Context.SolvedBlank (B.MissingResultPlaceholder loc) v it) =
-      pure . Just $ Resolution "_" it loc v []
-    resolveNote _ n = btw n >> pure Nothing
+    resolveNote env = \case
+      Context.SolvedBlank (B.Resolve loc str) v it -> do
+        let shortname = Name.unsafeParseText (Text.pack str)
+            matches = Map.findWithDefault [] shortname env.termsByShortname
+        suggestions <- wither (resolve it) matches
+        pure $
+          Just
+            Resolution
+              { resolvedName = Text.pack str,
+                inferredType = it,
+                resolvedLoc = loc,
+                v,
+                suggestions
+              }
+      -- Solve the case where we have a placeholder for a missing result
+      -- at the end of a block. This is always an error.
+      Context.SolvedBlank (B.MissingResultPlaceholder loc) v it ->
+        pure . Just $ Resolution "_" it loc v []
+      note -> do
+        btw note
+        pure Nothing
+
     dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
-    dedupe = uniqueBy Context.suggestionReplacement
+    dedupe =
+      uniqueBy Context.suggestionReplacement
+
     resolve ::
       Context.Type v loc ->
       NamedReference v loc ->
@@ -334,7 +336,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     resolve inferredType (NamedReference fqn foundType replace) =
       -- We found a name that matches. See if the type matches too.
       case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
-        Left bug -> compilerBug bug $> Nothing
+        Left bug -> Nothing <$ compilerBug bug
         -- Suggest the import if the type matches.
         Right b ->
           pure . Just $
