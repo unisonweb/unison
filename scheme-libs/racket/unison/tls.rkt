@@ -62,7 +62,9 @@
   (let ([certs (read-pem-certificates (open-input-bytes (chunked-bytes->bytes bytes)))])
     (if (= 1 (length certs))
         (right bytes)
-        (exception "Wrong number of certs" (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
+        (exception
+          unison-tlsfailure:typelink
+          (string->chunked-string "nope") certs)))) ; TODO passing certs is wrong, should either be converted to chunked-list or removed
 
 ; We don't actually "decode" certificates, we just validate them
 (define (encodeCert bytes) bytes)
@@ -110,28 +112,42 @@
 (define (ClientConfig.certificates.set certs config) ; list tlsSignedCert tlsClientConfig -> tlsClientConfig
   (client-config (client-config-host config) certs))
 
+; TODO: have someone familiar with TLS verify these exception
+; classifications
 (define (handle-errors fn)
   (with-handlers
       [[exn:fail:network?
          (lambda (e)
-           (exception unison-iofailure:link (exception->string e) '()))]
+           (exception
+             unison-iofailure:typelink
+             (exception->string e) '()))]
        [exn:fail:contract?
-        (lambda (e) (exception "InvalidArguments" (exception->string e) '()))]
+        (lambda (e)
+          (exception
+            unison-miscfailure:typelink
+            (exception->string e)
+            '()))]
        [(lambda err
           (string-contains? (exn->string err) "not valid for hostname"))
         (lambda (e)
           (exception
-            unison-iofailure:link
+            unison-tlsfailure:typelink
             (string->chunked-string "NameMismatch")
             '()))]
        [(lambda err
           (string-contains? (exn->string err) "certificate verify failed"))
         (lambda (e)
           (exception
-            unison-iofailure:link
+            unison-tlsfailure:typelink
             (string->chunked-string "certificate verify failed")
             '()))]
-       [(lambda _ #t) (lambda (e) (exception "MiscFailure" (string->chunked-string (format "Unknown exception ~a" (exn->string e))) e))]]
+       [(lambda _ #t)
+        (lambda (e)
+          (exception
+            unison-miscfailure:typelink
+            (string->chunked-string
+              (format "Unknown exception ~a" (exn->string e)))
+            e))]]
     (fn)))
 
 (define (newClient.impl.v3 config socket)

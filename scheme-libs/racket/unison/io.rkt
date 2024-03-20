@@ -46,14 +46,14 @@
     (with-handlers
         [[exn:fail:filesystem?
            (lambda (e)
-             (exception unison-iofailure:link (exception->string e) '()))]]
+             (exception unison-iofailure:typelink (exception->string e) '()))]]
         (right (file-size (chunked-string->string path)))))
 
 (define (getFileTimestamp.impl.v3 path)
     (with-handlers
         [[exn:fail:filesystem?
            (lambda (e)
-             (exception unison-iofailure:link (exception->string e) '()))]]
+             (exception unison-iofailure:typelink (exception->string e) '()))]]
         (right (file-or-directory-modify-seconds (chunked-string->string path)))))
 
 ; in haskell, it's not just file but also directory

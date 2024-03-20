@@ -89,7 +89,7 @@
      #:when (= t unison-schemeterm-handle:tag)
      `(handle
         ,(map
-           (lambda (tx) `(quote ,(text->ident tx)))
+           (lambda (tx) (text->linkname tx))
            (chunked-list->list as))
         ,(text->ident h)
         ,@(map decode-term (chunked-list->list tms)))]
@@ -148,6 +148,10 @@
     [(> (string-length st) 3) #f]
     [(equal? (substring st 0 2) "#\\") (string-ref st 2)]
     [else #f]))
+
+(define (text->linkname tx)
+  (let* ([st (chunked-string->string tx)])
+    (string->symbol (string-append st ":typelink"))))
 
 (define (text->ident tx)
   (let* ([st (chunked-string->string tx)]
@@ -256,8 +260,8 @@
 (define runtime-module-map (make-hash))
 
 (define (reflect-derived bs i)
-  (data unison-reference:link unison-reference-derived:tag
-    (data unison-id:link unison-id-id:tag bs i)))
+  (data unison-reference:typelink unison-reference-derived:tag
+    (data unison-id:typelink unison-id-id:tag bs i)))
 
 (define (function->groupref f)
   (match (lookup-function-link f)
@@ -466,12 +470,15 @@
         [0 (snd nil)
           (values fst snd)])]))
 
-(define (gen-typelinks code)
+(define (typelink-deps code)
+  (group-type-dependencies
+    (list->chunked-list
+      (map unison-code-rep code))))
+
+(define (typelink-defns-code links)
   (map decode-syntax
-       (chunked-list->list
-         (gen-typelink-defns
-           (list->chunked-list
-             (map unison-code-rep code))))))
+    (chunked-list->list
+      (gen-typelink-defns links))))
 
 (define (gen-code args)
   (let-values ([(tl co) (splat-upair args)])
@@ -572,7 +579,7 @@
          [pname (termlink->name primary)]
          [tmlinks (map ufst udefs)]
          [codes (map usnd udefs)]
-         [tylinks (gen-typelinks codes)]
+         [tylinks (typelink-deps codes)]
          [sdefs (flatten (map gen-code udefs))])
     `((require unison/boot
                unison/data-info
@@ -582,29 +589,37 @@
                unison/simple-wrappers
                unison/compound-wrappers)
 
-      ,@tylinks
+      ,@(typelink-defns-code tylinks)
 
       ,@sdefs
 
-      (handle ['ref-4n0fgs00] top-exn-handler
+      (handle [unison-exception:typelink] top-exn-handler
               (,pname #f)))))
 
 (define (build-runtime-module mname tylinks tmlinks defs)
-  (let ([names (map termlink->name tmlinks)])
-    `(module ,mname racket/base
-       (require unison/boot
-                unison/data-info
-                unison/primops
-                unison/primops-generated
-                unison/builtin-generated
-                unison/simple-wrappers
-                unison/compound-wrappers)
+  (define (provided-tylink r)
+    (string->symbol
+      (chunked-string->string
+        (ref-typelink-name r))))
+  (define tynames (map provided-tylink (chunked-list->list tylinks)))
+  (define tmnames (map termlink->name tmlinks))
+  `(module ,mname racket/base
+     (require unison/boot
+              unison/data
+              unison/data-info
+              unison/primops
+              unison/primops-generated
+              unison/builtin-generated
+              unison/simple-wrappers
+              unison/compound-wrappers)
 
-       (provide ,@names)
+     (provide
+       ,@tynames
+       ,@tmnames)
 
-       ,@tylinks
+     ,@(typelink-defns-code tylinks)
 
-       ,@defs)))
+     ,@defs))
 
 (define (add-runtime-module mname tylinks tmlinks defs)
   (eval (build-runtime-module mname tylinks tmlinks defs)
@@ -626,7 +641,7 @@
               [codes (map usnd udefs)]
               [refs (map termlink->reference tmlinks)]
               [depss (map code-dependencies codes)]
-              [tylinks (gen-typelinks codes)]
+              [tylinks (typelink-deps codes)]
               [deps (flatten depss)]
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])

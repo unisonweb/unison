@@ -67,7 +67,7 @@
 (define (do-evaluate)
   (let-values ([(code main-ref) (decode-input)])
     (add-runtime-code 'unison-main code)
-    (handle ['ref-4n0fgs00] top-exn-handler
+    (handle [unison-exception:typelink] top-exn-handler
             ((termlink->proc main-ref))
             (data 'unit 0))))
 

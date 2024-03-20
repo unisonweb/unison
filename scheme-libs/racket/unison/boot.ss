@@ -13,6 +13,7 @@
 #!racket/base
 (provide
   bytevector
+  bytes
   control
   define-unison
   handle
@@ -41,6 +42,10 @@
   (struct-out unison-typelink-derived)
   declare-function-link
   declare-code
+
+  exn:bug?
+  exn:bug->exception
+  exception->string
 
   request
   request-case
@@ -71,7 +76,7 @@
 (require
   (for-syntax
     racket/set
-    (only-in racket partition))
+    (only-in racket partition flatten))
   (rename-in
     (except-in racket false true unit any)
     [make-continuation-prompt-tag make-prompt])
@@ -410,13 +415,11 @@
         [(pure . xs) #t]
         [_ #f]))
 
-    (define (mk-pure scrut ps)
+    (define (mk-pure ps)
       (if (null? ps)
-        #`(pure-val #,scrut)
+        #'((unison-pure v) v)
         (syntax-case (car ps) (pure)
-          [(pure (v) e ...)
-           #`(let ([v (unison-pure-val #,scrut)])
-               e ...)]
+          [(pure (v) e ...) #'((unison-pure v) e ...)]
           [(pure vs e ...)
            (raise-syntax-error
              #f
@@ -424,24 +427,19 @@
              (car ps)
              #'vs)])))
 
-    (define (mk-req scrut-stx)
-      (lambda (stx)
-        (syntax-case stx ()
-          [(t vs e ...)
-           (with-syntax ([scrut scrut-stx])
-             #'((t) (let-values
-                      ([vs (apply values (unison-request-fields scrut))])
-                      e ...)))])))
+    (define (mk-req stx)
+      (syntax-case stx ()
+        [(t (v ...) e ...)
+         #'((t (list v ...)) e ...)]))
 
     (define (mk-abil scrut-stx)
       (lambda (stx)
         (syntax-case stx ()
-          [(t sc ...)
-           (let ([sub (mk-req scrut-stx)])
-             (with-syntax
-               ([(sc ...) (map sub (syntax->list #'(sc ...)))]
-                [scrut scrut-stx])
-               #'((t) (case (unison-request-tag scrut) sc ...))))])))
+          [(a sc ...)
+           #`((unison-request b t vs)
+              #:when (equal? a b)
+              (match* (t vs)
+                #,@(map mk-req (syntax->list #'(sc ...)))))])))
 
     (syntax-case stx ()
       [(request-case scrut c ...)
@@ -453,66 +451,11 @@
              "multiple pure cases in request-case"
              stx)
            (with-syntax
-             ([pc (mk-pure #'scrut ps)]
+             ([pc (mk-pure ps)]
               [(ac ...) (map (mk-abil #'scrut) as)])
 
-             #'(cond
-                 [(unison-pure? scrut) pc]
-                 [else (case (unison-request-ability scrut) ac ...)]))))])))
+             #'(match scrut pc ac ...))))])))
 
-; (define (describe-list n l)
-;   (let rec ([pre "["] [post "[]"] [cur l])
-;     (cond
-;       [(null? cur) post]
-;       [else
-;         (let* ([sx (describe-value-depth (- n 1) (car cur))]
-;                [sxs (rec ", " "]" (cdr cur))])
-;           (string-append pre sx sxs))])))
-;
-; (define (describe-ref r)
-;   (cond
-;     [(symbol? r) (symbol->string r)]
-;     [(data? r)
-;      (data-case r
-;        [0 (s) (string-append "##" s)]
-;        [1 (i)
-;          (data-case i
-;            [0 (bs ix)
-;              (let* ([bd (bytevector->base32-string b32h bs)]
-;                     [td (istring-take 5 bd)]
-;                     [sx (if (>= 0 ix)
-;                           ""
-;                           (string-append "." (number->string ix)))])
-;                (string-append "#" td sx))])])]))
-;
-; (define (describe-bytes bs)
-;   (let* ([s (bytevector->base32-string b32h bs)]
-;          [l (string-length s)]
-;          [sfx (if (<= l 10) "" "...")])
-;     (string-append "32x" (istring-take 10 s) sfx)))
-;
-; (define (describe-value-depth n x) 
-;   (if (< n 0) "..."
-;     (cond
-;       [(sum? x)
-;        (let ([tt (number->string (sum-tag x))]
-;              [vs (describe-list n (sum-fields x))])
-;          (string-append "Sum " tt " " vs))]
-;       [(data? x)
-;        (let ([tt (number->string (data-tag x))]
-;              [rt (describe-ref (data-ref x))]
-;              [vs (describe-list n (data-fields x))])
-;          (string-append "Data " rt " " tt " " vs))]
-;       [(list? x) (describe-list n x)]
-;       [(number? x) (number->string x)]
-;       [(string? x) (string-append "\"" x "\"")]
-;       [(bytevector? x) (describe-bytes x)]
-;       [(procedure? x) (format "~a" x)]
-;       [else
-;         (format "describe-value: unimplemented case: ~a " x)])))
-;
-; (define (describe-value x) (describe-value-depth 20 x))
-;
 (define (decode-value x) '())
 
 (define (reference->termlink rf)
@@ -582,21 +525,18 @@
 ; The in-unison definition was effectively just literal scheme code
 ; represented as a unison data type, with some names generated from
 ; codebase data.
-;
-; Note: the ref-4n0fgs00 stuff is probably not ultimately correct, but
-; is how things work for now.
 (define (top-exn-handler rq)
   (request-case rq
     [pure (x)
       (match x
         [(unison-data r 0 (list))
-         (eq? r unison-unit:link)
+         (eq? r unison-unit:typelink)
          (display "")]
         [else
           (display (describe-value x))])]
-    [ref-4n0fgs00
+    [unison-exception:typelink
       [0 (f)
-       (control 'ref-4n0fgs00 k
+       (control unison-exception:typelink k
          (let ([disp (describe-value f)])
            (raise (make-exn:bug "builtin.bug" disp))))]]))
 
