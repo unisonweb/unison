@@ -17,6 +17,7 @@ import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import U.Codebase.Reference qualified as V2Reference
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
@@ -32,7 +33,6 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (..))
-import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.Var qualified as Var
 
 -- | Generate the LabeledDependencies for everything in a Decl, including the Decl itself, all
@@ -79,25 +79,23 @@ hashFieldAccessors ::
   [v] ->
   Reference ->
   DD.DataDeclaration v a ->
-  ( Maybe
-      (Map v (Reference.Id, Term.Term v (), Type.Type v ()))
-  )
+  (Maybe (Map v (Reference.Id, Term.Term v (), Type.Type v ())))
 hashFieldAccessors ppe declName vars declRef dd = do
   let accessors :: [(v, (), Term.Term v ())]
-      accessors = DD.generateRecordAccessors Var.namespaced mempty (map (,()) vars) declName declRef
+      accessors = generateRecordAccessors Var.namespaced id (map (,()) vars) declName declRef
   let typeLookup :: TypeLookup v ()
       typeLookup =
         TypeLookup
-          { TypeLookup.typeOfTerms = mempty,
-            TypeLookup.dataDecls = Map.singleton declRef (void dd),
-            TypeLookup.effectDecls = mempty
+          { typeOfTerms = mempty,
+            dataDecls = Map.singleton declRef (void dd),
+            effectDecls = mempty
           }
   let typecheckingEnv :: Typechecker.Env v ()
       typecheckingEnv =
         Typechecker.Env
-          { Typechecker._ambientAbilities = mempty,
-            Typechecker._typeLookup = typeLookup,
-            Typechecker._termsByShortname = mempty
+          { _ambientAbilities = mempty,
+            _typeLookup = typeLookup,
+            _termsByShortname = mempty
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, _a, trm) ->

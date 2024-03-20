@@ -16,7 +16,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference, Reference' (DerivedId))
+import Unison.Reference (Reference, Reference' (DerivedId), TypeReference)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (toText, toVar, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
@@ -37,7 +37,7 @@ type AccessorName = HQ.HashQualified Name
 prettyDeclW ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Writer [AccessorName] (Pretty SyntaxText)
@@ -48,7 +48,7 @@ prettyDeclW ppe r hq d = case d of
 prettyDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
   Pretty SyntaxText
@@ -57,7 +57,7 @@ prettyDecl ppe r hq d = fst . runWriter $ prettyDeclW ppe r hq d
 prettyEffectDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   EffectDeclaration v a ->
   Pretty SyntaxText
@@ -67,7 +67,7 @@ prettyGADT ::
   (Var v) =>
   PrettyPrintEnvDecl ->
   CT.ConstructorType ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Pretty SyntaxText
@@ -105,7 +105,7 @@ prettyPattern env ctorType namespace ref =
 prettyDataDecl ::
   (Var v) =>
   PrettyPrintEnvDecl ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Writer [AccessorName] (Pretty SyntaxText)
@@ -166,7 +166,7 @@ fieldNames ::
   forall v a.
   (Var v) =>
   PrettyPrintEnv ->
-  Reference ->
+  TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
   Maybe [HQ.HashQualified Name]
@@ -179,7 +179,9 @@ fieldNames env r name dd = do
       -- fundamental fix to be made somewhere in the term printer to automatically suffix a var name with its
       -- freshened id if it would be ambiguous otherwise.
       vars = [Var.freshenId (fromIntegral n) (Var.named ("_" <> Text.pack (show n))) | n <- [0 .. Type.arity typ - 1]]
+
   hashes <- DD.hashFieldAccessors env (HQ.toVar name) vars r dd
+
   let names =
         [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)
           | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
