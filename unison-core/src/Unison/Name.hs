@@ -335,13 +335,8 @@ searchBySuffix suffix rel =
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 
--- Like `searchBySuffix`, but prefers names that have fewer
--- segments equal to "lib". This is used to prefer "local"
--- names rather than names coming from libraries, which
--- are traditionally placed under a "lib" subnamespace.
---
--- Example: foo.bar shadows lib.foo.bar
--- Example: lib.foo.bar shadows lib.blah.lib.foo.bar
+-- Like `searchBySuffix`, but prefers local (outside `lib`) and direct (one `lib` deep) names to indirect (two or more
+-- `lib` deep) names.
 searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
 searchByRankedSuffix suffix rel =
   let rs = searchBySuffix suffix rel
@@ -359,13 +354,30 @@ preferShallowLibDepth = \case
   [] -> Set.empty
   [x] -> Set.singleton (snd x)
   rs ->
-    let byDepth = List.multimap (map (first minLibs) rs)
-        libCount = length . filter (== NameSegment.libSegment) . toList . reverseSegments
-        minLibs [] = 0
-        minLibs ns = minimum (map libCount ns)
-     in case Map.lookup 0 byDepth <|> Map.lookup 1 byDepth of
+    let byPriority = List.multimap (map (first minLibs) rs)
+        minLibs [] = NamePriorityOne
+        minLibs ns = minimum (map classifyNamePriority ns)
+     in case Map.lookup NamePriorityOne byPriority <|> Map.lookup NamePriorityTwo byPriority of
           Nothing -> Set.fromList (map snd rs)
           Just rs -> Set.fromList rs
+
+data NamePriority
+  = NamePriorityOne -- highest priority: local names and direct dep names
+  | NamePriorityTwo -- lowest priority: indirect dep names
+  deriving stock (Eq, Ord)
+
+classifyNamePriority :: Name -> NamePriority
+classifyNamePriority name =
+  case isIndirectDependency (List.NonEmpty.toList (segments name)) of
+    False -> NamePriorityOne
+    True -> NamePriorityTwo
+  where
+    -- isIndirectDependency foo                   = False
+    -- isIndirectDependency lib.bar.honk          = False
+    -- isIndirectDependency lib.baz.lib.qux.flonk = True
+    isIndirectDependency = \case
+      ((== NameSegment.libSegment) -> True) : _ : ((== NameSegment.libSegment) -> True) : _ -> True
+      _ -> False
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =

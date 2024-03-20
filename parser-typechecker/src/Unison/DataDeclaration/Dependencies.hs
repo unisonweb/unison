@@ -95,9 +95,9 @@ hashFieldAccessors ppe declName vars declRef dd = do
   let typecheckingEnv :: Typechecker.Env v ()
       typecheckingEnv =
         Typechecker.Env
-          { Typechecker._ambientAbilities = mempty,
-            Typechecker._typeLookup = typeLookup,
-            Typechecker._termsByShortname = mempty
+          { ambientAbilities = mempty,
+            typeLookup,
+            termsByShortname = mempty
           }
   accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] <-
     for accessors \(v, _a, trm) ->
