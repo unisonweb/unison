@@ -12,6 +12,16 @@
 ; that arity appropriately.
 #!racket/base
 (provide
+  (all-from-out unison/data-info)
+  unison-any:typelink
+  unison-boolean:typelink
+  unison-bytes:typelink
+  unison-char:typelink
+  unison-float:typelink
+  unison-int:typelink
+  unison-nat:typelink
+  unison-text:typelink
+
   bytevector
   bytes
   control
