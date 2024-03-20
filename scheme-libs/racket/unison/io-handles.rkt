@@ -54,7 +54,7 @@
     (if (byte-ready? port)
         (unison-either-right #t)
         (if (port-eof? port)
-            (Exception 'IO "EOF" port)
+            (Exception unison-iofailure:typelink "EOF" port)
             (unison-either-right #f))))
 
 (define-unison (getCurrentDirectory.impl.v3 unit)
@@ -78,7 +78,7 @@
                 (set-port-position! handle (+ current amount))
                 (unison-either-right none)))
         (2 ()
-            (Exception 'BadNews "SeekFromEnd not supported" 0))))
+            (Exception unison-iofailure:typelink "SeekFromEnd not supported" 0))))
 
 (define-unison (getLine.impl.v1 handle)
   (let* ([line (read-line handle)])
@@ -90,7 +90,7 @@
 (define-unison (getChar.impl.v1 handle)
   (let* ([char (read-char handle)])
     (if (eof-object? char)
-        (Exception 'isEOFError "End of file reached")
+        (Exception unison-iofailure:typelink "End of file reached")
         (unison-either-right char))))
 
 (define-unison (getSomeBytes.impl.v1 handle bytes)
@@ -108,8 +108,8 @@
                   unison-buffermode-line-buffering)]
         [(block) (unison-either-right
                    unison-buffermode-block-buffering)]
-        [(#f) (Exception 'IO "Unable to determine buffering mode of handle" '())]
-        [else (Exception 'IO "Unexpected response from file-stream-buffer-mode" '())]))
+        [(#f) (Exception unison-iofailure:typelink "Unable to determine buffering mode of handle" '())]
+        [else (Exception unison-iofailure:typelink "Unexpected response from file-stream-buffer-mode" '())]))
 
 (define-unison (setBuffering.impl.v3 handle mode)
     (data-case mode
@@ -123,7 +123,7 @@
             (file-stream-buffer-mode handle 'block)
             (unison-either-right none))
         (3 (size)
-            (Exception 'IO "Sized block buffering not supported" '()))))
+            (Exception unison-iofailure:typelink "Sized block buffering not supported" '()))))
 
 (define (with-buffer-mode port mode)
   (file-stream-buffer-mode port mode)
@@ -142,7 +142,7 @@
 (define-unison (getEcho.impl.v1 handle)
   (if (eq? handle stdin)
       (unison-either-right (get-stdin-echo))
-      (Exception 'IO "getEcho only supported on stdin" '())))
+      (Exception unison-iofailure:typelink "getEcho only supported on stdin" '())))
 
 (define-unison (setEcho.impl.v1 handle echo)
   (if (eq? handle stdin)
@@ -151,7 +151,7 @@
             (system "stty echo")
             (system "stty -echo"))
         (unison-either-right none))
-      (Exception 'IO "setEcho only supported on stdin" '())))
+      (Exception unison-iofailure:typelink "setEcho only supported on stdin" '())))
 
 (define (get-stdin-echo)
   (let ([current (with-output-to-string (lambda () (system "stty -a")))])
@@ -165,7 +165,7 @@
 (define-unison (getEnv.impl.v1 key)
     (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
         (if (false? value)
-            (Exception 'IO "environmental variable not found" key)
+            (Exception unison-iofailure:typelink "environmental variable not found" key)
             (unison-either-right
               (string->chunked-string (bytes->string/utf-8 value))))))
 

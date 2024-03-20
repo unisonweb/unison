@@ -24,6 +24,13 @@
 #!r6rs
 (library (unison primops)
   (export
+    builtin-Any:typelink
+    builtin-Char:typelink
+    builtin-Float:typelink
+    builtin-Int:typelink
+    builtin-Nat:typelink
+    builtin-Text:typelink
+
     builtin-Float.*
     builtin-Float.*:termlink
     builtin-Float.>=
@@ -181,6 +188,8 @@
     builtin-TermLink.fromReferent:termlink
     builtin-TermLink.toReferent
     builtin-TermLink.toReferent:termlink
+    builtin-TypeLink.toReference
+    builtin-TypeLink.toReference:termlink
 
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
@@ -610,6 +619,7 @@
                 define-unison
                 referent->termlink
                 termlink->referent
+                typelink->reference
                 clamp-integer
                 clamp-natural
                 wrap-natural
@@ -634,6 +644,13 @@
           (unison zlib)
           (unison concurrent)
           (racket random))
+
+  (define builtin-Any:typelink unison-any:typelink)
+  (define builtin-Char:typelink unison-char:typelink)
+  (define builtin-Float:typelink unison-float:typelink)
+  (define builtin-Int:typelink unison-int:typelink)
+  (define builtin-Nat:typelink unison-nat:typelink)
+  (define builtin-Text:typelink unison-text:typelink)
 
   (define-builtin-link Float.*)
   (define-builtin-link Float.fromRepresentation)
@@ -701,6 +718,7 @@
   (define-builtin-link Code.toGroup)
   (define-builtin-link TermLink.fromReferent)
   (define-builtin-link TermLink.toReferent)
+  (define-builtin-link TypeLink.toReference)
   (define-builtin-link IO.seekHandle.impl.v3)
   (define-builtin-link IO.getLine.impl.v1)
   (define-builtin-link IO.getSomeBytes.impl.v1)
@@ -752,6 +770,8 @@
       (referent->termlink rf))
     (define-unison (builtin-TermLink.toReferent tl)
       (termlink->referent tl))
+    (define-unison (builtin-TypeLink.toReference tl)
+      (typelink->reference tl))
     (define-unison (builtin-murmurHashBytes bs)
       (murmurhash-bytes (chunked-bytes->bytes bs)))
 
@@ -1107,10 +1127,10 @@
     ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
     (define (unison-FOp-Text.fromUtf8.impl.v3 b)
       (with-handlers
-        ([exn:fail:contract? ; TODO proper typeLink
+        ([exn:fail:contract?
           (lambda (e)
             (exception
-              unison-iofailure:link
+              unison-iofailure:typelink
               (string->chunked-string
                 (string-append
                   "Invalid UTF-8 stream: "
@@ -1414,6 +1434,7 @@
   (declare-builtin-link builtin-Code.toGroup)
   (declare-builtin-link builtin-TermLink.fromReferent)
   (declare-builtin-link builtin-TermLink.toReferent)
+  (declare-builtin-link builtin-TypeLink.toReference)
   (declare-builtin-link builtin-IO.seekHandle.impl.v3)
   (declare-builtin-link builtin-IO.getLine.impl.v1)
   (declare-builtin-link builtin-IO.getSomeBytes.impl.v1)

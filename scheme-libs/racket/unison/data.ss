@@ -52,10 +52,6 @@
   ord
   failure
   exception
-  exn:bug
-  make-exn:bug
-  exn:bug?
-  exn:bug->exception
 
   unison-any:typelink
   unison-any-any:tag
@@ -66,6 +62,13 @@
   unison-boolean-false:tag
   unison-boolean-true
   unison-boolean-false
+
+  unison-bytes:typelink
+  unison-char:typelink
+  unison-float:typelink
+  unison-int:typelink
+  unison-nat:typelink
+  unison-text:typelink
 
   unison-tuple->list)
 
@@ -110,7 +113,8 @@
 
 (struct unison-request
   (ability tag fields)
-  #:constructor-name make-request)
+  #:constructor-name make-request
+  #:transparent)
 
 ; Structures for other unison builtins. Originally the plan was
 ; just to secretly use an in-unison data type representation.
@@ -173,15 +177,43 @@
 
 (struct unison-typelink ()
   #:transparent
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc lnl lnr rec)
+      (match lnl
+        [(unison-typelink-builtin l)
+         (match lnr
+           [(unison-typelink-builtin r)
+            (equal? l r)]
+           [else #f])]
+        [(unison-typelink-derived hl i)
+         (match lnr
+           [(unison-typelink-derived hr j)
+            (and (equal? hl hr) (= i j))]
+           [else #f])]))
+
+    (define ((hash-proc init) ln rec)
+      (match ln
+        [(unison-typelink-builtin n)
+         (fxxor (fx*/wraparound (rec n) 53)
+                (fx*/wraparound init 17))]
+        [(unison-typelink-derived hl i)
+         (fxxor (fx*/wraparound (rec hl) 59)
+                (fx*/wraparound (rec i) 61)
+                (fx*/wraparound init 19))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
 
 (struct unison-typelink-builtin unison-typelink
   (name)
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:transparent)
 
 (struct unison-typelink-derived unison-typelink
   (ref ix)
-  #:reflection-name 'typelink)
+  #:reflection-name 'typelink
+  #:transparent)
 
 (struct unison-code (rep))
 (struct unison-quote (val))
@@ -288,6 +320,13 @@
 (define unison-boolean-false
   (data unison-boolean:typelink unison-boolean-false:tag))
 
+(define unison-bytes:typelink (unison-typelink-builtin "Bytes"))
+(define unison-char:typelink (unison-typelink-builtin "Char"))
+(define unison-nat:typelink (unison-typelink-builtin "Nat"))
+(define unison-int:typelink (unison-typelink-builtin "Int"))
+(define unison-float:typelink (unison-typelink-builtin "Float"))
+(define unison-text:typelink (unison-typelink-builtin "Text"))
+
 ; Type -> Text -> Any -> Failure
 (define (failure typeLink msg any)
   (sum 0 typeLink msg any))
@@ -295,12 +334,6 @@
 ; Type -> Text -> a ->{Exception} b
 (define (exception typeLink msg a)
   (failure typeLink msg (unison-any-any a)))
-
-; TODO needs better pretty printing for when it isn't caught
-(struct exn:bug (msg a)
-  #:constructor-name make-exn:bug)
-(define (exn:bug->exception b) (exception "RuntimeFailure" (exn:bug-msg b) (exn:bug-a b)))
-
 
 ; A counter for internally numbering declared data, so that the
 ; entire reference doesn't need to be stored in every data record.
