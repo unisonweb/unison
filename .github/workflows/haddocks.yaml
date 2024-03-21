@@ -59,7 +59,7 @@ jobs:
             stack-work-2_Linux
 
       - name: install stack
-        uses: ./.github/workflows/actions/install-stack
+        uses: ./unison/.github/workflows/actions/install-stack
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
