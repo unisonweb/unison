@@ -52,6 +52,8 @@ jobs:
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
+          gh --version
+
           gh release create "release/${version}" \
             --repo unisonweb/unison \
             --target "${target}" \
