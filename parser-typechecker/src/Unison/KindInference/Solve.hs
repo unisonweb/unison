@@ -116,102 +116,6 @@ prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 tracePretty :: P.Pretty P.ColorText -> a -> a
 tracePretty p = trace (P.toAnsiUnbroken p)
 
-data OccCheckState v loc = OccCheckState
-  { visitingSet :: Set (UVar v loc),
-    visitingStack :: [UVar v loc],
-    solvedSet :: Set (UVar v loc),
-    solvedConstraints :: ConstraintMap v loc,
-    kindErrors :: [KindError v loc]
-  }
-
-markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
-markVisiting x = do
-  OccCheckState {visitingSet, visitingStack} <- M.get
-  case Set.member x visitingSet of
-    True -> do
-      OccCheckState {solvedConstraints} <- M.get
-      let loc = case U.lookupCanon x solvedConstraints of
-            Just (_, _, Descriptor {descriptorConstraint = Just (Solved.IsArr (Provenance _ loc) _ _)}, _) -> loc
-            _ -> error "cycle without IsArr constraint"
-      addError (CycleDetected loc x solvedConstraints)
-      pure Cycle
-    False -> do
-      M.modify \st ->
-        st
-          { visitingSet = Set.insert x visitingSet,
-            visitingStack = x : visitingStack
-          }
-      pure NoCycle
-
-unmarkVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) ()
-unmarkVisiting x = M.modify \st ->
-  st
-    { visitingSet = Set.delete x (visitingSet st),
-      visitingStack = tail (visitingStack st),
-      solvedSet = Set.insert x (solvedSet st)
-    }
-
-addError :: KindError v loc -> M.State (OccCheckState v loc) ()
-addError ke = M.modify \st -> st {kindErrors = ke : kindErrors st}
-
-isSolved :: Var v => UVar v loc -> M.State (OccCheckState v loc) Bool
-isSolved x = do
-  OccCheckState {solvedSet} <- M.get
-  pure $ Set.member x solvedSet
-
-data CycleCheck
-  = Cycle
-  | NoCycle
-
--- | occurence check and report any errors
-occCheck ::
-  forall v loc.
-  Var v =>
-  ConstraintMap v loc ->
-  Either (NonEmpty (KindError v loc)) (ConstraintMap v loc)
-occCheck constraints0 =
-  let go ::
-        [(UVar v loc)] ->
-        M.State (OccCheckState v loc) ()
-      go = \case
-        [] -> pure ()
-        u : us -> do
-          isSolved u >>= \case
-            True -> go us
-            False -> do
-              markVisiting u >>= \case
-                Cycle -> pure ()
-                NoCycle -> do
-                  st@OccCheckState {solvedConstraints} <- M.get
-                  let handleNothing = error "impossible"
-                      handleJust _canonK ecSize d = case descriptorConstraint d of
-                        Nothing -> ([], U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsType Default})
-                        Just v ->
-                          let descendants = case v of
-                                Solved.IsType _ -> []
-                                Solved.IsAbility _ -> []
-                                Solved.IsArr _ a b -> [a, b]
-                           in (descendants, U.Canonical ecSize d)
-                  let (descendants, solvedConstraints') = U.alterF u handleNothing handleJust solvedConstraints
-                  M.put st {solvedConstraints = solvedConstraints'}
-                  go descendants
-              unmarkVisiting u
-              go us
-
-      OccCheckState {solvedConstraints, kindErrors} =
-        M.execState
-          (go (U.keys constraints0))
-          OccCheckState
-            { visitingSet = Set.empty,
-              visitingStack = [],
-              solvedSet = Set.empty,
-              solvedConstraints = constraints0,
-              kindErrors = []
-            }
-   in case kindErrors of
-        [] -> Right solvedConstraints
-        e : es -> Left (e :| es)
-
 -- | loop through the constraints, eliminating constraints until we
 -- have some set that cannot be reduced
 reduce ::
@@ -230,36 +134,50 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
             Right () -> error "impossible"
       c : cs ->
         addConstraint c >>= \case
+          -- If an error occurs then push it back onto the unsolved
+          -- stack
           Left _ -> go b (c : acc) cs
+          -- Signal that we solved something on this pass (by passing
+          -- @True@) and continue
           Right () -> go True acc cs
+  
+    -- | tracing helper
     dbg ::
       forall a.
+      -- | A hanging prefix or header
       P.Pretty P.ColorText ->
+      -- | The constraints to print
       [GeneratedConstraint v loc] ->
       ([GeneratedConstraint v loc] -> Solve v loc a) ->
       Solve v loc a
-    dbg hdr cs f =
-      case shouldDebug KindInference of
-        True -> do
-          ppe <- asks prettyPrintEnv
-          tracePretty (P.hang (P.bold hdr) (prettyConstraints ppe (map (review _Generated) cs))) (f cs)
-        False -> f cs
+    dbg = traceApp \ppe cs -> prettyConstraints ppe (map (review _Generated) cs)
 
+    -- | Like @dbg@, but for a single constraint
     dbgSingle ::
       forall a.
       P.Pretty P.ColorText ->
       GeneratedConstraint v loc ->
       (GeneratedConstraint v loc -> Solve v loc a) ->
       Solve v loc a
-    dbgSingle hdr c f =
+    dbgSingle = traceApp \ppe c -> prettyConstraintD' ppe (review _Generated c)
+
+    -- | A helper for @dbg*@
+    traceApp ::
+      forall a b.
+      (PrettyPrintEnv -> a -> P.Pretty P.ColorText) ->
+      P.Pretty P.ColorText ->
+      a ->
+      (a -> Solve v loc b) ->
+      Solve v loc b
+    traceApp prettyA hdr a ab =
       case shouldDebug KindInference of
+        False -> ab a
         True -> do
           ppe <- asks prettyPrintEnv
-          tracePretty (P.hang (P.bold hdr) (prettyConstraintD' ppe (review _Generated c))) (f c)
-        False -> f c
+          tracePretty (P.hang (P.bold hdr) (prettyA ppe a)) (ab a)
 
 -- | Add a single constraint, returning an error if there is a
--- contradictory constraint
+-- contradictory constraint.
 addConstraint ::
   forall v loc.
   Ord loc =>
@@ -430,3 +348,104 @@ initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) 
 initialState env =
   let ((), finalState) = run env emptyState initializeState
    in finalState
+
+--------------------------------------------------------------------------------
+-- Occurence check and helpers
+--------------------------------------------------------------------------------
+
+-- | occurence check and report any errors
+occCheck ::
+  forall v loc.
+  Var v =>
+  ConstraintMap v loc ->
+  Either (NonEmpty (KindError v loc)) (ConstraintMap v loc)
+occCheck constraints0 =
+  let go ::
+        [(UVar v loc)] ->
+        M.State (OccCheckState v loc) ()
+      go = \case
+        [] -> pure ()
+        u : us -> do
+          isSolved u >>= \case
+            True -> go us
+            False -> do
+              markVisiting u >>= \case
+                Cycle -> pure ()
+                NoCycle -> do
+                  st@OccCheckState {solvedConstraints} <- M.get
+                  let handleNothing = error "impossible"
+                      handleJust _canonK ecSize d = case descriptorConstraint d of
+                        Nothing -> ([], U.Canonical ecSize d {descriptorConstraint = Just $ Solved.IsType Default})
+                        Just v ->
+                          let descendants = case v of
+                                Solved.IsType _ -> []
+                                Solved.IsAbility _ -> []
+                                Solved.IsArr _ a b -> [a, b]
+                           in (descendants, U.Canonical ecSize d)
+                  let (descendants, solvedConstraints') = U.alterF u handleNothing handleJust solvedConstraints
+                  M.put st {solvedConstraints = solvedConstraints'}
+                  go descendants
+              unmarkVisiting u
+              go us
+
+      OccCheckState {solvedConstraints, kindErrors} =
+        M.execState
+          (go (U.keys constraints0))
+          OccCheckState
+            { visitingSet = Set.empty,
+              visitingStack = [],
+              solvedSet = Set.empty,
+              solvedConstraints = constraints0,
+              kindErrors = []
+            }
+   in case kindErrors of
+        [] -> Right solvedConstraints
+        e : es -> Left (e :| es)
+
+data OccCheckState v loc = OccCheckState
+  { visitingSet :: Set (UVar v loc),
+    visitingStack :: [UVar v loc],
+    solvedSet :: Set (UVar v loc),
+    solvedConstraints :: ConstraintMap v loc,
+    kindErrors :: [KindError v loc]
+  }
+
+markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
+markVisiting x = do
+  OccCheckState {visitingSet, visitingStack} <- M.get
+  case Set.member x visitingSet of
+    True -> do
+      OccCheckState {solvedConstraints} <- M.get
+      let loc = case U.lookupCanon x solvedConstraints of
+            Just (_, _, Descriptor {descriptorConstraint = Just (Solved.IsArr (Provenance _ loc) _ _)}, _) -> loc
+            _ -> error "cycle without IsArr constraint"
+      addError (CycleDetected loc x solvedConstraints)
+      pure Cycle
+    False -> do
+      M.modify \st ->
+        st
+          { visitingSet = Set.insert x visitingSet,
+            visitingStack = x : visitingStack
+          }
+      pure NoCycle
+
+unmarkVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) ()
+unmarkVisiting x = M.modify \st ->
+  st
+    { visitingSet = Set.delete x (visitingSet st),
+      visitingStack = tail (visitingStack st),
+      solvedSet = Set.insert x (solvedSet st)
+    }
+
+addError :: KindError v loc -> M.State (OccCheckState v loc) ()
+addError ke = M.modify \st -> st {kindErrors = ke : kindErrors st}
+
+isSolved :: Var v => UVar v loc -> M.State (OccCheckState v loc) Bool
+isSolved x = do
+  OccCheckState {solvedSet} <- M.get
+  pure $ Set.member x solvedSet
+
+data CycleCheck
+  = Cycle
+  | NoCycle
+
