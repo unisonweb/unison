@@ -69,6 +69,31 @@
   unison-int:typelink
   unison-nat:typelink
   unison-text:typelink
+  unison-code:typelink
+  unison-mvar:typelink
+  unison-pattern:typelink
+  unison-promise:typelink
+  unison-sequence:typelink
+  unison-socket:typelink
+  unison-tls:typelink
+  unison-timespec:typelink
+  unison-threadid:typelink
+  ; unison-value:typelink
+
+  unison-crypto.hashalgorithm:typelink
+  unison-char.class:typelink
+  unison-immutablearray:typelink
+  unison-immutablebytearray:typelink
+  unison-mutablearray:typelink
+  unison-mutablebytearray:typelink
+  unison-processhandle:typelink
+  unison-ref.ticket:typelink
+  unison-tls.cipher:typelink
+  unison-tls.clientconfig:typelink
+  unison-tls.privatekey:typelink
+  unison-tls.serverconfig:typelink
+  unison-tls.signedcert:typelink
+  unison-tls.version:typelink
 
   unison-tuple->list)
 
@@ -322,10 +347,49 @@
 
 (define unison-bytes:typelink (unison-typelink-builtin "Bytes"))
 (define unison-char:typelink (unison-typelink-builtin "Char"))
-(define unison-nat:typelink (unison-typelink-builtin "Nat"))
-(define unison-int:typelink (unison-typelink-builtin "Int"))
+(define unison-code:typelink (unison-typelink-builtin "Code"))
 (define unison-float:typelink (unison-typelink-builtin "Float"))
+(define unison-int:typelink (unison-typelink-builtin "Int"))
+(define unison-mvar:typelink (unison-typelink-builtin "MVar"))
+(define unison-nat:typelink (unison-typelink-builtin "Nat"))
+(define unison-pattern:typelink (unison-typelink-builtin "Pattern"))
+(define unison-promise:typelink (unison-typelink-builtin "Promise"))
+(define unison-sequence:typelink (unison-typelink-builtin "Sequence"))
+(define unison-socket:typelink (unison-typelink-builtin "Socket"))
 (define unison-text:typelink (unison-typelink-builtin "Text"))
+(define unison-tls:typelink (unison-typelink-builtin "Tls"))
+(define unison-timespec:typelink (unison-typelink-builtin "TimeSpec"))
+(define unison-threadid:typelink (unison-typelink-builtin "ThreadId"))
+; (define unison-value:typelink (unison-typelink-builtin "Value"))
+
+(define unison-crypto.hashalgorithm:typelink
+  (unison-typelink-builtin "crypto.HashAlgorithm"))
+(define unison-char.class:typelink
+  (unison-typelink-builtin "Char.Class"))
+(define unison-immutablearray:typelink
+  (unison-typelink-builtin "ImmutableArray"))
+(define unison-immutablebytearray:typelink
+  (unison-typelink-builtin "ImmutableByteArray"))
+(define unison-mutablearray:typelink
+  (unison-typelink-builtin "MutableArray"))
+(define unison-mutablebytearray:typelink
+  (unison-typelink-builtin "MutableArray"))
+(define unison-processhandle:typelink
+  (unison-typelink-builtin "ProcessHandle"))
+(define unison-ref.ticket:typelink
+  (unison-typelink-builtin "Ref.Ticket"))
+(define unison-tls.cipher:typelink
+  (unison-typelink-builtin "Tls.Cipher"))
+(define unison-tls.clientconfig:typelink
+  (unison-typelink-builtin "Tls.ClientConfig"))
+(define unison-tls.privatekey:typelink
+  (unison-typelink-builtin "Tls.PrivateKey"))
+(define unison-tls.serverconfig:typelink
+  (unison-typelink-builtin "Tls.ServerConfig"))
+(define unison-tls.signedcert:typelink
+  (unison-typelink-builtin "Tls.SignedCert"))
+(define unison-tls.version:typelink
+  (unison-typelink-builtin "Tls.Version"))
 
 ; Type -> Text -> Any -> Failure
 (define (failure typeLink msg any)

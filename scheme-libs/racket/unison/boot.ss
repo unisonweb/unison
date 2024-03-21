@@ -21,6 +21,30 @@
   unison-int:typelink
   unison-nat:typelink
   unison-text:typelink
+  unison-code:typelink
+  unison-mvar:typelink
+  unison-pattern:typelink
+  unison-promise:typelink
+  unison-sequence:typelink
+  unison-socket:typelink
+  unison-tls:typelink
+  unison-timespec:typelink
+  unison-threadid:typelink
+
+  unison-crypto.hashalgorithm:typelink
+  unison-char.class:typelink
+  unison-immutablearray:typelink
+  unison-immutablebytearray:typelink
+  unison-mutablearray:typelink
+  unison-mutablebytearray:typelink
+  unison-processhandle:typelink
+  unison-ref.ticket:typelink
+  unison-tls.cipher:typelink
+  unison-tls.clientconfig:typelink
+  unison-tls.privatekey:typelink
+  unison-tls.serverconfig:typelink
+  unison-tls.signedcert:typelink
+  unison-tls.version:typelink
 
   bytevector
   bytes
