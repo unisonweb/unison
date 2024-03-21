@@ -27,12 +27,16 @@ runs:
       uses: actions/cache/restore@v4
       with:
         key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+        path: n/a
+        lookup-only: true
 
     - name: check .stack-work cache
       id: check-stack-work
       uses: actions/cache/restore@v4
       with:
         key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+        path: n/a
+        lookup-only: true
 
     - name: save ~/.stack (non-Windows)
       if: runner.os != 'Windows' && steps.check-stack.outputs.cache-hit != 'true'
