@@ -11,157 +11,26 @@ on:
     types:
       - completed
 jobs:
-  build_linux:
-
-    name: "build_linux"
-    runs-on: ubuntu-20.04
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: restore stack caches
-        uses: ./.github/workflows/actions/restore-stack-cache
-        with:
-          cache-prefix: pre-release
-
-      - name: install stack
-        uses: ./.github/workflows/actions/install-stack
-
-      # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-      - name: build
-        run: |
-          # unison-cli embeds version numbers using TH
-          # so it needs to be forced to rebuild to ensure those are updated.
-          stack clean unison-cli
-
-          stack --no-terminal build --flag unison-parser-typechecker:optimized
-
-      - name: save stack caches
-        uses: ./.github/workflows/actions/save-stack-cache
-        with:
-          cache-prefix: pre-release
-
-      - name: fetch latest Unison Local UI and package with ucm
-        run: |
-          mkdir -p /tmp/ucm/ui
-          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-          cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
-          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
-          tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
-
-      - name: Upload linux artifact
-        uses: actions/upload-artifact@v2
-        with:
-          if-no-files-found: error
-          name: build-linux
-          path: ucm-linux.tar.gz
-
-  build_macos:
-    name: "build_macos"
-    runs-on: macos-12
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: install stack
-        uses: ./.github/workflows/actions/install-stack
-
-      # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-      - name: remove ~/.stack/setup-exe-cache on macOS
-        run: rm -rf ~/.stack/setup-exe-cache
-
-      - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
-
-      - name: fetch latest Unison Local UI and package with ucm
-        run: |
-          mkdir -p /tmp/ucm/ui
-          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-          cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
-          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
-          tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
-
-      - name: Upload macos artifact
-        uses: actions/upload-artifact@v2
-        with:
-          if-no-files-found: error
-          name: build-macos
-          path: ucm-macos.tar.gz
-
-  build_windows:
-    name: "build_windows"
-    runs-on: windows-2019
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: install stack
-        uses: ./.github/workflows/actions/install-stack
-
-      - name: build
-        # Run up to 5 times in a row before giving up.
-        # Builds sometimes fail due to a race condition on the Windows
-        # file-system API that stack runs into. Since any successful packages are
-        # cached within a single build, it should get further along on each re-start
-        # and should hopefully finish.
-        run: |
-          tries=5
-          for (( i = 0; i < $tries; i++ )); do
-              stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
-          done
-
-      - name: fetch latest codebase-ui and package with ucm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Powershell
-        shell: pwsh
-        run: |
-          mkdir -p tmp\ui
-          mkdir -p release\ui
-          $UCM = .\stack\stack-2.9.1-windows-x86_64\stack.exe exec -- where unison
-          cp $UCM .\release\ucm.exe
-          Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
-          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
-          Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
-
-      - name: Upload windows artifact
-        uses: actions/upload-artifact@v2
-        with:
-          if-no-files-found: error
-          name: build-windows
-          path: ucm-windows.zip
+  build-ucm:
+    uses: ./.github/workflows/build-optimized-ucm.yaml
+    with:
+      ref: trunk
 
   release:
-    name: "create_release"
+    name: create release
     runs-on: ubuntu-20.04
     needs:
-      - build_linux
-      - build_macos
-      - build_windows
+      - build-ucm
 
     steps:
       - name: make download dir
-        run: "mkdir /tmp/ucm"
+        run: mkdir /tmp/ucm
 
       - name: "download artifacts"
         uses: actions/download-artifact@v2
         with:
           path: /tmp/ucm
 
-
-      - uses: actions/checkout@v2
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
