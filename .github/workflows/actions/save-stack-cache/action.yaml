@@ -7,13 +7,21 @@ inputs:
     required: true
   work-cache-prefix:
     description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
-    required: true
-    default: ${{inputs.cache-prefix}}
+    required: false
 
 
 runs:
   using: composite
   steps:
+    - name: set default work cache prefix
+      shell: bash
+      run: |
+        if [ -z "${{inputs.work-cache-prefix}}" ]; then
+          echo "work-cache-prefix=${{inputs.cache-prefix}}" >> "$GITHUB_ENV"
+        else
+          echo "work-cache-prefix=${{inputs.work-cache-prefix}}" >> "$GITHUB_ENV"
+        fi
+
     - name: check .stack cache
       id: check-stack
       uses: actions/cache/restore@v4
@@ -24,7 +32,7 @@ runs:
       id: check-stack-work
       uses: actions/cache/restore@v4
       with:
-        key: ${{inputs.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+        key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
 
     - name: save ~/.stack (non-Windows)
       if: runner.os != 'Windows' && steps.check-stack.outputs.cache-hit != 'true'
@@ -43,8 +51,9 @@ runs:
         key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
     - name: save .stack-work
+      if: steps.check-stack-work.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
           **/.stack-work
-        key: ${{inputs.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+        key: ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
