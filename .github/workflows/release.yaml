@@ -133,7 +133,7 @@ jobs:
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
-            artifact_archive=ucm-${{env.artifact_os}}.tar.gz
+            artifact_archive=ucm-${{env.artifact_os}}.zip
             zip -r ${artifact_archive} /tmp/ucm
           else
             artifact_archive=ucm-${{env.artifact_os}}.tar.gz
