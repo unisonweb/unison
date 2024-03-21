@@ -8,6 +8,10 @@ inputs:
   work-cache-prefix:
     description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
     required: false
+  lookup-only:
+    description: If true, only checks if cache entry exists and skips download.
+    required: false
+    default: 'false'
 
 outputs:
   cache-hit:
@@ -49,10 +53,40 @@ runs:
         id: cache-stack-unix
         if: runner.os != 'Windows'
         with:
+          lookup-only: ${{inputs.lookup-only}}
           path: ~/.stack
-          key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
+          key:
+            ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          restore-keys:
+            ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
+
+      - name: restore ~/.stack (Windows)
+        uses: actions/cache/restore@v4
+        id: cache-stack-windows
+        if: runner.os == 'Windows'
+        with:
+          lookup-only: ${{inputs.lookup-only}}
+          path: |
+            C:\Users\runneradmin\AppData\Roaming\stack
+            C:\Users\runneradmin\AppData\Local\Programs\stack
+          key:
+            ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          restore-keys:
+            ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
+
+      - name: restore .stack-work
+        uses: actions/cache/restore@v4
+        id: cache-stack-work
+        with:
+          lookup-only: ${{inputs.lookup-only}}
+          path: |
+            **/.stack-work
+          key:
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          restore-keys: |
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_
 
       # we added this step out of necessity, don't exactly remember why.
       # hope to remove it someday.
@@ -60,33 +94,3 @@ runs:
         if: runner.os == 'macOS'
         shell: bash
         run: rm -rf ~/.stack/setup-exe-cache
-
-      - name: restore ~/.stack (Windows)
-        uses: actions/cache/restore@v4
-        id: cache-stack-windows
-        if: runner.os == 'Windows'
-        with:
-          path: |
-            C:\Users\runneradmin\AppData\Roaming\stack
-            C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
-
-      - name: restore .stack-work
-        uses: actions/cache/restore@v4
-        id: cache-stack-work
-        with:
-          path: |
-            **/.stack-work
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
-          restore-keys: |
-            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
-            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-
-            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_

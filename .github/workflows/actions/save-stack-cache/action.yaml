@@ -22,20 +22,12 @@ runs:
           echo "work-cache-prefix=${{inputs.work-cache-prefix}}" >> "$GITHUB_ENV"
         fi
 
-    - name: check .stack cache
+    - name: check stack caches
       id: check-stack
-      uses: actions/cache/restore@v4
+      uses: ./.github/workflows/actions/restore-stack-cache
       with:
-        key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-        path: n/a
-        lookup-only: true
-
-    - name: check .stack-work cache
-      id: check-stack-work
-      uses: actions/cache/restore@v4
-      with:
-        key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
-        path: n/a
+        cache-prefix: ${{inputs.cache-prefix}}
+        work-cache-prefix: ${{env.work-cache-prefix}}
         lookup-only: true
 
     - name: save ~/.stack (non-Windows)
@@ -55,7 +47,7 @@ runs:
         key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
     - name: save .stack-work
-      if: steps.check-stack-work.outputs.cache-hit != 'true'
+      if: steps.check-stack.outputs.work-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
