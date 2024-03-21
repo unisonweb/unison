@@ -29,7 +29,8 @@ jobs:
 
       - name: build with haddocks
         working-directory: unison
-        run: stack --no-terminal build --fast --haddock
+        run: stack build --fast --haddock
+
       - name: save stack caches
         uses: ./.github/workflows/actions/save-stack-cache
         with:
