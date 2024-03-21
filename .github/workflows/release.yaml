@@ -13,10 +13,6 @@ on:
         description: Release version; e.g. `0.5.19`. We'll create tag `release/${version}`.
         required: true
         type: string
-      prev_version:
-        description: Previous release to generate notes since; e.g. `0.5.18`
-        required: true
-        type: string
       target:
         description: Git ref to use for this release; defaults to `trunk`.
         required: true
@@ -50,7 +46,8 @@ jobs:
         run: |
           version="${{inputs.version}}"
           target="${{inputs.target}}"
-          prev_version="${{inputs.prev_version}}"
+          prev_tag="$(gh release view --json tagName -t '{{printf .tagName}}')"
+          if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
 
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
@@ -58,6 +55,6 @@ jobs:
           gh release create "release/${version}" \
             --target "${target}" \
             --generate-notes \
-            --notes-start-tag "release/${prev_version}" \
+            --notes-start-tag "${prev_tag}" \
             \
             /tmp/ucm/**/*.{zip,tar.gz}
