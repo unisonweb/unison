@@ -8,6 +8,7 @@ inputs:
   work-cache-prefix:
     description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
     required: true
+    default: ${{inputs.cache-prefix}}
 
 outputs:
   cache-hit:

@@ -79,7 +79,6 @@ jobs:
         uses: ./.github/workflows/actions/restore-stack-cache
         with:
           cache-prefix: release
-          work-cache-prefix: release
 
       - name: install stack
         uses: ./.github/workflows/actions/install-stack

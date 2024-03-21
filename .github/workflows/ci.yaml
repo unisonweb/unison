@@ -120,7 +120,6 @@ jobs:
         uses: ./.github/workflows/actions/restore-stack-cache
         with:
           cache-prefix: ci${{env.stack-cache-key-version}}
-          work-cache-prefix: ci${{env.stack-work-cache-key-version}}
 
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -264,7 +263,6 @@ jobs:
         uses: ./.github/workflows/actions/save-stack-cache
         with:
           cache-prefix: ci${{env.stack-cache-key-version}}
-          work-cache-prefix: ci${{env.stack-work-cache-key-version}}
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
