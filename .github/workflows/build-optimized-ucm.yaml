@@ -10,6 +10,10 @@ on:
         type: string
         default: release
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build-ucm:
     name: bundle ucm+ui ${{matrix.os}}
