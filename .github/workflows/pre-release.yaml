@@ -19,6 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: restore stack caches
+        uses: ./.github/workflows/actions/restore-stack-cache
+        with:
+          cache-prefix: pre-release
+
       - name: install stack
         uses: ./.github/workflows/actions/install-stack
 
@@ -29,7 +34,17 @@ jobs:
           git config --global user.email "actions@github.com"
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        run: |
+          # unison-cli embeds version numbers using TH
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+
+          stack --no-terminal build --flag unison-parser-typechecker:optimized
+
+      - name: save stack caches
+        uses: ./.github/workflows/actions/save-stack-cache
+        with:
+          cache-prefix: pre-release
 
       - name: fetch latest Unison Local UI and package with ucm
         run: |
