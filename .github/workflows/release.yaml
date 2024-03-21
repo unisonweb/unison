@@ -128,6 +128,7 @@ jobs:
           fi
 
           $wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          find /tmp
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
