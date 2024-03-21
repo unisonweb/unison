@@ -12,15 +12,27 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: check .stack cache
+      id: check-stack
+      uses: actions/cache/restore@v4
+      with:
+        key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+
+    - name: check .stack-work cache
+      id: check-stack-work
+      uses: actions/cache/restore@v4
+      with:
+        key: ${{inputs.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+
     - name: save ~/.stack (non-Windows)
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' && steps.check-stack.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ~/.stack
         key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
     - name: save ~/.stack (Windows)
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && steps.check-stack.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
