@@ -44,6 +44,7 @@ jobs:
         with:
           path: /tmp/ucm
 
+      # check out the previous-tag.sh script used on the next step
       - uses: actions/checkout@v2
         with:
           ref: release/${{inputs.version}}
