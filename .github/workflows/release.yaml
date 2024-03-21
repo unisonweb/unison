@@ -135,10 +135,10 @@ jobs:
           fi
           echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
-        timeout-minutes: 15
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ failure() }}
+      #   timeout-minutes: 15
 
       - name: upload artifact
         uses: actions/upload-artifact@v2
