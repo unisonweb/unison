@@ -124,6 +124,8 @@ jobs:
           else
             cp -v $(stack exec -- which unison) ${{runner.temp}}/ucm/ucm
           fi
+          cp -v $(stack exec -- which unison) ${{runner.temp}}/look-at-me
+          find ${{runner.temp}}
 
           curl -L -o ${{runner.temp}}/unisonLocal.zip \
             https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
