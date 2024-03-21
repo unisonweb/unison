@@ -19,44 +19,10 @@ jobs:
         with:
           path: unison
 
-      # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
-      # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
-      # purge one manually.
-
-      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v2
-        name: cache ~/.stack
+      - name: restore stack caches
+        uses: ./.github/workflows/actions/restore-stack-cache
         with:
-          path: ~/.stack
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-0-haddocks-${{github.sha}}
-          # Fall-back to the most recent haddocks build, or to a standard Linux build failing that.
-          restore-keys: |
-            stack-0-haddocks
-            stack-0-Linux
-
-      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v2
-        name: cache .stack-work
-        with:
-          path: |
-            **/.stack-work
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-work-2-haddocks-${{github.sha}}
-          # Fall-back to the most recent haddocks build, or to a standard Linux build failing that.
-          restore-keys: |
-            stack-work-2_Linux-haddocks
-            stack-work-2_Linux
+          cache-prefix: haddocks
 
       - name: install stack
         uses: ./unison/.github/workflows/actions/install-stack
@@ -71,6 +37,10 @@ jobs:
       - name: build with haddocks
         working-directory: unison
         run: stack --no-terminal build --fast --haddock
+      - name: save stack caches
+        uses: ./.github/workflows/actions/save-stack-cache
+        with:
+          cache-prefix: haddocks
 
       # Haddocks
       - name: Checkout haddocks branch
