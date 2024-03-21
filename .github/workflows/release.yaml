@@ -10,17 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version; e.g. `0.5.19`. We'll create tag `release/version`.
+        description: Release version; e.g. `0.5.19`. We'll create tag `release/${version}`.
         required: true
         type: string
       prev_version:
         description: Previous release to generate notes since; e.g. `0.5.18`
-        required: false
+        required: true
         type: string
       target:
-        description: 'Ref to use for this release, defaults to trunk'
+        description: Git ref to use for this release; defaults to `trunk`.
         required: true
-        default: 'trunk'
+        default: trunk
         type: string
 
 jobs:
@@ -44,11 +44,6 @@ jobs:
         with:
           path: /tmp/ucm
 
-      # check out the previous-tag.sh script used on the next step
-      - uses: actions/checkout@v2
-        with:
-          ref: release/${{inputs.version}}
-
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,11 +51,13 @@ jobs:
           version="${{inputs.version}}"
           target="${{inputs.target}}"
           prev_version="${{inputs.prev_version}}"
-          if [ -z "$prev_version" ]; then
-            prev_version="$(${{ github.workspace }}/scripts/previous-tag.sh "${version}")"
-          fi
 
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
-          gh release create "release/${version}" --target "${target}" --generate-notes --notes-start-tag "release/${prev_version}" /tmp/ucm/**/*.tar.gz /tmp/ucm/**/*.zip
+          gh release create "release/${version}" \
+            --target "${target}" \
+            --generate-notes \
+            --notes-start-tag "release/${prev_version}" \
+            \
+            /tmp/ucm/**/*.{zip,tar.gz}
