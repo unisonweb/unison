@@ -19,7 +19,7 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Debug (DebugFlag (KindInference), shouldDebug)
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Solved qualified as Solved
-import Unison.KindInference.Constraint.StarProvenance (StarProvenance (..))
+import Unison.KindInference.Constraint.TypeProvenance (TypeProvenance (..))
 import Unison.KindInference.Constraint.Unsolved qualified as Unsolved
 import Unison.KindInference.Error (ConstraintConflict (..), KindError (..), improveError)
 import Unison.KindInference.Generate (builtinConstraints)
@@ -45,14 +45,14 @@ import Unison.Var (Var)
 
 -- | Like "GeneratedConstraint" but the provenance of @IsType@
 -- constraints may be due to kind defaulting. (See "defaultUnconstrainedVars")
-type UnsolvedConstraint v loc = Unsolved.Constraint (UVar v loc) v loc StarProvenance
+type UnsolvedConstraint v loc = Unsolved.Constraint (UVar v loc) v loc TypeProvenance
 
 -- | We feed both @UnsolvedConstraint@ and @GeneratedConstraint@ to
 -- our constraint solver, so it is useful to convert
 -- @GeneratedConstraint@ into @UnsolvedConstraint@ to avoid code
 -- duplication.
 _Generated :: forall v loc. Prism' (UnsolvedConstraint v loc) (GeneratedConstraint v loc)
-_Generated = prism' (Unsolved.starProv %~ NotDefault) \case
+_Generated = prism' (Unsolved.typeProv %~ NotDefault) \case
   Unsolved.IsType s l -> case l of
     Default -> Nothing
     NotDefault l -> Just (Unsolved.IsType s l)
@@ -96,28 +96,12 @@ defaultUnconstrainedVars st =
         Just _ -> U.Canonical ecSize d
    in st {constraints = newConstraints, newUnifVars = []}
 
-prettyConstraintD' :: Show loc => Var v => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
-prettyConstraintD' ppe =
-  P.wrap . \case
-    Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
-    Unsolved.IsAbility v p -> prettyUVar ppe v <> " ~ Ability" <> prettyProv p
-    Unsolved.IsArr v p a b -> prettyUVar ppe v <> " ~ " <> prettyUVar ppe a <> " -> " <> prettyUVar ppe b <> prettyProv p
-    Unsolved.Unify p a b -> prettyUVar ppe a <> " ~ " <> prettyUVar ppe b <> prettyProv p
-  where
-    prettyProv x =
-      "[" <> P.string (show x) <> "]"
-
-prettyConstraints :: Show loc => Var v => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
-prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
-
-prettyUVar :: Var v => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
-prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
-
-tracePretty :: P.Pretty P.ColorText -> a -> a
-tracePretty p = trace (P.toAnsiUnbroken p)
-
--- | loop through the constraints, eliminating constraints until we
--- have some set that cannot be reduced
+-- | Loop through the constraints, eliminating constraints until we
+-- have some set that cannot be reduced. There isn't any strong reason
+-- to avoid halting at the first error -- we don't have constraints
+-- that error but may succeed with more information or anything. The
+-- idea of looping was to resolve as much as possible so that the
+-- error message can be as filled out as possible.
 reduce ::
   forall v loc.
   (Show loc, Var v, Ord loc) =>
@@ -326,6 +310,10 @@ verify st =
         Left e -> Left e
         Right m -> Right st {constraints = m}
 
+--------------------------------------------------------------------------------
+-- Occurence check and helpers
+--------------------------------------------------------------------------------
+
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()
 initializeState = assertGen do
   builtinConstraints
@@ -449,3 +437,26 @@ data CycleCheck
   = Cycle
   | NoCycle
 
+--------------------------------------------------------------------------------
+-- Debug output helpers
+--------------------------------------------------------------------------------
+
+prettyConstraintD' :: Show loc => Var v => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
+prettyConstraintD' ppe =
+  P.wrap . \case
+    Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
+    Unsolved.IsAbility v p -> prettyUVar ppe v <> " ~ Ability" <> prettyProv p
+    Unsolved.IsArr v p a b -> prettyUVar ppe v <> " ~ " <> prettyUVar ppe a <> " -> " <> prettyUVar ppe b <> prettyProv p
+    Unsolved.Unify p a b -> prettyUVar ppe a <> " ~ " <> prettyUVar ppe b <> prettyProv p
+  where
+    prettyProv x =
+      "[" <> P.string (show x) <> "]"
+
+prettyConstraints :: Show loc => Var v => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
+prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
+
+prettyUVar :: Var v => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
+prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
+
+tracePretty :: P.Pretty P.ColorText -> a -> a
+tracePretty p = trace (P.toAnsiUnbroken p)
