@@ -43,8 +43,14 @@ import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 
+-- | Like "GeneratedConstraint" but the provenance of @IsType@
+-- constraints may be due to kind defaulting. (See "defaultUnconstrainedVars")
 type UnsolvedConstraint v loc = Unsolved.Constraint (UVar v loc) v loc StarProvenance
 
+-- | We feed both @UnsolvedConstraint@ and @GeneratedConstraint@ to
+-- our constraint solver, so it is useful to convert
+-- @GeneratedConstraint@ into @UnsolvedConstraint@ to avoid code
+-- duplication.
 _Generated :: forall v loc. Prism' (UnsolvedConstraint v loc) (GeneratedConstraint v loc)
 _Generated = prism' (Unsolved.starProv %~ NotDefault) \case
   Unsolved.IsType s l -> case l of
@@ -79,7 +85,7 @@ step e st cs =
           Left e -> Left e
           Right () -> Right finalState
 
--- | Default any unconstrained vars to *
+-- | Default any unconstrained vars to Type
 defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
   let newConstraints = foldl' phi (constraints st) (newUnifVars st)
@@ -284,6 +290,9 @@ addConstraint constraint = do
           processPostAction . fmap concat =<< runExceptT ((traverse (ExceptT . addConstraint') (x : xs)))
   processPostAction =<< addConstraint' (review _Generated constraint)
 
+-- | Decompose the unsolved constraint into implied constraints,
+-- returning a constraint conflict if the constraint cannot be
+-- satisfied.
 addConstraint' ::
   forall v loc.
   Ord loc =>
@@ -291,11 +300,21 @@ addConstraint' ::
   UnsolvedConstraint v loc ->
   Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
 addConstraint' = \case
+  -- @IsAbility@ and @IsType@ constraints are very straightforward,
+  -- they are satisfied of the constraint already exists or no
+  -- constraint exists.
   Unsolved.IsAbility s p0 -> do
     handleConstraint s (Solved.IsAbility p0) \case
       Solved.IsAbility _ -> Just (Solved.IsAbility p0, [])
       _ -> Nothing
+  Unsolved.IsType s p0 -> do
+    handleConstraint s (Solved.IsType p0) \case
+      Solved.IsType _ -> Just (Solved.IsType p0, [])
+      _ -> Nothing
   Unsolved.IsArr s p0 a b -> do
+    -- If an @IsArr@ constraint is already present then we need to unify
+    -- the left and right hand sides of the input constraints and the
+    -- existing constraints, so we return those as implied constraints.
     handleConstraint s (Solved.IsArr p0 a b) \case
       Solved.IsArr _p1 c d ->
         let implied =
@@ -305,18 +324,23 @@ addConstraint' = \case
             prov = p0
          in Just (Solved.IsArr prov a b, implied)
       _ -> Nothing
-  Unsolved.IsType s p0 -> do
-    handleConstraint s (Solved.IsType p0) \case
-      Solved.IsType _ -> Just (Solved.IsType p0, [])
-      _ -> Nothing
   Unsolved.Unify l a b -> Right <$> union l a b
   where
+    -- | A helper for solving various @Is*@ constraints. In each case
+    -- we want to lookup any existing constraints on the constrained
+    -- variable. If none exist then we simply add the new constraint,
+    -- as it can't conflict with anything. If there is an existing
+    -- constraint we defer to the passed in function.
     handleConstraint ::
+      -- | The variable mentioned in the input constraint
       UVar v loc ->
+      -- | The new constraint
       Solved.Constraint (UVar v loc) v loc ->
+      -- | How to handle the an existing constraint
       ( Solved.Constraint (UVar v loc) v loc ->
         Maybe (Solved.Constraint (UVar v loc) v loc, [UnsolvedConstraint v loc])
       ) ->
+      -- | An error or a list of implied constraints
       Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
     handleConstraint s solvedConstraint phi = do
       st@SolveState {constraints} <- M.get
@@ -399,7 +423,7 @@ assertGen gen = do
         st <- step env st cs
         verify st
   case comp of
-    Left _ -> error "[assertGen]: constraint failure in among builtin constraints"
+    Left _ -> error "[assertGen]: constraint failure in builtin constraints"
     Right st -> M.put st
 
 initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) => Env -> SolveState v loc
