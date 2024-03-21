@@ -43,8 +43,8 @@ import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 
--- | Like "GeneratedConstraint" but the provenance of @IsType@
--- constraints may be due to kind defaulting. (See "defaultUnconstrainedVars")
+-- | Like 'GeneratedConstraint' but the provenance of @IsType@
+-- constraints may be due to kind defaulting. (See 'defaultUnconstrainedVars')
 type UnsolvedConstraint v loc = Unsolved.Constraint (UVar v loc) v loc TypeProvenance
 
 -- | We feed both @UnsolvedConstraint@ and @GeneratedConstraint@ to
@@ -60,8 +60,9 @@ _Generated = prism' (Unsolved.typeProv %~ NotDefault) \case
   Unsolved.IsArr s l a b -> Just (Unsolved.IsArr s l a b)
   Unsolved.Unify l a b -> Just (Unsolved.Unify l a b)
 
--- | Apply some generated constraints to a solve state, returning a
--- kind error if detected or a new solve state.
+-- | This is the primary function in the exposed API. @step@ applies
+-- some generated constraints to a solve state, returning a kind error
+-- if detected or a new solve state.
 step ::
   (Var v, Ord loc, Show loc) =>
   Env ->
@@ -85,7 +86,7 @@ step e st cs =
           Left e -> Left e
           Right () -> Right finalState
 
--- | Default any unconstrained vars to Type
+-- | Default any unconstrained vars to @Type@
 defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
   let newConstraints = foldl' phi (constraints st) (newUnifVars st)
