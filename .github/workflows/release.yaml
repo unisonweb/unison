@@ -53,6 +53,7 @@ jobs:
           ls -R /tmp/ucm
 
           gh release create "release/${version}" \
+            --repo unisonweb/unison \
             --target "${target}" \
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
