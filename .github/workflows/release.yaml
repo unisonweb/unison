@@ -101,7 +101,6 @@ jobs:
         uses: ./.github/workflows/actions/save-stack-cache
         with:
           cache-prefix: release
-          work-cache-prefix: release
 
       - name: set up environment
         run: |
