@@ -19,6 +19,12 @@
   (for-syntax raise-syntax-error)
 
   exception->string
+
+  exn:bug
+  make-exn:bug
+  exn:bug?
+  exn:bug->exception
+
   let-marks
   ref-mark
 
@@ -74,6 +80,7 @@
   (only-in racket/fixnum fl->fx fx- fxand fxlshift fxrshift fxior)
   racket/unsafe/ops
   unison/data
+  unison/data-info
   unison/chunked-seq)
 
 (define (fx1- n) (fx- n 1))
@@ -372,3 +379,12 @@
         (begin
           (vector-set! dst i (vector-ref src (+ off i)))
           (next (fx1- i)))))))
+
+; TODO needs better pretty printing for when it isn't caught
+(struct exn:bug (msg a)
+  #:constructor-name make-exn:bug)
+(define (exn:bug->exception b)
+  (exception
+    unison-runtimefailure:typelink
+    (exn:bug-msg b)
+    (exn:bug-a b)))
