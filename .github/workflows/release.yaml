@@ -133,7 +133,7 @@ jobs:
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
             artifact_archive=ucm-${{env.artifact_os}}.zip
-            zip -r ${artifact_archive} /tmp/ucm
+            7z a -r -tzip ${artifact_archive}.zip /tmp/ucm/*
           else
             artifact_archive=ucm-${{env.artifact_os}}.tar.gz
             tar -c -z -f ${artifact_archive} -C /tmp/ucm .
