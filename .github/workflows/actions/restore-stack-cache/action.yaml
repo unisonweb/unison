@@ -50,9 +50,9 @@ runs:
         if: runner.os != 'Windows'
         with:
           path: ~/.stack
-          key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-
+          restore-keys: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
 
       # we added this step out of necessity, don't exactly remember why.
       # hope to remove it someday.
@@ -69,9 +69,9 @@ runs:
           path: |
             C:\Users\runneradmin\AppData\Roaming\stack
             C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+          key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
           # Fall-back to use the most recent cache for this resolver
-          restore-keys: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-
+          restore-keys: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-
 
       - name: restore .stack-work
         uses: actions/cache/restore@v4
@@ -85,8 +85,8 @@ runs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+          key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
           restore-keys: |
-            ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
-            ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-
-            ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-
+            ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_

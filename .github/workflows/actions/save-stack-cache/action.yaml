@@ -43,7 +43,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: ~/.stack
-        key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+        key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
     - name: save ~/.stack (Windows)
       if: runner.os == 'Windows' && steps.check-stack.outputs.cache-hit != 'true'
@@ -52,7 +52,7 @@ runs:
         path: |
           C:\Users\runneradmin\AppData\Roaming\stack
           C:\Users\runneradmin\AppData\Local\Programs\stack
-        key: ${{inputs.cache-prefix}}-stack_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
+        key: ${{inputs.cache-prefix}}-stack-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
 
     - name: save .stack-work
       if: steps.check-stack-work.outputs.cache-hit != 'true'
@@ -60,4 +60,4 @@ runs:
       with:
         path: |
           **/.stack-work
-        key: ${{env.work-cache-prefix}}-stack-work_${{runner.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
+        key: ${{env.work-cache-prefix}}-stack-work-${{runner.os}}_${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
