@@ -118,17 +118,12 @@ jobs:
 
       - name: fetch latest Unison Local UI and package with ucm
         run: |
-          mkdir -p /tmp/ucm/ui # we need `ucm/` on the next line and `ucm/ui/` further down
-          if [[ ${{runner.os}} = 'Windows' ]]; then
-            cp -v $(stack exec -- where unison) /tmp/ucm/ucm.exe
-          else
-            cp -v $(stack exec -- which unison) /tmp/ucm/ucm
-          fi
-          cp -v $(stack exec -- which unison) /tmp/look-at-me
-          find /tmp
+          mkdir /tmp/ucm
+          cp -v $(stack exec -- which unison) /tmp/ucm/ucm
 
           curl -L -o /tmp/unisonLocal.zip \
             https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          mkdir /tmp/ucm/ui
           unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
