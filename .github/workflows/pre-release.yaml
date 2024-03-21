@@ -115,7 +115,7 @@ jobs:
         run: |
           mkdir -p tmp\ui
           mkdir -p release\ui
-          $UCM = .\stack\stack-2.9.1-windows-x86_64\stack.exe exec -- where unison
+          $UCM = stack.exe exec -- where unison
           cp $UCM .\release\ucm.exe
           Invoke-WebRequest -Uri https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
           Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
