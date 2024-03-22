@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: release/${{inputs.version}}
+          ref: ${{inputs.ref}}
 
       - name: restore stack caches
         uses: ./.github/workflows/actions/restore-stack-cache
