@@ -15,53 +15,13 @@ jobs:
           - macOS-12
     steps:
       - uses: actions/checkout@v4
-      - id: stackage-resolver
-        name: record stackage resolver
-        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
-        # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
-        # `nightly` or `lts-xx`.  the whole resolver string is put into resolver_long as a backup cache key
-        # ${{ steps.stackage-resolver.outputs.resolver_short }}
-        # ${{ steps.stackage-resolver.outputs.resolver_long }}
-        run: |
-          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_OUTPUT"
-          grep resolver stack.yaml | awk '{print "resolver_long="$2}' >> "$GITHUB_OUTPUT"
-      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v3
-        name: cache ~/.stack (unix)
-        if: runner.os != 'Windows'
+      - uses: unisonweb/actions/stack/cache/restore@main
         with:
-          path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: |
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-1_${{matrix.os}}-
-
-      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v3
-        name: cache .stack-work
-        with:
-          path: |
-            **/.stack-work
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          restore-keys: |
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-work-4_${{matrix.os}}-
+          # take cache from the ci job, read-only
+          cache-prefix: ci
 
       - name: install stack
-        uses: ./.github/workflows/actions/install-stack
+        uses: unisonweb/actions/stack/install@main
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -77,6 +37,6 @@ jobs:
       - name: transcripts
         run: stack --no-terminal exec transcripts
       - name: save transcript changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: rerun transcripts (reminder to rerun CI!)

@@ -1,4 +1,4 @@
-name: "pre-release"
+name: pre-release
 
 defaults:
   run:
@@ -10,6 +10,8 @@ on:
     branches: [ trunk ]
     types:
       - completed
+  workflow_dispatch:
+
 jobs:
   build-ucm:
     uses: ./.github/workflows/build-optimized-ucm.yaml

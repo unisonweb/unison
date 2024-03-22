@@ -1,3 +1,5 @@
+name: build optimized ucm
+
 on:
   workflow_call:
     inputs:
@@ -28,12 +30,12 @@ jobs:
           ref: ${{inputs.ref}}
 
       - name: restore stack caches
-        uses: ./.github/workflows/actions/restore-stack-cache
+        uses: unisonweb/actions/stack/cache/restore@main
         with:
           cache-prefix: release
 
       - name: install stack
-        uses: ./.github/workflows/actions/install-stack
+        uses: unisonweb/actions/stack/install@main
 
       - name: build
         run: |
@@ -50,7 +52,7 @@ jobs:
           done
 
       - name: save stack caches
-        uses: ./.github/workflows/actions/save-stack-cache
+        uses: unisonweb/actions/stack/cache/save@main
         with:
           cache-prefix: release
 
@@ -88,7 +90,7 @@ jobs:
           echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
 
       - name: upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: build-${{env.artifact_os}}
