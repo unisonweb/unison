@@ -20,7 +20,7 @@ jobs:
           path: unison
 
       - name: restore stack caches
-        uses: ./.github/workflows/actions/restore-stack-cache
+        uses: ./unison/.github/workflows/actions/restore-stack-cache
         with:
           cache-prefix: haddocks
 
@@ -32,7 +32,7 @@ jobs:
         run: stack build --fast --haddock
 
       - name: save stack caches
-        uses: ./.github/workflows/actions/save-stack-cache
+        uses: ./unison/.github/workflows/actions/save-stack-cache
         with:
           cache-prefix: haddocks
 
