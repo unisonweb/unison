@@ -1,6 +1,6 @@
 module Unison.KindInference.Constraint.Unsolved
   ( Constraint (..),
-    starProv,
+    typeProv,
     prov,
     loc,
   )
@@ -14,29 +14,29 @@ import Unison.KindInference.Constraint.Provenance qualified as Provenance
 --
 -- These are produced during constraint generation and given as input
 -- to the constraint solver.
-data Constraint uv v loc starProv
+data Constraint uv v loc typeProv
   = -- | An IsType constraint may arise from generation or from the
     -- solver. During generation the provenance is always a real
     -- source code location, but the solver defaults unconstrained
     -- kind vars to Star.
-    IsType uv (starProv v loc)
+    IsType uv (typeProv v loc)
   | IsArr uv (Provenance v loc) uv uv
   | IsAbility uv (Provenance v loc)
   | Unify (Provenance v loc) uv uv
   deriving stock (Show, Eq, Ord)
 
-starProv ::
+typeProv ::
   Traversal
     (Constraint uv v loc prov)
     (Constraint uv v loc prov')
     (prov v loc)
     (prov' v loc)
-starProv f = \case
+typeProv f = \case
   IsType x l -> IsType x <$> f l
   IsAbility x l -> pure (IsAbility x l)
   IsArr s l a b -> pure (IsArr s l a b)
   Unify l a b -> pure (Unify l a b)
-{-# INLINE starProv #-}
+{-# INLINE typeProv #-}
 
 prov ::
   Lens
