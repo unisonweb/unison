@@ -1,4 +1,10 @@
-module Unison.Blank where
+module Unison.Blank
+  ( Blank (..),
+    Recorded (..),
+    loc,
+    nameb,
+  )
+where
 
 import Unison.Prelude
 
@@ -16,17 +22,12 @@ data Recorded loc
   = -- A user-provided named placeholder
     Placeholder loc String
   | -- A name to be resolved with type-directed name resolution.
-    Resolve
-      loc
-      String
+    Resolve loc String
   | -- A placeholder for a missing result at the end of a block
-    MissingResultPlaceholder
-      loc
+    MissingResultPlaceholder loc
   deriving (Show, Eq, Ord, Functor, Generic)
 
--- - Blank is just a dummy annotation.
--- - Recorded indicates that we want to remember the variable's solution
---   for some kind of
+-- | Blank is just a dummy annotation.
 data Blank loc
   = -- | just a dummy annotation
     Blank

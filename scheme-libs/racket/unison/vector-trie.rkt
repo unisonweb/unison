@@ -719,7 +719,7 @@
                      (next-leaf!)
                      (vector-copy! new-leaf leaf-split-i leaf 0 leaf-split-i))]
                   [else
-                   (vector-copy! new-leaf leaf-i leaf first-leaf-start leaf-insert-i)])))]
+                   (vector-copy! new-leaf leaf-i leaf first-leaf-start last-leaf-end)])))]
             [else
              (make-node
               (λ (new-node)

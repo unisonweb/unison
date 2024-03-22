@@ -155,9 +155,9 @@ synthesizeForce tl typeOfFunc = do
       ref = Reference.DerivedId (Reference.Id (Hash.fromByteString "deadbeef") 0)
       env =
         Typechecker.Env
-          { _ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
-            _typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
-            _termsByShortname = Map.empty
+          { ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
+            typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
+            termsByShortname = Map.empty
           }
   case Result.runResultT
     ( Typechecker.synthesize

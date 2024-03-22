@@ -102,12 +102,12 @@ hashFieldAccessors ppe declName vars declRef dd =
     typecheckingEnv :: Typechecker.Env v ()
     typecheckingEnv =
       Typechecker.Env
-        { _ambientAbilities = mempty,
-          _typeLookup =
+        { ambientAbilities = mempty,
+          typeLookup =
             TypeLookup
               { typeOfTerms = mempty,
                 dataDecls = Map.singleton declRef (void dd),
                 effectDecls = mempty
               },
-          _termsByShortname = mempty
+          termsByShortname = mempty
         }

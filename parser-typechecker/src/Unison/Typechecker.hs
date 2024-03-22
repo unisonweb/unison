@@ -1,7 +1,5 @@
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- | This module is the primary interface to the Unison typechecker
 -- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
@@ -34,24 +32,20 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Foldable
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Tuple qualified as Tuple
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
-import Unison.Referent (Referent)
-import Unison.Result
-  ( Result,
-    ResultT,
-    runResultT,
-    pattern Result,
-  )
+import Unison.Result (Result, ResultT, runResultT, pattern Result)
 import Unison.Result qualified as Result
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (unsafeParseText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -81,28 +75,27 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult = \case
   Context.Success is a -> Result (Notes mempty mempty is) (Just a)
   Context.TypeError es is -> Result (Notes mempty (NESeq.toSeq es) is) Nothing
-  Context.CompilerBug bug es is -> Result (Notes [bug] es is) Nothing
+  Context.CompilerBug bug es is -> Result (Notes (Seq.singleton bug) es is) Nothing
 
 data NamedReference v loc = NamedReference
-  { fqn :: Name,
+  { fqn :: Name.Name,
     fqnType :: Type v loc,
-    replacement :: Either v Referent
+    replacement :: Context.Replacement v
   }
-  deriving (Show)
+  deriving stock (Show)
 
 data Env v loc = Env
-  { _ambientAbilities :: [Type v loc],
-    _typeLookup :: TL.TypeLookup v loc,
+  { ambientAbilities :: [Type v loc],
+    typeLookup :: TL.TypeLookup v loc,
     -- TDNR environment - maps short names like `+` to fully-qualified
     -- lists of named references whose full name matches the short name
     -- Example: `+` maps to [Nat.+, Float.+, Int.+]
     --
     -- This mapping is populated before typechecking with as few entries
     -- as are needed to help resolve variables needing TDNR in the file.
-    _termsByShortname :: Map Name [NamedReference v loc]
+    termsByShortname :: Map Name.Name [NamedReference v loc]
   }
-
-makeLenses ''Env
+  deriving stock (Generic)
 
 -- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
@@ -120,8 +113,8 @@ synthesize ppe pmccSwitch env t =
           Context.synthesizeClosed
             ppe
             pmccSwitch
-            (TypeVar.liftType <$> view ambientAbilities env)
-            (view typeLookup env)
+            (TypeVar.liftType <$> env.ambientAbilities)
+            env.typeLookup
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
@@ -188,16 +181,16 @@ synthesizeAndResolve ppe env = do
 
 compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
 compilerBug bug = do
-  tell $ Notes [bug] mempty mempty
+  tell $ Notes (Seq.singleton bug) mempty mempty
   Control.Monad.Fail.fail ""
 
 typeError :: Context.ErrorNote v loc -> Result (Notes v loc) ()
 typeError note = do
-  tell $ Notes mempty [note] mempty
+  tell $ Notes mempty (Seq.singleton note) mempty
   Control.Monad.Fail.fail ""
 
 btw :: (Monad f) => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
-btw note = tell $ Notes mempty mempty [note]
+btw note = tell $ Notes mempty mempty (Seq.singleton note)
 
 liftResult :: (Monad f) => Result (Notes v loc) a -> TDNR f v loc a
 liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
@@ -226,39 +219,35 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
   -- Resolve blanks in the notes and generate some resolutions
   resolutions <-
     liftResult . traverse (resolveNote tdnrEnv) . toList $
-      infos
-        oldNotes
+      infos oldNotes
   case catMaybes resolutions of
     [] -> pure oldType
-    rs ->
-      applySuggestions rs >>= \case
-        True -> do
-          synthesizeAndResolve ppe tdnrEnv
+    resolutions -> do
+      substituted <- traverse substSuggestion resolutions
+      case or substituted of
+        True -> synthesizeAndResolve ppe tdnrEnv
         False -> do
           -- The type hasn't changed
-          liftResult $ suggest rs
+          liftResult $ suggest resolutions
           pure oldType
   where
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
-      for_ vtts $ \(v, typ, _) ->
-        for_ (Name.suffixes . Name.unsafeParseText . Var.name $ Var.reset v) $ \suffix ->
-          termsByShortname
-            %= Map.insertWith
-              (<>)
-              (Name.toText suffix)
-              [NamedReference (Var.name v) typ (Left v)]
+      for_ vtts \(v, typ, _) ->
+        let name = Name.unsafeParseVar (Var.reset v)
+         in for_ (Name.suffixes name) \suffix ->
+              #termsByShortname %= Map.insertWith (<>) suffix [NamedReference name typ (Context.ReplacementVar v)]
     addTypedComponent _ = pure ()
 
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
     suggest =
-      traverse_
-        ( \(Resolution name inferredType loc v suggestions) ->
-            typeError $
-              Context.ErrorNote
-                (Context.UnknownTerm loc (suggestedVar v name) (dedupe suggestions) inferredType)
-                []
-        )
+      traverse_ \(Resolution name inferredType loc v suggestions) ->
+        typeError $
+          Context.ErrorNote
+            { cause = Context.UnknownTerm loc (suggestedVar v name) (dedupe suggestions) inferredType,
+              path = Seq.empty
+            }
+
     guard x a = if x then Just a else Nothing
 
     suggestedVar :: Var v => v -> Text -> v
@@ -267,10 +256,10 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
         Var.MissingResult -> v
         _ -> Var.named name
 
-    extractSubstitution :: [Context.Suggestion v loc] -> Maybe (Either v Referent)
+    extractSubstitution :: [Context.Suggestion v loc] -> Maybe (Context.Replacement v)
     extractSubstitution suggestions =
-      let groupedByName :: [([Name.Name], Either v Referent)] =
-            map (\(a, b) -> (b, a))
+      let groupedByName :: [([Name.Name], Context.Replacement v)] =
+            map Tuple.swap
               . Map.toList
               . fmap Set.toList
               . foldl'
@@ -278,86 +267,84 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
                     Map.insertWith
                       Set.union
                       suggestionReplacement
-                      (Set.singleton (Name.unsafeParseText suggestionName))
+                      (Set.singleton suggestionName)
                       b
                 )
                 Map.empty
               $ filter Context.isExact suggestions
-          matches :: Set (Either v Referent) = Name.preferShallowLibDepth groupedByName
+          matches :: Set (Context.Replacement v) = Name.preferShallowLibDepth groupedByName
        in case toList matches of
             [x] -> Just x
             _ -> Nothing
 
-    applySuggestions :: [Resolution v loc] -> TDNR f v loc Bool
-    applySuggestions = foldlM phi False
-      where
-        phi b a = do
-          didSub <- substSuggestion a
-          pure $! b || didSub
-
     substSuggestion :: Resolution v loc -> TDNR f v loc Bool
-    substSuggestion
-      ( Resolution
-          name
-          _
-          loc
-          v
-          (extractSubstitution -> Just replacement)
-        ) =
-        do
-          modify (substBlank (Text.unpack name) loc solved)
-          lift . btw $ Context.Decision (suggestedVar v name) loc solved
-          pure True
-        where
-          solved = either (Term.var loc) (Term.fromReferent loc) replacement
+    substSuggestion (Resolution name _ loc v (extractSubstitution -> Just replacement)) = do
+      modify (substBlank name loc solved)
+      lift . btw $ Context.Decision (suggestedVar v name) loc solved
+      pure True
+      where
+        solved =
+          case replacement of
+            Context.ReplacementRef ref -> Term.fromReferent loc ref
+            Context.ReplacementVar var -> Term.var loc var
     substSuggestion _ = pure False
 
     -- Resolve a `Blank` to a term
-    substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
+    substBlank :: Text -> loc -> Term v loc -> Term v loc -> Term v loc
     substBlank s a r = ABT.visitPure go
       where
         go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
         resolve (Term.Blank' (B.Recorded (B.Resolve loc name)))
-          | name == s =
-              Just (loc <$ r)
+          | name == Text.unpack s = Just (loc <$ r)
         resolve _ = Nothing
 
-    --  Returns Nothing for irrelevant notes
+    -- Returns Nothing for irrelevant notes
     resolveNote ::
       Env v loc ->
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
-    resolveNote env (Context.SolvedBlank (B.Resolve loc n) v it) =
-      fmap (Just . Resolution (Text.pack n) it loc v . join)
-        . traverse (resolve it)
-        . join
-        . maybeToList
-        . Map.lookup (Text.pack n)
-        $ view termsByShortname env
-    -- Solve the case where we have a placeholder for a missing result
-    -- at the end of a block. This is always an error.
-    resolveNote _ (Context.SolvedBlank (B.MissingResultPlaceholder loc) v it) =
-      pure . Just $ Resolution "_" it loc v []
-    resolveNote _ n = btw n >> pure Nothing
+    resolveNote env = \case
+      Context.SolvedBlank (B.Resolve loc str) v it -> do
+        let shortname = Name.unsafeParseText (Text.pack str)
+            matches = Map.findWithDefault [] shortname env.termsByShortname
+        suggestions <- wither (resolve it) matches
+        pure $
+          Just
+            Resolution
+              { resolvedName = Text.pack str,
+                inferredType = it,
+                resolvedLoc = loc,
+                v,
+                suggestions
+              }
+      -- Solve the case where we have a placeholder for a missing result
+      -- at the end of a block. This is always an error.
+      Context.SolvedBlank (B.MissingResultPlaceholder loc) v it ->
+        pure . Just $ Resolution "_" it loc v []
+      note -> do
+        btw note
+        pure Nothing
+
     dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
-    dedupe = uniqueBy Context.suggestionReplacement
+    dedupe =
+      uniqueBy Context.suggestionReplacement
+
     resolve ::
       Context.Type v loc ->
       NamedReference v loc ->
-      Result (Notes v loc) [Context.Suggestion v loc]
+      Result (Notes v loc) (Maybe (Context.Suggestion v loc))
     resolve inferredType (NamedReference fqn foundType replace) =
       -- We found a name that matches. See if the type matches too.
       case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
-        Left bug -> const [] <$> compilerBug bug
+        Left bug -> Nothing <$ compilerBug bug
         -- Suggest the import if the type matches.
         Right b ->
-          pure
-            [ Context.Suggestion
-                fqn
-                (TypeVar.liftType foundType)
-                replace
-                (if b then Context.Exact else Context.WrongType)
-            ]
+          pure . Just $
+            Context.Suggestion
+              fqn
+              (TypeVar.liftType foundType)
+              replace
+              (if b then Context.Exact else Context.WrongType)
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

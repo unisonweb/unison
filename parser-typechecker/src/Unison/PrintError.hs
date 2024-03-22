@@ -48,7 +48,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
-import Unison.Referent (Referent, toReference, pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -626,12 +626,7 @@ renderTypeError e env src = case e of
           foldr
             sep
             id
-            ( sortBy
-                ( comparing length <> compare
-                    `on` (Text.splitOn "." . C.suggestionName)
-                )
-                suggestions
-            )
+            (sortBy (comparing length <> compare `on` (Name.segments . C.suggestionName)) suggestions)
             ([], [], [])
         sep s@(C.Suggestion _ _ _ match) r =
           case match of
@@ -1187,19 +1182,16 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
       where
         go = renderType0 env f
 
-renderSuggestion ::
-  (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+renderSuggestion :: (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
 renderSuggestion env sug =
-  renderTerm
-    env
-    ( case C.suggestionReplacement sug of
-        Right ref -> Term.ref () (toReference ref)
-        Left v -> Term.var () v
-    )
+  renderTerm env term
     <> " : "
-    <> renderType'
-      env
-      (C.suggestionType sug)
+    <> renderType' env (C.suggestionType sug)
+  where
+    term =
+      case C.suggestionReplacement sug of
+        C.ReplacementRef ref -> Term.fromReferent () ref
+        C.ReplacementVar v -> Term.var () v
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "

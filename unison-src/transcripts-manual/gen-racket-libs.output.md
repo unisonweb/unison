@@ -20,9 +20,9 @@ Next, we'll download the jit project and generate a few Racket files from it.
   
   🎉 🥳 Happy coding!
 
-jit-setup/main> pull @unison/internal/releases/0.0.11 lib.jit
+jit-setup/main> pull @unison/internal/releases/0.0.12 lib.jit
 
-  Downloaded 13900 entities.
+  Downloaded 15048 entities.
 
   ✅
   
