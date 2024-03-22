@@ -6,7 +6,7 @@ inputs:
     description: The cache prefix to use for `~/.stack`, e.g. "release" or "ci"
     required: true
   work-cache-prefix:
-    description: The cache prefix to use for `**/.stack-work`, e.g. "release" or "ci"
+    description: The cache prefix to use for `**/.stack-work`, defaults to the same as `cache-prefix`
     required: false
   lookup-only:
     description: If true, only checks if cache entry exists and skips download.
