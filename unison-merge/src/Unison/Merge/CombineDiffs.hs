@@ -2,12 +2,9 @@
 
 -- | Combine two diffs together.
 module Unison.Merge.CombineDiffs
-  (
-    AliceIorBob (..),
-    CombinedDiffsOp (..),
-    PartitionedDiff(..),
-    Unconflicts(..),
-    partitionDiff,
+  ( AliceIorBob (..),
+    Flicts (..),
+    Unconflicts (..),
     combineDiffs,
   )
 where
@@ -24,7 +21,7 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import Unison.Util.Defns (Defns (..), DefnsF, unzipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF)
 
 -- | Alice inclusive-or Bob?
 data AliceIorBob
@@ -38,16 +35,16 @@ data AliceXorBob
   | Bob
 
 -- | The combined result of two diffs on the same thing.
-data CombinedDiffsOp v
+data DiffOp2 v
   = Added2 !AliceIorBob !v
   | Updated2 !AliceIorBob !v -- new value
   | Deleted2 !AliceIorBob !v -- old value
   | -- | An add-add or an update-update conflict. We don't consider update-delete a conflict; the delete gets ignored.
     Conflict !(TwoWay v)
 
-data PartitionedDiff v = PartitionedDiff
-  { unconflicts :: !(Unconflicts v),
-    conflicts :: !(Map Name (TwoWay v))
+data Flicts v = Flicts
+  { conflicts :: !(Map Name (TwoWay v)),
+    unconflicts :: !(Unconflicts v)
   }
   deriving stock (Generic)
 
@@ -58,37 +55,40 @@ data Unconflicts v = Unconflicts
   }
   deriving stock (Foldable, Functor, Generic)
 
--- Partition definitions into conflicted and unconflicted.
-partitionDiff ::
-  DefnsF (Map Name) (CombinedDiffsOp Referent) (CombinedDiffsOp TypeReference) ->
-  ( DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference),
-    DefnsF Unconflicts Referent TypeReference
-  )
-partitionDiff =
-  unzipDefnsWith f f
-  where
-    f = (\v -> (v.conflicts, v.unconflicts)) . partition1
+-- | Combine and partition LCA->Alice diff and LCA->Bob diff into conflicts and "unconflicts" (unconflicted things).
+combineDiffs ::
+  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
+  DefnsF Flicts Referent TypeReference
+combineDiffs diffs =
+  Defns
+    { terms = partition2 (view #terms <$> diffs),
+      types = partition2 (view #types <$> diffs)
+    }
 
-    partition1 :: Map Name (CombinedDiffsOp v) -> PartitionedDiff v
-    partition1 =
-      Map.foldlWithKey'
-        (\s k v -> insert k v s)
-        PartitionedDiff
-          { unconflicts =
-              Unconflicts
-                { adds = TwoWayI Map.empty Map.empty Map.empty,
-                  deletes = TwoWayI Map.empty Map.empty Map.empty,
-                  updates = TwoWayI Map.empty Map.empty Map.empty
-                },
-            conflicts = Map.empty
-          }
-      where
-        insert :: Name -> CombinedDiffsOp v -> PartitionedDiff v -> PartitionedDiff v
-        insert k = \case
-          Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
-          Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
-          Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
-          Conflict v -> #conflicts %~ Map.insert k v
+partition2 :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Flicts v
+partition2 diffs =
+  partition (alignWith (combine Alice Bob) diffs.alice diffs.bob)
+
+partition :: Map Name (DiffOp2 v) -> Flicts v
+partition =
+  Map.foldlWithKey'
+    (\s k v -> insert k v s)
+    Flicts
+      { unconflicts =
+          Unconflicts
+            { adds = TwoWayI Map.empty Map.empty Map.empty,
+              deletes = TwoWayI Map.empty Map.empty Map.empty,
+              updates = TwoWayI Map.empty Map.empty Map.empty
+            },
+        conflicts = Map.empty
+      }
+  where
+    insert :: Name -> DiffOp2 v -> Flicts v -> Flicts v
+    insert k = \case
+      Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
+      Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
+      Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
+      Conflict v -> #conflicts %~ Map.insert k v
 
 whoL :: AliceIorBob -> Lens' (TwoWayI a) a
 whoL = \case
@@ -96,24 +96,10 @@ whoL = \case
   OnlyBob -> #bob
   AliceAndBob -> #both
 
--- | Combine LCA->Alice diff and LCA->Bob diff into one combined diff structure.
-combineDiffs ::
-  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
-  DefnsF (Map Name) (CombinedDiffsOp Referent) (CombinedDiffsOp TypeReference)
-combineDiffs diffs =
-  Defns
-    { terms = combineDiffsV (view #terms <$> diffs),
-      types = combineDiffsV (view #types <$> diffs)
-    }
-
-combineDiffsV :: TwoWay (Map Name (DiffOp (Synhashed v))) -> Map Name (CombinedDiffsOp v)
-combineDiffsV diffs =
-  alignWith (combine Alice Bob) diffs.alice diffs.bob
-
-combine :: AliceXorBob -> AliceXorBob -> These (DiffOp (Synhashed v)) (DiffOp (Synhashed v)) -> CombinedDiffsOp v
+combine :: AliceXorBob -> AliceXorBob -> These (DiffOp (Synhashed v)) (DiffOp (Synhashed v)) -> DiffOp2 v
 combine this that = \case
-  This x -> diffOpToCombinedDiffsOp this x
-  That x -> diffOpToCombinedDiffsOp that x
+  This x -> one this x
+  That x -> one that x
   These (Added x) (Added y)
     | x /= y -> Conflict (twoWay this x.value y.value)
     | otherwise -> Added2 AliceAndBob x.value
@@ -130,8 +116,8 @@ combine this that = \case
   These (Added _) (Deleted _) -> error "impossible"
   These (Added _) (Updated _ _) -> error "impossible"
 
-diffOpToCombinedDiffsOp :: AliceXorBob -> DiffOp (Synhashed v) -> CombinedDiffsOp v
-diffOpToCombinedDiffsOp who = \case
+one :: AliceXorBob -> DiffOp (Synhashed v) -> DiffOp2 v
+one who = \case
   Added x -> Added2 (xor2ior who) x.value
   Deleted x -> Deleted2 (xor2ior who) x.value
   Updated _ x -> Updated2 (xor2ior who) x.value

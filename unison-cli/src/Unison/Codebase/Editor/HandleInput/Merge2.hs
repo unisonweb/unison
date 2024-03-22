@@ -47,7 +47,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.Merge.CombineDiffs (AliceIorBob (..), combineDiffs, Unconflicts(..), partitionDiff)
+import Unison.Merge.CombineDiffs (AliceIorBob (..), Unconflicts (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp)
@@ -59,6 +59,7 @@ import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.TwoWayI (TwoWayI)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -92,7 +93,6 @@ import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
-import Unison.Merge.TwoWayI (TwoWayI)
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
@@ -123,11 +123,10 @@ handleMerge bobBranchName = do
   whenJust (findOneConflictedAlias mergeInfo.projectBranches defns.lca diffs) \violation ->
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
-  -- Combine the LCA->Alice and LCA->Bob diffs together into a combined diff
+  -- Combine the LCA->Alice and LCA->Bob diffs together into the conflicted things and the unconflicted things
   let diff = combineDiffs diffs
-
-  -- Partition the combined diff into the conflicted things and the unconflicted things
-  let (conflicts, unconflicts) = partitionDiff diff
+  let conflicts = bimapDefns (view #conflicts) (view #conflicts) diff
+  let unconflicts = bimapDefns (view #unconflicts) (view #unconflicts) diff
 
   -- Identify the dependents we need to pull into the scratch file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
