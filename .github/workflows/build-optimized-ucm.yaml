@@ -1,3 +1,5 @@
+name: build optimized ucm
+
 on:
   workflow_call:
     inputs:
