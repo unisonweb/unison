@@ -50,7 +50,7 @@ jobs:
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         # Only try to commit formatting changes if we're running within the repo containing the PR,
         # and not on a protected branch.
         # The job doesn't have permission to push back to contributor forks on contributor PRs.
