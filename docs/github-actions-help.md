@@ -15,6 +15,10 @@ e.g.
     echo "foo=whatever" >> $GITHUB_ENV
     # access with `env.foo` in yaml strings, or `$foo` in bash
 
+`$GITHUB_ENV` updates the `env` context between steps, but not in the middle of a step. Obvious in retrospect.
+
+It's not clear to me when to use `$GITHUB_OUTPUT` vs `$GITHUB_ENV`, but I have been favoring `$GITHUB_ENV` because it requires fewer characters to access.
+However, it seems a little wrong.
 
 ### Cache
 When using the `cache` action, getting a cache hit on the primary key means you won't update the cache with any changes.

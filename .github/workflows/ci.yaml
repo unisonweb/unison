@@ -34,7 +34,7 @@ env:
   ucm-binaries-cache-key-version: 1
   unison-src-test-results-cache-key-version: 1
   stack-cache-key-version: 1
-  stack-work-cache-key-version: 4
+  stack-work-cache-key-version: 1
   base-codebase-cache-key-version: 1
   jit-src-cache-key-version: 1
   jit-dist-cache-key-version: 1
@@ -114,74 +114,23 @@ jobs:
           path: ${{env.unison_src_test_results}}
           key: unison-src-test-results-${{env.unison-src-test-results-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
-      # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
-      # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
-      # purge one manually.
-      - id: stackage-resolver
-        name: record stackage resolver
-        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
-        # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
-        # `nightly` or `lts-xx`.  the whole resolver string is put into $resolver as a backup cache key
-        # ${{ env.resolver_short }}
-        # ${{ env.resolver }}
-        run: |
-          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
-          grep resolver stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
-
-      - name: restore ~/.stack (non-Windows)
-        uses: actions/cache/restore@v4
-        id: cache-stack-unix
-        if: runner.os != 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        with:
-          path: ~/.stack
-          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for this resolver
-          restore-keys: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
-
-      - name: restore ~/.stack (Windows)
-        uses: actions/cache/restore@v4
-        id: cache-stack-windows
-        if: runner.os == 'Windows' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        with:
-          path: |
-            C:\Users\runneradmin\AppData\Roaming\stack
-            C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-          # Fall-back to use the most recent cache for this resolver
-          restore-keys: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
-
-      - name: restore .stack-work
-        uses: actions/cache/restore@v4
+      - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        id: cache-stack-work
+        id: restore-stack-caches
+        uses: ./.github/workflows/actions/restore-stack-cache
         with:
-          path: |
-            **/.stack-work
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
-          restore-keys: |
-            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-
-            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-
-            stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-
+          cache-prefix: ci${{env.stack-cache-key-version}}
 
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         uses: ./.github/workflows/actions/install-stack
 
       # One of the transcripts fails if the user's git name hasn't been set.
+      ## (Which transcript? -AI)
       - name: set git user info
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-
-      - name: remove ~/.stack/setup-exe-cache on macOS
-        if: runner.os == 'macOS'
-        run: rm -rf ~/.stack/setup-exe-cache
 
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
@@ -307,56 +256,14 @@ jobs:
           path: ${{ env.ucm }}
           if-no-files-found: error
 
-      - name: save ~/.stack (non-Windows)
-        if: |
-          runner.os != 'Windows'
-            && !cancelled()
-            && steps.cache-stack-unix.outputs.cache-hit != 'true'
-            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.stack
-          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-
-      # temporarily print what's in the cached system stack dir
-      - name: print stack cache (Windows)
-        if: |
-          runner.os == 'Windows'
-            && !cancelled()
-            && steps.cache-stack-windows.outputs.cache-hit != 'true'
-            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        run: |
-          echo "Is there anything in C:/Users/runneradmin/AppData/Roaming/stack?"
-          du -chs C:/Users/runneradmin/AppData/Roaming/stack || true
-          echo ""
-          echo "Is there anything in C:/Users/runneradmin/AppData/Local/Programs/stack?"
-          du -chs C:/Users/runneradmin/AppData/Local/Programs/stack || true
-
-      - name: save ~/.stack (Windows)
-        if: |
-          runner.os == 'Windows'
-            && !cancelled()
-            && steps.cache-stack-windows.outputs.cache-hit != 'true'
-            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            C:\Users\runneradmin\AppData\Roaming\stack
-            C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-${{env.stack-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}
-
-      - name: save .stack-work
-        # can change this to always() if we find this isn't doing the right thing.
+      - name: save stack caches
         if: |
           !cancelled()
-            && steps.cache-stack-work.outputs.cache-hit != 'true'
+            && steps.restore-stack-caches.outputs.cache-hit != 'true'
             && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: ./.github/workflows/actions/save-stack-cache
         with:
-          path: |
-            **/.stack-work
-          key: stack-work-${{env.stack-work-cache-key-version}}_${{matrix.os}}-${{env.resolver}}-${{hashFiles('**/stack.yaml', '**/package.yaml')}}-${{hashFiles('**/*.hs')}}
-
+          cache-prefix: ci${{env.stack-cache-key-version}}
 
   generate-jit-source:
     if: always() && needs.build-ucm.result == 'success'
