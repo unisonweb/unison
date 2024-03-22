@@ -1,3 +1,5 @@
+-- | Handles generating kind constraints to be fed to the kind
+-- constraint solver (found in "Unison.KindInference.Solve").
 module Unison.KindInference.Generate
   ( typeConstraints,
     termConstraints,
@@ -28,40 +30,16 @@ import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Var (Type (User), Var (typed), freshIn)
 
-data ConstraintTree v loc
-  = Node [ConstraintTree v loc]
-  | Constraint (GeneratedConstraint v loc) (ConstraintTree v loc)
-  | ParentConstraint (GeneratedConstraint v loc) (ConstraintTree v loc)
-  | StrictOrder (ConstraintTree v loc) (ConstraintTree v loc)
 
-newtype TreeWalk = TreeWalk (forall a. ([a] -> [a]) -> [([a] -> [a], [a] -> [a])] -> [a] -> [a])
+--------------------------------------------------------------------------------
+-- Constraints arising from Types
+--------------------------------------------------------------------------------
 
-bottomUp :: TreeWalk
-bottomUp = TreeWalk \down pairs0 -> foldr (\(d, u) b -> d . u . b) id pairs0 . down
-
-flatten :: TreeWalk -> ConstraintTree v loc -> [GeneratedConstraint v loc]
-flatten (TreeWalk f) = ($ []) . flattenTop
-  where
-    flattenTop :: ConstraintTree v loc -> [GeneratedConstraint v loc] -> [GeneratedConstraint v loc]
-    flattenTop t0 =
-      f id [flattenRec id t0]
-
-    flattenRec ::
-      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc]) ->
-      ConstraintTree v loc ->
-      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc], [GeneratedConstraint v loc] -> [GeneratedConstraint v loc])
-    flattenRec down = \case
-      Node cts ->
-        let pairs = map (flattenRec id) cts
-         in (f down pairs, id)
-      Constraint c ct -> flattenRec (down . (c :)) ct
-      ParentConstraint c ct ->
-        let (down', up) = flattenRec down ct
-         in (down', up . (c :))
-      StrictOrder a b ->
-        let as = flattenTop a
-            bs = flattenTop b
-         in (f down [(as . bs, id)], id)
+-- | Generate kind constraints arising from a given type. The given
+-- @UVar@ is constrained to have the kind of the given type.
+typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
+typeConstraints resultVar typ =
+  flatten bottomUp <$> typeConstraintTree resultVar typ
 
 typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
 typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
@@ -130,11 +108,6 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
--- | Generate kind constraints arising from a given type. The given
--- @UVar@ is constrained to have the kind of the given type.
-typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
-typeConstraints resultVar typ =
-  flatten bottomUp <$> typeConstraintTree resultVar typ
 
 handleIntroOuter :: Var v => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do
@@ -145,6 +118,29 @@ handleIntroOuter v loc k = do
       Nothing -> error "[malformed type] IntroOuter not in lexical scope of matching Forall"
       Just a -> pure a
   k (Unify (Provenance ScopeReference loc) new orig)
+
+--------------------------------------------------------------------------------
+-- Constraints arising from Type annotations
+--------------------------------------------------------------------------------
+
+-- | Check that all annotations in a term are well-kinded
+termConstraints :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc [GeneratedConstraint v loc]
+termConstraints x = flatten bottomUp <$> termConstraintTree x
+
+termConstraintTree :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc (ConstraintTree v loc)
+termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
+  where
+    processAnn :: loc -> Type.Type v loc -> Gen v loc [ConstraintTree v loc] -> Gen v loc [ConstraintTree v loc]
+    processAnn ann typ mrest = do
+      instantiateType typ \typ gcs -> do
+        typKind <- freshVar typ
+        annConstraints <- ParentConstraint (IsType typKind (Provenance TypeAnnotation ann)) <$> typeConstraintTree typKind typ
+        let annConstraints' = foldr Constraint annConstraints gcs
+        rest <- mrest
+        pure (annConstraints' : rest)
+    cons mlhs mrhs = (++) <$> mlhs <*> mrhs
+    nil = pure []
+
 
 -- | Helper for @termConstraints@ that instantiates the outermost
 -- foralls and keeps the type in scope (in the type map) while
@@ -164,24 +160,6 @@ instantiateType type0 k =
           handleIntroOuter x annotation \c -> go (c : acc) t
         t -> k t (reverse acc)
    in go [] type0
-
--- | Check that all annotations in a term are well-kinded
-termConstraints :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc [GeneratedConstraint v loc]
-termConstraints x = flatten bottomUp <$> termConstraintTree x
-
-termConstraintTree :: forall v loc. (Var v, Ord loc) => Term.Term v loc -> Gen v loc (ConstraintTree v loc)
-termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
-  where
-    processAnn :: loc -> Type.Type v loc -> Gen v loc [ConstraintTree v loc] -> Gen v loc [ConstraintTree v loc]
-    processAnn ann typ mrest = do
-      instantiateType typ \typ gcs -> do
-        typKind <- freshVar typ
-        annConstraints <- ParentConstraint (IsType typKind (Provenance TypeAnnotation ann)) <$> typeConstraintTree typKind typ
-        let annConstraints' = foldr Constraint annConstraints gcs
-        rest <- mrest
-        pure (annConstraints' : rest)
-    cons mlhs mrhs = (++) <$> mlhs <*> mrhs
-    nil = pure []
 
 -- | Process type annotations depth-first. Allows processing
 -- annotations with lexical scoping.
@@ -221,6 +199,10 @@ hackyStripAnns =
       ABT.Tm tm0 -> case tm0 of
         Term.Ann trm _typ -> trm
         t -> ABT.tm ann t
+
+--------------------------------------------------------------------------------
+-- Constraints arising from Decls
+--------------------------------------------------------------------------------
 
 -- | Generate kind constraints for a mutally recursive component of
 -- decls
@@ -345,6 +327,12 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
             pure (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
    in goForall constructorType0
 
+--------------------------------------------------------------------------------
+-- Constraints on builtins
+--------------------------------------------------------------------------------
+
+-- | Constraints on language builtins, used to initialize the kind
+-- inference state ('Unison.KindInference.Solve.initialState')
 builtinConstraints :: forall v loc. (Ord loc, BuiltinAnnotation loc, Var v) => Gen v loc [GeneratedConstraint v loc]
 builtinConstraints = flatten bottomUp <$> builtinConstraintTree
 
@@ -417,6 +405,11 @@ builtinConstraintTree =
       kindVar <- pushType (t builtinAnnotation)
       foldr Constraint (Node []) <$> constrainToKind (Provenance Builtin builtinAnnotation) kindVar k
 
+--------------------------------------------------------------------------------
+-- Helpers for constructing constraints
+--------------------------------------------------------------------------------
+
+-- | Constrain a @UVar@ to the provided @Kind@
 constrainToKind :: (Var v) => Provenance v loc -> UVar v loc -> Kind -> Gen v loc [GeneratedConstraint v loc]
 constrainToKind prov resultVar0 = fmap ($ []) . go resultVar0
   where
@@ -438,7 +431,52 @@ data Kind = Type | Ability | Kind :-> Kind
 
 infixr 9 :->
 
+-- | Convert the 'Unison.Kind' annotation type to our internal 'Kind'
 fromUnisonKind :: Unison.Kind -> Kind
 fromUnisonKind = \case
   Unison.Star -> Type
   Unison.Arrow a b -> fromUnisonKind a :-> fromUnisonKind b
+
+--------------------------------------------------------------------------------
+-- Constraint ordering
+--------------------------------------------------------------------------------
+
+-- | The order in which constraints are generated has a great impact
+-- on the error observed. To separate the concern of constraint
+-- generation and constraint ordering the constraints are generated as
+-- a constraint tree, and the flattening of this tree determines the
+-- generated constraint order.
+data ConstraintTree v loc
+  = Node [ConstraintTree v loc]
+  | Constraint (GeneratedConstraint v loc) (ConstraintTree v loc)
+  | ParentConstraint (GeneratedConstraint v loc) (ConstraintTree v loc)
+  | StrictOrder (ConstraintTree v loc) (ConstraintTree v loc)
+
+newtype TreeWalk = TreeWalk (forall a. ([a] -> [a]) -> [([a] -> [a], [a] -> [a])] -> [a] -> [a])
+
+bottomUp :: TreeWalk
+bottomUp = TreeWalk \down pairs0 -> foldr (\(d, u) b -> d . u . b) id pairs0 . down
+
+flatten :: TreeWalk -> ConstraintTree v loc -> [GeneratedConstraint v loc]
+flatten (TreeWalk f) = ($ []) . flattenTop
+  where
+    flattenTop :: ConstraintTree v loc -> [GeneratedConstraint v loc] -> [GeneratedConstraint v loc]
+    flattenTop t0 =
+      f id [flattenRec id t0]
+
+    flattenRec ::
+      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc]) ->
+      ConstraintTree v loc ->
+      ([GeneratedConstraint v loc] -> [GeneratedConstraint v loc], [GeneratedConstraint v loc] -> [GeneratedConstraint v loc])
+    flattenRec down = \case
+      Node cts ->
+        let pairs = map (flattenRec id) cts
+         in (f down pairs, id)
+      Constraint c ct -> flattenRec (down . (c :)) ct
+      ParentConstraint c ct ->
+        let (down', up) = flattenRec down ct
+         in (down', up . (c :))
+      StrictOrder a b ->
+        let as = flattenTop a
+            bs = flattenTop b
+         in (f down [(as . bs, id)], id)

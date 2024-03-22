@@ -8,7 +8,7 @@
 -- decl to discover constraints on the decl vars. These constraints
 -- are then given to a constraint solver that determines a unique kind
 -- for each type variable. Unconstrained variables are defaulted to
--- kind * (just like Haskell 98). This is done by 'inferDecls'.
+-- kind Type (just like Haskell 98). This is done by 'inferDecls'.
 --
 -- Afterwards, the 'SolveState' holds the kinds of all decls and we
 -- can check that type annotations in terms that may mention the

@@ -25,8 +25,10 @@ import Unison.Symbol
 import Unison.Type qualified as T
 import Unison.Var
 
+-- | A generated constraint
 type GeneratedConstraint v loc = Constraint (UVar v loc) v loc Provenance
 
+-- | The @Gen@ monad state
 data GenState v loc = GenState
   { unifVars :: !(Set Symbol),
     typeMap :: !(Map (T.Type v loc) (NonEmpty (UVar v loc))),
@@ -45,6 +47,7 @@ newtype Gen v loc a = Gen
     )
     via State (GenState v loc)
 
+-- | @Gen@ monad runner
 run :: Gen v loc a -> GenState v loc -> (a, GenState v loc)
 run (Gen ma) st0 = ma st0
 
@@ -71,11 +74,13 @@ pushType t = do
   modify \st -> st {typeMap = newTypeMap}
   pure var
 
+-- | Lookup the @UVar@ associated with a @Type@
 lookupType :: Var v => T.Type v loc -> Gen v loc (Maybe (UVar v loc))
 lookupType t = do
   GenState {typeMap} <- get
   pure (NonEmpty.head <$> Map.lookup t typeMap)
 
+-- | Remove a @Type@ from the context
 popType :: Var v => T.Type v loc -> Gen v loc ()
 popType t = do
   modify \st -> st {typeMap = del (typeMap st)}
@@ -88,6 +93,7 @@ popType t = do
               x : xs -> Just (x :| xs)
        in Map.alter f t m
 
+-- | Helper to run an action with the given @Type@ in the context
 scopedType :: Var v => T.Type v loc -> (UVar v loc -> Gen v loc r) -> Gen v loc r
 scopedType t m = do
   s <- pushType t
