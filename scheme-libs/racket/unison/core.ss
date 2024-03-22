@@ -385,6 +385,6 @@
   #:constructor-name make-exn:bug)
 (define (exn:bug->exception b)
   (exception
-    unison-runtimefailure:typelink
+    ref-runtimefailure:typelink
     (exn:bug-msg b)
     (exn:bug-a b)))

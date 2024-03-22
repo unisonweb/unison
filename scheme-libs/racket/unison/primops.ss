@@ -24,13 +24,6 @@
 #!r6rs
 (library (unison primops)
   (export
-    builtin-Any:typelink
-    builtin-Char:typelink
-    builtin-Float:typelink
-    builtin-Int:typelink
-    builtin-Nat:typelink
-    builtin-Text:typelink
-
     builtin-Float.*
     builtin-Float.*:termlink
     builtin-Float.>=
@@ -645,13 +638,6 @@
           (unison concurrent)
           (racket random))
 
-  (define builtin-Any:typelink unison-any:typelink)
-  (define builtin-Char:typelink unison-char:typelink)
-  (define builtin-Float:typelink unison-float:typelink)
-  (define builtin-Int:typelink unison-int:typelink)
-  (define builtin-Nat:typelink unison-nat:typelink)
-  (define builtin-Text:typelink unison-text:typelink)
-
   (define-builtin-link Float.*)
   (define-builtin-link Float.fromRepresentation)
   (define-builtin-link Float.toRepresentation)
@@ -780,13 +766,13 @@
 
     (define-unison (builtin-List.splitLeft n s)
       (match (unison-POp-SPLL n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-List.splitRight n s)
       (match (unison-POp-SPLR n s)
-        [(unison-sum 0 fs) unison-seqview-empty]
-        [(unison-sum 1 (list l r)) (unison-seqview-elem l r)]))
+        [(unison-sum 0 fs) ref-seqview-empty]
+        [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
     (define-unison (builtin-Float.> x y) (fl> x y))
     (define-unison (builtin-Float.< x y) (fl< x y))
@@ -896,7 +882,7 @@
     (define (reify-exn thunk)
       (guard
         (e [else
-             (sum 0 '() (exception->string e) e)])
+             (sum 0 '() (exception->string e) ref-unit-unit)])
         (thunk)))
 
     ; Core implemented primops, upon which primops-in-unison can be built.
@@ -977,8 +963,8 @@
 
     (define (->optional v)
       (if v
-          (unison-optional-some v)
-          unison-optional-none))
+          (ref-optional-some v)
+          ref-optional-none))
 
     (define-unison (builtin-Text.indexOf n h)
       (->optional (chunked-string-index-of h n)))
@@ -1130,7 +1116,7 @@
         ([exn:fail:contract?
           (lambda (e)
             (exception
-              unison-iofailure:typelink
+              ref-iofailure:typelink
               (string->chunked-string
                 (string-append
                   "Invalid UTF-8 stream: "
@@ -1143,7 +1129,7 @@
       (bytes->chunked-bytes (string->bytes/utf-8 (chunked-string->string s))))
 
     (define-unison (builtin-IO.isFileEOF.impl.v3 p)
-      (unison-either-right (port-eof? p)))
+      (ref-either-right (port-eof? p)))
 
     (define (unison-FOp-IO.closeFile.impl.v3 h)
       (if (input-port? h)
