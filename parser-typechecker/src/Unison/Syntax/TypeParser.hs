@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Syntax.TypeParser
-  ( computationType
-  , valueType
-  , valueTypeLeaf
-  ) where
+  ( computationType,
+    valueType,
+    valueTypeLeaf,
+  )
+where
 
 import Control.Monad.Reader (asks)
 import Data.Set qualified as Set

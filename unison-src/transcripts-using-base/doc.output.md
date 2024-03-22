@@ -331,14 +331,14 @@ and the rendered output using `display`:
          You can include typechecked code snippets inline, for
          instance:
          
-         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the `2`
+         * {{ docExample 2 do f x -> f x + sqr 1 }} - the `2`
            says to ignore the first two arguments when
            rendering. In richer renderers, the `sqr` link will
            be clickable.
          * If your snippet expression is just a single function
            application, you can put it in double backticks, like
            so: ``sqr x``. This is equivalent to
-           {{ docExample 1 '(x -> sqr x) }}.
+           {{ docExample 1 do x -> sqr x }}.
     }}
 
 .> display includingSource

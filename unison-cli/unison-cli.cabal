@@ -108,7 +108,6 @@ library
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Types
       Unison.CommandLine.Welcome
-      Unison.JitInfo
       Unison.LSP
       Unison.LSP.CancelRequest
       Unison.LSP.CodeAction

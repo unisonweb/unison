@@ -40,10 +40,21 @@ import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
-import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName, withArgs)
+import System.Directory
+  ( canonicalizePath,
+    exeExtension,
+    getCurrentDirectory,
+    removeDirectoryRecursive,
+  )
+import System.Environment (getExecutablePath, getProgName, withArgs)
 import System.Exit qualified as Exit
-import System.FilePath qualified as FP
+import System.FilePath
+  ( replaceExtension,
+    takeDirectory,
+    takeExtension,
+    (<.>),
+    (</>),
+  )
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
@@ -85,6 +96,12 @@ import Version qualified
 type Runtimes =
   (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
 
+fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
+fixNativeRuntimePath override = do
+  ucm <- getExecutablePath
+  let ucr = takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension
+  pure $ maybe ucr id override
+
 main :: IO ()
 main = do
   -- Replace the default exception handler with one complains loudly, because we shouldn't have any uncaught exceptions.
@@ -118,6 +135,7 @@ main = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack Version.gitDescribeWithDate)
+      nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       withConfig mCodePathOption \config -> do
         currentDir <- getCurrentDirectory
@@ -150,7 +168,7 @@ main = do
                   Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                   Right contents -> do
                     getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                      withRuntimes RTI.OneOff \(rt, sbrt, nrt) -> do
+                      withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                         let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                         let noOpRootNotifier _ = pure ()
                         let noOpPathNotifier _ = pure ()
@@ -176,7 +194,7 @@ main = do
               Left _ -> exitError "I had trouble reading this input."
               Right contents -> do
                 getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                  withRuntimes RTI.OneOff \(rt, sbrt, nrt) -> do
+                  withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                     let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                     let noOpRootNotifier _ = pure ()
                     let noOpPathNotifier _ = pure ()
@@ -261,13 +279,13 @@ main = do
                             \that matches your version of Unison."
                         ]
           Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
-            let action = runTranscripts Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
+            let action = runTranscripts Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption nrtp transcriptFiles
             case mrtsStatsFp of
               Nothing -> action
               Just fp -> recordRtsStats fp action
           Launch isHeadless codebaseServerOpts mayStartingPath shouldWatchFiles -> do
             getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-              withRuntimes RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
+              withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
                 startingPath <- case isHeadless of
                   WithCLI -> do
                     -- If the user didn't provide a starting path on the command line, put them in the most recent
@@ -332,12 +350,13 @@ main = do
                     Exit -> do Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
-    withRuntimes mode action =
+    withRuntimes :: FilePath -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
+    withRuntimes nrtp mode action =
       RTI.withRuntime False mode Version.gitDescribeWithDate \runtime -> do
         RTI.withRuntime True mode Version.gitDescribeWithDate \sbRuntime ->
           action . (runtime,sbRuntime,)
-            =<< RTI.startNativeRuntime Version.gitDescribeWithDate
+            -- startNativeRuntime saves the path to `unison-runtime`
+            =<< RTI.startNativeRuntime Version.gitDescribeWithDate nrtp
     withConfig :: Maybe CodebasePathOption -> (Config -> IO a) -> IO a
     withConfig mCodePathOption action = do
       UnliftIO.bracket
@@ -389,18 +408,19 @@ runTranscripts' ::
   String ->
   Maybe FilePath ->
   FilePath ->
+  FilePath ->
   NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' progName mcodepath transcriptDir markdownFiles = do
+runTranscripts' progName mcodepath nativeRtp transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
-    TR.withTranscriptRunner Verbosity.Verbose Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
+    TR.withTranscriptRunner Verbosity.Verbose Version.gitDescribeWithDate nativeRtp (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
-        let outputFile = FP.replaceExtension (currentDir FP.</> fileName) ".output.md"
+        let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
         (output, succeeded) <- case result of
           Left err -> case err of
             TR.TranscriptParseError err -> do
@@ -444,9 +464,10 @@ runTranscripts ::
   ShouldForkCodebase ->
   ShouldSaveCodebase ->
   Maybe CodebasePathOption ->
+  FilePath ->
   NonEmpty String ->
   IO ()
-runTranscripts verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption args = do
+runTranscripts verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption nativeRtp args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -464,7 +485,7 @@ runTranscripts verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCode
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
-    runTranscripts' progName (Just transcriptDir) transcriptDir markdownFiles
+    runTranscripts' progName (Just transcriptDir) nativeRtp transcriptDir markdownFiles
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
     SaveCodebase _ ->
@@ -529,16 +550,16 @@ launch dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl maySt
 newtype MarkdownFile = MarkdownFile FilePath
 
 markdownFile :: FilePath -> Validation FilePath MarkdownFile
-markdownFile md = case FP.takeExtension md of
+markdownFile md = case takeExtension md of
   ".md" -> Success $ MarkdownFile md
   ".markdown" -> Success $ MarkdownFile md
   _ -> Failure md
 
 isDotU :: String -> Bool
-isDotU file = FP.takeExtension file == ".u"
+isDotU file = takeExtension file == ".u"
 
 getConfigFilePath :: Maybe FilePath -> IO FilePath
-getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
+getConfigFilePath mcodepath = (</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do

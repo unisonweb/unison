@@ -36,11 +36,14 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectBranchByTheseNames,
 
     -- * Other helpers
-    findTemporaryBranchName
+    findTemporaryBranchName,
   )
 where
 
 import Control.Lens
+import Data.List qualified as List
+import Data.Maybe (fromJust)
+import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -61,22 +64,20 @@ import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Project.Util
+import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
-import Unison.Sqlite (Transaction)
-import qualified Data.Set as Set
-import qualified Data.List as List
-import Data.Maybe (fromJust)
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
-branchRelativePathToAbsolute brp = resolveBranchRelativePath brp <&> \case
-  BranchRelativePath.ResolvedLoosePath p -> p
-  BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
-    let projectBranchIds = getIds projectBranch
-        handleRel = case mRel of
-          Nothing -> id
-          Just rel -> flip Path.resolve rel
-    in handleRel (projectBranchPath projectBranchIds)
+branchRelativePathToAbsolute brp =
+  resolveBranchRelativePath brp <&> \case
+    BranchRelativePath.ResolvedLoosePath p -> p
+    BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
+      let projectBranchIds = getIds projectBranch
+          handleRel = case mRel of
+            Nothing -> id
+            Just rel -> flip Path.resolve rel
+       in handleRel (projectBranchPath projectBranchIds)
   where
     getIds = \case
       ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
@@ -120,7 +121,6 @@ findTemporaryBranchName projectId preferred = do
           pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
 
   pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
-    
 
 -- | Get the current project that a user is on.
 getCurrentProject :: Cli (Maybe Sqlite.Project)

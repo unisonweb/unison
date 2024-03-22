@@ -65,7 +65,7 @@ let
       };
       local = shellFor {
         packages = hpkgs: (map (p: hpkgs."${p}") localPackageNames);
-        withHoogle = true;
+        withHoogle = false;
       };
     } // localPackageDevShells;
 in

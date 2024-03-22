@@ -185,10 +185,6 @@ data Input
     ExecuteSchemeI Text [String]
   | -- compile to a scheme file
     CompileSchemeI Text (HQ.HashQualified Name)
-  | -- generate scheme libraries, optional target directory
-    GenSchemeLibsI (Maybe String)
-  | -- fetch scheme compiler from a given username and branch
-    FetchSchemeCompilerI String String
   | TestI TestInput
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions.

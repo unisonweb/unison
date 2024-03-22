@@ -2791,7 +2791,7 @@ ancestorSql h =
         SELECT self_hash_id
           FROM causal
           WHERE self_hash_id = :h
-        UNION ALL
+        UNION
         SELECT parent_id
           FROM causal_parent
           JOIN ancestor ON ancestor.id = causal_id

@@ -17,17 +17,33 @@ on:
       - release/*
   workflow_dispatch:
 
+env:
+  ormolu_version: "0.5.2.0"
+  racket_version: "8.7"
+  ucm_local_bin: "ucm-local-bin"
+  jit_version: "@unison/internal/releases/0.0.12"
+  jit_src_scheme: "unison-jit-src/scheme-libs/racket"
+  jit_dist: "unison-jit-dist"
+  jit_generator_os: ubuntu-20.04
+  base-codebase: "~/.cache/unisonlanguage/base.unison"
+
+  # refers to all tests that depend on **/unison-src/**
+  unison_src_test_results: "unison-src-test-results"
+
+  # cache key versions, increment to invalidate one, though you aren't expected to have to.
+  ucm-binaries-cache-key-version: 1
+  unison-src-test-results-cache-key-version: 1
+  stack-cache-key-version: 1
+  stack-work-cache-key-version: 1
+  base-codebase-cache-key-version: 1
+  jit-src-cache-key-version: 1
+  jit-dist-cache-key-version: 1
 
 jobs:
-
   ormolu:
     runs-on: ubuntu-20.04
-    # Only run formatting on trunk commits
-    # This is because the job won't have permission to push back to
-    # contributor forks on contributor PRs.
-    if: github.ref_name == 'trunk'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v41
@@ -37,26 +53,25 @@ jobs:
             **/*.hs
             **/*.hs-boot
           separator: "\n"
-      - uses: haskell-actions/run-ormolu@v14
+      - uses: haskell-actions/run-ormolu@v15
         with:
-          version: "0.5.0.1"
+          version: ${{ env.ormolu_version }}
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
         uses: stefanzweifel/git-auto-commit-action@v4
-        if: ${{ always() }}
+        # Only try to commit formatting changes if we're running within the repo containing the PR,
+        # and not on a protected branch.
+        # The job doesn't have permission to push back to contributor forks on contributor PRs.
+        if: |
+          always()
+            && !github.ref_protected
+            && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
         with:
           commit_message: automatically run ormolu
-
-  build:
-    name: ${{ matrix.os }}
+  build-ucm:
+    name: Build UCM ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # The 'always()' causes this to build even if the ormolu job is skipped.
-    if: ${{ always() }}
-    needs: ormolu
-    defaults:
-      run:
-        shell: bash
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
@@ -66,128 +81,61 @@ jobs:
           - ubuntu-20.04
           - macOS-12
           - windows-2019
+          # - windows-2022
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      # The number towards the beginning of the cache keys allow you to manually avoid using a previous cache.
-      # GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
-      # purge one manually.
-
-
-      - id: stackage-resolver
-        name: record stackage resolver
-        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#environment-files
-        # looks for `resolver: nightly-yyyy-mm-dd` or `resolver: lts-xx.yy` in `stack.yaml` and splits it into
-        # `nightly` or `lts-xx`.  the whole resolver string is put into resolver_long as a backup cache key
-        # ${{ steps.stackage-resolver.outputs.resolver_short }}
-        # ${{ steps.stackage-resolver.outputs.resolver_long }}
+      - name: tweak environment
         run: |
-          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_OUTPUT"
-          grep resolver stack.yaml | awk '{print "resolver_long="$2}' >> "$GITHUB_OUTPUT"
-      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v3
-        name: cache ~/.stack (unix)
-        if: runner.os != 'Windows'
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          unison_src_test_results="${RUNNER_TEMP//\\//}/${unison_src_test_results}"
+
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+            echo "transcripts=$ucm_local_bin/transcripts" >> $GITHUB_ENV
+          fi
+
+      - name: cache ucm binaries
+        id: cache-ucm-binaries
+        uses: actions/cache@v4
         with:
-          path: ~/.stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: |
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-1_${{matrix.os}}-
+          path: ${{env.ucm_local_bin}}
+          key: ucm-${{env.ucm-binaries-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
 
-      # Cache ~/.stack, keyed by the contents of 'stack.yaml'.
-      - uses: actions/cache@v3
-        name: cache ~/.stack (Windows)
-        if: runner.os == 'Windows'
+      - name: cache unison-src test results
+        id: cache-unison-src-test-results
+        uses: actions/cache@v4
         with:
-          path: |
-            C:\Users\runneradmin\AppData\Roaming\stack
-            C:\Users\runneradmin\AppData\Local\Programs\stack
-          key: stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          # Fall-back to use the most recent cache for the stack.yaml, or failing that the OS
-          restore-keys: |
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-1_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-1_${{matrix.os}}-
+          path: ${{env.unison_src_test_results}}
+          key: unison-src-test-results-${{env.unison-src-test-results-cache-key-version}}_${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**') }}
 
-      # Cache each local package's ~/.stack-work for fast incremental builds in CI.
-      - uses: actions/cache@v3
-        name: cache .stack-work
+      - name: restore stack caches
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        id: restore-stack-caches
+        uses: ./.github/workflows/actions/restore-stack-cache
         with:
-          path: |
-            **/.stack-work
-          # Main cache key: commit hash. This should always result in a cache miss...
-          # So when loading a cache we'll always fall back to the restore-keys,
-          # which should load the most recent cache via a prefix search on the most
-          # recent branch cache.
-          # Then it will save a new cache at this commit sha, which should be used by
-          # the next build on this branch.
-          key: stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-${{hashFiles('**/stack.yaml')}}-${{github.sha}}
-          restore-keys: |
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-${{hashFiles('**/stack.yaml')}}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_long }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}-
-            stack-work-4_${{matrix.os}}-${{ steps.stackage-resolver.outputs.resolver_short }}.
-            stack-work-4_${{matrix.os}}-
+          cache-prefix: ci${{env.stack-cache-key-version}}
 
-      # Install stack by downloading the binary from GitHub.
-      # The installation process differs by OS.
-      - name: install stack (Linux)
-        if: runner.os == 'Linux'
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-linux-x86_64.tar.gz | tar -xz
-          echo "$PWD/stack-"* >> $GITHUB_PATH
-
-      - name: install stack (macOS)
-        working-directory: ${{ runner.temp }}
-        if: runner.os == 'macOS'
-        run: |
-          mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-osx-x86_64.tar.gz | tar -xz
-          echo "$PWD/stack-"* >> $GITHUB_PATH
-
-      - name: install stack (windows)
-        working-directory: ${{ runner.temp }}
-        if: runner.os == 'Windows'
-        run: |
-          mkdir stack && cd stack
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.9.1/stack-2.9.1-windows-x86_64.tar.gz | tar -xz
-          echo "$PWD/stack-"* >> $GITHUB_PATH
+      - name: install stack
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: ./.github/workflows/actions/install-stack
 
       # One of the transcripts fails if the user's git name hasn't been set.
+      ## (Which transcript? -AI)
       - name: set git user info
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: remove ~/.stack/setup-exe-cache on macOS
-        if: runner.os == 'macOS'
-        run: rm -rf ~/.stack/setup-exe-cache
-
-      - name: install stack-clean-old (to scan or clean up old stackage caches)
-        run: |
-          if ! stack exec -- which stack-clean-old; then
-            stack install stack-clean-old
-          fi
-
-      - name: check initial stackage cache size
-        run: |
-          echo global .stack
-          stack exec -- stack-clean-old list -G || true
-          echo project .stack-work
-          stack exec -- stack-clean-old list -P || true
-
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         # Run up to 5 times in a row before giving up.
         # It's very unlikely that our build-dependencies step will fail on most builds,
         # so if it fails its almost certainly due to a race condition on the Windows
@@ -202,122 +150,326 @@ jobs:
           fi
 
           for (( i = 0; i < $tries; i++ )); do
-              stack --no-terminal build --fast --only-dependencies && break;
+              stack build --fast --only-dependencies --test --bench && break;
           done
+
       - name: build
-        run: stack --no-terminal build --fast --no-run-tests --test
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: |
+          stack build \
+            --fast \
+            --test \
+            --no-run-tests \
+            --local-bin-path ${{env.ucm_local_bin}} \
+            --copy-bins
 
       # Run each test suite (tests and transcripts)
-      - name: check disk space before
-        if: ${{ always() }}
-        run: df -h
       - name: unison-cli test
-        run: stack --no-terminal build --fast --test unison-cli
-      - name: check disk space after
-        if: ${{ always() }}
-        run: df -h
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-cli
+
       - name: unison-core tests
-        run: stack --no-terminal build --fast --test unison-core
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-core
+
       - name: unison-parser-typechecker tests
-        run: stack --no-terminal build --fast --test unison-parser-typechecker
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-parser-typechecker
+
       - name: unison-sqlite tests
-        run: stack --no-terminal build --fast --test unison-sqlite
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-sqlite
+
       - name: unison-syntax tests
-        run: stack --no-terminal build --fast --test unison-syntax
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-syntax
+
       - name: unison-util-bytes tests
-        run: stack --no-terminal build --fast --test unison-util-bytes
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-bytes
+
       - name: unison-util-cache tests
-        run: stack --no-terminal build --fast --test unison-util-cache
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-cache
+
       - name: unison-util-relation tests
-        run: stack --no-terminal build --fast --test unison-util-relation
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-relation
+
       - name: round-trip-tests
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
-          stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
-          git add unison-src/transcripts-round-trip/main.output.md
+          ${{env.ucm}} transcript unison-src/transcripts-round-trip/main.md
+          ${{env.ucm}} transcript unison-src/transcripts-manual/rewrites.md
           # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
-          stack --no-terminal exec unison transcript unison-src/transcripts-manual/rewrites.md
-          git add unison-src/transcripts-manual/rewrites.output.md
-          # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-round-trip/main.output.md \
+            unison-src/transcripts-manual/rewrites.output.md
+
       - name: transcripts
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
         run: |
-          stack --no-terminal exec transcripts
-          # Add all changes to the index for when we diff.
-          git add --all
+          ${{env.transcripts}}
           # Fail if any transcripts cause git diffs.
-          git diff --cached --ignore-cr-at-eol --exit-code
+          git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+
       - name: cli-integration-tests
-        run: stack --no-terminal exec cli-integration-tests
-      - name: Cache Racket dependencies
-        uses: actions/cache@v2
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack exec cli-integration-tests
+
+      - name: verify stack ghci startup
+        if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: echo | stack ghci
+
+      - name: cache base codebase
+        id: cache-base-codebase
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.base-codebase }}
+          # key = base transcript contents + sqlite schema version
+          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
+
+      - name: create base.md codebase
+        if: steps.cache-base-codebase.outputs.cache-hit != 'true'
+        run: ${{env.ucm}} transcript.fork -C ${{env.base-codebase}} -S ${{env.base-codebase}} unison-src/builtin-tests/base.md
+
+      - name: interpreter tests
+        # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
+        if: |
+          runner.os != 'Windows'
+            && (steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+                || steps.cache-unison-src-test-results.outputs.cache-hit != 'true')
+        run: |
+          ${{ env.ucm }} transcript.fork -c ${{env.base-codebase}} unison-src/builtin-tests/interpreter-tests.md
+          cat unison-src/builtin-tests/interpreter-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
+
+      - name: mark transcripts as passing
+        if: steps.cache-unison-src-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.unison_src_test_results}}"
+
+      - name: save ucm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ env.ucm }}
+          if-no-files-found: error
+
+      - name: save stack caches
+        if: |
+          !cancelled()
+            && steps.restore-stack-caches.outputs.cache-hit != 'true'
+            && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: ./.github/workflows/actions/save-stack-cache
+        with:
+          cache-prefix: ci${{env.stack-cache-key-version}}
+
+  generate-jit-source:
+    if: always() && needs.build-ucm.result == 'success'
+    name: Generate JIT source
+    needs: build-ucm
+    runs-on: ubuntu-20.04
+    steps:
+      - name: set up environment
+        run: |
+          echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        name: cache jit source
         if: runner.os == 'Linux'
+        with:
+          path: ${{ env.jit_src_scheme }}
+          key: jit_src_scheme-${{env.jit-src-cache-key-version}}.racket_${{env.racket_version}}.jit_${{env.jit_version}}
+
+      - name: check source exists
+        id: jit_src_exists
+        run: |
+          files=(data-info boot-generated simple-wrappers builtin-generated compound-wrappers)
+          all_exist=true
+
+          for file in "${files[@]}"; do
+              if [[ ! -f "${{ env.jit_src_scheme }}/unison/$file.ss" ]]; then
+                  echo "$file does not exist."
+                  all_exist=false
+                  # Uncomment the next line if you want to stop checking after the first missing file
+                  # break
+              fi
+          done
+
+          if $all_exist; then
+              echo "files_exists=true" >> $GITHUB_OUTPUT
+          else
+              echo "files_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: create transcript
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        uses: DamianReeves/write-file-action@v1.3
+        with:
+          path: ${{ runner.temp }}/setup-jit.md
+          write-mode: overwrite
+          contents: |
+            ```ucm
+            .> project.create-empty jit-setup
+            jit-setup/main> pull ${{ env.jit_version }} lib.jit
+            ```
+            ```unison
+            go = generateSchemeBoot "${{ env.jit_src_scheme }}"
+            ```
+            ```ucm
+            jit-setup/main> run go
+            ```
+
+      - name: download ucm artifact
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ env.jit_generator_os }}
+          path: ${{ runner.temp }}
+
+      - name: set ucm permissions
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        run: chmod +x ${{ env.ucm }}
+
+      - name: download scheme-libs
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        uses: actions/checkout@v4
+
+      - name: generate source
+        if: steps.jit_src_exists.outputs.files_exists == 'false'
+        run: |
+          mkdir -p ${{ env.jit_src_scheme }}
+          cp -R scheme-libs/racket/* ${{ env.jit_src_scheme }}
+          ${{ env.ucm }} transcript ${{ runner.temp }}/setup-jit.md
+
+      - name: save jit source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}/**
+          if-no-files-found: error
+
+
+  build-jit-binary:
+    if: always() && needs.generate-jit-source.result == 'success'
+    name: Build JIT binary ${{ matrix.os }}
+    needs: generate-jit-source
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+      matrix:
+        os:
+          # While iterating on this file, you can disable one or more of these to speed things up
+          - ubuntu-20.04
+          - macOS-12
+          - windows-2019
+    steps:
+      - name: set up environment
+        id: checks
+        run: |
+          jit_src_scheme="${{ runner.temp }}/${{ env.jit_src_scheme }}" # scheme source
+          jit_exe="${jit_src_scheme}/unison-runtime" # initially built jit
+          jit_dist="${{ runner.temp }}/${{ env.jit_dist }}" # jit binary with libraries destination
+          jit_dist_exe="${jit_dist}/bin/unison-runtime" # jit binary itself
+          ucm="${{ runner.temp }}/unison"
+
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            jit_src_scheme="${jit_src_scheme//\\//}"
+            jit_dist="${jit_dist//\\//}"
+
+            jit_exe="${jit_exe//\\//}.exe"
+            jit_dist_exe="${jit_dist//\\//}/unison-runtime.exe"
+            ucm="${ucm//\\//}.exe"
+          fi
+
+          echo "jit_src_scheme=$jit_src_scheme" >> $GITHUB_ENV
+          echo "jit_exe=$jit_exe" >> $GITHUB_ENV
+          echo "jit_dist=$jit_dist" >> $GITHUB_ENV
+          echo "jit_dist_exe=$jit_dist_exe" >> $GITHUB_ENV
+          echo "ucm=$ucm" >> $GITHUB_ENV
+
+      - name: restore jit binaries
+        id: restore-jit-binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.jit_dist }}
+          key: jit_dist-${{env.jit-dist-cache-key-version}}.racket_${{ env.racket_version }}.jit_${{ env.jit_version }}
+
+      - name: Cache Racket dependencies
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-8.7
-
-      - uses: Bogdanp/setup-racket@v1.10
-        if: runner.os == 'Linux'
+          key: ${{ runner.os }}-racket-${{env.racket_version}}
+      - uses: Bogdanp/setup-racket@v1.11
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
-          version: '8.7' # match with cache key above
-      - run: raco pkg install --auto --skip-installed --batch x509-lib
-        if: runner.os == 'Linux'
+          version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
+        if: runner.os == 'Linux' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         # read this if a package isn't installing correctly
         # https://github.com/awalsh128/cache-apt-pkgs-action#caveats
-        if: runner.os == 'Linux'
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
-
-      - uses: actions/cache@v3
-        name: cache base.md codebase (unix)
-        if: runner.os == 'Linux'
+      - name: download jit source
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.cache/unisonlanguage/base.unison
-          key: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md','**/unison-cli/src/Unison/JitInfo.hs')}}-${{github.sha}}
-          restore-keys: base.unison_${{hashFiles('**/unison-src/builtin-tests/base.md','**/unison-cli/src/Unison/JitInfo.hs')}}-
+          name: jit-source
+          path: ${{ env.jit_src_scheme }}
 
-      - name: set up `base` codebase
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/setup-base-codebase.sh
+      - uses: actions/checkout@v4 # checkout scheme-libs from unison repo
 
-      - name: jit tests
-        # if: false # temporarily disabled
-        if: runner.os == 'Linux'
+      - name: build jit binary
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        shell: bash
         run: |
-          ./unison-src/builtin-tests/jit-tests.sh
-          cat ./unison-src/builtin-tests/jit-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/jit-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The jit-tests output has changed"
-            exit 1
-          fi
+          cp -R scheme-libs/racket/* "$jit_src_scheme"
+          raco pkg install --auto --skip-installed "$jit_src_scheme"/unison
+          raco exe --embed-dlls "$jit_src_scheme"/unison-runtime.rkt
+          raco distribute "$jit_dist" "$jit_exe"
 
-      - name: interpreter tests
-        # if: false # temporarily disabled
-        if: runner.os == 'Linux'
-        run: |
-          ./unison-src/builtin-tests/interpreter-tests.sh
-          cat ./unison-src/builtin-tests/interpreter-tests.output.md
-          CHANGE=$(git diff unison-src/builtin-tests/interpreter-tests.output.md)
-          if [ -n "$CHANGE" ]; then
-            echo "The interpreter-tests output has changed"
-            exit 1
-          fi
+      - name: save jit binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-binary-${{ matrix.os }}
+          path: ${{ env.jit_dist }}/**
 
-      - name: verify stack ghci startup
-        if: runner.os == 'macOS'
-        run: echo | stack ghci
-      - name: check final stackage cache size
+      - name: download ucm
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{ matrix.os }}
+          path: ${{ runner.temp }}
+
+      - name: set ucm permissions
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        run: chmod +x ${{ env.ucm }}
+
+      - name: get base codebase
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.base-codebase}}
+          key: base.unison-${{env.base-codebase-cache-key-version}}_${{hashFiles('**/unison-src/builtin-tests/base.md', '**/codebase2/codebase-sqlite/U/Codebase/Sqlite/Queries.hs')}}.
+
+      - name: jit integration test ${{ matrix.os }}
+        if: runner.os != 'Windows' && steps.restore-jit-binaries.outputs.cache-hit != 'true'
         run: |
-          echo global .stack
-          stack exec -- stack-clean-old list -G || true
-          echo project .stack-work
-          stack exec -- stack-clean-old list -P || true
+          ${{ env.ucm }} transcript.fork --runtime-path ${{ env.jit_dist_exe }} -c ${{env.base-codebase}} unison-src/builtin-tests/jit-tests.md
+          cat unison-src/builtin-tests/jit-tests.output.md
+          git diff --exit-code unison-src/builtin-tests/jit-tests.output.md
+
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+      #   if: ${{ failure() }}
+      #   timeout-minutes: 15

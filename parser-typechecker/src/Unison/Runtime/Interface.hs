@@ -21,6 +21,7 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
+import Control.Exception (throwIO)
 import Control.Monad
 import Data.Binary.Get (runGetOrFail)
 -- import Data.Bits (shiftL)
@@ -44,10 +45,23 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf, unpack)
+import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
+import GHC.Stack (callStack)
+import System.Directory
+  ( XdgDirectory (XdgCache),
+    createDirectoryIfMissing,
+    getXdgDirectory,
+  )
+import System.Exit (ExitCode (..))
+import System.FilePath ((<.>), (</>))
 import System.Process
-  ( CreateProcess (..),
+  ( CmdSpec (RawCommand, ShellCommand),
+    CreateProcess (..),
     StdStream (..),
+    callProcess,
     proc,
+    readCreateProcessWithExitCode,
+    shell,
     waitForProcess,
     withCreateProcess,
   )
@@ -433,18 +447,19 @@ decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
     dt = decompTm ctx
 
 nativeEval ::
+  FilePath ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
   IO (Either Error ([Error], Term Symbol))
-nativeEval ctxVar cl ppe tm = catchInternalErrors $ do
+nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectDeps cl tm
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
   writeIORef ctxVar ctx
-  nativeEvalInContext ppe ctx (codes ++ tcodes) base
+  nativeEvalInContext executable ppe ctx (codes ++ tcodes) base
 
 interpEval ::
   ActiveThreads ->
@@ -465,19 +480,144 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     evalInContext ppe ctx activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
+ensureExists :: HasCallStack => CreateProcess -> (CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
+ensureExists cmd err =
+  ccall >>= \case
+    Nothing -> pure ()
+    Just failure -> dieP $ err (cmdspec cmd) failure
+  where
+    call =
+      readCreateProcessWithExitCode cmd "" >>= \case
+        (ExitSuccess, _stdout, _stderr) -> pure Nothing
+        (ExitFailure exitCode, stdout, stderr) -> pure (Just (Left (exitCode, stdout, stderr)))
+    ccall = call `UnliftIO.catch` \(e :: IOException) -> pure . Just $ Right e
+
+ensureRuntimeExists :: HasCallStack => FilePath -> IO ()
+ensureRuntimeExists executable =
+  ensureExists cmd runtimeErrMsg
+  where
+    cmd = proc executable ["--help"]
+
+ensureRacoExists :: HasCallStack => IO ()
+ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
+
+prettyCmdSpec :: CmdSpec -> Pretty ColorText
+prettyCmdSpec = \case
+  ShellCommand string -> fromString string
+  System.Process.RawCommand filePath args ->
+    P.sep " " (fromString filePath : Prelude.map fromString args)
+
+prettyCallError :: Either (Int, String, String) IOException -> Pretty ColorText
+prettyCallError = \case
+  Right ex ->
+    P.lines
+      [ P.wrap . fromString $ "The error type was: '" ++ show (ioe_type ex) ++ "', and the message is:",
+        "",
+        P.indentN 2 (fromString (ioe_description ex))
+      ]
+  Left (errCode, stdout, stderr) ->
+    let prettyExitCode = "The exit code was" <> fromString (show errCode)
+     in if null stdout && null stderr
+          then P.wrap $ prettyExitCode <> " but there was no output."
+          else
+            P.lines
+              [ P.wrap $ prettyExitCode <> "and the output was:",
+                "",
+                P.indentN
+                  2
+                  if null stdout
+                    then fromString stderr
+                    else
+                      if null stderr
+                        then fromString stdout
+                        else P.lines $ [fromString stdout, "", "---", "", fromString stderr]
+              ]
+
+-- https://hackage.haskell.org/package/process-1.6.18.0/docs/System-Process.html#t:CreateProcess
+-- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOError
+-- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOErrorType
+runtimeErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
+runtimeErrMsg c error =
+  case error of
+    Right (ioe_type -> NoSuchThing) ->
+      P.lines
+        [ P.wrap "I couldn't find the Unison native runtime. I tried to start it with:",
+          "",
+          P.indentN 2 $ prettyCmdSpec c,
+          "",
+          P.wrap
+            "If that doesn't look right, you can use the `--runtime-path` command line \
+            \argument to specify the correct path for the executable."
+        ]
+    Right (ioe_type -> PermissionDenied) ->
+      P.lines
+        [ P.wrap
+            "I got a 'Permission Denied' error when trying to start the \
+            \Unison native runtime with:",
+          "",
+          P.indentN 2 $ prettyCmdSpec c,
+          "",
+          P.wrap
+            "Please check the permisssions (e.g. check that the directory is accessible, \
+            \and that the program is marked executable).",
+          "",
+          P.wrap
+            "If it looks like I'm calling the wrong executable altogether, you can use the \
+            \`--runtime-path` command line argument to specify the correct one."
+        ]
+    _ ->
+      P.lines
+        [ P.wrap
+            "I got an error when starting the Unison native runtime using:",
+          "",
+          P.indentN 2 (prettyCmdSpec c),
+          "",
+          prettyCallError error
+        ]
+
+racoErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
+racoErrMsg c = \case
+  Right (ioe_type -> e@OtherError) ->
+    P.lines
+      [ P.wrap . fromString $
+          "Sorry, I got an error of type '"
+            ++ show e
+            ++ "' when I ran `raco`, \
+               \and I'm not sure what to do about it.",
+        "",
+        "For debugging purposes, the full command was:",
+        "",
+        P.indentN 2 (prettyCmdSpec c)
+      ]
+  error ->
+    P.lines
+      [ P.wrap
+          "I can't seem to call `raco`. Please ensure Racket \
+          \is installed.",
+        "",
+        prettyCallError error,
+        "",
+        "See",
+        "",
+        P.indentN 2 "https://download.racket-lang.org/",
+        "",
+        "for how to install Racket manually."
+      ]
+
 nativeCompile ::
-  Text ->
+  FilePath ->
   IORef EvalCtx ->
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Reference ->
   FilePath ->
   IO (Maybe Error)
-nativeCompile _version ctxVar cl ppe base path = tryM $ do
+nativeCompile executable ctxVar cl ppe base path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl base
-  (_, codes) <- loadDeps cl ppe ctx tyrs tmrs
-  nativeCompileCodes codes base path
+  (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
+  Just ibase <- pure $ baseToIntermed ctx base
+  nativeCompileCodes executable codes ibase path
 
 interpCompile ::
   Text ->
@@ -647,9 +787,9 @@ backReferenceTm ws frs irs dcm c i = do
   bs <- Map.lookup r dcm
   Map.lookup i bs
 
-schemeProc :: [String] -> CreateProcess
-schemeProc args =
-  (proc "native-compiler/bin/runner" args)
+ucrProc :: FilePath -> [String] -> CreateProcess
+ucrProc executable args =
+  (proc executable args)
     { std_in = CreatePipe,
       std_out = Inherit,
       std_err = Inherit
@@ -667,12 +807,14 @@ schemeProc args =
 -- taken over the input. This could probably be without a side
 -- channel, but a side channel is probably better.
 nativeEvalInContext ::
+  FilePath ->
   PrettyPrintEnv ->
   EvalCtx ->
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   IO (Either Error ([Error], Term Symbol))
-nativeEvalInContext _ ctx codes base = do
+nativeEvalInContext executable _ ctx codes base = do
+  ensureRuntimeExists executable
   let cc = ccache ctx
   crs <- readTVarIO $ combRefs cc
   let bytes = serializeValue . compileValue base $ codes
@@ -696,15 +838,24 @@ nativeEvalInContext _ ctx codes base = do
       -- decodeResult . deserializeValue =<< BS.hGetContents pout
       callout _ _ _ _ =
         pure . Left $ "withCreateProcess didn't provide handles"
-  withCreateProcess (schemeProc []) callout
+      p = ucrProc executable []
+      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
+  withCreateProcess p callout
+    `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
+  FilePath ->
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   FilePath ->
   IO ()
-nativeCompileCodes codes base path = do
+nativeCompileCodes executable codes base path = do
+  ensureRuntimeExists executable
+  ensureRacoExists
+  genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
+  createDirectoryIfMissing True genDir
   let bytes = serializeValue . compileValue base $ codes
+      srcPath = genDir </> path <.> "rkt"
       callout (Just pin) _ _ ph = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
         BS.hPut pin bytes
@@ -712,7 +863,17 @@ nativeCompileCodes codes base path = do
         waitForProcess ph
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
-  withCreateProcess (schemeProc ["-o", path]) callout
+      ucrError (e :: IOException) =
+        throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
+      racoError (e :: IOException) =
+        throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
+      p = ucrProc executable ["-G", srcPath]
+      makeRacoCmd :: (FilePath -> [String] -> a) -> a
+      makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
+  withCreateProcess p callout
+    `UnliftIO.catch` ucrError
+  makeRacoCmd callProcess
+    `UnliftIO.catch` racoError
 
 evalInContext ::
   PrettyPrintEnv ->
@@ -872,7 +1033,11 @@ icon = "💔💥"
 catchInternalErrors ::
   IO (Either Error a) ->
   IO (Either Error a)
-catchInternalErrors sub = sub `UnliftIO.catch` \(CE _ e) -> pure $ Left e
+catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
+  where
+    hCE (CE _ e) = pure $ Left e
+    hRE (PE _ e) = pure $ Left e
+    hRE (BU _ _ _) = pure $ Left "impossible"
 
 decodeStandalone ::
   BL.ByteString ->
@@ -917,14 +1082,14 @@ startRuntime sandboxed runtimeHost version = do
         ioTestTypes = builtinIOTestTypes External
       }
 
-startNativeRuntime :: Text -> IO (Runtime Symbol)
-startNativeRuntime version = do
+startNativeRuntime :: Text -> FilePath -> IO (Runtime Symbol)
+startNativeRuntime _version executable = do
   ctxVar <- newIORef =<< baseContext False
   pure $
     Runtime
       { terminate = pure (),
-        evaluate = nativeEval ctxVar,
-        compileTo = nativeCompile version ctxVar,
+        evaluate = nativeEval executable ctxVar,
+        compileTo = nativeCompile executable ctxVar,
         mainType = builtinMain External,
         ioTestTypes = builtinIOTestTypes External
       }
@@ -934,10 +1099,14 @@ withRuntime sandboxed runtimeHost version action =
   UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
-tryM = fmap (either (Just . extract) (const Nothing)) . try
+tryM =
+  flip UnliftIO.catch hRE
+    . flip UnliftIO.catch hCE
+    . fmap (const Nothing)
   where
-    extract (PE _ e) = e
-    extract (BU _ _ _) = "impossible"
+    hCE (CE _ e) = pure $ Just e
+    hRE (PE _ e) = pure $ Just e
+    hRE (BU _ _ _) = pure $ Just "impossible"
 
 runStandalone :: StoredCache -> Word64 -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =

@@ -47,9 +47,9 @@ typecheckTerm codebase tm = do
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let typecheckingEnv =
         Typechecker.Env
-          { _ambientAbilities = [],
-            _typeLookup = typeLookup,
-            _termsByShortname = Map.empty
+          { ambientAbilities = [],
+            typeLookup,
+            termsByShortname = Map.empty
           }
   pure $ fmap extract $ FileParsers.synthesizeFile typecheckingEnv file
   where

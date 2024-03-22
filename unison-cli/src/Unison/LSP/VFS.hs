@@ -84,7 +84,10 @@ identifierSplitAtPosition uri pos = do
   pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
   where
     isIdentifierChar c =
-      Lexer.wordyIdChar c || Lexer.symbolyIdChar c
+      -- Manually exclude '!' and apostrophe, since those are usually just forces and
+      -- delays, which shouldn't be replaced by auto-complete.
+      (c /= '!' && c /= '\'')
+        && (c == '.' || Lexer.wordyIdChar c || Lexer.symbolyIdChar c)
 
 -- | Returns the prefix of the symbol at the provided location, and the range that prefix
 -- spans.
