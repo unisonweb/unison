@@ -6,10 +6,10 @@ inputs:
     description: The cache prefix to use for `~/.stack`, e.g. "release" or "ci"
     required: true
   work-cache-prefix:
-    description: The cache prefix to use for `**/.stack-work`, defaults to `inputs.cache-prefix`
+    description: The cache prefix to use for `**/.stack-work`, defaults to the same as `cache-prefix`
     required: false
   stack-yaml-dir:
-    description: The directory to search for `stack.yaml` files
+    description: The directory to search for `stack.yaml`
     required: false
     default: '.'
 
