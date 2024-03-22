@@ -35,6 +35,18 @@ data Env = Env {prettyPrintEnv :: PrettyPrintEnv}
 
 type ConstraintMap v loc = U.UFMap (UVar v loc) (Descriptor v loc)
 
+-- | The @SolveState@ holds all kind constraints gathered for each
+-- type. For example, after processing data and effect decls the
+-- @typeMap@ will hold entries for every decl, and looking up the
+-- corresponding @UVar@ in @constraints@ will return its kind.
+--
+-- The other fields, @unifVars@ and @newUnifVars@, are relevant when
+-- interleaving constraint generation with solving. Constraint
+-- generation needs to create fresh unification variables, so it needs
+-- the set of bound unification variables from
+-- @unifVars@. @newUnifVars@ holds the uvars that are candidates for
+-- kind defaulting (see
+-- 'Unison.KindInference.Solve.defaultUnconstrainedVars').
 data SolveState v loc = SolveState
   { unifVars :: !(Set Symbol),
     newUnifVars :: [UVar v loc],
@@ -42,6 +54,7 @@ data SolveState v loc = SolveState
     typeMap :: !(Map (T.Type v loc) (NonEmpty (UVar v loc)))
   }
 
+-- | Constraints associated with a unification variable
 data Descriptor v loc = Descriptor
   { descriptorConstraint :: Maybe (Constraint (UVar v loc) v loc)
   }
@@ -57,6 +70,7 @@ newtype Solve v loc a = Solve {unSolve :: Env -> SolveState v loc -> (a, SolveSt
     )
     via M.ReaderT Env (M.State (SolveState v loc))
 
+-- | Helper for inteleaving constraint generation and solving
 genStateL :: Lens' (SolveState v loc) (Gen.GenState v loc)
 genStateL f st =
   ( \genState ->
@@ -72,6 +86,7 @@ genStateL f st =
           newVars = []
         }
 
+-- | Interleave constraint generation into constraint solving
 runGen :: Var v => Gen v loc a -> Solve v loc a
 runGen gena = do
   st <- M.get
@@ -85,15 +100,20 @@ runGen gena = do
   M.modify \st -> st {newUnifVars = vs ++ newUnifVars st}
   pure cs
 
+-- | Add a unification variable to the constarint mapping with no
+-- constraints. This is done on uvars created during constraint
+-- generation to initialize the new uvars (see 'runGen').
 addUnconstrainedVar :: Var v => UVar v loc -> Solve v loc ()
 addUnconstrainedVar uvar = do
   st@SolveState {constraints} <- M.get
   let constraints' = U.insert uvar Descriptor {descriptorConstraint = Nothing} constraints
   M.put st {constraints = constraints'}
 
+-- | Runner for the @Solve@ monad
 run :: Env -> SolveState v loc -> Solve v loc a -> (a, SolveState v loc)
 run e st action = unSolve action e st
 
+-- | Initial solve state
 emptyState :: SolveState v loc
 emptyState =
   SolveState
@@ -103,6 +123,7 @@ emptyState =
       typeMap = M.empty
     }
 
+-- | Lookup the constraints associated with a unification variable
 find :: Var v => UVar v loc -> Solve v loc (Maybe (Constraint (UVar v loc) v loc))
 find k = do
   st@SolveState {constraints} <- M.get
