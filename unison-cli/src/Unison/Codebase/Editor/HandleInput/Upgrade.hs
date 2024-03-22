@@ -53,7 +53,6 @@ import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnisonFile qualified as UnisonFile
-import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -138,7 +137,7 @@ handleUpgrade oldName newName = do
           abort
           codebase
           (findCtorNames Output.UOUUpgrade currentLocalNames currentLocalConstructorNames)
-          (dependents.terms, dependents.types)
+          dependents
           UnisonFile.emptyUnisonFile
       hashLength <- Codebase.hashLength
       pure

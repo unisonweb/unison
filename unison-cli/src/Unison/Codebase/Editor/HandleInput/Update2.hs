@@ -18,7 +18,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (over, (^.))
+import Control.Lens (over, (.~), (^.))
 import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Foldable qualified as Foldable
@@ -88,7 +88,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF, bimapDefns)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -118,7 +118,7 @@ handleUpdate2 = do
         abort
         codebase
         (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames)
-        (dependents.terms, dependents.types)
+        dependents
         (UF.invalidate $ UF.discardTypes tuf)
     pure (makeComplicatedPPE hashLen namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents, bigUf)
 
@@ -269,7 +269,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
 
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
-getExistingReferencesNamed :: Defns (Set Name) (Set Name) -> Names -> Set Reference
+getExistingReferencesNamed :: DefnsF Set Name Name -> Names -> Set Reference
 getExistingReferencesNamed defns names = fromTerms <> fromTypes
   where
     fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
@@ -279,11 +279,11 @@ makeUnisonFile ::
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
   (Maybe Int -> Name -> Either Output.Output [Name]) ->
-  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
+  DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
   Transaction (UF.UnisonFile' [] Symbol Ann)
-makeUnisonFile abort codebase doFindCtorNames (terms, types) = do
-  file <- foldM addTermComponent UF.emptyUnisonFile (Set.map Reference.idToHash (Relation.ran terms))
-  foldM addDeclComponent file (Set.map Reference.idToHash (Relation.ran types))
+makeUnisonFile abort codebase doFindCtorNames defns = do
+  file <- foldM addTermComponent UF.emptyUnisonFile (Set.map Reference.idToHash (Relation.ran defns.terms))
+  foldM addDeclComponent file (Set.map Reference.idToHash (Relation.ran defns.types))
   where
     addTermComponent :: UF.UnisonFile' [] Symbol Ann -> Hash -> Transaction (UF.UnisonFile' [] Symbol Ann)
     addTermComponent uf h = do
@@ -292,7 +292,7 @@ makeUnisonFile abort codebase doFindCtorNames (terms, types) = do
       where
         addTermElement :: UF.UnisonFile' [] Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UF.UnisonFile' [] Symbol Ann
         addTermElement uf ((tm, tp), i) = do
-          let termNames = Relation.lookupRan (Reference.Id h i) terms
+          let termNames = Relation.lookupRan (Reference.Id h i) defns.terms
           foldl' (addDefinition tm tp) uf termNames
         addDefinition :: Term Symbol Ann -> Type Symbol Ann -> UF.UnisonFile' [] Symbol Ann -> Name -> UF.UnisonFile' [] Symbol Ann
         addDefinition tm tp uf (Name.toVar -> v) =
@@ -313,7 +313,7 @@ makeUnisonFile abort codebase doFindCtorNames (terms, types) = do
         -- for each name a decl has, update its constructor names according to what exists in the namespace
         addDeclElement :: UF.UnisonFile' [] Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UF.UnisonFile' [] Symbol Ann)
         addDeclElement uf (decl, i) = do
-          let declNames = Relation.lookupRan (Reference.Id h i) types
+          let declNames = Relation.lookupRan (Reference.Id h i) defns.types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldM (addRebuiltDefinition decl) uf declNames
           where
@@ -374,7 +374,7 @@ addDefinitionsToUnisonFile ::
   (forall void. Output -> Transaction void) ->
   Codebase IO Symbol Ann ->
   (Maybe Int -> Name -> Either Output.Output [Name]) ->
-  (Relation Name TermReferenceId, Relation Name TypeReferenceId) ->
+  DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
   UF.UnisonFile' [] Symbol Ann ->
   Transaction (UF.UnisonFile' [] Symbol Ann)
 addDefinitionsToUnisonFile abort codebase doFindCtorNames newDefns oldUF = do
@@ -447,7 +447,7 @@ incrementLastSegmentChar (ForwardName segments) =
        in NameSegment incrementedText
 
 -- @getTermAndDeclNames file@ returns the names of the terms and decls defined in a typechecked Unison file.
-getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> Defns (Set Name) (Set Name)
+getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> DefnsF Set Name Name
 getTermAndDeclNames tuf =
   Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
   where
@@ -466,24 +466,19 @@ getTermAndDeclNames tuf =
 
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
+getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf names dependencies = do
   dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
-  let dependentTerms :: Set TermReferenceId
-      dependentTypes :: Set TypeReferenceId
-      (dependentTerms, dependentTypes) =
+  let dependents1 :: DefnsF Set TermReferenceId TypeReferenceId
+      dependents1 =
         Map.foldlWithKey'
-          ( \(terms, types) refId -> \case
-              Reference.RtTerm -> let !terms1 = Set.insert refId terms in (terms1, types)
-              Reference.RtType -> let !types1 = Set.insert refId types in (terms, types1)
+          ( \defns refId -> \case
+              Reference.RtTerm -> let !terms1 = Set.insert refId defns.terms in defns & #terms .~ terms1
+              Reference.RtType -> let !types1 = Set.insert refId defns.types in defns & #types .~ types1
           )
-          (Set.empty, Set.empty)
+          (Defns Set.empty Set.empty)
           dependents
-  pure
-    Defns
-      { terms = foldMap nameTerm dependentTerms,
-        types = foldMap nameType dependentTypes
-      }
+  pure (bimapDefns (foldMap nameTerm) (foldMap nameType) dependents1)
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
     nameTerm ref =
@@ -517,7 +512,7 @@ makeComplicatedPPE ::
   Int ->
   Names ->
   Names ->
-  Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId) ->
+  DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
   PrettyPrintEnvDecl
 makeComplicatedPPE hashLen names initialFileNames dependents =
   PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)

@@ -7,6 +7,7 @@ module Unison.Util.Defns
     bimapDefns,
     bifoldMapDefns,
     bitraverseDefns,
+    defnsAreEmpty,
     mapDefns,
     unzipDefns,
     unzipDefnsWith,
@@ -16,6 +17,7 @@ module Unison.Util.Defns
 where
 
 import Data.Align (Semialign, alignWith)
+import Data.Foldable qualified as Foldable
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These)
 import Unison.Prelude
@@ -47,6 +49,10 @@ bifoldMapDefns f g (Defns terms types) =
 bitraverseDefns :: Applicative f => (tm1 -> f tm2) -> (ty1 -> f ty2) -> Defns tm1 ty1 -> f (Defns tm2 ty2)
 bitraverseDefns f g (Defns terms types) =
   Defns <$> f terms <*> g types
+
+defnsAreEmpty :: (Foldable f, Foldable g) => Defns (f a) (g b) -> Bool
+defnsAreEmpty (Defns terms types) =
+  Foldable.null terms && Foldable.null types
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =
