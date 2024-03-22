@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: unisonweb/actions/stack/cache/restore@main
         with:
+          # take cache from the ci job, read-only
           cache-prefix: ci
 
       - name: install stack
