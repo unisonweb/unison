@@ -28,12 +28,12 @@ jobs:
           ref: ${{inputs.ref}}
 
       - name: restore stack caches
-        uses: unisonweb/actions/stack/cache/restore
+        uses: unisonweb/actions/stack/cache/restore@main
         with:
           cache-prefix: release
 
       - name: install stack
-        uses: unisonweb/actions/stack/install
+        uses: unisonweb/actions/stack/install@main
 
       - name: build
         run: |
@@ -50,7 +50,7 @@ jobs:
           done
 
       - name: save stack caches
-        uses: unisonweb/actions/stack/cache/save
+        uses: unisonweb/actions/stack/cache/save@main
         with:
           cache-prefix: release
 
