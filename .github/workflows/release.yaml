@@ -46,13 +46,16 @@ jobs:
         run: |
           version="${{inputs.version}}"
           target="${{inputs.target}}"
-          prev_tag="$(gh release view --json tagName -t '{{printf .tagName}}')"
+          prev_tag="$( \
+            gh release view \
+              --repo unisonweb/unison \
+              --json tagName -t '{{printf .tagName}}' \
+          )"
           if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
 
           echo "Creating a release from these artifacts:"
           ls -R /tmp/ucm
 
-          gh --version
 
           gh release create "release/${version}" \
             --repo unisonweb/unison \
