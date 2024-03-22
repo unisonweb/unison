@@ -8,6 +8,10 @@ inputs:
   work-cache-prefix:
     description: The cache prefix to use for `**/.stack-work`, defaults to the same as `cache-prefix`
     required: false
+  stack-yaml-dir:
+    description: The directory to search for `stack.yaml`
+    required: false
+    default: '.'
   lookup-only:
     description: If true, only checks if cache entry exists and skips download.
     required: false
@@ -45,8 +49,8 @@ runs:
         # ${{ env.resolver_short }}
         # ${{ env.resolver }}
         run: |
-          grep resolver stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
-          grep resolver stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
+          grep resolver ${{inputs.stack-yaml-dir}}/stack.yaml | awk '{ x="resolver_short="; if (split($2,a,"-") > 2) print x a[1]; else {split($2,b,"."); print x b[1]}}' >> "$GITHUB_ENV"
+          grep resolver ${{inputs.stack-yaml-dir}}/stack.yaml | awk '{print "resolver="$2}' >> "$GITHUB_ENV"
 
       - name: restore ~/.stack (non-Windows)
         uses: actions/cache/restore@v4

@@ -23,6 +23,7 @@ jobs:
         uses: ./.github/workflows/actions/restore-stack-cache
         with:
           cache-prefix: haddocks
+          stack-yaml-dir: unison
 
       - name: install stack
         uses: ./unison/.github/workflows/actions/install-stack
@@ -35,6 +36,7 @@ jobs:
         uses: ./.github/workflows/actions/save-stack-cache
         with:
           cache-prefix: haddocks
+          stack-yaml-dir: unison
 
       # Haddocks
       - name: Checkout haddocks branch
