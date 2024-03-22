@@ -46,20 +46,26 @@
     (with-handlers
         [[exn:fail:filesystem?
            (lambda (e)
-             (exception unison-iofailure:typelink (exception->string e) '()))]]
+             (exception
+               ref-iofailure:typelink
+               (exception->string e)
+               ref-unit-unit))]]
         (right (file-size (chunked-string->string path)))))
 
 (define (getFileTimestamp.impl.v3 path)
     (with-handlers
         [[exn:fail:filesystem?
            (lambda (e)
-             (exception unison-iofailure:typelink (exception->string e) '()))]]
+             (exception
+               ref-iofailure:typelink
+               (exception->string e)
+               ref-unit-unit))]]
         (right (file-or-directory-modify-seconds (chunked-string->string path)))))
 
 ; in haskell, it's not just file but also directory
 (define-unison (fileExists.impl.v3 path)
     (let ([path-string (chunked-string->string path)])
-    (unison-either-right
+    (ref-either-right
         (or
         (file-exists? path-string)
         (directory-exists? path-string)))))
@@ -73,10 +79,10 @@
 
 (define-unison (setCurrentDirectory.impl.v3 path)
     (current-directory (chunked-string->string path))
-    (unison-either-right none))
+    (ref-either-right none))
 
 (define-unison (createTempDirectory.impl.v3 prefix)
-    (unison-either-right
+    (ref-either-right
         (string->chunked-string
             (path->string
                 (make-temporary-directory*
@@ -85,31 +91,31 @@
 
 (define-unison (createDirectory.impl.v3 file)
     (make-directory (chunked-string->string file))
-    (unison-either-right none))
+    (ref-either-right none))
 
 (define-unison (removeDirectory.impl.v3 file)
     (delete-directory/files (chunked-string->string file))
-    (unison-either-right none))
+    (ref-either-right none))
 
 (define-unison (isDirectory.impl.v3 path)
-    (unison-either-right
+    (ref-either-right
         (directory-exists? (chunked-string->string path))))
 
 (define-unison (renameDirectory.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
-    (unison-either-right none))
+    (ref-either-right none))
 
 (define-unison (renameFile.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
-    (unison-either-right none))
+    (ref-either-right none))
 
 (define-unison (systemTime.impl.v3 unit)
-    (unison-either-right (current-seconds)))
+    (ref-either-right (current-seconds)))
 
 (define-unison (systemTimeMicroseconds.impl.v3 unit)
-    (unison-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
+    (ref-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
 
 (define (threadCPUTime.v1)
     (right (current-process-milliseconds (current-thread))))
