@@ -117,13 +117,13 @@ jobs:
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         id: restore-stack-caches
-        uses: ./.github/workflows/actions/restore-stack-cache
+        uses: unisonweb/actions/stack/cache/restore
         with:
           cache-prefix: ci${{env.stack-cache-key-version}}
 
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: ./.github/workflows/actions/install-stack
+        uses: unisonweb/actions/stack/install
 
       # One of the transcripts fails if the user's git name hasn't been set.
       ## (Which transcript? -AI)
@@ -261,7 +261,7 @@ jobs:
           !cancelled()
             && steps.restore-stack-caches.outputs.cache-hit != 'true'
             && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: ./.github/workflows/actions/save-stack-cache
+        uses: unisonweb/actions/stack/cache/save
         with:
           cache-prefix: ci${{env.stack-cache-key-version}}
 
