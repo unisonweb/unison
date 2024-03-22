@@ -29,6 +29,7 @@ library
       Unison.Merge.ThreeWay
       Unison.Merge.TwoOrThreeWay
       Unison.Merge.TwoWay
+      Unison.Merge.TwoWayI
   hs-source-dirs:
       src
   default-extensions:

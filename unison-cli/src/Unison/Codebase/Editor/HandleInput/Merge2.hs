@@ -5,16 +5,13 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (Lens', view, (%~))
+import Control.Lens (Lens', view)
 import Control.Monad.Reader (ask)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
-import Data.Semialign (Semialign, alignWith)
-import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
-import Data.Zip (Zip, zipWith)
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -50,7 +47,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorReference (GConstructorReference (..))
-import Unison.Merge.CombineDiffs (AliceIorBob (..), CombinedDiffsOp (..), combineDiffs)
+import Unison.Merge.CombineDiffs (AliceIorBob (..), combineDiffs, Unconflicts(..), partitionDiff)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp)
@@ -95,6 +92,7 @@ import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import Unison.Merge.TwoWayI (TwoWayI)
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
@@ -140,7 +138,7 @@ handleMerge bobBranchName = do
   -- Create the scratch file
   unisonFile <-
     Cli.runTransactionWithRollback \abort -> do
-      absoluteHonk abort codebase declNames dependents conflicts
+      absoluteHonk abort codebase declNames conflicts dependents
 
   let (newDefns, droppedDefns) = bumpLca defns.lca unconflicts dependents
 
@@ -157,8 +155,6 @@ handleMerge bobBranchName = do
   let ppedNames = mergedNames <> defnsRangeToNames droppedDefns
 
   let pped = PPED.makePPED (PPE.namer ppedNames) (PPE.suffixifyByName ppedNames)
-
-  let prettyUf = Pretty.prettyUnisonFile pped unisonFile
 
   currentPath <- Cli.getCurrentPath
   parsingEnv <- makeParsingEnv currentPath mergedNames
@@ -180,15 +176,15 @@ handleMerge bobBranchName = do
 aliceProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
 aliceProjectAndBranchName mergeInfo =
   ProjectAndBranch
-    { project = view (#project . #name) mergeInfo,
-      branch = view (#projectBranches . #alice . #name) mergeInfo
+    { project = mergeInfo.project.name,
+      branch = mergeInfo.projectBranches.alice.name
     }
 
 bobProjectAndBranchName :: MergeInfo -> ProjectAndBranch ProjectName ProjectBranchName
 bobProjectAndBranchName mergeInfo =
   ProjectAndBranch
-    { project = view (#project . #name) mergeInfo,
-      branch = view (#projectBranches . #bob . #name) mergeInfo
+    { project = mergeInfo.project.name,
+      branch = mergeInfo.projectBranches.bob.name
     }
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -288,15 +284,15 @@ absoluteHonk ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
   TwoWay (Map Name [Name]) ->
-  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference) ->
+  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   Transaction (UnisonFile' [] Symbol Ann)
-absoluteHonk abort codebase declNames dependents conflicts =
-  case Map.null conflicts.terms && Map.null conflicts.types of
-    False -> do
+absoluteHonk abort codebase declNames conflicts dependents
+  | Map.null conflicts.terms && Map.null conflicts.types =
+      makeUnisonFile abort codebase (declNames.alice <> declNames.bob) dependents
+  | otherwise = do
       conflicts1 <- assertConflictsSatisfyPreconditions abort conflicts
       makeUnisonFile2 abort codebase declNames dependents (weewoo conflicts1)
-    True -> makeUnisonFile abort codebase (declNames.alice <> declNames.bob) dependents
 
 bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -492,25 +488,6 @@ textualDescriptionOfMerge mergeInfo =
   let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
    in "merge-" <> bobBranchText
 
--- "Two way inclusive"
-data TwoWayI a = TwoWayI
-  { alice :: !a,
-    bob :: !a,
-    both :: !a
-  }
-  deriving stock (Foldable, Functor, Generic)
-  deriving (Semigroup) via (GenericSemigroupMonoid (TwoWayI a))
-
-instance Semialign TwoWayI where
-  alignWith :: (These a b -> c) -> TwoWayI a -> TwoWayI b -> TwoWayI c
-  alignWith f =
-    zipWith \x y -> f (These x y)
-
-instance Zip TwoWayI where
-  zipWith :: (a -> b -> c) -> TwoWayI a -> TwoWayI b -> TwoWayI c
-  zipWith f (TwoWayI x1 x2 x3) (TwoWayI y1 y2 y3) =
-    TwoWayI (f x1 y1) (f x2 y2) (f x3 y3)
-
 identifyDependentsOfUnconflicts ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF Unconflicts Referent TypeReference ->
@@ -560,57 +537,10 @@ defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> DefnsF (
 defnsRangeOnly =
   bimapDefns BiMultimap.range BiMultimap.range
 
-data PartitionedDiff v = PartitionedDiff
-  { unconflicts :: !(Unconflicts v),
-    conflicts :: !(Map Name (TwoWay v))
-  }
-  deriving stock (Generic)
-
-data Unconflicts v = Unconflicts
-  { adds :: !(TwoWayI (Map Name v)),
-    deletes :: !(TwoWayI (Map Name v)),
-    updates :: !(TwoWayI (Map Name v))
-  }
-  deriving stock (Foldable, Functor, Generic)
-
 -- Names of the given person's deletes and updates.
 namesOfUnconflictedDeletesAndUpdates :: AliceIorBob -> Unconflicts v -> Set Name
 namesOfUnconflictedDeletesAndUpdates who unconflicts =
   Map.keysSet (view (whoL who) unconflicts.deletes) <> Map.keysSet (view (whoL who) unconflicts.updates)
-
-emptyPartitionedDiff :: PartitionedDiff v
-emptyPartitionedDiff =
-  PartitionedDiff
-    { unconflicts =
-        Unconflicts
-          { adds = TwoWayI Map.empty Map.empty Map.empty,
-            deletes = TwoWayI Map.empty Map.empty Map.empty,
-            updates = TwoWayI Map.empty Map.empty Map.empty
-          },
-      conflicts = Map.empty
-    }
-
--- Partition definitions into conflicted and unconflicted.
-partitionDiff ::
-  DefnsF (Map Name) (CombinedDiffsOp Referent) (CombinedDiffsOp TypeReference) ->
-  ( DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference),
-    DefnsF Unconflicts Referent TypeReference
-  )
-partitionDiff =
-  unzipDefnsWith f f
-  where
-    f = (\v -> (v.conflicts, v.unconflicts)) . partition1
-
-    partition1 :: Map Name (CombinedDiffsOp v) -> PartitionedDiff v
-    partition1 =
-      Map.foldlWithKey' (\s k v -> insert k v s) emptyPartitionedDiff
-      where
-        insert :: Name -> CombinedDiffsOp v -> PartitionedDiff v -> PartitionedDiff v
-        insert k = \case
-          Added2 who v -> #unconflicts . #adds . whoL who %~ Map.insert k v
-          Deleted2 who v -> #unconflicts . #deletes . whoL who %~ Map.insert k v
-          Updated2 who v -> #unconflicts . #updates . whoL who %~ Map.insert k v
-          Conflict v -> #conflicts %~ Map.insert k v
 
 whoL :: AliceIorBob -> Lens' (TwoWayI a) a
 whoL = \case
