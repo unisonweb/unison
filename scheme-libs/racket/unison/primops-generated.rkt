@@ -646,25 +646,22 @@
               [fdeps (filter need-dependency? deps)]
               [rdeps (remove* refs fdeps)])
          (cond
-           [(null? fdeps) #f]
+           [(null? fdeps) empty-chunked-list]
            [(null? rdeps)
-            (let ([ndefs (map gen-code udefs)] [sdefs (flatten (map gen-code udefs))]
+            (let ([ndefs (map gen-code udefs)]
+                  [sdefs (flatten (map gen-code udefs))]
                   [mname (or mname0 (generate-module-name tmlinks))])
               (expand-sandbox tmlinks (map-links depss))
               (register-code udefs)
               (add-module-associations tmlinks mname)
               (add-runtime-module mname tylinks tmlinks sdefs)
-              #f)]
+              empty-chunked-list)]
            [else
              (list->chunked-list
                (map reference->termlink rdeps))]))]
-      [else #f])))
+      [else empty-chunked-list])))
 
-(define (unison-POp-CACH dfns0)
-  (let ([result (add-runtime-code #f dfns0)])
-    (if result
-      (sum 1 result)
-      (sum 0 '()))))
+(define (unison-POp-CACH dfns0) (add-runtime-code #f dfns0))
 
 (define (unison-POp-LOAD v0)
   (let* ([val (unison-quote-val v0)]
