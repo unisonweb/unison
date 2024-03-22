@@ -2,6 +2,7 @@
 
 module Unison.Util.Defns
   ( Defns (..),
+    DefnsF,
     alignDefnsWith,
     bimapDefns,
     bifoldMapDefns,
@@ -26,6 +27,10 @@ data Defns terms types = Defns
   }
   deriving stock (Generic, Show)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
+
+-- | A common shape of definitions - terms and types are stored in the same structure.
+type DefnsF f terms types =
+  Defns (f terms) (f types)
 
 alignDefnsWith :: Semialign f => (These a b -> c) -> Defns (f a) (f b) -> f c
 alignDefnsWith f defns =

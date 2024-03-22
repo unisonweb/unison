@@ -18,7 +18,7 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF)
 
 -- | The combined result of two diffs on the same thing.
 data CombinedDiffsOp v
@@ -39,9 +39,10 @@ data AliceXorBob
   = Alice
   | Bob
 
+-- | Combine LCA->Alice diff and LCA->Bob diff into one combined diff structure.
 combineDiffs ::
-  TwoWay (Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference)))) ->
-  Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference))
+  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
+  DefnsF (Map Name) (CombinedDiffsOp Referent) (CombinedDiffsOp TypeReference)
 combineDiffs diffs =
   Defns
     { terms = combineDiffsV (view #terms <$> diffs),

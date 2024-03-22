@@ -26,7 +26,7 @@ import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF)
 
 -- | @nameBasedNamespaceDiff db defns@ returns Alice's and Bob's name-based namespace diffs, each in the form:
 --
@@ -43,9 +43,10 @@ nameBasedNamespaceDiff ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction
     ( TwoWay
-        ( Defns
-            (Map Name (DiffOp (Synhashed Referent)))
-            (Map Name (DiffOp (Synhashed TypeReference)))
+        ( DefnsF
+            (Map Name)
+            (DiffOp (Synhashed Referent))
+            (DiffOp (Synhashed TypeReference))
         )
     )
 nameBasedNamespaceDiff db defns = do
@@ -56,7 +57,7 @@ nameBasedNamespaceDiff db defns = do
   where
     synhashDefns ::
       Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-      Transaction (Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)))
+      Transaction (DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference))
     synhashDefns =
       -- FIXME: use cache so we only synhash each thing once
       synhashDefnsWith (Synhash.hashTerm db.loadV1Term ppe) (Synhash.hashDecl db.loadV1Decl ppe)
@@ -67,9 +68,9 @@ nameBasedNamespaceDiff db defns = do
           (deepNamespaceDefinitionsToPpe defns.alice `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob)
 
 diffNamespaceDefns ::
-  Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)) ->
-  Defns (Map Name (Synhashed Referent)) (Map Name (Synhashed TypeReference)) ->
-  Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference)))
+  DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference) ->
+  DefnsF (Map Name) (Synhashed Referent) (Synhashed TypeReference) ->
+  DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))
 diffNamespaceDefns oldDefns newDefns =
   Defns
     { terms = go oldDefns.terms newDefns.terms,
@@ -111,7 +112,7 @@ synhashDefnsWith ::
   (term -> m Hash) ->
   (typ -> m Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
-  m (Defns (Map Name (Synhashed term)) (Map Name (Synhashed typ)))
+  m (DefnsF (Map Name) (Synhashed term) (Synhashed typ))
 synhashDefnsWith hashTerm hashType defns = do
   terms <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashTerm1 defns.terms
   types <- BiMultimap.range <$> BiMultimap.unsafeTraverseDom hashType1 defns.types

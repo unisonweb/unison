@@ -36,7 +36,6 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update2
 import Unison.Codebase.Editor.HandleInput.Update2
   ( getExistingReferencesNamed,
     getNamespaceDependentsOf,
@@ -44,6 +43,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
   )
+import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update2
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -84,7 +84,7 @@ import Unison.UnisonFile (UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns, unzipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns, unzipDefnsWith)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -288,22 +288,22 @@ absoluteHonk ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
   TwoWay (Map Name [Name]) ->
-  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
-  Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)) ->
+  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
+  DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference) ->
   Transaction (UnisonFile' [] Symbol Ann)
 absoluteHonk abort codebase declNames dependents conflicts =
   case Map.null conflicts.terms && Map.null conflicts.types of
     False -> do
-      conflicts1 <- weewoo <$> assertConflictsSatisfyPreconditions abort conflicts
-      makeUnisonFile2 abort codebase declNames dependents conflicts1
+      conflicts1 <- assertConflictsSatisfyPreconditions abort conflicts
+      makeUnisonFile2 abort codebase declNames dependents (weewoo conflicts1)
     True -> makeUnisonFile abort codebase (declNames.alice <> declNames.bob) dependents
 
 bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
-  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
-  ( Defns (Map Name Referent) (Map Name TypeReference),
-    Dropped (Defns (Map Name Referent) (Map Name TypeReference))
+  DefnsF Unconflicts Referent TypeReference ->
+  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
+  ( DefnsF (Map Name) Referent TypeReference,
+    Dropped (DefnsF (Map Name) Referent TypeReference)
   )
 bumpLca lca unconflicts dependents =
   let -- Compute the adds to apply to the LCA
@@ -326,8 +326,8 @@ bumpLca lca unconflicts dependents =
         & runNamespaceUpdate (defnsRangeOnly lca)
 
 weewoo ::
-  Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)) ->
-  TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
+  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 weewoo =
   bifoldMapDefns
     (Map.foldMapWithKey clonk)
@@ -336,10 +336,10 @@ weewoo =
     clonk ::
       Name ->
       TwoWay Referent.Id ->
-      TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId))
+      TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
     clonk name = fmap f
       where
-        f :: Referent.Id -> Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)
+        f :: Referent.Id -> DefnsF (Relation Name) TermReferenceId TypeReferenceId
         f = \case
           Referent'.Ref' ref -> termsToDefns (Relation.singleton name ref)
           Referent'.Con' (ConstructorReference ref _) _ -> typesToDefns (Relation.singleton name ref)
@@ -365,7 +365,7 @@ runNamespaceUpdate refs (NamespaceUpdate update) =
   update refs
 
 -- Combine separate term and type updates together.
-combineNamespaceUpdates :: Defns (NamespaceUpdate tm) (NamespaceUpdate ty) -> NamespaceUpdate (Defns tm ty)
+combineNamespaceUpdates :: DefnsF NamespaceUpdate tm ty -> NamespaceUpdate (Defns tm ty)
 combineNamespaceUpdates updates =
   NamespaceUpdate \defns ->
     let (newTerms, droppedTerms) = runNamespaceUpdate defns.terms updates.terms
@@ -385,17 +385,17 @@ performDeletes deletions =
 
 defnsAndLibdepsToBranch0 ::
   Codebase IO v a ->
-  Defns (Map Name Referent) (Map Name TypeReference) ->
+  DefnsF (Map Name) Referent TypeReference ->
   Branch0 Transaction ->
   Branch0 IO
 defnsAndLibdepsToBranch0 codebase defns libdeps =
   let -- Unflatten the collection of terms into tree, ditto for types
-      nametrees :: Defns (Nametree (Map NameSegment Referent)) (Nametree (Map NameSegment TypeReference))
+      nametrees :: DefnsF Nametree (Map NameSegment Referent) (Map NameSegment TypeReference)
       nametrees =
         bimapDefns go go defns
 
       -- Align the tree of terms and tree of types into one tree
-      nametree :: Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
+      nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
       nametree =
         nametrees & alignDefnsWith \case
           This x -> Defns x Map.empty
@@ -416,7 +416,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
     go =
       unflattenNametree . BiMultimap.fromRange
 
-nametreeToBranch0 :: forall m. Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)) -> Branch0 m
+nametreeToBranch0 :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
 nametreeToBranch0 nametree =
   Branch.branch0
     (rel2star defns.terms)
@@ -435,7 +435,7 @@ makeUnisonFile ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
   Map Name [Name] ->
-  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
+  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   Transaction (UnisonFile' [] Symbol Ann)
 makeUnisonFile abort codebase declNames defns = do
   let lookupCons k = case Map.lookup k declNames of
@@ -451,8 +451,8 @@ makeUnisonFile2 ::
   (forall x. Output -> Transaction x) ->
   Codebase IO Symbol Ann ->
   TwoWay (Map Name [Name]) ->
-  Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)) ->
-  TwoWay (Defns (Relation Name TermReferenceId) (Relation Name TypeReferenceId)) ->
+  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
+  TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId) ->
   Transaction (UnisonFile' [] Symbol Ann)
 makeUnisonFile2 abort codebase declNames unconflicts conflicts = do
   unconflictedFile <- do
@@ -513,8 +513,8 @@ instance Zip TwoWayI where
 
 identifyDependentsOfUnconflicts ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
-  Transaction (Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)))
+  DefnsF Unconflicts Referent TypeReference ->
+  Transaction (DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId))
 identifyDependentsOfUnconflicts defns unconflicts = do
   let deletesAndUpdates = getSoloDeletesAndUpdates unconflicts
 
@@ -528,7 +528,7 @@ identifyDependentsOfUnconflicts defns unconflicts = do
 
   let getPersonDependents ::
         (forall a. TwoWay a -> a) ->
-        Transaction (Defns (Map Name (Set TermReferenceId)) (Map Name (Set TypeReferenceId)))
+        Transaction (DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId))
       getPersonDependents who =
         bimapDefns Relation.domain Relation.domain <$> getNamespaceDependentsOf (who names) (who dependencies)
 
@@ -538,8 +538,8 @@ identifyDependentsOfUnconflicts defns unconflicts = do
     <*> getPersonDependents (view #bob)
 
 getSoloDeletesAndUpdates ::
-  Defns (Unconflicts Referent) (Unconflicts TypeReference) ->
-  TwoWay (Defns (Set Name) (Set Name))
+  DefnsF Unconflicts Referent TypeReference ->
+  TwoWay (DefnsF Set Name Name)
 getSoloDeletesAndUpdates unconflicts =
   let (alice, bob) =
         unzipDefnsWith
@@ -556,7 +556,7 @@ getSoloDeletesAndUpdates unconflicts =
           unconflicts
    in TwoWay {alice, bob}
 
-defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> Defns (Map name term) (Map name typ)
+defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> DefnsF (Map name) term typ
 defnsRangeOnly =
   bimapDefns BiMultimap.range BiMultimap.range
 
@@ -592,9 +592,9 @@ emptyPartitionedDiff =
 
 -- Partition definitions into conflicted and unconflicted.
 partitionDiff ::
-  Defns (Map Name (CombinedDiffsOp Referent)) (Map Name (CombinedDiffsOp TypeReference)) ->
-  ( (Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference))),
-    (Defns (Unconflicts Referent) (Unconflicts TypeReference))
+  DefnsF (Map Name) (CombinedDiffsOp Referent) (CombinedDiffsOp TypeReference) ->
+  ( DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference),
+    DefnsF Unconflicts Referent TypeReference
   )
 partitionDiff =
   unzipDefnsWith f f
@@ -622,7 +622,7 @@ defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
 defnsToNames =
   defnsRangeToNames . defnsRangeOnly
 
-defnsRangeToNames :: Defns (Map Name Referent) (Map Name TypeReference) -> Names
+defnsRangeToNames :: DefnsF (Map Name) Referent TypeReference -> Names
 defnsRangeToNames Defns {terms, types} =
   Names.Names
     { terms = Relation.fromMap terms,
@@ -676,7 +676,7 @@ loadNamespaceInfo ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   MergeDatabase ->
   V2.Branch Transaction ->
-  Transaction (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
+  Transaction (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
 loadNamespaceInfo abort db branch = do
   defns <- loadNamespaceInfo0 (referent2to1 db) branch
   assertNamespaceHasNoConflictedNames defns & onLeft abort
@@ -687,7 +687,7 @@ loadNamespaceInfo0 ::
   (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))))
+  m (Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)))
 loadNamespaceInfo0 referent2to1 branch = do
   terms <-
     branch.terms
@@ -704,7 +704,7 @@ loadNamespaceInfo0_ ::
   (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))))
+  m (Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)))
 loadNamespaceInfo0_ referent2to1 branch = do
   terms <-
     branch.terms
@@ -719,8 +719,8 @@ loadNamespaceInfo0_ referent2to1 branch = do
 
 -- | Assert that there are no unconflicted names in a namespace.
 assertNamespaceHasNoConflictedNames ::
-  Nametree (Defns (Map NameSegment (Set Referent)) (Map NameSegment (Set TypeReference))) ->
-  Either Merge.PreconditionViolation (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference)))
+  Nametree (DefnsF (Map NameSegment) (Set Referent) (Set TypeReference)) ->
+  Either Merge.PreconditionViolation (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
 assertNamespaceHasNoConflictedNames =
   traverseNametreeWithName \names defns -> do
     terms <-
@@ -760,7 +760,7 @@ assertNamespaceSatisfiesPreconditions ::
   (forall void. Merge.PreconditionViolation -> Transaction void) ->
   ProjectBranchName ->
   V2.Branch Transaction ->
-  (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))) ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup NameSegment.libSegment branch.children `whenJust` \libdepsCausal -> do
@@ -788,8 +788,8 @@ assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
 
 assertConflictsSatisfyPreconditions ::
   (forall void. Output -> Transaction void) ->
-  Defns (Map Name (TwoWay Referent)) (Map Name (TwoWay TypeReference)) ->
-  Transaction (Defns (Map Name (TwoWay Referent.Id)) (Map Name (TwoWay TypeReferenceId)))
+  DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference) ->
+  Transaction (DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId))
 assertConflictsSatisfyPreconditions abort =
   bitraverseDefns
     (Map.traverseWithKey assertTermIsntBuiltin)
@@ -831,7 +831,7 @@ loadLcaDefinitions abort referent2to1 branch = do
 findOneConflictedAlias ::
   TwoWay ProjectBranch ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  TwoWay (Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference)))) ->
+  TwoWay (DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference))) ->
   Maybe Merge.PreconditionViolation
 findOneConflictedAlias projectBranchNames lcaDefns diffs =
   aliceConflictedAliases <|> bobConflictedAliases
@@ -863,7 +863,7 @@ findOneConflictedAlias projectBranchNames lcaDefns diffs =
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Defns (Map Name (DiffOp (Synhashed Referent))) (Map Name (DiffOp (Synhashed TypeReference))) ->
+  DefnsF (Map Name) (DiffOp (Synhashed Referent)) (DiffOp (Synhashed TypeReference)) ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
