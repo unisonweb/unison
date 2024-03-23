@@ -69,7 +69,7 @@ jobs:
 
   package-racket-lib:
     env:
-      os: ubuntu-20.04
+      runner_os: ubuntu-20.04
     needs: build-ucm
     name: package racket lib
     runs-on: ${{env.runner_os}}
