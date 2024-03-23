@@ -131,7 +131,7 @@ jobs:
         os:
           - ubuntu-20.04
           - macos-12
-          # - windows-2019
+          - windows-2019
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
