@@ -191,7 +191,7 @@ jobs:
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
             artifact_os="windows"
-            staging_dir=$"{staging_dir//\\//}"
+            staging_dir="${staging_dir//\\//}"
           elif [[ ${{runner.os}} = 'macOS' ]]; then
             artifact_os="osx"
           elif [[ ${{runner.os}} = 'Linux' ]]; then
