@@ -144,7 +144,6 @@ jobs:
             ~/.local/share/racket
           key: ${{ runner.os }}-racket-${{env.racket_version}}
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: 'x64'
           distribution: 'full'
