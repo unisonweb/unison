@@ -13,14 +13,16 @@ module Unison.Codebase.Editor.HandleInput.Update2
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
     getNamespaceDependentsOf,
+    getNamespaceDependentsOf2,
     makeComplicatedPPE,
     getExistingReferencesNamed,
   )
 where
 
-import Control.Lens (over, (.~), (^.))
+import Control.Lens (over, (.~))
 import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
+import Data.Bifoldable (bifoldMap)
 import Data.Foldable qualified as Foldable
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.NonEmpty.Extra ((|>))
@@ -73,7 +75,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Reference (TypeReferenceId)
+import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -88,12 +90,15 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
@@ -270,10 +275,18 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
 -- | get references from `names` that have the same names as in `defns`
 -- For constructors, we get the type reference.
 getExistingReferencesNamed :: DefnsF Set Name Name -> Names -> Set Reference
-getExistingReferencesNamed defns names = fromTerms <> fromTypes
+getExistingReferencesNamed defns names =
+  bifoldMap fromTerms fromTypes defns
   where
-    fromTerms = foldMap (\n -> Set.map Referent.toReference $ Relation.lookupDom n $ Names.terms names) (defns ^. #terms)
-    fromTypes = foldMap (\n -> Relation.lookupDom n $ Names.types names) (defns ^. #types)
+    fromTerms :: Set Name -> Set Reference
+    fromTerms =
+      foldMap \name ->
+        Set.map Referent.toReference (Relation.lookupDom name (Names.terms names))
+
+    fromTypes :: Set Name -> Set TypeReference
+    fromTypes =
+      foldMap \name ->
+        Relation.lookupDom name (Names.types names)
 
 makeUnisonFile ::
   (forall void. Output -> Transaction void) ->
@@ -466,7 +479,10 @@ getTermAndDeclNames tuf =
 
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf :: Names -> Set Reference -> Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
+getNamespaceDependentsOf ::
+  Names ->
+  Set Reference ->
+  Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf names dependencies = do
   dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
   let dependents1 :: DefnsF Set TermReferenceId TypeReferenceId
@@ -487,6 +503,39 @@ getNamespaceDependentsOf names dependencies = do
     nameType :: TypeReferenceId -> Relation Name TypeReferenceId
     nameType ref =
       Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
+
+-- | A better version of the above that operates on BiMultimaps rather than Relations.
+getNamespaceDependentsOf2 ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Set Reference ->
+  Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+getNamespaceDependentsOf2 defns dependencies = do
+  let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
+  let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
+  let scope = bifoldMap toTermScope toTypeScope defns
+
+  dependents <-
+    Ops.dependentsWithinScope scope dependencies
+
+  let (termDependentRefs, typeDependentRefs) =
+        dependents & Map.partition \case
+          Reference.RtTerm -> True
+          Reference.RtType -> False
+
+  let terms = Map.foldlWithKey' addTerms Map.empty termDependentRefs
+  let types = Map.foldlWithKey' addTypes Map.empty typeDependentRefs
+
+  pure Defns {terms, types}
+  where
+    addTerms :: Map Name TermReferenceId -> TermReferenceId -> ignored -> Map Name TermReferenceId
+    addTerms acc0 ref _ =
+      let names = BiMultimap.lookupDom (Referent.fromTermReferenceId ref) defns.terms
+       in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
+
+    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> ignored -> Map Name TypeReferenceId
+    addTypes acc0 ref _ =
+      let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
+       in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
 -- The big picture behind PPE building, though there are many details:
 --
