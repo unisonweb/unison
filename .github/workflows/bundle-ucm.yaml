@@ -102,24 +102,12 @@ jobs:
         run: |
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
-      - name: Cache Racket dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/racket
-            ~/.local/share/racket
-          key: ${{ runner.os }}-racket-${{env.racket_version}}
       - uses: Bogdanp/setup-racket@v1.11
-        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
         with:
           architecture: 'x64'
           distribution: 'full'
           variant: 'CS'
           version: ${{env.racket_version}}
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: libb2-dev
-          version: 1.0 # cache key version afaik
       - name: create racket lib
         run: |
           raco pkg create scheme-libs/racket/unison
