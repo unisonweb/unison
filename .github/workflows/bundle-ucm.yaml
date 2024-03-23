@@ -68,16 +68,15 @@ jobs:
           path: ${{ env.ucm }}
 
   package-racket-lib:
-    env:
-      runner_os: ubuntu-20.04
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
     needs: build-ucm
     name: package racket lib
-    runs-on: ${{env.runner_os}}
+    runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
-        # echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
-        run: |
-          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+        run: echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - name: download scheme-libs
         uses: actions/checkout@v4
         with:
