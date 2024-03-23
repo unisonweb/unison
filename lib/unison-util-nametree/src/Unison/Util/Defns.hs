@@ -4,9 +4,6 @@ module Unison.Util.Defns
   ( Defns (..),
     DefnsF,
     alignDefnsWith,
-    bimapDefns,
-    bifoldMapDefns,
-    bitraverseDefns,
     defnsAreEmpty,
     mapDefns,
     unzipDefns,
@@ -17,7 +14,8 @@ module Unison.Util.Defns
 where
 
 import Data.Align (Semialign, alignWith)
-import Data.Foldable qualified as Foldable
+import Data.Bifoldable (Bifoldable, bifoldMap, binull)
+import Data.Bitraversable (Bitraversable, bitraverse)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These)
 import Unison.Prelude
@@ -30,6 +28,18 @@ data Defns terms types = Defns
   deriving stock (Generic, Show)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
+instance Bifoldable Defns where
+  bifoldMap f g (Defns x y) =
+    f x <> g y
+
+instance Bifunctor Defns where
+  bimap f g (Defns x y) =
+    Defns (f x) (g y)
+
+instance Bitraversable Defns where
+  bitraverse f g (Defns x y) =
+    Defns <$> f x <*> g y
+
 -- | A common shape of definitions - terms and types are stored in the same structure.
 type DefnsF f terms types =
   Defns (f terms) (f types)
@@ -38,25 +48,13 @@ alignDefnsWith :: Semialign f => (These a b -> c) -> Defns (f a) (f b) -> f c
 alignDefnsWith f defns =
   alignWith f defns.terms defns.types
 
-bimapDefns :: (terms -> terms') -> (types -> types') -> Defns terms types -> Defns terms' types'
-bimapDefns f g (Defns terms types) =
-  Defns (f terms) (g types)
-
-bifoldMapDefns :: Monoid m => (a -> m) -> (b -> m) -> Defns a b -> m
-bifoldMapDefns f g (Defns terms types) =
-  f terms <> g types
-
-bitraverseDefns :: Applicative f => (tm1 -> f tm2) -> (ty1 -> f ty2) -> Defns tm1 ty1 -> f (Defns tm2 ty2)
-bitraverseDefns f g (Defns terms types) =
-  Defns <$> f terms <*> g types
-
 defnsAreEmpty :: (Foldable f, Foldable g) => Defns (f a) (g b) -> Bool
-defnsAreEmpty (Defns terms types) =
-  Foldable.null terms && Foldable.null types
+defnsAreEmpty =
+  binull
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =
-  bimapDefns f f
+  bimap f f
 
 unzipDefns :: Defns (tm1, tm2) (ty1, ty2) -> (Defns tm1 ty1, Defns tm2 ty2)
 unzipDefns =

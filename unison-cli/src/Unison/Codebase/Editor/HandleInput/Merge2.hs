@@ -7,6 +7,8 @@ where
 
 import Control.Lens (Lens', view)
 import Control.Monad.Reader (ask)
+import Data.Bifoldable (bifoldMap)
+import Data.Bitraversable (bitraverse)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -30,7 +32,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
+import Unison.Codebase.Branch.DeclCoherencyCheck (DeclNameLookup (..), IncoherentDeclReason (..), checkDeclCoherency)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
@@ -82,7 +84,7 @@ import Unison.UnisonFile (UnisonFile')
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, bifoldMapDefns, bimapDefns, bitraverseDefns, defnsAreEmpty, unzipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith, defnsAreEmpty, unzipDefnsWith)
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -110,7 +112,7 @@ handleMerge bobBranchName = do
       loadV2Branches =<< loadV2Causals abort db mergeInfo
 
   -- Load alice, bob, and LCA definitions + decl names
-  (declNames, defns) <-
+  (declNameLookup, defns) <-
     Cli.runTransactionWithRollback \abort -> do
       loadDefns abort db mergeInfo branches
 
@@ -127,8 +129,8 @@ handleMerge bobBranchName = do
   let diff = combineDiffs diffs
   conflicts <-
     Cli.runTransactionWithRollback \abort -> do
-      assertConflictsSatisfyPreconditions abort (bimapDefns (view #conflicts) (view #conflicts) diff)
-  let unconflicts = bimapDefns (view #unconflicts) (view #unconflicts) diff
+      assertConflictsSatisfyPreconditions abort (bimap (view #conflicts) (view #conflicts) diff)
+  let unconflicts = bimap (view #unconflicts) (view #unconflicts) diff
 
   -- Identify the dependents we need to pull into the Unison file (either first for typechecking, if there aren't
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
@@ -136,10 +138,12 @@ handleMerge bobBranchName = do
     Cli.runTransaction do
       identifyDependentsOfUnconflicts (ThreeWay.forgetLca defns) unconflicts
 
-  -- Create the Unison file (which may have conflicts)
-  unisonFile <- makeUnisonFile declNames conflicts dependents
+  -- TODO we forgotten the dependents of conflicts :[
 
-  let (newDefns, droppedDefns) = bumpLca defns.lca unconflicts dependents
+  -- Create the Unison file (which may have conflicts)
+  unisonFile <- makeUnisonFile declNameLookup conflicts dependents
+
+  let (newDefns, droppedDefns) = bumpLca defns.lca unconflicts (bimap fold fold dependents)
 
   -- Load and merge Alice's and Bob's libdeps
   libdeps <-
@@ -240,20 +244,20 @@ loadDefns ::
   MergeDatabase ->
   MergeInfo ->
   (TwoOrThreeWay (V2.Branch Transaction)) ->
-  Transaction (TwoWay (Map Name [Name]), ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
+  Transaction (TwoWay DeclNameLookup, ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)))
 loadDefns abort0 db info branches = do
   lcaDefns <-
     case branches.lca of
       Nothing -> pure (Defns BiMultimap.empty BiMultimap.empty)
       Just lcaBranch -> loadLcaDefinitions abort (referent2to1 db) lcaBranch
   aliceDefns0 <- loadNamespaceInfo abort db branches.alice
-  (aliceDeclNames, aliceDefns1) <-
+  (aliceDeclNameLookup, aliceDefns1) <-
     assertNamespaceSatisfiesPreconditions db abort info.projectBranches.alice.name branches.alice aliceDefns0
   bobDefns0 <- loadNamespaceInfo abort db branches.bob
-  (bobDeclNames, bobDefns1) <-
+  (bobDeclNameLookup, bobDefns1) <-
     assertNamespaceSatisfiesPreconditions db abort info.projectBranches.bob.name branches.bob bobDefns0
   pure
-    ( TwoWay {alice = aliceDeclNames, bob = bobDeclNames},
+    ( TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup},
       ThreeWay {lca = lcaDefns, alice = aliceDefns1, bob = bobDefns1}
     )
   where
@@ -285,52 +289,56 @@ loadLibdeps branches = do
 -- Creating Unison files
 
 makeUnisonFile ::
-  TwoWay (Map Name [Name]) ->
+  TwoWay DeclNameLookup ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   Cli (UnisonFile' [] Symbol Ann)
-makeUnisonFile declNames conflicts dependents
-  | defnsAreEmpty conflicts = makeUnconflictedUnisonFile (declNames.alice <> declNames.bob) dependents
-  | otherwise = makeConflictedUnisonFile declNames dependents conflicts
+makeUnisonFile declNameLookup conflicts dependents
+  | defnsAreEmpty conflicts = makeUnconflictedUnisonFile declNameLookup dependents
+  | otherwise = makeConflictedUnisonFile declNameLookup dependents conflicts
 
 makeUnconflictedUnisonFile ::
-  Map Name [Name] ->
+  TwoWay DeclNameLookup ->
   DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   Cli (UnisonFile' [] Symbol Ann)
-makeUnconflictedUnisonFile declNames defns = do
+makeUnconflictedUnisonFile declNameLookup defns = do
   Cli.Env {codebase} <- ask
   Cli.runTransactionWithRollback \abort ->
     Update2.makeUnisonFile
       abort
       codebase
-      (\_ name -> Right (lookupConstructorName declNames name))
-      (bimapDefns Relation.fromMultimap Relation.fromMultimap defns)
+      (\_ name -> Right (lookupConstructorNames declToConstructors name))
+      (bimap Relation.fromMultimap Relation.fromMultimap defns)
+  where
+    declToConstructors =
+      Map.union declNameLookup.alice.declToConstructors declNameLookup.bob.declToConstructors
 
 makeConflictedUnisonFile ::
-  TwoWay (Map Name [Name]) ->
+  TwoWay DeclNameLookup ->
   DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   Cli (UnisonFile' [] Symbol Ann)
-makeConflictedUnisonFile declNames unconflicts conflicts = do
+makeConflictedUnisonFile declNameLookup unconflicts conflicts = do
   Cli.Env {codebase} <- ask
   Cli.runTransactionWithRollback \abort -> do
+    let declToConstructors = Map.union declNameLookup.alice.declToConstructors declNameLookup.bob.declToConstructors
     unconflictedFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorName (Map.union declNames.alice declNames.bob) name))
-        (bimapDefns Relation.fromMultimap Relation.fromMultimap unconflicts)
+        (\_ name -> Right (lookupConstructorNames declToConstructors name))
+        (bimap Relation.fromMultimap Relation.fromMultimap unconflicts)
     aliceFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorName declNames.alice name))
+        (\_ name -> Right (lookupConstructorNames declNameLookup.alice.declToConstructors name))
         conflicts1.alice
     bobFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorName declNames.bob name))
+        (\_ name -> Right (lookupConstructorNames declNameLookup.bob.declToConstructors name))
         conflicts1.bob
     pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
   where
@@ -338,8 +346,8 @@ makeConflictedUnisonFile declNames unconflicts conflicts = do
     conflicts1 =
       identifyConflictedReferences conflicts
 
-lookupConstructorName :: Map Name [Name] -> Name -> [Name]
-lookupConstructorName m x =
+lookupConstructorNames :: Map Name [Name] -> Name -> [Name]
+lookupConstructorNames m x =
   case Map.lookup x m of
     Nothing -> error (reportBug "E077058" ("Expected decl name " <> show x <> " in constructor name map"))
     Just y -> y
@@ -380,7 +388,7 @@ identifyConflictedReferences ::
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 identifyConflictedReferences =
-  bifoldMapDefns
+  bifoldMap
     (Map.foldMapWithKey conflictedTerms)
     (fmap typesToDefns . Map.foldMapWithKey conflictedTypes)
   where
@@ -434,7 +442,7 @@ identifyConflictedReferences =
 bumpLca ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   DefnsF Unconflicts Referent TypeReference ->
-  DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId) ->
+  DefnsF Set TermReferenceId TypeReferenceId ->
   ( DefnsF (Map Name) Referent TypeReference,
     Dropped (DefnsF (Map Name) Referent TypeReference)
   )
@@ -449,14 +457,30 @@ bumpLca lca unconflicts dependents =
     adds :: DefnsF NamespaceUpdate (Map Name Referent) (Map Name TypeReference)
     adds =
       Defns
-        { terms = performAdds (addsAndUpdates unconflicts.terms Map.\\ dependents.terms),
-          types = performAdds (addsAndUpdates unconflicts.types Map.\\ dependents.types)
+        { terms =
+            let termIsNotDependent ref =
+                  case Referent.toId ref of
+                    Nothing -> True
+                    Just (Referent'.Con' (ConstructorReference typeRef _) _) -> Set.notMember typeRef dependents.types
+                    Just (Referent'.Ref' termRef) -> Set.notMember termRef dependents.terms
+             in unconflicts.terms
+                  & addsAndUpdates
+                  & Map.filter termIsNotDependent
+                  & performAdds,
+          types =
+            let typeIsNotDependent = \case
+                  Reference.Builtin _ -> True
+                  Reference.DerivedId ref -> Set.notMember ref dependents.types
+             in unconflicts.types
+                  & addsAndUpdates
+                  & Map.filter typeIsNotDependent
+                  & performAdds
         }
 
     -- Compute the deletes to apply to the LCA
     deletes :: DefnsF NamespaceUpdate (Map Name Referent) (Map Name TypeReference)
     deletes =
-      bimapDefns deletes1 deletes1 unconflicts
+      bimap deletes1 deletes1 unconflicts
       where
         deletes1 :: Unconflicts v -> NamespaceUpdate (Map Name v)
         deletes1 =
@@ -510,7 +534,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
   let -- Unflatten the collection of terms into tree, ditto for types
       nametrees :: DefnsF Nametree (Map NameSegment Referent) (Map NameSegment TypeReference)
       nametrees =
-        bimapDefns go go defns
+        bimap go go defns
 
       -- Align the tree of terms and tree of types into one tree
       nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
@@ -542,8 +566,9 @@ nametreeToBranch0 nametree =
     (Branch.one . nametreeToBranch0 <$> nametree.children)
     Map.empty
   where
+    defns :: Defns (Relation Referent NameSegment) (Relation TypeReference NameSegment)
     defns =
-      bimapDefns (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
+      bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
 
     rel2star :: Relation ref name -> Star2 ref name metadata
     rel2star rel =
@@ -580,7 +605,7 @@ identifyDependentsOfUnconflicts defns unconflicts = do
         (forall a. TwoWay a -> a) ->
         Transaction (DefnsF (Map Name) (Set TermReferenceId) (Set TypeReferenceId))
       getPersonDependents who =
-        bimapDefns Relation.domain Relation.domain <$> getNamespaceDependentsOf (who names) (who dependencies)
+        bimap Relation.domain Relation.domain <$> getNamespaceDependentsOf (who names) (who dependencies)
 
   -- FIXME document why left-biased merge is ok (seems like it is)
   (<>)
@@ -608,7 +633,7 @@ getSoloDeletesAndUpdates unconflicts =
 
 defnsRangeOnly :: Defns (BiMultimap term name) (BiMultimap typ name) -> DefnsF (Map name) term typ
 defnsRangeOnly =
-  bimapDefns BiMultimap.range BiMultimap.range
+  bimap BiMultimap.range BiMultimap.range
 
 -- Names of the given person's deletes and updates.
 namesOfUnconflictedDeletesAndUpdates :: AliceIorBob -> Unconflicts v -> Set Name
@@ -764,17 +789,17 @@ assertNamespaceSatisfiesPreconditions ::
   ProjectBranchName ->
   V2.Branch Transaction ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  Transaction (Map Name [Name], Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  Transaction (DeclNameLookup, Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
 assertNamespaceSatisfiesPreconditions db abort branchName branch defns = do
   Map.lookup NameSegment.libSegment branch.children `whenJust` \libdepsCausal -> do
     libdepsBranch <- libdepsCausal.value
     when (not (Map.null libdepsBranch.terms) || not (Map.null libdepsBranch.types)) do
       abort Merge.DefnsInLib
-  declNames <-
+  declNameLookup <-
     checkDeclCoherency db.loadDeclNumConstructors defns
       & onLeftM (abort . incoherentDeclReasonToMergePreconditionViolation)
   pure
-    ( declNames,
+    ( declNameLookup,
       Defns
         { terms = flattenNametree (view #terms) defns,
           types = flattenNametree (view #types) defns
@@ -794,7 +819,7 @@ assertConflictsSatisfyPreconditions ::
   DefnsF (Map Name) (TwoWay Referent) (TwoWay TypeReference) ->
   Transaction (DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId))
 assertConflictsSatisfyPreconditions abort =
-  bitraverseDefns
+  bitraverse
     (Map.traverseWithKey assertTermIsntBuiltin)
     (Map.traverseWithKey assertTypeIsntBuiltin)
   where

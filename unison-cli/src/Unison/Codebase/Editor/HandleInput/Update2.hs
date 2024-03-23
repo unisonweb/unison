@@ -88,7 +88,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
-import Unison.Util.Defns (Defns (..), DefnsF, bimapDefns)
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -478,7 +478,7 @@ getNamespaceDependentsOf names dependencies = do
           )
           (Defns Set.empty Set.empty)
           dependents
-  pure (bimapDefns (foldMap nameTerm) (foldMap nameType) dependents1)
+  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents1)
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
     nameTerm ref =
