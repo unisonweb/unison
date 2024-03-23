@@ -46,12 +46,17 @@ jobs:
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli
 
+          mkdir ucm-bin
+
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
           # Just keep retrying on these failures.
           tries=5
           for (( i = 0; i < $tries; i++ )); do
-              stack build --flag unison-parser-typechecker:optimized && break;
+              stack build --flag unison-parser-typechecker:optimized \
+                --local-bin-path ucm-bin \
+                --copy-bins \
+                && break;
           done
 
           ucm=$(stack exec which unison)
@@ -61,6 +66,7 @@ jobs:
           fi
           exe=$([ ${{runner.os}} = Windows ] && echo .exe || echo '')
           echo ucm="$ucm$exe" > $GITHUB_ENV
+          ls -l ${{ env.ucm }}
 
       - name: save stack caches
         uses: unisonweb/actions/stack/cache/save@main
@@ -72,6 +78,7 @@ jobs:
         with:
           name: unison-${{matrix.os}}
           path: ${{ env.ucm }}
+          if-no-files-found: error
 
   package-racket-lib:
     strategy:
@@ -115,12 +122,17 @@ jobs:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
       - name: create racket lib
-        run: raco pkg create scheme-libs/racket/unison
+        run: |
+          raco pkg create scheme-libs/racket/unison
+          ls -l scheme-libs/racket/unison.zip{,.CHECKSUM}
       - name: upload racket lib
         uses: actions/upload-artifact@v4
         with:
           name: racket-lib
-          path: scheme-libs/racket/unison.zip{,.CHECKSUM}
+          path: |
+            scheme-libs/racket/unison.zip
+            scheme-libs/racket/unison.zip.CHECKSUM
+          if-no-files-found: error
 
   build-dist-unison-runtime:
     needs: package-racket-lib
@@ -166,11 +178,13 @@ jobs:
           raco exe --embed-dlls--orig-exe scheme-libs/racket/unison-runtime.rkt
           mkdir runtime
           raco distribute runtime scheme-libs/racket/unison-runtime
+          ls -l runtime/
       - name: upload unison-runtime
         uses: actions/upload-artifact@v4
         with:
           name: unison-runtime-${{matrix.os}}
           path: runtime/
+          if-no-files-found: error
 
   bundle:
     name: bundle ucm+jit+ui
@@ -231,10 +245,11 @@ jobs:
             tar -c -z -f ${artifact_archive} -C /tmp/ucm .
           fi
           echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
+          ls -l ${{env.artifact_archive}}
 
       - name: upload artifact
         uses: actions/upload-artifact@v4
         with:
-          if-no-files-found: error
           name: bundle-${{env.artifact_os}}
           path: ${{env.artifact_archive}}
+          if-no-files-found: error
