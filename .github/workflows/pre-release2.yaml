@@ -1,0 +1,45 @@
+name: pre-release
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [ trunk ]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  build-ucm:
+    uses: ./.github/workflows/release/bundle-ucm.yaml
+    with:
+      ref: ${{ github.ref }}
+
+  release:
+    name: create release
+    runs-on: ubuntu-20.04
+    needs:
+      - build-ucm
+
+    steps:
+      - name: make download dir
+        run: mkdir /tmp/ucm
+
+      - name: "download artifacts"
+        uses: actions/download-artifact@v2
+        with:
+          path: /tmp/ucm
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "trunk-build"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            /tmp/ucm/**/*.tar.gz
+            /tmp/ucm/**/*.zip
+            /tmp/ucm/**/*.zip.CHECKSUM

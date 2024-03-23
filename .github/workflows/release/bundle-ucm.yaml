@@ -1,0 +1,235 @@
+name: bundle ucm
+
+# build optimized ucm
+# package racket lib
+# build/dist unison-runtime
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out for this build, e.g. `trunk` or `release/0.5.19`
+        type: string
+        required: true
+
+env:
+  racket_version: "8.7"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-ucm:
+    name: build ucm ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-12, windows-2019]
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{inputs.ref}}
+
+      - name: restore stack caches
+        uses: unisonweb/actions/stack/cache/restore@main
+        with:
+          cache-prefix: release
+
+      - name: install stack
+        uses: unisonweb/actions/stack/install@main
+
+      - name: build
+        run: |
+          # unison-cli embeds version numbers using TH
+          # so it needs to be forced to rebuild to ensure those are updated.
+          stack clean unison-cli
+
+          # Windows will crash on build intermittently because the filesystem
+          # sucks at managing concurrent file access;
+          # Just keep retrying on these failures.
+          tries=5
+          for (( i = 0; i < $tries; i++ )); do
+              stack build --flag unison-parser-typechecker:optimized && break;
+          done
+
+          echo ucm="$(stack exec -- which unison)" > $GITHUB_ENV
+
+      - name: save stack caches
+        uses: unisonweb/actions/stack/cache/save@main
+        with:
+          cache-prefix: release
+
+      - name: upload ucm
+        uses: actions/upload-artifact@v4
+        with:
+          name: unison-${{matrix.os}}
+          path: ${{ env.ucm }}
+
+  package-racket-lib:
+    env:
+      os: ubuntu-20.04
+    needs: build-ucm
+    name: package racket lib
+    runs-on: ${{env.runner_os}}
+    steps:
+      - name: set up environment
+        # echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
+        run: |
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+      - name: download scheme-libs
+        uses: actions/checkout@v4
+        with:
+          ref: ${{inputs.ref}}
+      - name: download ucm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{env.runner_os}}
+          path: ${{ runner.temp }}
+      - name: generate source
+        run: |
+          chmod +x ${{ env.ucm }}
+          ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
+      - name: Cache Racket dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/racket
+            ~/.local/share/racket
+          key: ${{ runner.os }}-racket-${{env.racket_version}}
+      - uses: Bogdanp/setup-racket@v1.11
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          variant: 'CS'
+          version: ${{env.racket_version}}
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libb2-dev
+          version: 1.0 # cache key version afaik
+      - name: create racket lib
+        run: raco pkg create scheme-libs/racket/unison
+      - name: upload racket lib
+        uses: actions/upload-artifact@v4
+        with:
+          name: racket-lib
+          path: scheme-libs/racket/unison.zip{,.CHECKSUM}
+
+  build-dist-unison-runtime:
+    needs: package-racket-lib
+    name: build unison-runtime ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - macos-12
+          # - windows-2019
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{inputs.ref}}
+      - name: Cache Racket dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/racket
+            ~/.local/share/racket
+          key: ${{ runner.os }}-racket-${{env.racket_version}}
+      - uses: Bogdanp/setup-racket@v1.11
+        if: steps.restore-jit-binaries.outputs.cache-hit != 'true'
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          variant: 'CS'
+          version: ${{env.racket_version}}
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libb2-dev
+          version: 1.0 # cache key version afaik
+      - name: download racket lib
+        uses: actions/download-artifact@v4
+        with:
+          name: racket-lib
+          path: .
+      - name: build unison-runtime
+        run: |
+          raco pkg install --auto scheme-libs/racket/unison.zip
+          raco exe --embed-dlls--orig-exe scheme-libs/racket/unison-runtime.rkt
+          mkdir runtime
+          raco distribute runtime scheme-libs/racket/unison-runtime
+      - name: upload unison-runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: unison-runtime-${{matrix.os}}
+          path: runtime/
+
+  bundle:
+    name: bundle ucm+jit+ui ${{matrix.os}}
+    needs: [build-ucm, package-racket-lib, build-dist-unison-runtime]
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-12, windows-2019]
+    steps:
+      - name: set up environment
+        run: |
+          staging_dir="${{runner.temp}}/ucm-staging"
+
+          if [[ ${{runner.os}} = 'Windows' ]]; then
+            artifact_os="windows"
+            staging_dir=$"{staging_dir//\\//}"
+          elif [[ ${{runner.os}} = 'macOS' ]]; then
+            artifact_os="osx"
+          elif [[ ${{runner.os}} = 'Linux' ]]; then
+            artifact_os="linux"
+          else
+            echo "Unexpected OS: ${{runner.os}}"
+            exit 1
+          fi
+
+          echo "staging_dir=$staging_dir" >> $GITHUB_ENV
+          echo "artifact_os=$artifact_os" >> $GITHUB_ENV
+      - name: make staging dir
+        run: mkdir -p ${{env.staging_dir}}/{racket,ui}
+      - name: download ucm
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-${{matrix.os}}
+          path: ${{env.staging_dir}}/ucm
+      - name: download racket lib
+        uses: actions/download-artifact@v4
+        with:
+          name: racket-lib
+          path: ${{env.staging_dir}}/racket/
+      - name: download unison-runtime
+        uses: actions/download-artifact@v4
+        with:
+          name: unison-runtime-${{matrix.os}}
+          path: ${{env.staging_dir}}/
+      - name: fetch latest Unison Local UI and package with ucm
+        run: |
+          ls -l `find ${{env.staging_dir}}`
+          curl -L -o /tmp/unisonLocal.zip \
+            https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
+          unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
+
+          if [[ ${{runner.os}} = 'Windows' ]]; then
+            artifact_archive=ucm-${{env.artifact_os}}.zip
+            7z a -r -tzip ${artifact_archive} /tmp/ucm/*
+          else
+            artifact_archive=ucm-${{env.artifact_os}}.tar.gz
+            tar -c -z -f ${artifact_archive} -C /tmp/ucm .
+          fi
+          echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: bundle-${{env.artifact_os}}
+          path: ${{env.artifact_archive}}

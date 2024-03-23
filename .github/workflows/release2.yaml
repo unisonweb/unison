@@ -1,0 +1,66 @@
+name: "release v2"
+
+run-name: "release v2 ${{inputs.version}}"
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version; e.g. `0.5.19`. We'll create tag `release/${version}`.
+        required: true
+        type: string
+      target:
+        description: Git ref to use for this release; defaults to `trunk`.
+        required: true
+        default: trunk
+        type: string
+
+jobs:
+  build-ucm:
+    uses: ./.github/workflows/release/bundle-ucm.yaml
+    with:
+      ref: release/${{inputs.version}}
+
+  release:
+    name: create release
+    runs-on: ubuntu-20.04
+    needs:
+      - build-ucm
+
+    steps:
+      - name: make download dir
+        run: mkdir /tmp/ucm
+
+      - name: "download artifacts"
+        uses: actions/download-artifact@v2
+        with:
+          path: /tmp/ucm
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{inputs.version}}"
+          target="${{inputs.target}}"
+          prev_tag="$( \
+            gh release view \
+              --repo unisonweb/unison \
+              --json tagName -t '{{printf .tagName}}' \
+          )"
+          if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
+
+          echo "Creating a release from these artifacts:"
+          ls -R /tmp/ucm/**/*.{zip,tar.gz,zip.CHECKSUM}
+
+
+          gh release create "release/${version}" \
+            --repo unisonweb/unison \
+            --target "${target}" \
+            --generate-notes \
+            --notes-start-tag "${prev_tag}" \
+            \
+            /tmp/ucm/**/*.{zip,tar.gz,zip.CHECKSUM}
