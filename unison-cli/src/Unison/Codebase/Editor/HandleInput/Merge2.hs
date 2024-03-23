@@ -115,7 +115,7 @@ handleMerge bobBranchName = do
       loadV2Branches =<< loadV2Causals abort db mergeInfo
 
   -- Load alice, bob, and LCA definitions + decl names
-  (declNameLookup, defns) <-
+  (declNameLookups, defns) <-
     Cli.runTransactionWithRollback \abort -> do
       loadDefns abort db mergeInfo branches
 
@@ -139,16 +139,10 @@ handleMerge bobBranchName = do
   -- conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   dependents <-
     Cli.runTransaction do
-      identifyDependentsOfUnconflicts (ThreeWay.forgetLca defns) unconflicts
-
-  dependents1 <-
-    Cli.runTransaction do
       identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
 
-  -- TODO we forgotten the dependents of conflicts :[
-
   -- Create the Unison file (which may have conflicts)
-  unisonFile <- makeUnisonFile declNameLookup conflicts dependents
+  unisonFile <- makeUnisonFile declNameLookups conflicts dependents
 
   let (newDefns, droppedDefns) =
         bumpLca defns.lca unconflicts (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents)
@@ -301,63 +295,65 @@ makeUnisonFile ::
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   Cli (UnisonFile' [] Symbol Ann)
-makeUnisonFile declNameLookup conflicts dependents
-  | defnsAreEmpty conflicts = makeUnconflictedUnisonFile declNameLookup dependents
-  | otherwise = makeConflictedUnisonFile declNameLookup conflicts dependents
+makeUnisonFile declNameLookups conflicts dependents
+  | defnsAreEmpty conflicts = makeUnconflictedUnisonFile declNameLookups dependents
+  | otherwise = makeConflictedUnisonFile declNameLookups conflicts dependents
 
 makeUnconflictedUnisonFile ::
   TwoWay DeclNameLookup ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   Cli (UnisonFile' [] Symbol Ann)
-makeUnconflictedUnisonFile declNameLookup defns = do
+makeUnconflictedUnisonFile declNameLookups dependents = do
   Cli.Env {codebase} <- ask
   Cli.runTransactionWithRollback \abort ->
     Update2.makeUnisonFile
       abort
       codebase
-      (\_ name -> Right (lookupConstructorNames declToConstructors name))
-      (bimap Relation.fromMap Relation.fromMap defns)
-  where
-    declToConstructors =
-      Map.union declNameLookup.alice.declToConstructors declNameLookup.bob.declToConstructors
+      (\_ name -> Right (expectConstructorNames (declNameLookups.alice <> declNameLookups.bob) name))
+      (bimap Relation.fromMap Relation.fromMap dependents)
 
 makeConflictedUnisonFile ::
   TwoWay DeclNameLookup ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   Cli (UnisonFile' [] Symbol Ann)
-makeConflictedUnisonFile declNameLookup conflicts dependents = do
+makeConflictedUnisonFile declNameLookups conflicts dependents = do
   Cli.Env {codebase} <- ask
   Cli.runTransactionWithRollback \abort -> do
-    let declToConstructors = Map.union declNameLookup.alice.declToConstructors declNameLookup.bob.declToConstructors
     unconflictedFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorNames declToConstructors name))
+        (\_ name -> Right (expectConstructorNames (declNameLookups.alice <> declNameLookups.bob) name))
         (bimap Relation.fromMap Relation.fromMap dependents)
     aliceFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorNames declNameLookup.alice.declToConstructors name))
+        (\_ name -> Right (expectConstructorNames declNameLookups.alice name))
         conflicts1.alice
     bobFile <-
       Update2.makeUnisonFile
         abort
         codebase
-        (\_ name -> Right (lookupConstructorNames declNameLookup.bob.declToConstructors name))
+        (\_ name -> Right (expectConstructorNames declNameLookups.bob name))
         conflicts1.bob
     pure (foldr UnisonFile.semigroupMerge UnisonFile.emptyUnisonFile [unconflictedFile, aliceFile, bobFile])
   where
     conflicts1 :: TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
     conflicts1 =
-      identifyConflictedReferences conflicts
+      identifyConflictedReferences declNameLookups conflicts
 
-lookupConstructorNames :: Map Name [Name] -> Name -> [Name]
-lookupConstructorNames m x =
-  case Map.lookup x m of
-    Nothing -> error (reportBug "E077058" ("Expected decl name " <> show x <> " in constructor name map"))
+expectDeclName :: DeclNameLookup -> Name -> Name
+expectDeclName m x =
+  case Map.lookup x m.constructorToDecl of
+    Nothing -> error (reportBug "E246726" ("Expected constructor name key " <> show x <> " in decl name lookup"))
+    Just y -> y
+
+expectConstructorNames :: DeclNameLookup -> Name -> [Name]
+expectConstructorNames m x =
+  case Map.lookup x m.declToConstructors of
+    Nothing -> error (reportBug "E077058" ("Expected decl name key " <> show x <> " in decl name lookup"))
     Just y -> y
 
 -- As input, we have a conflicted namespace laid out like
@@ -393,9 +389,10 @@ lookupConstructorNames m x =
 -- Note that the conflicted constructor Bar.Baz has "jumped" from the terms half to the types half (because, again, we
 -- want to go off and fetch the type decls #BarAlice and #BarBob given that one of their constructors is conflicted).
 identifyConflictedReferences ::
+  TwoWay DeclNameLookup ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-identifyConflictedReferences =
+identifyConflictedReferences declNameLookups =
   bifoldMap
     (Map.foldMapWithKey conflictedTerms)
     (fmap typesToDefns . Map.foldMapWithKey conflictedTypes)
@@ -404,12 +401,13 @@ identifyConflictedReferences =
       Name ->
       TwoWay Referent.Id ->
       TwoWay (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-    conflictedTerms name = fmap f
+    conflictedTerms name refs = f <$> declNameLookups <*> refs
       where
-        f :: Referent.Id -> DefnsF (Relation Name) TermReferenceId TypeReferenceId
-        f = \case
+        f :: DeclNameLookup -> Referent.Id -> DefnsF (Relation Name) TermReferenceId TypeReferenceId
+        f declNameLookup = \case
           Referent'.Ref' ref -> termsToDefns (Relation.singleton name ref)
-          Referent'.Con' (ConstructorReference ref _) _ -> typesToDefns (Relation.singleton name ref)
+          Referent'.Con' (ConstructorReference ref _) _ ->
+            typesToDefns (Relation.singleton (expectDeclName declNameLookup name) ref)
 
     conflictedTypes :: Name -> TwoWay TypeReferenceId -> TwoWay (Relation Name TypeReferenceId)
     conflictedTypes name =
@@ -594,49 +592,22 @@ textualDescriptionOfMerge mergeInfo =
   let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
    in "merge-" <> bobBranchText
 
-identifyDependentsOfUnconflicts ::
-  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  DefnsF Unconflicts Referent TypeReference ->
-  Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-identifyDependentsOfUnconflicts defns unconflicts = do
-  let deletesAndUpdates = getSoloDeletesAndUpdates unconflicts
-
-  let dependencies =
-        TwoWay
-          { alice = defnsReferences (restrictDefnsToNames deletesAndUpdates.bob defns.alice),
-            bob = defnsReferences (restrictDefnsToNames deletesAndUpdates.alice defns.bob)
-          }
-
-  let getPersonDependents ::
-        (forall a. TwoWay a -> a) ->
-        Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-      getPersonDependents who =
-        getNamespaceDependentsOf2 (who defns) (who dependencies)
-
-  -- FIXME document why left-biased merge is ok (seems like it is)
-  (<>)
-    <$> getPersonDependents (view #alice)
-    <*> getPersonDependents (view #bob)
-
--- FIXME a few outstanding things to address...
---   1. Doesn't seem correct to merge dependents of unconflicted updates...
---        If foo calls bar, and Alice updates foo, and Bob updates bar, we definitely want
---        Alice's foo in the scratch file, not Bob's!
---   2. We also need to put dependents of conflicts in the scratch file.
-
 identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
   DefnsF Unconflicts Referent TypeReference ->
-  Transaction (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
+  Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
 identifyDependents defns conflicts unconflicts = do
   let dependencies :: TwoWay (Set Reference)
       dependencies =
         identifyDependendenciesDueToUnconflicts defns unconflicts
-          <> identifyDependenciesDueToConflicts defns conflicts
+          <> identifyDependenciesDueToConflicts conflicts
 
-  for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
-    getNamespaceDependentsOf2 defns1 dependencies1
+  dependents <-
+    for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
+      getNamespaceDependentsOf2 defns1 dependencies1
+
+  pure (mergeUnconflictedDependents conflicts unconflicts dependents)
 
 -- One source of dependencies: Alice's dependents of Bob's unconflicted deletes and updates, and vice-versa.
 --
@@ -651,31 +622,16 @@ identifyDependendenciesDueToUnconflicts defns unconflicts =
    in defnsReferences <$> (restrictDefnsToNames <$> TwoWay.swap deletesAndUpdates <*> defns)
 
 -- The other source of dependencies: Alice's dependents of her own conflicted things, and ditto for Bob.
-identifyDependenciesDueToConflicts ::
-  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
-  TwoWay (Set Reference)
-identifyDependenciesDueToConflicts defns conflicts =
-  let conflicts1 :: TwoWay (DefnsF (Map Name) Referent.Id TypeReferenceId)
-      conflicts1 =
-        bitraverse TwoWay.unzipMap TwoWay.unzipMap conflicts
-   in bifoldMap f g <$> conflicts1
+identifyDependenciesDueToConflicts :: DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) -> TwoWay (Set Reference)
+identifyDependenciesDueToConflicts =
+  fmap (bifoldMap (f (Reference.DerivedId . Referent'.toReference')) (f Reference.DerivedId))
+    . bitraverse TwoWay.unzipMap TwoWay.unzipMap
   where
-    f :: Map Name Referent.Id -> Set Reference
-    f =
+    f g =
       List.foldl' insert Set.empty . Map.elems
       where
-        insert :: Set Reference -> Referent.Id -> Set Reference
         insert acc ref =
-          Set.insert (Reference.DerivedId (Referent'.toReference' ref)) acc
-
-    g :: Map Name TypeReferenceId -> Set Reference
-    g =
-      List.foldl' insert Set.empty . Map.elems
-      where
-        insert :: Set Reference -> TypeReferenceId -> Set Reference
-        insert acc refs =
-          Set.insert (Reference.DerivedId refs) acc
+          Set.insert (g ref) acc
 
 -- Alice and Bob each separately have dependents that they would like to get into the scratch file. These dependents
 -- come from two sources (see "due to unconflicts" and "due to conflicts" above):

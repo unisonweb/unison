@@ -99,6 +99,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -151,6 +152,8 @@ data DeclNameLookup = DeclNameLookup
   { constructorToDecl :: !(Map Name Name),
     declToConstructors :: !(Map Name [Name])
   }
+  deriving stock (Generic)
+  deriving (Semigroup) via (GenericSemigroupMonoid DeclNameLookup)
 
 checkDeclCoherency ::
   (TypeReferenceId -> Transaction Int) ->
