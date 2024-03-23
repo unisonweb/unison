@@ -84,7 +84,7 @@ jobs:
       - name: download ucm artifact
         uses: actions/download-artifact@v4
         with:
-          name: unison-${{env.runner_os}}
+          name: unison-${{matrix.os}}
           path: ${{ runner.temp }}
       - name: generate source
         run: |
