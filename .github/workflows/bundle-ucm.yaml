@@ -210,7 +210,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: unison-${{matrix.os}}
-          path: ${{env.staging_dir}}/ucm
+          path: ${{env.staging_dir}}/
       - name: download racket lib
         uses: actions/download-artifact@v4
         with:
@@ -221,7 +221,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: unison-runtime-${{matrix.os}}
-          path: ${{env.staging_dir}}/
+          path: ${{env.staging_dir}}/runtime
       - name: fetch latest Unison Local UI and package with ucm
         run: |
           ls -l `find ${{env.staging_dir}}`
