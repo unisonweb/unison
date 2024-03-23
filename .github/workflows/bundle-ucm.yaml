@@ -59,14 +59,13 @@ jobs:
                 && break;
           done
 
-          ucm=$(stack exec which unison)
-          ls -l $ucm
           if [[ ${{runner.os}} = 'Windows' ]]; then
-            dir $ucm
+            ucm=$(stack exec where unison)
+          else
+            ucm=$(stack exec which unison)
           fi
-          exe=$([ ${{runner.os}} = Windows ] && echo .exe || echo '')
-          echo ucm="$ucm$exe" > $GITHUB_ENV
-          ls -l $ucm$exe
+          echo ucm="$ucm" > $GITHUB_ENV
+          ls -l $ucm
 
       - name: save stack caches
         uses: unisonweb/actions/stack/cache/save@main
