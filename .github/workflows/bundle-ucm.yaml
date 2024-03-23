@@ -211,7 +211,6 @@ jobs:
           name: racket-lib
           path: ${{env.staging_dir}}/racket/
       - name: download unison-runtime
-        if: runner.os != 'Windows'
         uses: actions/download-artifact@v4
         with:
           name: unison-runtime-${{matrix.os}}
