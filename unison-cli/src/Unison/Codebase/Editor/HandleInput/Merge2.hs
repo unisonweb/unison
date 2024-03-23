@@ -9,8 +9,10 @@ import Control.Lens (Lens', view)
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
+import Data.Semialign (unzipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -60,6 +62,7 @@ import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.TwoWayI (TwoWayI)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -595,8 +598,8 @@ identifyDependentsOfUnconflicts defns unconflicts = do
 
   let dependencies =
         TwoWay
-          { alice = honk (restrictDefnsToNames deletesAndUpdates.bob defns.alice),
-            bob = honk (restrictDefnsToNames deletesAndUpdates.alice defns.bob)
+          { alice = defnsReferences (restrictDefnsToNames deletesAndUpdates.bob defns.alice),
+            bob = defnsReferences (restrictDefnsToNames deletesAndUpdates.alice defns.bob)
           }
 
   let getPersonDependents ::
@@ -610,6 +613,66 @@ identifyDependentsOfUnconflicts defns unconflicts = do
     <$> getPersonDependents (view #alice)
     <*> getPersonDependents (view #bob)
 
+-- FIXME a few outstanding things to address...
+--   1. Doesn't seem correct to merge dependents of unconflicted updates...
+--        If foo calls bar, and Alice updates foo, and Bob updates bar, we definitely want
+--        Alice's foo in the scratch file, not Bob's!
+--   2. We also need to put dependents of conflicts in the scratch file.
+--   3. The branch we put the user on after a failed merge should be 1 causal step past the branch they came from.
+
+identifyDependents ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  DefnsF Unconflicts Referent TypeReference ->
+  Transaction (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
+identifyDependents defns conflicts unconflicts = do
+  let dependencies :: TwoWay (Set Reference)
+      dependencies =
+        identifyDependendenciesDueToUnconflicts defns unconflicts
+          <> identifyDependenciesDueToConflicts defns conflicts
+
+  for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
+    getNamespaceDependentsOf2 defns1 dependencies1
+
+-- One source of dependencies: Alice's dependents of Bob's unconflicted deletes and updates, and vice-versa.
+--
+-- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if anything),
+-- no matter what its hash is.
+identifyDependendenciesDueToUnconflicts ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  DefnsF Unconflicts Referent TypeReference ->
+  TwoWay (Set Reference)
+identifyDependendenciesDueToUnconflicts defns unconflicts =
+  let deletesAndUpdates = getSoloDeletesAndUpdates unconflicts
+   in defnsReferences <$> (restrictDefnsToNames <$> TwoWay.swap deletesAndUpdates <*> defns)
+
+-- The other source of dependencies: Alice's dependents of her own conflicted things, and ditto for Bob.
+identifyDependenciesDueToConflicts ::
+  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  TwoWay (Set Reference)
+identifyDependenciesDueToConflicts defns conflicts =
+  let conflicts1 :: TwoWay (DefnsF (Map Name) Referent.Id TypeReferenceId)
+      conflicts1 =
+        bitraverse TwoWay.unzipMap TwoWay.unzipMap conflicts
+   in bifoldMap f g <$> conflicts1
+  where
+    f :: Map Name Referent.Id -> Set Reference
+    f =
+      List.foldl' insert Set.empty . Map.elems
+      where
+        insert :: Set Reference -> Referent.Id -> Set Reference
+        insert acc ref =
+          Set.insert (Reference.DerivedId (Referent'.toReference' ref)) acc
+
+    g :: Map Name TypeReferenceId -> Set Reference
+    g =
+      List.foldl' insert Set.empty . Map.elems
+      where
+        insert :: Set Reference -> TypeReferenceId -> Set Reference
+        insert acc refs =
+          Set.insert (Reference.DerivedId refs) acc
+
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -617,10 +680,8 @@ restrictDefnsToNames ::
 restrictDefnsToNames =
   zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
 
-honk ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Set Reference
-honk =
+defnsReferences :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Set Reference
+defnsReferences =
   bifoldMap (Set.map Referent.toReference . BiMultimap.dom) BiMultimap.dom
 
 getSoloDeletesAndUpdates ::
