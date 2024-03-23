@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-ucm:
-    uses: ./.github/workflows/build-optimized-ucm.yaml
+    uses: ./.github/workflows/release/build-optimized-ucm.yaml
     with:
       ref: release/${{inputs.version}}
 

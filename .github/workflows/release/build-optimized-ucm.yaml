@@ -48,7 +48,7 @@ jobs:
           # Just keep retrying on these failures.
           tries=5
           for (( i = 0; i < $tries; i++ )); do
-              stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
+              stack build --flag unison-parser-typechecker:optimized && break;
           done
 
       - name: save stack caches
