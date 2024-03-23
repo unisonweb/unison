@@ -42,11 +42,18 @@ jobs:
       - name: Checkout haddocks branch
         uses: actions/checkout@v4
         with:
-          ref: 'haddocks'
-          path: 'haddocks'
+          ref: haddocks
+          path: haddocks
+
+      # Needed for `git commit` below
+      - name: set git user info
+        working-directory: unison
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
       - name: Copy haddocks
-        working-directory: 'unison'
+        working-directory: unison
         run: |
           docs_root="$(stack path --local-doc-root)"
           # Erase any stale files
