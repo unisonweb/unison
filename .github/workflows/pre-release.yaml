@@ -41,6 +41,5 @@ jobs:
           prerelease: true
           title: Development Build
           files: |
-            /tmp/ucm/**/*.tar.gz
-            /tmp/ucm/**/*.zip
-            /tmp/ucm/**/*.zip.CHECKSUM
+            /tmp/ucm/**/ucm-*.tar.gz
+            /tmp/ucm/**/ucm-*.zip

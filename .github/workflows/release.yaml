@@ -47,7 +47,7 @@ jobs:
           if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
 
           echo "Creating a release from these artifacts:"
-          ls -R /tmp/ucm/**/ucm-*.{zip,tar.gz,zip.CHECKSUM}
+          ls -R /tmp/ucm/**/ucm-*.{zip,tar.gz}
 
           gh release create "release/${{inputs.version}}" \
             --repo unisonweb/unison \
@@ -55,4 +55,4 @@ jobs:
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
             \
-            /tmp/ucm/**/ucm-*.{zip,tar.gz,zip.CHECKSUM}
+            /tmp/ucm/**/ucm-*.{zip,tar.gz}
