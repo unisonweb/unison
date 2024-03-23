@@ -200,6 +200,8 @@ jobs:
         with:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/
+      - name: rename unison -> ucm
+        run: mv ${{env.staging_dir}}/unison ${{env.staging_dir}}/ucm
       - name: download racket lib
         uses: actions/download-artifact@v4
         with:
