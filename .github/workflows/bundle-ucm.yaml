@@ -136,13 +136,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{inputs.ref}}
+      - name: download racket lib
+        uses: actions/download-artifact@v4
+        with:
+          name: racket-lib
+          path: .
       - name: Cache Racket dependencies
+        id: cache-racket-deps
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-${{env.racket_version}}
+          key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip'))}}
       - uses: Bogdanp/setup-racket@v1.11
         with:
           architecture: 'x64'
@@ -153,15 +159,12 @@ jobs:
         with:
           packages: libb2-dev
           version: 1.0 # cache key version afaik
-      - name: download racket lib
-        uses: actions/download-artifact@v4
-        with:
-          name: racket-lib
-          path: .
+      - name: install unison racket lib
+        if: steps.cache-racket-deps.outputs.cache-hit != 'true'
+        run: raco pkg install --auto scheme-libs/racket/unison.zip
       - name: build unison-runtime
         run: |
-          raco pkg install --auto scheme-libs/racket/unison.zip
-          raco exe --embed-dlls--orig-exe scheme-libs/racket/unison-runtime.rkt
+          raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
           mkdir runtime
           raco distribute runtime scheme-libs/racket/unison-runtime
           ls -l runtime/
