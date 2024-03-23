@@ -12,9 +12,9 @@ import Prelude hiding (zipWith)
 
 -- | "Two-way inclusive".
 data TwoWayI a = TwoWayI
-  { alice :: !a,
-    bob :: !a,
-    both :: !a
+  { alice :: a,
+    bob :: a,
+    both :: a
   }
   deriving stock (Foldable, Functor, Generic)
   deriving (Semigroup) via (GenericSemigroupMonoid (TwoWayI a))

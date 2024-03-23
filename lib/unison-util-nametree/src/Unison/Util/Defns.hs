@@ -22,8 +22,8 @@ import Unison.Prelude
 
 -- | Definitions (terms and types) in a namespace.
 data Defns terms types = Defns
-  { terms :: !terms,
-    types :: !types
+  { terms :: terms,
+    types :: types
   }
   deriving stock (Generic, Show)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)

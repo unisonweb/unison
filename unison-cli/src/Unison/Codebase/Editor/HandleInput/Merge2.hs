@@ -11,6 +11,7 @@ import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Semialign (unzipWith)
 import Data.Set qualified as Set
@@ -63,7 +64,7 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.TwoWayI (TwoWayI)
+import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment (..))
@@ -139,6 +140,10 @@ handleMerge bobBranchName = do
   dependents <-
     Cli.runTransaction do
       identifyDependentsOfUnconflicts (ThreeWay.forgetLca defns) unconflicts
+
+  dependents1 <-
+    Cli.runTransaction do
+      identifyDependents (ThreeWay.forgetLca defns) conflicts unconflicts
 
   -- TODO we forgotten the dependents of conflicts :[
 
@@ -618,7 +623,6 @@ identifyDependentsOfUnconflicts defns unconflicts = do
 --        If foo calls bar, and Alice updates foo, and Bob updates bar, we definitely want
 --        Alice's foo in the scratch file, not Bob's!
 --   2. We also need to put dependents of conflicts in the scratch file.
---   3. The branch we put the user on after a failed merge should be 1 causal step past the branch they came from.
 
 identifyDependents ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -672,6 +676,82 @@ identifyDependenciesDueToConflicts defns conflicts =
         insert :: Set Reference -> TypeReferenceId -> Set Reference
         insert acc refs =
           Set.insert (Reference.DerivedId refs) acc
+
+-- Alice and Bob each separately have dependents that they would like to get into the scratch file. These dependents
+-- come from two sources (see "due to unconflicts" and "due to conflicts" above):
+--
+--   1. If Bob updated foo#old to foo#new, then Alice's dependents are whatever her dependents of what she calls "foo"
+--      are (even if it is not exactly foo#new; it could have been updated by her explicitly to foo#alice, or propagated
+--      to by another one of her updates to foo#old', doesn't matter!)
+--
+--   2. If Alice updated foo#old to foo#alice, and Bob updated foo#old to foo#bob, then Alice's dependents are whatever
+--      her dependents of foo#alice are.
+--
+-- Thus, we have *everything* destined for the scratch file sitting in these four maps, keyed by name (one for Alice,
+-- and one for Bob; each has a separate map for the term and type namespaces).
+--
+-- The issue this function is concerned with is whittling down those four maps to just two, getting rid of Alice and
+-- Bob distinctions, leaving only a term map and a type map, keyed by name.
+--
+-- We have a few cases to consider:
+--
+--   1. Alice or Bob, but not both, have some dependent "foo".
+--
+--     1a. The other person has deleted it; discard it.
+--
+--     1b. The other person has not deleted it; keep it.
+--
+--   2. Alice and Bob both have some dependent "foo".
+--
+--     2a. It's a conflict (i.e. Alice and Bob both explicitly updated it). It will make its way into the Unison file
+--         eventually, but this function can discard it, as we are only interested in outputting *unconflicted*
+--         dependents. (This is evident from the type - we only return one term or type underneath each name).
+--
+--     2b. It's not a conflict.
+--
+--       2b1. Alice or Bob, but not both, updated it. Keep their version, it's newer!
+--
+--       2b2. Neither Alice nor Bob updated it. Keep either; even if they have different hashes (i.e. both received a
+--            different auto-propagated update), they'll look the same after being rendered by a PPE and parsed back.
+--
+--       2b3. Both Alice and Bob updated it to the same value. Keep either (obviously).
+mergeUnconflictedDependents ::
+  DefnsF (Map Name) (TwoWay Referent.Id) (TwoWay TypeReferenceId) ->
+  DefnsF Unconflicts Referent TypeReference ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DefnsF (Map Name) TermReferenceId TypeReferenceId
+mergeUnconflictedDependents conflicts unconflicts dependents =
+  zipDefnsWith
+    (merge conflicts.terms unconflicts.terms)
+    (merge conflicts.types unconflicts.types)
+    dependents.alice
+    dependents.bob
+  where
+    merge :: Map Name a -> Unconflicts b -> Map Name v -> Map Name v -> Map Name v
+    merge conflicts unconflicts =
+      Map.merge
+        (Map.mapMaybeMissing whenOnlyAlice)
+        (Map.mapMaybeMissing whenOnlyBob)
+        (Map.zipWithMaybeMatched whenBoth)
+      where
+        whenOnlyAlice :: Name -> v -> Maybe v
+        whenOnlyAlice name alice
+          | Map.member name unconflicts.deletes.bob = Nothing -- Case 1a
+          | otherwise = Just alice -- Case 1b
+        whenOnlyBob :: Name -> v -> Maybe v
+        whenOnlyBob name bob
+          | Map.member name unconflicts.deletes.alice = Nothing -- Case 1a
+          | otherwise = Just bob -- Case 1b
+        whenBoth :: Name -> v -> v -> Maybe v
+        whenBoth name alice bob
+          | conflicted = Nothing -- Case 2a
+          | updatedOnlyByAlice = Just alice -- Case 2b1
+          | updatedOnlyByBob = Just bob -- Case 2b1
+          | otherwise = Just alice -- Case 2b2 or 2b3, the choice doesn't matter
+          where
+            conflicted = Map.member name conflicts
+            updatedOnlyByAlice = Map.member name unconflicts.updates.alice
+            updatedOnlyByBob = Map.member name unconflicts.updates.bob
 
 restrictDefnsToNames ::
   DefnsF Set Name Name ->
@@ -740,6 +820,7 @@ promptUser mergeInfo prettyUnisonFile newBranch = do
   temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName currentProjectId targetBranchName selfBranchName)
   _temporaryBranchId <-
     HandleInput.Branch.doCreateBranch'
+      -- FIXME the branch we put the user on after a failed merge should be 1 causal step past the branch they came from
       (Branch.one newBranch)
       Nothing
       mergeInfo.project

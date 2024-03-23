@@ -6,8 +6,8 @@ where
 import Unison.Prelude
 
 data TwoOrThreeWay a = TwoOrThreeWay
-  { lca :: !(Maybe a),
-    alice :: !a,
-    bob :: !a
+  { lca :: Maybe a,
+    alice :: a,
+    bob :: a
   }
   deriving stock (Functor, Generic)

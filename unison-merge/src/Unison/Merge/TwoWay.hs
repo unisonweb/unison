@@ -13,8 +13,8 @@ import Unison.Prelude
 import Prelude hiding (zipWith)
 
 data TwoWay a = TwoWay
-  { alice :: !a,
-    bob :: !a
+  { alice :: a,
+    bob :: a
   }
   deriving stock (Foldable, Functor, Generic, Traversable)
   deriving (Monoid, Semigroup) via (GenericSemigroupMonoid (TwoWay a))
