@@ -54,7 +54,11 @@ jobs:
               stack build --flag unison-parser-typechecker:optimized && break;
           done
 
-          ucm=$(stack exec -- which unison)
+          ucm=$(stack exec which unison)
+          ls -l $ucm
+          if [[ ${{runner.os}} = 'Windows' ]]; then
+            dir $ucm
+          fi
           exe=$([ ${{runner.os}} = Windows ] && echo .exe || echo '')
           echo ucm="$ucm$exe" > $GITHUB_ENV
 
