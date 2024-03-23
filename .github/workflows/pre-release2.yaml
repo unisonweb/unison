@@ -1,4 +1,6 @@
-name: pre-release
+name: pre-release v2
+run-name: pre-release v2 ${{inputs.version}}
+
 
 defaults:
   run:
