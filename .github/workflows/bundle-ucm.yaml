@@ -148,7 +148,7 @@ jobs:
           path: |
             ~/.cache/racket
             ~/.local/share/racket
-          key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip'))}}
+          key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
       - uses: Bogdanp/setup-racket@v1.11
         with:
           architecture: 'x64'
