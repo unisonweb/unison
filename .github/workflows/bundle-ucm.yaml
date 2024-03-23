@@ -150,6 +150,8 @@ jobs:
             ~/.cache/racket
             ~/.local/share/racket
             ~/Library/Racket/${{env.racket_version}}
+          # This isn't right because unison.zip is going to include different dates each time.
+          # Maybe we can unpack it and hash the contents.
           key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
       - uses: Bogdanp/setup-racket@v1.11
         with:
