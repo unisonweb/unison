@@ -21,7 +21,7 @@ defaults:
 
 jobs:
   build-ucm:
-    name: build ucm ${{matrix.os}}
+    name: build ucm
     strategy:
       fail-fast: false
       matrix:
@@ -173,7 +173,7 @@ jobs:
           path: runtime/
 
   bundle:
-    name: bundle ucm+jit+ui ${{matrix.os}}
+    name: bundle ucm+jit+ui
     needs: [build-ucm, package-racket-lib, build-dist-unison-runtime]
     runs-on: ${{matrix.os}}
     strategy:
