@@ -171,7 +171,8 @@ jobs:
         run: |
           raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
           mkdir runtime
-          raco distribute runtime scheme-libs/racket/unison-runtime{,.exe}
+          if [[ ${{runner.os}} = 'Windows' ]]; then exe=".exe"; else exe=""; fi
+          raco distribute runtime scheme-libs/racket/unison-runtime$exe
           ls -l runtime/
       - name: upload unison-runtime
         uses: actions/upload-artifact@v4
