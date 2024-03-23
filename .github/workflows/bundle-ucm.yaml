@@ -90,7 +90,7 @@ jobs:
     steps:
       - name: set up environment
         run: echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
-      - name: download scheme-libs
+      - name: download racket `unison` source
         uses: actions/checkout@v4
         with:
           ref: ${{inputs.ref}}
