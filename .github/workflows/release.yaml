@@ -1,6 +1,6 @@
-name: "release"
+name: release v2
 
-run-name: "release ${{inputs.version}}"
+run-name: release v2 ${{inputs.version}}
 
 defaults:
   run:
@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-ucm:
-    uses: ./.github/workflows/build-optimized-ucm.yaml
+    uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: release/${{inputs.version}}
 
@@ -54,7 +54,7 @@ jobs:
           if [ -z "$prev_tag" ]; then echo "No previous release found"; exit 1; fi
 
           echo "Creating a release from these artifacts:"
-          ls -R /tmp/ucm
+          ls -R /tmp/ucm/**/*.{zip,tar.gz,zip.CHECKSUM}
 
 
           gh release create "release/${version}" \
@@ -63,4 +63,4 @@ jobs:
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
             \
-            /tmp/ucm/**/*.{zip,tar.gz}
+            /tmp/ucm/**/*.{zip,tar.gz,zip.CHECKSUM}
