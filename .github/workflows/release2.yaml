@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-ucm:
-    uses: ./.github/workflows/release/bundle-ucm.yaml
+    uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: release/${{inputs.version}}
 
