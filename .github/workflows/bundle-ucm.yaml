@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{matrix.os}}
-          path: ${{ env.ucm }}
+          path: ${{ env.ucm }}{,.exe}
 
   package-racket-lib:
     strategy:
