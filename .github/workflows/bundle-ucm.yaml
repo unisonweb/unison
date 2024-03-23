@@ -54,7 +54,9 @@ jobs:
               stack build --flag unison-parser-typechecker:optimized && break;
           done
 
-          echo ucm="$(stack exec -- which unison)" > $GITHUB_ENV
+          ucm=$(stack exec -- which unison)
+          exe=$([ ${{runner.os}} = Windows ] && echo .exe || echo '')
+          echo ucm="$ucm$exe" > $GITHUB_ENV
 
       - name: save stack caches
         uses: unisonweb/actions/stack/cache/save@main
@@ -65,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unison-${{matrix.os}}
-          path: ${{ env.ucm }}*
+          path: ${{ env.ucm }}
 
   package-racket-lib:
     strategy:
