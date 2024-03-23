@@ -29,6 +29,11 @@ Similarly, `save-always: true` only if a key hit means there will be nothing new
 
 Backup restore keys: "Is there a prior run that would be worth starting out from? With the caveat that any irrelevant garbage it includes will be saved into this run too."
 
+### Upload Artifact
+
+I suspect on Windows it can't support paths that select a drive in a Unix-y way,
+like `/c/asdf` or `/d/asdf`. It's got to be `C:/asdf` or `C:\asdf` etc.
+
 ### Reusability
 
 Github supports splitting off "reusable workflows" (`jobs` that can be imported into another workflow), and "composite actions" (multi-step `steps` that can be imported into another `job`).
