@@ -182,7 +182,7 @@ jobs:
           if-no-files-found: error
 
   bundle:
-    name: bundle ucm+jit+ui
+    name: bundle ucm, jit, and ui
     needs: [build-ucm, package-racket-lib, build-dist-unison-runtime]
     runs-on: ${{matrix.os}}
     strategy:
