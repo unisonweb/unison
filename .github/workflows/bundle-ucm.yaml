@@ -42,7 +42,7 @@ jobs:
 
       - name: build
         run: |
-          # unison-cli embeds version numbers using TH
+          # unison-cli-main embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
           stack clean unison-cli-main
 
