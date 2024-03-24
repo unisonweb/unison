@@ -204,7 +204,6 @@ jobs:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/
       - name: restore permissions on ucm
-        if: ${{runner.os}} != 'Windows'
         run: chmod +x ${{env.staging_dir}}/unison
       - name: rename unison -> ucm
         run: mv ${{env.staging_dir}}/unison ${{env.staging_dir}}/ucm
@@ -219,7 +218,10 @@ jobs:
           name: unison-runtime-${{matrix.os}}
           path: ${{env.staging_dir}}/runtime
       - name: restore permissions on unison-runtime
-        if: ${{runner.os}} != 'Windows'
+        # here we have the `if:` not because of the missing .exe on Windows,
+        # nor the lack of need to chmod, but because /runtime/bin/ probably doesn't exist
+        # due to differences in `raco distribute` on Windows vs macOS and Linux.
+        if: runner.os != 'Windows'
         run: chmod +x ${{env.staging_dir}}/runtime/bin/unison-runtime
       - name: download latest unison-local-ui
         run: |
