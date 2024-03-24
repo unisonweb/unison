@@ -114,6 +114,9 @@ internal-libraries:
 
 library:
   source-dirs: unison
+  when:
+    - condition: false
+      other-modules: Paths_unison_cli
   dependencies:
     - code-page
     - optparse-applicative >= 0.16.1.0
