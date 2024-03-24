@@ -44,7 +44,7 @@ jobs:
         run: |
           # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
-          stack clean unison-cli
+          stack clean unison-cli-main
 
           mkdir ucm-bin
 
