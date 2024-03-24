@@ -12,7 +12,7 @@ import System.Process (readProcessWithExitCode)
 import Text.Printf
 
 integrationTestsDir :: FilePath
-integrationTestsDir = "unison-cli" </> "integration-tests" </> "IntegrationTests"
+integrationTestsDir = "unison-cli-main" </> "integration-tests" </> "IntegrationTests"
 
 uFile :: FilePath
 uFile = integrationTestsDir </> "print.u"
