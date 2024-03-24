@@ -203,6 +203,8 @@ jobs:
         with:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/
+      - name: restore permissions on ucm
+        run: chmod +x ${{env.staging_dir}}/unison
       - name: rename unison -> ucm
         run: mv ${{env.staging_dir}}/unison ${{env.staging_dir}}/ucm
       - name: download racket lib
@@ -215,12 +217,17 @@ jobs:
         with:
           name: unison-runtime-${{matrix.os}}
           path: ${{env.staging_dir}}/runtime
-      - name: fetch latest Unison Local UI and package with ucm
+      - name: restore permissions on unison-runtime
+        if: ${{runner.os}} != 'Windows'
+        run: chmod +x ${{env.staging_dir}}/runtime/bin/unison-runtime
+      - name: download latest unison-local-ui
         run: |
-          ls -l `find ${{env.staging_dir}}`
           curl -L -o /tmp/unisonLocal.zip \
             https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
+      - name: package everything together
+        run: |
+          ls -l `find ${{env.staging_dir}}`
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
             artifact_archive=ucm-${{env.artifact_os}}.zip
