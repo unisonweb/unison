@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ucm:
+  bundle-ucm:
     uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: ${{ github.ref }}
