@@ -28,10 +28,6 @@ library
       System.Path
       Unison.Main
       Unison.Version
-  other-modules:
-      Paths_unison_cli
-  autogen-modules:
-      Paths_unison_cli
   hs-source-dirs:
       unison
   default-extensions:
