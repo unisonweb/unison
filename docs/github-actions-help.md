@@ -26,6 +26,12 @@ e.g.
 It's not clear to me when to use `$GITHUB_OUTPUT` vs `$GITHUB_ENV`, but I have been favoring `$GITHUB_ENV` because it requires fewer characters to access.
 However, it seems a little wrong.
 
+### `if:`
+
+Although the type rules don't totally make sense in Github Actions, `if:` takes a Boolean.
+
+Therefore, I think the String interpolation in `if: ${{runner.os}} != 'Windows'` causes the whole expression to become a String, which is coerced to `true`, when you definitely didn't mean `if: true`.  So don't use `${{}}` here.
+
 ### Job names
 
 Job names will automatically get `(${{matrix.os}})` if you don't use `${{matrix.os}}` somewhere in the name.
