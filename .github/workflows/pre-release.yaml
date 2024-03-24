@@ -1,5 +1,5 @@
-name: pre-release v2
-run-name: pre-release v2 ${{inputs.version}}
+name: pre-release
+run-name: pre-release ${{inputs.version}}
 
 defaults:
   run:
@@ -8,7 +8,7 @@ defaults:
 on:
   workflow_run:
     workflows: ["CI"]
-    branches: [ trunk ]
+    branches: [trunk]
     types:
       - completed
   workflow_dispatch:

@@ -1,6 +1,6 @@
-name: release v2
+name: release
 
-run-name: release v2 ${{inputs.version}}
+run-name: release ${{inputs.version}}
 
 defaults:
   run:
