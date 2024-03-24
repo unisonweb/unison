@@ -15,6 +15,7 @@ on:
 
 jobs:
   bundle-ucm:
+    name: build and bundle ucm
     uses: ./.github/workflows/bundle-ucm.yaml
     with:
       ref: ${{ github.ref }}
