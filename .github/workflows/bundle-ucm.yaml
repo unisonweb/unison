@@ -204,6 +204,7 @@ jobs:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/
       - name: restore permissions on ucm
+        if: ${{runner.os}} != 'Windows'
         run: chmod +x ${{env.staging_dir}}/unison
       - name: rename unison -> ucm
         run: mv ${{env.staging_dir}}/unison ${{env.staging_dir}}/ucm
