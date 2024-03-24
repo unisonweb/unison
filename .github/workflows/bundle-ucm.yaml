@@ -105,9 +105,9 @@ jobs:
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
       - uses: Bogdanp/setup-racket@v1.11
         with:
-          architecture: 'x64'
-          distribution: 'full'
-          variant: 'CS'
+          architecture: "x64"
+          distribution: "full"
+          variant: "CS"
           version: ${{env.racket_version}}
       - name: create racket lib
         run: |
@@ -155,9 +155,9 @@ jobs:
           key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
       - uses: Bogdanp/setup-racket@v1.11
         with:
-          architecture: 'x64'
-          distribution: 'full'
-          variant: 'CS'
+          architecture: "x64"
+          distribution: "full"
+          variant: "CS"
           version: ${{env.racket_version}}
       - uses: awalsh128/cache-apt-pkgs-action@latest
         if: runner.os == 'Linux'
