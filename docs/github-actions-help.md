@@ -1,8 +1,14 @@
 ## Some things I wish I'd known about Github Actions
 
-You can't have an `env:` key defined in terms of another `env` key, but
+You can't have an `env:` key defined in terms of another `env` key, but you can use `$GITHUB_ENV` to get around this.
 
 You can't define a `matrix` at the top level, it has to be defined within a `job`'s `strategy`.
+
+`runs-on:` doesn't allow `env` for some reason.
+
+Strings don't need quotes, unless you need to force something to be a string.
+
+A `@ref` is always needed on a remote action.
 
 Windows doesn't seem to honor the `default: run: shell:` setting, so you need to set the `shell:` on `run:` manually?
 
@@ -20,6 +26,14 @@ e.g.
 It's not clear to me when to use `$GITHUB_OUTPUT` vs `$GITHUB_ENV`, but I have been favoring `$GITHUB_ENV` because it requires fewer characters to access.
 However, it seems a little wrong.
 
+### Job names
+
+Job names will automatically get `(${{matrix.os}})` if you don't use `${{matrix.os}}` somewhere in the name.
+
+### Windows
+
+The whole thing with `.exe` is a mess. Unix commands typically drop and add `.exe` correctly as needed, but Github Actions (e.g. `actions/upload-artifact`?) don't.
+
 ### Cache
 When using the `cache` action, getting a cache hit on the primary key means you won't update the cache with any changes.
 
@@ -34,6 +48,10 @@ Backup restore keys: "Is there a prior run that would be worth starting out from
 I suspect on Windows it can't support paths that select a drive in a Unix-y way,
 like `/c/asdf` or `/d/asdf`. It's got to be `C:/asdf` or `C:\asdf` etc.
 
+Upload will complain if any
+
+Upload and Download plugin versions have to match.
+
 ### Reusability
 
 Github supports splitting off "reusable workflows" (`jobs` that can be imported into another workflow), and "composite actions" (multi-step `steps` that can be imported into another `job`).
@@ -41,6 +59,10 @@ Github supports splitting off "reusable workflows" (`jobs` that can be imported 
 #### Composite actions
 
 Needs to have `shell:` specified on every `run:`
+
+#### Reusable workflows
+
+These have to be in `.github/workflows`, you can't organize them deeper, or elsewhere.
 
 ### Reference
 
