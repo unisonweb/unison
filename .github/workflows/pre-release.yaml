@@ -24,7 +24,7 @@ jobs:
     name: create release
     runs-on: ubuntu-20.04
     needs:
-      - build-ucm
+      - bundle-ucm
 
     steps:
       - name: make download dir
