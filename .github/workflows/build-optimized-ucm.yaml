@@ -41,14 +41,16 @@ jobs:
         run: |
           # unison-cli embeds version numbers using TH
           # so it needs to be forced to rebuild to ensure those are updated.
-          stack clean unison-cli
+          stack clean unison-cli-main
 
           # Windows will crash on build intermittently because the filesystem
           # sucks at managing concurrent file access;
           # Just keep retrying on these failures.
           tries=5
           for (( i = 0; i < $tries; i++ )); do
-              stack --no-terminal build --flag unison-parser-typechecker:optimized && break;
+              stack build unison-cli-main \
+                --flag unison-parser-typechecker:optimized \
+                && break;
           done
 
       - name: save stack caches
