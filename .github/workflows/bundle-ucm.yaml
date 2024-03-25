@@ -37,6 +37,9 @@ jobs:
         with:
           cache-prefix: release
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: install stack
         uses: unisonweb/actions/stack/install@main
 
