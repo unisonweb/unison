@@ -40,5 +40,5 @@ main = do
 
 ```ucm
 .> add
-.> compile main ./unison-cli-main/integration-tests/IntegrationTests/main
+.> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 ```
