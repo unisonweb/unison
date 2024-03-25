@@ -426,6 +426,12 @@ result f = handle !f with cases
 ```
 
 ```unison:error
+handler : Request {g} r ->{} r 
+handler = cases
+  {u} -> u
+```
+
+```unison:error
 unique ability Give a where
   give : a -> {Give a} Unit
 

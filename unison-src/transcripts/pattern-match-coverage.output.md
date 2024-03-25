@@ -968,6 +968,25 @@ result f = handle !f with cases
 
 ```
 ```unison
+handler : Request {g} r ->{} r 
+handler = cases
+  {u} -> u
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      handler : Request {g} r -> r
+
+```
+```unison
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -1314,6 +1333,6 @@ result f =
     
       ability GiveA a
       ability GiveB a
-      result : '{e, GiveA V, GiveB V} r ->{e} r
+      result : '{e, GiveB V, GiveA V} r ->{e} r
 
 ```
