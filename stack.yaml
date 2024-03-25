@@ -34,6 +34,7 @@ packages:
   - lib/unison-util-rope
   - parser-typechecker
   - unison-cli
+  - unison-cli-integration
   - unison-cli-main
   - unison-core
   - unison-hashing-v2

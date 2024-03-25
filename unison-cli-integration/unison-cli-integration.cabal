@@ -1,16 +1,14 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-cli-main
+name:           unison-cli-integration
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 copyright:      Copyright (C) 2013-2018 Unison Computing, PBC and contributors
-license:        MIT
-license-file:   LICENSE
 build-type:     Simple
 
 source-repository head
@@ -21,12 +19,12 @@ flag optimized
   manual: True
   default: False
 
-executable unison
-  main-is: Main.hs
+executable cli-integration-tests
+  main-is: Suite.hs
   other-modules:
-      Version
+      IntegrationTests.ArgumentParsing
   hs-source-dirs:
-      unison
+      integration-tests
   default-extensions:
       ApplicativeDo
       BangPatterns
@@ -60,13 +58,18 @@ executable unison
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tool-depends:
+      unison-cli-main:unison
   build-depends:
       base
+    , code-page
+    , directory
+    , easytest
+    , filepath
+    , process
     , shellmet
-    , template-haskell
-    , text
-    , unison-cli
+    , time
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields

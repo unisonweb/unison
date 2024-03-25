@@ -1,4 +1,4 @@
-name: unison-cli-main
+name: unison-cli-integration
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
@@ -10,19 +10,24 @@ flags:
 ghc-options: -Wall
 
 executables:
-  unison:
+  cli-integration-tests:
     when:
       - condition: false
-        other-modules: Paths_unison_cli_main
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
+        other-modules: Paths_unison_cli_integration
+    source-dirs: integration-tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
       - base
+      - code-page
+      - filepath
+      - directory
+      - easytest
+      - process
       - shellmet
-      - template-haskell
-      - text
-      - unison-cli
+      - time
+    build-tools:
+      - unison-cli-main:unison
 
 when:
   - condition: flag(optimized)
