@@ -4,6 +4,7 @@ module Unison.Util.Map
     bitraverse,
     bitraversed,
     deleteLookup,
+    elemsSet,
     foldM,
     foldMapM,
     for_,
@@ -29,6 +30,7 @@ import Data.Foldable (foldlM)
 import Data.Map.Internal qualified as Map (Map (Bin, Tip))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap, foldM, for_)
@@ -76,6 +78,11 @@ valuesVector =
 deleteLookup :: (Ord k) => k -> Map k v -> (Maybe v, Map k v)
 deleteLookup =
   Map.alterF (,Nothing)
+
+-- | Like 'Map.elems', but return the values as a set.
+elemsSet :: Ord v => Map k v -> Set v
+elemsSet =
+  Set.fromList . Map.elems
 
 -- | Like 'Map.foldlWithKey'', but with a monadic accumulator.
 foldM :: Monad m => (acc -> k -> v -> m acc) -> acc -> Map k v -> m acc

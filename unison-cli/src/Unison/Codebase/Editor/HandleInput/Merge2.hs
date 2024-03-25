@@ -98,6 +98,7 @@ import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import qualified Unison.Util.Map as Map
 
 handleMerge :: ProjectBranchName -> Cli ()
 handleMerge bobBranchName = do
@@ -145,7 +146,7 @@ handleMerge bobBranchName = do
   unisonFile <- makeUnisonFile declNameLookups conflicts dependents
 
   let (newDefns, droppedDefns) =
-        bumpLca defns.lca unconflicts (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents)
+        bumpLca defns.lca unconflicts (bimap Map.elemsSet Map.elemsSet dependents)
 
   -- Load and merge Alice's and Bob's libdeps
   libdeps <-
