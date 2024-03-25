@@ -38,9 +38,9 @@ jobs:
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: ${{ github.ref }}-build
+          automatic_release_tag: ${{ github.ref_name }}-build
           prerelease: true
-          title: Development Build
+          title: Development Build (${{ github.ref_name }})
           files: |
             /tmp/ucm/**/ucm-*.tar.gz
             /tmp/ucm/**/ucm-*.zip
