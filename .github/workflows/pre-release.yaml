@@ -1,4 +1,4 @@
-name: pre-release (${{ github.ref }})
+name: pre-release
 
 defaults:
   run:
