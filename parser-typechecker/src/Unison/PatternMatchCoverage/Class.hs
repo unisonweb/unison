@@ -12,6 +12,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.ListPat (ListPat)
+import Unison.PatternMatchCoverage.IsExhaustive (IsExhaustive)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Type (Type)
 import Unison.Var (Var)
@@ -32,7 +33,7 @@ class (Ord loc, Var vt, Var v, MonadFix m) => Pmc vt v loc m | m -> vt v loc whe
 
 data EnumeratedConstructors vt v loc
   = ConstructorType [(v, ConstructorReference, Type vt loc)]
-  | AbilityType (Type vt loc) (Map ConstructorReference (v, Type vt loc))
+  | AbilityType (Type vt loc) (Map ConstructorReference (v, Type vt loc)) IsExhaustive
   | SequenceType [(ListPat, [Type vt loc])]
   | BooleanType
   | OtherType
@@ -45,7 +46,7 @@ traverseConstructorTypes ::
   f (EnumeratedConstructors vt v loc)
 traverseConstructorTypes f = \case
   ConstructorType xs -> ConstructorType <$> traverse (\(a, b, c) -> (a,b,) <$> f a b c) xs
-  AbilityType resultType m ->
+  AbilityType resultType m isExhaustive ->
     AbilityType resultType
       <$> Map.foldrWithKey
         ( \cr (v, t) b ->
@@ -55,6 +56,7 @@ traverseConstructorTypes f = \case
         )
         (pure mempty)
         m
+        <*> pure isExhaustive
   SequenceType x -> pure (SequenceType x)
   BooleanType -> pure BooleanType
   OtherType -> pure OtherType

@@ -62,7 +62,7 @@ import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
-import Data.Monoid (Ap (..))
+import Data.Monoid (Any (..), Ap (..))
 import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty (NESeq)
 import Data.Sequence.NonEmpty qualified as NESeq
@@ -84,11 +84,13 @@ import Unison.DataDeclaration
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
+import Unison.Name (Name)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
 import Unison.PatternMatchCoverage.Class (EnumeratedConstructors (..), Pmc, traverseConstructorTypes)
 import Unison.PatternMatchCoverage.Class qualified as Pmc
+import Unison.PatternMatchCoverage.IsExhaustive (IsExhaustive (..))
 import Unison.PatternMatchCoverage.ListPat qualified as ListPat
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -104,7 +106,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Name (Name)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -879,10 +880,15 @@ getDataConstructors typ
   | Type.Request' effects resultType <- typ =
       let phi effect =
             case theRef effect of
-              Just r -> Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
-              Nothing -> pure Map.empty
-          crefs = getAp (foldMap (Ap . phi) effects)
-       in AbilityType resultType <$> crefs
+              Just r ->
+                let crefMap = Map.fromList . map (\(v, cr, t) -> (cr, (v, t))) . crFromDecl r . DD.toDataDecl <$> getEffectDeclaration r
+                 in (Any False, Ap crefMap)
+              Nothing -> (Any True, Ap (pure Map.empty))
+          (hasVar, crefs) = foldMap phi effects
+          isExhaustive = case getAny hasVar of
+            True -> NonExhaustive
+            False -> Exhaustive
+       in AbilityType resultType <$> getAp crefs <*> pure isExhaustive
   | Type.App' (Type.Ref' r) arg <- typ,
     r == Type.listRef =
       let xs =
@@ -1489,7 +1495,7 @@ instance (Ord loc, Var v) => Pmc (TypeVar v loc) v loc (StateT (PmcState (TypeVa
     pure result
   getConstructorVarTypes t cref@(ConstructorReference _r cid) = do
     Pmc.getConstructors t >>= \case
-      AbilityType _ m -> case Map.lookup cref m of
+      AbilityType _ m _ -> case Map.lookup cref m of
         Nothing -> error $ show cref <> " not found in constructor map: " <> show m
         Just (_, conArgs) -> pure (extractArgs conArgs)
       ConstructorType cs -> case drop (fromIntegral cid) cs of

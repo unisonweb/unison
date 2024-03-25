@@ -119,6 +119,7 @@ library
       Unison.PatternMatchCoverage.Fix
       Unison.PatternMatchCoverage.GrdTree
       Unison.PatternMatchCoverage.IntervalSet
+      Unison.PatternMatchCoverage.IsExhaustive
       Unison.PatternMatchCoverage.ListPat
       Unison.PatternMatchCoverage.Literal
       Unison.PatternMatchCoverage.NormalizedConstraints

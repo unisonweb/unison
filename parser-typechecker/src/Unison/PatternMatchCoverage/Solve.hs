@@ -346,15 +346,19 @@ withConstructors ::
   m r ->
   VarInfo vt v loc ->
   ( forall x.
+    -- The existential, @x@, represents the constructor reference
+    -- while the list of types are the types of bound variables
     [(x, [Type vt loc])] ->
+    -- Positive constraint constructor
     (v -> x -> [(v, Type vt loc)] -> [Constraint vt v loc]) ->
+    -- Negative constraint constructor
     (v -> x -> Constraint vt v loc) ->
     m r
   ) ->
   m r
 withConstructors nil vinfo k = do
   getConstructors typ >>= \case
-    AbilityType resultType cs -> do
+    AbilityType resultType cs isExhaustive -> do
       arg <- for (Map.toList cs) \(cref, _) -> do
         cvts <- getConstructorVarTypes typ cref
         pure (Effect cref, cvts)
