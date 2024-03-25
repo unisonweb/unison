@@ -34,6 +34,7 @@ import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
 import Unison.PatternMatchCoverage.IntervalSet qualified as IntervalSet
+import Unison.PatternMatchCoverage.IsExhaustive (IsExhaustive (..))
 import Unison.PatternMatchCoverage.Literal
 import Unison.PatternMatchCoverage.NormalizedConstraints
 import Unison.PatternMatchCoverage.PmGrd
@@ -285,9 +286,9 @@ expandSolution x nc =
         | fuel == 0 = pure (Set.singleton nc)
         | otherwise =
             let (_xcanon, xvi, nc') = expectCanon x nc
-             in withConstructors (pure (Set.singleton nc')) xvi \cs posConstraint _negConstraint ->
+             in withConstructors (pure (Set.singleton nc')) xvi \cs posConstraint _negConstraint isExhaustive ->
                   -- We have some constructors to attempt
-                  -- instantiation with. Instantiate each one, if
+                  -- instantiation with. Instantiate each one, if it
                   -- doesn't lead to a contradiction then add it to
                   -- the set of valid solutions.
                   let phi (cref, cvt) = do
@@ -337,7 +338,14 @@ expandSolution x nc =
                                       )
                                       [nc'']
                                       newVars
-                   in foldr (\a b s -> phi a >>= \a' -> b (Set.union a' s)) pure cs Set.empty
+                      cons a b s = do
+                        a' <- phi a
+                        b (Set.union a' s)
+
+                      nil ncs = case isExhaustive of
+                        Exhaustive -> pure ncs
+                        NonExhaustive -> pure (Set.insert nc' ncs)
+                   in foldr cons nil cs Set.empty
    in go initFuel x nc
 
 withConstructors ::
@@ -353,6 +361,7 @@ withConstructors ::
     (v -> x -> [(v, Type vt loc)] -> [Constraint vt v loc]) ->
     -- Negative constraint constructor
     (v -> x -> Constraint vt v loc) ->
+    IsExhaustive ->
     m r
   ) ->
   m r
@@ -362,12 +371,12 @@ withConstructors nil vinfo k = do
       arg <- for (Map.toList cs) \(cref, _) -> do
         cvts <- getConstructorVarTypes typ cref
         pure (Effect cref, cvts)
-      k ((NoEffect, [resultType]) : arg) (\v cref args -> [C.PosEffect v cref args]) (\v cref -> C.NegEffect v cref)
+      k ((NoEffect, [resultType]) : arg) (\v cref args -> [C.PosEffect v cref args]) (\v cref -> C.NegEffect v cref) isExhaustive
     ConstructorType cs -> do
       arg <- for cs \(_, cref, _) -> do
         cvts <- getConstructorVarTypes typ cref
         pure (cref, cvts)
-      k arg (\v cref args -> [C.PosCon v cref args]) (\v cref -> C.NegCon v cref)
+      k arg (\v cref args -> [C.PosCon v cref args]) (\v cref -> C.NegCon v cref) Exhaustive
     SequenceType _cs ->
       let Vc'ListRoot elemType consPos snocPos iset = case vi_con vinfo of
             Vc'ListRoot {} -> vi_con vinfo
@@ -391,9 +400,9 @@ withConstructors nil vinfo k = do
             pos args
           mkNeg _v (_pos, neg) =
             neg
-       in k constraints mkPos mkNeg
+       in k constraints mkPos mkNeg Exhaustive
     BooleanType -> do
-      k [(True, []), (False, [])] (\v b _ -> [C.PosLit v (PmLit.Boolean b)]) (\v b -> C.NegLit v (PmLit.Boolean b))
+      k [(True, []), (False, [])] (\v b _ -> [C.PosLit v (PmLit.Boolean b)]) (\v b -> C.NegLit v (PmLit.Boolean b)) Exhaustive
     OtherType -> nil
   where
     typ = vi_typ vinfo
@@ -420,9 +429,11 @@ inhabited fuel x nc0 =
       shouldAddNegative = case vi_con xvi of
         Vc'Effect {} -> False
         _ -> True
-   in withConstructors (pure (Just nc')) xvi \cs posConstraint negConstraint ->
-        -- one of the constructors must be inhabited, Return the
-        -- first non-contradictory instantiation.
+   in withConstructors (pure (Just nc')) xvi \cs posConstraint negConstraint isExhaustive ->
+        -- One of the constructors may be inhabited, Return the first
+        -- non-contradictory instantiation. Fallback to an
+        -- exhaustivity check since we may not be able to enumerate
+        -- all constructors in the case of a polymorphic ability.
         let phi (cref, cvt) b nc = do
               instantiate fuel nc x cref cvt posConstraint >>= \case
                 Nothing -> do
@@ -435,7 +446,10 @@ inhabited fuel x nc0 =
                         Just nc -> b nc
                     False -> b nc
                 Just _ -> pure (Just nc)
-         in foldr phi (\_ -> pure Nothing) cs nc'
+            nil nc = case isExhaustive of
+              Exhaustive -> pure Nothing
+              NonExhaustive -> pure (Just nc)
+         in foldr phi nil cs nc'
 
 newtype Fuel = Fuel Int
   deriving newtype (Show, Eq, Ord, Enum, Bounded, Num)

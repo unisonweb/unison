@@ -349,6 +349,12 @@ unique type R = { someType : SomeType }
 ## Exhaustive ability handlers are accepted
 
 ```unison
+handler : Request {g} r ->{g} r 
+handler = cases
+  {u} -> u
+```
+
+```unison
 structural ability Abort where
   abort : {Abort} a
 

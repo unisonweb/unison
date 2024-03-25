@@ -42,7 +42,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, view, _2)
+import Control.Lens (over, set, view, _2, _1)
 import Control.Monad.Fail qualified as MonadFail
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State
@@ -1522,21 +1522,33 @@ ensurePatternCoverage ::
   Type v loc ->
   [Term.MatchCase loc (Term v loc)] ->
   MT v loc (Result v loc) ()
-ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
+ensurePatternCoverage theMatch theMatchType _scrutinee scrutineeType cases = do
   let matchLoc = ABT.annotation theMatch
   scrutineeType <- applyM scrutineeType
-  let pmcState :: PmcState (TypeVar v loc) v loc =
-        PmcState
-          { variables = ABT.freeVars theMatch,
-            constructorCache = mempty
-          }
-  (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
-    checkMatch matchLoc scrutineeType cases
-  let checkUncovered = case Nel.nonEmpty uncovered of
-        Nothing -> pure ()
-        Just xs -> failWith (UncoveredPatterns matchLoc xs)
-      checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
-  checkUncovered *> checkRedundant
+  theMatchType <- applyM theMatchType
+  case onlyDischargedEffects scrutineeType theMatchType of
+    scrutineeType -> do
+      let pmcState :: PmcState (TypeVar v loc) v loc =
+            PmcState
+              { variables = ABT.freeVars theMatch,
+                constructorCache = mempty
+              }
+      (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
+        checkMatch matchLoc scrutineeType cases
+      let checkUncovered = case Nel.nonEmpty uncovered of
+            Nothing -> pure ()
+            Just xs -> failWith (UncoveredPatterns matchLoc xs)
+          checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+      checkUncovered *> checkRedundant
+  where
+    onlyDischargedEffects :: Type v loc -> Type v loc -> Type v loc
+    onlyDischargedEffects scrutineeType theMatchType = case (scrutineeType, theMatchType) of
+        (Type.Request' scrutineeEts _scrutineeRes, Type.Effect0' matchEs _) ->
+          let matchSet = Set.fromList matchEs
+              dischargedEffects = filter (not . flip Set.member matchSet) scrutineeEts
+              debugMessage = "scrutinee:\n\t" <> show scrutineeEts <> "\nmatch type:\n\t" <> show theMatchType <> "\nmatch:\n\t" <> show matchEs <> "\ndischarged:\n\t" <> show dischargedEffects 
+          in trace debugMessage $ set (#out . #_Tm . #_App . _1 . #out . #_Tm . #_App . _2 . #out . #_Tm . #_Effects) dischargedEffects scrutineeType 
+        _ -> scrutineeType
 
 checkCases ::
   (Var v) =>
