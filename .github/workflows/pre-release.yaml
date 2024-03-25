@@ -35,10 +35,15 @@ jobs:
         with:
           path: /tmp/ucm
 
+      - name: set up release name
+        run: |
+          tag_name=$(echo "${{ github.ref }}" | awk -F'/' '{print $NF}')
+          echo "tag_name=$tag_name" >> $GITHUB_ENV
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: ${{ github.ref }}-build
+          automatic_release_tag: ${{ env.tag_name }}-build
           prerelease: true
           title: Development Build
           files: |
