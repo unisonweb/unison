@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Version where
+module Version (version) where
 
 import Data.Bifunctor
 import Data.Text
@@ -9,6 +9,10 @@ import Data.Text qualified as Text
 import Language.Haskell.TH (Exp (TupE), runIO)
 import Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL))
 import Shellmet
+import Unison.Version (CommitDate, GitRef, Version (Version))
+
+version :: Version
+version = Version gitDescribeWithDate gitDescribe
 
 -- | A formatted descriptor of when and against which commit this unison executable was built
 -- E.g. latest-149-g5cef8f851 (built on 2021-10-04)
@@ -16,12 +20,8 @@ import Shellmet
 gitDescribeWithDate :: Text
 gitDescribeWithDate =
   let formatDate d = " (built on " <> d <> ")"
-      (gitRef, date) = gitDescribe
+      (gitRef, date) = Version.gitDescribe
    in gitRef <> formatDate date
-
-type CommitDate = Text
-
-type GitRef = Text
 
 -- | Uses Template Haskell to embed a git descriptor of the commit
 --   which was used to build the executable.

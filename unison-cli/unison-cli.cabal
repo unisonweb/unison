@@ -1,6 +1,6 @@
-cabal-version: 1.12
+cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -22,6 +22,146 @@ flag optimized
   default: False
 
 library
+  exposed-modules:
+      ArgParse
+      Stats
+      System.Path
+      Unison.Main
+      Unison.Version
+  hs-source-dirs:
+      unison
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GADTs
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      InstanceSigs
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      MultiWayIf
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      IntervalMap
+    , ListLike
+    , aeson >=2.0.0.0
+    , aeson-pretty
+    , ansi-terminal
+    , async
+    , base
+    , bytes
+    , bytestring
+    , co-log-core
+    , code-page
+    , concurrent-output
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , directory
+    , either
+    , errors
+    , exceptions
+    , extra
+    , filepath
+    , free
+    , friendly-time
+    , fsnotify
+    , fuzzyfind
+    , generic-lens
+    , haskeline
+    , http-client >=0.7.6
+    , http-client-tls
+    , http-types
+    , jwt
+    , ki
+    , lens
+    , lock-file
+    , lsp >=2.2.0.0
+    , lsp-types >=2.0.2.0
+    , megaparsec
+    , memory
+    , mtl
+    , network
+    , network-simple
+    , network-uri
+    , nonempty-containers
+    , open-browser
+    , optparse-applicative >=0.16.1.0
+    , pretty-simple
+    , process
+    , random >=1.2.0
+    , random-shuffle
+    , recover-rtti
+    , regex-tdfa
+    , semialign
+    , semigroups
+    , servant
+    , servant-client
+    , shellmet
+    , stm
+    , template-haskell
+    , temporary
+    , text
+    , text-builder
+    , text-rope
+    , these
+    , these-lens
+    , time
+    , transformers
+    , unison-cli-lib
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sqlite-hashing-v2
+    , unison-core
+    , unison-core1
+    , unison-hash
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-pretty-printer
+    , unison-share-api
+    , unison-share-projects-api
+    , unison-sqlite
+    , unison-syntax
+    , unison-util-base32hex
+    , unison-util-nametree
+    , unison-util-relation
+    , unliftio
+    , unordered-containers
+    , uri-encode
+    , uuid
+    , vector
+    , wai
+    , warp
+    , witch
+    , witherable
+  default-language: Haskell2010
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
+
+library unison-cli-lib
   exposed-modules:
       Compat
       Unison.Auth.CredentialFile
@@ -179,6 +319,7 @@ library
     , bytes
     , bytestring
     , co-log-core
+    , code-page
     , concurrent-output
     , configurator
     , containers >=0.6.3
@@ -212,6 +353,7 @@ library
     , network-uri
     , nonempty-containers
     , open-browser
+    , optparse-applicative >=0.16.1.0
     , pretty-simple
     , process
     , random >=1.2.0
@@ -222,7 +364,10 @@ library
     , semigroups
     , servant
     , servant-client
+    , shellmet
     , stm
+    , template-haskell
+    , temporary
     , text
     , text-builder
     , text-rope
@@ -261,142 +406,6 @@ library
   if !os(windows)
     build-depends:
         unix
-
-executable cli-integration-tests
-  main-is: Suite.hs
-  other-modules:
-      IntegrationTests.ArgumentParsing
-  hs-source-dirs:
-      integration-tests
-  default-extensions:
-      ApplicativeDo
-      BangPatterns
-      BlockArguments
-      DeriveAnyClass
-      DeriveFunctor
-      DeriveFoldable
-      DeriveTraversable
-      DeriveGeneric
-      DerivingStrategies
-      DerivingVia
-      DoAndIfThenElse
-      DuplicateRecordFields
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      ImportQualifiedPost
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NumericUnderscores
-      OverloadedLabels
-      OverloadedStrings
-      PatternSynonyms
-      RankNTypes
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-      ViewPatterns
-  ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
-  build-tools:
-      unison
-  build-depends:
-      IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , async
-    , base
-    , bytes
-    , bytestring
-    , co-log-core
-    , code-page
-    , concurrent-output
-    , configurator
-    , containers >=0.6.3
-    , cryptonite
-    , directory
-    , easytest
-    , either
-    , errors
-    , exceptions
-    , extra
-    , filepath
-    , free
-    , friendly-time
-    , fsnotify
-    , fuzzyfind
-    , generic-lens
-    , haskeline
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , jwt
-    , ki
-    , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
-    , megaparsec
-    , memory
-    , mtl
-    , network
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , open-browser
-    , pretty-simple
-    , process
-    , random >=1.2.0
-    , random-shuffle
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , semigroups
-    , servant
-    , servant-client
-    , shellmet
-    , stm
-    , text
-    , text-builder
-    , text-rope
-    , these
-    , these-lens
-    , time
-    , transformers
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
-    , unison-core
-    , unison-core1
-    , unison-hash
-    , unison-parser-typechecker
-    , unison-prelude
-    , unison-pretty-printer
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
-    , unison-syntax
-    , unison-util-base32hex
-    , unison-util-nametree
-    , unison-util-relation
-    , unliftio
-    , unordered-containers
-    , uri-encode
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
-  default-language: Haskell2010
-  if flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields
 
 executable transcripts
   main-is: Transcripts.hs
@@ -482,6 +491,7 @@ executable transcripts
     , network-uri
     , nonempty-containers
     , open-browser
+    , optparse-applicative >=0.16.1.0
     , pretty-simple
     , process
     , random >=1.2.0
@@ -495,144 +505,6 @@ executable transcripts
     , shellmet
     , silently
     , stm
-    , text
-    , text-builder
-    , text-rope
-    , these
-    , these-lens
-    , time
-    , transformers
-    , unison-cli
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
-    , unison-core
-    , unison-core1
-    , unison-hash
-    , unison-parser-typechecker
-    , unison-prelude
-    , unison-pretty-printer
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
-    , unison-syntax
-    , unison-util-base32hex
-    , unison-util-nametree
-    , unison-util-relation
-    , unliftio
-    , unordered-containers
-    , uri-encode
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
-  default-language: Haskell2010
-  if flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields
-
-executable unison
-  main-is: Main.hs
-  other-modules:
-      ArgParse
-      Stats
-      System.Path
-      Version
-  hs-source-dirs:
-      unison
-  default-extensions:
-      ApplicativeDo
-      BangPatterns
-      BlockArguments
-      DeriveAnyClass
-      DeriveFunctor
-      DeriveFoldable
-      DeriveTraversable
-      DeriveGeneric
-      DerivingStrategies
-      DerivingVia
-      DoAndIfThenElse
-      DuplicateRecordFields
-      FlexibleContexts
-      FlexibleInstances
-      GADTs
-      GeneralizedNewtypeDeriving
-      ImportQualifiedPost
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NumericUnderscores
-      OverloadedLabels
-      OverloadedStrings
-      PatternSynonyms
-      RankNTypes
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-      ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
-  build-depends:
-      IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , async
-    , base
-    , bytes
-    , bytestring
-    , co-log-core
-    , code-page
-    , concurrent-output
-    , configurator
-    , containers >=0.6.3
-    , cryptonite
-    , directory
-    , either
-    , errors
-    , exceptions
-    , extra
-    , filepath
-    , free
-    , friendly-time
-    , fsnotify
-    , fuzzyfind
-    , generic-lens
-    , haskeline
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , jwt
-    , ki
-    , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
-    , megaparsec
-    , memory
-    , mtl
-    , network
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , open-browser
-    , optparse-applicative >=0.16.1.0
-    , pretty-simple
-    , process
-    , random >=1.2.0
-    , random-shuffle
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , semigroups
-    , servant
-    , servant-client
-    , shellmet
-    , stm
     , template-haskell
     , temporary
     , text
@@ -642,7 +514,7 @@ executable unison
     , these-lens
     , time
     , transformers
-    , unison-cli
+    , unison-cli-lib
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2
@@ -765,6 +637,7 @@ test-suite cli-tests
     , network-uri
     , nonempty-containers
     , open-browser
+    , optparse-applicative >=0.16.1.0
     , pretty-simple
     , process
     , random >=1.2.0
@@ -777,6 +650,7 @@ test-suite cli-tests
     , servant-client
     , shellmet
     , stm
+    , template-haskell
     , temporary
     , text
     , text-builder
@@ -785,7 +659,7 @@ test-suite cli-tests
     , these-lens
     , time
     , transformers
-    , unison-cli
+    , unison-cli-lib
     , unison-codebase
     , unison-codebase-sqlite
     , unison-codebase-sqlite-hashing-v2

@@ -8,67 +8,69 @@ build:
   interleaved-output: false
 
 packages:
-- codebase2/codebase
-- codebase2/codebase-sqlite
-- codebase2/codebase-sqlite-hashing-v2
-- codebase2/codebase-sync
-- codebase2/core
-- codebase2/util-serialization
-- codebase2/util-term
-- lib/orphans/network-uri-orphans-sqlite
-- lib/orphans/unison-core-orphans-sqlite
-- lib/orphans/unison-hash-orphans-aeson
-- lib/orphans/unison-hash-orphans-sqlite
-- lib/orphans/uuid-orphans-sqlite
-- lib/unison-hash
-- lib/unison-hashing
-- lib/unison-prelude
-- lib/unison-pretty-printer
-- lib/unison-sqlite
-- lib/unison-util-base32hex
-- lib/unison-util-bytes
-- lib/unison-util-cache
-- lib/unison-util-file-embed
-- lib/unison-util-nametree
-- lib/unison-util-relation
-- lib/unison-util-rope
-- parser-typechecker
-- unison-cli
-- unison-core
-- unison-hashing-v2
-- unison-share-api
-- unison-share-projects-api
-- unison-syntax
-- yaks/easytest
+  - codebase2/codebase
+  - codebase2/codebase-sqlite
+  - codebase2/codebase-sqlite-hashing-v2
+  - codebase2/codebase-sync
+  - codebase2/core
+  - codebase2/util-serialization
+  - codebase2/util-term
+  - lib/orphans/network-uri-orphans-sqlite
+  - lib/orphans/unison-core-orphans-sqlite
+  - lib/orphans/unison-hash-orphans-aeson
+  - lib/orphans/unison-hash-orphans-sqlite
+  - lib/orphans/uuid-orphans-sqlite
+  - lib/unison-hash
+  - lib/unison-hashing
+  - lib/unison-prelude
+  - lib/unison-pretty-printer
+  - lib/unison-sqlite
+  - lib/unison-util-base32hex
+  - lib/unison-util-bytes
+  - lib/unison-util-cache
+  - lib/unison-util-file-embed
+  - lib/unison-util-nametree
+  - lib/unison-util-relation
+  - lib/unison-util-rope
+  - parser-typechecker
+  - unison-cli
+  - unison-cli-integration
+  - unison-cli-main
+  - unison-core
+  - unison-hashing-v2
+  - unison-share-api
+  - unison-share-projects-api
+  - unison-syntax
+  - yaks/easytest
 
 resolver: lts-20.26
 
 extra-deps:
-# broken version in snapshot
-- github: unisonweb/configurator
-  commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
-# This custom Haskeline alters ANSI rendering on Windows.
-# If changing the haskeline dependency, please ensure color renders properly in a
-# Windows terminal.
-# https://github.com/judah/haskeline/pull/126
-- github: unisonweb/haskeline
-  commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
+  # broken version in snapshot
+  - github: unisonweb/configurator
+    commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
+  # This custom Haskeline alters ANSI rendering on Windows.
+  # If changing the haskeline dependency, please ensure color renders properly in a
+  # Windows terminal.
+  # https://github.com/judah/haskeline/pull/126
+  - github: unisonweb/haskeline
+    commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
-# not in stackage
-- fuzzyfind-3.0.1
-- guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
-- lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
-- monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
-- recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
-- lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
-- lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
-- row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+  # not in stackage
+  - fuzzyfind-3.0.1
+  - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
+  - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
+  - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
+  - recover-rtti-0.4.2@sha256:c179a303921126d8d782264e14f386c96e54a270df74be002e4c4ec3c8c7aebd,4529
+  - lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
+  - lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
+  - row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
 
 ghc-options:
- # All packages
- "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
+  # All packages
+  "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
 
- # See https://github.com/haskell/haskell-language-server/issues/208
- "$everything": -haddock
+  # See https://github.com/haskell/haskell-language-server/issues/208
+  "$everything": -haddock
 
- statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173
+  statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173
