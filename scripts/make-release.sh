@@ -53,8 +53,8 @@ git fetch origin trunk
 git tag "${tag}" "${target}"
 git push origin "${tag}"
 gh workflow run release --repo unisonweb/unison \
-  --field "version=${version}" \
-  --field "target=${target}"
+  --ref "${target}" \
+  --field "version=${version}
 
 echo "Kicking off Homebrew update task"
 gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}"
