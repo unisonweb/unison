@@ -137,6 +137,6 @@
         (lambda (e)
           (exception
             ref-miscfailure:typelink
-            (string->chunked-string "unknown exception")
+            (exception->string e)
             ref-unit-unit))])
       (right (thunk)))))
