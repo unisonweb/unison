@@ -42,10 +42,11 @@ jobs:
       - name: derive release tag
         run: |
           if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "ref_name=${{ github.event.inputs.tag }}"
+            ref_name=${{ github.event.inputs.tag }}
           else
-            echo "ref_name=$(echo ${{ github.ref_name }} | awk -F'/' '{print $NF}')"
+            ref_name=$(echo ${{ github.ref_name }} | awk -F'/' '{print $NF}')
           fi
+          echo "ref_name=$ref_name" >> $GITHUB_ENV
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
