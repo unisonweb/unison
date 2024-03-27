@@ -224,26 +224,31 @@ jobs:
           curl -L -o /tmp/unisonLocal.zip \
             https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
-      - name: create startup script
-        run: |
-          if [[ ${{runner.os}} = 'Windows' ]]; then
-            echo > ${{env.staging_dir}}/ucm.cmd << EOF
-            @echo off
-            "%~dp0unison\ucm.exe" --runtime-path "%~dp0runtime\unison-runtime.exe"
-            EOF
-          else
-            echo > ${{env.staging_dir}}/ucm << EOF
+      - name: create startup script (non-Windows)
+        if: runner.os != 'Windows'
+        uses: 1arp/create-a-file@0
+        with:
+          path: ${{env.staging_dir}}
+          file: ucm
+          content: |
             #!/bin/bash
             $(dirname "$0")/unison/unison --runtime-path $(dirname "$0")/runtime/bin/unison-runtime
-            EOF
-            chmod +x ${{env.staging_dir}}/ucm
-          fi
+      - name: create startup script (Windows)
+        if: runner.os == 'Windows'
+        uses: 1arp/create-a-file@0
+        with:
+          path: ${{env.staging_dir}}
+          file: ucm.cmd
+          content: |
+            @echo off
+            "%~dp0unison\ucm.exe" --runtime-path "%~dp0runtime\unison-runtime.exe"
       - name: package everything together
         run: |
           if [[ ${{runner.os}} = 'Windows' ]]; then
             artifact_archive=ucm-${{env.artifact_os}}.zip
             7z a -r -tzip ${artifact_archive} ${{env.staging_dir}}/*
           else
+            chmod +x ${{env.staging_dir}}/ucm
             artifact_archive=ucm-${{env.artifact_os}}.tar.gz
             tar -c -z -f ${artifact_archive} -C ${{env.staging_dir}} .
           fi
