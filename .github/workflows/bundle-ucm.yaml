@@ -65,7 +65,7 @@ jobs:
           else
             ucm=$(stack exec which unison)
           fi
-          echo ucm="$ucm" > $GITHUB_ENV
+          echo ucm="$ucm" >> $GITHUB_ENV
           ls -l $ucm
 
       - name: save stack caches
