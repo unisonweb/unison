@@ -196,17 +196,13 @@ jobs:
           artifact_os="$(echo $RUNNER_OS | tr '[:upper:]' '[:lower:]')"
           echo "staging_dir=$staging_dir" >> $GITHUB_ENV
           echo "artifact_os=$artifact_os" >> $GITHUB_ENV
-      - name: make staging dir
-        run: mkdir -p ${{env.staging_dir}}/{racket,ui}
       - name: download ucm
         uses: actions/download-artifact@v4
         with:
           name: unison-${{matrix.os}}
-          path: ${{env.staging_dir}}/
+          path: ${{env.staging_dir}}/unison/
       - name: restore permissions on ucm
-        run: chmod +x ${{env.staging_dir}}/unison
-      - name: rename unison -> ucm
-        run: mv ${{env.staging_dir}}/unison ${{env.staging_dir}}/ucm
+        run: chmod +x ${{env.staging_dir}}/unison/unison
       - name: download racket lib
         uses: actions/download-artifact@v4
         with:
@@ -228,10 +224,22 @@ jobs:
           curl -L -o /tmp/unisonLocal.zip \
             https://github.com/unisonweb/unison-local-ui/releases/download/latest/unisonLocal.zip
           unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
+      - name: create startup script
+        run: |
+          if [[ ${{runner.os}} = 'Windows' ]]; then
+            echo > ${{env.staging_dir}}/ucm.cmd << EOF
+            @echo off
+            "%~dp0unison\ucm.exe" --runtime-path "%~dp0runtime\unison-runtime.exe"
+            EOF
+          else
+            echo > ${{env.staging_dir}}/ucm << EOF
+            #!/bin/bash
+            $(dirname "$0")/unison/unison --runtime-path $(dirname "$0")/runtime/bin/unison-runtime
+            EOF
+            chmod +x ${{env.staging_dir}}/ucm
+          fi
       - name: package everything together
         run: |
-          ls -l `find ${{env.staging_dir}}`
-
           if [[ ${{runner.os}} = 'Windows' ]]; then
             artifact_archive=ucm-${{env.artifact_os}}.zip
             7z a -r -tzip ${artifact_archive} ${{env.staging_dir}}/*
@@ -240,8 +248,6 @@ jobs:
             tar -c -z -f ${artifact_archive} -C ${{env.staging_dir}} .
           fi
           echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
-          ls -l ${{env.artifact_archive}}
-
       - name: upload artifact
         uses: actions/upload-artifact@v4
         with:
