@@ -1,5 +1,5 @@
 name: pre-release
-run-name: pre-release ${{inputs.version}}
+run-name: pre-release ${{github.ref_name}}
 
 defaults:
   run:
@@ -12,10 +12,6 @@ on:
     types:
       - completed
   workflow_dispatch:
-    inputs:
-      tag:
-        description: specify the tag name for the release
-        required: false
 
 jobs:
   bundle-ucm:
@@ -40,13 +36,7 @@ jobs:
           path: /tmp/ucm
 
       - name: derive release tag
-        run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            ref_name=${{ github.event.inputs.tag }}
-          else
-            ref_name=$(echo ${{ github.ref_name }} | awk -F'/' '{print $NF}')
-          fi
-          echo "ref_name=$ref_name" >> $GITHUB_ENV
+        run: echo "ref_name=$(echo ${{ github.ref_name }} | awk -F'/' '{print $NF}')" >> $GITHUB_ENV
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
