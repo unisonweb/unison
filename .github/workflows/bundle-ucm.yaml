@@ -226,7 +226,7 @@ jobs:
           unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
       - name: create startup script (non-Windows)
         if: runner.os != 'Windows'
-        uses: 1arp/create-a-file@0
+        uses: 1arp/create-a-file-action@0
         with:
           path: ${{env.staging_dir}}
           file: ucm
