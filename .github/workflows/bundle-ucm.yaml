@@ -235,7 +235,7 @@ jobs:
             $(dirname "$0")/unison/unison --runtime-path $(dirname "$0")/runtime/bin/unison-runtime
       - name: create startup script (Windows)
         if: runner.os == 'Windows'
-        uses: 1arp/create-a-file-action@v0
+        uses: 1arp/create-a-file-action@0.4.4
         with:
           path: ${{env.staging_dir}}
           file: ucm.cmd
